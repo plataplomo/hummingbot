@@ -37,6 +37,7 @@ from cyberdelta.core.risk.sizing.models.sizing_result import (
     SizingStatus,
 )
 from cyberdelta.core.risk.sizing.orchestrator.position_sizer import PositionSizer
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -167,7 +168,7 @@ def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
 
 
 def create_test_opportunity(
-    symbol: str = "BTC-PERP",
+    symbol: str = symbols.BTC.hyperliquid().value,
     long_exchange: str = "exchange1",
     short_exchange: str = "exchange2",
     long_price: float = 50000.0,
@@ -297,7 +298,7 @@ class TestPositionSizer:
     async def test_calculate_position_size_success(self) -> None:
         """Test successful position size calculation."""
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -321,7 +322,7 @@ class TestPositionSizer:
         position_sizer = PositionSizer(sizer=small_sizer, app_settings=self.config)
 
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -341,7 +342,7 @@ class TestPositionSizer:
         position_sizer = PositionSizer(sizer=large_sizer, app_settings=self.config)
 
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -362,7 +363,7 @@ class TestPositionSizer:
         position_sizer = PositionSizer(sizer=large_sizer, app_settings=self.config)
 
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -392,7 +393,7 @@ class TestPositionSizer:
         position_sizer = PositionSizer(sizer=high_leverage_sizer, app_settings=config)
 
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -422,7 +423,7 @@ class TestPositionSizer:
 
         # High volatility opportunity
         high_vol_opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -431,7 +432,7 @@ class TestPositionSizer:
 
         # Low volatility opportunity
         low_vol_opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -456,7 +457,7 @@ class TestPositionSizer:
         position_sizer = PositionSizer(sizer=error_sizer, app_settings=self.config)
 
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -477,7 +478,7 @@ class TestPositionSizer:
         position_sizer = PositionSizer(sizer=reject_sizer, app_settings=self.config)
 
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -495,7 +496,7 @@ class TestPositionSizer:
     async def test_calculate_position_size_async(self) -> None:
         """Test async position size calculation."""
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -512,7 +513,7 @@ class TestPositionSizer:
     async def test_apply_risk_adjustments(self) -> None:
         """Test risk adjustment application."""
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="exchange1",
             short_exchange="exchange2",
             long_price=50000.0,
@@ -541,7 +542,7 @@ class TestPositionSizer:
         assert self.position_sizer.sizer.name == "NewSizer"
 
         # Test that new sizer is used
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         result = await self.position_sizer.size_opportunity(opportunity, Decimal("100000.0"))
 
         assert result.position_size_usd == Decimal("2500.0")
@@ -565,7 +566,7 @@ class TestPositionSizer:
         assert position_sizer.app_settings == new_config
 
         # Test that new config is applied
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         result = await position_sizer.size_opportunity(opportunity, Decimal("150000.0"))
 
         # Should return the mock sizer result (unchanged by config)
@@ -576,9 +577,9 @@ class TestPositionSizer:
         """Test getting sizing statistics."""
         # Process multiple opportunities
         opportunities = [
-            create_test_opportunity(symbol="BTC-PERP"),
-            create_test_opportunity(symbol="ETH-PERP"),
-            create_test_opportunity(symbol="SOL-PERP"),
+            create_test_opportunity(symbol=symbols.BTC.hyperliquid().value),
+            create_test_opportunity(symbol=symbols.ETH.hyperliquid().value),
+            create_test_opportunity(symbol=symbols.SOL.hyperliquid().value),
         ]
 
         for opp in opportunities:
@@ -595,7 +596,7 @@ class TestPositionSizer:
     async def test_reset_statistics(self) -> None:
         """Test resetting statistics."""
         # Process some opportunities
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         await self.position_sizer.size_opportunity(opportunity, Decimal("100000.0"))
 
         # Verify stats exist
@@ -641,7 +642,7 @@ class TestPositionSizer:
         error_sizer = ErrorSizer()
         position_sizer = PositionSizer(sizer=error_sizer, app_settings=self.config)
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await position_sizer.size_opportunity(opportunity, Decimal("100000.0"))
 
@@ -665,7 +666,7 @@ class TestPositionSizer:
     @pytest.mark.asyncio
     async def test_performance_timing(self) -> None:
         """Test that timing is properly recorded."""
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await self.position_sizer.size_opportunity(opportunity, Decimal("100000.0"))
 
@@ -695,7 +696,7 @@ class TestPositionSizerIntegration:
 
         # High-quality opportunity
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP", long_price=50000.0, short_price=50900.0
+            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50900.0
         )
 
         result = await position_sizer.size_opportunity(opportunity, Decimal("125000.0"))
@@ -723,9 +724,9 @@ class TestPositionSizerIntegration:
 
         # Multiple opportunities
         opportunities = [
-            create_test_opportunity(symbol="BTC-PERP"),
-            create_test_opportunity(symbol="ETH-PERP"),
-            create_test_opportunity(symbol="SOL-PERP"),
+            create_test_opportunity(symbol=symbols.BTC.hyperliquid().value),
+            create_test_opportunity(symbol=symbols.ETH.hyperliquid().value),
+            create_test_opportunity(symbol=symbols.SOL.hyperliquid().value),
         ]
 
         results: list[SizingResult] = []
@@ -806,7 +807,7 @@ class TestPositionSizerIntegration:
         zero_capital_sizer = MockSizer("ZeroCapitalSizer", result_size=500.0)
         position_sizer = PositionSizer(sizer=zero_capital_sizer, app_settings=config)
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await position_sizer.size_opportunity(opportunity, Decimal("0.0"))  # Zero capital
 

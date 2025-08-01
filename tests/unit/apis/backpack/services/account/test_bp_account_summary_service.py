@@ -43,6 +43,7 @@ from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.core.models import AccountSettings
 from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
+from cyberdelta.core.symbols import symbols
 
 
 @pytest.fixture
@@ -177,7 +178,7 @@ def mock_raw_position() -> BackpackRawPositionResponse:
         BackpackRawPositionResponse: A mock position for BTC-PERP.
     """
     return BackpackRawPositionResponse.model_validate({
-        "symbol": "BTC-PERP",
+        "symbol": symbols.BTC.backpack().value,
         "netQuantity": "1.5",
         "entryPrice": "50000.00",
         "netExposureNotional": "75000.00",
@@ -666,7 +667,7 @@ class TestBackpackAccountSummaryService:
     ) -> None:
         """Test account summary when positions API returns dict response (instead of list)."""
         # Arrange
-        dict_response = {"BTC-PERP": mock_raw_position.model_dump()}
+        dict_response = {symbols.BTC.backpack().value: mock_raw_position.model_dump()}
 
         # Mock the HTTP calls for account settings and positions
         mock_http_client.side_effect = [

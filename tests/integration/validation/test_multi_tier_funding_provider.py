@@ -17,6 +17,7 @@ from cyberdelta.validation.funding_data import (
 from cyberdelta.validation.multi_tier_funding_provider import (
     MultiTierFundingProvider,
 )
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 pytestmark = pytest.mark.timing
@@ -47,7 +48,7 @@ class TestMultiTierFundingProvider:
         self.mock_validator = MagicMock()
         mock_metrics = FundingRateValidationMetrics(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rmse=0.0005,
             mae=0.0003,
             bias=0.0001,
@@ -139,12 +140,12 @@ class TestMultiTierFundingProvider:
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Verify sources were called
-        self.primary_source.assert_called_once_with("BTC-PERP")
-        self.secondary_source.assert_called_once_with("BTC-PERP")
-        self.tertiary_source.assert_called_once_with("BTC-PERP")
+        self.primary_source.assert_called_once_with(BTC_HL.value)
+        self.secondary_source.assert_called_once_with(BTC_HL.value)
+        self.tertiary_source.assert_called_once_with(BTC_HL.value)
 
         # Verify result
         assert rate == cast(float, pytest.approx(0.00147865, abs=1e-7))
@@ -162,10 +163,10 @@ class TestMultiTierFundingProvider:
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Verify only primary source was called
-        self.primary_source.assert_called_once_with("BTC-PERP")
+        self.primary_source.assert_called_once_with(BTC_HL.value)
 
         # Verify result
         assert rate == cast(float, pytest.approx(0.0015, abs=1e-5))
@@ -190,11 +191,11 @@ class TestMultiTierFundingProvider:
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Verify primary and secondary sources were called
-        self.primary_source.assert_called_once_with("BTC-PERP")
-        self.secondary_source.assert_called_once_with("BTC-PERP")
+        self.primary_source.assert_called_once_with(BTC_HL.value)
+        self.secondary_source.assert_called_once_with(BTC_HL.value)
 
         # Verify result uses secondary
         assert rate == cast(float, pytest.approx(0.0014, abs=1e-5))
@@ -233,13 +234,13 @@ class TestMultiTierFundingProvider:
         )
 
         # Get funding rate
-        rate, confidence = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await self.provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Verify all sources were called
-        self.primary_source.assert_called_once_with("BTC-PERP")
-        self.secondary_source.assert_called_once_with("BTC-PERP")
-        self.tertiary_source.assert_called_once_with("BTC-PERP")
-        self.fallback_source.assert_called_once_with("BTC-PERP")
+        self.primary_source.assert_called_once_with(BTC_HL.value)
+        self.secondary_source.assert_called_once_with(BTC_HL.value)
+        self.tertiary_source.assert_called_once_with(BTC_HL.value)
+        self.fallback_source.assert_called_once_with(BTC_HL.value)
 
         # Verify result uses fallback
         assert rate == cast(float, pytest.approx(0.0013, abs=1e-5))
@@ -276,19 +277,19 @@ class TestMultiTierFundingProvider:
             FundingRateSourceError,
             match="No funding rate data available for hyperliquid:BTC-PERP",
         ):
-            await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
+            await self.provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Verify all sources were called
-        self.primary_source.assert_called_once_with("BTC-PERP")
-        self.secondary_source.assert_called_once_with("BTC-PERP")
-        self.tertiary_source.assert_called_once_with("BTC-PERP")
+        self.primary_source.assert_called_once_with(BTC_HL.value)
+        self.secondary_source.assert_called_once_with(BTC_HL.value)
+        self.tertiary_source.assert_called_once_with(BTC_HL.value)
 
     def test_clear_cache(self) -> None:
         """Test clearing the funding rate cache."""
         # Add some data to cache
-        self.provider.funding_cache["hyperliquid", "BTC-PERP"] = IntegratedFundingData(
+        self.provider.funding_cache["hyperliquid", BTC_HL.value] = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0015,
             timestamp=datetime.now(UTC),
             dispersion=0.0001,
@@ -314,7 +315,7 @@ class TestMultiTierFundingProvider:
         now = datetime.now(UTC)
         fresh_entry = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0015,
             timestamp=now,
             dispersion=0.0001,
@@ -327,7 +328,7 @@ class TestMultiTierFundingProvider:
 
         stale_entry = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="ETH-PERP",
+            symbol=ETH_HL.value,
             rate=0.0025,
             timestamp=now - timedelta(seconds=600),  # 10 minutes old
             dispersion=0.0002,
@@ -338,8 +339,8 @@ class TestMultiTierFundingProvider:
             confidence_score=0.7,
         )
 
-        self.provider.funding_cache["hyperliquid", "BTC-PERP"] = fresh_entry
-        self.provider.funding_cache["hyperliquid", "ETH-PERP"] = stale_entry
+        self.provider.funding_cache["hyperliquid", BTC_HL.value] = fresh_entry
+        self.provider.funding_cache["hyperliquid", ETH_HL.value] = stale_entry
 
         # Verify cache has data
         assert len(self.provider.funding_cache) == 2
@@ -350,8 +351,8 @@ class TestMultiTierFundingProvider:
         # Verify stale entry was cleared
         assert cleared == 1
         assert len(self.provider.funding_cache) == 1
-        assert ("hyperliquid", "BTC-PERP") in self.provider.funding_cache
-        assert ("hyperliquid", "ETH-PERP") not in self.provider.funding_cache
+        assert ("hyperliquid", BTC_HL.value) in self.provider.funding_cache
+        assert ("hyperliquid", ETH_HL.value) not in self.provider.funding_cache
 
     @pytest.mark.asyncio
     async def test_integrate_funding_data_through_public_interface(self) -> None:
@@ -360,7 +361,7 @@ class TestMultiTierFundingProvider:
         now = datetime.now(UTC)
         primary_data = FundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0015,
             timestamp=now,
             source_type=SourceType.PRIMARY,
@@ -369,7 +370,7 @@ class TestMultiTierFundingProvider:
 
         secondary_data = FundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0014,
             timestamp=now - timedelta(seconds=60),
             source_type=SourceType.SECONDARY,
@@ -378,7 +379,7 @@ class TestMultiTierFundingProvider:
 
         tertiary_data = FundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0016,
             timestamp=now - timedelta(seconds=120),
             source_type=SourceType.TERTIARY,
@@ -391,7 +392,7 @@ class TestMultiTierFundingProvider:
         self.tertiary_source.return_value = tertiary_data
 
         # Call the public method
-        rate, confidence_score = await self.provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence_score = await self.provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Verify result
         # The integrated rate should be the reliability-weighted average:
@@ -402,20 +403,20 @@ class TestMultiTierFundingProvider:
         assert confidence_score > 0.7  # Should have high confidence with all sources
 
         # Verify sources were called
-        self.primary_source.assert_called_once_with("hyperliquid", "BTC-PERP")
-        self.secondary_source.assert_called_once_with("hyperliquid", "BTC-PERP")
-        self.tertiary_source.assert_called_once_with("hyperliquid", "BTC-PERP")
+        self.primary_source.assert_called_once_with("hyperliquid", BTC_HL.value)
+        self.secondary_source.assert_called_once_with("hyperliquid", BTC_HL.value)
+        self.tertiary_source.assert_called_once_with("hyperliquid", BTC_HL.value)
 
         # Verify the result is cached
-        assert ("hyperliquid", "BTC-PERP") in self.provider.funding_cache
-        cached_data = self.provider.funding_cache["hyperliquid", "BTC-PERP"]
+        assert ("hyperliquid", BTC_HL.value) in self.provider.funding_cache
+        cached_data = self.provider.funding_cache["hyperliquid", BTC_HL.value]
         assert cached_data.rate == pytest.approx(0.00147865, abs=1e-7)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_no_data(self) -> None:
         """Test getting funding rate when no data is available."""
         exchange_name = "hyperliquid"
-        symbol_name = "BTC-PERP"
+        symbol_name = BTC_HL.value
         # Register sources
         self.primary_source.side_effect = Exception("Primary source failed")
         self.secondary_source.side_effect = Exception("Secondary source failed")

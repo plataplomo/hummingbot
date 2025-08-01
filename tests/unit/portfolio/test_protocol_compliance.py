@@ -33,6 +33,7 @@ from cyberdelta.core.portfolio.services.null_objects import (
     NullPositionManager,
     NullStateManager,
 )
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -146,9 +147,10 @@ class TestPositionManagerProtocolCompliance:
         manager = NullPositionManager()
 
         # Create test data
+        btc_symbol = symbols.BTC.hyperliquid()
         position = DerivativePosition(
             exchange="test",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             size=Decimal("1.0"),
             entry_price=Decimal(50000),
@@ -162,18 +164,18 @@ class TestPositionManagerProtocolCompliance:
         await manager.update_positions("test", [position])
 
         # Test get_position
-        result = await manager.get_position("test", "BTC-PERP")
+        result = await manager.get_position("test", btc_symbol.value)
         assert result is None  # Null object returns None
 
         # Test get_positions_by_symbol
-        positions = await manager.get_positions_by_symbol("BTC-PERP")
+        positions = await manager.get_positions_by_symbol(btc_symbol.value)
         assert positions == []  # Null object returns empty list
 
         # Test update_position_from_trade
         trade = Trade(
             id="test_trade",
             exchange="test",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal(50000),
             quantity=Decimal("0.1"),
@@ -318,9 +320,10 @@ class TestStateManagerProtocolCompliance:
         )
         await manager.update_balances("test", {"BTC": balance})
 
+        btc_symbol = symbols.BTC.hyperliquid()
         position = DerivativePosition(
             exchange="test",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             size=Decimal("1.0"),
             entry_price=Decimal(50000),

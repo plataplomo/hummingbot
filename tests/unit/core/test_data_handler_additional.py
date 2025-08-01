@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.core.symbols import Symbol, symbols
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.data_handler import (
     DEFAULT_STALENESS_SECONDS,
@@ -33,14 +34,14 @@ def mock_app_settings() -> Mock:
     """
     settings = Mock(spec=AppSettings)
 
-    # Create mock exchange configs
+    # Create mock exchange configs with empty symbols to avoid DataHandler initialization issues
     hl_config = Mock()
     hl_config.enabled = True
-    hl_config.symbols = {"BTC": {}, "ETH": {}, "BTC-PERP": {}, "ETH-PERP": {}}
+    hl_config.symbols = {}  # Empty to avoid _get_default_ticker issues
 
     bp_config = Mock()
     bp_config.enabled = True
-    bp_config.symbols = {"BTC": {}, "SOL": {}, "BTC-PERP": {}, "SOL-PERP": {}}
+    bp_config.symbols = {}  # Empty to avoid _get_default_ticker issues
 
     settings.exchanges = {"hyperliquid": hl_config, "backpack": bp_config}
     return settings
@@ -80,7 +81,7 @@ def data_handler(
     return DataHandler(
         app_settings=mock_app_settings,
         api_clients={},  # Start with empty api_clients dict
-        portfolio_tracker=mock_portfolio_state_manager,
+        portfolio_state_manager=mock_portfolio_state_manager,
         symbol_mapper=mock_symbol_service,
         loop=mock_loop,
     )
@@ -107,8 +108,9 @@ def sample_ticker() -> Ticker:
     Returns:
         Ticker: A sample BTC-PERP ticker for testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return Ticker(
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         exchange="test_exchange",
         bid=Decimal("49900.0"),
         ask=Decimal("50100.0"),
@@ -124,8 +126,9 @@ def sample_order_book() -> OrderBook:
     Returns:
         OrderBook: A sample BTC-PERP order book for testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return OrderBook(
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         bids=[
             (Decimal("49900.0"), Decimal("0.5")),
             (Decimal("49800.0"), Decimal("1.0")),
@@ -145,8 +148,9 @@ def sample_funding_rate() -> FundingRate:
     Returns:
         FundingRate: A sample BTC-PERP funding rate for testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return FundingRate(
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         funding_rate=Decimal("0.0001"),
         timestamp=datetime.now(UTC),
         next_funding_time=datetime.now(UTC) + timedelta(hours=8),
@@ -160,8 +164,9 @@ def sample_candle() -> Candle:
     Returns:
         Candle: A sample BTC-PERP candle for testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return Candle(
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal("50000.0"),
@@ -439,8 +444,9 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting fresh ticker data."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
-        symbol = "BTC-PERP"
+        symbol = btc_symbol.value
 
         # Store fresh ticker data
         data_handler.tickers[exchange_id] = {symbol: sample_ticker}
@@ -458,8 +464,9 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting fresh order book data."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
-        symbol = "BTC-PERP"
+        symbol = btc_symbol.value
 
         # Store fresh order book data
         data_handler.order_books[exchange_id] = {symbol: sample_order_book}
@@ -477,8 +484,9 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting fresh funding rate data."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
-        symbol = "BTC-PERP"
+        symbol = btc_symbol.value
 
         # Store fresh funding rate data
         data_handler.funding_rates[exchange_id] = {symbol: sample_funding_rate}
@@ -492,9 +500,11 @@ class TestDataHandlerDataRetrieval:
     def test_get_all_tickers_success_multiple_tickers(self, data_handler: DataHandler) -> None:
         """Test getting all tickers for an exchange."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
         exchange_id = "hyperliquid"
         ticker1 = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="hyperliquid",
             bid=Decimal("49900.0"),
             ask=Decimal("50100.0"),
@@ -502,7 +512,7 @@ class TestDataHandlerDataRetrieval:
             timestamp=datetime.now(UTC),
         )
         ticker2 = Ticker(
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             exchange="hyperliquid",
             bid=Decimal("2990.0"),
             ask=Decimal("3010.0"),
@@ -511,8 +521,8 @@ class TestDataHandlerDataRetrieval:
         )
 
         data_handler.tickers[exchange_id] = {
-            "BTC-PERP": ticker1,
-            "ETH-PERP": ticker2,
+            btc_symbol.value: ticker1,
+            eth_symbol.value: ticker2,
         }
 
         # Act
@@ -520,8 +530,8 @@ class TestDataHandlerDataRetrieval:
 
         # Assert
         assert len(result) == 2
-        assert result["BTC-PERP"] is ticker1
-        assert result["ETH-PERP"] is ticker2
+        assert result[btc_symbol.value] is ticker1
+        assert result[eth_symbol.value] is ticker2
 
     # ==================== EDGE CASES ====================
 
@@ -530,8 +540,9 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting stale ticker data returns None."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
-        symbol = "BTC-PERP"
+        symbol = btc_symbol.value
 
         # Set up ticker data and stale last_update_time
         stale_time = datetime.now(UTC) - timedelta(seconds=DEFAULT_STALENESS_SECONDS + 10)
@@ -546,8 +557,11 @@ class TestDataHandlerDataRetrieval:
 
     def test_get_latest_ticker_edge_nonexistent_exchange(self, data_handler: DataHandler) -> None:
         """Test getting ticker for non-existent exchange."""
+        # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Act
-        result = data_handler.get_latest_ticker("nonexistent", "BTC-PERP")
+        result = data_handler.get_latest_ticker("nonexistent", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -557,8 +571,9 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting ticker for non-existent symbol."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
-        data_handler.tickers[exchange_id] = {"BTC-PERP": sample_ticker}
+        data_handler.tickers[exchange_id] = {btc_symbol.value: sample_ticker}
 
         # Act
         result = data_handler.get_latest_ticker(exchange_id, "NONEXISTENT-PERP")
@@ -591,8 +606,9 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting stale order book data returns None."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
-        symbol = "BTC-PERP"
+        symbol = btc_symbol.value
 
         # Set up order book data and stale last_update_time
         stale_time = datetime.now(UTC) - timedelta(seconds=DEFAULT_STALENESS_SECONDS + 10)
@@ -610,13 +626,14 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting stale funding rate data returns data with warning."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
-        symbol = "BTC-PERP"
+        symbol = btc_symbol.value
 
         # Create stale funding rate
         stale_time = datetime.now(UTC) - timedelta(seconds=DEFAULT_STALENESS_SECONDS + 10)
         stale_funding_rate = FundingRate(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             funding_rate=Decimal("0.0001"),
             timestamp=stale_time,
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
@@ -716,14 +733,16 @@ class TestDataHandlerFundingRateHandling:
     ) -> None:
         """Test fetching funding rates for specific symbols."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
         exchange_id = "hyperliquid"
-        symbols = ["BTC-PERP", "ETH-PERP"]
+        symbol_list = [btc_symbol.value, eth_symbol.value]
 
         data_handler.register_api_client(exchange_id, mock_api_client)
         mock_api_client.get_funding_rates.return_value = []
 
         # Act
-        await data_handler.fetch_funding_rates(exchange_id, symbols)
+        await data_handler.fetch_funding_rates(exchange_id, symbol_list)
 
         # Assert
         mock_api_client.get_funding_rates.assert_called_once()
@@ -750,9 +769,12 @@ class TestDataHandlerFundingRateHandling:
     @pytest.mark.asyncio
     async def test_fetch_funding_rates_edge_no_api_client(self, data_handler: DataHandler) -> None:
         """Test fetching funding rates with no registered API client."""
+        # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Act & Assert
         with patch("cyberdelta.core.data_handler.logger") as mock_logger:
-            await data_handler.fetch_funding_rates("nonexistent", ["BTC-PERP"])
+            await data_handler.fetch_funding_rates("nonexistent", [btc_symbol.value])
             # Should log error about missing API client
             mock_logger.error.assert_called()
 
@@ -762,13 +784,14 @@ class TestDataHandlerFundingRateHandling:
     ) -> None:
         """Test fetching funding rates when API client raises exception."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         exchange_id = "hyperliquid"
         data_handler.register_api_client(exchange_id, mock_api_client)
         mock_api_client.get_funding_rates.side_effect = ConnectionError("API error")
 
         # Act & Assert
         with patch("cyberdelta.core.data_handler.logger") as mock_logger:
-            await data_handler.fetch_funding_rates(exchange_id, ["BTC-PERP"])
+            await data_handler.fetch_funding_rates(exchange_id, [btc_symbol.value])
             # Should log the exception
             mock_logger.exception.assert_called()
 

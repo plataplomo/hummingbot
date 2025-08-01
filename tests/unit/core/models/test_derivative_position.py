@@ -15,6 +15,7 @@ from cyberdelta.core.models.derivative_position import (
     DerivativePosition,
     HyperliquidPositionDetails,
 )
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import FieldNameMissingError
 from cyberdelta.exceptions.parsing import ParsingError
@@ -67,9 +68,10 @@ def base_derivative_position_data() -> dict[str, Any]:
     Returns:
         dict[str, Any]: Valid core data dictionary for DerivativePosition testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return {
         "exchange": "hyperliquid",
-        "symbol": "BTC-PERP",
+        "symbol": btc_symbol,
         "side": OrderSide.BUY,
         "size": Decimal("1.5"),
         "entry_price": Decimal("50000.0"),
@@ -90,9 +92,10 @@ def test_derivative_position_successful_creation(
     base_derivative_position_data: dict[str, Any],
 ) -> None:
     """Test successful creation with valid core data, no details."""
+    btc_symbol = symbols.BTC.hyperliquid()
     pos = DerivativePosition(**base_derivative_position_data)
     assert pos.exchange == "hyperliquid"
-    assert pos.symbol == "BTC-PERP"
+    assert pos.symbol == btc_symbol
     assert pos.side == OrderSide.BUY
     assert pos.size == Decimal("1.5")
     assert pos.entry_price == Decimal("50000.0")
@@ -218,13 +221,9 @@ def test_derivative_position_mutability(
         # Required Strings
         ("exchange", None, "Field 'exchange' must be str, got NoneType"),
         ("exchange", "", "Field exchange: String cannot be empty"),
-        ("symbol", None, "Field 'symbol' must be str, got NoneType"),
-        ("symbol", "   ", "Field symbol: String cannot be empty"),
-        (
-            "symbol",
-            "S" * 65,
-            "Field 'symbol' must be string with max length 64, got string with length 65",
-        ),
+        ("symbol", None, "Field 'symbol' must be Symbol, got NoneType"),
+        ("symbol", "BTC-PERP", "Field 'symbol' must be Symbol, got str"),
+        ("symbol", 123, "Field 'symbol' must be Symbol, got int"),
         # Required Enum
         ("side", None, "Input should be 'BUY' or 'SELL'"),
         ("side", "NEUTRAL", "Input should be 'BUY' or 'SELL'"),

@@ -15,6 +15,7 @@ from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.order_manager import OrderManager
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -28,10 +29,11 @@ def sample_order() -> Order:
     Returns:
         Order: A sample order instance for testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return Order(
         client_order_id="TEST-ORDER-001",
         exchange_order_id="EXCHANGE-001",
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         time_in_force=TimeInForce.IOC,
@@ -57,11 +59,12 @@ def sample_trade() -> Trade:
     Returns:
         Trade: A sample trade instance for testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return Trade(
         id="TRADE-001",
         order_id="EXCHANGE-001",
         client_order_id="TEST-ORDER-001",
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         side=OrderSide.BUY,
         exchange="test_exchange",
         price=Decimal("50000.0"),
@@ -97,11 +100,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_success_complete_fill(self, sample_order: Order) -> None:
         """Test successful application of fill that completes the order."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         full_trade = Trade(
             id="TRADE-002",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -122,11 +126,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_success_multiple_fills(self, sample_order: Order) -> None:
         """Test successful application of multiple fills with correct average price calculation."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         trade1 = Trade(
             id="TRADE-001",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -139,7 +144,7 @@ class TestOrderManagerApplyFill:
             id="TRADE-002",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("51000.0"),
@@ -165,11 +170,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_edge_tiny_overfill_snapped(self, sample_order: Order) -> None:
         """Test handling of tiny overfill within tolerance."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         overfill_trade = Trade(
             id="TRADE-003",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -192,11 +198,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_edge_large_overfill_error(self, sample_order: Order) -> None:
         """Test handling of significant overfill."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         overfill_trade = Trade(
             id="TRADE-004",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -248,12 +255,13 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_edge_zero_quantity_trade(self, sample_order: Order) -> None:
         """Test that zero quantity trades are not allowed (business logic validation)."""
         # Arrange & Act & Assert
+        btc_symbol = symbols.BTC.hyperliquid()
         with pytest.raises(ValidationError) as exc_info:
             Trade(
                 id="TRADE-005",
                 order_id="EXCHANGE-001",
                 client_order_id="TEST-ORDER-001",
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 side=OrderSide.BUY,
                 exchange="test_exchange",
                 price=Decimal("50000.0"),
@@ -273,11 +281,12 @@ class TestOrderManagerApplyFill:
     ) -> None:
         """Test correct average price calculation with vastly different prices."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         trade1 = Trade(
             id="TRADE-001",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("10000.0"),  # Very low price
@@ -290,7 +299,7 @@ class TestOrderManagerApplyFill:
             id="TRADE-002",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("90000.0"),  # Very high price
@@ -314,11 +323,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_failure_mismatched_order_id(self, sample_order: Order) -> None:
         """Test warning when trade order_id doesn't match."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         mismatched_trade = Trade(
             id="TRADE-006",
             order_id="DIFFERENT-ORDER",  # Mismatched
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -341,11 +351,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_failure_mismatched_client_order_id(self, sample_order: Order) -> None:
         """Test warning when trade client_order_id doesn't match."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         mismatched_trade = Trade(
             id="TRADE-007",
             order_id="EXCHANGE-001",
             client_order_id="DIFFERENT-CLIENT-ORDER",  # Mismatched
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -368,11 +379,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_failure_mismatched_symbol(self, sample_order: Order) -> None:
         """Test warning when trade symbol doesn't match."""
         # Arrange
+        eth_symbol = symbols.ETH.hyperliquid()
         mismatched_trade = Trade(
             id="TRADE-008",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="ETH-PERP",  # Different symbol
+            symbol=eth_symbol,  # Different symbol
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("3000.0"),
@@ -395,11 +407,12 @@ class TestOrderManagerApplyFill:
     def test_apply_fill_failure_mismatched_side(self, sample_order: Order) -> None:
         """Test warning when trade side doesn't match."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         mismatched_trade = Trade(
             id="TRADE-009",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.SELL,  # Different side
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -469,11 +482,12 @@ def test_order_status_transitions(
     else:
         fill_quantity = sample_order.quantity_requested * fill_fraction
 
+    btc_symbol = symbols.BTC.hyperliquid()
     trade = Trade(
         id=f"TRADE-PARAM-{initial_status.value}",
         order_id="EXCHANGE-001",
         client_order_id="TEST-ORDER-001",
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         side=OrderSide.BUY,
         exchange="test_exchange",
         price=Decimal("50000.0"),
@@ -525,12 +539,13 @@ def test_average_price_calculation(
 ) -> None:
     """Test average fill price calculation across multiple trades."""
     # Arrange & Act
+    btc_symbol = symbols.BTC.hyperliquid()
     for i, (price, quantity) in enumerate(zip(prices, quantities, strict=False)):
         trade = Trade(
             id=f"TRADE-AVG-{i}",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=price,
@@ -551,10 +566,11 @@ class TestOrderManagerEdgeCases:
     def test_apply_fill_edge_order_with_no_exchange_order_id(self) -> None:
         """Test applying fill to order without exchange_order_id."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         order = Order(
             client_order_id="TEST-ORDER-NO-EXCHANGE-ID",
             exchange_order_id=None,  # No exchange ID
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             time_in_force=TimeInForce.IOC,
@@ -575,7 +591,7 @@ class TestOrderManagerEdgeCases:
             id="TRADE-NO-EXCHANGE",
             order_id="SOME-EXCHANGE-ID",
             client_order_id="TEST-ORDER-NO-EXCHANGE-ID",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -602,10 +618,11 @@ class TestOrderManagerEdgeCases:
     def test_apply_fill_edge_trade_with_same_side(self) -> None:
         """Test applying trade with matching side - no warning expected."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         order = Order(
             client_order_id="TEST-ORDER-001",
             exchange_order_id="EXCHANGE-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             time_in_force=TimeInForce.IOC,
@@ -626,7 +643,7 @@ class TestOrderManagerEdgeCases:
             id="TRADE-NO-SIDE",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,  # Will test side mismatch differently
             exchange="test_exchange",
             price=Decimal("50000.0"),
@@ -648,11 +665,12 @@ class TestOrderManagerEdgeCases:
         """Test that updated_at respects order's timezone."""
         # Arrange
         utc_plus_5 = timezone(timedelta(hours=5))
+        btc_symbol = symbols.BTC.hyperliquid()
 
         order = Order(
             client_order_id="TEST-ORDER-TZ",
             exchange_order_id="EXCHANGE-001",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             time_in_force=TimeInForce.IOC,
@@ -673,7 +691,7 @@ class TestOrderManagerEdgeCases:
             id="TRADE-TZ",
             order_id="EXCHANGE-001",
             client_order_id="TEST-ORDER-TZ",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             exchange="test_exchange",
             price=Decimal("50000.0"),

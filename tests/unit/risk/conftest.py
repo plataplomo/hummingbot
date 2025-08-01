@@ -19,6 +19,7 @@ from cyberdelta.core.risk_manager import (
     PortfolioTrackerProtocol,
     RiskManager,
 )
+from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.funding_rate_validator import FundingRateValidator
@@ -260,7 +261,7 @@ def sample_opportunity_dict() -> dict[str, Any]:
     """
     now = datetime.now(UTC)
     return {
-        "symbol": "BTC-PERP",
+        "symbol": symbols.BTC.hyperliquid().value,
         "long_exchange": "exchange_a",
         "short_exchange": "exchange_b",
         "long_price": Decimal(30000),

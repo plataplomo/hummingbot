@@ -43,6 +43,8 @@ from cyberdelta.validation.circuit_breaker import (
     CircuitBreakerTrippedError,
 )
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from cyberdelta.core.symbols import Symbol, symbols
+from tests.fixtures.symbol_domain_fixtures import SymbolSet
 
 
 pytestmark = pytest.mark.timing
@@ -74,7 +76,7 @@ def _get_symbol_service_mock(execution_handler: ExecutionHandler) -> Mock:
 def _create_mock_order(
     client_order_id: str = "test_order_123",
     exchange_order_id: str = "exchange_123",
-    symbol: str = "BTC-PERP",
+    symbol: str | Symbol = symbols.BTC.hyperliquid(),  # Use Symbol object as default
     side: OrderSide = OrderSide.BUY,
     status: OrderStatus = OrderStatus.NEW,
     quantity_requested: Decimal = Decimal("1.0"),
@@ -90,7 +92,8 @@ def _create_mock_order(
     mock_order = Mock(spec=Order)
     mock_order.client_order_id = client_order_id
     mock_order.exchange_order_id = exchange_order_id
-    mock_order.symbol = symbol
+    # Handle both Symbol objects and strings for backwards compatibility
+    mock_order.symbol = symbol.value if isinstance(symbol, Symbol) else symbol
     mock_order.side = side
     mock_order.status = status
     mock_order.quantity_requested = quantity_requested
@@ -112,7 +115,7 @@ def _create_mock_order(
         return_value={
             "client_order_id": client_order_id,
             "exchange_order_id": exchange_order_id,
-            "symbol": symbol,
+            "symbol": symbol.value if isinstance(symbol, Symbol) else symbol,
             "side": side.value if hasattr(side, "value") else str(side),
             "status": status.value if hasattr(status, "value") else str(status),
             "quantity_requested": str(quantity_requested),
@@ -928,7 +931,7 @@ class TestCircuitBreakerIntegration:
     # SUCCESS CASES
     @pytest.mark.asyncio
     async def test_execute_opportunity_success_circuit_breakers_not_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
     ) -> None:
         """Test execution succeeds when circuit breakers are not tripped."""
         # Arrange - circuit breaker should allow execution
@@ -940,13 +943,14 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange1", mock_client1)
         execution_handler.register_api_client("exchange2", mock_client2)
 
-        # Set up symbol mapping to return valid symbols
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        # Set up symbol mapping to return valid symbols using Symbol fixture
+        btc_symbol = btc_symbols.perp_hl
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Mock successful order placement through the order service
         mock_order = Order(
             exchange="exchange1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             price=Decimal(50000),
@@ -983,6 +987,7 @@ class TestCircuitBreakerIntegration:
         mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
         sized_opportunity: SizedOpportunity,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution succeeds when circuit breaker system is None."""
         # Arrange
@@ -999,13 +1004,14 @@ class TestCircuitBreakerIntegration:
         handler.register_api_client("exchange1", mock_client1)
         handler.register_api_client("exchange2", mock_client2)
 
-        # Set up symbol mapping to return valid symbols
-        mock_symbol_service.get_exchange_symbol.return_value = "BTC-PERP"
+        # Set up symbol mapping to return valid symbols using Symbol fixture
+        btc_symbol = btc_symbols.perp_hl
+        mock_symbol_service.get_exchange_symbol.return_value = btc_symbol.value
 
         # Mock successful order placement
         mock_order = Order(
             exchange="exchange1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             price=Decimal(50000),
@@ -1035,10 +1041,11 @@ class TestCircuitBreakerIntegration:
     # EDGE CASES
     @pytest.mark.asyncio
     async def test_execute_opportunity_edge_both_exchanges_checked(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
     ) -> None:
         """Test that both exchanges are checked for circuit breaker status."""
         # Arrange - circuit breaker should allow execution
+        btc_symbol = btc_symbols.perp_hl
         _get_can_execute_mock(execution_handler).return_value = (True, None)
 
         # Set up API clients for validation to pass
@@ -1048,12 +1055,12 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Mock successful order placement
         mock_order = Order(
             exchange="exchange1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             price=Decimal(50000),
@@ -1089,10 +1096,12 @@ class TestCircuitBreakerIntegration:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_long_exchange_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
     ) -> None:
         """Test execution fails when long exchange circuit breaker is tripped."""
-        # Arrange - circuit breaker should trip for long exchange first, allow for short
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        # Circuit breaker should trip for long exchange first, allow for short
         _get_can_execute_mock(execution_handler).side_effect = [(False, "Test trip"), (True, None)]
 
         # Set up API clients for validation to pass
@@ -1102,7 +1111,7 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # No need to mock order placement as circuit breaker should prevent it
 
@@ -1120,10 +1129,12 @@ class TestCircuitBreakerIntegration:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_short_exchange_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
     ) -> None:
         """Test execution fails when short exchange circuit breaker is tripped."""
-        # Arrange - allow long exchange, trip short exchange circuit breaker
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        # Allow long exchange, trip short exchange circuit breaker
         _get_can_execute_mock(execution_handler).side_effect = [(True, None), (False, "Test trip")]
 
         # Set up API clients for validation to pass
@@ -1133,12 +1144,12 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Mock successful order for long exchange (first order should succeed)
         mock_order = Order(
             exchange="exchange1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             price=Decimal(50000),
@@ -1181,10 +1192,12 @@ class TestCircuitBreakerIntegration:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_both_exchanges_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
     ) -> None:
         """Test execution fails when both exchange circuit breakers are tripped."""
-        # Arrange - both circuit breakers should trip
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        # Both circuit breakers should trip
         _get_can_execute_mock(execution_handler).return_value = (False, "Test trip")
 
         # Set up API clients for validation to pass
@@ -1194,7 +1207,7 @@ class TestCircuitBreakerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -1414,9 +1427,11 @@ class TestExecutionHandlerIntegration:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test complete execution workflow from start to finish."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
 
@@ -1430,7 +1445,7 @@ class TestExecutionHandlerIntegration:
         mock_exchange_api.place_order.return_value = mock_order
 
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Act
         with patch.object(
@@ -1451,10 +1466,12 @@ class TestExecutionHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_execution_cleanup_on_failure(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
     ) -> None:
         """Test that execution is properly cleaned up on failure."""
-        # Arrange - Cannot test through private methods (_check_circuit_breakers)
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        # Cannot test through private methods (_check_circuit_breakers)
         # Register API clients to pass validation
         mock_client1 = AsyncMock(spec=ExchangeAPI)
         mock_client2 = AsyncMock(spec=ExchangeAPI)
@@ -1462,7 +1479,7 @@ class TestExecutionHandlerIntegration:
         execution_handler.register_api_client("exchange2", mock_client2)
 
         # Set up symbol mapping to return valid symbols
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Trigger failure through public API by making order placement fail
         # Use APIError which is caught by the business logic
@@ -1493,6 +1510,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successful execution with both long and short orders filled."""
         # Arrange
@@ -1510,7 +1528,8 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_long_order.quantity_filled = Decimal("0.02")  # 1.0 / 50000
         mock_long_order.average_fill_price = Decimal(50000)
         mock_long_order.trades = []
-        mock_long_order.symbol = "BTC-PERP"
+        btc_symbol = btc_symbols.perp_hl
+        mock_long_order.symbol = btc_symbol.value
         mock_long_order.side = OrderSide.BUY
         mock_long_order.updated_at = datetime.now(UTC)
 
@@ -1521,7 +1540,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_short_order.quantity_filled = Decimal("0.01996")  # 1.0 / 50100
         mock_short_order.average_fill_price = Decimal(50100)
         mock_short_order.trades = []
-        mock_short_order.symbol = "BTC-PERP"
+        mock_short_order.symbol = btc_symbol.value
         mock_short_order.side = OrderSide.SELL
         mock_short_order.updated_at = datetime.now(UTC)
 
@@ -1552,9 +1571,11 @@ class TestOrderPlacementThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successful order placement with individual trades through execute_opportunity."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
 
@@ -1571,7 +1592,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_order.quantity_filled = Decimal("0.02")
         mock_order.average_fill_price = Decimal(50000)
         mock_order.trades = [mock_trade]
-        mock_order.symbol = "BTC-PERP"
+        mock_order.symbol = btc_symbol.value
         mock_order.side = OrderSide.BUY
         mock_order.updated_at = datetime.now(UTC)
 
@@ -1579,7 +1600,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         with patch.object(
             execution_handler.portfolio_tracker, "process_trade", new=AsyncMock()
@@ -1598,9 +1619,11 @@ class TestOrderPlacementThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sample_opportunity: ArbitrageOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test handling of zero price in opportunity through execute_opportunity."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
 
@@ -1631,7 +1654,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opp)
@@ -1655,12 +1678,14 @@ class TestOrderPlacementThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test compensation when long order fills but short order fails.
 
         Tests execute_opportunity method handling of partial fills.
         """
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
 
@@ -1681,7 +1706,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_long_order.quantity_filled = Decimal("0.02")
         mock_long_order.average_fill_price = Decimal(50000)
         mock_long_order.trades = []
-        mock_long_order.symbol = "BTC-PERP"
+        mock_long_order.symbol = btc_symbol.value
         mock_long_order.side = OrderSide.BUY
         mock_long_order.updated_at = datetime.now(UTC)
 
@@ -1692,7 +1717,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_short_order.status = OrderStatus.REJECTED
         mock_short_order.quantity_filled = Decimal(0)  # No fill on rejected order
         mock_short_order.average_fill_price = None  # No price on rejected order
-        mock_short_order.symbol = "BTC-PERP"
+        mock_short_order.symbol = btc_symbol.value
         mock_short_order.side = OrderSide.SELL
         mock_short_order.updated_at = datetime.now(UTC)
 
@@ -1703,7 +1728,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_comp_order.status = OrderStatus.FILLED
         mock_comp_order.quantity_filled = Decimal("0.02")  # Match long order quantity
         mock_comp_order.average_fill_price = Decimal(50100)  # Slightly worse price
-        mock_comp_order.symbol = "BTC-PERP"
+        mock_comp_order.symbol = btc_symbol.value
         mock_comp_order.side = OrderSide.SELL
         mock_comp_order.updated_at = datetime.now(UTC)
         mock_comp_order.trades = []  # Add trades list like other orders
@@ -1719,7 +1744,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         with (
             patch.object(execution_handler.portfolio_tracker, "process_trade", new=AsyncMock()),
@@ -1753,9 +1778,11 @@ class TestOrderPlacementThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test failure when long order placement fails through execute_opportunity."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
 
@@ -1767,7 +1794,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -1784,12 +1811,14 @@ class TestOrderPlacementThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test API error during short order placement triggers compensation.
 
         Tests execute_opportunity method handling of API errors.
         """
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
 
@@ -1809,7 +1838,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_long_order.quantity_filled = Decimal("0.02")
         mock_long_order.average_fill_price = Decimal(50000)
         mock_long_order.trades = []
-        mock_long_order.symbol = "BTC-PERP"
+        mock_long_order.symbol = btc_symbol.value
         mock_long_order.side = OrderSide.BUY
         mock_long_order.client_order_id = "long_client_123"
         mock_long_order.updated_at = datetime.now(UTC)
@@ -1818,7 +1847,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
         mock_comp_order = Mock(spec=Order)
         mock_comp_order.exchange_order_id = "comp123"
         mock_comp_order.status = OrderStatus.FILLED
-        mock_comp_order.symbol = "BTC-PERP"
+        mock_comp_order.symbol = btc_symbol.value
         mock_comp_order.side = OrderSide.SELL
         mock_comp_order.client_order_id = "comp_client_123"
         mock_comp_order.updated_at = datetime.now(UTC)
@@ -1837,7 +1866,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
 
         # Mock circuit breakers as passing
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         with (
             patch.object(execution_handler.portfolio_tracker, "process_trade", new=AsyncMock()),
@@ -1866,9 +1895,11 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successful execution with orders placed on first attempt."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
@@ -1880,7 +1911,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         mock_long_order.quantity_filled = Decimal("0.02")
         mock_long_order.average_fill_price = Decimal(50000)
         mock_long_order.trades = []
-        mock_long_order.symbol = "BTC-PERP"
+        mock_long_order.symbol = btc_symbol.value
         mock_long_order.side = OrderSide.BUY
         mock_long_order.client_order_id = "long_client_123"
         mock_long_order.updated_at = datetime.now(UTC)
@@ -1891,7 +1922,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         mock_short_order.quantity_filled = Decimal("0.01996")
         mock_short_order.average_fill_price = Decimal(50100)
         mock_short_order.trades = []
-        mock_short_order.symbol = "BTC-PERP"
+        mock_short_order.symbol = btc_symbol.value
         mock_short_order.side = OrderSide.SELL
         mock_short_order.client_order_id = "short_client_123"
         mock_short_order.updated_at = datetime.now(UTC)
@@ -1913,14 +1944,16 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successful order placement after retry through execute_opportunity."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01  # Speed up test
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Create successful orders
         mock_long_order = Mock(spec=Order)
@@ -1929,7 +1962,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         mock_long_order.quantity_filled = Decimal("0.02")
         mock_long_order.average_fill_price = Decimal(50000)
         mock_long_order.trades = []
-        mock_long_order.symbol = "BTC-PERP"
+        mock_long_order.symbol = btc_symbol.value
         mock_long_order.side = OrderSide.BUY
         mock_long_order.client_order_id = "long_client_123"
         mock_long_order.updated_at = datetime.now(UTC)
@@ -1940,7 +1973,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         mock_short_order.quantity_filled = Decimal("0.01996")
         mock_short_order.average_fill_price = Decimal(50100)
         mock_short_order.trades = []
-        mock_short_order.symbol = "BTC-PERP"
+        mock_short_order.symbol = btc_symbol.value
         mock_short_order.side = OrderSide.SELL
         mock_short_order.client_order_id = "short_client_123"
         mock_short_order.updated_at = datetime.now(UTC)
@@ -1970,14 +2003,16 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test retry behavior when both orders need retries through execute_opportunity."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01  # Speed up test
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Create successful orders
         mock_long_order = Mock(spec=Order)
@@ -1986,7 +2021,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         mock_long_order.quantity_filled = Decimal("0.02")
         mock_long_order.average_fill_price = Decimal(50000)
         mock_long_order.trades = []
-        mock_long_order.symbol = "BTC-PERP"
+        mock_long_order.symbol = btc_symbol.value
         mock_long_order.side = OrderSide.BUY
         mock_long_order.client_order_id = "long_client_123"
         mock_long_order.updated_at = datetime.now(UTC)
@@ -1997,7 +2032,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         mock_short_order.quantity_filled = Decimal("0.01996")
         mock_short_order.average_fill_price = Decimal(50100)
         mock_short_order.trades = []
-        mock_short_order.symbol = "BTC-PERP"
+        mock_short_order.symbol = btc_symbol.value
         mock_short_order.side = OrderSide.SELL
         mock_short_order.client_order_id = "short_client_123"
         mock_short_order.updated_at = datetime.now(UTC)
@@ -2027,16 +2062,17 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test max retries exhausted on long order through execute_opportunity."""
         # Arrange
-
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         # Business logic uses configuration from app_settings at initialization time
         # Current behavior shows max_retries=4 in logs
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Always fail with retryable error
         api_error = APIError("Rate limited", APIErrorCode.RATE_LIMITED.value)
@@ -2058,11 +2094,13 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         self,
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution with no API client registered through execute_opportunity."""
         # Arrange - don't register any API clients
+        btc_symbol = btc_symbols.perp_hl
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -2083,13 +2121,15 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test non-retryable API error stops retry attempts through execute_opportunity."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         api_error = APIError("Invalid API key", APIErrorCode.AUTHENTICATION_FAILED.value)
         mock_exchange_api.place_order = AsyncMock(side_effect=api_error)
@@ -2110,16 +2150,17 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test max retries exhausted with retryable errors through execute_opportunity."""
         # Arrange
-
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         # Business logic uses configuration from app_settings at initialization time
         # Current behavior shows max_retries=4 in logs
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         api_error = APIError("Rate limited", APIErrorCode.RATE_LIMITED.value)
         mock_exchange_api.place_order = AsyncMock(side_effect=api_error)
@@ -2141,13 +2182,15 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test unexpected error during order placement through execute_opportunity."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         mock_exchange_api.place_order = AsyncMock(side_effect=ValueError("Unexpected error"))
 
@@ -2172,19 +2215,21 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test that execution successfully completes when orders are filled."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Create mock filled orders
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2195,7 +2240,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.short_size,
@@ -2223,20 +2268,22 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test that execution retries on temporary API errors and eventually succeeds."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01  # Speed up test
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Create mock filled orders for success
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2247,7 +2294,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.short_size,
@@ -2277,11 +2324,13 @@ class TestOrderStatusCheckingThroughPublicInterface:
         self,
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution fails when no API client is registered."""
         # Arrange - no API clients registered
+        btc_symbol = btc_symbols.perp_hl
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Act
         result = await execution_handler.execute_opportunity(sized_opportunity)
@@ -2327,20 +2376,22 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test handling of rate limit errors during execution."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         execution_handler.retry_delay_base = 0.01
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Create successful orders for after retry
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2351,7 +2402,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.short_size,
@@ -2386,13 +2437,15 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test authentication error causes execution failure without retries."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Setup: place_order fails with authentication error
         auth_error = APIError("Invalid API key", APIErrorCode.AUTHENTICATION_FAILED.value)
@@ -2442,13 +2495,15 @@ class TestOrderStatusCheckingThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test unexpected error during execution causes failure."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Setup: place_order throws unexpected error
         mock_exchange_api.place_order = AsyncMock(side_effect=ValueError("Unexpected error"))
@@ -2477,6 +2532,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successful compensation when short leg fails after long leg fills."""
         # Arrange
@@ -2486,10 +2542,11 @@ class TestCompensationBehaviorThroughPublicInterface:
         execution_handler.register_api_client("exchange2", mock_exchange_api2)
 
         # Mock successful long order (first exchange)
+        btc_symbol = btc_symbols.perp_hl
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2501,7 +2558,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_compensation_order = _create_mock_order(
             client_order_id="comp123",
             exchange_order_id="comp_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2534,9 +2591,11 @@ class TestCompensationBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successful compensation with limit order when short leg fails."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2547,7 +2606,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2565,7 +2624,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_comp_order = _create_mock_order(
             client_order_id="comp123",
             exchange_order_id="comp123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2593,9 +2652,11 @@ class TestCompensationBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test compensation falls back to market order when ticker unavailable."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2606,7 +2667,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2624,7 +2685,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_comp_order = _create_mock_order(
             client_order_id="comp123",
             exchange_order_id="comp123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2651,9 +2712,11 @@ class TestCompensationBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test compensation with order not immediately filled."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2664,7 +2727,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2682,7 +2745,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_comp_order = _create_mock_order(
             client_order_id="comp123",
             exchange_order_id="comp123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.NEW,  # Not filled yet
             quantity_requested=sized_opportunity.long_size,
@@ -2708,9 +2771,11 @@ class TestCompensationBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test compensation failure when compensation order placement fails."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2726,7 +2791,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2759,9 +2824,11 @@ class TestCompensationBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test compensation failure when compensation order raises exception."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2782,7 +2849,7 @@ class TestCompensationBehaviorThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2823,19 +2890,21 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution succeeds when both orders are filled."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         execution_handler.register_api_client("exchange1", mock_exchange_api)
         execution_handler.register_api_client("exchange2", mock_exchange_api)
         _get_can_execute_mock(execution_handler).return_value = (True, None)
-        _get_symbol_service_mock(execution_handler).return_value = "BTC-PERP"
+        _get_symbol_service_mock(execution_handler).return_value = btc_symbol.value
 
         # Create filled orders
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -2846,7 +2915,7 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short_order123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.short_size,
@@ -2873,9 +2942,11 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution handles when orders are returned with CANCELED status."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2908,9 +2979,11 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution handles when orders are returned with EXPIRED status."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2942,9 +3015,11 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution handles when orders are returned with REJECTED status."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -2977,9 +3052,11 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution handles API errors during order placement."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -3014,9 +3091,11 @@ class TestOrderStateVerificationThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successful execution when both orders are properly filled."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -3027,7 +3106,7 @@ class TestOrderStateVerificationThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3039,7 +3118,7 @@ class TestOrderStateVerificationThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3167,9 +3246,11 @@ class TestOrderStateVerificationThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution handles orders with unexpected/unknown status."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -3180,7 +3261,7 @@ class TestOrderStateVerificationThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.TRIGGER_PENDING,  # Unexpected status for market orders
             quantity_requested=Decimal("1.0"),
@@ -3192,7 +3273,7 @@ class TestOrderStateVerificationThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3219,9 +3300,11 @@ class TestOrderStateVerificationThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test execution handles rejected orders properly."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_exchange_api2 = Mock(spec=ExchangeAPI)
         mock_exchange_api2.exchange_id = "exchange2"
 
@@ -3259,6 +3342,7 @@ class TestPnLCalculationThroughPublicInterface:
         execution_handler: ExecutionHandler,
         sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test PnL calculation for profitable trade."""
         # Arrange
@@ -3272,7 +3356,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3283,7 +3367,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3328,7 +3412,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3339,7 +3423,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3420,7 +3504,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3438,7 +3522,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_comp_order = _create_mock_order(
             client_order_id="comp123",
             exchange_order_id="comp123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3482,7 +3566,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_long_order = _create_mock_order(
             client_order_id="long123",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3493,7 +3577,7 @@ class TestPnLCalculationThroughPublicInterface:
         mock_short_order = _create_mock_order(
             client_order_id="short123",
             exchange_order_id="short123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=Decimal("1.0"),
@@ -3626,7 +3710,7 @@ class TestMiscellaneousMethods:
         mock_long_order = _create_mock_order(
             client_order_id="long123_client",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -3637,7 +3721,7 @@ class TestMiscellaneousMethods:
         mock_short_order = _create_mock_order(
             client_order_id="short123_client",
             exchange_order_id="short123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.short_size,
@@ -3684,7 +3768,7 @@ class TestMiscellaneousMethods:
         mock_long_order = _create_mock_order(
             client_order_id="long123_client",
             exchange_order_id="long123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.long_size,
@@ -3695,7 +3779,7 @@ class TestMiscellaneousMethods:
         mock_short_order = _create_mock_order(
             client_order_id="short123_client",
             exchange_order_id="short123",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
             quantity_requested=sized_opportunity.short_size,

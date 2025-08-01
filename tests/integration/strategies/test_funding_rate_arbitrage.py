@@ -27,7 +27,9 @@ from cyberdelta.core.models.market.funding_rate import (
     BackpackFundingDetails,
     HyperliquidFundingDetails,
 )
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from tests.common_symbols import BTC_HL, BTC_BP, ETH_HL, ETH_BP
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -121,7 +123,7 @@ def strategy() -> FundingRateArbitrageStrategy:
 
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
-        symbol="BTC-PERP",
+        symbol=BTC_HL.value,
         data_handler=data_handler,
         portfolio_tracker=portfolio_tracker,
         risk_manager=risk_manager_mock,
@@ -131,7 +133,7 @@ def strategy() -> FundingRateArbitrageStrategy:
             "risk_aversion": Decimal("0.5"),
             "perp_exchange": "hyperliquid",
             "spot_exchange": "backpack",
-            "symbol_mapping": {"BTC-PERP": "BTC_USDC"},
+            "symbol_mapping": {BTC_HL.value: "BTC_USDC"},
         },
     )
 
@@ -143,10 +145,10 @@ def fake_get_position(ex: str, sym: str) -> PositionType:
         PositionType: Mock derivative position for the given exchange/symbol, or None if not found.
     """
     positions = {
-        ("hyperliquid", "BTC-PERP"): DerivativePosition(
+        ("hyperliquid", BTC_HL.value): DerivativePosition(
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             size=Decimal("1.0"),
             entry_price=Decimal(29500),
             mark_price=Decimal(30000),
@@ -154,10 +156,10 @@ def fake_get_position(ex: str, sym: str) -> PositionType:
             liquidation_price=Decimal(28000),
             unrealized_pnl=Decimal(500),
         ),
-        ("backpack", "BTC_USDC"): DerivativePosition(
+        ("backpack", BTC_BP.value): DerivativePosition(
             exchange="backpack",
             timestamp=datetime.now(UTC),
-            symbol="BTC_USDC",
+            symbol=BTC_BP,
             size=Decimal("-1.0"),
             entry_price=Decimal(29510),
             mark_price=Decimal(29990),
@@ -176,9 +178,9 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
         Ticker | None: Mock ticker data for the given exchange/symbol, or None if not found.
     """
     now = datetime.now(UTC)
-    if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
+    if exchange_id == "hyperliquid" and symbol == BTC_HL.value:
         return Ticker(
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             exchange="hyperliquid",
             price=Decimal("30000.0"),
             timestamp=now,
@@ -207,9 +209,9 @@ def fake_get_funding_rate(exchange_id: str, symbol: str) -> FundingRate | None:
             or None if not found.
     """
     now = datetime.now(UTC)
-    if exchange_id == "hyperliquid" and symbol == "BTC-PERP":
+    if exchange_id == "hyperliquid" and symbol == BTC_HL.value:
         return FundingRate(
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             funding_rate=Decimal("0.0001"),
             timestamp=now,
             next_funding_time=now + timedelta(hours=1),
@@ -285,13 +287,13 @@ async def test_process_data_rebalance_signal_generation(
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
     """Test that process_data generates rebalance signals when prices have moved significantly."""
-    strategy.active_opportunities = [create_mock_opportunity(symbol="BTC-PERP")]
+    strategy.active_opportunities = [create_mock_opportunity(symbol=BTC_HL.value)]
 
     def rebalance_ticker_prices(ex: str, sym: str) -> Ticker | None:
         now = datetime.now(UTC)
-        if (ex, sym) == ("hyperliquid", "BTC-PERP"):
+        if (ex, sym) == ("hyperliquid", BTC_HL.value):
             return Ticker(
-                symbol="BTC-PERP",
+                symbol=BTC_HL,
                 exchange="hyperliquid",
                 price=Decimal("31000.0"),
                 timestamp=now,
@@ -337,7 +339,7 @@ async def test_process_data_rebalance_signal_generation(
         patch.object(
             strategy,
             "_generate_rebalance_signal",
-            return_value=[create_mock_signal(symbol="BTC-PERP", signal_type=SignalType.REBALANCE)],
+            return_value=[create_mock_signal(symbol=BTC_HL.value, signal_type=SignalType.REBALANCE)],
         ) as mock_gen_rebal_signal,
         patch.object(
             strategy,
@@ -364,7 +366,7 @@ async def test_evaluate_entry_opportunity_found(
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
     """Test that evaluate_entry_opportunities identifies and logs profitable opportunities."""
-    mock_opportunity = create_mock_opportunity(symbol="BTC-PERP", expected_profit=Decimal(100))
+    mock_opportunity = create_mock_opportunity(symbol=BTC_HL.value, expected_profit=Decimal(100))
     ep = cast("Decimal", mock_opportunity.expected_profit)
     mock_sized_opportunity = SizedOpportunity(
         opportunity=mock_opportunity,
@@ -402,7 +404,7 @@ async def test_evaluate_entry_opportunity_found(
         patch.object(
             strategy,
             "_generate_entry_signal",
-            return_value=[create_mock_signal(symbol="BTC-PERP")],
+            return_value=[create_mock_signal(symbol=BTC_HL.value)],
         ) as mock_gen_signal,
     ):
         signals = await strategy.evaluate_entry_opportunity()
@@ -461,7 +463,7 @@ async def test_evaluate_entry_opportunity_no_opportunity(
 class CandleKwargs(TypedDict, total=False):
     """TypedDict for Candle keyword arguments used in test data creation."""
 
-    symbol: str
+    symbol: Symbol
     interval: str
     open_time: datetime
     open: Decimal
@@ -478,7 +480,7 @@ def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
         Candle: Mock candle with specified or default parameters.
     """
     defaults: dict[str, Any] = {
-        "symbol": "BTC-PERP",
+        "symbol": BTC_HL,
         "open_time": datetime.now(UTC) - timedelta(minutes=1),
         "open": Decimal(29900),
         "high": Decimal(30100),
@@ -489,7 +491,7 @@ def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
     }
     merged_args = {**defaults, **kwargs}
     return Candle(
-        symbol=str(merged_args["symbol"]),
+        symbol=merged_args["symbol"],
         interval=str(merged_args["interval"]),
         open_time=cast("datetime", merged_args["open_time"]),
         open=Decimal(str(merged_args["open"])),
@@ -503,7 +505,7 @@ def create_mock_candle(**kwargs: Unpack[CandleKwargs]) -> Candle:
 class TickerKwargs(TypedDict, total=False):
     """TypedDict for Ticker keyword arguments used in test data creation."""
 
-    symbol: str
+    symbol: Symbol
     timestamp: datetime
     price: Decimal | None
     bid: Decimal | None
@@ -518,7 +520,7 @@ def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
         Ticker: Mock ticker with specified or default parameters.
     """
     defaults: dict[str, Any] = {
-        "symbol": "BTC-PERP",
+        "symbol": BTC_HL,
         "exchange": "test_exchange",  # Default exchange for testing
         "price": Decimal("30000.0"),
         "timestamp": datetime.now(UTC),
@@ -528,7 +530,7 @@ def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
     }
     merged_args = {**defaults, **kwargs}
     return Ticker(
-        symbol=str(merged_args["symbol"]),
+        symbol=merged_args["symbol"],
         exchange=str(merged_args["exchange"]),
         timestamp=cast("datetime", merged_args["timestamp"]),
         price=Decimal(str(merged_args["price"])) if merged_args.get("price") is not None else None,
@@ -543,7 +545,7 @@ def create_mock_ticker(**kwargs: Unpack[TickerKwargs]) -> Ticker:
 class FundingRateKwargs(TypedDict, total=False):
     """TypedDict for FundingRate keyword arguments used in test data creation."""
 
-    symbol: str
+    symbol: Symbol
     timestamp: datetime
     funding_rate: Decimal | None
     predicted_rate: Decimal | None
@@ -564,7 +566,7 @@ def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate
         ValueError: If required fields (symbol or timestamp) are missing or invalid.
     """
     defaults: dict[str, Any] = {
-        "symbol": "BTC-PERP",
+        "symbol": BTC_HL,
         "funding_rate": Decimal("0.0001"),
         "timestamp": datetime.now(UTC),
         "next_funding_time": datetime.now(UTC) + timedelta(hours=1),
@@ -587,7 +589,7 @@ def create_mock_funding_rate(**kwargs: Unpack[FundingRateKwargs]) -> FundingRate
         )
 
     return FundingRate(
-        symbol=str(merged_args["symbol"]),
+        symbol=merged_args["symbol"],
         timestamp=ts_val,
         funding_rate=Decimal(str(merged_args["funding_rate"]))
         if merged_args.get("funding_rate") is not None

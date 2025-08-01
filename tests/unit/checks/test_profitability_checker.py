@@ -15,6 +15,7 @@ from cyberdelta.config.models.config_models import (
 )
 from cyberdelta.core.risk.checks.checkers.profitability_checker import ProfitabilityChecker
 from cyberdelta.core.risk.checks.models.check_result import CheckContext, CheckResult, CheckStatus
+from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -50,7 +51,7 @@ def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
 
 
 def create_test_opportunity(
-    symbol: str = "BTC-PERP",
+    symbol: str = symbols.BTC.hyperliquid().value,
     long_exchange: str = "hyperliquid",
     short_exchange: str = "backpack",
     long_price: float = 45000.0,
@@ -508,7 +509,7 @@ class TestProfitabilityCheckerIntegration:
 
         # Realistic profitable opportunity
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="hyperliquid",
             short_exchange="backpack",
             long_price=45000.0,
@@ -543,7 +544,7 @@ class TestProfitabilityCheckerIntegration:
 
         # Marginal opportunity
         opportunity = create_test_opportunity(
-            symbol="ETH-PERP",
+            symbol=symbols.ETH.hyperliquid().value,
             long_price=3000.0,
             short_price=3002.7,  # ~0.09% spread
             volume=1000.0,

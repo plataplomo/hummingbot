@@ -19,6 +19,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.trade_signal import TradeSignal
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import (
@@ -40,8 +41,9 @@ def minimal_signal_data() -> dict[str, Any]:
     Returns:
         dict[str, Any]: Minimal data dictionary for creating TradeSignal instances.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return {
-        "symbol": "BTC-PERP",
+        "symbol": btc_symbol,
         "signal_type": SignalType.ENTER_LONG,
         "side": OrderSide.BUY,
         "price": Decimal("60000.123"),
@@ -83,9 +85,10 @@ def full_signal_data(minimal_signal_data: dict[str, Any]) -> dict[str, Any]:
 
 def test_tradesignal_minimal_valid(minimal_signal_data: dict[str, Any]) -> None:
     """Test creating a valid TradeSignal with minimal required fields."""
+    btc_symbol = symbols.BTC.hyperliquid()
     signal = TradeSignal(**minimal_signal_data)
 
-    assert signal.symbol == "BTC-PERP"
+    assert signal.symbol == btc_symbol
     assert signal.signal_type == SignalType.ENTER_LONG
     assert signal.side == OrderSide.BUY
     assert signal.price == Decimal("60000.123")
@@ -107,9 +110,10 @@ def test_tradesignal_minimal_valid(minimal_signal_data: dict[str, Any]) -> None:
 
 def test_tradesignal_full_valid(full_signal_data: dict[str, Any]) -> None:
     """Test creating a valid TradeSignal with all fields populated."""
+    btc_symbol = symbols.BTC.hyperliquid()
     signal = TradeSignal(**full_signal_data)
 
-    assert signal.symbol == "BTC-PERP"
+    assert signal.symbol == btc_symbol
     assert signal.signal_type == SignalType.ENTER_LONG
     assert signal.side == OrderSide.BUY
     assert signal.price == Decimal("60000.123")
@@ -149,10 +153,11 @@ def test_tradesignal_extra_fields_forbidden(minimal_signal_data: dict[str, Any])
 @pytest.mark.parametrize(
     ("field", "value", "error_match"),
     [
-        # String validations
-        ("symbol", "", r"Field symbol: String cannot be empty"),
-        ("symbol", None, r"Required field 'symbol' is missing"),
-        ("source_strategy", " ", r"Field source_strategy: String cannot be empty"),
+        # Symbol validations
+        ("symbol", "BTC-PERP", r"Symbol must be Symbol, got str"),
+        ("symbol", None, r"Symbol must be Symbol, got NoneType"),
+        ("symbol", 123, r"Symbol must be Symbol, got int"),
+        ("source_strategy", "", r"Field source_strategy: String cannot be empty"),
         (
             "source_strategy",
             "a" * 100,

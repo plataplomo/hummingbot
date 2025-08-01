@@ -11,9 +11,9 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.order_book import OrderBook
+from cyberdelta.core.symbols import symbols
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
-from tests.factories.symbol_factories import ExchangeSymbolFactory
 
 
 pytestmark = pytest.mark.timing
@@ -22,14 +22,10 @@ pytestmark = pytest.mark.timing
 class TestOrderBook:
     """Unit tests for the cyberdelta.core.models.market.order_book.OrderBook model."""
 
-    @pytest.fixture
-    def btc_symbol(self) -> Any:
-        """Fixture providing a BTC exchange symbol."""
-        return ExchangeSymbolFactory.create_hyperliquid_btc_perp()
-
-    def test_minimal_creation(self, btc_symbol: Any) -> None:
+    def test_minimal_creation(self) -> None:
         """Test creating an OrderBook with minimal valid data (empty bids/asks)."""
         now = datetime.now(UTC)
+        btc_symbol = symbols.BTC.hyperliquid()
         ob = OrderBook(symbol=btc_symbol, timestamp=now, bids=[], asks=[])
         assert ob.symbol == btc_symbol
         assert ob.timestamp == now
@@ -46,7 +42,7 @@ class TestOrderBook:
 
         # Use Any to test validator handling of mixed types
         kwargs: dict[str, Any] = {
-            "symbol": "BTC-PERP",
+            "symbol": symbols.BTC.hyperliquid(),
             "timestamp": now,
             "bids": bids,
             "asks": asks,
@@ -66,34 +62,30 @@ class TestOrderBook:
         with pytest.raises(ValidationError, match="Field required"):
             # Ignore call-arg error: Intentionally missing 'timestamp'
             # to test Pydantic's required field validation.
-            OrderBook(symbol="BTC", bids=[], asks=[])  # type: ignore[call-arg]
+            OrderBook(symbol=symbols.BTC.hyperliquid(), bids=[], asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
             # Ignore call-arg error: Intentionally missing 'bids'
             # to test Pydantic's required field validation.
-            OrderBook(symbol="BTC", timestamp=now, asks=[])  # type: ignore[call-arg]
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, asks=[])  # type: ignore[call-arg]
         with pytest.raises(ValidationError, match="Field required"):
             # Ignore call-arg error: Intentionally missing 'asks'
             # to test Pydantic's required field validation.
-            OrderBook(symbol="BTC", timestamp=now, bids=[])  # type: ignore[call-arg]
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=[])  # type: ignore[call-arg]
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
         now = datetime.now(UTC)
-        with pytest.raises(EmptyStringError, match="String cannot be empty"):
-            OrderBook(symbol="", timestamp=now, bids=[], asks=[])
-        with pytest.raises(EmptyStringError, match="String cannot be empty"):
-            OrderBook(symbol="   ", timestamp=now, bids=[], asks=[])
-        with pytest.raises(
-            TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
-        ):
-            OrderBook(symbol="A" * 65, timestamp=now, bids=[], asks=[])
+        # OrderBook expects Symbol objects, not strings
+        # String validation happens at Symbol level
+        btc_symbol = symbols.BTC.hyperliquid()
         # Valid symbol should pass
-        OrderBook(symbol="VALID-SYM_123", timestamp=now, bids=[], asks=[])
+        OrderBook(symbol=btc_symbol, timestamp=now, bids=[], asks=[])
 
     def test_timestamp_validation_required(self) -> None:
         """Test that providing timestamp=None raises a ValueError from the validator."""
         # Using Any to bypass static checks for testing runtime validation of None input.
-        invalid_data: dict[str, Any] = {"symbol": "BTC", "timestamp": None, "bids": [], "asks": []}
+        btc_symbol = symbols.BTC.hyperliquid()
+        invalid_data: dict[str, Any] = {"symbol": btc_symbol, "timestamp": None, "bids": [], "asks": []}
         with pytest.raises(
             ValidationError, match=r"timestamp.*Required value parsed as None or was invalid"
         ):
@@ -110,7 +102,7 @@ class TestOrderBook:
 
         # Test int timestamp parsing using Any
         kwargs_int: dict[str, Any] = {
-            "symbol": "T",
+            "symbol": symbols.BTC.hyperliquid(),
             "timestamp": ms_timestamp,
             "bids": [],
             "asks": [],
@@ -120,7 +112,7 @@ class TestOrderBook:
 
         # Test ISO string timestamp parsing using Any
         kwargs_iso: dict[str, Any] = {
-            "symbol": "T",
+            "symbol": symbols.BTC.hyperliquid(),
             "timestamp": iso_timestamp,
             "bids": [],
             "asks": [],
@@ -129,11 +121,11 @@ class TestOrderBook:
         assert ob_iso.timestamp == expected_dt
 
         # From naive datetime
-        ob_naive = OrderBook(symbol="T", timestamp=naive_dt, bids=[], asks=[])
+        ob_naive = OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=naive_dt, bids=[], asks=[])
         assert ob_naive.timestamp == expected_dt  # Should be made UTC aware
 
         # From aware datetime
-        ob_aware = OrderBook(symbol="T", timestamp=expected_dt, bids=[], asks=[])
+        ob_aware = OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=expected_dt, bids=[], asks=[])
         assert ob_aware.timestamp == expected_dt
 
     # Remove test_level_structure_validation
@@ -159,7 +151,7 @@ class TestOrderBook:
         with pytest.raises(ListFieldError, match="Expected list, got str"):
             # Test invalid bids type using Any
             kwargs_bids: dict[str, Any] = {
-                "symbol": "T",
+                "symbol": symbols.BTC.hyperliquid(),
                 "timestamp": now,
                 "bids": "not_a_list",
                 "asks": [],
@@ -167,88 +159,88 @@ class TestOrderBook:
             OrderBook(**kwargs_bids)
         with pytest.raises(ListFieldError, match="Expected list, got"):
             # Test invalid asks type using Any
-            kwargs_asks: dict[str, Any] = {"symbol": "T", "timestamp": now, "bids": [], "asks": {}}
+            kwargs_asks: dict[str, Any] = {"symbol": symbols.BTC.hyperliquid(), "timestamp": now, "bids": [], "asks": {}}
             OrderBook(**kwargs_asks)
 
         # --- Test Level Item Structure ---
         with pytest.raises(ListFieldError, match="Expected list or tuple, got int"):
             invalid_bids_item_type: Any = [valid_level_raw, 123]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_item_type, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_bids_item_type, asks=[])
         with pytest.raises(ValidationError, match="Level item must have exactly 2 elements"):
             invalid_bids_len1: Any = [valid_level_raw, ("9",)]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len1, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_bids_len1, asks=[])
         with pytest.raises(ValidationError, match="Level item must have exactly 2 elements"):
             invalid_bids_len3: Any = [valid_level_raw, ("9", "1", "2")]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_bids_len3, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_bids_len3, asks=[])
 
         # --- Test Level Content - Price ---
         with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got None"):
             invalid_price_type: Any = [(None, "1")]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_price_type, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_price_type, asks=[])
         with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got dict"):
             invalid_price_type_obj: Any = [({"a": 1}, "1")]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_price_type_obj, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_price_type_obj, asks=[])
         with pytest.raises(
             ValidationError,
             match=r"Cannot convert to Decimal",
         ):
             invalid_price_parse: Any = [("not_a_number", "1")]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_price_parse, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_price_parse, asks=[])
         with pytest.raises(
             ValidationError,
             match=r"must be finite",
         ):
             infinite_price: Any = [(Decimal("Infinity"), "1")]
-            OrderBook(symbol="T", timestamp=now, bids=infinite_price, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=infinite_price, asks=[])
         with pytest.raises(
             ValidationError,
             match=r"must be finite.*got NaN",
         ):
             nan_price: Any = [(Decimal("NaN"), "1")]
-            OrderBook(symbol="T", timestamp=now, bids=nan_price, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=nan_price, asks=[])
 
         # --- Test Level Content - Quantity ---
         with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got None"):
             invalid_qty_type: Any = [("10", None)]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_qty_type, asks=[])
         with pytest.raises(TypeFieldError, match="must be Decimal, str, int, or float, got list"):
             invalid_qty_type_obj: Any = [("10", ["1"])]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_qty_type_obj, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_qty_type_obj, asks=[])
         with pytest.raises(
             ValidationError,
             match=r"Cannot convert to Decimal",
         ):
             invalid_qty_parse: Any = [("10", "not_a_number")]
-            OrderBook(symbol="T", timestamp=now, bids=invalid_qty_parse, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=invalid_qty_parse, asks=[])
         with pytest.raises(
             ValidationError,
             match=r"must be finite.*got Infinity",
         ):
             infinite_qty: Any = [("10", Decimal("Infinity"))]
-            OrderBook(symbol="T", timestamp=now, bids=infinite_qty, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=infinite_qty, asks=[])
         with pytest.raises(
             ValidationError,
             match=r"must be finite.*got NaN",
         ):
             nan_qty: Any = [("10", Decimal("NaN"))]
-            OrderBook(symbol="T", timestamp=now, bids=nan_qty, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=nan_qty, asks=[])
         with pytest.raises(
             ValidationError,
             match=r"Quantity must be non-negative",
         ):
             negative_qty: Any = [("10", "-1")]
-            OrderBook(symbol="T", timestamp=now, bids=negative_qty, asks=[])
+            OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=negative_qty, asks=[])
 
         # --- Test Valid Cases ---
         # Empty lists
-        ob_empty = OrderBook(symbol="T", timestamp=now, bids=[], asks=[])
+        ob_empty = OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=[], asks=[])
         assert ob_empty.bids == []
         assert ob_empty.asks == []
 
         # Valid list with raw data needing parsing
         # Test the validator's parsing from string to Decimal.
         ob_raw = OrderBook.model_validate({
-            "symbol": "T",
+            "symbol": symbols.BTC.hyperliquid(),
             "timestamp": now,
             "bids": [valid_level_raw],
             "asks": [],
@@ -256,7 +248,7 @@ class TestOrderBook:
         assert ob_raw.bids == [valid_level_parsed]
 
         # Valid list with pre-parsed Decimals and zero quantity
-        ob_parsed = OrderBook(symbol="T", timestamp=now, bids=[zero_qty_level], asks=[])
+        ob_parsed = OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=[zero_qty_level], asks=[])
         assert ob_parsed.bids == [zero_qty_level]
 
         # Valid list with mixed types
@@ -265,7 +257,7 @@ class TestOrderBook:
         # Ignore arg-type because testing validator's mixed raw input handling
         # Mypy doesn't flag an error here (likely due to Any type hint on raw list)
         # No ignore needed: Mypy accepts Any here, Pyright infers correctly due to validator.
-        ob_mixed = OrderBook(symbol="T", timestamp=now, bids=mixed_bids_raw, asks=[])
+        ob_mixed = OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=mixed_bids_raw, asks=[])
         assert ob_mixed.bids == mixed_bids_expected
 
     def test_extra_fields_forbidden(self) -> None:
@@ -274,7 +266,7 @@ class TestOrderBook:
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             # Using Any to bypass type checking for extra_field
             extra_field_kwargs: dict[str, Any] = {
-                "symbol": "BTC",
+                "symbol": symbols.BTC.hyperliquid(),
                 "timestamp": now,
                 "bids": [],
                 "asks": [],
@@ -285,11 +277,11 @@ class TestOrderBook:
     def test_immutability(self) -> None:
         """Test that the OrderBook model instance is immutable (frozen=True)."""
         now = datetime.now(UTC)
-        ob = OrderBook(symbol="BTC-PERP", timestamp=now, bids=[], asks=[])
+        ob = OrderBook(symbol=symbols.BTC.hyperliquid(), timestamp=now, bids=[], asks=[])
 
         # Direct attribute assignment raises ValidationError due to frozen=True
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            ob.symbol = "ETH-PERP"
+            ob.symbol = symbols.ETH.hyperliquid()
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ob.timestamp = now + timedelta(seconds=1)
         with pytest.raises(ValidationError, match="Instance is frozen"):

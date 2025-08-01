@@ -23,7 +23,7 @@ class AssetSymbols:
         Usage: btc.hyperliquid() or btc.backpack()
         """
         try:
-            exchange = ExchangeName(exchange_name.upper())
+            exchange = ExchangeName(exchange_name)
             return self._creators[exchange]
         except (ValueError, KeyError) as e:
             msg = f"No symbol defined for {exchange_name}"

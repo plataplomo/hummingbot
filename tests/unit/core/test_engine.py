@@ -14,6 +14,7 @@ from cyberdelta.core.engine import Engine, EngineConfigurationError
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.strategy import Strategy
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums import OrderSide, SignalType
 
 
@@ -36,7 +37,7 @@ def mock_strategy() -> Mock:
     """
     strategy = Mock(spec=Strategy)
     strategy.name = "test_strategy"
-    strategy.symbol = "BTC-PERP"  # Single symbol, not symbols list
+    strategy.symbol = symbols.BTC.hyperliquid().value  # Single symbol string for mock strategy
     strategy.enabled = False
 
     # Mock the actual public methods that engine calls
@@ -54,10 +55,11 @@ def sample_candle() -> Candle:
     """Create a valid Candle for testing.
 
     Returns:
-        Candle: Market candle data for BTC-PERP.
+        Candle: Market candle data for BTC symbol.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return Candle(
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(50000),
@@ -75,9 +77,10 @@ def sample_signal() -> TradeSignal:
     Returns:
         TradeSignal: Trade signal for entering a long position.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return TradeSignal(
         signal_id="test_signal",
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal(50000),

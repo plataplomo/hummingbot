@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.symbols import symbols
 from cyberdelta.exceptions.risk import RiskCheckError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.fixtures.time_fixtures import FreezerProtocol
@@ -28,7 +29,7 @@ def create_test_opportunity(
     # Use frozen time (datetime.now(UTC) is controlled by the freezer)
     timestamp = datetime.now(UTC)
     return ArbitrageOpportunity(
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid().value,
         long_exchange="exchange_a",
         short_exchange="exchange_b",
         long_price=Decimal(50000),

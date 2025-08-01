@@ -21,6 +21,8 @@ from cyberdelta.core.data_handler import (
 )
 from cyberdelta.core.models import FundingRate, OrderBook, Ticker
 from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.core.symbols import Symbol, symbols
+from tests.fixtures.symbol_domain_fixtures import SymbolSet
 
 
 # Import shared fixtures from conftest.py - they will be automatically available
@@ -122,14 +124,14 @@ def data_handler(
 
 
 @pytest.fixture
-def sample_order_book() -> OrderBook:
+def sample_order_book(btc_symbols: SymbolSet) -> OrderBook:
     """Create sample order book for testing.
 
     Returns:
-        OrderBook: Sample order book with BTC-PERP bids and asks.
+        OrderBook: Sample order book with BTC symbol bids and asks.
     """
     return OrderBook(
-        symbol="BTC-PERP",
+        symbol=btc_symbols.perp_hl.value,
         bids=[(Decimal("50000.0"), Decimal("1.0")), (Decimal("49950.0"), Decimal("2.0"))],
         asks=[(Decimal("50100.0"), Decimal("1.5")), (Decimal("50150.0"), Decimal("2.5"))],
         timestamp=datetime.now(UTC),
@@ -137,14 +139,14 @@ def sample_order_book() -> OrderBook:
 
 
 @pytest.fixture
-def sample_funding_rate() -> FundingRate:
+def sample_funding_rate(btc_symbols: SymbolSet) -> FundingRate:
     """Create sample funding rate for testing.
 
     Returns:
         FundingRate: Sample funding rate with 0.01% rate.
     """
     return FundingRate(
-        symbol="BTC-PERP",
+        symbol=btc_symbols.perp_hl.value,
         funding_rate=Decimal("0.0001"),
         next_funding_time=datetime.now(UTC) + timedelta(hours=8),
         timestamp=datetime.now(UTC),
@@ -316,29 +318,32 @@ class TestGetLatestTicker:
     # ==================== SUCCESS CASES ====================
 
     def test_get_latest_ticker_success(
-        self, data_handler: DataHandler, sample_ticker: Ticker
+        self, data_handler: DataHandler, sample_ticker: Ticker, btc_symbols: SymbolSet
     ) -> None:
         """Test successful retrieval of latest ticker."""
         # Arrange
-        data_handler.tickers["hyperliquid"] = {"BTC-PERP": sample_ticker}
-        data_handler.last_update_time = {"hyperliquid": {"BTC-PERP": datetime.now(UTC)}}
+        btc_symbol = btc_symbols.perp_hl
+        data_handler.tickers["hyperliquid"] = {btc_symbol.value: sample_ticker}
+        data_handler.last_update_time = {"hyperliquid": {btc_symbol.value: datetime.now(UTC)}}
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
-            result = data_handler.get_latest_ticker("hyperliquid", "BTC-PERP")
+            result = data_handler.get_latest_ticker("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is not None
         assert result == sample_ticker
-        assert result.symbol == "BTC-PERP"
+        assert result.symbol == btc_symbol.value
 
     def test_get_latest_ticker_success_multiple_symbols(
-        self, data_handler: DataHandler, sample_ticker: Ticker
+        self, data_handler: DataHandler, sample_ticker: Ticker, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test retrieval with multiple symbols."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
         eth_ticker = Ticker(
-            symbol="ETH-PERP",
+            symbol=eth_symbol.value,
             exchange="hyperliquid",
             bid=Decimal("3000.0"),
             ask=Decimal("3010.0"),
@@ -346,30 +351,35 @@ class TestGetLatestTicker:
             timestamp=datetime.now(UTC),
         )
         data_handler.tickers["hyperliquid"] = {
-            "BTC-PERP": sample_ticker,
-            "ETH-PERP": eth_ticker,
+            btc_symbol.value: sample_ticker,
+            eth_symbol.value: eth_ticker,
         }
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
-            btc_result = data_handler.get_latest_ticker("hyperliquid", "BTC-PERP")
-            eth_result = data_handler.get_latest_ticker("hyperliquid", "ETH-PERP")
+            btc_result = data_handler.get_latest_ticker("hyperliquid", btc_symbol.value)
+            eth_result = data_handler.get_latest_ticker("hyperliquid", eth_symbol.value)
 
         # Assert
         assert btc_result == sample_ticker
         assert eth_result == eth_ticker
         assert btc_result is not None
         assert eth_result is not None
-        assert btc_result.symbol == "BTC-PERP"
-        assert eth_result.symbol == "ETH-PERP"
+        assert btc_result.symbol == btc_symbol.value
+        assert eth_result.symbol == eth_symbol.value
 
     # ==================== EDGE CASES ====================
 
-    def test_get_latest_ticker_edge_exchange_not_found(self, data_handler: DataHandler) -> None:
+    def test_get_latest_ticker_edge_exchange_not_found(
+        self, data_handler: DataHandler, btc_symbols: SymbolSet
+    ) -> None:
         """Test ticker retrieval for non-existent exchange."""
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
-            result = data_handler.get_latest_ticker("nonexistent", "BTC-PERP")
+            result = data_handler.get_latest_ticker("nonexistent", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -389,15 +399,16 @@ class TestGetLatestTicker:
     # ==================== FAILURE CASES ====================
 
     def test_get_latest_ticker_failure_stale_data(
-        self, data_handler: DataHandler, sample_ticker: Ticker
+        self, data_handler: DataHandler, sample_ticker: Ticker, btc_symbols: SymbolSet
     ) -> None:
         """Test ticker retrieval returns None for stale data."""
         # Arrange
-        data_handler.tickers["hyperliquid"] = {"BTC-PERP": sample_ticker}
+        btc_symbol = btc_symbols.perp_hl
+        data_handler.tickers["hyperliquid"] = {btc_symbol.value: sample_ticker}
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=True):
-            result = data_handler.get_latest_ticker("hyperliquid", "BTC-PERP")
+            result = data_handler.get_latest_ticker("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -409,28 +420,30 @@ class TestGetLatestOrderBook:
     # ==================== SUCCESS CASES ====================
 
     def test_get_latest_order_book_success(
-        self, data_handler: DataHandler, sample_order_book: OrderBook
+        self, data_handler: DataHandler, sample_order_book: OrderBook, btc_symbols: SymbolSet
     ) -> None:
         """Test successful retrieval of latest order book."""
         # Arrange
-        data_handler.order_books["hyperliquid"] = {"BTC-PERP": sample_order_book}
+        btc_symbol = btc_symbols.perp_hl
+        data_handler.order_books["hyperliquid"] = {btc_symbol.value: sample_order_book}
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
-            result = data_handler.get_latest_order_book("hyperliquid", "BTC-PERP")
+            result = data_handler.get_latest_order_book("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is not None
         assert result == sample_order_book
-        assert result.symbol == "BTC-PERP"
+        assert result.symbol == btc_symbol.value
         assert len(result.bids) == 2
         assert len(result.asks) == 2
 
     def test_get_latest_order_book_success_with_timestamp(
-        self, data_handler: DataHandler, sample_order_book: OrderBook
+        self, data_handler: DataHandler, sample_order_book: OrderBook, btc_symbols: SymbolSet
     ) -> None:
         """Test order book retrieval with valid timestamp."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         # Create a new OrderBook with current timestamp since OrderBook is frozen
         current_order_book = OrderBook(
             symbol=sample_order_book.symbol,
@@ -438,11 +451,11 @@ class TestGetLatestOrderBook:
             bids=sample_order_book.bids,
             asks=sample_order_book.asks,
         )
-        data_handler.order_books["hyperliquid"] = {"BTC-PERP": current_order_book}
+        data_handler.order_books["hyperliquid"] = {btc_symbol.value: current_order_book}
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
-            result = data_handler.get_latest_order_book("hyperliquid", "BTC-PERP")
+            result = data_handler.get_latest_order_book("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is not None
@@ -451,10 +464,15 @@ class TestGetLatestOrderBook:
 
     # ==================== EDGE CASES ====================
 
-    def test_get_latest_order_book_edge_no_exchange(self, data_handler: DataHandler) -> None:
+    def test_get_latest_order_book_edge_no_exchange(
+        self, data_handler: DataHandler, btc_symbols: SymbolSet
+    ) -> None:
         """Test order book retrieval for non-existent exchange."""
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        
         # Act
-        result = data_handler.get_latest_order_book("nonexistent", "BTC-PERP")
+        result = data_handler.get_latest_order_book("nonexistent", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -471,16 +489,18 @@ class TestGetLatestOrderBook:
         assert result is None
 
     def test_get_latest_order_book_edge_no_timestamp(
-        self, data_handler: DataHandler, sample_order_book: OrderBook
+        self, data_handler: DataHandler, sample_order_book: OrderBook, btc_symbols: SymbolSet
     ) -> None:
         """Test order book retrieval when timestamp is None."""
-        # Arrange - Create a mock order book with None timestamp to test edge case
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        # Create a mock order book with None timestamp to test edge case
         mock_order_book = Mock()
         mock_order_book.timestamp = None
-        data_handler.order_books["hyperliquid"] = {"BTC-PERP": mock_order_book}
+        data_handler.order_books["hyperliquid"] = {btc_symbol.value: mock_order_book}
 
         # Act
-        result = data_handler.get_latest_order_book("hyperliquid", "BTC-PERP")
+        result = data_handler.get_latest_order_book("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -488,16 +508,17 @@ class TestGetLatestOrderBook:
     # ==================== FAILURE CASES ====================
 
     def test_get_latest_order_book_failure_stale_data(
-        self, data_handler: DataHandler, sample_order_book: OrderBook
+        self, data_handler: DataHandler, sample_order_book: OrderBook, btc_symbols: SymbolSet
     ) -> None:
         """Test order book retrieval returns None for stale data."""
         # Arrange
-        data_handler.order_books["hyperliquid"] = {"BTC-PERP": sample_order_book}
-        data_handler.last_update_time = {"hyperliquid": {"BTC-PERP": datetime.now(UTC)}}
+        btc_symbol = btc_symbols.perp_hl
+        data_handler.order_books["hyperliquid"] = {btc_symbol.value: sample_order_book}
+        data_handler.last_update_time = {"hyperliquid": {btc_symbol.value: datetime.now(UTC)}}
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=True):
-            result = data_handler.get_latest_order_book("hyperliquid", "BTC-PERP")
+            result = data_handler.get_latest_order_book("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -509,42 +530,45 @@ class TestGetLatestFundingRate:
     # ==================== SUCCESS CASES ====================
 
     def test_get_latest_funding_rate_success(
-        self, data_handler: DataHandler, sample_funding_rate: FundingRate
+        self, data_handler: DataHandler, sample_funding_rate: FundingRate, btc_symbols: SymbolSet
     ) -> None:
         """Test successful retrieval of latest funding rate."""
         # Arrange
-        data_handler.funding_rates["hyperliquid"] = {"BTC-PERP": sample_funding_rate}
+        btc_symbol = btc_symbols.perp_hl
+        data_handler.funding_rates["hyperliquid"] = {btc_symbol.value: sample_funding_rate}
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
-            result = data_handler.get_latest_funding_rate("hyperliquid", "BTC-PERP")
+            result = data_handler.get_latest_funding_rate("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is not None
         assert result == sample_funding_rate
-        assert result.symbol == "BTC-PERP"
+        assert result.symbol == btc_symbol.value
         assert result.funding_rate == Decimal("0.0001")
 
     def test_get_latest_funding_rate_success_multiple_symbols(
-        self, data_handler: DataHandler, sample_funding_rate: FundingRate
+        self, data_handler: DataHandler, sample_funding_rate: FundingRate, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test funding rate retrieval for multiple symbols."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
         eth_funding_rate = FundingRate(
-            symbol="ETH-PERP",
+            symbol=eth_symbol.value,
             funding_rate=Decimal("0.0002"),
             next_funding_time=datetime.now(UTC) + timedelta(hours=8),
             timestamp=datetime.now(UTC),
         )
         data_handler.funding_rates["hyperliquid"] = {
-            "BTC-PERP": sample_funding_rate,
-            "ETH-PERP": eth_funding_rate,
+            btc_symbol.value: sample_funding_rate,
+            eth_symbol.value: eth_funding_rate,
         }
 
         # Act
         with patch.object(data_handler, "_is_data_stale", return_value=False):
-            btc_result = data_handler.get_latest_funding_rate("hyperliquid", "BTC-PERP")
-            eth_result = data_handler.get_latest_funding_rate("hyperliquid", "ETH-PERP")
+            btc_result = data_handler.get_latest_funding_rate("hyperliquid", btc_symbol.value)
+            eth_result = data_handler.get_latest_funding_rate("hyperliquid", eth_symbol.value)
 
         # Assert
         assert btc_result is not None
@@ -557,11 +581,14 @@ class TestGetLatestFundingRate:
     # ==================== EDGE CASES ====================
 
     def test_get_latest_funding_rate_edge_exchange_not_found(
-        self, data_handler: DataHandler
+        self, data_handler: DataHandler, btc_symbols: SymbolSet
     ) -> None:
         """Test funding rate retrieval for non-existent exchange."""
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        
         # Act
-        result = data_handler.get_latest_funding_rate("nonexistent", "BTC-PERP")
+        result = data_handler.get_latest_funding_rate("nonexistent", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -580,14 +607,15 @@ class TestGetLatestFundingRate:
     # ==================== FAILURE CASES ====================
 
     def test_get_latest_funding_rate_failure_empty_funding_rates(
-        self, data_handler: DataHandler
+        self, data_handler: DataHandler, btc_symbols: SymbolSet
     ) -> None:
         """Test funding rate retrieval when no funding rates exist."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         data_handler.funding_rates = {}
 
         # Act
-        result = data_handler.get_latest_funding_rate("hyperliquid", "BTC-PERP")
+        result = data_handler.get_latest_funding_rate("hyperliquid", btc_symbol.value)
 
         # Assert
         assert result is None
@@ -599,12 +627,14 @@ class TestGetAllTickers:
     # ==================== SUCCESS CASES ====================
 
     def test_get_all_tickers_success(
-        self, data_handler: DataHandler, sample_ticker: Ticker
+        self, data_handler: DataHandler, sample_ticker: Ticker, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test successful retrieval of all tickers for an exchange."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
         eth_ticker = Ticker(
-            symbol="ETH-PERP",
+            symbol=eth_symbol.value,
             exchange="hyperliquid",
             bid=Decimal("3000.0"),
             ask=Decimal("3010.0"),
@@ -612,8 +642,8 @@ class TestGetAllTickers:
             timestamp=datetime.now(UTC),
         )
         data_handler.tickers["hyperliquid"] = {
-            "BTC-PERP": sample_ticker,
-            "ETH-PERP": eth_ticker,
+            btc_symbol.value: sample_ticker,
+            eth_symbol.value: eth_ticker,
         }
 
         # Act
@@ -621,24 +651,25 @@ class TestGetAllTickers:
 
         # Assert
         assert len(result) == 2
-        assert "BTC-PERP" in result
-        assert "ETH-PERP" in result
-        assert result["BTC-PERP"] == sample_ticker
-        assert result["ETH-PERP"] == eth_ticker
+        assert btc_symbol.value in result
+        assert eth_symbol.value in result
+        assert result[btc_symbol.value] == sample_ticker
+        assert result[eth_symbol.value] == eth_ticker
 
     def test_get_all_tickers_success_single_ticker(
-        self, data_handler: DataHandler, sample_ticker: Ticker
+        self, data_handler: DataHandler, sample_ticker: Ticker, btc_symbols: SymbolSet
     ) -> None:
         """Test retrieval of all tickers with single ticker."""
         # Arrange
-        data_handler.tickers["hyperliquid"] = {"BTC-PERP": sample_ticker}
+        btc_symbol = btc_symbols.perp_hl
+        data_handler.tickers["hyperliquid"] = {btc_symbol.value: sample_ticker}
 
         # Act
         result = data_handler.get_all_tickers("hyperliquid")
 
         # Assert
         assert len(result) == 1
-        assert result["BTC-PERP"] == sample_ticker
+        assert result[btc_symbol.value] == sample_ticker
 
     # ==================== EDGE CASES ====================
 
@@ -794,33 +825,38 @@ class TestConstants:
 
 
 @pytest.mark.parametrize(
-    ("exchange_id", "symbol", "expected_found"),
+    ("exchange_id", "symbol_type", "expected_found"),
     [
-        ("hyperliquid", "BTC-PERP", True),
-        ("backpack", "BTC-PERP", False),  # Not set up in fixture
-        ("hyperliquid", "ETH-PERP", False),  # Symbol not set up
-        ("nonexistent", "BTC-PERP", False),  # Exchange not set up
+        ("hyperliquid", "btc_perp", True),
+        ("backpack", "btc_perp", False),  # Not set up in fixture
+        ("hyperliquid", "eth_perp", False),  # Symbol not set up
+        ("nonexistent", "btc_perp", False),  # Exchange not set up
     ],
 )
 def test_get_latest_ticker_parametrized(
     data_handler: DataHandler,
     sample_ticker: Ticker,
+    btc_symbols: SymbolSet,
+    eth_symbols: SymbolSet,
     exchange_id: str,
-    symbol: str,
+    symbol_type: str,
     expected_found: bool,
 ) -> None:
     """Test get_latest_ticker with various exchange/symbol combinations."""
     # Arrange
-    data_handler.tickers["hyperliquid"] = {"BTC-PERP": sample_ticker}
+    btc_symbol = btc_symbols.perp_hl
+    eth_symbol = eth_symbols.perp_hl
+    symbol_value = btc_symbol.value if symbol_type == "btc_perp" else eth_symbol.value
+    data_handler.tickers["hyperliquid"] = {btc_symbol.value: sample_ticker}
 
     # Act
     with patch.object(data_handler, "_is_data_stale", return_value=False):
-        result = data_handler.get_latest_ticker(exchange_id, symbol)
+        result = data_handler.get_latest_ticker(exchange_id, symbol_value)
 
     # Assert
     if expected_found:
         assert result is not None
-        assert result.symbol == symbol
+        assert result.symbol == symbol_value
     else:
         assert result is None
 
@@ -836,13 +872,17 @@ def test_get_latest_ticker_parametrized(
 def test_get_all_tickers_parametrized(
     data_handler: DataHandler,
     sample_ticker: Ticker,
+    btc_symbols: SymbolSet,
+    eth_symbols: SymbolSet,
     exchange_id: str,
     expected_count: int,
 ) -> None:
     """Test get_all_tickers with various exchanges."""
     # Arrange
+    btc_symbol = btc_symbols.perp_hl
+    eth_symbol = eth_symbols.perp_hl
     eth_ticker = Ticker(
-        symbol="ETH-PERP",
+        symbol=eth_symbol.value,
         exchange="test_exchange",
         bid=Decimal("3000.0"),
         ask=Decimal("3010.0"),
@@ -850,8 +890,8 @@ def test_get_all_tickers_parametrized(
         timestamp=datetime.now(UTC),
     )
     data_handler.tickers["hyperliquid"] = {
-        "BTC-PERP": sample_ticker,
-        "ETH-PERP": eth_ticker,
+        btc_symbol.value: sample_ticker,
+        eth_symbol.value: eth_ticker,
     }
 
     # Act
@@ -874,25 +914,27 @@ def test_get_all_tickers_parametrized(
 )
 def test_ticker_data_integrity_parametrized(
     data_handler: DataHandler,
+    btc_symbols: SymbolSet,
     bid: Decimal,
     ask: Decimal,
     price: Decimal,
 ) -> None:
     """Test ticker data integrity with various price ranges."""
     # Arrange
+    btc_symbol = btc_symbols.perp_hl
     ticker = Ticker(
-        symbol="BTC-PERP",
+        symbol=btc_symbol.value,
         exchange="hyperliquid",
         bid=bid,
         ask=ask,
         price=price,
         timestamp=datetime.now(UTC),
     )
-    data_handler.tickers["hyperliquid"] = {"BTC-PERP": ticker}
+    data_handler.tickers["hyperliquid"] = {btc_symbol.value: ticker}
 
     # Act
     with patch.object(data_handler, "_is_data_stale", return_value=False):
-        result = data_handler.get_latest_ticker("hyperliquid", "BTC-PERP")
+        result = data_handler.get_latest_ticker("hyperliquid", btc_symbol.value)
 
     # Assert
     assert result is not None

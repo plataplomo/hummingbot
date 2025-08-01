@@ -20,7 +20,9 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
+from cyberdelta.core.symbols import Symbol, symbols
 from cyberdelta.enums import OrderSide, SignalType
+from tests.fixtures.symbol_domain_fixtures import SymbolSet
 
 
 # Use shared mock_config from conftest.py
@@ -144,7 +146,7 @@ def strategy_manager(
 
 
 @pytest.fixture
-def mock_strategy() -> Mock:
+def mock_strategy(btc_symbols: SymbolSet) -> Mock:
     """Create mock strategy for testing.
 
     Returns:
@@ -152,7 +154,7 @@ def mock_strategy() -> Mock:
     """
     strategy = Mock(spec=Strategy)
     strategy.name = "test_strategy"
-    strategy.symbol = "BTC-PERP"
+    strategy.symbol = btc_symbols.perp_hl.value
     strategy.enabled = False
     strategy.enable = Mock()
     strategy.disable = Mock()
@@ -165,14 +167,14 @@ def mock_strategy() -> Mock:
 
 
 @pytest.fixture
-def sample_candle() -> Candle:
+def sample_candle(btc_symbols: SymbolSet) -> Candle:
     """Create sample candle for testing.
 
     Returns:
         Candle: Sample Candle instance with test data for BTC-PERP.
     """
     return Candle(
-        symbol="BTC-PERP",
+        symbol=btc_symbols.perp_hl.value,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal("50000.0"),
@@ -184,7 +186,7 @@ def sample_candle() -> Candle:
 
 
 @pytest.fixture
-def sample_trade_signal() -> TradeSignal:
+def sample_trade_signal(btc_symbols: SymbolSet) -> TradeSignal:
     """Create sample trade signal for testing.
 
     Returns:
@@ -192,7 +194,7 @@ def sample_trade_signal() -> TradeSignal:
     """
     return TradeSignal(
         signal_id=str(uuid4()),
-        symbol="BTC-PERP",
+        symbol=btc_symbols.perp_hl.value,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000.0"),
@@ -264,13 +266,14 @@ class TestStrategyManagerRegistration:
 
     @patch("cyberdelta.core.strategy_manager.logger")
     def test_register_strategy_success_replace_existing(
-        self, mock_logger: Mock, strategy_manager: StrategyManager, mock_strategy: Mock
+        self, mock_logger: Mock, strategy_manager: StrategyManager, mock_strategy: Mock, eth_symbols: SymbolSet
     ) -> None:
         """Test replacing an existing strategy."""
         # Arrange
+        eth_symbol = eth_symbols.perp_hl
         old_strategy = Mock(spec=Strategy)
         old_strategy.name = mock_strategy.name
-        old_strategy.symbol = "ETH-PERP"
+        old_strategy.symbol = eth_symbol.value
         strategy_manager.strategies[mock_strategy.name] = old_strategy
 
         # Act
@@ -313,17 +316,18 @@ class TestStrategyManagerRegistration:
         mock_logger.warning.assert_called_once()
 
     def test_register_strategy_edge_multiple_strategies_same_symbol(
-        self, strategy_manager: StrategyManager
+        self, strategy_manager: StrategyManager, btc_symbols: SymbolSet
     ) -> None:
         """Test registering multiple strategies for the same symbol."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "BTC-PERP"
+        strategy2.symbol = btc_symbol.value
 
         # Act
         strategy_manager.register_strategy(strategy1)
@@ -331,7 +335,7 @@ class TestStrategyManagerRegistration:
 
         # Assert
         assert len(strategy_manager.strategies) == 2
-        assert "BTC-PERP" in strategy_manager.active_symbols
+        assert btc_symbol.value in strategy_manager.active_symbols
 
 
 class TestStrategyManagerEnableDisable:
@@ -454,14 +458,16 @@ class TestStrategyManagerMarketDataProcessing:
         sample_candle: Candle,
         sample_trade_signal: TradeSignal,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test processing market data with multiple generated signals."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         strategy_manager.register_strategy(mock_strategy)
         strategy_manager.enable_strategy(mock_strategy.name)
         signal2 = TradeSignal(
             signal_id=str(uuid4()),
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             signal_type=SignalType.EXIT_LONG,
             side=OrderSide.SELL,
             price=Decimal("50100.0"),
@@ -485,14 +491,15 @@ class TestStrategyManagerMarketDataProcessing:
 
     @pytest.mark.asyncio
     async def test_process_market_data_edge_inactive_symbol(
-        self, strategy_manager: StrategyManager, mock_strategy: Mock
+        self, strategy_manager: StrategyManager, mock_strategy: Mock, eth_symbols: SymbolSet
     ) -> None:
         """Test processing market data for inactive symbol."""
         # Arrange
+        eth_symbol = eth_symbols.perp_hl
         strategy_manager.register_strategy(mock_strategy)
         strategy_manager.enable_strategy(mock_strategy.name)
         candle = Candle(
-            symbol="ETH-PERP",  # Different symbol
+            symbol=eth_symbol.value,  # Different symbol
             interval="1m",
             open_time=datetime.now(UTC),
             open=Decimal("3000.0"),
@@ -582,16 +589,18 @@ class TestStrategyManagerSignalValidation:
         mock_strategy: Mock,
         sample_trade_signal: TradeSignal,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test validating a valid signal."""
         # Act
         # Test signal validation through public API instead of private method
+        btc_symbol = btc_symbols.perp_hl
         mock_strategy.process_data.return_value = sample_trade_signal
         strategy_manager.register_strategy(mock_strategy)
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Valid signal should be added to queue (validation passed)
@@ -609,9 +618,11 @@ class TestStrategyManagerSignalValidation:
         strategy_manager: StrategyManager,
         mock_strategy: Mock,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test validating signal that supports model_dump but is invalid."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         invalid_signal = Mock()
         invalid_signal.symbol = None  # Missing required field
         invalid_signal.model_dump = Mock(return_value={"symbol": None})
@@ -623,7 +634,7 @@ class TestStrategyManagerSignalValidation:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Invalid signal should NOT be added to queue (validation failed)
@@ -639,9 +650,11 @@ class TestStrategyManagerSignalValidation:
         strategy_manager: StrategyManager,
         mock_strategy: Mock,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test validating signal where model_dump fails."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         invalid_signal = Mock()
         invalid_signal.symbol = None  # Missing required field
         invalid_signal.model_dump = Mock(side_effect=ValueError("Dump failed"))
@@ -653,7 +666,7 @@ class TestStrategyManagerSignalValidation:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Invalid signal should NOT be added to queue (validation failed)
@@ -672,9 +685,11 @@ class TestStrategyManagerSignalValidation:
         strategy_manager: StrategyManager,
         mock_strategy: Mock,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test validating signal with missing symbol."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         invalid_signal = Mock()
         invalid_signal.symbol = None
         invalid_signal.signal_type = SignalType.ENTER_LONG
@@ -689,7 +704,7 @@ class TestStrategyManagerSignalValidation:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Invalid signal should NOT be added to queue (validation failed)
@@ -705,9 +720,11 @@ class TestStrategyManagerSignalValidation:
         strategy_manager: StrategyManager,
         mock_strategy: Mock,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test validating signal with multiple missing fields."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         invalid_signal = Mock()
         invalid_signal.symbol = None
         invalid_signal.signal_type = None
@@ -722,7 +739,7 @@ class TestStrategyManagerSignalValidation:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Invalid signal should NOT be added to queue (validation failed)
@@ -742,13 +759,17 @@ class TestStrategyManagerRiskManagement:
         strategy_manager: StrategyManager,
         sample_trade_signal: TradeSignal,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test risk management allows valid signal."""
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        
         # Act
         # Test risk management through public API instead of private method
         mock_strategy = Mock(spec=Strategy)
         mock_strategy.name = "test_strategy"
-        mock_strategy.symbol = "BTC-PERP"
+        mock_strategy.symbol = btc_symbol.value
         mock_strategy.enabled = True
         mock_strategy.process_data.return_value = sample_trade_signal
 
@@ -756,7 +777,7 @@ class TestStrategyManagerRiskManagement:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Risk management currently returns True, so signal should be queued
@@ -772,16 +793,20 @@ class TestStrategyManagerRiskManagement:
         strategy_manager: StrategyManager,
         sample_trade_signal: TradeSignal,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test risk management handles exceptions gracefully."""
         # This test is simplified since the current implementation just returns True
         # and the exception handling is placeholder code for future implementation
+        
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
 
         # Act
         # Test risk management through public API instead of private method
         mock_strategy = Mock(spec=Strategy)
         mock_strategy.name = "test_strategy"
-        mock_strategy.symbol = "BTC-PERP"
+        mock_strategy.symbol = btc_symbol.value
         mock_strategy.enabled = True
         mock_strategy.process_data.return_value = sample_trade_signal
 
@@ -789,7 +814,7 @@ class TestStrategyManagerRiskManagement:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Risk management currently returns True, so signal should be queued
@@ -811,13 +836,17 @@ class TestStrategyManagerSignalQueue:
         strategy_manager: StrategyManager,
         sample_trade_signal: TradeSignal,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test successfully adding signal to queue."""
+        # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        
         # Act
         # Test signal queue through public API instead of private method
         mock_strategy = Mock(spec=Strategy)
         mock_strategy.name = "test_strategy"
-        mock_strategy.symbol = "BTC-PERP"
+        mock_strategy.symbol = btc_symbol.value
         mock_strategy.enabled = True
         mock_strategy.process_data.return_value = sample_trade_signal
 
@@ -825,7 +854,7 @@ class TestStrategyManagerSignalQueue:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Assert
@@ -844,16 +873,18 @@ class TestStrategyManagerSignalQueue:
         strategy_manager: StrategyManager,
         sample_trade_signal: TradeSignal,
         mock_signal_queue: Mock,
+        btc_symbols: SymbolSet,
     ) -> None:
         """Test handling queue errors when adding signal."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
         mock_signal_queue.set_exception(ValueError("Queue error"))
 
         # Act
         # Test signal queue through public API instead of private method
         mock_strategy = Mock(spec=Strategy)
         mock_strategy.name = "test_strategy"
-        mock_strategy.symbol = "BTC-PERP"
+        mock_strategy.symbol = btc_symbol.value
         mock_strategy.enabled = True
         mock_strategy.process_data.return_value = sample_trade_signal
 
@@ -861,7 +892,7 @@ class TestStrategyManagerSignalQueue:
         strategy_manager.enable_strategy(mock_strategy.name)
 
         sample_candle = Mock()
-        sample_candle.symbol = "BTC-PERP"
+        sample_candle.symbol = btc_symbol.value
         await strategy_manager.process_market_data(sample_candle)
 
         # Assert
@@ -874,21 +905,24 @@ class TestStrategyManagerStrategyQueries:
     # ==================== SUCCESS CASES ====================
 
     def test_get_strategies_for_symbol_success_matching_strategies(
-        self, strategy_manager: StrategyManager
+        self, strategy_manager: StrategyManager, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test getting strategies for a specific symbol."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
+        
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "BTC-PERP"
+        strategy2.symbol = btc_symbol.value
 
         strategy3 = Mock(spec=Strategy)
         strategy3.name = "strategy3"
-        strategy3.symbol = "ETH-PERP"
+        strategy3.symbol = eth_symbol.value
 
         strategy_manager.register_strategy(strategy1)
         strategy_manager.register_strategy(strategy2)
@@ -898,7 +932,7 @@ class TestStrategyManagerStrategyQueries:
         strategy_manager.enable_strategy("strategy3")
 
         # Act
-        result = strategy_manager.get_strategies_for_symbol("BTC-PERP")
+        result = strategy_manager.get_strategies_for_symbol(btc_symbol.value)
 
         # Assert
         assert len(result) == 2
@@ -907,21 +941,25 @@ class TestStrategyManagerStrategyQueries:
         assert strategy3 not in result
 
     def test_get_enabled_strategies_success_multiple_enabled(
-        self, strategy_manager: StrategyManager
+        self, strategy_manager: StrategyManager, btc_symbols: SymbolSet, eth_symbols: SymbolSet, sol_symbols: SymbolSet
     ) -> None:
         """Test getting all enabled strategies."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
+        sol_symbol = sol_symbols.perp_hl
+        
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "ETH-PERP"
+        strategy2.symbol = eth_symbol.value
 
         strategy3 = Mock(spec=Strategy)
         strategy3.name = "strategy3"
-        strategy3.symbol = "SOL-PERP"
+        strategy3.symbol = sol_symbol.value
 
         strategy_manager.register_strategy(strategy1)
         strategy_manager.register_strategy(strategy2)
@@ -941,15 +979,16 @@ class TestStrategyManagerStrategyQueries:
     # ==================== EDGE CASES ====================
 
     def test_get_strategies_for_symbol_edge_no_matching_strategies(
-        self, strategy_manager: StrategyManager, mock_strategy: Mock
+        self, strategy_manager: StrategyManager, mock_strategy: Mock, eth_symbols: SymbolSet
     ) -> None:
         """Test getting strategies for symbol with no matches."""
         # Arrange
+        eth_symbol = eth_symbols.perp_hl
         strategy_manager.register_strategy(mock_strategy)
         strategy_manager.enable_strategy(mock_strategy.name)
 
         # Act
-        result = strategy_manager.get_strategies_for_symbol("ETH-PERP")
+        result = strategy_manager.get_strategies_for_symbol(eth_symbol.value)
 
         # Assert
         assert result == []
@@ -990,18 +1029,21 @@ class TestStrategyManagerPerformanceMetrics:
     # ==================== SUCCESS CASES ====================
 
     def test_get_strategy_performance_success_all_strategies(
-        self, strategy_manager: StrategyManager
+        self, strategy_manager: StrategyManager, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test getting performance metrics for all strategies."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
+        
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
         strategy1.performance_metrics = {"total_trades": 10, "win_rate": 0.6}
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "ETH-PERP"
+        strategy2.symbol = eth_symbol.value
         strategy2.performance_metrics = {"total_trades": 5, "win_rate": 0.8}
 
         strategy_manager.register_strategy(strategy1)
@@ -1031,18 +1073,20 @@ class TestStrategyManagerPerformanceMetrics:
 
     @patch("cyberdelta.core.strategy_manager.logger")
     def test_get_strategy_performance_failure_metrics_error(
-        self, mock_logger: Mock, strategy_manager: StrategyManager
+        self, mock_logger: Mock, strategy_manager: StrategyManager, btc_symbols: SymbolSet
     ) -> None:
         """Test handling errors when getting performance metrics."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        
         strategy = Mock(spec=Strategy)
         strategy.name = "strategy1"
-        strategy.symbol = "BTC-PERP"
+        strategy.symbol = btc_symbol.value
 
         # Create a mock strategy that raises exception on performance_metrics access
         error_strategy = Mock(spec=Strategy)
         error_strategy.name = "strategy1"
-        error_strategy.symbol = "BTC-PERP"
+        error_strategy.symbol = btc_symbol.value
 
         # Delete the existing mock attribute to allow PropertyMock to work
         del error_strategy.performance_metrics
@@ -1069,17 +1113,20 @@ class TestStrategyManagerLifecycleManagement:
 
     @patch("cyberdelta.core.strategy_manager.logger")
     def test_start_all_success_enabled_strategies(
-        self, mock_logger: Mock, strategy_manager: StrategyManager
+        self, mock_logger: Mock, strategy_manager: StrategyManager, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test starting all enabled strategies."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
+        
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "ETH-PERP"
+        strategy2.symbol = eth_symbol.value
 
         strategy_manager.register_strategy(strategy1)
         strategy_manager.register_strategy(strategy2)
@@ -1096,17 +1143,20 @@ class TestStrategyManagerLifecycleManagement:
 
     @patch("cyberdelta.core.strategy_manager.logger")
     def test_stop_all_success_all_strategies(
-        self, mock_logger: Mock, strategy_manager: StrategyManager
+        self, mock_logger: Mock, strategy_manager: StrategyManager, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test stopping all strategies."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
+        
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "ETH-PERP"
+        strategy2.symbol = eth_symbol.value
 
         strategy_manager.register_strategy(strategy1)
         strategy_manager.register_strategy(strategy2)
@@ -1194,21 +1244,24 @@ class TestStrategyManagerActiveSymbols:
     # ==================== SUCCESS CASES ====================
 
     def test_refresh_active_symbols_success_with_strategies(
-        self, strategy_manager: StrategyManager
+        self, strategy_manager: StrategyManager, btc_symbols: SymbolSet, eth_symbols: SymbolSet
     ) -> None:
         """Test refreshing active symbols with multiple strategies."""
         # Arrange
+        btc_symbol = btc_symbols.perp_hl
+        eth_symbol = eth_symbols.perp_hl
+        
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "ETH-PERP"
+        strategy2.symbol = eth_symbol.value
 
         strategy3 = Mock(spec=Strategy)
         strategy3.name = "strategy3"
-        strategy3.symbol = "BTC-PERP"  # Duplicate symbol
+        strategy3.symbol = btc_symbol.value  # Duplicate symbol
 
         strategy_manager.register_strategy(strategy1)
         strategy_manager.register_strategy(strategy2)
@@ -1226,7 +1279,7 @@ class TestStrategyManagerActiveSymbols:
         strategy_manager.unregister_strategy("dummy")
 
         # Assert
-        assert strategy_manager.active_symbols == {"BTC-PERP", "ETH-PERP"}
+        assert strategy_manager.active_symbols == {btc_symbol.value, eth_symbol.value}
 
     # ==================== EDGE CASES ====================
 

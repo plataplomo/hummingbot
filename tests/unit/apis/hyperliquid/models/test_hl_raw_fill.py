@@ -4,6 +4,7 @@ from typing import Any
 
 import pytest
 
+from cyberdelta.core.symbols import symbols
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 
 
@@ -18,7 +19,7 @@ def valid_fill_data() -> dict[str, Any]:
     return {
         "tid": 12345,
         "oid": 67890,
-        "coin": "BTC-PERP",
+        "coin": symbols.BTC.hyperliquid().value,
         "px": "30000.0",
         "sz": "0.1",
         "startPosition": "0.0",

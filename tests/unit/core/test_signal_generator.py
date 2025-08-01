@@ -20,6 +20,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_service import UnifiedSymbolService
+from cyberdelta.core.symbols import symbols
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -43,12 +44,12 @@ class TestSignalGenerator:
             "exchanges": {
                 "hyperliquid": {
                     "enabled": True,
-                    "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
+                    "symbols": {"BTC": symbols.BTC.hyperliquid().value, "ETH": symbols.ETH.hyperliquid().value},
                     "fee_rate": "0.0004",
                 },
                 "backpack": {
                     "enabled": True,
-                    "symbols": {"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
+                    "symbols": {"BTC": symbols.BTC.backpack().value, "ETH": symbols.ETH.backpack().value},
                     "fee_rate": "0.0006",
                 },
             },
@@ -125,31 +126,36 @@ class TestSignalGenerator:
         handler = MagicMock(spec=DataHandler)
         now = datetime.now(UTC)
 
-        # Use exchange-specific symbols matching test_config.yaml
+        # Use Symbol objects now that the infrastructure is fixed
+        btc_hl = symbols.BTC.hyperliquid()
+        btc_bp = symbols.BTC.backpack()
+        eth_hl = symbols.ETH.hyperliquid()
+        eth_bp = symbols.ETH.backpack()
+        
         funding_rates: dict[str, dict[str, FundingRate]] = {
             "hyperliquid": {
-                "BTC": FundingRate(
-                    symbol="BTC",
+                btc_hl.value: FundingRate(
+                    symbol=btc_hl,
                     funding_rate=Decimal("-0.001"),
                     mark_price=Decimal(30000),
                     timestamp=now,
                 ),
-                "ETH": FundingRate(
-                    symbol="ETH",
+                eth_hl.value: FundingRate(
+                    symbol=eth_hl,
                     funding_rate=Decimal("0.005"),
                     mark_price=Decimal(2000),
                     timestamp=now,
                 ),
             },
             "backpack": {
-                "BTC-USDC": FundingRate(
-                    symbol="BTC-USDC",
+                btc_bp.value: FundingRate(
+                    symbol=btc_bp,
                     funding_rate=Decimal("0.002"),
                     mark_price=Decimal(30010),
                     timestamp=now,
                 ),
-                "ETH-USDC": FundingRate(
-                    symbol="ETH-USDC",
+                eth_bp.value: FundingRate(
+                    symbol=eth_bp,
                     funding_rate=Decimal("-0.01"),
                     mark_price=Decimal(2005),
                     timestamp=now,
@@ -157,9 +163,9 @@ class TestSignalGenerator:
             },
         }
 
-        # Mock Ticker data for data_handler.tickers
+        # Mock Ticker data for data_handler.tickers using Symbol objects
         mock_hl_btc_ticker = Ticker(
-            symbol="BTC",
+            symbol=btc_hl,
             exchange="hyperliquid",
             price=Decimal(30000),
             bid=Decimal(29999),
@@ -167,7 +173,7 @@ class TestSignalGenerator:
             timestamp=now,
         )
         mock_bp_btc_ticker = Ticker(
-            symbol="BTC-USDC",
+            symbol=btc_bp,
             exchange="backpack",
             price=Decimal(30010),
             bid=Decimal(30009),
@@ -175,7 +181,7 @@ class TestSignalGenerator:
             timestamp=now,
         )
         mock_hl_eth_ticker = Ticker(
-            symbol="ETH",
+            symbol=eth_hl,
             exchange="hyperliquid",
             price=Decimal(2000),
             bid=Decimal(1999),
@@ -183,7 +189,7 @@ class TestSignalGenerator:
             timestamp=now,
         )
         mock_bp_eth_ticker = Ticker(
-            symbol="ETH-USDC",
+            symbol=eth_bp,
             exchange="backpack",
             price=Decimal(2005),
             bid=Decimal(2004),
@@ -193,12 +199,12 @@ class TestSignalGenerator:
 
         handler.tickers = {
             "hyperliquid": {
-                "BTC": mock_hl_btc_ticker,
-                "ETH": mock_hl_eth_ticker,
+                btc_hl.value: mock_hl_btc_ticker,
+                eth_hl.value: mock_hl_eth_ticker,
             },
             "backpack": {
-                "BTC-USDC": mock_bp_btc_ticker,
-                "ETH-USDC": mock_bp_eth_ticker,
+                btc_bp.value: mock_bp_btc_ticker,
+                eth_bp.value: mock_bp_eth_ticker,
             },
         }
 
@@ -211,8 +217,8 @@ class TestSignalGenerator:
         # or if estimate_slippage is mocked directly if it uses get_orderbook.
         # For now, keeping it as it was.
         orderbooks: dict[str, dict[str, MagicMock]] = {
-            "hyperliquid": {"BTC": mock_orderbook, "ETH": mock_orderbook},
-            "backpack": {"BTC-USDC": mock_orderbook, "ETH-USDC": mock_orderbook},
+            "hyperliquid": {btc_hl.value: mock_orderbook, eth_hl.value: mock_orderbook},
+            "backpack": {btc_bp.value: mock_orderbook, eth_bp.value: mock_orderbook},
         }
 
         def get_funding_rate_side_effect(exchange: str, symbol: str) -> FundingRate | None:
@@ -256,9 +262,12 @@ class TestSignalGenerator:
         Returns:
             SymbolService: Configured symbol service for testing.
         """
-        # Create a UnifiedSymbolService which returns the underlying SymbolService
-        unified_service = UnifiedSymbolService()
-        return unified_service.service
+        # Import handlers and create service directly
+        from cyberdelta.core.symbols.handlers import DEFAULT_HANDLERS
+        from cyberdelta.core.symbols.service import SymbolService
+        
+        # Create service with the default handlers
+        return SymbolService(DEFAULT_HANDLERS)
 
     @pytest.fixture
     def signal_generator(
@@ -492,11 +501,11 @@ class TestSignalGenerator:
         mock_funding_data = {
             "BTC": {
                 "hyperliquid": data_handler.get_latest_funding_rate("hyperliquid", "BTC"),
-                "backpack": data_handler.get_latest_funding_rate("backpack", "BTC-USDC"),
+                "backpack": data_handler.get_latest_funding_rate("backpack", symbols.BTC.backpack().value),
             },
             "ETH": {
                 "hyperliquid": data_handler.get_latest_funding_rate("hyperliquid", "ETH"),
-                "backpack": data_handler.get_latest_funding_rate("backpack", "ETH-USDC"),
+                "backpack": data_handler.get_latest_funding_rate("backpack", symbols.ETH.backpack().value),
             },
         }
         # SignalGenerator now uses self.data_handler.tickers internally.
@@ -537,10 +546,11 @@ class TestSignalGenerator:
         # Define side effect with type hints, adding mark_price and timestamp
         def mock_low_funding(exchange: str, symbol: str) -> FundingRate | None:
             """Return mock low funding for testing."""
-            hl_sym_obj = signal_generator.symbol_service.get_exchange_symbol("BTC", "hyperliquid")
-            hl_sym = hl_sym_obj.value if hl_sym_obj else "BTC-PERP"
-            bp_sym_obj = signal_generator.symbol_service.get_exchange_symbol("BTC", "backpack")
-            bp_sym = bp_sym_obj.value if bp_sym_obj else "BTC_USDC"
+            # Use Symbol objects directly instead of fallback strings
+            btc_hl = symbols.BTC.hyperliquid()
+            btc_bp = symbols.BTC.backpack()
+            hl_sym = btc_hl.value
+            bp_sym = btc_bp.value
             rates = {
                 "hyperliquid": {
                     hl_sym: FundingRate(
@@ -571,10 +581,13 @@ class TestSignalGenerator:
         # Example:
         # data_handler.tickers = { ... specific Ticker objects ... }
 
+        # Use Symbol objects for consistent testing
+        btc_hl = symbols.BTC.hyperliquid()
+        btc_bp = symbols.BTC.backpack()
         mock_funding_data = {
             "BTC": {
-                "hyperliquid": mock_low_funding("hyperliquid", "BTC-PERP"),
-                "backpack": mock_low_funding("backpack", "BTC_USDC"),
+                "hyperliquid": mock_low_funding("hyperliquid", btc_hl.value),
+                "backpack": mock_low_funding("backpack", btc_bp.value),
             },
         }
 
@@ -601,7 +614,7 @@ class TestSignalGenerator:
                 object | None: Configuration value for single exchange or default.
             """
             mock_single_config_dict: dict[str, Any] = {
-                "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": "BTC-PERP"}}},
+                "exchanges": {"hyperliquid": {"enabled": True, "symbols": {"BTC": symbols.BTC.hyperliquid().value}}},
                 "strategy.funding_rate.min_funding_differential": "0.0002",
                 "strategy.funding_rate.min_profit_threshold": "3.0",
                 "strategy.funding_rate.funding_sample_period": 3600,
@@ -627,9 +640,11 @@ class TestSignalGenerator:
         # Re-initialize by creating a new signal generator instance with the updated config
         signal_generator = SignalGenerator(config, data_handler, symbol_mapper)
 
+        # Use Symbol object for consistent testing
+        btc_hl = symbols.BTC.hyperliquid()
         mock_funding_data = {
             "BTC": {
-                "hyperliquid": data_handler.get_latest_funding_rate("hyperliquid", "BTC-PERP"),
+                "hyperliquid": data_handler.get_latest_funding_rate("hyperliquid", btc_hl.value),
             },
         }
 
@@ -656,7 +671,7 @@ class TestSignalGenerator:
                 timestamp=now,
             ),
             "backpack": FundingRate(
-                symbol="BTC-USDC",
+                symbol=symbols.BTC.backpack().value,
                 funding_rate=Decimal("0.002"),
                 timestamp=now,
             ),
@@ -672,7 +687,7 @@ class TestSignalGenerator:
                 timestamp=now,
             ),
             "backpack": Ticker(
-                symbol="BTC-USDC",
+                symbol=symbols.BTC.backpack().value,
                 exchange="backpack",
                 price=Decimal(41100),
                 bid=Decimal(41099),
@@ -702,7 +717,7 @@ class TestSignalGenerator:
         # Need to mock the ticker data in the data handler
         signal_generator.data_handler.tickers = {
             "hyperliquid": {"BTC": ticker_data["hyperliquid"]},
-            "backpack": {"BTC-USDC": ticker_data["backpack"]},
+            "backpack": {symbols.BTC.backpack().value: ticker_data["backpack"]},
         }
 
         opportunities = await signal_generator.generate_arbitrage_opportunities(funding_data)

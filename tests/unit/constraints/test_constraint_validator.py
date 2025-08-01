@@ -22,6 +22,7 @@ from cyberdelta.core.risk.sizing.models.sizing_result import (
     SizedOpportunity,
     SizingResult,
 )
+from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -164,7 +165,7 @@ def create_test_opportunity() -> ArbitrageOpportunity:
         ArbitrageOpportunity: Test BTC-PERP arbitrage opportunity.
     """
     return ArbitrageOpportunity(
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid().value,
         long_exchange="hyperliquid",
         short_exchange="backpack",
         long_price=Decimal("50000.00"),

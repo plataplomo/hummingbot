@@ -20,6 +20,7 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
+from cyberdelta.core.symbols import symbols
 
 
 class TestPortfolioTracker:
@@ -61,7 +62,7 @@ class TestPortfolioTracker:
         tracker = AsyncMock()
 
         positions = {
-            "BTC-PERP": DerivativePosition(
+            btc_perp_hl.value: DerivativePosition(
                 exchange="hyperliquid",
                 symbol=btc_perp_hl,
                 side=OrderSide.BUY,
@@ -151,7 +152,7 @@ class TestPortfolioTracker:
         # Mock tracker
         tracker = AsyncMock()
         positions = {
-            "BTC-PERP": DerivativePosition(
+            btc_perp_hl.value: DerivativePosition(
                 exchange="hyperliquid",
                 symbol=btc_perp_hl,
                 side=OrderSide.BUY,
@@ -167,7 +168,7 @@ class TestPortfolioTracker:
 
         result = await tracker.get_positions("hyperliquid")
         assert len(result) == 1
-        assert "BTC-PERP" in result
+        assert btc_perp_hl.value in result
 
     @pytest.mark.asyncio
     async def test_calculate_portfolio_value(self) -> None:

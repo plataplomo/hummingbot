@@ -17,12 +17,13 @@ from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order
 from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.order_manager import OrderManager
+from cyberdelta.core.symbols import Symbol, symbols
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 def create_trade(
     trade_id: str = "T1",
-    symbol: str = "BTC-PERP",
+    symbol: Symbol | None = None,
     side: OrderSide = OrderSide.BUY,
     price: Decimal = Decimal("50000.0"),
     quantity: Decimal = Decimal("0.5"),
@@ -38,6 +39,10 @@ def create_trade(
     Returns:
         Trade: A trade instance with the specified parameters.
     """
+    # Default to BTC symbol if none provided
+    if symbol is None:
+        symbol = symbols.BTC.hyperliquid()
+
     return Trade(
         id=trade_id,
         symbol=symbol,
@@ -61,9 +66,10 @@ def base_order() -> Order:
     Returns:
         Order: A base order instance for testing.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return Order(
         exchange="hyperliquid",
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity_requested=Decimal("1.0"),
@@ -86,9 +92,11 @@ class TestOrderManagerApplyFillValidation:
     @patch("cyberdelta.core.order_manager.logger")
     def test_apply_fill_success_matching_ids(self, mock_logger: Mock, base_order: Order) -> None:
         """Test successful fill application with matching IDs."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
             client_order_id=base_order.client_order_id,
         )
@@ -106,9 +114,11 @@ class TestOrderManagerApplyFillValidation:
     @patch("cyberdelta.core.order_manager.logger")
     def test_apply_fill_success_no_client_id(self, mock_logger: Mock, base_order: Order) -> None:
         """Test successful fill application when trade has no client ID."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id="UNKNOWN",  # Different order_id than the order
             client_order_id=None,
         )
@@ -125,7 +135,7 @@ class TestOrderManagerApplyFillValidation:
             trade_order_id="UNKNOWN",
             order_exchange_id="EX123456",
             order_client_id=base_order.client_order_id,
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             action="validation_warning",
             message="Trade order_id does not match order.exchange_order_id",
         )
@@ -141,9 +151,11 @@ class TestOrderManagerApplyFillValidation:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test fill application with mismatched order ID."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id="DIFFERENT123",
             client_order_id=base_order.client_order_id,
         )
@@ -160,7 +172,7 @@ class TestOrderManagerApplyFillValidation:
             trade_order_id="DIFFERENT123",
             order_exchange_id="EX123456",
             order_client_id=base_order.client_order_id,
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             action="validation_warning",
             message="Trade order_id does not match order.exchange_order_id",
         )
@@ -170,9 +182,11 @@ class TestOrderManagerApplyFillValidation:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test fill application with mismatched client order ID."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
             client_order_id="DIFFERENT_CLIENT_ID",
         )
@@ -189,7 +203,7 @@ class TestOrderManagerApplyFillValidation:
             trade_client_order_id="DIFFERENT_CLIENT_ID",
             order_client_order_id=base_order.client_order_id,
             order_exchange_id="EX123456",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             action="validation_warning",
             message="Trade client_order_id does not match order.client_order_id",
         )
@@ -197,10 +211,12 @@ class TestOrderManagerApplyFillValidation:
     @patch("cyberdelta.core.order_manager.logger")
     def test_apply_fill_edge_mismatched_symbol(self, mock_logger: Mock, base_order: Order) -> None:
         """Test fill application with mismatched symbol."""
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -213,8 +229,8 @@ class TestOrderManagerApplyFillValidation:
         # Should log warning about mismatch
         mock_logger.warning.assert_any_call(
             "trade_details_mismatch",
-            trade_symbol="ETH-PERP",
-            order_symbol="BTC-PERP",
+            trade_symbol=eth_symbol,
+            order_symbol=btc_symbol,
             trade_side="BUY",
             order_side="BUY",
             order_client_id=base_order.client_order_id,
@@ -225,9 +241,11 @@ class TestOrderManagerApplyFillValidation:
     @patch("cyberdelta.core.order_manager.logger")
     def test_apply_fill_edge_mismatched_side(self, mock_logger: Mock, base_order: Order) -> None:
         """Test fill application with mismatched side."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             side=OrderSide.SELL,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
@@ -241,8 +259,8 @@ class TestOrderManagerApplyFillValidation:
         # Should log warning about mismatch
         mock_logger.warning.assert_any_call(
             "trade_details_mismatch",
-            trade_symbol="BTC-PERP",
-            order_symbol="BTC-PERP",
+            trade_symbol=btc_symbol,
+            order_symbol=btc_symbol,
             trade_side="SELL",
             order_side="BUY",
             order_client_id=base_order.client_order_id,
@@ -259,9 +277,11 @@ class TestOrderManagerFillCalculations:
     @patch("cyberdelta.core.order_manager.logger")
     def test_apply_fill_success_single_fill(self, mock_logger: Mock, base_order: Order) -> None:
         """Test applying a single fill to an empty order."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -278,10 +298,11 @@ class TestOrderManagerFillCalculations:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test applying multiple fills at the same price."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade1 = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             order_id="EX123456",
             executed_at=datetime.now(UTC),
             side=OrderSide.BUY,
@@ -291,7 +312,7 @@ class TestOrderManagerFillCalculations:
         )
         trade2 = Trade(
             id="T2",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.3"),
@@ -314,10 +335,11 @@ class TestOrderManagerFillCalculations:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test applying multiple fills at different prices."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade1 = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.5"),
@@ -327,7 +349,7 @@ class TestOrderManagerFillCalculations:
         )
         trade2 = Trade(
             id="T2",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("51000.0"),
             quantity=Decimal("0.5"),
@@ -349,10 +371,11 @@ class TestOrderManagerFillCalculations:
     @patch("cyberdelta.core.order_manager.logger")
     def test_apply_fill_success_complete_fill(self, mock_logger: Mock, base_order: Order) -> None:
         """Test applying a fill that completes the order."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("1.0"),
@@ -376,10 +399,11 @@ class TestOrderManagerFillCalculations:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test applying a very small fill quantity."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.00000001"),  # Very small quantity
@@ -399,10 +423,11 @@ class TestOrderManagerFillCalculations:
     @patch("cyberdelta.core.order_manager.logger")
     def test_apply_fill_edge_near_complete_fill(self, mock_logger: Mock, base_order: Order) -> None:
         """Test applying a fill that almost completes the order."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.9999999999"),  # Just under requested
@@ -429,10 +454,11 @@ class TestOrderManagerOverfillHandling:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test handling slight overfill within tolerance."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("1.0000000005"),  # Slightly over, within tolerance
@@ -452,7 +478,7 @@ class TestOrderManagerOverfillHandling:
             "order_slight_overfill_snapped",
             client_order_id=base_order.client_order_id,
             exchange_order_id="EX123456",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             quantity_filled=float(Decimal("1.0000000005")),
             quantity_requested=1.0,
             overfill_amount=float(Decimal("0.0000000005")),
@@ -469,10 +495,11 @@ class TestOrderManagerOverfillHandling:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test handling significant overfill."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("1.5"),  # 50% overfill
@@ -495,11 +522,12 @@ class TestOrderManagerOverfillHandling:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test overfill handling when order already has partial fills."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         # First fill
         trade1 = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.6"),
@@ -512,7 +540,7 @@ class TestOrderManagerOverfillHandling:
         # Second fill that would cause overfill
         trade2 = Trade(
             id="T2",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("51000.0"),
             quantity=Decimal("0.5"),  # Total would be 1.1
@@ -540,11 +568,12 @@ class TestOrderManagerOverfillHandling:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test average price calculation is correct after overfill snapping."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         # First apply a trade to set order to near completion
         first_trade = Trade(
             id="T0",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             order_id="EX123456",
             price=Decimal("49000.0"),
@@ -557,7 +586,7 @@ class TestOrderManagerOverfillHandling:
         # Trade that would overfill
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("52000.0"),
             quantity=Decimal("0.2"),  # Would make total 1.1
@@ -585,10 +614,12 @@ class TestOrderManagerStatusTransitions:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test transition from NEW to PARTIALLY_FILLED."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         base_order.status = OrderStatus.NEW
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             quantity=Decimal("0.5"),
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
@@ -602,7 +633,7 @@ class TestOrderManagerStatusTransitions:
             "order_status_transition_to_partially_filled",
             client_order_id=base_order.client_order_id,
             exchange_order_id="EX123456",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             previous_status="NEW",
             new_status="PARTIALLY_FILLED",
             quantity_filled=0.5,
@@ -622,11 +653,12 @@ class TestOrderManagerStatusTransitions:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test transition from PARTIALLY_FILLED to FILLED."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         # First apply a partial fill to get order to PARTIALLY_FILLED state
         first_trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             order_id="EX123456",
             price=Decimal("50000.0"),
@@ -639,7 +671,7 @@ class TestOrderManagerStatusTransitions:
         # Now apply second fill
         trade = Trade(
             id="T2",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.5"),
@@ -657,7 +689,7 @@ class TestOrderManagerStatusTransitions:
             "order_status_transition_to_filled",
             client_order_id=base_order.client_order_id,
             exchange_order_id="EX123456",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             previous_status="PARTIALLY_FILLED",
             new_status="FILLED",
             quantity_filled=1.0,
@@ -676,10 +708,12 @@ class TestOrderManagerStatusTransitions:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test fill applied to CANCELED order doesn't change status."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         base_order.status = OrderStatus.CANCELED
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -695,10 +729,12 @@ class TestOrderManagerStatusTransitions:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test fill applied to REJECTED order doesn't change status."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         base_order.status = OrderStatus.REJECTED
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -714,10 +750,12 @@ class TestOrderManagerStatusTransitions:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test fill applied to EXPIRED order doesn't change status."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         base_order.status = OrderStatus.EXPIRED
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -733,10 +771,12 @@ class TestOrderManagerStatusTransitions:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test fill applied to FAILED order doesn't change status."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         base_order.status = OrderStatus.FAILED
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -756,10 +796,12 @@ class TestOrderManagerTimestampHandling:
     @patch("cyberdelta.core.order_manager.logger")
     def test_timestamp_success_with_timezone(self, mock_logger: Mock, base_order: Order) -> None:
         """Test updated_at uses order's timezone."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         tz = base_order.created_at.tzinfo
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -773,10 +815,12 @@ class TestOrderManagerTimestampHandling:
     @patch("cyberdelta.core.order_manager.logger")
     def test_timestamp_success_without_timezone(self, mock_logger: Mock, base_order: Order) -> None:
         """Test updated_at defaults to UTC when order has no timezone."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         base_order.created_at = base_order.created_at.replace(tzinfo=None)
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -795,10 +839,11 @@ class TestOrderManagerTimestampHandling:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test that each fill updates the timestamp."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade1 = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             order_id="EX123456",
             executed_at=datetime.now(UTC),
             side=OrderSide.BUY,
@@ -808,7 +853,7 @@ class TestOrderManagerTimestampHandling:
         )
         trade2 = Trade(
             id="T2",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.3"),
@@ -845,9 +890,11 @@ class TestOrderManagerTradeAccumulation:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test single trade is added to trades list."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = create_trade(
             trade_id="T123456",
+            symbol=btc_symbol,
             order_id=base_order.exchange_order_id or "DEFAULT_ORDER_ID",
         )
 
@@ -863,12 +910,13 @@ class TestOrderManagerTradeAccumulation:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test multiple trades are accumulated in order."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trades: list[Trade] = []
         for i in range(5):
             trade = Trade(
                 id=f"T{i}",
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
                 quantity=Decimal("0.2"),
@@ -895,10 +943,11 @@ class TestOrderManagerTradeAccumulation:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test handling of trades with duplicate IDs."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade1 = Trade(
             id="T1",  # Same ID
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
             quantity=Decimal("0.3"),
@@ -908,7 +957,7 @@ class TestOrderManagerTradeAccumulation:
         )
         trade2 = Trade(
             id="T1",  # Same ID
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("51000.0"),
             quantity=Decimal("0.3"),
@@ -937,12 +986,13 @@ class TestOrderManagerSpecialCases:
         self, mock_logger: Mock, base_order: Order
     ) -> None:
         """Test handling of minimal quantity trade."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         # Use smallest possible quantity that's still positive
         min_quantity = Decimal("1e-18")
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             order_id="EX123456",
             price=Decimal("50000.0"),
@@ -962,10 +1012,11 @@ class TestOrderManagerSpecialCases:
     @patch("cyberdelta.core.order_manager.logger")
     def test_special_case_edge_very_high_price(self, mock_logger: Mock, base_order: Order) -> None:
         """Test handling of very high price trades."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         trade = Trade(
             id="T1",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             price=Decimal("99999999.99999999"),  # Very high price
             quantity=Decimal("0.5"),

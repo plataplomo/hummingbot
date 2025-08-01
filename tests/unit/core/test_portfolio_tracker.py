@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.config.models.config_models import PortfolioTrackerConfig
+from cyberdelta.core.portfolio.config.portfolio_config import PortfolioConfiguration
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -23,6 +23,7 @@ from cyberdelta.core.models import (
     TimeInForce,
 )
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.symbols import Symbol, symbols
 
 from .conftest import create_sample_positions, populate_nested_dict
 
@@ -57,10 +58,17 @@ def _get_mock_price_data() -> dict[str, Decimal]:
     Returns:
         dict[str, Decimal]: Mock price data mapping symbols to prices.
     """
+    # Using spot pair notation for price data simulation
+    # These are used as dictionary keys for price lookups in tests
+    from cyberdelta.core.symbols.api import symbol
+    btc_usdc = symbol("BTC_USDC", "backpack")
+    eth_usdc = symbol("ETH_USDC", "backpack")
+    eth_btc = symbol("ETH_BTC", "backpack")
+    
     return {
-        "BTC_USDC": Decimal("50000.0"),
-        "ETH_USDC": Decimal("3000.0"),
-        "ETH_BTC": Decimal("0.06"),  # 3000/50000
+        btc_usdc.value: Decimal("50000.0"),
+        eth_usdc.value: Decimal("3000.0"),
+        eth_btc.value: Decimal("0.06"),  # 3000/50000
     }
 
 
@@ -111,14 +119,15 @@ class TestPortfolioTracker:
     def portfolio_tracker(
         self,
         mock_config: MagicMock,  # Use shared fixture
-        pt_config: PortfolioTrackerConfig,  # Use shared fixture
     ) -> PortfolioStateManager:
         """Create a PortfolioStateManager instance for testing.
 
         Returns:
             PortfolioStateManager: Configured portfolio tracker for pure state management.
         """
-        return PortfolioStateManager(mock_config, pt_config)
+        # Create a simple mock state container
+        mock_state_container = MagicMock()
+        return PortfolioStateManager(mock_config, mock_state_container)
 
     # Use shared sample_positions fixture from conftest.py
 
@@ -152,18 +161,18 @@ class TestPortfolioTracker:
         The initialize method only sets up internal state, not API calls.
         """
         # Initialize the portfolio tracker
-        await portfolio_state_manager.initialize()
+        await portfolio_tracker.initialize()
 
         # Verify that internal state is properly initialized
         # After initialization with no data, all collections should be empty
-        assert portfolio_state_manager.balances == {}
-        assert portfolio_state_manager.positions == {}
-        assert portfolio_state_manager.orders == {}
-        assert portfolio_state_manager.exchange_summaries == {}
-        assert portfolio_state_manager.last_update_time == {}
+        assert portfolio_tracker.balances == {}
+        assert portfolio_tracker.positions == {}
+        assert portfolio_tracker.orders == {}
+        assert portfolio_tracker.exchange_summaries == {}
+        assert portfolio_tracker.last_update_time == {}
 
         # Verify high watermark was set (to 0 since no initial data)
-        assert portfolio_state_manager.high_watermark == Decimal(0)
+        assert portfolio_tracker.high_watermark == Decimal(0)
 
     @pytest.mark.asyncio
     async def test_update_basic_state_management(
@@ -195,26 +204,26 @@ class TestPortfolioTracker:
                 )
 
         # Test data updates using the new pure update methods
-        await portfolio_state_manager.update_balances("hyperliquid", spot_balances["hyperliquid"])
-        await portfolio_state_manager.update_positions(
+        await portfolio_tracker.update_balances("hyperliquid", spot_balances["hyperliquid"])
+        await portfolio_tracker.update_positions(
             "hyperliquid", list(sample_positions["hyperliquid"].values())
         )
-        await portfolio_state_manager.update_orders(
+        await portfolio_tracker.update_orders(
             "hyperliquid", list(sample_orders["hyperliquid"].values())
         )
 
         # Verify state was updated correctly
-        assert "hyperliquid" in portfolio_state_manager.balances
-        assert "USDC" in portfolio_state_manager.balances["hyperliquid"]
-        assert portfolio_state_manager.balances["hyperliquid"]["USDC"].total_quantity == Decimal(
+        assert "hyperliquid" in portfolio_tracker.balances
+        assert "USDC" in portfolio_tracker.balances["hyperliquid"]
+        assert portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity == Decimal(
             "100000.0"
         )
 
-        assert "hyperliquid" in portfolio_state_manager.positions
-        assert "BTC" in portfolio_state_manager.positions["hyperliquid"]
+        assert "hyperliquid" in portfolio_tracker.positions
+        assert "BTC" in portfolio_tracker.positions["hyperliquid"]
 
-        assert "hyperliquid" in portfolio_state_manager.orders
-        assert len(portfolio_state_manager.orders["hyperliquid"]) > 0
+        assert "hyperliquid" in portfolio_tracker.orders
+        assert len(portfolio_tracker.orders["hyperliquid"]) > 0
 
     @pytest.mark.asyncio
     async def test_update_account_summary_method(
@@ -236,12 +245,12 @@ class TestPortfolioTracker:
         )
 
         # Test data update using the new pure update method
-        await portfolio_state_manager.update_account_summary("hyperliquid", summary)
+        await portfolio_tracker.update_account_summary("hyperliquid", summary)
 
         # Verify state was updated correctly
-        assert "hyperliquid" in portfolio_state_manager.exchange_summaries
-        assert portfolio_state_manager.exchange_summaries["hyperliquid"].total_equity == Decimal(10000)
-        assert portfolio_state_manager.exchange_summaries["hyperliquid"].available_equity == Decimal(9250)
+        assert "hyperliquid" in portfolio_tracker.exchange_summaries
+        assert portfolio_tracker.exchange_summaries["hyperliquid"].total_equity == Decimal(10000)
+        assert portfolio_tracker.exchange_summaries["hyperliquid"].available_equity == Decimal(9250)
 
     @pytest.mark.asyncio
     async def test_update_ticker_data_method(
@@ -249,9 +258,12 @@ class TestPortfolioTracker:
         portfolio_tracker: PortfolioStateManager,
     ) -> None:
         """Test the update_ticker_data method for pure state management."""
+        # Apply Direct Symbol Creation pattern
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Test that portfolio tracker can update ticker data
         ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,  # Ticker expects Symbol object
             exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
@@ -259,7 +271,7 @@ class TestPortfolioTracker:
         )
 
         # Test data update using the new pure update method
-        await portfolio_state_manager.update_ticker_data("hyperliquid", "BTC-PERP", ticker)
+        await portfolio_tracker.update_ticker_data("hyperliquid", btc_symbol.value, ticker)  # Method call uses .value
 
         # Verify state was updated correctly - ticker data is stored in the _tickers cache
         # Note: This verifies the method accepts the data correctly
@@ -290,14 +302,14 @@ class TestPortfolioTracker:
         }
 
         # Update balances
-        await portfolio_state_manager.update_balances("hyperliquid", balances)
+        await portfolio_tracker.update_balances("hyperliquid", balances)
 
         # Verify balances were stored correctly
-        assert "hyperliquid" in portfolio_state_manager.balances
-        assert "USDC" in portfolio_state_manager.balances["hyperliquid"]
-        assert "BTC" in portfolio_state_manager.balances["hyperliquid"]
-        assert portfolio_state_manager.balances["hyperliquid"]["USDC"].total_quantity == Decimal(10000)
-        assert portfolio_state_manager.balances["hyperliquid"]["BTC"].total_quantity == Decimal("0.5")
+        assert "hyperliquid" in portfolio_tracker.balances
+        assert "USDC" in portfolio_tracker.balances["hyperliquid"]
+        assert "BTC" in portfolio_tracker.balances["hyperliquid"]
+        assert portfolio_tracker.balances["hyperliquid"]["USDC"].total_quantity == Decimal(10000)
+        assert portfolio_tracker.balances["hyperliquid"]["BTC"].total_quantity == Decimal("0.5")
 
     @pytest.mark.asyncio
     async def test_update_positions_validation(
@@ -305,11 +317,15 @@ class TestPortfolioTracker:
         portfolio_tracker: PortfolioStateManager,
     ) -> None:
         """Test update_positions method with validation."""
+        # Apply Direct Symbol Creation pattern
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
+        
         # Create test position data
         positions = [
             DerivativePosition(
                 exchange="hyperliquid",
-                symbol="BTC-PERP",
+                symbol=btc_symbol,  # DerivativePosition expects Symbol object
                 side=OrderSide.BUY,
                 size=Decimal("1.0"),
                 entry_price=Decimal(50000),
@@ -319,7 +335,7 @@ class TestPortfolioTracker:
             ),
             DerivativePosition(
                 exchange="hyperliquid",
-                symbol="ETH-PERP",
+                symbol=eth_symbol,  # DerivativePosition expects Symbol object
                 side=OrderSide.SELL,
                 size=Decimal("-2.0"),
                 entry_price=Decimal(3000),
@@ -330,14 +346,14 @@ class TestPortfolioTracker:
         ]
 
         # Update positions
-        await portfolio_state_manager.update_positions("hyperliquid", positions)
+        await portfolio_tracker.update_positions("hyperliquid", positions)
 
         # Verify positions were stored correctly
-        assert "hyperliquid" in portfolio_state_manager.positions
-        assert "BTC-PERP" in portfolio_state_manager.positions["hyperliquid"]
-        assert "ETH-PERP" in portfolio_state_manager.positions["hyperliquid"]
-        assert portfolio_state_manager.positions["hyperliquid"]["BTC-PERP"].size == Decimal("1.0")
-        assert portfolio_state_manager.positions["hyperliquid"]["ETH-PERP"].side == OrderSide.SELL
+        assert "hyperliquid" in portfolio_tracker.positions
+        assert btc_symbol.value in portfolio_tracker.positions["hyperliquid"]  # Dictionary keys use .value
+        assert eth_symbol.value in portfolio_tracker.positions["hyperliquid"]  # Dictionary keys use .value
+        assert portfolio_tracker.positions["hyperliquid"][btc_symbol.value].size == Decimal("1.0")
+        assert portfolio_tracker.positions["hyperliquid"][eth_symbol.value].side == OrderSide.SELL
 
     @pytest.mark.asyncio
     async def test_update_orders_validation(
@@ -345,12 +361,16 @@ class TestPortfolioTracker:
         portfolio_tracker: PortfolioStateManager,
     ) -> None:
         """Test update_orders method with validation."""
+        # Apply Direct Symbol Creation pattern
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
+        
         # Create test order data
         orders = [
             Order(
                 exchange="hyperliquid",
                 client_order_id="order-1",
-                symbol="BTC-PERP",
+                symbol=btc_symbol,  # Order expects Symbol object
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 price=Decimal(49000),
@@ -366,7 +386,7 @@ class TestPortfolioTracker:
             Order(
                 exchange="hyperliquid",
                 client_order_id="order-2",
-                symbol="ETH-PERP",
+                symbol=eth_symbol,  # Order expects Symbol object
                 side=OrderSide.SELL,
                 order_type=OrderType.LIMIT,
                 price=Decimal(3100),
@@ -382,14 +402,14 @@ class TestPortfolioTracker:
         ]
 
         # Update orders
-        await portfolio_state_manager.update_orders("hyperliquid", orders)
+        await portfolio_tracker.update_orders("hyperliquid", orders)
 
         # Verify orders were stored correctly
-        assert "hyperliquid" in portfolio_state_manager.orders
-        assert "order-1" in portfolio_state_manager.orders["hyperliquid"]
-        assert "order-2" in portfolio_state_manager.orders["hyperliquid"]
-        assert portfolio_state_manager.orders["hyperliquid"]["order-1"].symbol == "BTC-PERP"
-        assert portfolio_state_manager.orders["hyperliquid"]["order-2"].price == Decimal(3100)
+        assert "hyperliquid" in portfolio_tracker.orders
+        assert "order-1" in portfolio_tracker.orders["hyperliquid"]
+        assert "order-2" in portfolio_tracker.orders["hyperliquid"]
+        assert portfolio_tracker.orders["hyperliquid"]["order-1"].symbol.value == btc_symbol.value  # Comparison uses .value
+        assert portfolio_tracker.orders["hyperliquid"]["order-2"].price == Decimal(3100)
 
     @pytest.mark.parametrize(
         ("sample_orders", "sample_balances_state"),
@@ -406,10 +426,10 @@ class TestPortfolioTracker:
         """Test updating a single order."""
         # Setup initial state
         # Populate orders and balances using the helper method
-        populate_nested_dict(portfolio_state_manager.orders, sample_orders)
-        populate_nested_dict(portfolio_state_manager.balances, sample_balances_state)
+        populate_nested_dict(portfolio_tracker.orders, sample_orders)
+        populate_nested_dict(portfolio_tracker.balances, sample_balances_state)
 
-        order_in_tracker = portfolio_state_manager.orders["hyperliquid"]["hl-order-2"]
+        order_in_tracker = portfolio_tracker.orders["hyperliquid"]["hl-order-2"]
         original_status = order_in_tracker.status
 
         # Prepare the updated fields.
@@ -436,9 +456,9 @@ class TestPortfolioTracker:
         except ValidationError as e:
             pytest.fail(f"Failed to create validated Order for update: {e}")
 
-        portfolio_state_manager.update_order("hyperliquid", validated_updated_order)
+        portfolio_tracker.update_order("hyperliquid", validated_updated_order)
 
-        retrieved_updated_order = portfolio_state_manager.orders["hyperliquid"]["hl-order-2"]
+        retrieved_updated_order = portfolio_tracker.orders["hyperliquid"]["hl-order-2"]
         assert retrieved_updated_order.status == OrderStatus.FILLED
         assert retrieved_updated_order.updated_at == now
         # Note: last_update_time tracking has been removed from PortfolioStateManager
@@ -458,20 +478,23 @@ class TestPortfolioTracker:
         now: datetime,
     ) -> None:
         """Test updating a single position."""
+        # Apply Direct Symbol Creation pattern
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Setup initial state
-        populate_nested_dict(portfolio_state_manager.positions, sample_positions)
-        populate_nested_dict(portfolio_state_manager.balances, sample_balances_state)
+        populate_nested_dict(portfolio_tracker.positions, sample_positions)
+        populate_nested_dict(portfolio_tracker.balances, sample_balances_state)
         # Note: last_update_time tracking has been removed from PortfolioStateManager
 
-        position_to_update = sample_positions["hyperliquid"]["BTC"]
+        position_to_update = sample_positions["hyperliquid"][btc_symbol.value]  # Dictionary access uses .value
         original_size = position_to_update.size
         new_size = Decimal("2.0")
         position_to_update.size = new_size
         position_to_update.timestamp = now  # Model uses 'timestamp', not 'updated_at'
 
-        portfolio_state_manager.process_position_update("hyperliquid", position_to_update)
+        portfolio_tracker.process_position_update("hyperliquid", position_to_update)
 
-        updated_position = portfolio_state_manager.positions["hyperliquid"]["BTC"]
+        updated_position = portfolio_tracker.positions["hyperliquid"][btc_symbol.value]  # Dictionary access uses .value
         assert updated_position.size == new_size
         assert (
             updated_position.timestamp == now
@@ -488,11 +511,11 @@ class TestPortfolioTracker:
     ) -> None:
         """Test updating a single balance entry (via internal _update_balance)."""
         # Setup initial state
-        populate_nested_dict(portfolio_state_manager.balances, sample_balances_state)
+        populate_nested_dict(portfolio_tracker.balances, sample_balances_state)
 
         exchange_id = "hyperliquid"
         asset_to_update = "USDC"
-        original_balance_obj = portfolio_state_manager.balances[exchange_id].get(asset_to_update, None)
+        original_balance_obj = portfolio_tracker.balances[exchange_id].get(asset_to_update, None)
         assert original_balance_obj is not None, "Original balance must exist for this test"
         original_total_qty = original_balance_obj.total_quantity
 
@@ -507,9 +530,9 @@ class TestPortfolioTracker:
         # Test balance update through the new public interface
         # Since PortfolioStateManager is now a pure state manager, we directly update balances
         new_balances = {asset_to_update: new_balance_data}
-        await portfolio_state_manager.update_balances(exchange_id, new_balances)
+        await portfolio_tracker.update_balances(exchange_id, new_balances)
 
-        updated_balance_obj = portfolio_state_manager.balances[exchange_id].get(asset_to_update, None)
+        updated_balance_obj = portfolio_tracker.balances[exchange_id].get(asset_to_update, None)
         assert updated_balance_obj is not None, "Updated balance must exist"
         assert updated_balance_obj.total_quantity == Decimal("15000.0")
         assert updated_balance_obj.available_quantity == Decimal("14000.0")
@@ -523,20 +546,20 @@ class TestPortfolioTracker:
     ) -> None:
         """Test retrieving a specific exchange balance."""
         # Setup initial state
-        populate_nested_dict(portfolio_state_manager.balances, sample_balances_state)
+        populate_nested_dict(portfolio_tracker.balances, sample_balances_state)
 
-        balance = portfolio_state_manager.get_exchange_balance("hyperliquid", "USDC")
+        balance = portfolio_tracker.get_exchange_balance("hyperliquid", "USDC")
         assert balance is not None
         assert balance.asset == "USDC"
         assert balance.total_quantity == sample_balances_state["hyperliquid"]["USDC"].total_quantity
 
         # Test for non-existent asset
-        non_existent_balance = portfolio_state_manager.get_exchange_balance("hyperliquid", "XYZ")
+        non_existent_balance = portfolio_tracker.get_exchange_balance("hyperliquid", "XYZ")
         assert non_existent_balance is None  # Or a default SpotBalance with 0 qty, check impl.
         # Current impl. returns None if not found.
 
         # Test for non-existent exchange
-        non_existent_exchange = portfolio_state_manager.get_exchange_balance("unknown_exchange", "USDC")
+        non_existent_exchange = portfolio_tracker.get_exchange_balance("unknown_exchange", "USDC")
         assert non_existent_exchange is None
 
     @pytest.mark.asyncio
@@ -550,7 +573,7 @@ class TestPortfolioTracker:
         Note: Price data should now be provided via PriceDataService parameter.
         """
         # Setup initial state: balances
-        populate_nested_dict(portfolio_state_manager.balances, sample_balances_large)
+        populate_nested_dict(portfolio_tracker.balances, sample_balances_large)
 
         # Mock get_pnl to simplify this test and focus on balance valuation
         mock_pnl_return = (Decimal(0), Decimal(0))
@@ -594,7 +617,7 @@ class TestPortfolioTracker:
             #              BTC  0.1 (price 50000.0) = 5000.0
             # Total expected = 100000 + 15000 + 5000 + 5000 = 125000.0
 
-            total_capital = await portfolio_state_manager.get_total_capital(
+            total_capital = await portfolio_tracker.get_total_capital(
                 base_currency="USDC", price_service=mock_price_service
             )
 
@@ -602,7 +625,7 @@ class TestPortfolioTracker:
             assert total_capital == expected_total_capital
 
             # Test with an asset that has no price (should be skipped)
-            portfolio_state_manager.balances["hyperliquid"]["UNPRICED"] = SpotBalance(
+            portfolio_tracker.balances["hyperliquid"]["UNPRICED"] = SpotBalance(
                 exchange="hyperliquid",
                 asset="UNPRICED",
                 total_quantity=Decimal(100),
@@ -611,7 +634,7 @@ class TestPortfolioTracker:
             )
 
             # The price service should return None for unpriced assets
-            total_capital_with_unpriced = await portfolio_state_manager.get_total_capital(
+            total_capital_with_unpriced = await portfolio_tracker.get_total_capital(
                 base_currency="USDC", price_service=mock_price_service
             )
             assert (
@@ -629,7 +652,7 @@ class TestPortfolioTracker:
         Uses helper functions to test comprehensive price conversion logic.
         """
         # Setup initial state: balances
-        populate_nested_dict(portfolio_state_manager.balances, sample_balances_large)
+        populate_nested_dict(portfolio_tracker.balances, sample_balances_large)
 
         # Mock get_pnl to simplify this test
         mock_pnl_return = (Decimal(0), Decimal(0))
@@ -665,7 +688,7 @@ class TestPortfolioTracker:
             # HyperLiquid: 100000 USDC * (1/50000) = 2.0 BTC, 5.0 ETH * 0.06 = 0.3 BTC
             # Backpack: 5000 USDC * (1/50000) = 0.1 BTC, 0.1 BTC * 1 = 0.1 BTC
             # Total: 2.0 + 0.3 + 0.1 + 0.1 = 2.5 BTC
-            total_capital_btc = await portfolio_state_manager.get_total_capital(
+            total_capital_btc = await portfolio_tracker.get_total_capital(
                 base_currency="BTC", price_service=mock_price_service
             )
 
@@ -678,19 +701,22 @@ class TestPortfolioTracker:
         sample_positions_default: ExchangePositions,
     ) -> None:
         """Test retrieving a specific position."""
-        populate_nested_dict(portfolio_state_manager.positions, sample_positions_default)
+        # Apply Direct Symbol Creation pattern
+        btc_symbol = symbols.BTC.hyperliquid()
+        
+        populate_nested_dict(portfolio_tracker.positions, sample_positions_default)
 
-        position = portfolio_state_manager.get_position("hyperliquid", "BTC")
+        position = portfolio_tracker.get_position("hyperliquid", btc_symbol.value)  # Method call uses .value
         assert position is not None
-        assert position.symbol == "BTC"
-        assert position.size == sample_positions_default["hyperliquid"]["BTC"].size
+        assert position.symbol.value == btc_symbol.value  # Comparison uses .value
+        assert position.size == sample_positions_default["hyperliquid"][btc_symbol.value].size  # Dictionary access uses .value
 
         # Test for non-existent symbol
-        non_existent_position = portfolio_state_manager.get_position("hyperliquid", "XYZ")
+        non_existent_position = portfolio_tracker.get_position("hyperliquid", "XYZ")
         assert non_existent_position is None  # Or a default DerivativePosition with size 0
 
         # Test for non-existent exchange
-        non_existent_exchange = portfolio_state_manager.get_position("unknown_exchange", "BTC")
+        non_existent_exchange = portfolio_tracker.get_position("unknown_exchange", btc_symbol.value)  # Method call uses .value
         assert non_existent_exchange is None
 
     def test_get_positions_by_symbol(
@@ -699,13 +725,17 @@ class TestPortfolioTracker:
         sample_positions_default: ExchangePositions,
     ) -> None:
         """Test retrieving positions by symbol."""
-        populate_nested_dict(portfolio_state_manager.positions, sample_positions_default)
+        # Apply Direct Symbol Creation pattern
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
+        
+        populate_nested_dict(portfolio_tracker.positions, sample_positions_default)
 
         # Test retrieving a specific symbol
-        btc_positions = portfolio_state_manager.get_positions_by_symbol("hyperliquid", "BTC")
+        btc_positions = portfolio_tracker.get_positions_by_symbol("hyperliquid", btc_symbol.value)  # Method call uses .value
         assert len(btc_positions) == 1
-        assert btc_positions[0].symbol == "BTC"
-        assert btc_positions[0].size == sample_positions_default["hyperliquid"]["BTC"].size
+        assert btc_positions[0].symbol.value == btc_symbol.value  # Comparison uses .value
+        assert btc_positions[0].size == sample_positions_default["hyperliquid"][btc_symbol.value].size  # Dictionary access uses .value
 
         # Add another BTC position on the same exchange to test multiple results
         # Fields for another_btc_pos should be complete for DerivativePosition
@@ -719,12 +749,12 @@ class TestPortfolioTracker:
         # under the *same key* (which is unlikely and bad design for a dict),
         # the structure would need to be dict[exchange_id, dict[symbol, list[DerivativePosition]]].
         # Assuming current structure: dict[exchange_id, dict[symbol, DerivativePosition]],
-        # adding another BTC position would overwrite the previous one if keyed by "BTC".
+        # adding another BTC position would overwrite the previous one if keyed by btc_symbol.value.
         # The method get_positions_by_symbol implies it *could* return multiple,
         # suggesting the internal storage might be a list or the keying is more complex.
         # Based on current PortfolioStateManager.positions type:
         # This means one symbol per exchange maps to one DerivativePosition.
-        # So, adding "another_btc_pos" with key "BTC" will overwrite.
+        # So, adding "another_btc_pos" with key btc_symbol.value will overwrite.
         # The test, as written, implies it *expects* multiple if they exist.
         # Let's assume the *intent* of get_positions_by_symbol is to find any position
         # whose .symbol attribute matches, even if the dict key is different (e.g. complex key).
@@ -738,31 +768,32 @@ class TestPortfolioTracker:
         # then it could work.
         # For now, let's assume the test expects that if stored_positions was a list,
         # it would find all.
-        # Since it's a dict keyed by symbol, this part of the test for multiple "BTC"
+        # Since it's a dict keyed by symbol, this part of the test for multiple btc_symbol.value
         # positions
         # on "hyperliquid" will effectively test the single entry.
 
         # To test multiple distinct positions for the same base asset (e.g. BTC-PERP,
         # BTC-SPOT if differentiated by full symbol)
         # one would add them with their full unique symbols.
-        # If the question is about multiple "BTC" positions (e.g. from different
+        # If the question is about multiple btc_symbol.value positions (e.g. from different
         # strategies, or sub-accounts not yet modeled)
         # then the model `DerivativePosition` or the storage in `PortfolioStateManager`
         # needs adjustment.
 
         # Test ETH position on hyperliquid (exists in default scenario)
-        eth_positions_hl = portfolio_state_manager.get_positions_by_symbol("hyperliquid", "ETH")
+        eth_positions_hl = portfolio_tracker.get_positions_by_symbol("hyperliquid", eth_symbol.value)  # Method call uses .value
         assert len(eth_positions_hl) == 1  # ETH position exists on hyperliquid
-        assert eth_positions_hl[0].symbol == "ETH"
+        assert eth_positions_hl[0].symbol.value == eth_symbol.value  # Comparison uses .value
 
         # Test retrieving from an exchange with no positions for that symbol
-        eth_positions_bp = portfolio_state_manager.get_positions_by_symbol("backpack", "ETH")
+        eth_positions_bp = portfolio_tracker.get_positions_by_symbol("backpack", eth_symbol.value)  # Method call uses .value
         assert len(eth_positions_bp) == 0  # No ETH position on backpack in default scenario
 
         # Test SOL position on backpack (exists in default scenario)
-        sol_positions_bp = portfolio_state_manager.get_positions_by_symbol("backpack", "SOL")
+        # Note: SOL is not available in the direct symbols pattern yet, leaving as string for now
+        sol_positions_bp = portfolio_tracker.get_positions_by_symbol("backpack", "SOL")
         assert len(sol_positions_bp) == 1
-        assert sol_positions_bp[0].symbol == "SOL"
+        assert sol_positions_bp[0].symbol.value == "SOL"  # Comparison uses .value
 
     @pytest.mark.parametrize(
         ("scenario", "expected_count"),
@@ -781,9 +812,9 @@ class TestPortfolioTracker:
         """Test retrieving all positions across all exchanges with different scenarios."""
         # Create scenario-specific positions
         sample_positions = create_sample_positions(scenario)
-        populate_nested_dict(portfolio_state_manager.positions, sample_positions)
+        populate_nested_dict(portfolio_tracker.positions, sample_positions)
 
-        all_positions = portfolio_state_manager.get_all_positions()
+        all_positions = portfolio_tracker.get_all_positions()
         assert len(all_positions) == expected_count
 
         # Verify we have valid data structure
@@ -795,8 +826,8 @@ class TestPortfolioTracker:
             assert len(exchanges_found) > 0
 
         # Test with no positions
-        portfolio_state_manager.positions.clear()
-        assert len(portfolio_state_manager.get_all_positions()) == 0
+        portfolio_tracker.positions.clear()
+        assert len(portfolio_tracker.get_all_positions()) == 0
 
     def test_get_order_by_id(
         self,
@@ -804,19 +835,19 @@ class TestPortfolioTracker:
         sample_orders_default: ExchangeOrders,
     ) -> None:
         """Test retrieving a specific order by its ID."""
-        populate_nested_dict(portfolio_state_manager.orders, sample_orders_default)
+        populate_nested_dict(portfolio_tracker.orders, sample_orders_default)
 
-        order = portfolio_state_manager.get_order_by_id("hyperliquid", "hl-order-2")
+        order = portfolio_tracker.get_order_by_id("hyperliquid", "hl-order-2")
         assert order is not None
         assert order.client_order_id == "hl-order-2"
         assert order.symbol == sample_orders_default["hyperliquid"]["hl-order-2"].symbol
 
         # Test for non-existent order ID
-        non_existent_order = portfolio_state_manager.get_order_by_id("hyperliquid", "non-existent-id")
+        non_existent_order = portfolio_tracker.get_order_by_id("hyperliquid", "non-existent-id")
         assert non_existent_order is None
 
         # Test for non-existent exchange
-        non_existent_exchange = portfolio_state_manager.get_order_by_id("unknown_exchange", "hl-order-2")
+        non_existent_exchange = portfolio_tracker.get_order_by_id("unknown_exchange", "hl-order-2")
         assert non_existent_exchange is None
 
     def test_get_open_orders(
@@ -825,17 +856,17 @@ class TestPortfolioTracker:
         sample_orders_default: ExchangeOrders,
     ) -> None:
         """Test retrieving open orders."""
-        populate_nested_dict(portfolio_state_manager.orders, sample_orders_default)
+        populate_nested_dict(portfolio_tracker.orders, sample_orders_default)
 
         # --- Debugging step: Check total orders for hyperliquid before filtering --- #
         # Default scenario has 2 orders for hyperliquid
-        assert len(portfolio_state_manager.orders["hyperliquid"]) == 2
-        assert "hl-order-1" in portfolio_state_manager.orders["hyperliquid"]
-        assert "hl-order-2" in portfolio_state_manager.orders["hyperliquid"]
+        assert len(portfolio_tracker.orders["hyperliquid"]) == 2
+        assert "hl-order-1" in portfolio_tracker.orders["hyperliquid"]
+        assert "hl-order-2" in portfolio_tracker.orders["hyperliquid"]
 
         # Check individual order statuses before calling get_open_orders
-        order1 = portfolio_state_manager.orders["hyperliquid"].get("hl-order-1")
-        order2 = portfolio_state_manager.orders["hyperliquid"].get("hl-order-2")
+        order1 = portfolio_tracker.orders["hyperliquid"].get("hl-order-1")
+        order2 = portfolio_tracker.orders["hyperliquid"].get("hl-order-2")
         assert order1 is not None, "hl-order-1 should be in tracker"
         assert order2 is not None, "hl-order-2 should be in tracker"
 
@@ -852,30 +883,34 @@ class TestPortfolioTracker:
         # HyperLiquid has 2 orders (both NEW) -> 2 open
         # Backpack has 'bp-order-1' (PARTIALLY_FILLED) -> 1 open (bp-order-1)
 
-        open_orders_hl = portfolio_state_manager.get_open_orders("hyperliquid")
+        open_orders_hl = portfolio_tracker.get_open_orders("hyperliquid")
         assert len(open_orders_hl) == 2  # Expect 2 open orders (both hl-order-1 and hl-order-2)
         open_order_ids_hl = {o.client_order_id for o in open_orders_hl}
         assert "hl-order-1" in open_order_ids_hl
         assert "hl-order-2" in open_order_ids_hl
 
-        open_orders_bp = portfolio_state_manager.get_open_orders("backpack")
+        open_orders_bp = portfolio_tracker.get_open_orders("backpack")
         assert len(open_orders_bp) == 1  # Only bp-order-1 should be open (PARTIALLY_FILLED)
         assert open_orders_bp[0].client_order_id == "bp-order-1"
 
         # Test with symbol filter
-        open_btc_orders_hl = portfolio_state_manager.get_open_orders("hyperliquid", "BTC-PERP")
+        # Apply Direct Symbol Creation pattern for method calls
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
+        
+        open_btc_orders_hl = portfolio_tracker.get_open_orders("hyperliquid", btc_symbol.value)  # Method call uses .value
         assert len(open_btc_orders_hl) == 1
         assert open_btc_orders_hl[0].client_order_id == "hl-order-1"
 
-        open_eth_orders_hl = portfolio_state_manager.get_open_orders("hyperliquid", "ETH-PERP")
+        open_eth_orders_hl = portfolio_tracker.get_open_orders("hyperliquid", eth_symbol.value)  # Method call uses .value
         assert len(open_eth_orders_hl) == 1
         assert open_eth_orders_hl[0].client_order_id == "hl-order-2"
 
         # Test for an exchange with no orders at all
-        portfolio_state_manager.orders.clear()  # Clear all orders
+        portfolio_tracker.orders.clear()  # Clear all orders
         # Add back only backpack orders to test hyperliquid having none
-        portfolio_state_manager.orders["backpack"] = sample_orders_default["backpack"]
-        open_orders_hl_empty = portfolio_state_manager.get_open_orders("hyperliquid")
+        portfolio_tracker.orders["backpack"] = sample_orders_default["backpack"]
+        open_orders_hl_empty = portfolio_tracker.get_open_orders("hyperliquid")
         assert len(open_orders_hl_empty) == 0
 
     def test_get_all_orders(
@@ -884,24 +919,27 @@ class TestPortfolioTracker:
         sample_orders: ExchangeOrders,
     ) -> None:
         """Test retrieving all orders for an exchange (open and closed)."""
-        populate_nested_dict(portfolio_state_manager.orders, sample_orders)
+        populate_nested_dict(portfolio_tracker.orders, sample_orders)
 
         # Get actual counts from the fixture data
         expected_hl_count = len(sample_orders.get("hyperliquid", {}))
         expected_bp_count = len(sample_orders.get("backpack", {}))
 
-        all_orders_hl = portfolio_state_manager.get_order_history("hyperliquid")
+        all_orders_hl = portfolio_tracker.get_order_history("hyperliquid")
         assert len(all_orders_hl) == expected_hl_count
 
-        all_orders_bp = portfolio_state_manager.get_order_history("backpack")
+        all_orders_bp = portfolio_tracker.get_order_history("backpack")
         assert len(all_orders_bp) == expected_bp_count
 
         # Test with symbol filter
+        # Apply Direct Symbol Creation pattern for method calls and comparisons
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Check if there are any BTC-PERP orders for hyperliquid
         btc_orders_in_fixture = [
-            o for o in sample_orders.get("hyperliquid", {}).values() if o.symbol == "BTC-PERP"
+            o for o in sample_orders.get("hyperliquid", {}).values() if o.symbol.value == btc_symbol.value  # Comparison uses .value
         ]
-        all_btc_orders_hl = portfolio_state_manager.get_order_history("hyperliquid", "BTC-PERP")
+        all_btc_orders_hl = portfolio_tracker.get_order_history("hyperliquid", btc_symbol.value)  # Method call uses .value
         assert len(all_btc_orders_hl) == len(btc_orders_in_fixture)
 
     @pytest.mark.asyncio
@@ -912,7 +950,7 @@ class TestPortfolioTracker:
     ) -> None:
         """Test PNL calculation logic."""
         # Initialize positions
-        populate_nested_dict(portfolio_state_manager.positions, sample_positions_default)
+        populate_nested_dict(portfolio_tracker.positions, sample_positions_default)
 
         # Mock the price conversion method to return 1.0 for simplicity
         with patch.object(
@@ -921,14 +959,14 @@ class TestPortfolioTracker:
             mock_price.return_value = Decimal("1.0")
 
             # Calculate PNL - get_pnl returns a tuple (total_pnl, unrealized_pnl)
-            _total_pnl, _unrealized_pnl = await portfolio_state_manager.get_pnl()
+            _total_pnl, _unrealized_pnl = await portfolio_tracker.get_pnl()
 
             # Test with some realized PNL
-            portfolio_state_manager.realized_pnl = Decimal("50.0")
+            portfolio_tracker.realized_pnl = Decimal("50.0")
             (
                 total_pnl_with_realized,
                 unrealized_pnl_with_realized,
-            ) = await portfolio_state_manager.get_pnl()
+            ) = await portfolio_tracker.get_pnl()
 
             # The test should verify that realized PNL is included in the total
             # Since mocking complex price calculations is challenging,
@@ -937,5 +975,5 @@ class TestPortfolioTracker:
             assert isinstance(unrealized_pnl_with_realized, Decimal)
 
             # Verify realized PNL is reflected in the portfolio tracker
-            assert portfolio_state_manager.realized_pnl == Decimal("50.0")
+            assert portfolio_tracker.realized_pnl == Decimal("50.0")
         # Marking as pass due to need for async rewrite.

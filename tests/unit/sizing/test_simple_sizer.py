@@ -12,12 +12,13 @@ from cyberdelta.core.risk.sizing.models.sizing_result import (
     SizingStatus,
 )
 from cyberdelta.core.risk.sizing.strategies.simple_sizer import SimpleSizer
+from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.unit.sizing.test_simple_sizer_config import create_test_app_settings
 
 
 def create_test_opportunity(
-    symbol: str = "BTC-PERP",
+    symbol: str = symbols.BTC.hyperliquid().value,
     long_exchange: str = "exchange1",
     short_exchange: str = "exchange2",
     long_price: float = 50000.0,
@@ -105,7 +106,7 @@ class TestSimpleSizer:
     @pytest.mark.asyncio
     async def test_calculate_size_fixed_fraction(self) -> None:
         """Test size calculation with fixed fraction method."""
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await self.sizer.size(opportunity, context)
@@ -130,7 +131,7 @@ class TestSimpleSizer:
         config["fixed_usd_amount"] = 1500.0
         sizer = SimpleSizer(app_settings=create_test_app_settings(config))
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await sizer.size(opportunity, context)
@@ -146,7 +147,7 @@ class TestSimpleSizer:
         config["enable_spread_adjustment"] = False
         sizer = SimpleSizer(app_settings=create_test_app_settings(config))
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await sizer.size(opportunity, context)
@@ -163,7 +164,7 @@ class TestSimpleSizer:
         config["enable_volatility_adjustment"] = False
         sizer = SimpleSizer(app_settings=create_test_app_settings(config))
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await sizer.size(opportunity, context)
@@ -178,14 +179,14 @@ class TestSimpleSizer:
         """Test spread adjustment calculation."""
         # High spread should increase position size
         high_spread_opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_price=50000.0,
             short_price=50250.0,  # High spread
         )
 
         # Low spread should decrease position size
         low_spread_opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_price=50000.0,
             short_price=50025.0,  # Low spread
         )
@@ -214,10 +215,10 @@ class TestSimpleSizer:
     async def test_volatility_adjustment_calculation(self) -> None:
         """Test volatility adjustment calculation."""
         # High volatility should decrease position size
-        high_vol_opportunity = create_test_opportunity(symbol="BTC-PERP")
+        high_vol_opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         # Low volatility should increase position size
-        low_vol_opportunity = create_test_opportunity(symbol="BTC-PERP")
+        low_vol_opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         context = create_test_context(available_capital=50000.0)
 
@@ -237,7 +238,7 @@ class TestSimpleSizer:
     async def test_position_size_limits(self) -> None:
         """Test position size limits enforcement."""
         # Test minimum size limit
-        small_capital_opportunity = create_test_opportunity(symbol="BTC-PERP")
+        small_capital_opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         small_context = create_test_context(available_capital=100.0)  # Very small capital
 
         result = await self.sizer.size(small_capital_opportunity, small_context)
@@ -252,7 +253,7 @@ class TestSimpleSizer:
 
         # Test maximum size limit
         large_capital_opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_price=50000.0,
             short_price=50400.0,  # Very high spread
         )
@@ -272,7 +273,7 @@ class TestSimpleSizer:
     async def test_calculate_size_with_missing_data(self) -> None:
         """Test size calculation with missing required data."""
         # Missing context
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         # Test with a valid but empty context
         empty_context = create_test_context(available_capital=0.0)
@@ -288,7 +289,7 @@ class TestSimpleSizer:
     async def test_calculate_size_with_invalid_data(self) -> None:
         """Test size calculation with invalid data."""
         # Negative total_capital
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         invalid_context = create_test_context(available_capital=-1000.0)
 
         # Business logic handles invalid data gracefully
@@ -301,7 +302,7 @@ class TestSimpleSizer:
     async def test_calculate_size_with_extreme_volatility(self) -> None:
         """Test size calculation with extreme volatility."""
         # Very high volatility above threshold
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await self.sizer.size(opportunity, context)
@@ -312,7 +313,7 @@ class TestSimpleSizer:
     @pytest.mark.asyncio
     async def test_size(self) -> None:
         """Test async size calculation."""
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await self.sizer.size(opportunity, context)
@@ -328,7 +329,7 @@ class TestSimpleSizer:
         config["fixed_fraction"] = 0.025  # 2.5%
         sizer = SimpleSizer(app_settings=create_test_app_settings(config))
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=40000.0)
 
         result = await sizer.size(opportunity, context)
@@ -342,7 +343,7 @@ class TestSimpleSizer:
     @pytest.mark.asyncio
     async def test_calculate_size_performance_timing(self) -> None:
         """Test that size calculation timing is recorded."""
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await self.sizer.size(opportunity, context)
@@ -413,7 +414,7 @@ class TestSimpleSizer:
     async def test_error_handling_during_calculation(self) -> None:
         """Test error handling during size calculation."""
         # Create valid opportunity and context
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await self.sizer.size(opportunity, context)
@@ -429,7 +430,7 @@ class TestSimpleSizer:
         config["risk_adjustment_factor"] = 0.8
         sizer = SimpleSizer(app_settings=create_test_app_settings(config))
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         context = create_test_context(available_capital=50000.0)
 
         result = await sizer.size(opportunity, context)
@@ -460,17 +461,17 @@ class TestSimpleSizerIntegration:
         # Multiple opportunities with different characteristics
         opportunities = [
             create_test_opportunity(
-                symbol="BTC-PERP",
+                symbol=symbols.BTC.hyperliquid().value,
                 long_price=50000.0,
                 short_price=50060.0,  # Moderate spread
             ),
             create_test_opportunity(
-                symbol="ETH-PERP",
+                symbol=symbols.ETH.hyperliquid().value,
                 long_price=3000.0,
                 short_price=3024.0,  # Low spread
             ),
             create_test_opportunity(
-                symbol="SOL-PERP",
+                symbol=symbols.SOL.hyperliquid().value,
                 long_price=100.0,
                 short_price=100.25,  # High spread
             ),
@@ -508,7 +509,7 @@ class TestSimpleSizerIntegration:
         ]
 
         for scenario in portfolio_scenarios:
-            opportunity = create_test_opportunity(symbol="BTC-PERP")
+            opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
             context = create_test_context(available_capital=scenario["total_capital"])
 
             result = await sizer.size(opportunity, context)

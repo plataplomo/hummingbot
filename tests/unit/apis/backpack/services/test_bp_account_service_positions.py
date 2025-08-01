@@ -16,6 +16,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums import OrderSide
 
 
@@ -35,9 +36,9 @@ class TestBackpackAccountServicePositions:
 
         Tested via public get_positions.
         """
-        symbol_arg = "SOL-PERP"
+        symbol_arg = symbols.SOL.backpack().value
         mock_raw_positions_data_item_dict = {
-            "symbol": "SOL-PERP",
+            "symbol": symbols.SOL.backpack().value,
             "subaccountId": 0,  # Add missing required field
             "netQuantity": "10.0",
             "entryPrice": "100.0",

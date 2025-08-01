@@ -25,6 +25,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio.services.reconciliation_service import PortfolioReconciliationService
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.symbols import symbols
 
 
 class TestPortfolioOrchestrator:
@@ -209,10 +210,12 @@ class TestPortfolioOrchestrator:
     ) -> None:
         """Test successful position fetching and updating."""
         # Setup mock position data
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
         mock_positions = [
             DerivativePosition(
                 exchange="hyperliquid",
-                symbol="BTC-PERP",
+                symbol=btc_symbol,  # DerivativePosition expects Symbol object
                 side=OrderSide.BUY,
                 size=Decimal("1.0"),
                 entry_price=Decimal(50000),
@@ -220,7 +223,7 @@ class TestPortfolioOrchestrator:
             ),
             DerivativePosition(
                 exchange="hyperliquid",
-                symbol="ETH-PERP",
+                symbol=eth_symbol,  # DerivativePosition expects Symbol object
                 side=OrderSide.SELL,
                 size=Decimal("-2.0"),
                 entry_price=Decimal(3000),
@@ -247,11 +250,12 @@ class TestPortfolioOrchestrator:
     ) -> None:
         """Test successful order fetching and updating."""
         # Setup mock order data
+        btc_symbol = symbols.BTC.hyperliquid()
         mock_orders = [
             Order(
                 exchange="hyperliquid",
                 client_order_id="order-1",
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 price=Decimal(49000),
@@ -315,8 +319,9 @@ class TestPortfolioOrchestrator:
     ) -> None:
         """Test successful ticker data fetching."""
         # Setup mock ticker
+        btc_symbol = symbols.BTC.hyperliquid()
         mock_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
@@ -325,13 +330,13 @@ class TestPortfolioOrchestrator:
         mock_api_clients["hyperliquid"].get_ticker.return_value = mock_ticker
 
         # Execute
-        result = await orchestrator.fetch_ticker_data("hyperliquid", "BTC-PERP")
+        result = await orchestrator.fetch_ticker_data("hyperliquid", btc_symbol.value)
 
         # Verify
         assert result == mock_ticker
-        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with("BTC-PERP")
+        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with(btc_symbol.value)
         portfolio_state_manager.update_ticker_data.assert_awaited_once_with(
-            "hyperliquid", "BTC-PERP", mock_ticker
+            "hyperliquid", btc_symbol.value, mock_ticker
         )
 
     @pytest.mark.asyncio

@@ -35,6 +35,7 @@ from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.models.derivative_position import (
     BackpackPositionDetails as BackpackDerivativePositionDetails,
 )
+from cyberdelta.core.symbols import symbols
 from cyberdelta.enums import OrderSide
 
 
@@ -119,7 +120,7 @@ def mock_raw_position() -> BackpackRawPositionResponse:
         BackpackRawPositionResponse: Mock position response with test data.
     """
     return BackpackRawPositionResponse.model_validate({
-        "symbol": "BTC-PERP",
+        "symbol": symbols.BTC.backpack().value,
         "netQuantity": "1.5",
         "entryPrice": "50000.00",
         "netExposureNotional": "75000.00",
@@ -150,7 +151,7 @@ def mock_derivative_position() -> DerivativePosition:
         DerivativePosition: Mock DerivativePosition instance with test data.
     """
     return DerivativePosition(
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.backpack(),
         side=OrderSide.BUY,
         size=Decimal("1.5"),
         entry_price=Decimal("50000.00"),
@@ -186,7 +187,7 @@ def mock_collateral_response() -> BackpackRawCollateralResponse:
         "netExposureFutures": "75000.00",
         "collateral": [
             {
-                "symbol": "BTC-PERP",
+                "symbol": symbols.BTC.backpack().value,
                 "assetMarkPrice": "50666.67",
                 "totalQuantity": "1.5",
                 "balanceNotional": "75000.00",
@@ -271,7 +272,7 @@ class TestBackpackPositionService:
 
         # Create actual BackpackRawPositionResponse objects with correct symbols
         btc_raw_position = BackpackRawPositionResponse.model_validate({
-            "symbol": "BTC-PERP",
+            "symbol": symbols.BTC.backpack().value,
             "netQuantity": "1.5",
             "entryPrice": "50000.00",
             "netExposureNotional": "75000.00",
@@ -294,7 +295,7 @@ class TestBackpackPositionService:
         })
 
         eth_raw_position = BackpackRawPositionResponse.model_validate({
-            "symbol": "ETH-PERP",
+            "symbol": symbols.ETH.backpack().value,
             "netQuantity": "-10.0",
             "entryPrice": "3500.00",
             "netExposureNotional": "35000.00",
@@ -332,11 +333,11 @@ class TestBackpackPositionService:
         mock_mapper.transform_raw_position_to_internal.return_value = btc_position
 
         # Act
-        result = await position_service.get_positions(symbol="BTC-PERP")
+        result = await position_service.get_positions(symbol=symbols.BTC.backpack().value)
 
         # Assert
         assert len(result) == 1
-        assert result[0].symbol == "BTC-PERP"
+        assert result[0].symbol == symbols.BTC.backpack()
         # Only the BTC position should be transformed since the filter runs before transformation
         mock_mapper.transform_raw_position_to_internal.assert_called_once_with(btc_raw_position)
 
@@ -461,7 +462,7 @@ class TestBackpackPositionService:
         """Test that positions are retrieved from direct API only."""
         # Arrange
         btc_position = DerivativePosition(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.backpack(),
             side=OrderSide.BUY,
             size=Decimal("1.5"),
             entry_price=Decimal("50000.00"),
@@ -486,7 +487,7 @@ class TestBackpackPositionService:
 
         # Assert
         assert len(result) == 1
-        assert result[0].symbol == "BTC-PERP"
+        assert result[0].symbol == symbols.BTC.backpack()
         assert result[0] == btc_position
 
         # Service should only call direct API, not collateral
@@ -538,4 +539,4 @@ class TestBackpackPositionService:
 
         # Assert - Should only have one position
         assert len(result) == 1
-        assert result[0].symbol == "BTC-PERP"
+        assert result[0].symbol == symbols.BTC.backpack()

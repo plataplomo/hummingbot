@@ -17,6 +17,7 @@ from cyberdelta.core.models.market.market import (
     HyperliquidMarketDetails,
     Market,
 )
+from cyberdelta.core.symbols import symbols
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
@@ -25,9 +26,7 @@ pytestmark = pytest.mark.timing
 
 # Constants for testing
 NOW: datetime = datetime.now(UTC)
-VALID_SYMBOL: str = "BTC-PERP"
-BASE_SYMBOL: str = "BTC"
-QUOTE_SYMBOL: str = "USDC"
+BTC_SYMBOL = symbols.BTC.hyperliquid()
 MARKET_TYPE: str = "Perpetual"
 STATUS: str = "Trading"
 DEC_ZERO: Decimal = Decimal(0)
@@ -46,17 +45,13 @@ class TestMarket:
     def test_minimal_creation_required_fields(self) -> None:
         """Test creating a Market with only required fields."""
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
             status=STATUS,
         )
-        assert market.symbol == VALID_SYMBOL
-        assert market.base_symbol == BASE_SYMBOL
-        assert market.quote_symbol == QUOTE_SYMBOL
+        assert market.symbol == BTC_SYMBOL
         assert market.market_type == MARKET_TYPE
         assert market.tick_size == DEC_SMALL
         assert market.step_size == DEC_SMALL
@@ -84,9 +79,7 @@ class TestMarket:
         )
 
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
@@ -100,9 +93,7 @@ class TestMarket:
             hl_details=hl_details,
         )
 
-        assert market.symbol == VALID_SYMBOL
-        assert market.base_symbol == BASE_SYMBOL
-        assert market.quote_symbol == QUOTE_SYMBOL
+        assert market.symbol == BTC_SYMBOL
         assert market.market_type == MARKET_TYPE
         assert market.tick_size == DEC_SMALL
         assert market.step_size == DEC_SMALL
@@ -121,9 +112,7 @@ class TestMarket:
         # The model validators handle parsing, so we test with actual parsed values
         # and document that the validators would parse these types
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=Decimal("0.0001"),  # Validator parses from string
             step_size=Decimal("0.001"),  # Validator parses from float
@@ -152,8 +141,6 @@ class TestMarket:
         """Test that required fields raise errors if missing."""
         with pytest.raises(ValidationError, match="Field required"):
             Market(  # type: ignore[call-arg]
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
@@ -162,19 +149,15 @@ class TestMarket:
 
         with pytest.raises(ValidationError, match="Field required"):
             Market(  # type: ignore[call-arg]
-                symbol=VALID_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
-                market_type=MARKET_TYPE,
+                symbol=BTC_SYMBOL,
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
                 status=STATUS,
-            )  # Missing base_symbol
+            )  # Missing market_type
 
         with pytest.raises(ValidationError, match="Field required"):
             Market(  # type: ignore[call-arg]
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 step_size=DEC_SMALL,
                 status=STATUS,
@@ -182,9 +165,7 @@ class TestMarket:
 
         with pytest.raises(ValidationError, match="Field required"):
             Market(  # type: ignore[call-arg]
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 status=STATUS,
@@ -192,27 +173,24 @@ class TestMarket:
 
     def test_string_field_validation(self) -> None:
         """Test validation rules for string fields (required, non-empty, length)."""
-        # Empty strings
+        # Empty market_type string
         with pytest.raises(EmptyStringError, match="String cannot be empty"):
             Market(
-                symbol="",
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
-                market_type=MARKET_TYPE,
+                symbol=BTC_SYMBOL,
+                market_type="",
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
                 status=STATUS,
             )
 
+        # Empty status string
         with pytest.raises(EmptyStringError, match="String cannot be empty"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol="   ",
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
-                status=STATUS,
+                status="   ",
             )
 
         # String too long
@@ -220,10 +198,8 @@ class TestMarket:
             TypeFieldError, match=r"must be string with max length 64.*got string with length 65"
         ):
             Market(
-                symbol="A" * 65,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
-                market_type=MARKET_TYPE,
+                symbol=BTC_SYMBOL,
+                market_type="A" * 65,
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
                 status=STATUS,
@@ -234,9 +210,7 @@ class TestMarket:
         # Zero tick_size
         with pytest.raises(ValidationError, match="greater than"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_ZERO,
                 step_size=DEC_SMALL,
@@ -246,9 +220,7 @@ class TestMarket:
         # Negative step_size
         with pytest.raises(ValidationError, match="greater than"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 step_size=DEC_NEG_ONE,
@@ -260,9 +232,7 @@ class TestMarket:
         # Negative min_price
         with pytest.raises(ValidationError, match="greater than or equal"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
@@ -273,9 +243,7 @@ class TestMarket:
         # Negative max_quantity
         with pytest.raises(ValidationError, match="greater than or equal"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
@@ -285,9 +253,7 @@ class TestMarket:
 
         # Zero values should be allowed
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
@@ -307,9 +273,7 @@ class TestMarket:
         # NaN tick_size
         with pytest.raises(ValidationError, match="must be finite for market configuration"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_NAN,
                 step_size=DEC_SMALL,
@@ -319,9 +283,7 @@ class TestMarket:
         # Infinity step_size
         with pytest.raises(ValidationError, match="must be finite for market configuration"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 step_size=DEC_INF,
@@ -331,9 +293,7 @@ class TestMarket:
         # -Infinity min_price
         with pytest.raises(ValidationError, match="must be finite for market configuration"):
             Market(
-                symbol=VALID_SYMBOL,
-                base_symbol=BASE_SYMBOL,
-                quote_symbol=QUOTE_SYMBOL,
+                symbol=BTC_SYMBOL,
                 market_type=MARKET_TYPE,
                 tick_size=DEC_SMALL,
                 step_size=DEC_SMALL,
@@ -346,9 +306,7 @@ class TestMarket:
         # Test with datetime object (the validator handles parsing from other types)
         dt = datetime(2024, 1, 1, 12, 0, 0, tzinfo=UTC)
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
@@ -362,9 +320,7 @@ class TestMarket:
     def test_market_immutability(self) -> None:
         """Test that Market instances are immutable (frozen=True)."""
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
@@ -372,7 +328,7 @@ class TestMarket:
         )
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            market.symbol = "NEW-SYMBOL"
+            market.symbol = symbols.ETH.hyperliquid()
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
             market.tick_size = Decimal("0.01")
@@ -381,9 +337,7 @@ class TestMarket:
         """Test that extra fields are forbidden."""
         # Create a dict with an extra field
         market_data: dict[str, Any] = {
-            "symbol": VALID_SYMBOL,
-            "base_symbol": BASE_SYMBOL,
-            "quote_symbol": QUOTE_SYMBOL,
+            "symbol": BTC_SYMBOL,
             "market_type": MARKET_TYPE,
             "tick_size": DEC_SMALL,
             "step_size": DEC_SMALL,
@@ -403,9 +357,7 @@ class TestMarket:
         )
 
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
@@ -445,9 +397,7 @@ class TestMarket:
         )
 
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
@@ -515,9 +465,7 @@ class TestMarket:
         )
 
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=DEC_SMALL,
             step_size=DEC_SMALL,
@@ -537,9 +485,7 @@ class TestMarket:
         """Test edge cases for Decimal values."""
         # Very small values
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=Decimal("0.00000001"),
             step_size=Decimal("0.00000001"),
@@ -550,9 +496,7 @@ class TestMarket:
 
         # Scientific notation
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=Decimal("1e-8"),
             step_size=Decimal("1e-6"),
@@ -565,9 +509,7 @@ class TestMarket:
         """Test that Decimal values are preserved correctly."""
         # Test with Decimal values
         market = Market(
-            symbol=VALID_SYMBOL,
-            base_symbol=BASE_SYMBOL,
-            quote_symbol=QUOTE_SYMBOL,
+            symbol=BTC_SYMBOL,
             market_type=MARKET_TYPE,
             tick_size=Decimal("0.0001"),
             step_size=Decimal("0.001"),

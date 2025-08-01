@@ -26,6 +26,7 @@ from cyberdelta.validation.multi_tier_funding_provider import (
     FundingRateValidatorProtocol,
     MultiTierFundingProvider,
 )
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 pytestmark = pytest.mark.timing
@@ -340,7 +341,7 @@ class TestGetFundingRate:
         # Arrange
         cache_data = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0001,
             timestamp=datetime.now(UTC),
             dispersion=0.00001,
@@ -351,10 +352,10 @@ class TestGetFundingRate:
             confidence_score=0.85,
             source_data={},
         )
-        provider.funding_cache["hyperliquid", "BTC-PERP"] = cache_data
+        provider.funding_cache["hyperliquid", BTC_HL.value] = cache_data
 
         # Act
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert rate == 0.0001
@@ -383,7 +384,7 @@ class TestGetFundingRate:
         )
 
         # Act
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert isinstance(rate, float)
@@ -400,7 +401,7 @@ class TestGetFundingRate:
         old_timestamp = datetime.now(UTC) - timedelta(seconds=500)  # Stale data
         cache_data = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0001,
             timestamp=old_timestamp,
             dispersion=0.00001,
@@ -411,10 +412,10 @@ class TestGetFundingRate:
             confidence_score=0.85,
             source_data={},
         )
-        provider.funding_cache["hyperliquid", "BTC-PERP"] = cache_data
+        provider.funding_cache["hyperliquid", BTC_HL.value] = cache_data
 
         # Act
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert rate == 0.0001
@@ -445,7 +446,7 @@ class TestGetFundingRate:
         )
 
         # Act
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert rate == 0.0005
@@ -474,7 +475,7 @@ class TestGetFundingRate:
         )
 
         # Act
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert isinstance(rate, float)
@@ -492,7 +493,7 @@ class TestGetFundingRate:
         """Test failure when no sources are available."""
         # Act & Assert
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("nonexistent", "BTC-PERP")
+            await provider.get_funding_rate("nonexistent", BTC_HL.value)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_failure_all_sources_fail(
@@ -518,7 +519,7 @@ class TestGetFundingRate:
 
         # Act & Assert
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+            await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
     @pytest.mark.asyncio
     async def test_get_funding_rate_failure_no_fallback_source(
@@ -538,7 +539,7 @@ class TestGetFundingRate:
 
         # Act & Assert
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+            await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
 
 class TestGetPrimaryFundingRate:
@@ -562,7 +563,7 @@ class TestGetPrimaryFundingRate:
         )
 
         # Act - Use public API instead of private method
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Test the public API result
         assert rate is not None
@@ -588,7 +589,7 @@ class TestGetPrimaryFundingRate:
         )
 
         # Act - Use public API instead of private method
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Test that we get valid rate and confidence (timestamp handling is internal)
         assert rate is not None
@@ -613,7 +614,7 @@ class TestGetPrimaryFundingRate:
         )
 
         # Act - Use public API instead of private method
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Test timestamp handling is done correctly (internal behavior)
         assert rate is not None
@@ -630,7 +631,7 @@ class TestGetPrimaryFundingRate:
         """Test funding rate behavior when no source is registered through public API."""
         # Act - Use public API which handles missing sources internally
         with pytest.raises((NoFundingDataError, AllSourcesFailedError)):
-            await provider.get_funding_rate("nonexistent", "BTC-PERP")
+            await provider.get_funding_rate("nonexistent", BTC_HL.value)
 
     @pytest.mark.asyncio
     async def test_get_primary_funding_rate_edge_invalid_timestamp(
@@ -648,7 +649,7 @@ class TestGetPrimaryFundingRate:
         )
 
         # Act - Use public API instead of private method
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Verify that invalid timestamp is handled gracefully
         assert rate is not None
@@ -675,7 +676,7 @@ class TestGetPrimaryFundingRate:
 
         # Act - Use public API which handles source failures internally
         with pytest.raises((AllSourcesFailedError, NoFundingDataError)):
-            await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+            await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
     @pytest.mark.asyncio
     async def test_get_primary_funding_rate_failure_missing_data(
@@ -693,7 +694,7 @@ class TestGetPrimaryFundingRate:
         )
 
         # Act - Use public API to test handling of incomplete data
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Verify default handling works correctly
         assert rate is not None
@@ -724,14 +725,14 @@ class TestGetSecondaryFundingRate:
         )
 
         # Act - Use public method which internally calls _get_secondary_funding_rate
-        rate, confidence = await provider.get_funding_rate("backpack", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("backpack", BTC_HL.value)
 
         # Assert - Verify secondary source was used (rate matches our mock)
         assert rate == 0.00015
         assert confidence > 0  # Should have some confidence from secondary source
 
         # Verify the data is cached properly (secondary source behavior)
-        cached_rate, cached_confidence = await provider.get_funding_rate("backpack", "BTC-PERP")
+        cached_rate, cached_confidence = await provider.get_funding_rate("backpack", BTC_HL.value)
         assert cached_rate == rate
         assert cached_confidence == confidence
 
@@ -745,7 +746,7 @@ class TestGetSecondaryFundingRate:
         # Act - Try to get funding rate for exchange with no sources
         # This should raise an exception when no sources are available
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("nonexistent", "BTC-PERP")
+            await provider.get_funding_rate("nonexistent", BTC_HL.value)
 
     # ==================== FAILURE CASES ====================
 
@@ -767,7 +768,7 @@ class TestGetSecondaryFundingRate:
 
         # Act - When secondary source fails and no other sources, should raise exception
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("backpack", "BTC-PERP")
+            await provider.get_funding_rate("backpack", BTC_HL.value)
 
 
 class TestGetTertiaryFundingRate:
@@ -792,14 +793,14 @@ class TestGetTertiaryFundingRate:
         )
 
         # Act - Use public method which internally calls _get_tertiary_funding_rate
-        rate, confidence = await provider.get_funding_rate("binance", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("binance", BTC_HL.value)
 
         # Assert - Verify tertiary source was used (rate matches our mock)
         assert rate == 0.0002
         assert confidence > 0  # Should have some confidence from tertiary source
 
         # Verify the data is cached properly (tertiary source behavior)
-        cached_rate, cached_confidence = await provider.get_funding_rate("binance", "BTC-PERP")
+        cached_rate, cached_confidence = await provider.get_funding_rate("binance", BTC_HL.value)
         assert cached_rate == rate
         assert cached_confidence == confidence
 
@@ -813,7 +814,7 @@ class TestGetTertiaryFundingRate:
         # Act - Try to get funding rate for exchange with no sources
         # This should raise an exception when no sources are available
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("nonexistent", "BTC-PERP")
+            await provider.get_funding_rate("nonexistent", BTC_HL.value)
 
     # ==================== FAILURE CASES ====================
 
@@ -835,7 +836,7 @@ class TestGetTertiaryFundingRate:
 
         # Act - When tertiary source fails and no other sources, should raise exception
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("binance", "BTC-PERP")
+            await provider.get_funding_rate("binance", BTC_HL.value)
 
 
 class TestGetFallbackFundingRate:
@@ -867,7 +868,7 @@ class TestGetFallbackFundingRate:
         )
 
         # Act - Use public method which should fall back to fallback source
-        rate, confidence = await provider.get_funding_rate("coinbase", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("coinbase", BTC_HL.value)
 
         # Assert - Verify fallback source was used
         assert isinstance(rate, float)
@@ -900,7 +901,7 @@ class TestGetFallbackFundingRate:
         )
 
         # Act - Use public method which should use fallback source
-        rate, confidence = await provider.get_funding_rate("coinbase", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("coinbase", BTC_HL.value)
 
         # Assert - Verify age adjustment is applied
         assert rate == 0.0005
@@ -934,7 +935,7 @@ class TestGetFallbackFundingRate:
         )
 
         # Act - Use public method which should use fallback source
-        rate, confidence = await provider.get_funding_rate("coinbase", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("coinbase", BTC_HL.value)
 
         # Assert - Verify timestamp handling works
         assert isinstance(rate, float)
@@ -949,7 +950,7 @@ class TestGetFallbackFundingRate:
         """Test fallback funding rate when no fallback source is registered."""
         # Act & Assert - When no sources are registered at all, should raise NoFundingDataError
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("nonexistent", "BTC-PERP")
+            await provider.get_funding_rate("nonexistent", BTC_HL.value)
 
     @pytest.mark.asyncio
     async def test_get_fallback_funding_rate_failure_source_exception(
@@ -976,7 +977,7 @@ class TestGetFallbackFundingRate:
 
         # Act & Assert - Should raise exception when all sources fail
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("coinbase", "BTC-PERP")
+            await provider.get_funding_rate("coinbase", BTC_HL.value)
 
 
 class TestIntegrateFundingData:
@@ -1015,7 +1016,7 @@ class TestIntegrateFundingData:
         )
 
         # Act
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert isinstance(rate, float)
@@ -1024,7 +1025,7 @@ class TestIntegrateFundingData:
         assert 0 <= confidence <= 1
 
         # Verify cached result has integrated data
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         assert cache_key in provider.funding_cache
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.sources_count == 3
@@ -1048,14 +1049,14 @@ class TestIntegrateFundingData:
         )
 
         # Act
-        rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert rate == 0.0001
         assert isinstance(confidence, float)
 
         # Verify cached result has correct integration
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         assert cache_key in provider.funding_cache
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.sources_count == 1
@@ -1082,11 +1083,11 @@ class TestIntegrateFundingData:
         )
 
         # Act
-        rate, _confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, _confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert isinstance(rate, float)
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.timestamp.tzinfo == UTC
 
@@ -1116,11 +1117,11 @@ class TestIntegrateFundingData:
         )
 
         # Act
-        rate, _confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, _confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert isinstance(rate, float)
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.sources_count == 2
         assert cached_data.primary_available is False
@@ -1161,7 +1162,7 @@ class TestIntegrateFundingData:
 
         # Act & Assert
         with pytest.raises(NoFundingDataError):
-            await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+            await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
     @pytest.mark.asyncio
     async def test_integrate_funding_data_success_minimal_data(
@@ -1179,11 +1180,11 @@ class TestIntegrateFundingData:
         )
 
         # Act
-        rate, _confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        rate, _confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Should succeed with at least one valid source
         assert rate == 0.0001
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.sources_count == 1
 
@@ -1209,13 +1210,13 @@ class TestCalculateConfidenceFactors:
         )
 
         # Act
-        _rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        _rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert
         assert isinstance(confidence, float)
         assert 0 <= confidence <= 1
         # Verify that confidence factors were calculated and applied
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.confidence_score == confidence
 
@@ -1250,12 +1251,12 @@ class TestCalculateConfidenceFactors:
         )
 
         # Act
-        _rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        _rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Fresh data with all sources should give high confidence
         assert isinstance(confidence, float)
         assert confidence > 0.5  # Should be relatively high with all sources and fresh data
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.sources_count == 3  # All sources used
 
@@ -1278,12 +1279,12 @@ class TestCalculateConfidenceFactors:
         )
 
         # Act
-        _rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        _rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Old data with single source should give lower confidence
         assert isinstance(confidence, float)
         assert confidence < 0.7  # Should be reduced for old data and single source
-        cache_key = ("hyperliquid", "BTC-PERP")
+        cache_key = ("hyperliquid", BTC_HL.value)
         cached_data = provider.funding_cache[cache_key]
         assert cached_data.sources_count == 1  # Single source used
 
@@ -1313,12 +1314,12 @@ class TestHistoricalAccuracyIntegration:
         )
 
         # Act
-        _rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        _rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Validator should have been called during confidence calculation
         assert isinstance(confidence, float)
         assert 0 <= confidence <= 1
-        mock_validator.calculate_metrics.assert_called_once_with("hyperliquid", "BTC-PERP")
+        mock_validator.calculate_metrics.assert_called_once_with("hyperliquid", BTC_HL.value)
 
     @pytest.mark.asyncio
     async def test_historical_accuracy_no_validator(self, base_config: dict[str, Any]) -> None:
@@ -1335,7 +1336,7 @@ class TestHistoricalAccuracyIntegration:
         )
 
         # Act
-        _rate, confidence = await provider.get_funding_rate("hyperliquid", "BTC-PERP")
+        _rate, confidence = await provider.get_funding_rate("hyperliquid", BTC_HL.value)
 
         # Assert - Should still work without validator
         assert isinstance(confidence, float)
@@ -1352,7 +1353,7 @@ class TestCacheManagement:
         # Arrange
         cache_data = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0001,
             timestamp=datetime.now(UTC),
             dispersion=0.00001,
@@ -1363,7 +1364,7 @@ class TestCacheManagement:
             confidence_score=0.85,
             source_data={},
         )
-        provider.funding_cache["hyperliquid", "BTC-PERP"] = cache_data
+        provider.funding_cache["hyperliquid", BTC_HL.value] = cache_data
 
         # Act
         provider.clear_cache()
@@ -1376,7 +1377,7 @@ class TestCacheManagement:
         # Arrange
         fresh_data = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0001,
             timestamp=datetime.now(UTC),
             dispersion=0.00001,
@@ -1389,7 +1390,7 @@ class TestCacheManagement:
         )
         stale_data = IntegratedFundingData(
             exchange="backpack",
-            symbol="ETH-PERP",
+            symbol=ETH_HL.value,
             rate=0.0002,
             timestamp=datetime.now(UTC) - timedelta(seconds=600),  # Stale
             dispersion=0.00002,
@@ -1400,8 +1401,8 @@ class TestCacheManagement:
             confidence_score=0.75,
             source_data={},
         )
-        provider.funding_cache["hyperliquid", "BTC-PERP"] = fresh_data
-        provider.funding_cache["backpack", "ETH-PERP"] = stale_data
+        provider.funding_cache["hyperliquid", BTC_HL.value] = fresh_data
+        provider.funding_cache["backpack", ETH_HL.value] = stale_data
 
         # Act
         cleared_count = provider.clear_stale_cache_entries(max_age_seconds=300)
@@ -1409,7 +1410,7 @@ class TestCacheManagement:
         # Assert
         assert cleared_count == 1
         assert len(provider.funding_cache) == 1
-        assert ("hyperliquid", "BTC-PERP") in provider.funding_cache
+        assert ("hyperliquid", BTC_HL.value) in provider.funding_cache
 
     # ==================== EDGE CASES ====================
 
@@ -1420,7 +1421,7 @@ class TestCacheManagement:
         # Arrange
         fresh_data = IntegratedFundingData(
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             rate=0.0001,
             timestamp=datetime.now(UTC),
             dispersion=0.00001,
@@ -1431,7 +1432,7 @@ class TestCacheManagement:
             confidence_score=0.85,
             source_data={},
         )
-        provider.funding_cache["hyperliquid", "BTC-PERP"] = fresh_data
+        provider.funding_cache["hyperliquid", BTC_HL.value] = fresh_data
 
         # Act
         cleared_count = provider.clear_stale_cache_entries()

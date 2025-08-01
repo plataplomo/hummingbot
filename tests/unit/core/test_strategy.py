@@ -14,6 +14,7 @@ import pytest
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.strategy import Strategy
+from cyberdelta.core.symbols import Symbol, symbols
 
 
 class ConcreteStrategy(Strategy):
@@ -36,12 +37,15 @@ class TestStrategyInitialization:
 
     def test_strategy_init_success_with_required_params(self) -> None:
         """Test successful initialization with required parameters."""
+        # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Act
-        strategy = ConcreteStrategy(name="TestStrategy", symbol="BTC-PERP")
+        strategy = ConcreteStrategy(name="TestStrategy", symbol=btc_symbol.value)
 
         # Assert
         assert strategy.name == "TestStrategy"
-        assert strategy.symbol == "BTC-PERP"
+        assert strategy.symbol == btc_symbol.value
         assert strategy.params == {}
         assert strategy.enabled is False
         assert strategy.last_signal_time is None
@@ -52,30 +56,37 @@ class TestStrategyInitialization:
     def test_strategy_init_success_with_params(self) -> None:
         """Test successful initialization with custom parameters."""
         # Arrange
+        eth_symbol = symbols.ETH.hyperliquid()
         params = {"threshold": 0.01, "window": 20, "enabled": True}
 
         # Act
-        strategy = ConcreteStrategy(name="ParamStrategy", symbol="ETH-PERP", params=params)
+        strategy = ConcreteStrategy(name="ParamStrategy", symbol=eth_symbol.value, params=params)
 
         # Assert
         assert strategy.name == "ParamStrategy"
-        assert strategy.symbol == "ETH-PERP"
+        assert strategy.symbol == eth_symbol.value
         assert strategy.params == params
         assert strategy.enabled is False  # Always starts disabled
 
     def test_strategy_init_success_with_none_params(self) -> None:
         """Test initialization with None params defaults to empty dict."""
+        # Arrange
+        sol_symbol = symbols.SOL.hyperliquid()
+        
         # Act
-        strategy = ConcreteStrategy(name="NoneParamStrategy", symbol="SOL-PERP", params=None)
+        strategy = ConcreteStrategy(name="NoneParamStrategy", symbol=sol_symbol.value, params=None)
 
         # Assert
         assert strategy.params == {}
 
     def test_strategy_init_logs_initialization(self) -> None:
         """Test that strategy initialization logs appropriate message."""
+        # Arrange
+        sol_symbol = symbols.SOL.hyperliquid()
+        
         # Act
         with patch("cyberdelta.core.strategy.logger") as mock_logger:
-            strategy = ConcreteStrategy(name="LogTestStrategy", symbol="DOGE-PERP")
+            strategy = ConcreteStrategy(name="LogTestStrategy", symbol=sol_symbol.value)
             assert strategy is not None  # Use the variable
 
         # Assert
@@ -83,7 +94,7 @@ class TestStrategyInitialization:
         call_args = mock_logger.info.call_args
         assert "strategy_initialized" in call_args[0]
         assert call_args[1]["strategy_name"] == "LogTestStrategy"
-        assert call_args[1]["symbol"] == "DOGE-PERP"
+        assert call_args[1]["symbol"] == sol_symbol.value
 
 
 class TestStrategyLifecycle:
@@ -96,7 +107,8 @@ class TestStrategyLifecycle:
         Returns:
             ConcreteStrategy: Test strategy instance.
         """
-        return ConcreteStrategy(name="TestStrategy", symbol="BTC-PERP")
+        btc_symbol = symbols.BTC.hyperliquid()
+        return ConcreteStrategy(name="TestStrategy", symbol=btc_symbol.value)
 
     # ==================== SUCCESS CASES ====================
 
@@ -210,8 +222,9 @@ class TestStrategyParameterManagement:
         Returns:
             ConcreteStrategy: Strategy configured with test parameters.
         """
+        btc_symbol = symbols.BTC.hyperliquid()
         params = {"threshold": 0.01, "window": 20, "enabled": True}
-        return ConcreteStrategy(name="ParamStrategy", symbol="BTC-PERP", params=params)
+        return ConcreteStrategy(name="ParamStrategy", symbol=btc_symbol.value, params=params)
 
     # ==================== SUCCESS CASES ====================
 
@@ -311,7 +324,8 @@ class TestStrategyHistoricalData:
         Returns:
             ConcreteStrategy: Test strategy instance for data tests.
         """
-        return ConcreteStrategy(name="DataStrategy", symbol="BTC-PERP")
+        btc_symbol = symbols.BTC.hyperliquid()
+        return ConcreteStrategy(name="DataStrategy", symbol=btc_symbol.value)
 
     @pytest.fixture
     def sample_candle(self) -> Candle:
@@ -320,8 +334,9 @@ class TestStrategyHistoricalData:
         Returns:
             Candle: Sample BTC-PERP candle with test data.
         """
+        btc_symbol = symbols.BTC.hyperliquid()
         return Candle(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             interval="1m",
             open_time=datetime.now(UTC),
             open=Decimal("50000.0"),
@@ -351,10 +366,11 @@ class TestStrategyHistoricalData:
     ) -> None:
         """Test updating historical data with multiple candles."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         candles: list[Candle] = []
         for i in range(3):
             candle = Candle(
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 interval="1m",
                 open_time=datetime.now(UTC),
                 open=Decimal(str(50000.0 + i)),
@@ -378,11 +394,12 @@ class TestStrategyHistoricalData:
     ) -> None:
         """Test historical data trimming when max_bars is exceeded."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         max_bars = 5
         candles: list[Candle] = []
         for i in range(7):  # More than max_bars
             candle = Candle(
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 interval="1m",
                 open_time=datetime.now(UTC),
                 open=Decimal(str(50000.0 + i)),
@@ -408,8 +425,9 @@ class TestStrategyHistoricalData:
     ) -> None:
         """Test that data with wrong symbol is ignored."""
         # Arrange
+        eth_symbol = symbols.ETH.hyperliquid()
         wrong_symbol_candle = Candle(
-            symbol="ETH-PERP",  # Different symbol
+            symbol=eth_symbol,  # Different symbol
             interval="1m",
             open_time=datetime.now(UTC),
             open=Decimal("3000.0"),
@@ -440,8 +458,9 @@ class TestStrategyHistoricalData:
     def test_update_historical_data_edge_max_bars_one(self, strategy: ConcreteStrategy) -> None:
         """Test historical data with max_bars=1 keeps only latest."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         candle1 = Candle(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             interval="1m",
             open_time=datetime.now(UTC),
             open=Decimal("50000.0"),
@@ -451,7 +470,7 @@ class TestStrategyHistoricalData:
             volume=Decimal("1.5"),
         )
         candle2 = Candle(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             interval="1m",
             open_time=datetime.now(UTC),
             open=Decimal("50100.0"),
@@ -480,8 +499,9 @@ class TestStrategyInfo:
         Returns:
             ConcreteStrategy: Enabled strategy with pre-populated data.
         """
+        btc_symbol = symbols.BTC.hyperliquid()
         params = {"threshold": 0.01, "window": 20}
-        strategy = ConcreteStrategy(name="InfoStrategy", symbol="BTC-PERP", params=params)
+        strategy = ConcreteStrategy(name="InfoStrategy", symbol=btc_symbol.value, params=params)
         strategy.enable()
         strategy.signals_generated = 5
         strategy.last_signal_time = datetime.now(UTC)
@@ -491,13 +511,16 @@ class TestStrategyInfo:
 
     def test_get_strategy_info_success(self, strategy_with_data: ConcreteStrategy) -> None:
         """Test getting comprehensive strategy information."""
+        # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Act
         info = strategy_with_data.get_strategy_info()
 
         # Assert
         assert isinstance(info, dict)
         assert info["name"] == "InfoStrategy"
-        assert info["symbol"] == "BTC-PERP"
+        assert info["symbol"] == btc_symbol.value
         assert info["enabled"] is True
         assert info["params"] == {"threshold": 0.01, "window": 20}
         assert info["signals_generated"] == 5
@@ -518,9 +541,10 @@ class TestStrategyInfo:
         self, strategy_with_data: ConcreteStrategy
     ) -> None:
         """Test strategy info includes historical data count."""
-        # Arrange
+        # Arrange - Create symbol matching the strategy's symbol string
+        btc_symbol = symbols.BTC.hyperliquid()
         candle = Candle(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             interval="1m",
             open_time=datetime.now(UTC),
             open=Decimal("50000.0"),
@@ -542,14 +566,15 @@ class TestStrategyInfo:
     def test_get_strategy_info_edge_no_data(self) -> None:
         """Test strategy info with minimal/default data."""
         # Arrange
-        strategy = ConcreteStrategy(name="MinimalStrategy", symbol="ETH-PERP")
+        eth_symbol = symbols.ETH.hyperliquid()
+        strategy = ConcreteStrategy(name="MinimalStrategy", symbol=eth_symbol.value)
 
         # Act
         info = strategy.get_strategy_info()
 
         # Assert
         assert info["name"] == "MinimalStrategy"
-        assert info["symbol"] == "ETH-PERP"
+        assert info["symbol"] == eth_symbol.value
         assert info["enabled"] is False
         assert info["params"] == {}
         assert info["signals_generated"] == 0
@@ -559,7 +584,8 @@ class TestStrategyInfo:
     def test_performance_metrics_edge_no_signals(self) -> None:
         """Test performance metrics with no signals generated."""
         # Arrange
-        strategy = ConcreteStrategy(name="NoSignalStrategy", symbol="SOL-PERP")
+        sol_symbol = symbols.SOL.hyperliquid()
+        strategy = ConcreteStrategy(name="NoSignalStrategy", symbol=sol_symbol.value)
 
         # Act
         metrics = strategy.performance_metrics
@@ -574,17 +600,23 @@ class TestStrategyAbstractMethod:
 
     def test_strategy_abstract_class_cannot_be_instantiated(self) -> None:
         """Test that Strategy base class cannot be instantiated directly."""
+        # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Act & Assert
         with pytest.raises(TypeError, match="Can't instantiate abstract class"):
-            Strategy(name="AbstractTest", symbol="BTC-PERP")  # type: ignore
+            Strategy(name="AbstractTest", symbol=btc_symbol.value)  # type: ignore
 
     def test_concrete_strategy_must_implement_process_data(self) -> None:
         """Test that concrete strategy must implement process_data method."""
         # This test verifies the ConcreteStrategy implementation exists
         # and can be instantiated (proving abstract method is implemented)
 
+        # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Act
-        strategy = ConcreteStrategy(name="ConcreteTest", symbol="BTC-PERP")
+        strategy = ConcreteStrategy(name="ConcreteTest", symbol=btc_symbol.value)
 
         # Assert
         assert hasattr(strategy, "process_data")

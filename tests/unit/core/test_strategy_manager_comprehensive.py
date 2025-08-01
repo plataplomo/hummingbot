@@ -22,6 +22,7 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
+from cyberdelta.core.symbols import Symbol, symbols
 from cyberdelta.enums import OrderSide
 
 
@@ -108,7 +109,8 @@ def mock_strategy() -> Mock:
     """
     strategy = Mock(spec=Strategy)
     strategy.name = "test_strategy"
-    strategy.symbol = "BTC-PERP"
+    btc_symbol = symbols.BTC.hyperliquid()
+    strategy.symbol = btc_symbol.value
     strategy.enable = Mock()
     strategy.disable = Mock()
     strategy.on_start = Mock()
@@ -126,8 +128,9 @@ def sample_candle() -> Candle:
     Returns:
         Candle: Sample Candle instance with test data for BTC-PERP.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return Candle(
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         open=Decimal("50000.0"),
         high=Decimal("50100.0"),
         low=Decimal("49900.0"),
@@ -145,9 +148,10 @@ def sample_trade_signal() -> TradeSignal:
     Returns:
         TradeSignal: Sample TradeSignal instance with test data for entering a long position.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return TradeSignal(
         signal_id="test_signal_123",
-        symbol="BTC-PERP",
+        symbol=btc_symbol.value,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000.0"),
@@ -216,9 +220,10 @@ class TestRegisterStrategy:
     ) -> None:
         """Test successful replacement of existing strategy."""
         # Arrange
+        eth_symbol = symbols.ETH.hyperliquid()
         old_strategy = Mock(spec=Strategy)
         old_strategy.name = mock_strategy.name
-        old_strategy.symbol = "ETH-PERP"
+        old_strategy.symbol = eth_symbol.value
         strategy_manager.strategies[old_strategy.name] = old_strategy
 
         # Act
@@ -237,13 +242,14 @@ class TestRegisterStrategy:
     ) -> None:
         """Test registering multiple strategies for the same symbol."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "BTC-PERP"
+        strategy2.symbol = btc_symbol.value
 
         # Act
         strategy_manager.register_strategy(strategy1)
@@ -251,7 +257,7 @@ class TestRegisterStrategy:
 
         # Assert
         assert len(strategy_manager.strategies) == 2
-        assert "BTC-PERP" in strategy_manager.active_symbols
+        assert btc_symbol.value in strategy_manager.active_symbols
 
 
 class TestUnregisterStrategy:
@@ -470,9 +476,10 @@ class TestProcessMarketData:
         strategy_manager.enabled_strategies.add(mock_strategy.name)
         strategy_manager.active_symbols.add(sample_candle.symbol)
 
+        btc_symbol = symbols.BTC.hyperliquid()
         signal2 = TradeSignal(
             signal_id="test_signal_456",
-            symbol="BTC-PERP",
+            symbol=btc_symbol.value,
             signal_type=SignalType.EXIT_LONG,
             side=OrderSide.SELL,
             price=Decimal("51000.0"),
@@ -539,7 +546,8 @@ class TestProcessMarketData:
         strategy_manager.strategies[mock_strategy.name] = mock_strategy
         strategy_manager.enabled_strategies.add(mock_strategy.name)
         strategy_manager.active_symbols.add(sample_candle.symbol)
-        mock_strategy.symbol = "ETH-PERP"  # Different symbol
+        eth_symbol = symbols.ETH.hyperliquid()
+        mock_strategy.symbol = eth_symbol.value  # Different symbol
 
         # Act
         await strategy_manager.process_market_data(sample_candle)
@@ -667,17 +675,19 @@ class TestGetStrategiesForSymbol:
     ) -> None:
         """Test getting multiple strategies for same symbol."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "BTC-PERP"
+        strategy2.symbol = btc_symbol.value
 
         strategy3 = Mock(spec=Strategy)
         strategy3.name = "strategy3"
-        strategy3.symbol = "ETH-PERP"
+        strategy3.symbol = eth_symbol.value
 
         strategy_manager.strategies = {
             "strategy1": strategy1,
@@ -687,7 +697,7 @@ class TestGetStrategiesForSymbol:
         strategy_manager.enabled_strategies = {"strategy1", "strategy2", "strategy3"}
 
         # Act
-        result = strategy_manager.get_strategies_for_symbol("BTC-PERP")
+        result = strategy_manager.get_strategies_for_symbol(btc_symbol.value)
 
         # Assert
         assert len(result) == 2
@@ -701,8 +711,11 @@ class TestGetStrategiesForSymbol:
         self, strategy_manager: StrategyManager
     ) -> None:
         """Test getting strategies when none exist for symbol."""
+        # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        
         # Act
-        result = strategy_manager.get_strategies_for_symbol("BTC-PERP")
+        result = strategy_manager.get_strategies_for_symbol(btc_symbol.value)
 
         # Assert
         assert result == []
@@ -1103,20 +1116,22 @@ class TestStrategyManagerIntegration:
     ) -> None:
         """Test coordination of multiple strategies for same symbol."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
-        strategy1.symbol = "BTC-PERP"
+        strategy1.symbol = btc_symbol.value
         strategy1.enable = Mock()
         strategy1.update_historical_data = Mock()
         strategy1.process_data = AsyncMock(return_value=None)
 
         strategy2 = Mock(spec=Strategy)
         strategy2.name = "strategy2"
-        strategy2.symbol = "BTC-PERP"
+        strategy2.symbol = btc_symbol.value
         strategy2.enable = Mock()
         strategy2.update_historical_data = Mock()
         signal2 = Mock()
-        signal2.symbol = "BTC-PERP"
+        signal2.symbol = btc_symbol.value
         signal2.signal_type = SignalType.ENTER_LONG
         signal2.side = OrderSide.BUY
         signal2.price = Decimal(50000)
@@ -1125,7 +1140,7 @@ class TestStrategyManagerIntegration:
 
         strategy3 = Mock(spec=Strategy)
         strategy3.name = "strategy3"
-        strategy3.symbol = "ETH-PERP"  # Different symbol
+        strategy3.symbol = eth_symbol.value  # Different symbol
         strategy3.enable = Mock()
         strategy3.update_historical_data = Mock()
         strategy3.process_data = AsyncMock()
@@ -1153,9 +1168,10 @@ class TestStrategyManagerIntegration:
     def test_lifecycle_management(self, strategy_manager: StrategyManager) -> None:
         """Test complete strategy lifecycle management."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         strategy = Mock(spec=Strategy)
         strategy.name = "lifecycle_strategy"
-        strategy.symbol = "BTC-PERP"
+        strategy.symbol = btc_symbol.value
         strategy.enable = Mock()
         strategy.disable = Mock()
         strategy.on_start = Mock()

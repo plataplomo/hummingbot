@@ -12,6 +12,7 @@ import pytest
 import structlog
 from pydantic import BaseModel
 
+from cyberdelta.core.symbols import symbols
 from cyberdelta.core.models import (
     DerivativePosition,
     MarginAccountSummary,
@@ -55,7 +56,7 @@ def sample_order() -> Order:
         exchange="hyperliquid",
         client_order_id="test_order_123",
         exchange_order_id="exchange_123",
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid(),
         side=OrderSide.BUY,
         order_type=OrderType.MARKET,
         quantity_requested=Decimal("1.0"),
@@ -82,7 +83,7 @@ def sample_position() -> DerivativePosition:
     """
     return DerivativePosition(
         exchange="hyperliquid",
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid(),
         side=OrderSide.BUY,
         size=Decimal("1.5"),
         entry_price=Decimal("50000.0"),
@@ -101,7 +102,7 @@ def sample_trade() -> Trade:
     """
     return Trade(
         id="trade_123",
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid(),
         executed_at=datetime.now(UTC),
         side=OrderSide.BUY,
         order_id="order_123",
@@ -122,7 +123,7 @@ def sample_trade_signal() -> TradeSignal:
     """
     return TradeSignal(
         signal_id="signal_123",
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid(),
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000.0"),

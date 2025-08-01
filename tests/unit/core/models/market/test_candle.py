@@ -13,8 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.symbols.models import create_exchange_symbol
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.core.symbols import symbols
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
@@ -23,7 +22,6 @@ pytestmark = pytest.mark.timing
 
 # Constants for testing
 NOW: datetime = datetime.now(UTC)
-VALID_SYMBOL: str = "BTC-PERP"
 VALID_INTERVAL: str = "1m"
 DEC_ZERO: Decimal = Decimal(0)
 DEC_ONE: Decimal = Decimal(1)
@@ -41,7 +39,7 @@ def create_valid_candle_data(**overrides: object) -> dict[str, Any]:
         dict[str, Any]: Valid candle data dictionary for testing.
     """
     defaults: dict[str, Any] = {
-        "symbol": VALID_SYMBOL,
+        "symbol": symbols.BTC.hyperliquid(),
         "interval": VALID_INTERVAL,
         "open_time": NOW,
         "open": Decimal("100.0"),
@@ -61,7 +59,7 @@ class TestCandle:
         """Test creating a Candle with valid data."""
         data = create_valid_candle_data()
         candle = Candle(**data)
-        assert candle.symbol == VALID_SYMBOL
+        assert candle.symbol.value == "BTC-PERP"
         assert candle.interval == VALID_INTERVAL
         assert candle.open_time == NOW
         assert candle.open == Decimal("100.0")
@@ -75,7 +73,7 @@ class TestCandle:
         ms_timestamp = int(NOW.timestamp() * 1000)
         expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
         data: dict[str, Any] = {
-            "symbol": VALID_SYMBOL,
+            "symbol": symbols.BTC.hyperliquid(),
             "interval": VALID_INTERVAL,
             "open_time": ms_timestamp,  # Test int parsing
             "open": "100.0",  # Test str parsing
@@ -108,12 +106,12 @@ class TestCandle:
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field."""
-        with pytest.raises(ValidationError):
-            create_exchange_symbol("", ExchangeName.HYPERLIQUID)
-        with pytest.raises(ValidationError):
-            create_exchange_symbol("   ", ExchangeName.HYPERLIQUID)
-        with pytest.raises(ValidationError):
-            create_exchange_symbol("A" * 65, ExchangeName.HYPERLIQUID)
+        # Symbol validation is now handled at the Symbol model level
+        # These tests would now be in the Symbol model tests
+        # For Candle, we test that it accepts valid Symbol objects
+        btc_symbol = symbols.BTC.hyperliquid()
+        candle = Candle(**create_valid_candle_data(symbol=btc_symbol))
+        assert candle.symbol == btc_symbol
 
     def test_interval_validation(self) -> None:
         """Test validation rules for the interval field."""
@@ -226,7 +224,7 @@ class TestCandle:
         candle = Candle(**create_valid_candle_data())
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            candle.symbol = "ETH-PERP"
+            candle.symbol = symbols.ETH.hyperliquid()
         with pytest.raises(ValidationError, match="Instance is frozen"):
             candle.open_time = NOW
         with pytest.raises(ValidationError, match="Instance is frozen"):

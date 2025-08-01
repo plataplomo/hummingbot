@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState,
 )
+from cyberdelta.core.symbols import symbols
 from cyberdelta.exceptions import ListFieldError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -39,7 +40,7 @@ class TestHandleInfoUserStateResponse:
         )
         assert isinstance(response, HyperliquidRawClearinghouseState)
         assert len(response.asset_positions) == 1
-        assert response.asset_positions[0].asset == "ETH-PERP"
+        assert response.asset_positions[0].asset == symbols.ETH.hyperliquid().value
         assert response.withdrawable == "4700.0"
 
     def test_validation_error_missing_asset_positions(self, user_address: str) -> None:
@@ -115,7 +116,7 @@ class TestHandleInfoOpenOrdersResponse:
         )
         assert isinstance(response, HyperliquidRawOpenOrdersResponse)
         assert len(response.items) == 2
-        assert response.items[0].coin == "ETH-PERP"
+        assert response.items[0].coin == symbols.ETH.hyperliquid().value
         assert response.items[0].oid == 6001
 
     def test_empty_orders_list(self, user_address: str) -> None:
@@ -131,7 +132,7 @@ class TestHandleInfoOpenOrdersResponse:
 
     def test_validation_error_invalid_order_item(self, user_address: str) -> None:
         """Test open orders response with invalid order item."""
-        invalid_order = {"asset": "ETH-PERP"}  # Missing required fields
+        invalid_order = {"asset": symbols.ETH.hyperliquid().value}  # Missing required fields
         raw_data = [invalid_order]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_open_orders_response(
@@ -179,7 +180,7 @@ class TestHandleInfoOpenOrdersResponse:
         valid_raw_open_order_item: dict[str, Any],
     ) -> None:
         """Test open orders response with mix of valid and invalid items."""
-        invalid_order = {"asset": "ETH-PERP"}  # Missing required fields
+        invalid_order = {"asset": symbols.ETH.hyperliquid().value}  # Missing required fields
         raw_data = [
             valid_raw_open_order_item.copy(),  # Valid
             invalid_order,  # Invalid
@@ -214,7 +215,7 @@ class TestHandleInfoUserFillsResponse:
         assert isinstance(response, HyperliquidRawUserFillsResponse)
         assert len(response.root) == 2
         assert isinstance(response.root[0], HyperliquidRawUserFill)
-        assert response.root[0].coin == "ETH-PERP"
+        assert response.root[0].coin == symbols.ETH.hyperliquid().value
         assert response.root[0].tid == 1001
 
     def test_empty_fills_list(self, user_address: str) -> None:
@@ -373,9 +374,9 @@ class TestUserAccountEdgeCases:
         raw_data = {
             "assetPositions": [
                 {
-                    "asset": "BTC-PERP",
+                    "asset": symbols.BTC.hyperliquid().value,
                     "position": {
-                        "coin": "BTC-PERP",
+                        "coin": symbols.BTC.hyperliquid().value,
                         "szi": "0.1",
                         "entryPx": "45000.0",
                         "leverage": {"type": "isolated", "value": 5},
@@ -388,9 +389,9 @@ class TestUserAccountEdgeCases:
                     },
                 },
                 {
-                    "asset": "ETH-PERP",
+                    "asset": symbols.ETH.hyperliquid().value,
                     "position": {
-                        "coin": "ETH-PERP",
+                        "coin": symbols.ETH.hyperliquid().value,
                         "szi": "2.0",
                         "entryPx": "3000.0",
                         "leverage": {"type": "cross", "value": 10},
@@ -431,15 +432,15 @@ class TestUserAccountEdgeCases:
             status_code=200,
         )
         assert len(response.asset_positions) == 2
-        assert response.asset_positions[0].asset == "BTC-PERP"
-        assert response.asset_positions[1].asset == "ETH-PERP"
+        assert response.asset_positions[0].asset == symbols.BTC.hyperliquid().value
+        assert response.asset_positions[1].asset == symbols.ETH.hyperliquid().value
         assert response.withdrawable == "12000.0"
 
     def test_open_orders_with_trigger_orders(self, user_address: str) -> None:
         """Test open orders response containing trigger orders."""
         # The openOrders endpoint returns simplified order format
         trigger_order = {
-            "coin": "BTC-PERP",
+            "coin": symbols.BTC.hyperliquid().value,
             "limitPx": "46000.0",
             "oid": 7001,
             "side": "A",
@@ -454,6 +455,6 @@ class TestUserAccountEdgeCases:
             status_code=200,
         )
         assert len(response.items) == 1
-        assert response.items[0].coin == "BTC-PERP"
+        assert response.items[0].coin == symbols.BTC.hyperliquid().value
         assert response.items[0].oid == 7001
         assert response.items[0].limit_px == "46000"

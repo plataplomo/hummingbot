@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
+from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
@@ -36,13 +37,13 @@ def _get_value_for_assignment_test() -> bool:
 def test_discrepancy_detail_happy_path() -> None:
     """Test successful creation of DiscrepancyDetail with all fields."""
     detail = DiscrepancyDetail(
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid().value,
         discrepancy_type="size",
         exchange_value="1.0",
         local_value="0.9",
         details="Size mismatch found during reconciliation.",
     )
-    assert detail.symbol == "BTC-PERP"
+    assert detail.symbol == symbols.BTC.hyperliquid().value
     assert detail.discrepancy_type == "size"
     assert detail.exchange_value == "1.0"
     assert detail.local_value == "0.9"
@@ -52,10 +53,10 @@ def test_discrepancy_detail_happy_path() -> None:
 def test_discrepancy_detail_minimal_required_fields() -> None:
     """Test successful creation with only required fields (optional fields default to None)."""
     detail = DiscrepancyDetail(
-        symbol="ETH-PERP",
+        symbol=symbols.ETH.hyperliquid().value,
         discrepancy_type="entry_price",
     )
-    assert detail.symbol == "ETH-PERP"
+    assert detail.symbol == symbols.ETH.hyperliquid().value
     assert detail.discrepancy_type == "entry_price"
     assert detail.exchange_value is None
     assert detail.local_value is None
@@ -65,11 +66,11 @@ def test_discrepancy_detail_minimal_required_fields() -> None:
 def test_discrepancy_detail_optional_fields_provided() -> None:
     """Test successful creation with some optional fields provided."""
     detail = DiscrepancyDetail(
-        symbol="SOL-PERP",
+        symbol=symbols.SOL.hyperliquid().value,
         discrepancy_type="mark_price",
         exchange_value="150.00",
     )
-    assert detail.symbol == "SOL-PERP"
+    assert detail.symbol == symbols.SOL.hyperliquid().value
     assert detail.discrepancy_type == "mark_price"
     assert detail.exchange_value == "150.00"
     assert detail.local_value is None
@@ -80,7 +81,7 @@ def test_discrepancy_detail_optional_fields_provided() -> None:
 def test_discrepancy_detail_missing_required_field(missing_field: str) -> None:
     """Test ValidationError when a required field is missing."""
     data_dict = {
-        "symbol": "BTC-PERP",
+        "symbol": symbols.BTC.hyperliquid().value,
         "discrepancy_type": "size",
         "exchange_value": "1.0",
         "local_value": "0.9",
@@ -95,7 +96,7 @@ def test_discrepancy_detail_missing_required_field(missing_field: str) -> None:
 def test_discrepancy_detail_invalid_discrepancy_type() -> None:
     """Test ValidationError for an invalid discrepancy_type."""
     data_dict = {
-        "symbol": "BTC-PERP",
+        "symbol": symbols.BTC.hyperliquid().value,
         "discrepancy_type": "invalid_type",  # This value is invalid for the Literal
     }
     with pytest.raises(ValidationError) as exc_info:
@@ -113,20 +114,20 @@ def test_discrepancy_detail_invalid_discrepancy_type() -> None:
 def test_discrepancy_detail_frozen() -> None:
     """Test that DiscrepancyDetail is frozen (immutable)."""
     detail = DiscrepancyDetail(
-        symbol="BTC-PERP",
+        symbol=symbols.BTC.hyperliquid().value,
         discrepancy_type="size",
     )
     with pytest.raises(ValidationError) as exc_info:
         # Direct assignment to a frozen model should raise ValidationError
         # Pydantic v2 raises pydantic_core.ValidationError which includes info about frozen fields.
-        detail.symbol = "ETH-PERP"  # Use setattr to test runtime frozen validation
+        detail.symbol = symbols.ETH.hyperliquid().value  # Use setattr to test runtime frozen validation
     assert "Instance is frozen" in str(exc_info.value) or "frozen_field" in str(exc_info.value)
 
 
 def test_discrepancy_detail_extra_fields_forbidden() -> None:
     """Test ValidationError when extra fields are provided (extra='forbid')."""
     data_dict = {
-        "symbol": "BTC-PERP",
+        "symbol": symbols.BTC.hyperliquid().value,
         "discrepancy_type": "size",
         "unexpected_field": "some_value",
     }
@@ -144,7 +145,7 @@ def test_discrepancy_detail_extra_fields_forbidden() -> None:
 
 def test_historical_record_happy_path() -> None:
     """Test successful creation of HistoricalDiscrepancyRecord."""
-    discrepancy = DiscrepancyDetail(symbol="BTC-PERP", discrepancy_type="size")
+    discrepancy = DiscrepancyDetail(symbol=symbols.BTC.hyperliquid().value, discrepancy_type="size")
     now = datetime.now(UTC)
     record = HistoricalDiscrepancyRecord(
         detail=discrepancy,
@@ -160,7 +161,7 @@ def test_historical_record_happy_path() -> None:
 
 def test_historical_record_default_is_corrected() -> None:
     """Test that is_corrected defaults to False."""
-    discrepancy = DiscrepancyDetail(symbol="ETH-PERP", discrepancy_type="entry_price")
+    discrepancy = DiscrepancyDetail(symbol=symbols.ETH.hyperliquid().value, discrepancy_type="entry_price")
     now = datetime.now(UTC)
     data_to_validate = {
         "detail": discrepancy,
@@ -175,7 +176,7 @@ def test_historical_record_default_is_corrected() -> None:
 @pytest.mark.parametrize("missing_field", ["detail", "exchange_id", "recorded_at"])
 def test_historical_record_missing_required_field(missing_field: str) -> None:
     """Test ValidationError when a required field is missing."""
-    discrepancy = DiscrepancyDetail(symbol="SOL-PERP", discrepancy_type="mark_price")
+    discrepancy = DiscrepancyDetail(symbol=symbols.SOL.hyperliquid().value, discrepancy_type="mark_price")
     now = datetime.now(UTC)
     data_dict = {
         "detail": discrepancy,

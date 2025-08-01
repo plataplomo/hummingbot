@@ -16,6 +16,7 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.signal_queue import PrioritySignalQueue
+from cyberdelta.core.symbols import Symbol, symbols
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -64,10 +65,11 @@ def sample_trade_signal() -> TradeSignal:
     Returns:
         TradeSignal: Sample BTC-PERP long entry signal.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return TradeSignal(
         signal_id="test_signal_123",
         timestamp=datetime.now(UTC),
-        symbol="BTC-PERP",
+        symbol=btc_symbol,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000.0"),
@@ -85,8 +87,9 @@ def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     Returns:
         ArbitrageOpportunity: Sample BTC-PERP arbitrage opportunity with utility scores.
     """
+    btc_symbol = symbols.BTC.hyperliquid()
     return ArbitrageOpportunity(
-        symbol="BTC-PERP",
+        symbol=btc_symbol.value,
         long_exchange="hyperliquid",
         short_exchange="backpack",
         long_price=Decimal("50000.0"),
@@ -234,13 +237,14 @@ class TestAddSignal:
     ) -> None:
         """Test queue trimming when full."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         signal_queue.max_queue_size = 3
         signals: list[TradeSignal] = []
         for i in range(4):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
                 timestamp=datetime.now(UTC),
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
@@ -302,7 +306,7 @@ class TestAddFromOpportunity:
         # Assert
         assert result is not None
         assert isinstance(result, TradeSignal)
-        assert result.symbol == sample_arbitrage_opportunity.symbol
+        assert result.symbol.value == sample_arbitrage_opportunity.symbol
         assert result.source_strategy == "test_strategy"
         assert result.price == sample_arbitrage_opportunity.long_price
         assert len(signal_queue.signal_queue) == 1
@@ -394,12 +398,13 @@ class TestGetNextSignal:
     ) -> None:
         """Test signals are returned in priority order."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         signals: list[TradeSignal] = []
         for i, score in enumerate([0.5, 0.9, 0.1]):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
                 timestamp=datetime.now(UTC),
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
@@ -530,12 +535,13 @@ class TestGetSignals:
     async def test_get_signals_success_all(self, signal_queue: PrioritySignalQueue) -> None:
         """Test getting all signals sorted by priority."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         signals: list[TradeSignal] = []
         for i, score in enumerate([0.5, 0.9, 0.1]):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
                 timestamp=datetime.now(UTC),
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
@@ -566,11 +572,12 @@ class TestGetSignals:
     ) -> None:
         """Test getting limited number of signals."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         for i in range(5):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
                 timestamp=datetime.now(UTC),
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
@@ -593,8 +600,10 @@ class TestGetSignals:
     ) -> None:
         """Test getting signals filtered by symbol."""
         # Arrange
-        symbols = ["BTC-PERP", "ETH-PERP", "BTC-PERP"]
-        for i, symbol in enumerate(symbols):
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
+        test_symbols = [btc_symbol, eth_symbol, btc_symbol]
+        for i, symbol in enumerate(test_symbols):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
                 timestamp=datetime.now(UTC),
@@ -610,11 +619,11 @@ class TestGetSignals:
             await signal_queue.add_signal(signal)
 
         # Act
-        result = await signal_queue.get_signals(symbol="BTC-PERP")
+        result = await signal_queue.get_signals(symbol=btc_symbol.value)
 
         # Assert
         assert len(result) == 2
-        assert all(s.symbol == "BTC-PERP" for s in result)
+        assert all(s.symbol.value == btc_symbol.value for s in result)
 
     @pytest.mark.asyncio
     async def test_get_signals_edge_empty_queue(self, signal_queue: PrioritySignalQueue) -> None:
@@ -691,11 +700,13 @@ class TestExpiredSignalCleaning:
     ) -> None:
         """Test expired signals are automatically cleaned during normal operations."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
         now = datetime.now(UTC)
         valid_signal = TradeSignal(
             signal_id="valid",
             timestamp=now,
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
@@ -707,7 +718,7 @@ class TestExpiredSignalCleaning:
         expired_signal = TradeSignal(
             signal_id="expired",
             timestamp=now,
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
             price=Decimal("3000.0"),
@@ -744,13 +755,14 @@ class TestExpiredSignalCleaning:
     ) -> None:
         """Test all expired signals are cleaned through public API."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         now = datetime.now(UTC)
         # Add multiple expired signals
         for i in range(3):
             expired_signal = TradeSignal(
                 signal_id=f"expired_{i}",
                 timestamp=now,
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
@@ -782,13 +794,14 @@ class TestExpiredSignalCleaning:
     ) -> None:
         """Test no signals are removed when all are valid."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         now = datetime.now(UTC)
         # Add multiple valid signals
         for i in range(3):
             valid_signal = TradeSignal(
                 signal_id=f"valid_{i}",
                 timestamp=now,
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
@@ -923,11 +936,12 @@ class TestAsyncMethods:
     async def test_pop_signals_success_multiple(self, signal_queue: PrioritySignalQueue) -> None:
         """Test popping multiple signals at once."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         for i in range(3):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
                 timestamp=datetime.now(UTC),
-                symbol="BTC-PERP",
+                symbol=btc_symbol,
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("50000.0"),
@@ -980,11 +994,12 @@ class TestAsyncMethods:
     ) -> None:
         """Test concurrent enqueue operations to verify lock handling in add_signal."""
         # Arrange - Create multiple different signals
+        btc_symbol = symbols.BTC.hyperliquid()
         signals: list[TradeSignal] = []
         for i in range(5):
             signal = TradeSignal(
                 signal_id=f"test_signal_{i}",
-                symbol="BTC",
+                symbol=btc_symbol,
                 side=OrderSide.BUY,
                 signal_type=SignalType.ENTER_LONG,
                 price=Decimal(f"5000{i}"),
@@ -1042,10 +1057,11 @@ class TestEdgeCases:
     async def test_add_signal_with_list_exchange(self, signal_queue: PrioritySignalQueue) -> None:
         """Test adding signal with list of exchanges."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         signal = TradeSignal(
             signal_id="test",
             timestamp=datetime.now(UTC),
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),
@@ -1121,10 +1137,11 @@ class TestParametrizedTests:
     ) -> None:
         """Test various utility score inputs are handled correctly."""
         # Arrange
+        btc_symbol = symbols.BTC.hyperliquid()
         signal = TradeSignal(
             signal_id="test",
             timestamp=datetime.now(UTC),
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
             price=Decimal("50000.0"),

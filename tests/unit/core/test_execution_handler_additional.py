@@ -30,10 +30,16 @@ from cyberdelta.core.models import Order
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import SizedOpportunity
+from cyberdelta.core.symbols import Symbol, symbols
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+
+from tests.helpers.symbol_validators import SymbolTestValidator
+from tests.helpers.symbol_scenarios import SymbolTestScenarios
+from tests.mocks.symbol_mocks import MockSymbolService
 
 
 @pytest.fixture
@@ -66,16 +72,14 @@ def mock_portfolio_state_manager() -> Mock:
 
 
 @pytest.fixture
-def mock_symbol_service() -> Mock:
-    """Create mock symbol service for testing.
+def symbol_service() -> SymbolService:
+    """Create symbol service for testing.
 
     Returns:
-        Mock: Mock SymbolService instance with default symbol mapping behavior.
+        SymbolService: Real SymbolService instance for testing.
     """
-    service = Mock(spec=SymbolService)
-    # Default behavior - return the same symbol
-    service.get_exchange_symbol.return_value = "BTC-PERP"
-    return service
+    from cyberdelta.core.symbols import get_symbol_service
+    return get_symbol_service()
 
 
 @pytest.fixture
@@ -96,7 +100,7 @@ def mock_circuit_breaker_system() -> Mock:
 def execution_handler(
     mock_app_settings: Mock,
     mock_portfolio_state_manager: Mock,
-    mock_symbol_service: Mock,
+    symbol_service: SymbolService,
     mock_circuit_breaker_system: Mock,
 ) -> ExecutionHandler:
     """Create an ExecutionHandler instance for testing.
@@ -107,22 +111,25 @@ def execution_handler(
     return ExecutionHandler(
         app_settings=mock_app_settings,
         portfolio_tracker=mock_portfolio_state_manager,
-        symbol_service=mock_symbol_service,
+        symbol_service=symbol_service,
         circuit_breaker_system=mock_circuit_breaker_system,
     )
 
 
 @pytest.fixture
-def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
+def sample_arbitrage_opportunity(btc_perp_hl, btc_perp_bp) -> ArbitrageOpportunity:
     """Create a sample ArbitrageOpportunity for testing.
 
     Returns:
         ArbitrageOpportunity: Sample ArbitrageOpportunity instance with test data.
     """
+    btc_hl = btc_symbols.perp_hl
+    btc_bp = btc_symbols.perp_bp
+    
     return ArbitrageOpportunity(
-        symbol="BTC-PERP",
-        long_exchange="hyperliquid",
-        short_exchange="backpack",
+        symbol=btc_hl.value,  # Use canonical symbol value
+        long_exchange=btc_hl.exchange.value,
+        short_exchange=btc_bp.exchange.value,
         long_price=Decimal("50000.0"),
         short_price=Decimal("50100.0"),
         long_funding_rate=Decimal("0.0001"),
@@ -153,7 +160,7 @@ def sample_sized_opportunity(
 
 
 @pytest.fixture
-def mock_exchange_api() -> Mock:
+def mock_exchange_api(btc_perp_hl) -> Mock:
     """Create mock exchange API for testing.
 
     Returns:
@@ -161,11 +168,11 @@ def mock_exchange_api() -> Mock:
     """
     api = Mock(spec=ExchangeAPI)
 
-    # Mock successful order placement
+    # Mock successful order placement with Symbol
     mock_order = Order(
         client_order_id=str(uuid4()),
         exchange_order_id="12345",
-        symbol="BTC-PERP",
+        symbol=btc_symbols.perp_hl.value,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity_requested=Decimal("0.02"),
@@ -175,7 +182,7 @@ def mock_exchange_api() -> Mock:
         status=OrderStatus.NEW,
         time_in_force=TimeInForce.IOC,
         created_at=datetime.now(UTC),
-        exchange="hyperliquid",
+        exchange=btc_perp_hl.exchange.value,
         updated_at=None,
         triggered_at=None,
         strategy_name=None,
@@ -209,7 +216,7 @@ class TestTradeExecution:
         assert execution.end_time is None
 
     def test_trade_execution_to_dict_success_complete(
-        self, sample_sized_opportunity: SizedOpportunity
+        self, sample_sized_opportunity: SizedOpportunity, btc_perp_hl, btc_perp_bp
     ) -> None:
         """Test to_dict with complete execution data."""
         # Arrange
@@ -238,7 +245,7 @@ class TestTradeExecution:
         assert result["start_time"] is not None
         assert result["end_time"] is not None
 
-    def test_trade_execution_str_success(self, sample_sized_opportunity: SizedOpportunity) -> None:
+    def test_trade_execution_str_success(self, sample_sized_opportunity: SizedOpportunity, btc_perp_hl, btc_perp_bp) -> None:
         """Test string representation of TradeExecution."""
         # Arrange
         execution = TradeExecution(opportunity=sample_sized_opportunity)
@@ -246,10 +253,10 @@ class TestTradeExecution:
         # Act
         result = str(execution)
 
-        # Assert
-        assert "BTC-PERP" in result
-        assert "hyperliquid" in result
-        assert "backpack" in result
+        # Assert - using Symbol metadata
+        assert btc_perp_hl.value in result
+        assert btc_perp_hl.exchange.value in result
+        assert btc_perp_bp.exchange.value in result
         assert "1000.00" in result
         assert "PENDING" in result
 
@@ -325,14 +332,14 @@ class TestExecutionHandlerInitialization:
         self,
         mock_app_settings: Mock,
         mock_portfolio_state_manager: Mock,
-        mock_symbol_service: Mock,
+        symbol_service: SymbolService,
     ) -> None:
         """Test successful initialization without circuit breaker."""
         # Act
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_state_manager,
-            symbol_service=mock_symbol_service,
+            symbol_service=symbol_service,
             circuit_breaker_system=None,
         )
 
@@ -402,7 +409,9 @@ class TestExecutionHandlerOpportunityExecution:
         execution_handler: ExecutionHandler,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
-        mock_symbol_service: Mock,
+        btc_perp_hl,
+        btc_perp_bp,
+        symbol_service: SymbolService,
     ) -> None:
         """Test successful execution with complete fills."""
         # Arrange
@@ -410,24 +419,31 @@ class TestExecutionHandlerOpportunityExecution:
         execution_handler.register_api_client("hyperliquid", mock_exchange_api)
         execution_handler.register_api_client("backpack", mock_exchange_api)
 
-        # Mock symbol mapping
-        def symbol_mapper_side_effect(symbol: str, exchange: str) -> str:
-            return f"{symbol}_{exchange}"
+        # Use MockSymbolService builder for precise control
+        mock_service = (
+            MockSymbolService()
+            .with_conversion(
+                btc_perp_hl,
+                ExchangeName.HYPERLIQUID,
+                btc_perp_hl
+            )
+            .with_conversion(
+                btc_perp_bp,
+                ExchangeName.BACKPACK,
+                btc_perp_bp
+            )
+            .with_equivalence([btc_perp_hl, btc_perp_bp])
+            .build()
+        )
+        
+        # Replace symbol service with mock
+        execution_handler.symbol_service = mock_service
 
-        mock_symbol_service.get_exchange_symbol.side_effect = symbol_mapper_side_effect
-
-        # Mock get_internal_symbol for synthetic trade creation
-        def internal_symbol_side_effect(symbol: str, exchange: str) -> str:
-            # Return just the base symbol for internal representation
-            return "BTC-PERP"
-
-        mock_symbol_service.get_internal_symbol.side_effect = internal_symbol_side_effect
-
-        # Mock successful order placement and fills
+        # Mock successful order placement and fills with Symbols
         long_order = Order(
             client_order_id=str(uuid4()),
             exchange_order_id="long123",
-            symbol="BTC-PERP_hyperliquid",
+            symbol=btc_perp_hl.value,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.02"),
@@ -441,13 +457,13 @@ class TestExecutionHandlerOpportunityExecution:
             triggered_at=None,
             strategy_name="test_strategy",
             signal_id="signal_123",
-            exchange="hyperliquid",
+            exchange=btc_perp_hl.exchange.value,
         )
 
         short_order = Order(
             client_order_id=str(uuid4()),
             exchange_order_id="short456",
-            symbol="BTC-PERP_backpack",
+            symbol=btc_perp_bp.value,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.02"),
@@ -461,7 +477,7 @@ class TestExecutionHandlerOpportunityExecution:
             triggered_at=None,
             strategy_name="test_strategy",
             signal_id="signal_456",
-            exchange="backpack",
+            exchange=btc_perp_bp.exchange.value,
         )
 
         mock_exchange_api.place_order.side_effect = [long_order, short_order]
@@ -478,6 +494,13 @@ class TestExecutionHandlerOpportunityExecution:
         assert result.long_fill_price == Decimal("50000.0")
         assert result.short_fill_price == Decimal("50100.0")
         assert result.realized_pnl is not None
+
+        # Validate symbols used
+        SymbolTestValidator.assert_valid_arbitrage_pair(
+            btc_perp_hl,
+            btc_perp_bp,
+            mock_service
+        )
 
     # ==================== EDGE CASES ====================
 
@@ -530,9 +553,9 @@ class TestExecutionHandlerOpportunityExecution:
     @pytest.mark.asyncio
     async def test_execute_opportunity_edge_no_circuit_breaker(
         self,
-        mock_app_settings: Mock,  # Use shared fixture
-        mock_portfolio_state_manager: Mock,  # Use shared fixture
-        mock_symbol_service: Mock,  # Use shared fixture
+        mock_app_settings: Mock,
+        mock_portfolio_state_manager: Mock,
+        symbol_service: SymbolService,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
     ) -> None:
@@ -541,7 +564,7 @@ class TestExecutionHandlerOpportunityExecution:
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_state_manager,
-            symbol_service=mock_symbol_service,
+            symbol_service=symbol_service,
             circuit_breaker_system=None,
         )
         handler.register_api_client("hyperliquid", mock_exchange_api)
@@ -577,15 +600,20 @@ class TestExecutionHandlerOpportunityExecution:
         execution_handler: ExecutionHandler,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
-        mock_symbol_service: Mock,
+        btc_perp_hl,
     ) -> None:
         """Test execution failure when symbol mapping fails."""
         # Arrange
         execution_handler.register_api_client("hyperliquid", mock_exchange_api)
         execution_handler.register_api_client("backpack", mock_exchange_api)
 
-        # Mock symbol mapping failure by returning None
-        mock_symbol_service.get_exchange_symbol.return_value = None
+        # Mock symbol mapping failure by setting None service
+        mock_service = (
+            MockSymbolService()
+            .with_conversion(btc_perp_hl, ExchangeName.HYPERLIQUID, None)
+            .build()
+        )
+        execution_handler.symbol_service = mock_service
 
         # Act
         result = await execution_handler.execute_opportunity(sample_sized_opportunity)
@@ -641,16 +669,22 @@ class TestExecutionHandlerActiveExecutions:
         execution_handler: ExecutionHandler,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
-        mock_symbol_service: Mock,
+        btc_perp_hl,
+        btc_perp_bp,
     ) -> None:
         """Test getting active executions during execution."""
         # Arrange
         execution_handler.register_api_client("hyperliquid", mock_exchange_api)
         execution_handler.register_api_client("backpack", mock_exchange_api)
 
-        # Setup symbol mapper to avoid errors
-        mock_symbol_service.get_exchange_symbol.return_value = "BTC-PERP"
-        mock_symbol_service.get_internal_symbol.return_value = "BTC-PERP"
+        # Setup mock service to avoid errors
+        mock_service = (
+            MockSymbolService()
+            .with_conversion(btc_perp_hl, ExchangeName.HYPERLIQUID, btc_perp_hl)
+            .with_conversion(btc_perp_bp, ExchangeName.BACKPACK, btc_perp_bp)
+            .build()
+        )
+        execution_handler.symbol_service = mock_service
 
         # Make the place_order method hang so execution stays active
         async def hanging_place_order(*args: object, **kwargs: object) -> object:
@@ -711,16 +745,16 @@ class TestExecutionHandlerCircuitBreakerReset:
 
     def test_circuit_breaker_integration_without_system(
         self,
-        mock_app_settings: Mock,  # Use shared fixture
-        mock_portfolio_state_manager: Mock,  # Use shared fixture
-        mock_symbol_service: Mock,  # Use shared fixture
+        mock_app_settings: Mock,
+        mock_portfolio_state_manager: Mock,
+        symbol_service: SymbolService,
     ) -> None:
         """Test circuit breaker integration when system doesn't exist."""
         # Arrange
         handler = ExecutionHandler(
             app_settings=mock_app_settings,
             portfolio_tracker=mock_portfolio_state_manager,
-            symbol_service=mock_symbol_service,
+            symbol_service=symbol_service,
             circuit_breaker_system=None,
         )
 
@@ -777,18 +811,22 @@ class TestExecutionHandlerErrorClasses:
         assert error.exchange == "hyperliquid"
         assert "hyperliquid" in str(error)
 
-    def test_symbol_mapping_error_success(self) -> None:
-        """Test SymbolMappingError initialization."""
+    def test_symbol_mapping_error_success(self, btc_perp_hl) -> None:
+        """Test SymbolMappingError initialization with Symbol objects."""
         # Act
-        error = SymbolMappingError("BTC-PERP", "long", "hyperliquid")
+        error = SymbolMappingError(
+            btc_perp_hl.value,
+            "long",
+            btc_perp_hl.exchange.value
+        )
 
         # Assert
-        assert error.symbol == "BTC-PERP"
+        assert error.symbol == btc_perp_hl.value
         assert error.leg == "long"
-        assert error.exchange == "hyperliquid"
-        assert "BTC-PERP" in str(error)
+        assert error.exchange == btc_perp_hl.exchange.value
+        assert btc_perp_hl.value in str(error)
         assert "long" in str(error)
-        assert "hyperliquid" in str(error)
+        assert btc_perp_hl.exchange.value in str(error)
 
 
 class TestExecutionHandlerPartialFills:
@@ -802,17 +840,18 @@ class TestExecutionHandlerPartialFills:
         execution_handler: ExecutionHandler,
         sample_sized_opportunity: SizedOpportunity,
         mock_exchange_api: Mock,
+        btc_perp_hl,
     ) -> None:
-        """Test execution with partial fills."""
+        """Test execution with partial fills using Symbols."""
         # Arrange
         execution_handler.register_api_client("hyperliquid", mock_exchange_api)
         execution_handler.register_api_client("backpack", mock_exchange_api)
 
-        # Mock partial fill
+        # Mock partial fill with Symbol
         partial_order = Order(
             client_order_id=str(uuid4()),
             exchange_order_id="partial123",
-            symbol="BTC-PERP",
+            symbol=btc_perp_hl.value,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.02"),
@@ -826,7 +865,7 @@ class TestExecutionHandlerPartialFills:
             triggered_at=None,
             strategy_name="test_strategy",
             signal_id="signal_partial",
-            exchange="hyperliquid",
+            exchange=btc_perp_hl.exchange.value,
         )
 
         mock_exchange_api.place_order.return_value = partial_order

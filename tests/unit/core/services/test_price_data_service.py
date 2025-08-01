@@ -15,6 +15,7 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import Ticker
 from cyberdelta.core.services.price_data_service import PriceDataService
+from cyberdelta.core.symbols import symbols
 
 
 class TestPriceDataService:
@@ -102,8 +103,9 @@ class TestPriceDataService:
     ) -> None:
         """Test getting ticker with cache miss and successful API call."""
         # Setup mock ticker
+        btc_symbol = symbols.BTC.hyperliquid()
         mock_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="hyperliquid",
             bid=Decimal(50000),
             ask=Decimal(50100),
@@ -112,11 +114,11 @@ class TestPriceDataService:
         mock_api_clients["hyperliquid"].get_ticker.return_value = mock_ticker
 
         # Execute
-        result = await price_service.get_ticker("hyperliquid", "BTC-PERP")
+        result = await price_service.get_ticker("hyperliquid", btc_symbol.value)
 
         # Verify
         assert result == mock_ticker
-        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with("BTC-PERP")
+        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with(btc_symbol.value)
         # Check it was cached using public API
         stats = price_service.get_cache_stats()
         assert stats["total_entries"] == 1
@@ -129,17 +131,18 @@ class TestPriceDataService:
     ) -> None:
         """Test getting ticker with cache hit."""
         # Pre-populate cache using public API
+        btc_symbol = symbols.BTC.hyperliquid()
         mock_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="hyperliquid",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
-        price_service.cache_ticker("hyperliquid", "BTC-PERP", mock_ticker)
+        price_service.cache_ticker("hyperliquid", btc_symbol.value, mock_ticker)
 
         # Execute
-        result = await price_service.get_ticker("hyperliquid", "BTC-PERP")
+        result = await price_service.get_ticker("hyperliquid", btc_symbol.value)
 
         # Verify
         assert result == mock_ticker
@@ -155,8 +158,9 @@ class TestPriceDataService:
     ) -> None:
         """Test getting ticker with expired cache entry."""
         # Pre-populate cache with entry that will expire during test
+        btc_symbol = symbols.BTC.hyperliquid()
         old_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="hyperliquid",
             bid=Decimal(49000),
             ask=Decimal(49100),
@@ -164,14 +168,14 @@ class TestPriceDataService:
         )
         # Use a very short cache expiry for this test
         price_service.cache_expiry_seconds = 1
-        price_service.cache_ticker("hyperliquid", "BTC-PERP", old_ticker)
+        price_service.cache_ticker("hyperliquid", btc_symbol.value, old_ticker)
 
         # Wait for cache to expire
         await asyncio.sleep(1.1)
 
         # Setup new ticker from API
         new_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="hyperliquid",
             bid=Decimal(50000),
             ask=Decimal(50100),
@@ -180,11 +184,11 @@ class TestPriceDataService:
         mock_api_clients["hyperliquid"].get_ticker.return_value = new_ticker
 
         # Execute
-        result = await price_service.get_ticker("hyperliquid", "BTC-PERP")
+        result = await price_service.get_ticker("hyperliquid", btc_symbol.value)
 
         # Verify
         assert result == new_ticker
-        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with("BTC-PERP")
+        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with(btc_symbol.value)
 
         # Reset cache expiry for other tests
         price_service.cache_expiry_seconds = 30
@@ -195,7 +199,8 @@ class TestPriceDataService:
         price_service: PriceDataService,
     ) -> None:
         """Test getting ticker with no API client."""
-        result = await price_service.get_ticker("unknown_exchange", "BTC-PERP")
+        btc_symbol = symbols.BTC.hyperliquid()
+        result = await price_service.get_ticker("unknown_exchange", btc_symbol.value)
         assert result is None
 
     @pytest.mark.asyncio
@@ -210,12 +215,13 @@ class TestPriceDataService:
 
         # Act & Assert - Current business logic lets generic Exception propagate
         # This is the current behavior and source of truth
+        btc_symbol = symbols.BTC.hyperliquid()
         with pytest.raises(Exception) as exc_info:
-            await price_service.get_ticker("hyperliquid", "BTC-PERP")
+            await price_service.get_ticker("hyperliquid", btc_symbol.value)
 
         # Verify the exception details
         assert "API Error" in str(exc_info.value)
-        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with("BTC-PERP")
+        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with(btc_symbol.value)
 
     @pytest.mark.asyncio
     async def test_get_ticker_api_returns_none(
@@ -226,25 +232,27 @@ class TestPriceDataService:
         """Test getting ticker when API returns None."""
         mock_api_clients["hyperliquid"].get_ticker.return_value = None
 
-        result = await price_service.get_ticker("hyperliquid", "BTC-PERP")
+        btc_symbol = symbols.BTC.hyperliquid()
+        result = await price_service.get_ticker("hyperliquid", btc_symbol.value)
 
         assert result is None
-        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with("BTC-PERP")
+        mock_api_clients["hyperliquid"].get_ticker.assert_awaited_once_with(btc_symbol.value)
 
     def test_cache_ticker(
         self,
         price_service: PriceDataService,
     ) -> None:
         """Test caching ticker data."""
+        eth_symbol = symbols.ETH.hyperliquid()
         ticker = Ticker(
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             exchange="test_exchange",
             bid=Decimal(3000),
             ask=Decimal(3010),
             timestamp=datetime.now(UTC),
         )
 
-        price_service.cache_ticker("backpack", "ETH-PERP", ticker)
+        price_service.cache_ticker("backpack", eth_symbol.value, ticker)
 
         # Verify using public API
         stats = price_service.get_cache_stats()
@@ -259,8 +267,9 @@ class TestPriceDataService:
     ) -> None:
         """Test caching behavior by observing get_ticker results."""
         # Test cache miss behavior
+        btc_symbol = symbols.BTC.hyperliquid()
         mock_api_clients["hyperliquid"].get_ticker.return_value = None
-        result = await price_service.get_ticker("hyperliquid", "BTC-PERP")
+        result = await price_service.get_ticker("hyperliquid", btc_symbol.value)
         assert result is None
 
         # Verify cache is still empty
@@ -274,8 +283,9 @@ class TestPriceDataService:
     ) -> None:
         """Test cache cleanup functionality using public APIs."""
         # Add ticker that will expire
+        btc_symbol = symbols.BTC.hyperliquid()
         ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
@@ -283,7 +293,7 @@ class TestPriceDataService:
         )
         # Use very short expiry for test
         price_service.cache_expiry_seconds = 1
-        price_service.cache_ticker("hyperliquid", "BTC-PERP", ticker)
+        price_service.cache_ticker("hyperliquid", btc_symbol.value, ticker)
 
         # Verify entry exists
         stats = price_service.get_cache_stats()
@@ -319,9 +329,10 @@ class TestPriceDataService:
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test getting price using mid price."""
+        btc_usdc_symbol = symbols.BTC.hyperliquid()  # Note: This creates BTC-PERP, but for string API we'll use proper format
         ticker = Ticker(
             exchange="hyperliquid",
-            symbol="BTC-USDC",
+            symbol=btc_usdc_symbol,
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
@@ -340,9 +351,10 @@ class TestPriceDataService:
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test getting price using bid/ask average."""
+        btc_usdc_symbol = symbols.BTC.hyperliquid()  # Note: This creates BTC-PERP, but for string API we'll use proper format
         ticker = Ticker(
             exchange="hyperliquid",
-            symbol="BTC-USDC",
+            symbol=btc_usdc_symbol,
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
@@ -360,9 +372,10 @@ class TestPriceDataService:
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test getting price using only bid."""
+        btc_usdc_symbol = symbols.BTC.hyperliquid()  # Note: This creates BTC-PERP, but for string API we'll use proper format
         ticker = Ticker(
             exchange="hyperliquid",
-            symbol="BTC-USDC",
+            symbol=btc_usdc_symbol,
             bid=Decimal(50000),
             timestamp=datetime.now(UTC),
         )
@@ -379,9 +392,10 @@ class TestPriceDataService:
         mock_api_clients: dict[str, AsyncMock],
     ) -> None:
         """Test getting price using only ask."""
+        btc_usdc_symbol = symbols.BTC.hyperliquid()  # Note: This creates BTC-PERP, but for string API we'll use proper format
         ticker = Ticker(
             exchange="hyperliquid",
-            symbol="BTC-USDC",
+            symbol=btc_usdc_symbol,
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
@@ -400,10 +414,15 @@ class TestPriceDataService:
         """Test getting price tries multiple symbol formats."""
 
         # Only return ticker for one specific format
+        # This test is specifically for checking that the service tries multiple symbol formats
+        # We need to return a ticker only for the "BTC_USDC" format (Backpack spot format)
         def get_ticker_side_effect(symbol: str) -> Ticker | None:
             if symbol == "BTC_USDC":
+                # Create a symbol object for the ticker response
+                from cyberdelta.core.symbols.api import symbol
+                btc_usdc_symbol = symbol("BTC_USDC", "backpack")
                 return Ticker(
-                    symbol="BTC_USDC",
+                    symbol=btc_usdc_symbol,
                     exchange="backpack",
                     bid=Decimal(50000),
                     ask=Decimal(50100),
@@ -438,22 +457,24 @@ class TestPriceDataService:
     ) -> None:
         """Test clearing cache for specific exchange."""
         # Add some cached data using public API
+        btc_symbol = symbols.BTC.hyperliquid()
         ticker1 = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
+        eth_symbol = symbols.ETH.hyperliquid()
         ticker2 = Ticker(
             exchange="test_exchange",
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             bid=Decimal(3000),
             ask=Decimal(3010),
             timestamp=datetime.now(UTC),
         )
-        price_service.cache_ticker("hyperliquid", "BTC-PERP", ticker1)
-        price_service.cache_ticker("backpack", "ETH-PERP", ticker2)
+        price_service.cache_ticker("hyperliquid", btc_symbol.value, ticker1)
+        price_service.cache_ticker("backpack", eth_symbol.value, ticker2)
 
         # Verify both are cached
         stats = price_service.get_cache_stats()
@@ -474,22 +495,24 @@ class TestPriceDataService:
     ) -> None:
         """Test clearing all cache."""
         # Add some cached data using public API
+        btc_symbol = symbols.BTC.hyperliquid()
         ticker1 = Ticker(
             exchange="test_exchange",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
+        eth_symbol = symbols.ETH.hyperliquid()
         ticker2 = Ticker(
             exchange="test_exchange",
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             bid=Decimal(3000),
             ask=Decimal(3010),
             timestamp=datetime.now(UTC),
         )
-        price_service.cache_ticker("hyperliquid", "BTC-PERP", ticker1)
-        price_service.cache_ticker("backpack", "ETH-PERP", ticker2)
+        price_service.cache_ticker("hyperliquid", btc_symbol.value, ticker1)
+        price_service.cache_ticker("backpack", eth_symbol.value, ticker2)
 
         # Verify cache has data
         stats = price_service.get_cache_stats()
@@ -508,30 +531,33 @@ class TestPriceDataService:
     ) -> None:
         """Test getting cache statistics."""
         # Add some cached data using public API
+        btc_symbol = symbols.BTC.hyperliquid()
         ticker1 = Ticker(
             exchange="test_exchange",
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
+        eth_symbol = symbols.ETH.hyperliquid()
         ticker2 = Ticker(
             exchange="test_exchange",
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             bid=Decimal(3000),
             ask=Decimal(3010),
             timestamp=datetime.now(UTC),
         )
+        sol_symbol = symbols.SOL.hyperliquid()
         ticker3 = Ticker(
             exchange="test_exchange",
-            symbol="SOL-PERP",
+            symbol=sol_symbol,
             bid=Decimal(100),
             ask=Decimal(101),
             timestamp=datetime.now(UTC),
         )
-        price_service.cache_ticker("hyperliquid", "BTC-PERP", ticker1)
-        price_service.cache_ticker("hyperliquid", "ETH-PERP", ticker2)
-        price_service.cache_ticker("backpack", "SOL-PERP", ticker3)
+        price_service.cache_ticker("hyperliquid", btc_symbol.value, ticker1)
+        price_service.cache_ticker("hyperliquid", eth_symbol.value, ticker2)
+        price_service.cache_ticker("backpack", sol_symbol.value, ticker3)
 
         stats = price_service.get_cache_stats()
 
@@ -548,22 +574,25 @@ class TestPriceDataService:
     ) -> None:
         """Test cleanup of expired entries using public APIs."""
         # Add some tickers with different ages
+        btc_symbol = symbols.BTC.hyperliquid()
         ticker1 = Ticker(
-            symbol="BTC-PERP",
+            symbol=btc_symbol,
             exchange="test_exchange",
             bid=Decimal(50000),
             ask=Decimal(50100),
             timestamp=datetime.now(UTC),
         )
+        eth_symbol = symbols.ETH.hyperliquid()
         ticker2 = Ticker(
             exchange="test_exchange",
-            symbol="ETH-PERP",
+            symbol=eth_symbol,
             bid=Decimal(3000),
             ask=Decimal(3010),
             timestamp=datetime.now(UTC),
         )
+        sol_symbol = symbols.SOL.hyperliquid()
         ticker3 = Ticker(
-            symbol="SOL-PERP",
+            symbol=sol_symbol,
             exchange="test_exchange",
             bid=Decimal(100),
             ask=Decimal(101),
@@ -575,9 +604,9 @@ class TestPriceDataService:
         price_service.cache_expiry_seconds = 1
 
         # Add tickers
-        price_service.cache_ticker("hyperliquid", "BTC-PERP", ticker1)
-        price_service.cache_ticker("hyperliquid", "ETH-PERP", ticker2)
-        price_service.cache_ticker("backpack", "SOL-PERP", ticker3)
+        price_service.cache_ticker("hyperliquid", btc_symbol.value, ticker1)
+        price_service.cache_ticker("hyperliquid", eth_symbol.value, ticker2)
+        price_service.cache_ticker("backpack", sol_symbol.value, ticker3)
 
         # Verify all cached
         stats = price_service.get_cache_stats()
@@ -622,6 +651,7 @@ class TestPriceDataService:
     ) -> None:
         """Test concurrent ticker requests for same symbol."""
         # Setup mock to simulate slow API call
+        btc_symbol = symbols.BTC.hyperliquid()
         call_count = 0
 
         async def slow_get_ticker(symbol: str) -> Ticker:
@@ -629,7 +659,7 @@ class TestPriceDataService:
             call_count += 1
             await asyncio.sleep(0.1)  # Simulate network delay
             return Ticker(
-                symbol=symbol,
+                symbol=btc_symbol,
                 exchange="hyperliquid",
                 bid=Decimal(50000),
                 ask=Decimal(50100),
@@ -640,16 +670,16 @@ class TestPriceDataService:
 
         # Make concurrent requests
         tasks = [
-            price_service.get_ticker("hyperliquid", "BTC-PERP"),
-            price_service.get_ticker("hyperliquid", "BTC-PERP"),
-            price_service.get_ticker("hyperliquid", "BTC-PERP"),
+            price_service.get_ticker("hyperliquid", btc_symbol.value),
+            price_service.get_ticker("hyperliquid", btc_symbol.value),
+            price_service.get_ticker("hyperliquid", btc_symbol.value),
         ]
 
         results = await asyncio.gather(*tasks)
 
         # All should get the same ticker
         assert all(r is not None for r in results)
-        assert all(r.symbol == "BTC-PERP" for r in results if r)
+        assert all(r.symbol == btc_symbol for r in results if r)
 
         # API should be called multiple times (no deduplication implemented)
         assert call_count == 3

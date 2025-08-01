@@ -12,11 +12,12 @@ from cyberdelta.core.risk.checks.interfaces.check_interfaces import BaseCheckerI
 from cyberdelta.core.risk.checks.models.check_result import CheckContext, CheckResult, CheckStatus
 from cyberdelta.core.risk.checks.pipeline.check_pipeline import CheckPipeline
 from cyberdelta.core.risk.exceptions.base_exceptions import RiskCheckError
+from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
 def create_test_opportunity(
-    symbol: str = "BTC-PERP",
+    symbol: str = symbols.BTC.hyperliquid().value,
     long_exchange: str = "exchange1",
     short_exchange: str = "exchange2",
     long_price: float = 50000.0,
@@ -142,7 +143,7 @@ class TestCheckPipeline:
     async def test_run_checks_all_pass(self) -> None:
         """Test running checks when all pass."""
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP", long_price=45000.0, short_price=45100.0
+            symbol=symbols.BTC.hyperliquid().value, long_price=45000.0, short_price=45100.0
         )
 
         result = await self.pipeline.run_checks(opportunity)
@@ -160,7 +161,7 @@ class TestCheckPipeline:
         # Make the second checker fail
         self.checkers[1].should_fail = True
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await self.pipeline.run_checks(opportunity)
 
@@ -183,7 +184,7 @@ class TestCheckPipeline:
         # Make the second checker fail
         self.checkers[1].should_fail = True
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await self.pipeline.run_checks(opportunity)
 
@@ -201,7 +202,7 @@ class TestCheckPipeline:
         # Make the first checker error
         self.checkers[0].should_error = True
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await self.pipeline.run_checks(opportunity)
 
@@ -216,7 +217,7 @@ class TestCheckPipeline:
         # Disable the second checker
         self.checkers[1].enabled = False
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await self.pipeline.run_checks(opportunity)
 
@@ -229,7 +230,7 @@ class TestCheckPipeline:
     async def test_run_checks_async_all_pass(self) -> None:
         """Test async check execution when all pass."""
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP", long_price=45000.0, short_price=45100.0
+            symbol=symbols.BTC.hyperliquid().value, long_price=45000.0, short_price=45100.0
         )
 
         result = await self.pipeline.run_checks(opportunity)
@@ -248,7 +249,7 @@ class TestCheckPipeline:
         # Set a very short timeout
         self.pipeline.timeout_seconds = 0.05  # 50ms timeout
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await self.pipeline.run_checks(opportunity)
 
@@ -264,7 +265,7 @@ class TestCheckPipeline:
         for i, checker in enumerate(self.checkers):
             checker.delay_ms = 100 * (i + 1)  # 100ms, 200ms, 300ms
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         start_time = datetime.now(tz=UTC)
         result = await self.pipeline.run_checks(opportunity)
@@ -342,7 +343,7 @@ class TestCheckPipeline:
     async def test_get_checker_statistics(self) -> None:
         """Test getting checker statistics."""
         # Run some checks to generate stats
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         await self.pipeline.run_checks(opportunity)
         await self.pipeline.run_checks(opportunity)
@@ -359,7 +360,7 @@ class TestCheckPipeline:
     async def test_reset_statistics(self) -> None:
         """Test resetting checker statistics."""
         # Run some checks
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
         await self.pipeline.run_checks(opportunity)
 
         # Verify stats exist
@@ -424,7 +425,7 @@ class TestCheckPipeline:
         error_checker = ErrorChecker()
         self.pipeline.add_checker(error_checker)
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await self.pipeline.run_checks(opportunity)
 
@@ -456,7 +457,7 @@ class TestCheckPipelineIntegration:
 
         # Complete opportunity
         opportunity = create_test_opportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="hyperliquid",
             short_exchange="backpack",
             long_price=45000.0,
@@ -518,7 +519,7 @@ class TestCheckPipelineIntegration:
         pipeline = CheckPipeline(checkers=list(checkers))
         pipeline.stop_on_first_failure = False  # Run all checks
 
-        opportunity = create_test_opportunity(symbol="BTC-PERP")
+        opportunity = create_test_opportunity(symbol=symbols.BTC.hyperliquid().value)
 
         result = await pipeline.run_checks(opportunity)
 

@@ -20,7 +20,8 @@ from cyberdelta.core.models import (
     SpotBalance,
     Ticker,
 )
-from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
+from cyberdelta.core.portfolio.managers.portfolio_tracker import PortfolioStateManager
+from cyberdelta.core.symbols import symbols
 
 
 # Import shared fixtures from conftest.py - they will be automatically available
@@ -74,7 +75,7 @@ def mock_pt_config(pt_config: PortfolioTrackerConfig) -> Mock:
 @pytest.fixture
 def portfolio_tracker(mock_app_settings: Mock, mock_pt_config: Mock) -> PortfolioStateManager:
     """Create a PortfolioStateManager instance for testing.
-    
+
     Returns:
         PortfolioStateManager: Configured portfolio tracker instance for testing.
     """
@@ -94,16 +95,17 @@ class TestPortfolioTrackerWatchlistManagement:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test adding a new symbol to watchlist."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
-        symbol = "BTC-PERP"
-        assert symbol not in portfolio_state_manager.watchlist
+        symbol = btc_symbol.value
+        assert symbol not in portfolio_tracker.watchlist
 
         # Act
-        with patch("cyberdelta.core.portfolio_state_manager.logger") as mock_logger:
-            portfolio_state_manager.add_symbol_to_watchlist(symbol)
+        with patch("cyberdelta.core.portfolio_tracker.logger") as mock_logger:
+            portfolio_tracker.add_symbol_to_watchlist(symbol)
 
         # Assert
-        assert symbol in portfolio_state_manager.watchlist
+        assert symbol in portfolio_tracker.watchlist
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args
         assert "symbol_added_to_watchlist" in call_args[0]
@@ -113,45 +115,51 @@ class TestPortfolioTrackerWatchlistManagement:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test removing an existing symbol from watchlist."""
+        eth_symbol = symbols.ETH.hyperliquid()
         # Arrange
-        symbol = "ETH-PERP"
-        portfolio_state_manager.watchlist.add(symbol)
-        assert symbol in portfolio_state_manager.watchlist
+        symbol = eth_symbol.value
+        portfolio_tracker.watchlist.add(symbol)
+        assert symbol in portfolio_tracker.watchlist
 
         # Act
-        with patch("cyberdelta.core.portfolio_state_manager.logger") as mock_logger:
-            portfolio_state_manager.remove_symbol_from_watchlist(symbol)
+        with patch("cyberdelta.core.portfolio_tracker.logger") as mock_logger:
+            portfolio_tracker.remove_symbol_from_watchlist(symbol)
 
         # Assert
-        assert symbol not in portfolio_state_manager.watchlist
+        assert symbol not in portfolio_tracker.watchlist
         mock_logger.info.assert_called_once()
         call_args = mock_logger.info.call_args
         assert "symbol_removed_from_watchlist" in call_args[0]
         assert call_args[1]["symbol"] == symbol
 
-    def test_get_watchlist_success_returns_copy(self, portfolio_tracker: PortfolioStateManager) -> None:
+    def test_get_watchlist_success_returns_copy(
+        self, portfolio_tracker: PortfolioStateManager
+    ) -> None:
         """Test getting watchlist returns a copy."""
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
+        sol_symbol = symbols.SOL.hyperliquid()
         # Arrange
-        symbols = {"BTC-PERP", "ETH-PERP", "SOL-PERP"}
-        portfolio_state_manager.watchlist.update(symbols)
+        symbol_set = {btc_symbol.value, eth_symbol.value, sol_symbol.value}
+        portfolio_tracker.watchlist.update(symbol_set)
 
         # Act
-        returned_watchlist = portfolio_state_manager.get_watchlist()
+        returned_watchlist = portfolio_tracker.get_watchlist()
 
         # Assert
-        assert returned_watchlist == symbols
-        assert returned_watchlist is not portfolio_state_manager.watchlist  # Should be a copy
+        assert returned_watchlist == symbol_set
+        assert returned_watchlist is not portfolio_tracker.watchlist  # Should be a copy
 
         # Modify returned copy should not affect original
         returned_watchlist.add("DOGE-PERP")
-        assert "DOGE-PERP" not in portfolio_state_manager.watchlist
+        assert "DOGE-PERP" not in portfolio_tracker.watchlist
 
     def test_get_watchlist_success_empty_watchlist(
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test getting empty watchlist."""
         # Act
-        watchlist = portfolio_state_manager.get_watchlist()
+        watchlist = portfolio_tracker.get_watchlist()
 
         # Assert
         assert watchlist == set()
@@ -163,16 +171,17 @@ class TestPortfolioTrackerWatchlistManagement:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test adding symbol that's already in watchlist."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
-        symbol = "BTC-PERP"
-        portfolio_state_manager.watchlist.add(symbol)
+        symbol = btc_symbol.value
+        portfolio_tracker.watchlist.add(symbol)
 
         # Act
-        with patch("cyberdelta.core.portfolio_state_manager.logger") as mock_logger:
-            portfolio_state_manager.add_symbol_to_watchlist(symbol)
+        with patch("cyberdelta.core.portfolio_tracker.logger") as mock_logger:
+            portfolio_tracker.add_symbol_to_watchlist(symbol)
 
         # Assert
-        assert symbol in portfolio_state_manager.watchlist
+        assert symbol in portfolio_tracker.watchlist
         # Should not log when symbol already exists
         mock_logger.info.assert_not_called()
 
@@ -182,14 +191,14 @@ class TestPortfolioTrackerWatchlistManagement:
         """Test removing symbol that's not in watchlist."""
         # Arrange
         symbol = "NONEXISTENT-PERP"
-        assert symbol not in portfolio_state_manager.watchlist
+        assert symbol not in portfolio_tracker.watchlist
 
         # Act
-        with patch("cyberdelta.core.portfolio_state_manager.logger") as mock_logger:
-            portfolio_state_manager.remove_symbol_from_watchlist(symbol)
+        with patch("cyberdelta.core.portfolio_tracker.logger") as mock_logger:
+            portfolio_tracker.remove_symbol_from_watchlist(symbol)
 
         # Assert
-        assert symbol not in portfolio_state_manager.watchlist
+        assert symbol not in portfolio_tracker.watchlist
         # Should not log when symbol doesn't exist
         mock_logger.info.assert_not_called()
 
@@ -198,10 +207,10 @@ class TestPortfolioTrackerWatchlistManagement:
     ) -> None:
         """Test adding empty string to watchlist."""
         # Act
-        portfolio_state_manager.add_symbol_to_watchlist("")
+        portfolio_tracker.add_symbol_to_watchlist("")
 
         # Assert
-        assert "" in portfolio_state_manager.watchlist
+        assert "" in portfolio_tracker.watchlist
 
     def test_add_symbol_to_watchlist_edge_special_characters(
         self, portfolio_tracker: PortfolioStateManager
@@ -211,10 +220,10 @@ class TestPortfolioTrackerWatchlistManagement:
         symbol = "BTC/USD-PERP_Q24"
 
         # Act
-        portfolio_state_manager.add_symbol_to_watchlist(symbol)
+        portfolio_tracker.add_symbol_to_watchlist(symbol)
 
         # Assert
-        assert symbol in portfolio_state_manager.watchlist
+        assert symbol in portfolio_tracker.watchlist
 
 
 class TestPortfolioTrackerActiveSymbols:
@@ -223,59 +232,66 @@ class TestPortfolioTrackerActiveSymbols:
     # ==================== SUCCESS CASES ====================
 
     def test_get_active_symbols_success_with_positions(
-        self, portfolio_tracker: PortfolioStateManager, sample_derivative_position: DerivativePosition
+        self,
+        portfolio_tracker: PortfolioStateManager,
+        sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test getting active symbols when positions exist."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         exchange_id = "hyperliquid"
-        portfolio_state_manager.positions[exchange_id]["BTC-PERP"] = sample_derivative_position
+        portfolio_tracker.positions[exchange_id][btc_symbol.value] = sample_derivative_position
 
         # Act
-        active_symbols = portfolio_state_manager.get_active_symbols()
+        active_symbols = portfolio_tracker.get_active_symbols()
 
         # Assert
-        assert "BTC-PERP" in active_symbols
+        assert btc_symbol.value in active_symbols
         assert isinstance(active_symbols, set)
 
     def test_get_active_symbols_success_with_orders(
         self, portfolio_tracker: PortfolioStateManager, sample_order: Order
     ) -> None:
         """Test getting active symbols when orders exist."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         exchange_id = "hyperliquid"
-        portfolio_state_manager.orders[exchange_id]["test_order_1"] = sample_order
+        portfolio_tracker.orders[exchange_id]["test_order_1"] = sample_order
 
         # Act
-        active_symbols = portfolio_state_manager.get_active_symbols()
+        active_symbols = portfolio_tracker.get_active_symbols()
 
         # Assert
-        assert "BTC-PERP" in active_symbols
+        assert btc_symbol.value in active_symbols
 
     def test_get_active_symbols_success_returns_copy(
-        self, portfolio_tracker: PortfolioStateManager, sample_derivative_position: DerivativePosition
+        self,
+        portfolio_tracker: PortfolioStateManager,
+        sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that get_active_symbols returns a copy."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         exchange_id = "hyperliquid"
-        portfolio_state_manager.positions[exchange_id]["BTC-PERP"] = sample_derivative_position
-        portfolio_state_manager.update_active_symbols()
+        portfolio_tracker.positions[exchange_id][btc_symbol.value] = sample_derivative_position
+        portfolio_tracker.update_active_symbols()
 
         # Act
-        returned_symbols = portfolio_state_manager.get_active_symbols()
+        returned_symbols = portfolio_tracker.get_active_symbols()
 
         # Assert
-        assert returned_symbols is not portfolio_state_manager.active_symbols  # Should be a copy
+        assert returned_symbols is not portfolio_tracker.active_symbols  # Should be a copy
 
         # Modify returned copy should not affect original
         returned_symbols.add("FAKE-SYMBOL")
-        assert "FAKE-SYMBOL" not in portfolio_state_manager.active_symbols
+        assert "FAKE-SYMBOL" not in portfolio_tracker.active_symbols
 
     def test_get_active_symbols_success_empty_when_no_data(
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test getting active symbols when no positions or orders exist."""
         # Act
-        active_symbols = portfolio_state_manager.get_active_symbols()
+        active_symbols = portfolio_tracker.get_active_symbols()
 
         # Assert
         assert active_symbols == set()
@@ -286,23 +302,24 @@ class TestPortfolioTrackerActiveSymbols:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test active symbols with zero-size position."""
+        eth_symbol = symbols.ETH.hyperliquid()
         # Arrange
         zero_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol="ETH-PERP",
+            symbol=eth_symbol.value,
             side=OrderSide.BUY,
             size=Decimal("0.0"),  # Zero size
             entry_price=None,
             timestamp=datetime.now(UTC),
         )
-        portfolio_state_manager.positions["hyperliquid"]["ETH-PERP"] = zero_position
+        portfolio_tracker.positions["hyperliquid"][eth_symbol.value] = zero_position
 
         # Act
-        active_symbols = portfolio_state_manager.get_active_symbols()
+        active_symbols = portfolio_tracker.get_active_symbols()
 
         # Assert
         # Zero-size positions should not be considered active
-        assert "ETH-PERP" not in active_symbols
+        assert eth_symbol.value not in active_symbols
 
 
 class TestPortfolioTrackerPerformanceStats:
@@ -315,7 +332,7 @@ class TestPortfolioTrackerPerformanceStats:
     ) -> None:
         """Test getting performance stats from empty tracker."""
         # Act
-        stats = portfolio_state_manager.get_performance_stats()
+        stats = portfolio_tracker.get_performance_stats()
 
         # Assert
         assert isinstance(stats, dict)
@@ -337,17 +354,18 @@ class TestPortfolioTrackerPerformanceStats:
         sample_ticker: Ticker,
     ) -> None:
         """Test getting performance stats with data present."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         exchange_id = "hyperliquid"
 
         # Add some data
-        portfolio_state_manager.balances[exchange_id]["USDC"] = sample_spot_balance
-        portfolio_state_manager.positions[exchange_id]["BTC-PERP"] = sample_derivative_position
-        portfolio_state_manager.orders[exchange_id]["test_order_1"] = sample_order
-        portfolio_state_manager.tickers["BTC-PERP"] = sample_ticker
+        portfolio_tracker.balances[exchange_id]["USDC"] = sample_spot_balance
+        portfolio_tracker.positions[exchange_id][btc_symbol.value] = sample_derivative_position
+        portfolio_tracker.orders[exchange_id]["test_order_1"] = sample_order
+        portfolio_tracker.tickers[btc_symbol.value] = sample_ticker
 
         # Act
-        stats = portfolio_state_manager.get_performance_stats()
+        stats = portfolio_tracker.get_performance_stats()
 
         # Assert
         assert stats["exchanges_tracked"] == 1
@@ -361,7 +379,7 @@ class TestPortfolioTrackerPerformanceStats:
     ) -> None:
         """Test that memory limits are properly structured."""
         # Act
-        stats = portfolio_state_manager.get_performance_stats()
+        stats = portfolio_tracker.get_performance_stats()
 
         # Assert
         memory_limits = stats["memory_limits"]
@@ -378,6 +396,7 @@ class TestPortfolioTrackerPerformanceStats:
         sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test performance stats with multiple exchanges."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         # Create balances for multiple exchanges
         balance_hl = SpotBalance(
@@ -395,12 +414,12 @@ class TestPortfolioTrackerPerformanceStats:
             timestamp=datetime.now(UTC),
         )
 
-        portfolio_state_manager.balances["hyperliquid"]["USDC"] = balance_hl
-        portfolio_state_manager.balances["backpack"]["USDC"] = balance_bp
-        portfolio_state_manager.positions["hyperliquid"]["BTC-PERP"] = sample_derivative_position
+        portfolio_tracker.balances["hyperliquid"]["USDC"] = balance_hl
+        portfolio_tracker.balances["backpack"]["USDC"] = balance_bp
+        portfolio_tracker.positions["hyperliquid"][btc_symbol.value] = sample_derivative_position
 
         # Act
-        stats = portfolio_state_manager.get_performance_stats()
+        stats = portfolio_tracker.get_performance_stats()
 
         # Assert
         assert stats["exchanges_tracked"] == 2
@@ -432,11 +451,11 @@ class TestPortfolioTrackerPerformanceStats:
         )
 
         # Update balances which will create exchange locks internally
-        await portfolio_state_manager.update_balances("hyperliquid", {"USDC": balance1})
-        await portfolio_state_manager.update_balances("backpack", {"USDC": balance2})
+        await portfolio_tracker.update_balances("hyperliquid", {"USDC": balance1})
+        await portfolio_tracker.update_balances("backpack", {"USDC": balance2})
 
         # Act
-        stats = portfolio_state_manager.get_performance_stats()
+        stats = portfolio_tracker.get_performance_stats()
 
         # Assert
         # Exchange locks should be tracked after updating data from multiple exchanges
@@ -458,38 +477,39 @@ class TestPortfolioTrackerReset:
         sample_ticker: Ticker,
     ) -> None:
         """Test that reset clears all portfolio data."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
         exchange_id = "hyperliquid"
 
         # Add various data
-        portfolio_state_manager.balances[exchange_id]["USDC"] = sample_spot_balance
-        portfolio_state_manager.positions[exchange_id]["BTC-PERP"] = sample_derivative_position
-        portfolio_state_manager.orders[exchange_id]["test_order_1"] = sample_order
-        portfolio_state_manager.tickers["BTC-PERP"] = sample_ticker
-        portfolio_state_manager.watchlist.add("BTC-PERP")
-        portfolio_state_manager.active_symbols.add("BTC-PERP")
-        portfolio_state_manager.high_watermark = Decimal("10000.0")
-        portfolio_state_manager.realized_pnl = Decimal("500.0")
-        portfolio_state_manager.last_update_time[exchange_id] = datetime.now(UTC)
+        portfolio_tracker.balances[exchange_id]["USDC"] = sample_spot_balance
+        portfolio_tracker.positions[exchange_id][btc_symbol.value] = sample_derivative_position
+        portfolio_tracker.orders[exchange_id]["test_order_1"] = sample_order
+        portfolio_tracker.tickers[btc_symbol.value] = sample_ticker
+        portfolio_tracker.watchlist.add(btc_symbol.value)
+        portfolio_tracker.active_symbols.add(btc_symbol.value)
+        portfolio_tracker.high_watermark = Decimal("10000.0")
+        portfolio_tracker.realized_pnl = Decimal("500.0")
+        portfolio_tracker.last_update_time[exchange_id] = datetime.now(UTC)
 
         # Act
-        with patch("cyberdelta.core.portfolio_state_manager.logger") as mock_logger:
-            portfolio_state_manager.reset()
+        with patch("cyberdelta.core.portfolio_tracker.logger") as mock_logger:
+            portfolio_tracker.reset()
 
         # Assert
-        assert len(portfolio_state_manager.balances) == 0
-        assert len(portfolio_state_manager.positions) == 0
-        assert len(portfolio_state_manager.orders) == 0
-        assert len(portfolio_state_manager.tickers) == 0
-        assert len(portfolio_state_manager.watchlist) == 0
-        assert len(portfolio_state_manager.active_symbols) == 0
-        assert portfolio_state_manager.high_watermark == Decimal("0.0")
-        assert portfolio_state_manager.realized_pnl == Decimal("0.0")
+        assert len(portfolio_tracker.balances) == 0
+        assert len(portfolio_tracker.positions) == 0
+        assert len(portfolio_tracker.orders) == 0
+        assert len(portfolio_tracker.tickers) == 0
+        assert len(portfolio_tracker.watchlist) == 0
+        assert len(portfolio_tracker.active_symbols) == 0
+        assert portfolio_tracker.high_watermark == Decimal("0.0")
+        assert portfolio_tracker.realized_pnl == Decimal("0.0")
         # last_update_time will be reinitialized with default entries for enabled exchanges
         # Check that it has the default minimal timestamp values
-        for exchange_id in portfolio_state_manager.last_update_time:
+        for exchange_id in portfolio_tracker.last_update_time:
             min_time_utc = datetime.min.replace(tzinfo=UTC)
-            assert portfolio_state_manager.last_update_time[exchange_id] == min_time_utc
+            assert portfolio_tracker.last_update_time[exchange_id] == min_time_utc
 
         # Should log reset event
         mock_logger.info.assert_called_once_with("PortfolioStateManager state has been reset.")
@@ -499,21 +519,21 @@ class TestPortfolioTrackerReset:
     ) -> None:
         """Test that reset reinitializes data structures."""
         # Act
-        portfolio_state_manager.reset()
+        portfolio_tracker.reset()
 
         # Assert
         # After reset, data structures should be reinitialized
         # The _initialize_data_structures method should create default entries
         # for enabled exchanges
-        assert isinstance(portfolio_state_manager.balances, dict)
-        assert isinstance(portfolio_state_manager.positions, dict)
-        assert isinstance(portfolio_state_manager.orders, dict)
+        assert isinstance(portfolio_tracker.balances, dict)
+        assert isinstance(portfolio_tracker.positions, dict)
+        assert isinstance(portfolio_tracker.orders, dict)
 
     def test_reset_success_empty_tracker(self, portfolio_tracker: PortfolioStateManager) -> None:
         """Test reset on already empty tracker."""
         # Act
-        with patch("cyberdelta.core.portfolio_state_manager.logger") as mock_logger:
-            portfolio_state_manager.reset()
+        with patch("cyberdelta.core.portfolio_tracker.logger") as mock_logger:
+            portfolio_tracker.reset()
 
         # Assert
         # Should still work and log the reset
@@ -536,19 +556,19 @@ class TestPortfolioTrackerReset:
                 price=Decimal("100.5"),
                 timestamp=datetime.now(UTC),
             )
-            portfolio_state_manager.tickers[f"TEST-{i}"] = ticker
+            portfolio_tracker.tickers[f"TEST-{i}"] = ticker
 
         # Act
-        portfolio_state_manager.reset()
+        portfolio_tracker.reset()
 
         # Assert
         # Configuration should be preserved - test through behavior
         # Add new ticker after reset to verify memory limits still work
-        portfolio_state_manager.tickers["NEW-TICKER"] = sample_ticker
-        assert "NEW-TICKER" in portfolio_state_manager.tickers
+        portfolio_tracker.tickers["NEW-TICKER"] = sample_ticker
+        assert "NEW-TICKER" in portfolio_tracker.tickers
 
         # Check that performance stats still include memory limits
-        stats = portfolio_state_manager.get_performance_stats()
+        stats = portfolio_tracker.get_performance_stats()
         assert "memory_limits" in stats
         assert "max_ticker_entries" in stats["memory_limits"]
 
@@ -557,91 +577,104 @@ class TestPortfolioTrackerReset:
     ) -> None:
         """Test that reset preserves app settings reference."""
         # Act
-        portfolio_state_manager.reset()
+        portfolio_tracker.reset()
 
         # Assert
-        assert portfolio_state_manager.app_settings is mock_app_settings
+        assert portfolio_tracker.app_settings is mock_app_settings
 
 
 class TestPortfolioTrackerUtilityMethods:
     """Test suite for utility and helper methods."""
 
     def test_get_relevant_symbols_success_combines_active_and_watchlist(
-        self, portfolio_tracker: PortfolioStateManager, sample_derivative_position: DerivativePosition
+        self,
+        portfolio_tracker: PortfolioStateManager,
+        sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that get_relevant_symbols combines active symbols and watchlist."""
+        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = symbols.ETH.hyperliquid()
+        sol_symbol = symbols.SOL.hyperliquid()
         # Arrange
-        portfolio_state_manager.positions["hyperliquid"]["BTC-PERP"] = sample_derivative_position
-        portfolio_state_manager.watchlist.add("ETH-PERP")
-        portfolio_state_manager.watchlist.add("SOL-PERP")
-        portfolio_state_manager.update_active_symbols()
+        portfolio_tracker.positions["hyperliquid"][btc_symbol.value] = sample_derivative_position
+        portfolio_tracker.watchlist.add(eth_symbol.value)
+        portfolio_tracker.watchlist.add(sol_symbol.value)
+        portfolio_tracker.update_active_symbols()
 
         # Act
-        relevant_symbols = portfolio_state_manager.get_relevant_symbols()
+        relevant_symbols = portfolio_tracker.get_relevant_symbols()
 
         # Assert
-        expected_symbols = {"BTC-PERP", "ETH-PERP", "SOL-PERP"}
-        assert relevant_symbols == expected_symbols
+        expected_symbol_set = {btc_symbol.value, eth_symbol.value, sol_symbol.value}
+        assert relevant_symbols == expected_symbol_set
 
     def test_get_relevant_symbols_success_deduplicates(
-        self, portfolio_tracker: PortfolioStateManager, sample_derivative_position: DerivativePosition
+        self,
+        portfolio_tracker: PortfolioStateManager,
+        sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that get_relevant_symbols handles duplicates correctly."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
-        portfolio_state_manager.positions["hyperliquid"]["BTC-PERP"] = sample_derivative_position
-        portfolio_state_manager.watchlist.add("BTC-PERP")  # Same symbol in both
-        portfolio_state_manager.update_active_symbols()
+        portfolio_tracker.positions["hyperliquid"][btc_symbol.value] = sample_derivative_position
+        portfolio_tracker.watchlist.add(btc_symbol.value)  # Same symbol in both
+        portfolio_tracker.update_active_symbols()
 
         # Act
-        relevant_symbols = portfolio_state_manager.get_relevant_symbols()
+        relevant_symbols = portfolio_tracker.get_relevant_symbols()
 
         # Assert
-        assert "BTC-PERP" in relevant_symbols
+        assert btc_symbol.value in relevant_symbols
         assert len(relevant_symbols) == 1  # No duplicates
 
     def test_update_active_symbols_success_identifies_positions(
-        self, portfolio_tracker: PortfolioStateManager, sample_derivative_position: DerivativePosition
+        self,
+        portfolio_tracker: PortfolioStateManager,
+        sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that update_active_symbols identifies symbols with positions."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
-        portfolio_state_manager.positions["hyperliquid"]["BTC-PERP"] = sample_derivative_position
+        portfolio_tracker.positions["hyperliquid"][btc_symbol.value] = sample_derivative_position
 
         # Act
-        portfolio_state_manager.update_active_symbols()
+        portfolio_tracker.update_active_symbols()
 
         # Assert
-        assert "BTC-PERP" in portfolio_state_manager.active_symbols
+        assert btc_symbol.value in portfolio_tracker.active_symbols
 
     def test_update_active_symbols_success_identifies_orders(
         self, portfolio_tracker: PortfolioStateManager, sample_order: Order
     ) -> None:
         """Test that update_active_symbols identifies symbols with orders."""
+        btc_symbol = symbols.BTC.hyperliquid()
         # Arrange
-        portfolio_state_manager.orders["hyperliquid"]["test_order_1"] = sample_order
+        portfolio_tracker.orders["hyperliquid"]["test_order_1"] = sample_order
 
         # Act
-        portfolio_state_manager.update_active_symbols()
+        portfolio_tracker.update_active_symbols()
 
         # Assert
-        assert "BTC-PERP" in portfolio_state_manager.active_symbols
+        assert btc_symbol.value in portfolio_tracker.active_symbols
 
     def test_update_active_symbols_success_excludes_zero_positions(
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test that update_active_symbols excludes zero-size positions."""
+        eth_symbol = symbols.ETH.hyperliquid()
         # Arrange
         zero_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol="ETH-PERP",
+            symbol=eth_symbol.value,
             side=OrderSide.BUY,
             size=Decimal("0.0"),
             entry_price=None,
             timestamp=datetime.now(UTC),
         )
-        portfolio_state_manager.positions["hyperliquid"]["ETH-PERP"] = zero_position
+        portfolio_tracker.positions["hyperliquid"][eth_symbol.value] = zero_position
 
         # Act
-        portfolio_state_manager.update_active_symbols()
+        portfolio_tracker.update_active_symbols()
 
         # Assert
-        assert "ETH-PERP" not in portfolio_state_manager.active_symbols
+        assert eth_symbol.value not in portfolio_tracker.active_symbols

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -50,7 +51,7 @@ class TestRiskManagerConstraints:
 
         # Create a minimal valid ArbitrageOpportunity
         opportunity = ArbitrageOpportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="hyperliquid",
             short_exchange="backpack",
             long_price=Decimal(30000),
@@ -101,7 +102,7 @@ class TestRiskManagerConstraints:
         mock_circuit_breaker_system.can_execute.return_value = (True, None)
 
         opportunity = ArbitrageOpportunity(
-            symbol="BTC-PERP",
+            symbol=symbols.BTC.hyperliquid().value,
             long_exchange="hyperliquid",
             short_exchange="backpack",
             long_price=Decimal(30000),

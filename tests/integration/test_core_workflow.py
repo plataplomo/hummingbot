@@ -42,12 +42,11 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.risk_manager import (
-    PortfolioTrackerProtocol,
-    RiskManager,
-)
+from cyberdelta.core.risk.checks.checkers.exchange_balance_checker import PortfolioTrackerProtocol
+from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_service import UnifiedSymbolService
+from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL, ETH_USDC_BP, USDC_BP, BTC_ASSET_BP, USD_HL, BTC_ASSET_HL
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.exceptions import (
@@ -67,7 +66,7 @@ pytestmark = pytest.mark.timing
 
 
 def create_mock_funding_rate(
-    symbol: str,
+    symbol: Any,  # Will accept Symbol objects
     rate: str | Decimal | None,
     next_time: datetime,
 ) -> FundingRate:
@@ -90,7 +89,7 @@ def create_mock_funding_rate(
 
 # Helper function for creating mock tickers
 def create_mock_ticker(
-    symbol: str,
+    symbol: Any,  # Will accept Symbol objects
     bid: str | float | Decimal | None,  # Allow None for robustness
     ask: str | float | Decimal | None,
     price: str | float | Decimal | None,
@@ -118,7 +117,7 @@ def create_mock_ticker(
 
 # Helper function for creating mock order books
 def create_mock_orderbook(
-    symbol: str,
+    symbol: Any,  # Will accept Symbol objects
     bids: list[tuple[str | float | Decimal | None, str | float | Decimal | None]],  # Allow None
     asks: list[tuple[str | float | Decimal | None, str | float | Decimal | None]],  # Allow None
     timestamp: datetime,
@@ -164,7 +163,7 @@ POSITION_SIZE_TOLERANCE = Decimal("1E-8")
 def populate_data_handler(
     dh: DataHandler,
     exchange_name: str,
-    exchange_symbol: str,  # Use exchange-specific symbol for DH keys
+    exchange_symbol: Any,  # Will accept Symbol objects for DH keys
     ticker: Ticker | None,
     funding_rate: FundingRate | None,
     order_book: OrderBook | None,
@@ -239,7 +238,7 @@ def mock_config_dict() -> dict[str, Any]:
                 "environment_type": EnvironmentType.TESTNET,
                 "chain_id": 1337,
                 "rate_limit_per_minute": 120,
-                "symbols": {"BTC": "BTC-PERP", "ETH": "ETH-PERP"},
+                "symbols": {"BTC": BTC_HL.value, "ETH": ETH_HL.value},
                 # Hyperliquid-specific fields
                 "ip_weight_limit_per_minute": 1200,
                 "info_request_type_ip_weights": {
@@ -322,7 +321,7 @@ def mock_config_dict() -> dict[str, Any]:
             "notifications_enabled": True,
             "alert_methods": ["log"],
         },
-        "portfolio_tracker": {
+        "portfolio_state_manager": {
             "data_freshness_seconds": 60,
             "initial_balances": {},
             "initial_positions": [],
@@ -394,7 +393,7 @@ def portfolio_tracker(
         PortfolioStateManager instance with mock APIs registered for testing.
     """
     # NOTE: API client registration has moved to PortfolioReconciliationService
-    return PortfolioStateManager(mock_config, mock_config.portfolio_tracker)
+    return PortfolioStateManager(mock_config, mock_config.portfolio_state_manager)
 
 
 @pytest.fixture
@@ -414,12 +413,12 @@ def data_handler(
         },
     )
     # Create a mock portfolio tracker for DataHandler
-    mock_portfolio_state_manager = mocker.MagicMock()
+    mock_portfolio_tracker = mocker.MagicMock()
 
     return DataHandler(
         app_settings=mock_config,
         api_clients=api_clients,
-        portfolio_tracker=mock_portfolio_state_manager,
+        portfolio_state_manager=mock_portfolio_tracker,
         symbol_mapper=symbol_mapper,
     )
 
@@ -453,8 +452,7 @@ def risk_manager(mock_config: AppSettings, portfolio_tracker: PortfolioStateMana
     Returns:
         RiskManager instance configured for testing.
     """
-    pt_protocol = cast("PortfolioTrackerProtocol", portfolio_tracker)
-    return RiskManager(mock_config, pt_protocol)
+    return RiskManager(mock_config, portfolio_tracker)
 
 
 @pytest.fixture
@@ -505,14 +503,14 @@ async def test_happy_path_full_cycle(
 
     # --- Setup ---
     symbol_base = "BTC"
-    symbol_hl = "BTC-PERP"
-    symbol_bp = "BTC-USDC"
+    symbol_hl = BTC_HL
+    symbol_bp = BTC_USDC_BP
     start_time = datetime.now(UTC)
     # Initial balance is now set through mock APIs instead of direct assignment
 
     # 1. Initialize PortfolioStateManager with balances
-    await portfolio_state_manager.initialize()
-    portfolio_state_manager.reset()  # Explicitly reset state for this test
+    await portfolio_tracker.initialize()
+    portfolio_tracker.reset()  # Explicitly reset state for this test
     # Set balances through mock exchange APIs instead of direct private method access
     # The portfolio tracker will sync these balances when queried
     # This approach tests the actual integration flow rather than bypassing it
@@ -521,7 +519,7 @@ async def test_happy_path_full_cycle(
     mock_bp_api.set_mock_balance(
         SpotBalance(
             exchange="backpack",
-            asset="USDC",
+            asset=USDC_BP,
             timestamp=start_time,
             total_quantity=Decimal("200000.0"),
             available_quantity=Decimal("200000.0"),
@@ -530,7 +528,7 @@ async def test_happy_path_full_cycle(
     mock_hl_api.set_mock_balance(
         SpotBalance(
             exchange="hyperliquid",
-            asset="USD",
+            asset=USD_HL,
             timestamp=start_time,
             total_quantity=Decimal("200000.0"),
             available_quantity=Decimal("200000.0"),
@@ -541,7 +539,7 @@ async def test_happy_path_full_cycle(
     mock_hl_api.set_mock_balance(
         SpotBalance(
             exchange="hyperliquid",
-            asset="BTC",
+            asset=BTC_ASSET_HL,
             timestamp=start_time,
             total_quantity=Decimal("10.0"),
             available_quantity=Decimal("10.0"),
@@ -618,7 +616,7 @@ async def test_happy_path_full_cycle(
     populate_data_handler(
         data_handler,
         "hyperliquid",
-        symbol_hl,  # Exchange symbol
+        symbol_hl.value,  # Exchange symbol as string
         mock_hl_ticker,
         mock_hl_funding,
         mock_hl_ob,
@@ -627,7 +625,7 @@ async def test_happy_path_full_cycle(
     populate_data_handler(
         data_handler,
         "backpack",
-        symbol_bp,  # Exchange symbol
+        symbol_bp.value,  # Exchange symbol as string
         mock_bp_ticker,
         mock_bp_funding,
         mock_bp_ob,
@@ -650,26 +648,26 @@ async def test_happy_path_full_cycle(
     # Log nested structure
     logger.debug(
         "hl_ticker_data_nested",
-        hl_ticker_data=data_handler.tickers.get("hyperliquid", {}).get(symbol_hl),
-        symbol=symbol_hl,
+        hl_ticker_data=data_handler.tickers.get("hyperliquid", {}).get(symbol_hl.value),
+        symbol=symbol_hl.value,
         message="HL Ticker Data (Nested)",
     )
     logger.debug(
         "bp_ticker_data_nested",
-        bp_ticker_data=data_handler.tickers.get("backpack", {}).get(symbol_bp),
-        symbol=symbol_bp,
+        bp_ticker_data=data_handler.tickers.get("backpack", {}).get(symbol_bp.value),
+        symbol=symbol_bp.value,
         message="BP Ticker Data (Nested)",
     )
     logger.debug(
         "hl_funding_data_nested",
-        hl_funding_data=data_handler.funding_rates.get("hyperliquid", {}).get(symbol_hl),
-        symbol=symbol_hl,
+        hl_funding_data=data_handler.funding_rates.get("hyperliquid", {}).get(symbol_hl.value),
+        symbol=symbol_hl.value,
         message="HL Funding Data (Nested)",
     )
     logger.debug(
         "bp_funding_data_nested",
-        bp_funding_data=data_handler.funding_rates.get("backpack", {}).get(symbol_bp),
-        symbol=symbol_bp,
+        bp_funding_data=data_handler.funding_rates.get("backpack", {}).get(symbol_bp.value),
+        symbol=symbol_bp.value,
         message="BP Funding Data (Nested)",
     )
     logger.debug("data_handler_state_check_end")
@@ -685,7 +683,7 @@ async def test_happy_path_full_cycle(
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             # We need to map ex_specific_sym back to internal_sym for sg_funding_data
             try:
-                internal_sym_obj = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym_obj = symbol_mapper.find_symbol(ex_specific_sym, ex_id_key)
                 internal_sym = internal_sym_obj.value if internal_sym_obj else ex_specific_sym
             except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
@@ -748,20 +746,20 @@ async def test_happy_path_full_cycle(
     # Verify balances directly via internal dict for test setup accuracy
     logger.info(
         "hl_balance_before_sizing",
-        balance=portfolio_state_manager.get_exchange_balance("mock_hl", "USD"),
+        balance=portfolio_tracker.get_exchange_balance("mock_hl", "USD"),
         exchange="mock_hl",
         asset="USD",
         message="HL balance before sizing",
     )
     logger.info(
         "bp_balance_before_sizing",
-        balance=portfolio_state_manager.get_exchange_balance("mock_bp", "USDC"),
+        balance=portfolio_tracker.get_exchange_balance("mock_bp", "USDC"),
         exchange="mock_bp",
         asset="USDC",
         message="BP balance before sizing",
     )
     # Let's assume RM uses get_total_capital directly from balances for now
-    total_capital = await portfolio_state_manager.get_current_state().total_capital
+    total_capital = await portfolio_tracker.get_current_state().total_capital
     logger.info(
         "portfolio_total_capital_for_sizing",
         total_capital=total_capital,
@@ -796,10 +794,10 @@ async def test_happy_path_full_cycle(
         "executing_opportunity",
         long_exchange=sized_opportunity.opportunity.long_exchange,
         long_size=float(sized_opportunity.long_size),
-        long_symbol=symbol_bp,
+        long_symbol=symbol_bp.value,
         short_exchange=sized_opportunity.opportunity.short_exchange,
         short_size=float(sized_opportunity.short_size),
-        short_symbol=symbol_hl,
+        short_symbol=symbol_hl.value,
         message="Executing arbitrage opportunity",
     )
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
@@ -827,8 +825,8 @@ async def test_happy_path_full_cycle(
     logger.info("Verifying portfolio state post-execution...")
 
     # Get final balances - check internal state directly for test verification
-    hl_balance = portfolio_state_manager.get_exchange_balance("hyperliquid", "USD")
-    bp_balance = portfolio_state_manager.get_exchange_balance("backpack", "USDC")
+    hl_balance = portfolio_tracker.get_exchange_balance("hyperliquid", "USD")
+    bp_balance = portfolio_tracker.get_exchange_balance("backpack", "USDC")
 
     assert hl_balance is not None
     assert bp_balance is not None
@@ -853,8 +851,8 @@ async def test_happy_path_full_cycle(
     # Add assertions about balance changes if fees/costs are accurately simulated
 
     # Get final positions (should be updated by ExecutionHandler via PortfolioStateManager.record_trade)
-    hl_pos = portfolio_state_manager.get_position("hyperliquid", symbol_base)
-    bp_pos = portfolio_state_manager.get_position("backpack", symbol_base)
+    hl_pos = portfolio_tracker.get_position("hyperliquid", symbol_base)
+    bp_pos = portfolio_tracker.get_position("backpack", symbol_base)
 
     logger.debug(
         "final_positions_debug",
@@ -935,8 +933,8 @@ def _setup_partial_fill_test_data(
         Tuple containing symbols, tickers, funding rates, and orderbooks for testing.
     """
     symbol_key = "BTC"
-    hl_symbol = "BTC-PERP"
-    bp_symbol = "BTC_USDC"
+    hl_symbol = BTC_HL.value
+    bp_symbol = BTC_USDC_BP.value
 
     # Tickers with better spread
     mock_hl_ticker = create_mock_ticker(hl_symbol, "40005.0", "40007.0", "40006.0", now)
@@ -1195,7 +1193,7 @@ async def test_partial_fill(
     # Reset APIs and tracker
     mock_hl_api.reset()
     mock_bp_api.reset()
-    portfolio_state_manager.reset()
+    portfolio_tracker.reset()
 
     # Setup mock API behaviors
     mock_hl_api.set_mock_ticker(mock_hl_ticker)
@@ -1300,7 +1298,7 @@ async def test_partial_fill(
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             # We need to map ex_specific_sym back to internal_sym for sg_funding_data
             try:
-                internal_sym_obj = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym_obj = symbol_mapper.find_symbol(ex_specific_sym, ex_id_key)
                 internal_sym = internal_sym_obj.value if internal_sym_obj else ex_specific_sym
             except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
@@ -1358,10 +1356,10 @@ async def test_partial_fill(
     # Get balances using internal dict for test verification
     logger.debug(
         "portfolio_balances_before_validation",
-        balances=portfolio_state_manager.balances,
+        balances=portfolio_tracker.balances,
         message="PT Balances before RM validation",
     )
-    total_cap_debug = await portfolio_state_manager.get_current_state().total_capital  # Added await
+    total_cap_debug = await portfolio_tracker.get_current_state().total_capital  # Added await
     logger.debug(
         "portfolio_total_capital_before_validation",
         total_capital=str(total_cap_debug),
@@ -1410,8 +1408,8 @@ async def test_partial_fill(
     # - Verify final PortfolioStateManager state shows successful compensation if it ran.
 
     # Example Check (adjust based on PortfolioStateManager state after COMPLETED status)
-    bp_final_pos = portfolio_state_manager.get_position("backpack", symbol_key)
-    hl_final_pos = portfolio_state_manager.get_position("hyperliquid", symbol_key)
+    bp_final_pos = portfolio_tracker.get_position("backpack", symbol_key)
+    hl_final_pos = portfolio_tracker.get_position("hyperliquid", symbol_key)
 
     logger.debug(
         "final_bp_position_partial_fill",
@@ -1468,8 +1466,8 @@ def _setup_compensation_test_data(
         Tuple containing symbols, tickers, funding rates, and orderbooks for compensation testing.
     """
     symbol_key = "ETH"
-    hl_symbol = "BTC-PERP"
-    bp_symbol = "BTC_USDC"
+    hl_symbol = BTC_HL.value
+    bp_symbol = BTC_USDC_BP.value
 
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2000.5, 2000.25, now)
@@ -1795,7 +1793,7 @@ def _prepare_funding_data(
     for ex_id_key, sym_data_map in data_handler.funding_rates.items():
         for ex_specific_sym, rate_data_obj in sym_data_map.items():
             try:
-                internal_sym_obj = symbol_mapper.get_internal_symbol(ex_specific_sym, ex_id_key)
+                internal_sym_obj = symbol_mapper.find_symbol(ex_specific_sym, ex_id_key)
                 internal_sym = internal_sym_obj.value if internal_sym_obj else ex_specific_sym
             except (SymbolNotFoundError, ExchangeNotSupportedError, SymbolMappingFieldError):
                 logger.warning(
@@ -1874,10 +1872,10 @@ async def _log_debug_info(portfolio_tracker: PortfolioStateManager) -> None:
     """Log debug information about portfolio tracker state."""
     logger.debug(
         "portfolio_balances_debug_info",
-        balances=portfolio_state_manager.balances,
+        balances=portfolio_tracker.balances,
         message="PT Balances before RM validation",
     )
-    total_cap_debug = await portfolio_state_manager.get_current_state().total_capital
+    total_cap_debug = await portfolio_tracker.get_current_state().total_capital
     logger.debug(
         "portfolio_total_capital_debug_info",
         total_capital=str(total_cap_debug),
@@ -1934,18 +1932,18 @@ async def test_execution_failure_compensation(
         mock_bp_ob,
     )
 
-    portfolio_state_manager.reset()
+    portfolio_tracker.reset()
 
     # Configure initial balances
     initial_hl_balance = SpotBalance(
-        asset="USD",
+        asset=USD_HL,
         total_quantity=Decimal(10000),
         available_quantity=Decimal(10000),
         exchange="hyperliquid",
         timestamp=now,
     )
     initial_bp_balance = SpotBalance(
-        asset="USDC",
+        asset=USDC_BP,
         total_quantity=Decimal(10000),
         available_quantity=Decimal(10000),
         exchange="backpack",
@@ -1953,8 +1951,8 @@ async def test_execution_failure_compensation(
     )
     mock_hl_api.set_mock_balance(initial_hl_balance)
     mock_bp_api.set_mock_balance(initial_bp_balance)
-    await portfolio_state_manager.initialize()
-    await portfolio_state_manager.update()  # Explicitly update derived metrics
+    await portfolio_tracker.initialize()
+    await portfolio_tracker.update()  # Explicitly update derived metrics
 
     # --- Manually Populate DataHandler ---
     populate_data_handler(
@@ -2097,9 +2095,9 @@ async def test_execution_failure_compensation(
     assert calls[1].kwargs["quantity"] == target_qty
 
     # Verify final portfolio state (should be flat for ETH)
-    await portfolio_state_manager.update()  # Ensure state is fresh
-    final_bp_pos = portfolio_state_manager.get_position(mock_bp_api.exchange_name, symbol_key)
-    final_hl_pos = portfolio_state_manager.get_position(mock_hl_api.exchange_name, symbol_key)
+    await portfolio_tracker.update()  # Ensure state is fresh
+    final_bp_pos = portfolio_tracker.get_position(mock_bp_api.exchange_name, symbol_key)
+    final_hl_pos = portfolio_tracker.get_position(mock_hl_api.exchange_name, symbol_key)
     assert final_bp_pos is None or abs(final_bp_pos.size) < POSITION_SIZE_TOLERANCE, (
         f"Expected BP position for {symbol_key} to be flat after compensation, "
         f"but got {final_bp_pos.size if final_bp_pos else 'None'}"
@@ -2124,12 +2122,12 @@ async def test_execution_failure_compensation(
         "final_mock_hl_usd_balance",
         exchange="mock_hl",
         asset="USD",
-        balance=str(portfolio_state_manager.get_exchange_balance("mock_hl", "USD")),
+        balance=str(portfolio_tracker.get_exchange_balance("mock_hl", "USD")),
         message="Final mock_hl USD Balance after compensation test",
     )
     logger.info(
         "final_balances",
-        balances=portfolio_state_manager.balances,
+        balances=portfolio_tracker.balances,
         message="Final Balances",
     )
 
@@ -2167,15 +2165,15 @@ async def test_failed_execution(
     # --- Setup Mock Data ---
     now = datetime.now(UTC)
     symbol_key = "BTC"  # Changed to BTC to match the mock symbols
-    hl_symbol = "BTC-PERP"  # Use hardcoded symbols for mock tests
-    bp_symbol = "BTC_USDC"  # Use hardcoded symbols for mock tests
+    hl_symbol = BTC_HL.value  # Use Symbol values for mock tests
+    bp_symbol = BTC_USDC_BP.value  # Use Symbol values for mock tests
     # short_order_id_hl = ( # REMOVE - Unused variable
     #     "hl_short_for_comp_test"  # Define short_order_id_hl for
     #     # test_execution_failure_compensation
     mock_hl_api.reset()
     mock_bp_api.reset()
     # Re-initialize portfolio tracker state for this test
-    portfolio_state_manager.reset()
+    portfolio_tracker.reset()
 
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2001.0, 2000.5, now)
@@ -2206,14 +2204,14 @@ async def test_failed_execution(
 
     # Initial Balances
     initial_hl_balance = SpotBalance(
-        asset="USD",
+        asset=USD_HL,
         total_quantity=Decimal(10000),
         available_quantity=Decimal(10000),
         exchange="hyperliquid",
         timestamp=now,
     )
     initial_bp_balance = SpotBalance(
-        asset="USDC",
+        asset=USDC_BP,
         total_quantity=Decimal(10000),
         available_quantity=Decimal(10000),
         exchange="backpack",
@@ -2221,11 +2219,11 @@ async def test_failed_execution(
     )
     mock_hl_api.set_mock_balance(initial_hl_balance)
     mock_bp_api.set_mock_balance(initial_bp_balance)
-    await portfolio_state_manager.initialize()
-    await portfolio_state_manager.update()  # Explicitly update derived metrics
+    await portfolio_tracker.initialize()
+    await portfolio_tracker.update()  # Explicitly update derived metrics
 
     # Verify balances are set
-    total_balance = await portfolio_state_manager.get_current_state().total_capital
+    total_balance = await portfolio_tracker.get_current_state().total_capital
     logger.info(
         "total_balance_after_setup",
         total_balance=str(total_balance),
@@ -2346,17 +2344,17 @@ async def test_failed_execution(
 
     # --- Verify Portfolio State (Should be largely unchanged) ---
     # Use internal dict for test verification
-    hl_balance_dict = portfolio_state_manager.balances[
+    hl_balance_dict = portfolio_tracker.balances[
         "hyperliquid"
     ]  # CORRECTED: Direct access returns defaultdict
-    bp_balance_dict = portfolio_state_manager.balances[
+    bp_balance_dict = portfolio_tracker.balances[
         "backpack"
     ]  # CORRECTED: Direct access returns defaultdict
 
     hl_balance = hl_balance_dict.get("USD")
     bp_balance = bp_balance_dict.get("USDC")
-    hl_pos = portfolio_state_manager.get_position("hyperliquid", symbol_key)
-    bp_pos = portfolio_state_manager.get_position("backpack", symbol_key)
+    hl_pos = portfolio_tracker.get_position("hyperliquid", symbol_key)
+    bp_pos = portfolio_tracker.get_position("backpack", symbol_key)
 
     assert hl_balance is not None
     assert hl_balance.total_quantity == initial_hl_balance.total_quantity
@@ -2372,7 +2370,7 @@ async def test_failed_execution(
 def _create_internal_mock_order(
     exchange_name: str,
     client_order_id: str,
-    symbol: str,
+    symbol: Any,  # Will accept Symbol objects
     side: OrderSide,
     order_type: OrderType,
     status: OrderStatus,
