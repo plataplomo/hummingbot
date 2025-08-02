@@ -19,7 +19,7 @@ from cyberdelta.core.portfolio.exceptions import (
 
 if TYPE_CHECKING:
     from cyberdelta.core.portfolio.models.base import BaseStateModel
-    from cyberdelta.core.portfolio.protocols import StateContainerProtocol
+    from cyberdelta.core.portfolio.portfolio_types.protocols import StateContainerProtocol
 
 
 # Constants for magic values
@@ -279,7 +279,7 @@ class PerformanceCalculator(TypedCalculator[PerformanceInput, PerformanceMetrics
         super().__init__(app_settings, state_container, "PerformanceCalculator")
 
         # Configuration from AppSettings
-        self.risk_free_rate = self.portfolio_config.calculation.risk_free_rate
+        self.risk_free_rate = app_settings.portfolio.calculation.risk_free_rate
         self.var_confidence_levels = [Decimal("0.95"), Decimal("0.99")]
         self.min_periods_for_ratios = 30  # Minimum observations for meaningful ratios
 

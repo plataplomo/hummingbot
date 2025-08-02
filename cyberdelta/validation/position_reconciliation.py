@@ -15,7 +15,6 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.portfolio.portfolio_types.models import PositionUpdateRequest
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.core.symbols import symbol
 from cyberdelta.enums import OrderSide
@@ -541,18 +540,9 @@ class PositionReconciliationSystem:
                 timestamp,
             )
 
-        # Create PositionUpdateRequest for compatibility with current portfolio system
-        position_update_request = PositionUpdateRequest(
-            exchange_id=exchange,
-            symbol=symbol_obj,
-            size=new_local_pos.size,
-            entry_price=new_local_pos.entry_price,
-            mark_price=new_local_pos.mark_price,
-            unrealized_pnl=new_local_pos.unrealized_pnl,
-            update_source="position_reconciliation"
-        )
+        # Update positions expects a list of DerivativePosition
         await self._portfolio_state_manager.update_positions(
-            ExchangeName(exchange), position_update_request
+            ExchangeName(exchange), [new_local_pos]
         )
 
     def _create_position_from_api_data(
@@ -668,18 +658,9 @@ class PositionReconciliationSystem:
                 else current_position.liquidation_price,
             },
         )
-        # Create PositionUpdateRequest for compatibility with current portfolio system
-        position_update_request = PositionUpdateRequest(
-            exchange_id=exchange,
-            symbol=symbol_obj,
-            size=updated_local_position.size,
-            entry_price=updated_local_position.entry_price,
-            mark_price=updated_local_position.mark_price,
-            unrealized_pnl=updated_local_position.unrealized_pnl,
-            update_source="position_reconciliation"
-        )
+        # Update positions expects a list of DerivativePosition
         await self._portfolio_state_manager.update_positions(
-            ExchangeName(exchange), position_update_request
+            ExchangeName(exchange), [updated_local_position]
         )
 
     def _mark_discrepancy_corrected(

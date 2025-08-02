@@ -62,7 +62,7 @@ class StrategyManager(BaseModel):
         """Check portfolio risk limits using modular system."""
         portfolio_state = await self.portfolio_manager.get_portfolio_summary()
         exposure_result = await self.risk_analytics.calculate_exposure(portfolio_state)
-        return exposure_result.total_exposure < max_exposure
+        return bool(exposure_result.total_exposure < max_exposure)
 
     def register_strategy(self, strategy: Strategy) -> None:
         """Register a strategy with the manager.

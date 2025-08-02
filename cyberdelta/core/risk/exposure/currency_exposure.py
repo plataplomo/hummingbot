@@ -17,7 +17,7 @@ from cyberdelta.enums import OrderSide
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import DerivativePosition
-    from cyberdelta.core.portfolio.services.currency import CurrencyConversionService
+    from cyberdelta.core.integrations.currency import CurrencyConversionService
 
 logger = get_logger(__name__)
 
@@ -70,7 +70,8 @@ class CurrencyExposure:
         """
         if not v:
             raise RiskCalculationError(
-                parameter="currency", value=v, expected="non-empty string"
+                "Invalid currency value: expected non-empty string",
+                metadata={"parameter": "currency", "value": str(v), "expected": "non-empty string"}
             )
         return v.upper().strip()
 
@@ -100,7 +101,8 @@ class CurrencyExposure:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise RiskCalculationError(
-                parameter="exposure", value=value, expected="finite number"
+                f"Invalid exposure value: {value} (expected finite number)",
+                metadata={"parameter": "exposure", "value": str(value), "expected": "finite number"}
             )
         return value
 
@@ -121,11 +123,13 @@ class CurrencyExposure:
         """
         if info.field_name == "long_exposure" and v < 0:
             raise RiskCalculationError(
-                parameter="long_exposure", value=v, expected="non-negative value"
+                f"Invalid long_exposure value: {v} (expected non-negative value)",
+                metadata={"parameter": "long_exposure", "value": str(v), "expected": "non-negative value"}
             )
         if info.field_name == "short_exposure" and v > 0:
             raise RiskCalculationError(
-                parameter="short_exposure", value=v, expected="non-positive value"
+                f"Invalid short_exposure value: {v} (expected non-positive value)",
+                metadata={"parameter": "short_exposure", "value": str(v), "expected": "non-positive value"}
             )
         return v
 
@@ -218,7 +222,8 @@ class PortfolioCurrencyExposure:
         """
         if not v:
             raise RiskCalculationError(
-                parameter="base_currency", value=v, expected="non-empty string"
+                "Invalid base_currency value: expected non-empty string",
+                metadata={"parameter": "base_currency", "value": str(v), "expected": "non-empty string"}
             )
         return v.upper().strip()
 
@@ -246,7 +251,8 @@ class PortfolioCurrencyExposure:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise RiskCalculationError(
-                parameter="risk_metric", value=value, expected="finite number"
+                f"Invalid risk_metric value: {value} (expected finite number)",
+                metadata={"parameter": "risk_metric", "value": str(value), "expected": "finite number"}
             )
         return value
 

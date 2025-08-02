@@ -66,15 +66,14 @@ class AnalyticsOrchestrator(BaseModel):
         self.portfolio_manager = self.portfolio_service_factory.get_portfolio_manager()
         
         # Get analytics services from factory if available
+        # Get analytics services from factory if available
+        self.performance_analytics: Optional[Any] = None
         if hasattr(self.portfolio_service_factory, 'get_performance_analytics'):
             self.performance_analytics = self.portfolio_service_factory.get_performance_analytics()
-        else:
-            self.performance_analytics = None
             
+        self.event_dispatcher: Optional[Any] = None
         if hasattr(self.portfolio_service_factory, 'get_event_dispatcher'):
             self.event_dispatcher = self.portfolio_service_factory.get_event_dispatcher()
-        else:
-            self.event_dispatcher = None
 
         # Analytics components (initialized during start)
         self.analytics_factory: Optional[AnalyticsFactory] = None

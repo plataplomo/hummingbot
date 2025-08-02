@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.config import AppSettings
-from cyberdelta.core.portfolio.calculators.exposure_calculator import ExposureCalculator
 from cyberdelta.core.portfolio.calculators.performance_calculator import PerformanceCalculator
 from cyberdelta.core.portfolio.calculators.pnl.realized_pnl_calculator import RealizedPnLCalculator
 from cyberdelta.core.portfolio.exceptions import CalculatorCreationError
@@ -22,7 +21,6 @@ if TYPE_CHECKING:
 class CalculatorSet:
     """Set of all calculators with type safety."""
 
-    exposure: ExposureCalculator
     performance: PerformanceCalculator
     realized_pnl: RealizedPnLCalculator
 
@@ -50,17 +48,6 @@ class CalculatorFactory:
         """
         self.app_settings = app_settings
         self.state_container = state_container
-
-    def create_exposure_calculator(self) -> ExposureCalculator:
-        """Create an exposure calculator.
-
-        Returns:
-            Configured ExposureCalculator instance
-        """
-        return ExposureCalculator(
-            app_settings=self.app_settings,
-            state_container=self.state_container,
-        )
 
     def create_performance_calculator(self) -> PerformanceCalculator:
         """Create a performance calculator.
@@ -94,12 +81,10 @@ class CalculatorFactory:
             CalculatorCreationError: If any calculator creation fails
         """
         try:
-            exposure_calc = self.create_exposure_calculator()
             performance_calc = self.create_performance_calculator()
             realized_pnl_calc = self.create_realized_pnl_calculator()
 
             return CalculatorSet(
-                exposure=exposure_calc,
                 performance=performance_calc,
                 realized_pnl=realized_pnl_calc,
             )

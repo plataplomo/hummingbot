@@ -72,8 +72,8 @@ class PerformanceAnalyticsService(BaseModel):
         portfolio_state: PortfolioState
     ) -> dict[str, Any]:
         """Calculate performance attribution by exchange/symbol."""
-        by_exchange = {}
-        by_symbol = {}
+        by_exchange: dict[str, Decimal] = {}
+        by_symbol: dict[str, Decimal] = {}
         
         # Calculate P&L attribution by exchange using exchange summaries
         for exchange_id, summary in portfolio_state.exchange_summaries.items():

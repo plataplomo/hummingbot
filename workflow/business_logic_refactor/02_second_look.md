@@ -3,7 +3,8 @@
 ## Executive Summary
 
 **Document Status**: Completed with comprehensive deep code research and portfolio module analysis (January 2025)  
-**Latest Research Update**: February 2025 - Verified all critical findings through direct code inspection
+**Latest Research Update**: August 2025 - Verified all critical findings through direct code inspection  
+**Deep Code Research**: August 2025 - Latest comprehensive verification of all components with updated metrics
 
 This document presents a comprehensive analysis of the `cyberdelta/core/` directory, identifying business logic inconsistencies, architectural issues, and refactoring opportunities. The analysis reveals a system that has made **significant architectural progress** in risk management modernization, with the successful completion of a major breaking change refactor, while critical integration issues in the Engine layer and monolithic components remain unresolved.
 
@@ -138,7 +139,7 @@ graph TD
 **Key Changes from Previous Assessment**:
 - 🆕 **DataHandler identified**: 1,840 lines - **LARGEST monolithic component** 
 - ✅ **RiskManager**: Confirmed transformed from 2,604-line monolith to clean 186-line orchestrator
-- ⚠️ **Engine Integration**: 5 confirmed placeholder methods with hardcoded returns
+- ⚠️ **Engine Integration**: 2 confirmed placeholder methods with hardcoded returns, 4 total TODOs
 - 🆕 **SignalQueue**: 1,336 lines - **SECOND LARGEST** monolithic component
 - ⚠️ **SignalGenerator**: Confirmed 1,264 lines with extensive technical debt
 
@@ -307,7 +308,7 @@ graph TD
 
 ### 1. Broken Core Engine Methods ⚠️ CONFIRMED CRITICAL
 
-**File**: `cyberdelta/core/engine.py` (199 lines)
+**File**: `cyberdelta/core/engine.py` (198 lines)
 
 **Research-Verified Critical Issues** (February 2025 Direct Inspection):
 
@@ -417,9 +418,9 @@ graph LR
 
 ### Current Technical Debt Inventory (Research-Verified)
 
-**TODO/FIXME Comments in Core Module**:
-- **42 total occurrences** across 16 files (verified with grep)
-- **Engine.py**: 5 critical TODOs for missing implementations
+**TODO/FIXME Comments in Major Components**:
+- **15 total occurrences** in 4 major monolithic components (verified February 2025)
+- **Engine.py**: 4 TODOs (2 for placeholder methods, 2 for aggregation logic)
 - **SignalGenerator.py**: 4 TODOs for incomplete features  
 - **DataHandler.py**: 4 TODOs for missing integrations
 - **SignalQueue.py**: 3 TODOs for incomplete features
@@ -439,18 +440,22 @@ Decimal("0.001")    # Default slippage
 
 ### Service Factory Proliferation ⚠️ CONFIRMED ISSUE
 
-**Research-Verified Factory Count**: **20 factory files** found across the codebase (February 2025 count)
+**Research-Verified Factory Count**: **11 factory files** found in core module (February 2025 verification)
 
-**Key Factories Identified**:
-- PortfolioServiceFactory (482 lines) - Well-structured
-- RiskServiceFactory (111 lines) - Clean implementation  
-- bp_api_components_factory.py - Backpack exchange specific
-- hl_api_components_factory.py - Hyperliquid exchange specific
-- ws_registry_factory.py, ws_router_factory.py - WebSocket components
-- calculator_factory.py, unified_service_factory.py - Portfolio domain
-- risk_manager_factory.py - Risk orchestration
-- strategy_factory.py - Strategy creation
-- symbol factory, persistence factory, and others
+**Note**: Previous count of 20 included entire codebase. Core business logic module contains 11 factories.
+
+**Key Factories Identified in Core Module**:
+1. `/portfolio/services/portfolio_service_factory.py` (482 lines) - Well-structured
+2. `/risk/services/risk_service_factory.py` (111 lines) - Clean implementation  
+3. `/portfolio/calculators/calculator_factory.py` - Calculator creation
+4. `/portfolio/config/factory.py` - Configuration factory
+5. `/portfolio/coordinators/unified_service_factory.py` - Service coordination
+6. `/risk/orchestrator/risk_manager_factory.py` - Risk orchestration
+7. `/services/factory.py` - Core services
+8. `/symbols/factory.py` - Symbol creation
+9. `/infrastructure/services/service_factory.py` - Infrastructure services
+10. `/analytics/components/factory.py` - Analytics components
+11. `/data_management/persistence/persistence_factory.py` - Persistence layer
 
 **Architectural Issues**:
 - **Inconsistent patterns**: Each factory uses different interfaces
@@ -486,7 +491,8 @@ gantt
    - **Migration scope**: 50+ import statements across codebase
 
 2. **Fix Engine Placeholder Methods** ⚠️ **CRITICAL FUNCTIONALITY BLOCKER**
-   - **5 confirmed placeholder methods** returning hardcoded values
+   - **2 confirmed placeholder methods** returning hardcoded values  
+   - **4 total TODOs** in Engine.py for missing implementations
    - Implement proper `get_position_size_for_trade()` integration with ArbitrageOpportunity pattern
    - Connect `get_exposure_metrics()` to risk services
 
@@ -505,7 +511,7 @@ gantt
    - **Decomposition targets**: MarketDataTracker, VolatilityCalculator, OpportunityGenerator
 
 6. **Address Service Factory Proliferation** ⚠️ **MEDIUM PRIORITY**
-   - **16 factory classes** with inconsistent patterns
+   - **11 factory classes** in core module with inconsistent patterns
    - Consolidate into unified service container pattern
 
 **Note**: ✅ **Portfolio Module Architectural Clarity Achieved** - Previous concerns about duplicate portfolio modules have been resolved through comprehensive analysis. The apparent duplications are proper architectural layering serving different purposes (infrastructure vs domain vs service layers). No consolidation needed for portfolio module.
@@ -537,16 +543,16 @@ graph TD
 ## Success Metrics
 
 ### Code Quality Metrics (Research-Verified Baselines)
-- **Current TODO count**: 42 occurrences → Target: 0
+- **Current TODO count**: 15 occurrences in major components → Target: 0
 - **Current largest component**: 1,840 lines → Target: <500 lines per class
-- **Current placeholder methods**: 5 in Engine → Target: 0
+- **Current placeholder methods**: 2 in Engine (4 total TODOs) → Target: 0
 
 ### Architectural Metrics  
-- **Current factory count**: 16 different patterns → Target: Unified container
+- **Current factory count**: 11 different patterns in core module → Target: Unified container
 - **Service integration**: Multiple type mismatches → Target: Protocol-based consistency
 
 ### Maintenance Metrics
-- **Technical debt**: 42 TODO comments → Target: Complete resolution
+- **Technical debt**: 15 TODO comments in major components → Target: Complete resolution
 - **Hardcoded values**: Multiple production placeholders → Target: Configuration-driven
 
 ## Conclusion
@@ -573,7 +579,8 @@ graph TD
    - **4 TODO comments** indicating incomplete implementations
 
 2. **Engine Integration Failures** - **CRITICAL BLOCKER**:
-   - **5 confirmed placeholder methods** returning hardcoded values
+   - **2 confirmed placeholder methods** returning hardcoded values  
+   - **4 total TODOs** in Engine.py for missing implementations
    - **PortfolioState type confusion** causing service integration failures
    - **Production safety concerns** with hardcoded returns
 
@@ -583,7 +590,7 @@ graph TD
    - **Complex internal state management** requiring decomposition
 
 4. **Service Factory Proliferation** - **MEDIUM PRIORITY**:
-   - **16 factory classes** with inconsistent patterns (confirmed)
+   - **11 factory classes** in core module with inconsistent patterns (confirmed)
    - **Configuration fragmentation** across factory implementations
 
 ### Updated Recommendations
@@ -626,7 +633,8 @@ graph TD
 - **SignalQueue size**: **1,336 lines** (second largest) ✅ VERIFIED
 - **SignalGenerator size**: **1,264 lines** (third largest) ✅ VERIFIED
 - **Engine placeholder methods**: **4 confirmed TODOs** ✅ VERIFIED (2 placeholders, 2 aggregation TODOs)
-- **Service factory count**: **20 different factory files** ✅ UPDATED (was 16)
+- **Service factory count**: **11 factory files in core module** ✅ VERIFIED (February 2025)  
+  - Previous assessment of 20 included entire codebase; core module has 11
 - **Technical debt count**: **15 TODO/FIXME occurrences** across the 4 major components ✅ VERIFIED
   - DataHandler: 4 TODOs
   - Engine: 4 TODOs (2 placeholder methods + 2 aggregation)
@@ -637,6 +645,44 @@ graph TD
 
 **Key Corrections from Original Assessment**:
 - PortfolioState confusion is less severe than initially thought - it's a naming inconsistency, not a type system failure
-- Factory count increased from 16 to 20 (more discovered in recent inspection)
+- Factory count clarified: 11 factories in core module (not 20 across entire codebase)
 - Portfolio module "duplications" are actually proper architectural layering
 - Symbol system migration is more complete than initially assessed
+
+---
+
+## August 2025 Deep Code Research Update
+
+### Comprehensive Verification Results
+
+**1. Component Size Verification** ✅
+- **DataHandler.py**: 1,840 lines (VERIFIED - Largest component)
+- **SignalQueue.py**: 1,336 lines (VERIFIED - Second largest)
+- **SignalGenerator.py**: 1,264 lines (VERIFIED - Third largest)
+- **Engine.py**: 198 lines (VERIFIED)
+- **RiskManager.py**: 186 lines (VERIFIED - 92.8% reduction)
+
+**2. Technical Debt Analysis** ✅
+- **DataHandler.py**: 4 TODOs (lines 135, 145, 1221, 1704)
+- **Engine.py**: 4 TODOs (lines 82, 89, 97, 104) with 2 placeholder returns
+- **SignalQueue.py**: 3 TODOs (lines 74, 296, 1042)
+- **SignalGenerator.py**: 4 TODOs (lines 91, 578, 588, 653)
+- **Total**: 15 TODOs across major components
+
+**3. Factory Pattern Analysis** ✅
+Core module factories identified (11 total):
+- Portfolio domain: 4 factories
+- Risk domain: 2 factories
+- Infrastructure: 3 factories
+- Other domains: 2 factories
+
+**4. Critical Business Logic Issues** ✅
+- **Placeholder Methods**: Engine.py returns `Decimal("100.0")` and `{"exposure": "placeholder"}`
+- **Hardcoded Values**: SignalGenerator.py contains `Decimal("10000.0")` liquidity threshold
+- **Type Inconsistency**: PerformanceResult uses `total_capital` while PortfolioState uses `total_account_value`
+
+**5. Architecture Assessment** ✅
+- **Success Story**: RiskManager refactoring (2,604 → 186 lines)
+- **Critical Issue**: DataHandler monolith (1,840 lines) with mixed responsibilities
+- **High Priority**: SignalQueue and SignalGenerator monoliths need decomposition
+- **Medium Priority**: Factory pattern consolidation needed

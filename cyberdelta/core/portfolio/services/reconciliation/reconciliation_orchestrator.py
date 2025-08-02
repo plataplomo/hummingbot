@@ -51,15 +51,14 @@ class ReconciliationResult:
         self.warnings = []
         self.info = []
         
-        for discrepancy_list in [
+        discrepancy_lists: list[list[Any]] = [
             balance_discrepancies,
             position_discrepancies,
             order_discrepancies,
             trade_discrepancies
-        ]:
-            # Handle None or non-iterable cases
-            if discrepancy_list is None:
-                continue
+        ]
+        
+        for discrepancy_list in discrepancy_lists:
             for disc in discrepancy_list:
                 if disc.severity == "error":
                     self.errors.append(disc)

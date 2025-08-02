@@ -189,7 +189,7 @@ class AuditExportService(BaseService):
         input_stream = io.StringIO(csv_data)
         reader = csv.DictReader(input_stream, delimiter=self.csv_delimiter)
         
-        entries = []
+        entries: list[AuditEntry] = []
         for row in reader:
             if len(entries) >= self.max_export_size:
                 break
@@ -254,8 +254,8 @@ class AuditExportService(BaseService):
             return "{}" if format == "json" else "No audit entries"
         
         # Count by level
-        level_counts = {}
-        component_counts = {}
+        level_counts: dict[str, int] = {}
+        component_counts: dict[str, int] = {}
         
         for entry in entries:
             level_counts[entry.level] = level_counts.get(entry.level, 0) + 1
@@ -283,16 +283,24 @@ class AuditExportService(BaseService):
             return json.dumps(summary, indent=2, default=str)
         else:
             # Text format
+            time_range = summary.get("time_range", {})
+            if isinstance(time_range, dict):
+                duration_hours = time_range.get("duration_hours", 0)
+            else:
+                duration_hours = 0
+                
             lines = [
                 f"Total Entries: {total}",
-                f"Time Range: {summary['time_range']['duration_hours']:.1f} hours",
+                f"Time Range: {duration_hours:.1f} hours",
                 "\nLevels:",
             ]
             for level, count in level_counts.items():
                 lines.append(f"  {level}: {count}")
             
             lines.append("\nTop Components:")
-            for comp, count in summary["top_components"].items():
-                lines.append(f"  {comp}: {count}")
+            top_components = summary.get("top_components", {})
+            if isinstance(top_components, dict):
+                for comp, count in top_components.items():
+                    lines.append(f"  {comp}: {count}")
             
             return "\n".join(lines)

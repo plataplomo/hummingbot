@@ -9,7 +9,7 @@ from typing import Any, Optional
 
 from cyberdelta.core.engines.clean_trading_engine import CleanTradingEngine
 from cyberdelta.core.portfolio.coordinators.unified_service_factory import UnifiedServiceFactory
-from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState
+from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
 from cyberdelta.core.portfolio.portfolio_types.models import PortfolioConfig
 
 

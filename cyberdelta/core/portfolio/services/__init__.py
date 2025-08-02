@@ -1,12 +1,12 @@
 """Portfolio services for various support functions."""
 
-from .base.base_service import BasePortfolioService, ServiceConfiguration
-from .cache import CacheService
-from .concurrency_manager import ConcurrencyManager
-from .currency import CurrencyConversionService, FXRate
+from cyberdelta.core.infrastructure.services.base_service import BaseService as BasePortfolioService, ServiceConfiguration
+from cyberdelta.core.infrastructure.cache.cache_service import CacheService
+from cyberdelta.core.infrastructure.concurrency.concurrency_manager import ConcurrencyManager
+from cyberdelta.core.integrations.currency import CurrencyConversionService, FXRate
 
 # New focused monitoring services (recommended)
-from .monitoring import (
+from cyberdelta.core.monitoring.health import (
     AlertLifecycleService,
     AlertSeverity,
     AlertThreshold,
@@ -27,7 +27,7 @@ from .monitoring import (
 )
 
 # New focused persistence services
-from .persistence import (
+from cyberdelta.core.data_management.persistence import (
     BackupManager,
     PersistenceConfig,
     PersistenceStats,
@@ -40,14 +40,14 @@ from .persistence import (
 )
 
 from .portfolio_service_factory import PortfolioServiceFactory
-from .pricing import PriceService
+from cyberdelta.core.integrations.pricing import PriceService
 from .reconciliation import (
     ReconciliationOrchestrator,
     ReconciliationResult,
 )
 
 # New type-safe services from clean break refactor
-from .type_validation import TypeValidator
+from cyberdelta.core.infrastructure.middleware.type_validation import TypeValidator
 from .validation_middleware import ValidationMiddleware
 
 

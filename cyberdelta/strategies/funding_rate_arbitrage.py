@@ -932,7 +932,7 @@ class FundingRateArbitrageStrategy(Strategy):
                         opportunity_id=opportunity.id,
                         symbol=opportunity.symbol,
                         signals_count=len(entry_signals),
-                        position_size=float(analysis.sizing.position_size),
+                        position_size=float(analysis.sizing.position_size_usd),
                         action="signals_added_to_queue",
                         message=(
                             f"Generated {len(entry_signals)} entry signals for {opportunity.id}"
@@ -1114,7 +1114,7 @@ class FundingRateArbitrageStrategy(Strategy):
         spot_quantity = default_size
 
         # Delta neutral strategy - same size for both legs
-        position_size = analysis.sizing.position_size
+        position_size = analysis.sizing.position_size_usd
         
         perp_size = position_size
         spot_size = position_size
@@ -1524,7 +1524,7 @@ class FundingRateArbitrageStrategy(Strategy):
             symbol=self.symbol,
             signals_generated_total=self.signals_generated,
             active_opportunities_count=len(self.active_opportunities),
-            sized_opportunities_count=len(self.sized_opportunities),
+            sized_opportunities_count=len(self.active_opportunities),
             action="strategy_cleanup_initiated",
             message=f"Strategy {self.name} stopped for symbol {self.symbol}",
         )

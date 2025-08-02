@@ -8,18 +8,18 @@ from datetime import datetime, UTC
 from cyberdelta.config import AppSettings
 from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.portfolio.services.event_dispatcher import EventDispatcher
-from cyberdelta.core.portfolio.services.analytics.performance_analytics import PerformanceAnalyticsService
-from cyberdelta.core.portfolio.services.analytics.reporting_service import ReportingService
-from cyberdelta.core.portfolio.services.metrics.exposure_metrics import ExposureMetricsService
+from cyberdelta.core.infrastructure.events.service_dispatcher import EventDispatcher
+from cyberdelta.core.analytics.services.performance_analytics import PerformanceAnalyticsService
+from cyberdelta.core.analytics.services.reporting_service import ReportingService
+from cyberdelta.core.analytics.metrics.exposure_metrics import ExposureMetricsService
 from cyberdelta.core.portfolio.services.reconciliation_service import PortfolioReconciliationService
-from cyberdelta.core.portfolio.services.exchange_data_service import ExchangeDataService
+from cyberdelta.core.integrations.exchange.exchange_data_service import ExchangeDataService
 from cyberdelta.core.portfolio.services.validation.portfolio_validation_coordinator import (
     PortfolioValidationCoordinator
 )
-from cyberdelta.core.portfolio.services.cache.cache_service import MemoryCacheService
-from cyberdelta.core.portfolio.services.monitoring.health_check_orchestrator import HealthCheckOrchestrator
-from cyberdelta.core.portfolio.services.market_data import RealMarketDataService
+from cyberdelta.core.infrastructure.cache.cache_service import MemoryCacheService
+from cyberdelta.core.monitoring.health.health_check_orchestrator import HealthCheckOrchestrator
+from cyberdelta.core.integrations.market_data import RealMarketDataService
 from cyberdelta.core.portfolio.state.async_state_container import AsyncStateContainer
 from cyberdelta.core.portfolio.protocols import (
     StateContainerProtocol,

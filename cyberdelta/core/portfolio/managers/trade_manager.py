@@ -23,8 +23,8 @@ if TYPE_CHECKING:
     from cyberdelta.core.portfolio.models.base import BaseStateModel
     from cyberdelta.core.portfolio.protocols import (
         MetricsCollectorProtocol,
-        StateContainerProtocol,
     )
+    from cyberdelta.core.portfolio.portfolio_types.protocols import StateContainerProtocol
     from cyberdelta.core.portfolio.protocols.validation import ValidationServiceProtocol
 
 # Trade state type - list of trades
@@ -65,8 +65,8 @@ class TradeManager(TypedStateManager[TradeState]):
         self.metrics_collector = metrics_collector
 
         # Configuration from AppSettings
-        self.max_trade_history = self.portfolio_config.state.max_trade_history_size
-        self.strict_validation = self.portfolio_config.validation.strict_mode
+        self.max_trade_history = app_settings.portfolio.state.max_trade_history_size
+        self.strict_validation = app_settings.portfolio.validation.strict_mode
         
         # In-memory trade history storage (production should use persistent storage)
         self._trade_history: list[Trade] = []
@@ -123,13 +123,14 @@ class TradeManager(TypedStateManager[TradeState]):
                     )
                     continue
 
-                self.state_container.add_trade(exchange, trade)
+                # Store trade in history (state_container is for state data, not trades)
+                self._trade_history.append(trade)
 
                 # Record metrics if available
                 if self.metrics_collector:
-                    # MetricsCollectorProtocol guarantees record_state_update method
-                    self.metrics_collector.record_state_update(
-                        "trade_history_update", exchange, "completed"
+                    # Record metric asynchronously
+                    await self.metrics_collector.record_metric(
+                        "trade_history_update", 1.0, {"exchange": str(exchange), "status": "completed"}
                     )
 
             return StateManagerResult.success_result(
@@ -233,7 +234,8 @@ class TradeManager(TypedStateManager[TradeState]):
             # Also add to state container
             try:
                 exchange = ExchangeName(trade.exchange)
-                self.state_container.add_trade(exchange, trade)
+                # Store trade in history (state_container is for state data, not trades)
+                self._trade_history.append(trade)
             except (ValueError, AttributeError):
                 logger.warning(
                     "trade_exchange_conversion_failed_in_add",
@@ -243,8 +245,8 @@ class TradeManager(TypedStateManager[TradeState]):
 
             # Record metrics if available
             if self.metrics_collector:
-                self.metrics_collector.record_state_update(
-                    "trade_history_add", trade.exchange, "completed"
+                await self.metrics_collector.record_metric(
+                    "trade_history_add", 1.0, {"exchange": str(trade.exchange), "status": "completed"}
                 )
 
             self.logger.info(

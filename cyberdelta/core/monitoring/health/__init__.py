@@ -24,7 +24,8 @@ from .component_health_monitor import ComponentHealthMetric, ComponentHealthMoni
 from .health_alert_manager import AlertRule, HealthAlertManager
 from .portfolio_health_checker import (
     PortfolioHealthAlert,
-    PortfolioHealthChecker,
+    SystemHealthChecker,
+    SystemHealthChecker as PortfolioHealthChecker,  # Alias for backwards compatibility
     PortfolioHealthMetric,
 )
 from .system_health_monitor import SystemHealthAlert, SystemHealthMetric, SystemHealthMonitor

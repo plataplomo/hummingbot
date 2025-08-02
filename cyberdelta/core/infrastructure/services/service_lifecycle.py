@@ -23,7 +23,7 @@ from cyberdelta.core.portfolio.exceptions.service import (
     ServiceStartStateError,
     ServiceStartupTimeoutError,
 )
-from cyberdelta.core.portfolio.services.base.base_service import ServiceConfiguration
+from cyberdelta.core.infrastructure.services.base_service import ServiceConfiguration
 
 
 # Type-preserving factory function

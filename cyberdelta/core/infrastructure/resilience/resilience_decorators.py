@@ -18,7 +18,7 @@ from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
 if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
-    from cyberdelta.core.portfolio.services.resilience.graceful_degradation_service import (
+    from cyberdelta.core.infrastructure.resilience.graceful_degradation_service import (
         GracefulDegradationService,
     )
 

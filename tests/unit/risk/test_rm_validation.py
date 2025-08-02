@@ -35,11 +35,10 @@ class TestRiskManagerValidation:
         valid_analysis = RiskAnalysis(
             opportunity=sample_opportunity,
             approved=True,
-            sizing=sizing_result
-            Decimal("0.1"),  # allocation_percentage
-            Decimal(1),
-            Decimal("0.01"),  # expected_return
-            Decimal("0.1"),  # risk_adjusted_return
+            sizing=sizing_result,
+            checks={},
+            constraints={},
+            rejection_reason=None
         )
         with patch.object(risk_manager, "analyze_opportunity", return_value=valid_analysis):
             valid_opportunities = [sample_opportunity]

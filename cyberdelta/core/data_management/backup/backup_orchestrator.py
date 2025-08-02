@@ -72,7 +72,7 @@ class BackupOrchestrator(BaseService):
             )
             
             # Create metadata
-            metadata = {
+            metadata: dict[str, object] = {
                 "backup_id": backup_id,
                 "backup_type": backup_type.value,
                 "timestamp": time.time(),
@@ -99,7 +99,7 @@ class BackupOrchestrator(BaseService):
             logger.error("Backup creation failed", backup_id=backup_id, error=str(e))
             
             # Save failed metadata
-            failed_metadata = {
+            failed_metadata: dict[str, object] = {
                 "backup_id": backup_id,
                 "backup_type": backup_type.value,
                 "timestamp": time.time(),
@@ -131,7 +131,7 @@ class BackupOrchestrator(BaseService):
         
         # Validate backup file
         expected_checksum = metadata.get("checksum", "")
-        if expected_checksum and not await self.storage_service.validate_backup_file(
+        if expected_checksum and isinstance(expected_checksum, str) and not await self.storage_service.validate_backup_file(
             backup_id, backup_format, expected_checksum
         ):
             raise ValueError(f"Backup file validation failed: {backup_id}")
@@ -225,6 +225,7 @@ class BackupOrchestrator(BaseService):
         # Create portfolio state data
         # Note: positions are tracked in exchange_summaries, not directly
         return PortfolioStateData(
+            state_id="backup_snapshot",
             portfolio_id="backup_snapshot",
             balances=balances,  # dict[str, SpotBalance]
             orders=orders,      # list[Order]

@@ -20,8 +20,8 @@ from cyberdelta.core.portfolio.events.error_events import ErrorContext
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.portfolio.events import EventDispatcher
-    from cyberdelta.core.portfolio.services.cache.cache_service import MemoryCacheService
+    from cyberdelta.core.infrastructure.events.service_dispatcher import EventDispatcher
+    from cyberdelta.core.infrastructure.cache.cache_service import MemoryCacheService
 
 logger = get_logger(__name__)
 

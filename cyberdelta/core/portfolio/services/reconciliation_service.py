@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.infrastructure.events import EventType
-from cyberdelta.core.portfolio.events.error_events import ComponentInitializedEvent, ComponentStateData, ErrorOccurredEvent, ErrorData
+from cyberdelta.core.portfolio.events.error_events import ComponentInitializedEvent, ComponentStateData, ErrorOccurredEvent, ErrorData, ComponentMetadata, ErrorContext
 
 if TYPE_CHECKING:
     from cyberdelta.core.portfolio.services import PortfolioServiceFactory
@@ -68,11 +68,15 @@ class PortfolioReconciliationService(BaseModel):
             if self.event_dispatcher:
                 component_data = ComponentStateData(
                     component_name="reconciliation_service",
-                    state="reconciliation_complete",
-                    metadata={"exchange_count": len(exchange_data) if exchange_data else 0}
+                    component_type="service",
+                    new_state="reconciliation_complete",
+                    metadata=ComponentMetadata(
+                        context={"exchange_count": len(exchange_data) if exchange_data else 0}
+                    )
                 )
                 event = ComponentInitializedEvent.create(
-                    component=component_data,
+                    component_name="reconciliation_service",
+                    component_type="service",
                     exchange_id="all"
                 )
                 await self.event_dispatcher.dispatch(event)
@@ -103,11 +107,15 @@ class PortfolioReconciliationService(BaseModel):
             if self.event_dispatcher:
                 component_data = ComponentStateData(
                     component_name="reconciliation_service",
-                    state="exchange_reconciled",
-                    metadata={"exchange_id": exchange_id}
+                    component_type="service",
+                    new_state="exchange_reconciled",
+                    metadata=ComponentMetadata(
+                        context={"exchange_id": exchange_id}
+                    )
                 )
                 event = ComponentInitializedEvent.create(
-                    component=component_data,
+                    component_name="reconciliation_service",
+                    component_type="service",
                     exchange_id=exchange_id
                 )
                 await self.event_dispatcher.dispatch(event)
@@ -131,7 +139,10 @@ class PortfolioReconciliationService(BaseModel):
                 component="reconciliation_service",
                 error_type="validation_failed",
                 error_message=f"Validation failed with {len(errors)} errors",
-                context={"errors": errors, "validation_result": str(validation_result)}
+                context=ErrorContext(
+                    operation="portfolio_validation",
+                    additional_data={"errors": errors, "validation_result": str(validation_result)}
+                )
             )
             event = ErrorOccurredEvent.create(
                 error=error_data,

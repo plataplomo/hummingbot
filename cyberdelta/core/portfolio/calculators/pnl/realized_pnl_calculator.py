@@ -29,7 +29,7 @@ logger = get_logger(__name__)
 
 if TYPE_CHECKING:
     from cyberdelta.core.portfolio.models.base import BaseStateModel
-    from cyberdelta.core.portfolio.protocols import StateContainerProtocol
+    from cyberdelta.core.portfolio.portfolio_types.protocols import StateContainerProtocol
 
 
 class PnLCalculationMethod(Enum):

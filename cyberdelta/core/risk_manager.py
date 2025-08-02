@@ -111,7 +111,7 @@ class RiskManager:
 
         # Get available capital
         portfolio_state = await self.portfolio_state_manager.get_portfolio_summary()
-        available_capital = portfolio_state.total_capital
+        available_capital = portfolio_state.total_account_value
 
         if available_capital <= Decimal(0):
             return RiskAnalysis(
@@ -131,9 +131,9 @@ class RiskManager:
 
         # Validate constraints
         constraint_context = ConstraintContext(
-            total_capital=portfolio_state.total_capital,
-            available_capital=portfolio_state.free_capital,
-            reserved_capital=portfolio_state.total_capital - portfolio_state.free_capital,
+            total_capital=portfolio_state.total_account_value,
+            available_capital=portfolio_state.free_collateral,
+            reserved_capital=portfolio_state.total_account_value - portfolio_state.free_collateral,
             current_positions=[],
             current_allocations={},
             current_exchange_allocations={},
@@ -180,7 +180,7 @@ class RiskManager:
 
         return {
             "portfolio_exposure": float(portfolio_state.gross_exposure),
-            "available_capital": float(portfolio_state.total_capital),
+            "available_capital": float(portfolio_state.total_account_value),
             "sizing_method": self.app_settings.risk.sizing.method,
             "position_sizer_stats": self.position_sizer.get_performance_stats(),
         }

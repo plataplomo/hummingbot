@@ -105,7 +105,7 @@ class CircuitBreaker[T]:
                 result: T = await asyncio.wait_for(coro, timeout=self.config.timeout)
             else:
                 coro = func(*args, **kwargs)
-                result = await coro
+                result: T = await coro
 
             self._on_success()
 
@@ -228,7 +228,7 @@ class CircuitBreakerService(BaseService):
             self.logger.warning(f"No circuit breaker registered for {service_name}")
             return await func(*args, **kwargs)
 
-        result: T = await circuit_breaker.call(func, *args, **kwargs)
+        result = await circuit_breaker.call(func, *args, **kwargs)
         return result
 
     def get_all_states(self) -> dict[str, dict[str, object]]:

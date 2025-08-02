@@ -42,7 +42,7 @@ MINIMAL_MOCK_CONFIG_DICT: dict[str, Any] = {
                 "usd_size": "1000.0",
                 "fraction": "0.01"
             }
-        }
+        },
         "min_validation_factor": "0.5",
         "min_nfd_bps": "1"
     },

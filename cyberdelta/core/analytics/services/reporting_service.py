@@ -50,8 +50,8 @@ class ReportingService(BaseModel):
             config = ReportConfiguration()
 
         report = PortfolioReport(
-            report_id=f"report_{portfolio_state.timestamp}",
-            timestamp=str(portfolio_state.timestamp),
+            report_id=f"report_{portfolio_state.updated_at}",
+            timestamp=str(portfolio_state.updated_at),
         )
 
         # Generate each requested section

@@ -151,15 +151,15 @@ class PortfolioAwarePositionSizer:
                 
                 # Create opportunity object for Kelly sizer
                 opportunity = ArbitrageOpportunity(
-                    id=signal.signal_id,
-                    exchange_buy=signal.exchange_buy,
-                    exchange_sell=signal.exchange_sell,
                     symbol=signal.symbol,
-                    price_buy=signal.price_buy,
-                    price_sell=signal.price_sell,
-                    spread_percentage=signal.spread_percentage,
-                    signal_strength=signal.signal_strength,
-                    detected_at=signal.timestamp
+                    long_exchange=signal.exchange_buy,
+                    short_exchange=signal.exchange_sell,
+                    long_price=signal.price_buy,
+                    short_price=signal.price_sell,
+                    long_funding_rate=Decimal("0.01"),  # Default funding rate
+                    short_funding_rate=Decimal("-0.01"),  # Default funding rate
+                    net_funding_differential=Decimal("0.02"),  # Default differential
+                    timestamp=signal.timestamp
                 )
                 
                 # Get Kelly sizing result from production sizer
@@ -171,7 +171,7 @@ class PortfolioAwarePositionSizer:
                 if sizing_result.success:
                     # Adjust for signal confidence
                     confidence_factor = Decimal(str(signal.confidence))
-                    return sizing_result.position_size * confidence_factor
+                    return sizing_result.position_size_usd * confidence_factor
         except Exception:
             # Fall through to simple Kelly calculation
             pass
@@ -360,14 +360,14 @@ class PortfolioAwarePositionSizer:
         
         # Use risk assessment data if available
         risk_data = portfolio_with_risk.risk_assessment
-        # Note: Using general volatility estimate since symbol-specific volatilities not available
-        return risk_data.volatility_estimate
         
-        if symbol in volatilities:
-            return Decimal(str(volatilities[symbol]))
+        # If we have symbol-specific volatility data in the future, use it here
+        # For now, use general volatility estimate
+        if risk_data.volatility_estimate and risk_data.volatility_estimate > Decimal("0"):
+            return risk_data.volatility_estimate
         
         # Default volatility from risk parameters if not available
-        default_volatility = self.risk_params.default_volatilities["default"]
+        default_volatility = self.risk_params.default_volatilities.get("default", Decimal("0.5"))
         return default_volatility
 
     async def _calculate_position_risk(self, position: Any) -> Decimal:
