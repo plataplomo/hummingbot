@@ -369,7 +369,20 @@ def create_validation_mixin(validation_service: PortfolioValidationCoordinator) 
             Returns:
                 Dictionary containing validation statistics from the service.
             """
-            return self.validation_service.get_validation_stats().model_dump()
+            # Fix: get_validation_stats doesn't exist, use get_validation_statistics instead
+            stats = self.validation_service.get_validation_statistics()
+            # Convert ValidationStatistics to dict if needed
+            if hasattr(stats, 'model_dump'):
+                return stats.model_dump()
+            elif hasattr(stats, 'dict'):
+                return stats.dict()
+            else:
+                # Fallback - convert to dict manually
+                return {
+                    "total_validations": getattr(stats, 'total_validations', 0),
+                    "successful_validations": getattr(stats, 'successful_validations', 0),
+                    "failed_validations": getattr(stats, 'failed_validations', 0),
+                }
 
     return ValidationMixin
 
@@ -438,8 +451,10 @@ async def validate_data_integrity(
         for balance_result in balance_results:
             all_issues.extend(balance_result.issues)
 
-        balance_overall_result = ValidationResult[list[SpotBalance]].from_issues(
-            balances, all_issues
+        balance_overall_result = ValidationResult[list[SpotBalance]](
+            is_valid=len([issue for issue in all_issues if issue.severity == ValidationSeverity.ERROR]) == 0,
+            validated_data=balances,
+            issues=all_issues
         )
         results["balances"] = balance_overall_result
 
@@ -453,8 +468,10 @@ async def validate_data_integrity(
         for position_result in position_results:
             position_issues.extend(position_result.issues)
 
-        position_overall_result = ValidationResult[list[DerivativePosition]].from_issues(
-            positions, position_issues
+        position_overall_result = ValidationResult[list[DerivativePosition]](
+            is_valid=len([issue for issue in position_issues if issue.severity == ValidationSeverity.ERROR]) == 0,
+            validated_data=positions,
+            issues=position_issues
         )
         results["positions"] = position_overall_result
 

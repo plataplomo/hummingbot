@@ -41,6 +41,7 @@ from cyberdelta.core.symbols import Symbol
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import Order
+    from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
 
 
 logger = get_logger(__name__)
@@ -77,6 +78,11 @@ class NullBalanceManager(BalanceManagerProtocol):
     async def update_balance(self, exchange_id: str, balance: SpotBalance) -> None:
         """No-op single balance update."""
         logger.debug("null_balance_single_update", exchange_id=exchange_id, asset=balance.asset)
+    
+    async def get_all_balances(self, exchange_id: str | None = None) -> dict[str, SpotBalance]:
+        """Return empty balances."""
+        logger.debug("null_balance_get_all", exchange_id=exchange_id)
+        return {}
 
 
 class NullPositionManager(PositionManagerProtocol):
@@ -114,6 +120,11 @@ class NullPositionManager(PositionManagerProtocol):
     async def close_position(self, exchange_id: str, symbol: Symbol) -> None:
         """No-op position close."""
         logger.debug("null_position_close", exchange_id=exchange_id, symbol=symbol)
+    
+    async def get_all_positions(self, exchange_id: str | None = None) -> list[DerivativePosition]:
+        """Return empty positions."""
+        logger.debug("null_position_get_all", exchange_id=exchange_id)
+        return []
 
 
 class NullOrderManager(OrderManagerProtocol):
@@ -147,11 +158,11 @@ class NullOrderManager(OrderManagerProtocol):
     
     async def add_order(self, exchange_id: str, order: Order) -> None:
         """No-op order add."""
-        logger.debug("null_add_order", exchange_id=exchange_id, order_id=order.id)
+        logger.debug("null_add_order", exchange_id=exchange_id, order_id=order.client_order_id)
     
     async def update_order(self, exchange_id: str, order: Order) -> None:
         """No-op order update."""
-        logger.debug("null_update_order", exchange_id=exchange_id, order_id=order.id)
+        logger.debug("null_update_order", exchange_id=exchange_id, order_id=order.client_order_id)
     
     async def cancel_order(self, exchange_id: str, order_id: str) -> None:
         """No-op order cancel."""
@@ -277,6 +288,82 @@ class NullStateManager(StateManagerProtocol):
     async def get_all_balances(self, exchange_id: str | None = None) -> dict[str, SpotBalance]:
         """Return empty balances."""
         return {}
+    
+    async def get_balance(self, exchange_id: str, asset: str) -> SpotBalance | None:
+        """Return None for all balance queries."""
+        logger.debug("null_state_balance_get", exchange_id=exchange_id, asset=asset)
+        return None
+    
+    async def get_position(self, exchange_id: str, symbol: Symbol) -> DerivativePosition | None:
+        """Return None for all position queries."""
+        logger.debug("null_state_position_get", exchange_id=exchange_id, symbol=symbol)
+        return None
+    
+    async def get_order(self, exchange_id: str, order_id: str) -> Order | None:
+        """Return None for all order queries."""
+        logger.debug("null_state_order_get", exchange_id=exchange_id, order_id=order_id)
+        return None
+    
+    async def get_open_orders(self, exchange_id: str | None = None) -> list[Order]:
+        """Return empty list of orders."""
+        logger.debug("null_state_get_open_orders", exchange_id=exchange_id)
+        return []
+    
+    async def get_recent_trades(self, limit: int = 100) -> list[Trade]:
+        """Return empty list of trades."""
+        logger.debug("null_state_get_recent_trades", limit=limit)
+        return []
+    
+    async def get_portfolio_value(self, base_currency: str = "USDC") -> Decimal:
+        """Return zero portfolio value."""
+        logger.debug("null_state_get_portfolio_value", base_currency=base_currency)
+        return Decimal(0)
+    
+    async def get_exposure_metrics(self, valuation_asset: str = "USDC") -> dict[str, Decimal]:
+        """Return empty exposure metrics."""
+        logger.debug("null_state_get_exposure_metrics", valuation_asset=valuation_asset)
+        return {}
+    
+    async def update_balance(self, exchange_id: str, balance: SpotBalance) -> None:
+        """No-op balance update."""
+        logger.debug("null_state_update_balance", exchange_id=exchange_id, asset=balance.asset)
+    
+    async def update_position(self, exchange_id: str, position: DerivativePosition) -> None:
+        """No-op position update."""
+        logger.debug("null_state_update_position", exchange_id=exchange_id, symbol=position.symbol)
+    
+    async def add_order(self, exchange_id: str, order: Order) -> None:
+        """No-op order add."""
+        logger.debug("null_state_add_order", exchange_id=exchange_id, order_id=order.client_order_id)
+    
+    async def update_order(self, exchange_id: str, order: Order) -> None:
+        """No-op order update."""
+        logger.debug("null_state_update_order", exchange_id=exchange_id, order_id=order.client_order_id)
+    
+    async def add_trade(self, trade: Trade) -> None:
+        """No-op trade add."""
+        logger.debug("null_state_add_trade", trade_id=trade.id)
+    
+    async def clear_state(self) -> None:
+        """No-op state clear."""
+        logger.debug("null_state_clear")
+    
+    async def export_state(self) -> dict[str, Any]:
+        """Return empty state export."""
+        logger.debug("null_state_export")
+        return {}
+    
+    async def import_state(self, state_data: dict[str, Any]) -> None:
+        """No-op state import."""
+        logger.debug("null_state_import", data_keys=list(state_data.keys()))
+    
+    async def create_snapshot(self, snapshot_id: str) -> None:
+        """No-op snapshot creation."""
+        logger.debug("null_state_create_snapshot", snapshot_id=snapshot_id)
+    
+    async def restore_snapshot(self, snapshot_id: str) -> None:
+        """No-op snapshot restore."""
+        logger.debug("null_state_restore_snapshot", snapshot_id=snapshot_id)
 
     async def get_all_orders(self) -> dict[str, Order]:
         """Return empty orders."""
@@ -331,6 +418,46 @@ class NullPortfolioManager(PortfolioManagerProtocol[None]):
     async def shutdown(self) -> None:
         """No-op shutdown."""
         logger.debug("null_portfolio_shutdown")
+    
+    async def get_total_capital(self, base_currency: str = "USDC") -> Decimal:
+        """Return zero capital."""
+        logger.debug("null_portfolio_get_total_capital", base_currency=base_currency)
+        return Decimal(0)
+    
+    async def get_positions(self, exchange_id: str | None = None) -> list[DerivativePosition]:
+        """Return empty positions."""
+        logger.debug("null_portfolio_get_positions", exchange_id=exchange_id)
+        return []
+    
+    async def get_balances(self, exchange_id: str | None = None) -> dict[str, SpotBalance]:
+        """Return empty balances."""
+        logger.debug("null_portfolio_get_balances", exchange_id=exchange_id)
+        return {}
+    
+    async def get_exposure_metrics(self, valuation_asset: str = "USDC") -> ExposureMetrics:
+        """Return empty exposure metrics."""
+        logger.debug("null_portfolio_get_exposure_metrics", valuation_asset=valuation_asset)
+        return ExposureMetrics(
+            total_exposure=Decimal(0),
+            gross_exposure=Decimal(0),
+            net_exposure=Decimal(0),
+            long_exposure=Decimal(0),
+            short_exposure=Decimal(0),
+        )
+    
+    async def get_portfolio_state(self) -> PortfolioState:
+        """Return minimal portfolio state."""
+        from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+        logger.debug("null_portfolio_get_portfolio_state")
+        # Return a minimal PortfolioState with required fields
+        return PortfolioState(
+            portfolio_id="null_portfolio",
+            total_capital=Decimal(0)
+        )
+    
+    async def update_portfolio(self, update: PortfolioUpdate) -> None:
+        """No-op portfolio update."""
+        logger.debug("null_portfolio_update", update_id=str(update.update_id))
 
 
 class NullResilienceService:

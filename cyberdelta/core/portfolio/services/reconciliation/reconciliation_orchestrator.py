@@ -57,6 +57,9 @@ class ReconciliationResult:
             order_discrepancies,
             trade_discrepancies
         ]:
+            # Handle None or non-iterable cases
+            if discrepancy_list is None:
+                continue
             for disc in discrepancy_list:
                 if disc.severity == "error":
                     self.errors.append(disc)

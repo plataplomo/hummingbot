@@ -86,7 +86,7 @@ class AsyncStateContainer:
         return PortfolioSnapshot(
             snapshot_id=UUID(snapshot.snapshot_id) if isinstance(snapshot.snapshot_id, str) else snapshot.snapshot_id,
             portfolio_id=exchange,  # Use exchange as portfolio ID
-            timestamp=snapshot.timestamp.timestamp() if hasattr(snapshot.timestamp, "timestamp") else (float(snapshot.timestamp) if isinstance(snapshot.timestamp, (int, float)) else 0.0),
+            timestamp=self._convert_timestamp_to_float(snapshot.timestamp),
             total_value=Decimal("0.0"),
             cash_balance=Decimal("0.0"),
             positions_value=Decimal("0.0"),
@@ -108,6 +108,18 @@ class AsyncStateContainer:
         """Shutdown the container."""
         # State container doesn't need async shutdown
         pass
+
+    def _convert_timestamp_to_float(self, timestamp: object) -> float:
+        """Convert various timestamp formats to float."""
+        from datetime import datetime
+        
+        if isinstance(timestamp, datetime):
+            return timestamp.timestamp()
+        elif isinstance(timestamp, (int, float)):
+            return float(timestamp)
+        else:
+            # Default fallback
+            return 0.0
 
     @property
     def state_container(self) -> StateContainer[BaseStateModel]:

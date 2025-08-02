@@ -337,7 +337,7 @@ class PositionExposureCalculator:
                 stress_loss = notional_value * self.stress_scenario_move
 
             # Parse currency exposure
-            base_currency, quote_currency = self._parse_symbol_currencies(position.symbol.value)
+            base_currency, quote_currency = self._parse_symbol_currencies(position.symbol)
 
             # Calculate currency exposures
             base_exposure = position.size if base_currency else None
@@ -427,37 +427,51 @@ class PositionExposureCalculator:
         # SHORT - Short position liquidated when price rises above liquidation threshold
         return entry_price + (collateral_value / abs(position.size))
 
-    def _parse_symbol_currencies(self, symbol: str) -> tuple[str | None, str | None]:
+    def _parse_symbol_currencies(self, symbol: Symbol) -> tuple[str | None, str | None]:
         """Parse base and quote currencies from symbol.
 
         Args:
-            symbol: Trading symbol to parse
+            symbol: Trading Symbol object to parse
 
         Returns:
             Tuple of (base_currency, quote_currency), either can be None
         """
-        # Common patterns:
-        # BTC-PERP, ETH-PERP -> base currency only
-        # BTC/USD, ETH/USDT -> base and quote
-        # BTCUSDT -> need to parse
+        # Use Symbol object's parsed components directly
+        # Symbol objects already have base_asset and quote_asset properties
+        # that are properly parsed based on exchange and market type
+        
+        # Check if the symbol has components set
+        try:
+            base_currency = symbol.base_asset
+            quote_currency = symbol.quote_asset
+            
+            # For perpetual futures, the quote is typically USD
+            if quote_currency is None and "-PERP" in symbol.value:
+                quote_currency = "USD"
+                
+            return base_currency, quote_currency
+        except ValueError:
+            # If components aren't set, fall back to string parsing
+            # This shouldn't happen in production but provides safety
+            symbol_str = symbol.value
+            
+            if "-PERP" in symbol_str:
+                base = symbol_str.replace("-PERP", "")
+                return base, "USD"  # Assume USD settlement
 
-        if "-PERP" in symbol:
-            base = symbol.replace("-PERP", "")
-            return base, "USD"  # Assume USD settlement
+            if "/" in symbol_str:
+                parts = symbol_str.split("/")
+                if len(parts) == MINIMUM_SYMBOL_PARTS:
+                    return parts[0], parts[1]
 
-        if "/" in symbol:
-            parts = symbol.split("/")
-            if len(parts) == MINIMUM_SYMBOL_PARTS:
-                return parts[0], parts[1]
+            # Try to parse concatenated symbols
+            for quote in ["USDT", "USDC", "USD", "BTC", "ETH"]:
+                if symbol_str.endswith(quote):
+                    base = symbol_str[: -len(quote)]
+                    return base, quote
 
-        # Try to parse concatenated symbols
-        for quote in ["USDT", "USDC", "USD", "BTC", "ETH"]:
-            if symbol.endswith(quote):
-                base = symbol[: -len(quote)]
-                return base, quote
-
-        # Default: assume single currency
-        return symbol, None
+            # Default: assume single currency
+            return symbol_str, None
 
     def calculate_portfolio_impact(
         self, exposure: PositionExposure, total_portfolio_value: Decimal

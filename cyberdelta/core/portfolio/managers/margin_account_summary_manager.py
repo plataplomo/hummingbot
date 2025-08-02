@@ -154,6 +154,7 @@ class MarginAccountSummaryManager:
         self.health_check_interval = health_check_interval
         self.risk_threshold_margin_ratio = Decimal(str(risk_threshold_margin_ratio))
         self.critical_threshold_margin_ratio = Decimal(str(critical_threshold_margin_ratio))
+        self.logger = get_logger(__name__)
 
         # Current summaries by exchange
         self._summaries: dict[str, AccountSummary] = {}

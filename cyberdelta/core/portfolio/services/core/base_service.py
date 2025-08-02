@@ -44,6 +44,7 @@ class BasePortfolioService(BaseModel, ServiceLifecycle):
         """Service-specific shutdown."""
         pass
 
+    @property
     def is_initialized(self) -> bool:
         """Check if service is initialized."""
         return self._initialized

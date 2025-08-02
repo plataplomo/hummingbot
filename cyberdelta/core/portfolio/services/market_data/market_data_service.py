@@ -255,9 +255,10 @@ class RealMarketDataService(MarketDataProvider):
                     
                     if history and len(history) > 0:
                         # Cache the result
-                        self._price_history_cache[cache_key] = history
+                        typed_history: list[dict[str, Any]] = history
+                        self._price_history_cache[cache_key] = typed_history
                         self._last_cache_update[cache_key] = datetime.now(UTC)
-                        return history
+                        return typed_history
                 
             except Exception as e:
                 self.logger.warning(

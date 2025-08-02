@@ -95,6 +95,8 @@ class MarketRateFetcherService:
         
         for symbol_str in symbols:
             try:
+                if self.price_service is None:
+                    continue
                 symbol = create_symbol(symbol_str, ExchangeName.HYPERLIQUID)
                 price = await self.price_service.get_price_in_currency(symbol, to_currency)
                 if price:
@@ -132,6 +134,8 @@ class MarketRateFetcherService:
         
         for symbol_str in inv_symbols:
             try:
+                if self.price_service is None:
+                    continue
                 symbol = create_symbol(symbol_str, ExchangeName.HYPERLIQUID)
                 price = await self.price_service.get_price_in_currency(symbol, to_currency)
                 if price and price > 0:

@@ -27,7 +27,7 @@ from cyberdelta.core.portfolio.exceptions.calculation import (
 
 if TYPE_CHECKING:
     from cyberdelta.core.portfolio.models.base import BaseStateModel
-    from cyberdelta.core.portfolio.protocols import StateContainerProtocol
+    from cyberdelta.core.portfolio.portfolio_types.protocols import StateContainerProtocol
 
 # Type variables for input and result
 TInput = TypeVar("TInput", bound=object)

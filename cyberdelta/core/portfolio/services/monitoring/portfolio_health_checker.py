@@ -53,25 +53,24 @@ class PortfolioHealthChecker(BasePortfolioService):
         portfolio_manager: PortfolioManagerProtocol[Any],
         config: dict[str, Any] | None = None
     ):
-        super().__init__("portfolio_health_checker")
+        super().__init__("portfolio_health_checker", config)
         self.portfolio_manager = portfolio_manager
-        self.config = config or {}
         self.logger = get_logger(__name__)
         
-        # Health thresholds
-        self.balance_thresholds = {
+        # Health thresholds with explicit types
+        self.balance_thresholds: dict[str, Decimal | int] = {
             "negative_balance_warning": Decimal(0),
             "low_balance_warning": Decimal(100),
             "balance_staleness_hours": 6
         }
         
-        self.position_thresholds = {
+        self.position_thresholds: dict[str, Decimal | int] = {
             "large_position_warning": Decimal(10000),
             "position_staleness_hours": 4,
             "unrealized_loss_warning": Decimal(500)
         }
         
-        self.order_thresholds = {
+        self.order_thresholds: dict[str, int | float] = {
             "stale_order_hours": 24,
             "failed_order_rate_warning": 0.1
         }
@@ -131,33 +130,33 @@ class PortfolioHealthChecker(BasePortfolioService):
             # Get balances from all exchanges
             balances = await self.portfolio_manager.get_balances()
             
-            for exchange_id, exchange_balances in balances.items():
-                for asset, balance in exchange_balances.items():
-                    # Check for negative balances
-                    if balance.total_quantity < self.balance_thresholds["negative_balance_warning"]:
-                        alerts.append(PortfolioHealthAlert(
-                            alert_type="negative_balance",
-                            severity="critical",
-                            message=f"Negative balance detected for {asset} on {exchange_id}",
-                            details={
-                                "exchange": exchange_id,
-                                "asset": asset,
-                                "balance": float(balance.total_quantity)
-                            }
-                        ))
-                    
-                    # Check for low balances
-                    elif balance.total_quantity < self.balance_thresholds["low_balance_warning"]:
-                        alerts.append(PortfolioHealthAlert(
-                            alert_type="low_balance",
-                            severity="warning", 
-                            message=f"Low balance for {asset} on {exchange_id}",
-                            details={
-                                "exchange": exchange_id,
-                                "asset": asset,
-                                "balance": float(balance.total_quantity)
-                            }
-                        ))
+            # balances is dict[str, SpotBalance] where keys are asset names
+            for asset, balance in balances.items():
+                # Check for negative balances
+                if balance.total_quantity < self.balance_thresholds["negative_balance_warning"]:
+                    alerts.append(PortfolioHealthAlert(
+                        alert_type="negative_balance",
+                        severity="critical",
+                        message=f"Negative balance detected for {asset} on {balance.exchange}",
+                        details={
+                            "exchange": balance.exchange,
+                            "asset": asset,
+                            "balance": float(balance.total_quantity)
+                        }
+                    ))
+                
+                # Check for low balances
+                elif balance.total_quantity < self.balance_thresholds["low_balance_warning"]:
+                    alerts.append(PortfolioHealthAlert(
+                        alert_type="low_balance",
+                        severity="warning", 
+                        message=f"Low balance for {asset} on {balance.exchange}",
+                        details={
+                            "exchange": balance.exchange,
+                            "asset": asset,
+                            "balance": float(balance.total_quantity)
+                        }
+                    ))
                     
                     # Check balance staleness
                     if balance.timestamp:
@@ -166,27 +165,27 @@ class PortfolioHealthChecker(BasePortfolioService):
                             alerts.append(PortfolioHealthAlert(
                                 alert_type="stale_balance",
                                 severity="warning",
-                                message=f"Stale balance data for {asset} on {exchange_id}",
+                                message=f"Stale balance data for {asset} on {balance.exchange}",
                                 details={
-                                    "exchange": exchange_id,
+                                    "exchange": balance.exchange,
                                     "asset": asset,
                                     "staleness_hours": staleness_hours
                                 }
                             ))
-                    
-                    # Create health metric
-                    status = HealthStatus.HEALTHY
-                    if any(alert.alert_type in ["negative_balance", "stale_balance"] and 
-                          alert.details.get("asset") == asset and 
-                          alert.details.get("exchange") == exchange_id for alert in alerts):
-                        status = HealthStatus.WARNING
-                    
-                    metrics.append(PortfolioHealthMetric(
-                        metric_name=f"balance_{exchange_id}_{asset}",
-                        current_value=float(balance.total_quantity),
-                        threshold_value=float(self.balance_thresholds["low_balance_warning"]),
-                        status=status
-                    ))
+                
+                # Create health metric
+                status = HealthStatus.HEALTHY
+                if any(alert.alert_type in ["negative_balance", "stale_balance"] and 
+                      alert.details.get("asset") == asset and 
+                      alert.details.get("exchange") == balance.exchange for alert in alerts):
+                    status = HealthStatus.WARNING
+                
+                metrics.append(PortfolioHealthMetric(
+                    metric_name=f"balance_{balance.exchange}_{asset}",
+                    current_value=float(balance.total_quantity),
+                    threshold_value=float(self.balance_thresholds["low_balance_warning"]),
+                    status=status
+                ))
             
         except Exception as e:
             self.logger.error(f"Error checking balance health: {e}")

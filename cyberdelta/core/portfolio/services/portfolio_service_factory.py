@@ -79,33 +79,48 @@ class PortfolioServiceFactory:
             )
             
             self._services["portfolio_state_manager"] = manager
-        return self._services["portfolio_state_manager"]
+        
+        # Return with proper type annotation
+        manager_from_cache = self._services["portfolio_state_manager"]
+        assert isinstance(manager_from_cache, PortfolioStateManager)
+        return manager_from_cache
 
     def create_performance_analytics(self) -> PerformanceAnalyticsService:
         """Create performance analytics service."""
         if "performance_analytics" not in self._services:
             # Use default base currency since portfolio_tracker was removed
             base_currency = 'USDC'
-            self._services["performance_analytics"] = PerformanceAnalyticsService(
-                base_currency=base_currency
-            )
-        return self._services["performance_analytics"]
+            service = PerformanceAnalyticsService(base_currency=base_currency)
+            self._services["performance_analytics"] = service
+        
+        # Return with proper type annotation
+        service_from_cache = self._services["performance_analytics"]
+        assert isinstance(service_from_cache, PerformanceAnalyticsService)
+        return service_from_cache
 
     def create_risk_analytics(self) -> ReportingService:
         """Create risk analytics service."""
         if "risk_analytics" not in self._services:
-            self._services["risk_analytics"] = ReportingService()
-        return self._services["risk_analytics"]
+            service = ReportingService()
+            self._services["risk_analytics"] = service
+        
+        # Return with proper type annotation
+        service_from_cache = self._services["risk_analytics"]
+        assert isinstance(service_from_cache, ReportingService)
+        return service_from_cache
 
     def create_exposure_analytics(self) -> ExposureMetricsService:
         """Create exposure analytics service."""
         if "exposure_analytics" not in self._services:
             # Use default base currency since portfolio_tracker was removed
             base_currency = 'USDC'
-            self._services["exposure_analytics"] = ExposureMetricsService(
-                base_currency=base_currency
-            )
-        return self._services["exposure_analytics"]
+            service = ExposureMetricsService(base_currency=base_currency)
+            self._services["exposure_analytics"] = service
+        
+        # Return with proper type annotation
+        service_from_cache = self._services["exposure_analytics"]
+        assert isinstance(service_from_cache, ExposureMetricsService)
+        return service_from_cache
 
     def create_event_dispatcher(self) -> EventDispatcher:
         """Create REAL event dispatcher with proper event handling."""
@@ -113,7 +128,11 @@ class PortfolioServiceFactory:
             # Create REAL EventDispatcher
             dispatcher = EventDispatcher()
             self._services["event_dispatcher"] = dispatcher
-        return self._services["event_dispatcher"]
+        
+        # Return with proper type annotation
+        dispatcher_from_cache = self._services["event_dispatcher"]
+        assert isinstance(dispatcher_from_cache, EventDispatcher)
+        return dispatcher_from_cache
     
     def get_portfolio_manager(self) -> PortfolioStateManager:
         """Get portfolio state manager (alias for create method)."""
@@ -331,11 +350,19 @@ class PortfolioServiceFactory:
         if "exchange_service" not in self._services:
             service = ExchangeDataService(service_name="portfolio_exchange_data")
             self._services["exchange_service"] = service
-        return self._services["exchange_service"]
+        
+        # Return with proper type annotation
+        service_from_cache = self._services["exchange_service"]
+        assert isinstance(service_from_cache, ExchangeDataService)
+        return service_from_cache
 
     def get_exchange_data_service(self) -> ExchangeDataService:
         """Get exchange data service."""
-        return self._services.get("exchange_data_service") or self.create_exchange_service()
+        service = self._services.get("exchange_data_service")
+        if service:
+            assert isinstance(service, ExchangeDataService)
+            return service
+        return self.create_exchange_service()
 
     def create_validation_service(self) -> PortfolioValidationCoordinator:
         """Create REAL validation service."""
@@ -346,13 +373,17 @@ class PortfolioServiceFactory:
             # Create REAL validation coordinator
             validator = PortfolioValidationCoordinator(self.app_settings, self._state_container)
             self._services["validation_service"] = validator
-        return self._services["validation_service"]
+        
+        # Return with proper type annotation
+        service_from_cache = self._services["validation_service"]
+        assert isinstance(service_from_cache, PortfolioValidationCoordinator)
+        return service_from_cache
         
     def _create_state_container(self) -> StateContainerProtocol:
         """Create state container for portfolio data persistence."""
         return AsyncStateContainer(state_id="portfolio_state_container")
         
-    def _create_validation_service(self) -> ValidationServiceProtocol:
+    def _create_validation_service(self) -> PortfolioValidationCoordinator:
         """Create validation service for portfolio data validation."""
         if not self._state_container:
             self._state_container = self._create_state_container()
@@ -380,7 +411,11 @@ class PortfolioServiceFactory:
         if "reconciliation_service" not in self._services:
             service = PortfolioReconciliationService(service_factory=self)
             self._services["reconciliation_service"] = service
-        return self._services["reconciliation_service"]
+        
+        # Return with proper type annotation
+        service_from_cache = self._services["reconciliation_service"]
+        assert isinstance(service_from_cache, PortfolioReconciliationService)
+        return service_from_cache
         
     def get_validation_service(self) -> PortfolioValidationCoordinator:
         """Get validation service (alias for create method)."""
@@ -395,7 +430,11 @@ class PortfolioServiceFactory:
                 api_clients=api_clients or self._api_clients
             )
             self._services["market_data_service"] = service
-        return self._services["market_data_service"]
+        
+        # Return with proper type annotation
+        service_from_cache = self._services["market_data_service"]
+        assert isinstance(service_from_cache, RealMarketDataService)
+        return service_from_cache
     
     def get_market_data_service(self) -> RealMarketDataService:
         """Get market data service (alias for create method)."""

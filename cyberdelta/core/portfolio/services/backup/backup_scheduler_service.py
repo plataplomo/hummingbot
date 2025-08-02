@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from enum import Enum
 from typing import TYPE_CHECKING
@@ -86,12 +87,12 @@ class BackupSchedulerService(BasePortfolioService):
         # Cancel background tasks
         if self._backup_task:
             self._backup_task.cancel()
-            with asyncio.suppress(asyncio.CancelledError):
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._backup_task
         
         if self._cleanup_task:
             self._cleanup_task.cancel()
-            with asyncio.suppress(asyncio.CancelledError):
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._cleanup_task
         
         logger.info("Backup scheduler service shutdown")
@@ -164,10 +165,15 @@ class BackupSchedulerService(BasePortfolioService):
             return 0
         
         # Sort by timestamp (oldest first)
-        sorted_backups = sorted(
-            all_backups.items(),
-            key=lambda x: x[1].get("timestamp", 0)
-        )
+        def get_timestamp(item: tuple[str, object]) -> float:
+            backup_id, metadata = item
+            if isinstance(metadata, dict) and "timestamp" in metadata:
+                timestamp = metadata["timestamp"]
+                if isinstance(timestamp, (int, float)):
+                    return float(timestamp)
+            return 0.0
+        
+        sorted_backups = sorted(all_backups.items(), key=get_timestamp)
         
         # Remove oldest backups
         excess_count = len(all_backups) - self.max_backups

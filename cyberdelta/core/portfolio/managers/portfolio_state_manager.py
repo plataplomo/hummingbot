@@ -39,8 +39,8 @@ if TYPE_CHECKING:
     from cyberdelta.core.portfolio.protocols import (
         MetricsCollectorProtocol,
         StateContainerProtocol,
+        ValidationServiceProtocol,
     )
-    from cyberdelta.core.portfolio.protocols.validation import ValidationServiceProtocol
 
 logger = get_logger(__name__)
 

@@ -69,15 +69,19 @@ class BackupMetadataService(BasePortfolioService):
     async def get_backup_statistics(self) -> dict[str, object]:
         """Get backup statistics."""
         total_backups = len(self.metadata_index)
-        backup_sizes = []
-        backup_ages = []
+        backup_sizes: list[float] = []
+        backup_ages: list[float] = []
         current_time = time.time()
 
         for metadata in self.metadata_index.values():
             if "file_size" in metadata:
-                backup_sizes.append(metadata["file_size"])
+                file_size = metadata["file_size"]
+                if isinstance(file_size, (int, float)):
+                    backup_sizes.append(float(file_size))
             if "timestamp" in metadata:
-                backup_ages.append(current_time - float(metadata["timestamp"]))
+                timestamp = metadata["timestamp"]
+                if isinstance(timestamp, (int, float)):
+                    backup_ages.append(current_time - float(timestamp))
 
         return {
             "total_backups": total_backups,
