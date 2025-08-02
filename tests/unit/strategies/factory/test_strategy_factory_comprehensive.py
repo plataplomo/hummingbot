@@ -10,6 +10,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.models.funding_strategy_models import StrategyParamsHLPerpBPSpot
 from cyberdelta.core.data_handler import DataHandler
@@ -168,7 +169,7 @@ class TestValidateStrategyEnabled:
             mock_portfolio_state_manager = Mock()
             factory.create_hl_perp_bp_spot_strategy(
                 name="test",
-                symbol="BTC",
+                symbol=BTC_HL.value,
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_state_manager,
             )
@@ -199,7 +200,7 @@ class TestValidateStrategyEnabled:
             mock_portfolio_state_manager = Mock()
             factory.create_hl_perp_bp_spot_strategy(
                 name="test",
-                symbol="BTC",
+                symbol=BTC_HL.value,
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_state_manager,
             )
@@ -228,7 +229,7 @@ class TestValidateStrategyEnabled:
             mock_portfolio_state_manager = Mock()
             factory.create_hl_perp_bp_spot_strategy(
                 name="test",
-                symbol="BTC",
+                symbol=BTC_HL.value,
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_state_manager,
             )
@@ -311,7 +312,7 @@ class TestCreateHLPerpBPSpotStrategy:
         """Test successful strategy creation with risk manager."""
         # Arrange
         name = "test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         with (
             patch.object(
@@ -353,7 +354,7 @@ class TestCreateHLPerpBPSpotStrategy:
         """Test successful strategy creation without risk manager."""
         # Arrange
         name = "test_strategy"
-        symbol = "ETH"
+        symbol = ETH_HL.value
 
         with (
             patch.object(
@@ -397,7 +398,7 @@ class TestCreateHLPerpBPSpotStrategy:
         """Test strategy creation with empty name."""
         # Arrange
         name = ""
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         with (
             patch.object(
@@ -430,7 +431,7 @@ class TestCreateHLPerpBPSpotStrategy:
         """Test strategy creation with special characters in name."""
         # Arrange
         name = "strategy-with_special.chars@123"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         with (
             patch.object(
@@ -470,7 +471,7 @@ class TestCreateHLPerpBPSpotStrategy:
 
         factory = StrategyFactory(config)
         name = "test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         # Act & Assert
         with pytest.raises(StrategyCreationError) as exc_info:
@@ -492,7 +493,7 @@ class TestCreateHLPerpBPSpotStrategy:
         """Test strategy creation failure when strategy class raises exception."""
         # Arrange
         name = "test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         with (
             patch.object(
@@ -582,7 +583,7 @@ class TestCreateStrategy:
         # Arrange
         strategy_type = "hl_perp_bp_spot"
         name = "test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
         mock_strategy = Mock(spec=FundingRateArbitrageStrategy)
 
         with patch.object(
@@ -620,7 +621,7 @@ class TestCreateStrategy:
         # Arrange - Test case sensitivity
         strategy_type = "HL_PERP_BP_SPOT"  # Wrong case
         name = "test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         # Act & Assert
         with pytest.raises(StrategyCreationError) as exc_info:
@@ -646,7 +647,7 @@ class TestCreateStrategy:
         # Arrange
         strategy_type = "unknown_strategy"
         name = "test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         # Act & Assert
         with pytest.raises(StrategyCreationError) as exc_info:
@@ -671,7 +672,7 @@ class TestCreateStrategy:
         # Arrange
         strategy_type = ""
         name = "test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         # Act & Assert
         with pytest.raises(StrategyCreationError) as exc_info:
@@ -743,7 +744,7 @@ class TestConvertStrategyParamsToDict:
             mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
-                symbol="BTC",
+                symbol=BTC_HL.value,
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_state_manager,
             )
@@ -792,7 +793,7 @@ class TestConvertStrategyParamsToDict:
             mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
-                symbol="BTC",
+                symbol=BTC_HL.value,
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_state_manager,
             )
@@ -836,7 +837,7 @@ class TestConvertStrategyParamsToDict:
             mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
-                symbol="BTC",
+                symbol=BTC_HL.value,
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_state_manager,
             )
@@ -881,7 +882,7 @@ class TestConvertStrategyParamsToDict:
             mock_portfolio_state_manager = Mock()
             result = factory.create_hl_perp_bp_spot_strategy(
                 name="test",
-                symbol="BTC",
+                symbol=BTC_HL.value,
                 data_handler=mock_data_handler,
                 portfolio_tracker=mock_portfolio_state_manager,
             )
@@ -1189,7 +1190,7 @@ def test_convert_strategy_params_parametrized(
         mock_portfolio_state_manager = Mock()
         result = factory.create_hl_perp_bp_spot_strategy(
             name="test",
-            symbol="BTC",
+            symbol=BTC_HL.value,
             data_handler=mock_data_handler,
             portfolio_tracker=mock_portfolio_state_manager,
         )
@@ -1261,7 +1262,7 @@ class TestStrategyFactoryIntegration:
         """Test complete strategy creation workflow."""
         # Arrange
         name = "integration_test_strategy"
-        symbol = "BTC"
+        symbol = BTC_HL.value
 
         with patch(
             "cyberdelta.strategies.factory.strategy_factory.FundingRateArbitrageStrategy"

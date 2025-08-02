@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
     HyperliquidRawCandleRequestDetails,
     HyperliquidRawCandleSnapshotRequestPayload,
@@ -41,7 +41,7 @@ class TestHyperliquidMarketDataRequestBuilder:
         Returns:
             str: A test symbol string for testing.
         """
-        return symbols.BTC.hyperliquid().value
+        return BTC_HL.value
 
     def test_build_info_request_payload(self, builder: HyperliquidMarketDataRequestBuilder) -> None:
         """Test building info request payload."""
@@ -110,12 +110,12 @@ class TestHyperliquidMarketDataRequestBuilder:
         start_time_ms = int(datetime(2023, 1, 1, 0, 0, 0, tzinfo=UTC).timestamp() * 1000)
         end_time_ms = int(datetime(2023, 1, 1, 1, 0, 0, tzinfo=UTC).timestamp() * 1000)
         args1 = HyperliquidGetCandleSnapshotArgs(
-            symbol=symbols.BTC.hyperliquid().value, timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            symbol=BTC_HL.value, timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         payload1 = builder.build_candle_snapshot_payload(args1)
 
         args2 = HyperliquidGetCandleSnapshotArgs(
-            symbol=symbols.ETH.hyperliquid().value, timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
+            symbol=ETH_HL.value, timeframe="1h", start_time_ms=start_time_ms, end_time_ms=end_time_ms
         )
         payload2 = builder.build_candle_snapshot_payload(args2)
 

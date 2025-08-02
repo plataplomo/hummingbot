@@ -36,7 +36,7 @@ from cyberdelta.core.risk.sizing.models.sizing_result import (
     SizingStatus,
 )
 from cyberdelta.core.risk.sizing.strategies.kelly_criterion_sizer import KellyCriterionSizer
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -170,7 +170,7 @@ def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
 
 
 def create_test_opportunity(
-    symbol: str = symbols.BTC.hyperliquid().value,
+    symbol: str = BTC_HL.value,
     long_exchange: str = "exchange1",
     short_exchange: str = "exchange2",
     long_price: float = 50000.0,
@@ -262,7 +262,7 @@ class TestKellyCriterionSizer:
     async def test_calculate_size_with_complete_data(self) -> None:
         """Test size calculation with complete historical data."""
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
         context = create_test_context(available_capital=100000.0)
 
@@ -290,7 +290,7 @@ class TestKellyCriterionSizer:
     async def test_calculate_size_with_minimal_data(self) -> None:
         """Test size calculation with minimal data."""
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
         context = create_test_context(available_capital=50000.0)
 
@@ -314,7 +314,7 @@ class TestKellyCriterionSizer:
     async def test_calculate_size_small_spread_opportunity(self) -> None:
         """Test size calculation for small spread opportunity."""
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             long_price=50000.0,
             short_price=50025.0,  # Very small spread
         )
@@ -337,7 +337,7 @@ class TestKellyCriterionSizer:
 
         # Simple case: 60% win rate, 2:1 reward:risk
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50100.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50100.0
         )
         context = create_test_context(available_capital=50000.0)
 
@@ -359,7 +359,7 @@ class TestKellyCriterionSizer:
         returns = [0.02, -0.01, 0.03, -0.005, 0.025, -0.015, 0.01, -0.008] * 30
 
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
         context = create_test_context(available_capital=50000.0)
 
@@ -378,11 +378,11 @@ class TestKellyCriterionSizer:
     async def test_sharpe_ratio_adjustment(self) -> None:
         """Test Sharpe ratio adjustment."""
         base_opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         low_sharpe_opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             long_price=50000.0,
             short_price=50025.0,  # Lower spread
         )
@@ -407,11 +407,11 @@ class TestKellyCriterionSizer:
     async def test_drawdown_adjustment(self) -> None:
         """Test drawdown adjustment."""
         base_opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         high_drawdown_opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             long_price=50000.0,
             short_price=50025.0,  # Lower spread to simulate higher drawdown
         )
@@ -437,7 +437,7 @@ class TestKellyCriterionSizer:
         """Test allocation limits enforcement."""
         # Test minimum allocation
         low_kelly_opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             long_price=50000.0,
             short_price=50025.0,  # Small spread
         )
@@ -451,7 +451,7 @@ class TestKellyCriterionSizer:
 
         # Test maximum allocation
         high_kelly_opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             long_price=50000.0,
             short_price=50250.0,  # Large spread
         )
@@ -467,7 +467,7 @@ class TestKellyCriterionSizer:
         """Test confidence threshold filtering."""
         # Low confidence opportunity
         low_confidence_opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         context = create_test_context(available_capital=50000.0)
@@ -485,7 +485,7 @@ class TestKellyCriterionSizer:
         """Test size calculation with missing required data."""
         # Test with empty context
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         empty_context = create_test_context(available_capital=0.0)
@@ -500,7 +500,7 @@ class TestKellyCriterionSizer:
         """Test size calculation with invalid data."""
         # Test with negative capital
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         invalid_context = create_test_context(available_capital=-50000.0)
@@ -514,7 +514,7 @@ class TestKellyCriterionSizer:
     async def test_calculate_size_async(self) -> None:
         """Test async size calculation."""
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         context = create_test_context(available_capital=50000.0)
@@ -532,7 +532,7 @@ class TestKellyCriterionSizer:
         sizer = KellyCriterionSizer(app_settings=create_test_app_settings(config))
 
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         context = create_test_context(available_capital=50000.0)
@@ -554,7 +554,7 @@ class TestKellyCriterionSizer:
         multipliers = [0.1, 0.25, 0.5, 1.0]
 
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         context = create_test_context(available_capital=50000.0)
@@ -577,7 +577,7 @@ class TestKellyCriterionSizer:
     async def test_performance_timing(self) -> None:
         """Test that size calculation timing is recorded."""
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         context = create_test_context(available_capital=50000.0)
@@ -610,7 +610,7 @@ class TestKellyCriterionSizer:
         sizer = KellyCriterionSizer(app_settings=create_test_app_settings(config))
 
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         context = create_test_context(available_capital=50000.0)
@@ -627,7 +627,7 @@ class TestKellyCriterionSizer:
         """Test error handling during calculation."""
         # Test with invalid opportunity data
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0
+            symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0
         )
 
         # Test with invalid context
@@ -658,7 +658,7 @@ class TestKellyCriterionSizerIntegration:
 
         # High-quality opportunity
         opportunity = create_test_opportunity(
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             long_price=50000.0,
             short_price=50090.0,  # Good spread
         )
@@ -697,9 +697,9 @@ class TestKellyCriterionSizerIntegration:
 
         # Multiple opportunities with different risk/return profiles
         opportunities = [
-            create_test_opportunity(symbol=symbols.BTC.hyperliquid().value, long_price=50000.0, short_price=50075.0),
-            create_test_opportunity(symbol=symbols.ETH.hyperliquid().value, long_price=3000.0, short_price=3036.0),
-            create_test_opportunity(symbol=symbols.SOL.hyperliquid().value, long_price=100.0, short_price=100.22),
+            create_test_opportunity(symbol=BTC_HL.value, long_price=50000.0, short_price=50075.0),
+            create_test_opportunity(symbol=ETH_HL.value, long_price=3000.0, short_price=3036.0),
+            create_test_opportunity(symbol=SOL_HL.value, long_price=100.0, short_price=100.22),
         ]
 
         context = create_test_context(available_capital=50000.0)

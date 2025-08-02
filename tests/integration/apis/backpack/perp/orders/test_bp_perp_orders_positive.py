@@ -25,6 +25,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -999,7 +1000,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order precision handling with edge case values."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         # Use min_quantity if available, otherwise use step_size as fallback
@@ -1041,7 +1042,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order calculations with leverage considerations."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)
         max_leverage = constraints.get("max_leverage", Decimal(20))
@@ -1081,7 +1082,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving perp order history with positive balance."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         # Get recent order history
         end_time = datetime.now(UTC)
@@ -1114,7 +1115,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market order execution with margin available."""
-        symbol_str = "SOL_USDC_PERP"
+        symbol_str = SOL_USDC_PERP_BP.value
         symbol = exchanges.backpack(symbol_str)
 
         # Get minimal quantity for market order test
@@ -1159,7 +1160,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test concurrent perp order operations."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         buy_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         sell_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
@@ -1234,7 +1235,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order operations with funding rate considerations."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         try:
             # Get current funding rate
@@ -1299,7 +1300,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         should either succeed (if margin is sufficient) or fail with a proper
         margin-related error (if insufficient).
         """
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         # Get market constraints
         constraints = await get_market_constraints(bp_api_for_test_env, symbol)

@@ -29,7 +29,7 @@ from cyberdelta.core.models.market.funding_rate import (
 )
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from tests.common_symbols import BTC_HL, BTC_BP, ETH_HL, ETH_BP
+from tests.common_symbols import BTC_HL, BTC_BP, ETH_HL, ETH_BP, BTC_USDC_BP
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
@@ -46,7 +46,7 @@ PositionType = DerivativePosition | None
 
 
 def create_mock_opportunity(
-    symbol: str,
+    symbol: Symbol,
     long_exchange: str = "long_ex",
     short_exchange: str = "short_ex",
     long_funding_rate: Decimal = Decimal("0.0001"),
@@ -81,7 +81,7 @@ def create_mock_opportunity(
 
 
 def create_mock_signal(
-    symbol: str,
+    symbol: Symbol,
     signal_type: SignalType = SignalType.ENTER_LONG,
     side: OrderSide = OrderSide.BUY,
     price: Decimal = Decimal(100),
@@ -118,14 +118,14 @@ def strategy() -> FundingRateArbitrageStrategy:
         FundingRateArbitrageStrategy: Configured strategy instance with mock dependencies.
     """
     data_handler = MagicMock()
-    portfolio_tracker = MagicMock(spec=PortfolioStateManager)
+    portfolio_state_manager = MagicMock(spec=PortfolioStateManager)
     risk_manager_mock = MagicMock(spec=RiskManager)
 
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
-        symbol=BTC_HL.value,
+        symbol=BTC_HL,
         data_handler=data_handler,
-        portfolio_tracker=portfolio_tracker,
+        portfolio_state_manager=portfolio_state_manager,
         risk_manager=risk_manager_mock,
         params={
             "min_funding_differential": Decimal("0.01"),
@@ -133,7 +133,7 @@ def strategy() -> FundingRateArbitrageStrategy:
             "risk_aversion": Decimal("0.5"),
             "perp_exchange": "hyperliquid",
             "spot_exchange": "backpack",
-            "symbol_mapping": {BTC_HL.value: "BTC_USDC"},
+            "symbol_mapping": {BTC_HL.value: BTC_USDC_BP.value},
         },
     )
 
@@ -188,9 +188,9 @@ def fake_get_ticker(exchange_id: str, symbol: str) -> Ticker | None:
             ask=Decimal("30001.0"),
             volume=Decimal(1000),
         )
-    if exchange_id == "backpack" and symbol == "BTC_USDC":
+    if exchange_id == "backpack" and symbol == BTC_USDC_BP.value:
         return Ticker(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP,
             exchange="backpack",
             price=Decimal("29990.0"),
             timestamp=now,
@@ -235,7 +235,7 @@ async def test_process_data_scheduling(
             "get_latest_funding_rate",
             side_effect=fake_get_funding_rate,
         ),
-        patch.object(strategy.portfolio_tracker, "get_position", return_value=None),
+        patch.object(strategy.portfolio_state_manager, "get_position", return_value=None),
         patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
     ):
         # Configure mock to return an awaitable
@@ -267,7 +267,7 @@ async def test_process_data_no_scheduling_if_recent_check(
             "get_latest_funding_rate",
             side_effect=fake_get_funding_rate,
         ),
-        patch.object(strategy.portfolio_tracker, "get_position", return_value=None),
+        patch.object(strategy.portfolio_state_manager, "get_position", return_value=None),
         patch.object(strategy, "evaluate_entry_opportunity") as mock_eval,
     ):
         # Configure mock to return an awaitable (though it shouldn't be called)
@@ -287,7 +287,7 @@ async def test_process_data_rebalance_signal_generation(
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
     """Test that process_data generates rebalance signals when prices have moved significantly."""
-    strategy.active_opportunities = [create_mock_opportunity(symbol=BTC_HL.value)]
+    strategy.active_opportunities = [create_mock_opportunity(symbol=BTC_HL)]
 
     def rebalance_ticker_prices(ex: str, sym: str) -> Ticker | None:
         now = datetime.now(UTC)
@@ -301,9 +301,9 @@ async def test_process_data_rebalance_signal_generation(
                 ask=Decimal("31001.0"),
                 volume=Decimal(1000),
             )
-        if (ex, sym) == ("backpack", "BTC_USDC"):
+        if (ex, sym) == ("backpack", BTC_USDC_BP.value):
             return Ticker(
-                symbol="BTC_USDC",
+                symbol=BTC_USDC_BP,
                 exchange="backpack",
                 price=Decimal("30500.0"),
                 timestamp=now,
@@ -331,7 +331,7 @@ async def test_process_data_rebalance_signal_generation(
             side_effect=fake_get_funding_rate,
         ),
         patch.object(
-            strategy.portfolio_tracker,
+            strategy.portfolio_state_manager,
             "get_position",
             side_effect=fake_get_position,
         ) as _,
@@ -339,7 +339,7 @@ async def test_process_data_rebalance_signal_generation(
         patch.object(
             strategy,
             "_generate_rebalance_signal",
-            return_value=[create_mock_signal(symbol=BTC_HL.value, signal_type=SignalType.REBALANCE)],
+            return_value=[create_mock_signal(symbol=BTC_HL, signal_type=SignalType.REBALANCE)],
         ) as mock_gen_rebal_signal,
         patch.object(
             strategy,
@@ -366,7 +366,7 @@ async def test_evaluate_entry_opportunity_found(
     strategy: FundingRateArbitrageStrategy,
 ) -> None:
     """Test that evaluate_entry_opportunities identifies and logs profitable opportunities."""
-    mock_opportunity = create_mock_opportunity(symbol=BTC_HL.value, expected_profit=Decimal(100))
+    mock_opportunity = create_mock_opportunity(symbol=BTC_HL, expected_profit=Decimal(100))
     ep = cast("Decimal", mock_opportunity.expected_profit)
     mock_sized_opportunity = SizedOpportunity(
         opportunity=mock_opportunity,
@@ -388,7 +388,7 @@ async def test_evaluate_entry_opportunity_found(
             "get_latest_funding_rate",
             side_effect=fake_get_funding_rate,
         ),
-        patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
+        patch.object(strategy.portfolio_state_manager, "get_position", return_value=None) as _,
         patch.object(strategy, "_should_rebalance", return_value=False) as mock_should_rebalance,
         patch.object(
             strategy,
@@ -404,7 +404,7 @@ async def test_evaluate_entry_opportunity_found(
         patch.object(
             strategy,
             "_generate_entry_signal",
-            return_value=[create_mock_signal(symbol=BTC_HL.value)],
+            return_value=[create_mock_signal(symbol=BTC_HL)],
         ) as mock_gen_signal,
     ):
         signals = await strategy.evaluate_entry_opportunity()
@@ -436,7 +436,7 @@ async def test_evaluate_entry_opportunity_no_opportunity(
             "get_latest_funding_rate",
             side_effect=fake_get_funding_rate,
         ),
-        patch.object(strategy.portfolio_tracker, "get_position", return_value=None) as _,
+        patch.object(strategy.portfolio_state_manager, "get_position", return_value=None) as _,
         patch.object(
             strategy,
             "_check_opportunity",

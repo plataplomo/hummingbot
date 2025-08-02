@@ -38,6 +38,7 @@ from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, Sym
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP
 
 
 logger = get_logger(__name__)
@@ -645,7 +646,7 @@ def test_config_dict() -> dict[str, Any]:
             },
             "backpack": {
                 "enabled": True,
-                "symbols": {"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
+                "symbols": {"BTC": BTC_USDC_BP.value, "ETH": ETH_USDC_BP.value},
                 "fee_rate": "0.0006",
                 "exchange_name": "backpack",
                 "api_base_url": "https://api.backpack.exchange",

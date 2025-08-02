@@ -23,6 +23,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 # Import fixtures from the shared conftest
@@ -64,7 +65,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Test zero quantity
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.0"),  # Invalid: zero quantity
@@ -78,7 +79,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Test negative quantity
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("-5.0"),  # Invalid: negative quantity
@@ -92,7 +93,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Test infinite quantity
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("inf"),  # Invalid: infinite quantity
@@ -112,7 +113,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Test zero price
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("10.0"),
@@ -126,7 +127,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Test negative price
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("10.0"),
@@ -140,7 +141,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Test infinite price
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("10.0"),
@@ -160,7 +161,7 @@ class TestBackpackTradingServiceOrderManagement:
         # Test negative stop_price
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_LIMIT,
                 quantity=Decimal("10.0"),
@@ -181,7 +182,7 @@ class TestBackpackTradingServiceOrderManagement:
         with pytest.raises(ValidationError) as exc_info:
             CancelOrderArgs(
                 order_id="",  # Empty order_id should be rejected
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
             )
 
         assert "String cannot be empty" in str(exc_info.value)
@@ -207,7 +208,7 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test get_order raises ValidationError for empty order_id."""
         with pytest.raises(ValidationError) as exc_info:
-            GetOrderArgs(order_id="", symbol="SOL_USDC")
+            GetOrderArgs(order_id="", symbol=SOL_USDC_BP.value)
 
         assert "String cannot be empty" in str(exc_info.value)
 
@@ -263,7 +264,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test place_order successfully places an order."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         side = OrderSide.BUY
         order_type = OrderType.LIMIT
         quantity = Decimal("10.0")
@@ -332,7 +333,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test place_order when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         side = OrderSide.BUY
         order_type = OrderType.LIMIT
         quantity = Decimal("10.0")
@@ -378,7 +379,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test place_order handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         side = OrderSide.BUY
         order_type = OrderType.LIMIT
         quantity = Decimal("10.0")
@@ -419,7 +420,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test place_order handles unexpected exception."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         side = OrderSide.BUY
         order_type = OrderType.LIMIT
         quantity = Decimal("10.0")
@@ -458,7 +459,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test cancel_order successfully cancels an order."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         order_id = "12345"
 
         MagicMock()
@@ -496,7 +497,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test cancel_order when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         order_id = "12345"
 
         # Mock the order cancellation service to raise an API error
@@ -532,7 +533,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test cancel_order handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         order_id = "12345"
 
         # Mock the order cancellation service to raise a validation error
@@ -561,7 +562,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test cancel_order handles unexpected exception."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         order_id = "12345"
 
         # Mock the order cancellation service to raise an unexpected exception
@@ -590,7 +591,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test cancel_all_orders successfully cancels orders for a given symbol."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         # Create proper order data that can be validated as BackpackRawOrderResponse objects
         mock_raw_response_list = [
             {
@@ -747,7 +748,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test cancel_all_orders when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Mock the batch order service to raise an API error (simulating HTTP client returning None)
         with patch.object(bp_trading_service, "_batch_order_service") as mock_batch_service:
@@ -778,7 +779,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test place_order with optional parameters like stop_price and post_only."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         side = OrderSide.SELL
         order_type = OrderType.LIMIT
         quantity = Decimal("5.0")
@@ -842,7 +843,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test place_order handles non-dict response."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         side = OrderSide.BUY
         order_type = OrderType.LIMIT
         quantity = Decimal("10.0")
@@ -886,7 +887,7 @@ class TestBackpackTradingServiceOrderManagement:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test cancel_all_orders when no data is returned."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Mock the batch order service to return empty list when no data received
         with patch.object(bp_trading_service, "_batch_order_service") as mock_batch_service:

@@ -18,7 +18,7 @@ import pytest
 import cyberdelta.core.trade_executor as trade_executor_module
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core import trade_executor
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.core.trade_executor import logger
 
 
@@ -319,7 +319,7 @@ class TestTradeExecutorPreparationForFutureImplementation:
         # Test logger can handle context that future TradeExecutor might use
         with patch.object(logger, "info") as mock_info:
             # Simulate future TradeExecutor logging patterns using Symbol object
-            btc_symbol = symbols.BTC.hyperliquid()
+            btc_symbol = BTC_HL
             logger.info(
                 "trade_executed",
                 symbol=btc_symbol.value,  # Use Symbol.value for logging

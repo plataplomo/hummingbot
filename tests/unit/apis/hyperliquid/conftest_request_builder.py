@@ -1,7 +1,7 @@
 """Shared fixtures for HyperliquidRequestBuilder unit tests."""
 
 import pytest
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import ETH_HL
 
 
 @pytest.fixture
@@ -13,7 +13,7 @@ def valid_wallet_address() -> str:
 @pytest.fixture
 def symbol() -> str:
     """Return a standard symbol for testing."""
-    return symbols.ETH.hyperliquid().value
+    return ETH_HL.value
 
 
 @pytest.fixture

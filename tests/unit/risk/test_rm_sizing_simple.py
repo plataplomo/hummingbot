@@ -11,8 +11,8 @@ from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance
 from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
-from cyberdelta.core.symbols import symbols
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from tests.common_symbols import BTC_HL
 
 
 logger = get_logger(__name__)
@@ -117,7 +117,7 @@ def sample_opportunity() -> ArbitrageOpportunity:
     """
     # Ensure all necessary fields for SizedOpportunity creation are present
     return ArbitrageOpportunity(
-        symbol=symbols.BTC.hyperliquid().value,
+        symbol=BTC_HL.value,
         long_exchange="exchange_a",
         short_exchange="exchange_b",
         long_price=Decimal("30000.0"),

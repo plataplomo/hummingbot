@@ -19,6 +19,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -48,14 +49,14 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with SOL_USDC_PERP returns valid Market model."""
-        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
+        args = GetMarketArgs(symbol=SOL_USDC_PERP_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol.value == "SOL_USDC_PERP", (
+        assert market.symbol.value == SOL_USDC_PERP_BP.value, (
             f"Expected symbol 'SOL_USDC_PERP', got '{market.symbol.value}'"
         )
         # Symbol parsing is now handled by the Symbol object
@@ -159,14 +160,14 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with BTC_USDC_PERP returns valid Market model."""
-        args = GetMarketArgs(symbol=exchanges.backpack("BTC_USDC_PERP"))
+        args = GetMarketArgs(symbol=BTC_USDC_PERP_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol.value == "BTC_USDC_PERP", (
+        assert market.symbol.value == BTC_USDC_PERP_BP.value, (
             f"Expected symbol 'BTC_USDC_PERP', got '{market.symbol.value}'"
         )
         # Symbol parsing is now handled by the Symbol object
@@ -197,14 +198,14 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with ETH_USDC_PERP returns valid Market model."""
-        args = GetMarketArgs(symbol=exchanges.backpack("ETH_USDC_PERP"))
+        args = GetMarketArgs(symbol=ETH_USDC_PERP_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol.value == "ETH_USDC_PERP", (
+        assert market.symbol.value == ETH_USDC_PERP_BP.value, (
             f"Expected symbol 'ETH_USDC_PERP', got '{market.symbol.value}'"
         )
         # Symbol parsing is now handled by the Symbol object
@@ -333,7 +334,7 @@ class TestBackpackPerpMarkets:
 
         # Should include common perp trading pairs
         market_symbols = {market.symbol.value for market in perp_markets}
-        common_perp_pairs = {"SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"}
+        common_perp_pairs = {SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value}
         found_pairs = common_perp_pairs.intersection(market_symbols)
         assert len(found_pairs) > 0, (
             f"Expected to find at least one common perp pair from {common_perp_pairs}, "
@@ -493,7 +494,7 @@ class TestBackpackPerpMarkets:
     ) -> None:
         """Test that perp Market models from Backpack satisfy business logic constraints."""
         # Test with a well-known perp symbol
-        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
+        args = GetMarketArgs(symbol=SOL_USDC_PERP_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate symbol parsing consistency for perp markets
@@ -543,7 +544,7 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market characteristics related to leverage trading."""
-        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
+        args = GetMarketArgs(symbol=SOL_USDC_PERP_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Test precision requirements for leverage calculations
@@ -563,7 +564,7 @@ class TestBackpackPerpMarkets:
             # Get actual current market price - no hardcoded values allowed
 
             actual_price = await get_current_market_price(
-                bp_api_for_test_env, exchanges.backpack("SOL_USDC_PERP")
+                bp_api_for_test_env, SOL_USDC_PERP_BP
             )
 
             # Use minimum quantity from market constraints - no hardcoded quantities
@@ -602,7 +603,7 @@ class TestBackpackPerpMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market metadata supports funding rate awareness."""
-        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
+        args = GetMarketArgs(symbol=SOL_USDC_PERP_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Perp markets should have constraints suitable for funding rate periods
@@ -612,7 +613,7 @@ class TestBackpackPerpMarkets:
         # Get actual funding rate from exchange - no hardcoded rates
 
         funding_rates = await bp_api_for_test_env.get_funding_rates(
-            GetFundingRatesArgs(symbols=[exchanges.backpack("SOL_USDC_PERP")]),
+            GetFundingRatesArgs(symbols=[SOL_USDC_PERP_BP]),
         )
         assert len(funding_rates) > 0, "Should get funding rate data for SOL_USDC_PERP"
         funding_data = funding_rates[0]
@@ -624,7 +625,7 @@ class TestBackpackPerpMarkets:
         # Get real current price - no hardcoded prices
 
         actual_price = await get_current_market_price(
-            bp_api_for_test_env, exchanges.backpack("SOL_USDC_PERP")
+            bp_api_for_test_env, SOL_USDC_PERP_BP
         )
         funding_payment = actual_price * actual_funding_rate
 

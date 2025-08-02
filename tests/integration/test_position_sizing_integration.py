@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from tests.common_symbols import BTC_HL, BTC_USDC_BP
 from cyberdelta.config import AppSettings
 from cyberdelta.core.models import (
     SignalType,
@@ -58,7 +59,7 @@ def strategy_with_risk_manager(
     """
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
-        symbol="BTC-PERP",
+        symbol=BTC_HL.value,
         data_handler=setup_dependencies["data_handler"],
         portfolio_tracker=setup_dependencies["portfolio_tracker"],
         risk_manager=setup_dependencies["risk_manager"],
@@ -68,7 +69,7 @@ def strategy_with_risk_manager(
             "risk_aversion": 0.5,
             "perp_exchange": "hyperliquid",
             "spot_exchange": "backpack",
-            "symbol_mapping": {"BTC-PERP": "BTC_USDC"},
+            "symbol_mapping": {BTC_HL.value: BTC_USDC_BP.value},
         },
     )
 
@@ -84,7 +85,7 @@ def strategy_without_risk_manager(
     """
     return FundingRateArbitrageStrategy(
         name="test_no_rm",
-        symbol="BTC-PERP",
+        symbol=BTC_HL.value,
         data_handler=setup_dependencies["data_handler"],
         portfolio_tracker=setup_dependencies["portfolio_tracker"],
         params={
@@ -93,7 +94,7 @@ def strategy_without_risk_manager(
             "risk_aversion": 0.5,
             "perp_exchange": "hyperliquid",
             "spot_exchange": "backpack",
-            "symbol_mapping": {"BTC-PERP": "BTC_USDC"},
+            "symbol_mapping": {BTC_HL.value: BTC_USDC_BP.value},
             "default_position_size": Decimal("100.0"),
         },
     )
@@ -185,7 +186,7 @@ async def test_position_sizing_integration(
             mock_evaluate.return_value = [
                 MagicMock(
                     spec=TradeSignal,
-                    symbol="BTC-PERP",
+                    symbol=BTC_HL.value,
                     signal_type=SignalType.ENTER_SHORT,
                     metadata={
                         "position_sizing": {
@@ -209,7 +210,7 @@ async def test_position_sizing_integration(
 
     # Use the first signal for assertions (perp leg)
     signal = signals[0]
-    assert signal.symbol == "BTC-PERP"
+    assert signal.symbol == BTC_HL.value
     assert signal.signal_type == SignalType.ENTER_SHORT
 
     # Check metadata for position sizing

@@ -15,6 +15,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -43,7 +44,7 @@ class TestBackpackPerpTrades:
     ) -> None:
         """Test BackpackAPI.get_recent_trades() with SOL_USDC_PERP returns valid Trade models."""
         trades = await bp_api_for_test_env.get_recent_trades(
-            exchanges.backpack("SOL_USDC_PERP"), limit=5
+            SOL_USDC_PERP_BP, limit=5
         )
 
         assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
@@ -54,7 +55,7 @@ class TestBackpackPerpTrades:
                     f"Trade {i} should be Trade model, got {type(trade)}"
                 )
 
-                assert trade.symbol.value == "SOL_USDC_PERP", (
+                assert trade.symbol.value == SOL_USDC_PERP_BP.value, (
                     f"Trade {i} symbol should be 'SOL_USDC_PERP', got '{trade.symbol.value}'"
                 )
 
@@ -90,7 +91,7 @@ class TestBackpackPerpTrades:
     ) -> None:
         """Test BackpackAPI.get_recent_trades() with BTC_USDC_PERP returns valid Trade models."""
         trades = await bp_api_for_test_env.get_recent_trades(
-            exchanges.backpack("BTC_USDC_PERP"), limit=5
+            BTC_USDC_PERP_BP, limit=5
         )
 
         assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
@@ -100,7 +101,7 @@ class TestBackpackPerpTrades:
                 assert isinstance(trade, Trade), (
                     f"Trade {i} should be Trade model, got {type(trade)}"
                 )
-                assert trade.symbol.value == "BTC_USDC_PERP", (
+                assert trade.symbol.value == BTC_USDC_PERP_BP.value, (
                     f"Trade {i} symbol should be 'BTC_USDC_PERP', got '{trade.symbol.value}'"
                 )
 
@@ -112,7 +113,7 @@ class TestBackpackPerpTrades:
                     f"BTC perp trade price must be finite: {trade.price}"
                 )
 
-    @pytest.mark.parametrize("symbol", ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"])
+    @pytest.mark.parametrize("symbol", [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/perp/trades"],
@@ -156,7 +157,7 @@ class TestBackpackPerpTrades:
     ) -> None:
         """Test perp trade characteristics related to leverage trading."""
         trades = await bp_api_for_test_env.get_recent_trades(
-            exchanges.backpack("SOL_USDC_PERP"), limit=30
+            SOL_USDC_PERP_BP, limit=30
         )
 
         if len(trades) > 0:
@@ -191,7 +192,7 @@ class TestBackpackPerpTrades:
     ) -> None:
         """Test perp trade side distribution and balance."""
         trades = await bp_api_for_test_env.get_recent_trades(
-            exchanges.backpack("SOL_USDC_PERP"), limit=50
+            SOL_USDC_PERP_BP, limit=50
         )
 
         if len(trades) > 0:
@@ -237,7 +238,7 @@ class TestBackpackPerpTrades:
     ) -> None:
         """Test perp trade size patterns and distribution."""
         trades = await bp_api_for_test_env.get_recent_trades(
-            exchanges.backpack("SOL_USDC_PERP"), limit=30
+            SOL_USDC_PERP_BP, limit=30
         )
 
         if len(trades) > 5:
@@ -299,7 +300,7 @@ class TestBackpackPerpTrades:
     ) -> None:
         """Test perp trade precision handling for margin calculations."""
         trades = await bp_api_for_test_env.get_recent_trades(
-            exchanges.backpack("SOL_USDC_PERP"), limit=10
+            SOL_USDC_PERP_BP, limit=10
         )
 
         if len(trades) > 0:
@@ -341,7 +342,7 @@ class TestBackpackPerpTrades:
     ) -> None:
         """Test perp trade limit parameter functionality."""
         trades = await bp_api_for_test_env.get_recent_trades(
-            exchanges.backpack("SOL_USDC_PERP"), limit=limit
+            SOL_USDC_PERP_BP, limit=limit
         )
 
         assert isinstance(trades, list), "Should return list"

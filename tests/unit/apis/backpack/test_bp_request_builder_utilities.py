@@ -1,6 +1,7 @@
 """Unit tests for BackpackRequestBuilder utility functions."""
 
 import pytest
+from tests.common_symbols import BTC_BP, ETH_BP
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
 
@@ -18,12 +19,12 @@ class TestFormatSymbol:
 
     def test_format_symbol_perp_suffix_preserved(self) -> None:
         """Test _format_symbol preserves PERP suffix correctly."""
-        assert BackpackCommonMappers.normalize_symbol("ETH_PERP") == "ETH_PERP"
+        assert BackpackCommonMappers.normalize_symbol(ETH_BP.value.replace("-", "_")) == ETH_BP.value.replace("-", "_")
 
     def test_format_symbol_mixed_case_and_separators(self) -> None:
         """Test _format_symbol handles mixed case and separators."""
         assert BackpackCommonMappers.normalize_symbol("btc-usdt") == "BTC_USDT"
-        assert BackpackCommonMappers.normalize_symbol("Eth-Perp") == "ETH_PERP"
+        assert BackpackCommonMappers.normalize_symbol("Eth-Perp") == ETH_BP.value.replace("-", "_")
 
     def test_format_symbol_already_formatted(self) -> None:
         """Test _format_symbol handles already formatted symbols."""
@@ -38,7 +39,7 @@ class TestFormatSymbol:
         ("input_symbol", "expected_output"),
         [
             ("sol-usdc", "SOL_USDC"),
-            ("BTC-PERP", "BTC_PERP"),
+            (BTC_BP.value, BTC_BP.value.replace("-", "_")),
             ("eth_usdt", "ETH_USDT"),
             ("DOGE-USDC", "DOGE_USDC"),
             ("avax_perp", "AVAX_PERP"),

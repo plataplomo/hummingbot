@@ -13,7 +13,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
@@ -39,7 +39,7 @@ def create_valid_candle_data(**overrides: object) -> dict[str, Any]:
         dict[str, Any]: Valid candle data dictionary for testing.
     """
     defaults: dict[str, Any] = {
-        "symbol": symbols.BTC.hyperliquid(),
+        "symbol": BTC_HL,
         "interval": VALID_INTERVAL,
         "open_time": NOW,
         "open": Decimal("100.0"),
@@ -73,7 +73,7 @@ class TestCandle:
         ms_timestamp = int(NOW.timestamp() * 1000)
         expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
         data: dict[str, Any] = {
-            "symbol": symbols.BTC.hyperliquid(),
+            "symbol": BTC_HL,
             "interval": VALID_INTERVAL,
             "open_time": ms_timestamp,  # Test int parsing
             "open": "100.0",  # Test str parsing
@@ -109,7 +109,7 @@ class TestCandle:
         # Symbol validation is now handled at the Symbol model level
         # These tests would now be in the Symbol model tests
         # For Candle, we test that it accepts valid Symbol objects
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         candle = Candle(**create_valid_candle_data(symbol=btc_symbol))
         assert candle.symbol == btc_symbol
 
@@ -224,7 +224,7 @@ class TestCandle:
         candle = Candle(**create_valid_candle_data())
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            candle.symbol = symbols.ETH.hyperliquid()
+            candle.symbol = ETH_HL
         with pytest.raises(ValidationError, match="Instance is frozen"):
             candle.open_time = NOW
         with pytest.raises(ValidationError, match="Instance is frozen"):

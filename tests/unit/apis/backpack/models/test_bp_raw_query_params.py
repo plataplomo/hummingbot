@@ -29,6 +29,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 class TestBackpackRawGetTickerParams:
@@ -36,14 +37,14 @@ class TestBackpackRawGetTickerParams:
 
     def test_valid_symbol(self) -> None:
         """Test valid symbol creation."""
-        params = BackpackRawGetTickerParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetTickerParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
 
     def test_alias_support(self) -> None:
         """Test field alias support."""
-        data = {"symbol": "ETH_USDC"}
+        data = {"symbol": ETH_USDC_BP.value}
         params = BackpackRawGetTickerParams.model_validate(data)
-        assert params.symbol == "ETH_USDC"
+        assert params.symbol == ETH_USDC_BP.value
 
     def test_missing_symbol(self) -> None:
         """Test missing required symbol field."""
@@ -73,15 +74,15 @@ class TestBackpackRawGetTickerParams:
 
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields are forbidden."""
-        data: dict[str, Any] = {"symbol": "BTC_USDC", "extra_field": "not_allowed"}
+        data: dict[str, Any] = {"symbol": BTC_USDC_BP.value, "extra_field": "not_allowed"}
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             BackpackRawGetTickerParams.model_validate(data)
 
     def test_immutability(self) -> None:
         """Test that params are immutable."""
-        params = BackpackRawGetTickerParams(symbol="BTC_USDC")
+        params = BackpackRawGetTickerParams(symbol=BTC_USDC_BP.value)
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            params.symbol = "ETH_USDC"
+            params.symbol = ETH_USDC_BP.value
 
 
 class TestBackpackRawGetOrderBookParams:
@@ -89,29 +90,29 @@ class TestBackpackRawGetOrderBookParams:
 
     def test_valid_params_with_limit(self) -> None:
         """Test valid params with limit."""
-        params = BackpackRawGetOrderBookParams(symbol="BTC_USDC", limit=100)
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetOrderBookParams(symbol=BTC_USDC_BP.value, limit=100)
+        assert params.symbol == BTC_USDC_BP.value
         assert params.limit == 100
 
     def test_valid_params_without_limit(self) -> None:
         """Test valid params without limit."""
-        params = BackpackRawGetOrderBookParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetOrderBookParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
         assert params.limit is None
 
     def test_limit_zero_allowed(self) -> None:
         """Test that limit=0 is allowed."""
-        params = BackpackRawGetOrderBookParams(symbol="BTC_USDC", limit=0)
+        params = BackpackRawGetOrderBookParams(symbol=BTC_USDC_BP.value, limit=0)
         assert params.limit == 0
 
     def test_negative_limit_rejected(self) -> None:
         """Test negative limit validation."""
         with pytest.raises(ValidationError, match="Must be >= 0"):
-            BackpackRawGetOrderBookParams(symbol="BTC_USDC", limit=-1)
+            BackpackRawGetOrderBookParams(symbol=BTC_USDC_BP.value, limit=-1)
 
     def test_limit_wrong_type(self) -> None:
         """Test limit type validation."""
-        data: dict[str, Any] = {"symbol": "BTC_USDC", "limit": "invalid"}
+        data: dict[str, Any] = {"symbol": BTC_USDC_BP.value, "limit": "invalid"}
         with pytest.raises(ValidationError):
             BackpackRawGetOrderBookParams.model_validate(data)
 
@@ -126,14 +127,14 @@ class TestBackpackRawGetRecentTradesParams:
 
     def test_valid_params_complete(self) -> None:
         """Test valid params with all fields."""
-        params = BackpackRawGetRecentTradesParams(symbol="BTC_USDC", limit=50)
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetRecentTradesParams(symbol=BTC_USDC_BP.value, limit=50)
+        assert params.symbol == BTC_USDC_BP.value
         assert params.limit == 50
 
     def test_valid_params_minimal(self) -> None:
         """Test valid params with only required fields."""
-        params = BackpackRawGetRecentTradesParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetRecentTradesParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
         assert params.limit is None
 
 
@@ -177,8 +178,8 @@ class TestBackpackRawGetOpenOrdersParams:
 
     def test_with_symbol(self) -> None:
         """Test with symbol filter."""
-        params = BackpackRawGetOpenOrdersParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetOpenOrdersParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
 
     def test_without_symbol(self) -> None:
         """Test without symbol filter."""
@@ -196,8 +197,8 @@ class TestBackpackRawGetFundingRateParams:
 
     def test_valid_symbol(self) -> None:
         """Test valid symbol."""
-        params = BackpackRawGetFundingRateParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetFundingRateParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
 
     def test_missing_symbol(self) -> None:
         """Test missing required symbol."""
@@ -211,20 +212,20 @@ class TestBackpackRawGetHistoricalFundingRatesParams:
     def test_valid_complete_params(self) -> None:
         """Test valid params with all fields."""
         params = BackpackRawGetHistoricalFundingRatesParams(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             startTime=1678886400,
             endTime=1678972800,
             limit=100,
         )
-        assert params.symbol == "BTC_USDC"
+        assert params.symbol == BTC_USDC_BP.value
         assert params.startTime == 1678886400
         assert params.endTime == 1678972800
         assert params.limit == 100
 
     def test_valid_minimal_params(self) -> None:
         """Test valid params with only required fields."""
-        params = BackpackRawGetHistoricalFundingRatesParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetHistoricalFundingRatesParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
         assert params.startTime is None
         assert params.endTime is None
         assert params.limit is None
@@ -232,7 +233,7 @@ class TestBackpackRawGetHistoricalFundingRatesParams:
     def test_negative_timestamps_allowed(self) -> None:
         """Test that negative timestamps are allowed (historical data)."""
         params = BackpackRawGetHistoricalFundingRatesParams(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             startTime=-1,
             endTime=-1,
         )
@@ -242,11 +243,11 @@ class TestBackpackRawGetHistoricalFundingRatesParams:
     def test_negative_limit_rejected(self) -> None:
         """Test negative limit validation."""
         with pytest.raises(ValidationError, match="Must be >= 0"):
-            BackpackRawGetHistoricalFundingRatesParams(symbol="BTC_USDC", limit=-1)
+            BackpackRawGetHistoricalFundingRatesParams(symbol=BTC_USDC_BP.value, limit=-1)
 
     def test_timestamp_wrong_type(self) -> None:
         """Test timestamp type validation."""
-        data: dict[str, Any] = {"symbol": "BTC_USDC", "startTime": "invalid"}
+        data: dict[str, Any] = {"symbol": BTC_USDC_BP.value, "startTime": "invalid"}
         with pytest.raises(ValidationError):
             BackpackRawGetHistoricalFundingRatesParams.model_validate(data)
 
@@ -274,8 +275,8 @@ class TestBackpackRawGetMarketParams:
 
     def test_valid_symbol(self) -> None:
         """Test valid symbol."""
-        params = BackpackRawGetMarketParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetMarketParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
 
     def test_missing_symbol(self) -> None:
         """Test missing required symbol."""
@@ -289,7 +290,7 @@ class TestBackpackRawGetOrderHistoryParams:
     def test_valid_complete_params(self) -> None:
         """Test valid params with all fields."""
         data = {
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "orderId": "12345",
             "clientId": "client123",
             "limit": 50,
@@ -297,7 +298,7 @@ class TestBackpackRawGetOrderHistoryParams:
             "to": 1678972800000,
         }
         params = BackpackRawGetOrderHistoryParams.model_validate(data)
-        assert params.symbol == "BTC_USDC"
+        assert params.symbol == BTC_USDC_BP.value
         assert params.orderId == "12345"
         assert params.clientId == "client123"
         assert params.limit == 50
@@ -317,7 +318,7 @@ class TestBackpackRawGetOrderHistoryParams:
     def test_alias_support(self) -> None:
         """Test field alias support for timestamps."""
         data = {
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "from": 1678886400000,
             "to": 1678972800000,
         }
@@ -340,14 +341,14 @@ class TestBackpackRawGetTradeHistoryParams:
     def test_valid_complete_params(self) -> None:
         """Test valid params with all fields."""
         data = {
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "limit": 100,
             "from": 1678886400000,
             "to": 1678972800000,
             "fromId": "trade123",
         }
         params = BackpackRawGetTradeHistoryParams.model_validate(data)
-        assert params.symbol == "BTC_USDC"
+        assert params.symbol == BTC_USDC_BP.value
         assert params.limit == 100
         assert params.start_time == 1678886400000
         assert params.end_time == 1678972800000
@@ -381,13 +382,13 @@ class TestBackpackRawGetMarketDataParams:
     def test_valid_complete_params(self) -> None:
         """Test valid params with all fields."""
         params = BackpackRawGetMarketDataParams(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             interval="1h",
             startTime=1678886400,
             endTime=1678972800,
             limit=500,
         )
-        assert params.symbol == "BTC_USDC"
+        assert params.symbol == BTC_USDC_BP.value
         assert params.interval == "1h"
         assert params.startTime == 1678886400
         assert params.endTime == 1678972800
@@ -395,8 +396,8 @@ class TestBackpackRawGetMarketDataParams:
 
     def test_valid_minimal_params(self) -> None:
         """Test valid params with only required fields."""
-        params = BackpackRawGetMarketDataParams(symbol="BTC_USDC", interval="1m")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetMarketDataParams(symbol=BTC_USDC_BP.value, interval="1m")
+        assert params.symbol == BTC_USDC_BP.value
         assert params.interval == "1m"
         assert params.startTime is None
         assert params.endTime is None
@@ -421,13 +422,13 @@ class TestBackpackRawGetMarketDataParams:
             "1w",
         ]
         for interval in valid_intervals:
-            data = {"symbol": "BTC_USDC", "interval": interval}
+            data = {"symbol": BTC_USDC_BP.value, "interval": interval}
             params = BackpackRawGetMarketDataParams.model_validate(data)
             assert params.interval == interval
 
     def test_invalid_interval(self) -> None:
         """Test invalid interval validation."""
-        data: dict[str, Any] = {"symbol": "BTC_USDC", "interval": "invalid"}
+        data: dict[str, Any] = {"symbol": BTC_USDC_BP.value, "interval": "invalid"}
         with pytest.raises(ValidationError, match="Input should be"):
             BackpackRawGetMarketDataParams.model_validate(data)
 
@@ -437,7 +438,7 @@ class TestBackpackRawGetMarketDataParams:
             BackpackRawGetMarketDataParams.model_validate({"interval": "1h"})
 
         with pytest.raises(ValidationError, match="Field required"):
-            BackpackRawGetMarketDataParams.model_validate({"symbol": "BTC_USDC"})
+            BackpackRawGetMarketDataParams.model_validate({"symbol": BTC_USDC_BP.value})
 
 
 class TestBackpackRawGetHistoricalTradesParams:
@@ -446,18 +447,18 @@ class TestBackpackRawGetHistoricalTradesParams:
     def test_valid_complete_params(self) -> None:
         """Test valid params with all fields."""
         params = BackpackRawGetHistoricalTradesParams(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             limit=100,
             fromId="trade789",
         )
-        assert params.symbol == "BTC_USDC"
+        assert params.symbol == BTC_USDC_BP.value
         assert params.limit == 100
         assert params.fromId == "trade789"
 
     def test_valid_minimal_params(self) -> None:
         """Test valid params with only required fields."""
-        params = BackpackRawGetHistoricalTradesParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetHistoricalTradesParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
         assert params.limit is None
         assert params.fromId is None
 
@@ -472,8 +473,8 @@ class TestBackpackRawGetOrderParams:
 
     def test_valid_symbol(self) -> None:
         """Test valid symbol."""
-        params = BackpackRawGetOrderParams(symbol="BTC_USDC")
-        assert params.symbol == "BTC_USDC"
+        params = BackpackRawGetOrderParams(symbol=BTC_USDC_BP.value)
+        assert params.symbol == BTC_USDC_BP.value
 
     def test_missing_symbol(self) -> None:
         """Test missing required symbol."""
@@ -487,7 +488,7 @@ class TestGeneralValidationBehavior:
     def test_null_values_in_optional_fields(self) -> None:
         """Test that null values in optional fields are handled correctly."""
         data = {
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "interval": "1h",
             "limit": None,
             "startTime": None,
@@ -499,12 +500,12 @@ class TestGeneralValidationBehavior:
     def test_populate_by_name_config(self) -> None:
         """Test that populate_by_name configuration works."""
         # Test with field names
-        data1 = {"symbol": "BTC_USDC", "start_time": 1678886400000}
+        data1 = {"symbol": BTC_USDC_BP.value, "start_time": 1678886400000}
         params1 = BackpackRawGetTradeHistoryParams.model_validate(data1)
         assert params1.start_time == 1678886400000
 
         # Test with aliases
-        data2 = {"symbol": "BTC_USDC", "from": 1678886400000}
+        data2 = {"symbol": BTC_USDC_BP.value, "from": 1678886400000}
         params2 = BackpackRawGetTradeHistoryParams.model_validate(data2)
         assert params2.start_time == 1678886400000
 

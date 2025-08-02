@@ -17,7 +17,7 @@ from cyberdelta.core.models.market.ticker import (
     HyperliquidTickerDetails,
     Ticker,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL, BTC_BP
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
@@ -39,7 +39,7 @@ class TestTicker:
 
     def test_minimal_creation_required_fields(self) -> None:
         """Test creating a Ticker with only required fields (symbol, exchange, timestamp)."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(symbol=btc_symbol, exchange="test_exchange", timestamp=NOW)
         assert ticker.symbol == btc_symbol
         assert ticker.timestamp == NOW
@@ -50,7 +50,7 @@ class TestTicker:
 
     def test_full_creation_with_valid_data(self) -> None:
         """Test creating a Ticker with all fields populated with valid data types."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -69,7 +69,7 @@ class TestTicker:
 
     def test_creation_with_parsable_data(self) -> None:
         """Test creating a Ticker with data needing parsing (str, int, float)."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ms_timestamp = int(NOW.timestamp() * 1000)
         # Calculate expected time after ms conversion loss
         expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
@@ -94,7 +94,7 @@ class TestTicker:
 
     def test_required_fields_validation(self) -> None:
         """Test that required fields (symbol, timestamp) raise errors if missing."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         with pytest.raises(ValidationError, match="Field required"):
             Ticker(exchange="test_exchange", timestamp=NOW)  # type: ignore[call-arg] # Missing symbol
         with pytest.raises(ValidationError, match="Field required"):
@@ -138,7 +138,7 @@ class TestTicker:
 
     def test_timestamp_validation(self) -> None:
         """Test timestamp validation (required, parsing, None handling)."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Test None raises error
         with pytest.raises(ValidationError, match=r"timestamp.*Ticker timestamp is required"):
             # Use Any to test validator behavior
@@ -185,7 +185,7 @@ class TestTicker:
     @pytest.mark.parametrize("field_name", ["price", "bid", "ask", "volume"])
     def test_decimal_fields_parsing_and_validation(self, field_name: str) -> None:
         """Test parsing, finiteness, and non-negativity for optional decimal fields."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         valid_kwargs_base: dict[str, Any] = {
             "symbol": btc_symbol,
             "exchange": "test_exchange",
@@ -247,7 +247,7 @@ class TestTicker:
 
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields raise ValidationError (extra='forbid')."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             Ticker(
                 symbol=btc_symbol,
@@ -258,11 +258,11 @@ class TestTicker:
 
     def test_immutability(self) -> None:
         """Test that the Ticker model is immutable (frozen=True)."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(symbol=btc_symbol, exchange="test_exchange", timestamp=NOW, price=DEC_ONE)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.symbol = symbols.ETH.hyperliquid()
+            ticker.symbol = ETH_HL
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ticker.timestamp = NOW + timedelta(seconds=1)
         with pytest.raises(ValidationError, match="Instance is frozen"):
@@ -277,7 +277,7 @@ class TestTicker:
 
     def test_mid_price_valid_calculation(self) -> None:
         """Test mid_price calculation with valid bid and ask prices."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -289,7 +289,7 @@ class TestTicker:
 
     def test_mid_price_precise_calculation(self) -> None:
         """Test mid_price calculation preserves decimal precision."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -303,7 +303,7 @@ class TestTicker:
 
     def test_mid_price_none_when_bid_missing(self) -> None:
         """Test mid_price returns None when bid is None."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -315,7 +315,7 @@ class TestTicker:
 
     def test_mid_price_none_when_ask_missing(self) -> None:
         """Test mid_price returns None when ask is None."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -327,7 +327,7 @@ class TestTicker:
 
     def test_mid_price_none_when_both_missing(self) -> None:
         """Test mid_price returns None when both bid and ask are None."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -352,7 +352,7 @@ class TestTicker:
         self, field_name: str, value: Decimal
     ) -> None:
         """Test that non-finite bid/ask values are rejected during ticker creation."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         kwargs: dict[str, Any] = {
             "symbol": btc_symbol,
             "exchange": "test_exchange",
@@ -367,7 +367,7 @@ class TestTicker:
 
     def test_mid_price_with_zero_values(self) -> None:
         """Test mid_price calculation with zero bid/ask values."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -381,7 +381,7 @@ class TestTicker:
 
     def test_hyperliquid_details_creation(self) -> None:
         """Test creating ticker with Hyperliquid-specific details."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         hl_details = HyperliquidTickerDetails(mid_price_source="allMids")
         ticker = Ticker(
             symbol=btc_symbol,
@@ -396,7 +396,7 @@ class TestTicker:
 
     def test_backpack_details_creation(self) -> None:
         """Test creating ticker with Backpack-specific details."""
-        btc_backpack_symbol = symbols.BTC.backpack()
+        btc_backpack_symbol = BTC_BP
         bp_details = BackpackTickerDetails(
             first_price=Decimal(29000),
             high=Decimal(31000),
@@ -425,7 +425,7 @@ class TestTicker:
 
     def test_both_exchange_details_none_by_default(self) -> None:
         """Test that exchange-specific details are None by default."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="generic_exchange",

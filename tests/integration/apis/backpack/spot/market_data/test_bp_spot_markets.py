@@ -18,11 +18,13 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
+from cyberdelta.core.symbols import exchanges
 
 
 # Mark all tests in this file
@@ -41,14 +43,14 @@ class TestBackpackSpotMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with SOL_USDC returns valid Market model."""
-        args = GetMarketArgs(symbol="SOL_USDC")
+        args = GetMarketArgs(symbol=SOL_USDC_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "SOL_USDC", f"Expected symbol 'SOL_USDC', got '{market.symbol}'"
+        assert market.symbol == SOL_USDC_BP.value, f"Expected symbol 'SOL_USDC', got '{market.symbol}'"
         assert market.base_symbol == "SOL", (
             f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
         )
@@ -150,14 +152,14 @@ class TestBackpackSpotMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with BTC_USDC returns valid Market model."""
-        args = GetMarketArgs(symbol="BTC_USDC")
+        args = GetMarketArgs(symbol=BTC_USDC_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "BTC_USDC", f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
+        assert market.symbol == BTC_USDC_BP.value, f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
         assert market.base_symbol == "BTC", (
             f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
         )
@@ -181,14 +183,14 @@ class TestBackpackSpotMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with ETH_USDC returns valid Market model."""
-        args = GetMarketArgs(symbol="ETH_USDC")
+        args = GetMarketArgs(symbol=ETH_USDC_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate return type
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == "ETH_USDC", f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
+        assert market.symbol == ETH_USDC_BP.value, f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
         assert market.base_symbol == "ETH", (
             f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
         )
@@ -231,7 +233,7 @@ class TestBackpackSpotMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with non-existent but well-formed spot symbol."""
-        args = GetMarketArgs(symbol="NOTREAL_USDC")
+        args = GetMarketArgs(symbol=exchanges.backpack("NOTREAL_USDC"))
 
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_market(args)
@@ -321,7 +323,7 @@ class TestBackpackSpotMarkets:
 
         # Should include common spot trading pairs
         market_symbols = {market.symbol for market in spot_markets}
-        common_spot_pairs = {"SOL_USDC", "BTC_USDC", "ETH_USDC"}
+        common_spot_pairs = {SOL_USDC_BP.value, BTC_USDC_BP.value, ETH_USDC_BP.value}
         found_pairs = common_spot_pairs.intersection(market_symbols)
         assert len(found_pairs) > 0, (
             f"Expected to find at least one common spot pair from {common_spot_pairs}, "
@@ -476,7 +478,7 @@ class TestBackpackSpotMarkets:
     ) -> None:
         """Test that spot Market models from Backpack satisfy business logic constraints."""
         # Test with a well-known spot symbol
-        args = GetMarketArgs(symbol="SOL_USDC")
+        args = GetMarketArgs(symbol=SOL_USDC_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate symbol parsing consistency for spot markets

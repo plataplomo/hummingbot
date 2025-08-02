@@ -19,7 +19,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.trade_signal import TradeSignal
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import (
@@ -41,7 +41,7 @@ def minimal_signal_data() -> dict[str, Any]:
     Returns:
         dict[str, Any]: Minimal data dictionary for creating TradeSignal instances.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return {
         "symbol": btc_symbol,
         "signal_type": SignalType.ENTER_LONG,
@@ -85,7 +85,7 @@ def full_signal_data(minimal_signal_data: dict[str, Any]) -> dict[str, Any]:
 
 def test_tradesignal_minimal_valid(minimal_signal_data: dict[str, Any]) -> None:
     """Test creating a valid TradeSignal with minimal required fields."""
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     signal = TradeSignal(**minimal_signal_data)
 
     assert signal.symbol == btc_symbol
@@ -110,7 +110,7 @@ def test_tradesignal_minimal_valid(minimal_signal_data: dict[str, Any]) -> None:
 
 def test_tradesignal_full_valid(full_signal_data: dict[str, Any]) -> None:
     """Test creating a valid TradeSignal with all fields populated."""
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     signal = TradeSignal(**full_signal_data)
 
     assert signal.symbol == btc_symbol

@@ -43,7 +43,8 @@ from cyberdelta.validation.circuit_breaker import (
     CircuitBreakerTrippedError,
 )
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
 
 
@@ -76,7 +77,7 @@ def _get_symbol_service_mock(execution_handler: ExecutionHandler) -> Mock:
 def _create_mock_order(
     client_order_id: str = "test_order_123",
     exchange_order_id: str = "exchange_123",
-    symbol: str | Symbol = symbols.BTC.hyperliquid(),  # Use Symbol object as default
+    symbol: str | Symbol = BTC_HL,  # Use Symbol object as default
     side: OrderSide = OrderSide.BUY,
     status: OrderStatus = OrderStatus.NEW,
     quantity_requested: Decimal = Decimal("1.0"),

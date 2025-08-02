@@ -20,6 +20,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.derivative_position import DerivativePosition
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import SOL_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_market_constraints,
     get_minimal_order_size,
@@ -69,7 +70,7 @@ async def create_test_perp_position(
         KeyError: If required data keys are missing.
     """
     if symbol is None:
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
     try:
         # Get market price and place order ABOVE it to ensure IOC fill

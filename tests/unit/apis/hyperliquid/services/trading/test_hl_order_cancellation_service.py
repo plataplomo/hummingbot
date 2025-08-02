@@ -47,7 +47,9 @@ from cyberdelta.core.enums import (
     OrderStatus,
 )
 from cyberdelta.core.models import CancelOrderResult, Order
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import BTC_USD_HL, ETH_USD_HL, SOL_USD_HL
 
 
 # Type alias for mock HTTP response
@@ -56,9 +58,9 @@ MockHttpResponse = tuple[dict[str, Any] | None, int, dict[str, str]]
 # Test data and constants
 CANCEL_ORDER_VALIDATION_TEST_CASES = [
     ("", "12345", APIErrorCode.INVALID_PARAMS),  # Empty symbol
-    ("BTC-USD", "", APIErrorCode.INVALID_PARAMS),  # Empty order ID
-    ("BTC-USD", "12345", APIErrorCode.INVALID_PARAMS),  # Valid params for testing
-    ("BTC-USD", "67890", APIErrorCode.INVALID_PARAMS),  # Valid params for testing
+    (BTC_USD_HL, "", APIErrorCode.INVALID_PARAMS),  # Empty order ID
+    (BTC_USD_HL, "12345", APIErrorCode.INVALID_PARAMS),  # Valid params for testing
+    (BTC_USD_HL, "67890", APIErrorCode.INVALID_PARAMS),  # Valid params for testing
 ]
 
 # Test cases: tuples of (num_orders, success_count, failure_count)
@@ -206,7 +208,7 @@ def valid_cancel_order_args() -> CancelOrderArgs:
         CancelOrderArgs: Valid arguments for canceling an order.
     """
     return CancelOrderArgs(
-        symbol="BTC-USD",
+        symbol=BTC_USD_HL,
         order_id="12345",
     )
 
@@ -236,7 +238,7 @@ def mock_open_order() -> Order:
     return Order(
         exchange_order_id="12345",
         client_order_id="client_123",
-        symbol="BTC-USD",
+        symbol=BTC_USD_HL,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity_requested=Decimal("0.1"),
@@ -261,9 +263,9 @@ def multiple_cancel_order_args() -> list[CancelOrderArgs]:
         list[CancelOrderArgs]: A list of cancel order arguments for different symbols.
     """
     return [
-        CancelOrderArgs(symbol="BTC-USD", order_id="12345"),
-        CancelOrderArgs(symbol="ETH-USD", order_id="67890"),
-        CancelOrderArgs(symbol="SOL-USD", order_id="11111"),
+        CancelOrderArgs(symbol=BTC_USD_HL, order_id="12345"),
+        CancelOrderArgs(symbol=ETH_USD_HL, order_id="67890"),
+        CancelOrderArgs(symbol=SOL_USD_HL, order_id="11111"),
     ]
 
 
@@ -278,7 +280,7 @@ def mock_open_orders() -> list[Order]:
         Order(
             exchange_order_id="12345",
             client_order_id="client_123",
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.1"),
@@ -296,7 +298,7 @@ def mock_open_orders() -> list[Order]:
         Order(
             exchange_order_id="67890",
             client_order_id="client_456",
-            symbol="ETH-USD",
+            symbol=ETH_USD_HL,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("1.0"),
@@ -371,7 +373,7 @@ class TestSingleOrderCancellation:
     async def test_cancel_order_validation_scenarios(
         self,
         order_cancellation_service: HyperliquidOrderCancellationService,
-        symbol: str | None,
+        symbol: Symbol | str | None,
         order_id: str | None,
         expected_error: APIErrorCode,
     ) -> None:
@@ -446,7 +448,7 @@ class TestSingleOrderCancellation:
         """Test order cancellation with different ID scenarios."""
         # Arrange
         cancel_args = CancelOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             order_id=order_id or "fallback_order_id",  # Ensure order_id is never None
             client_order_id=client_order_id,
         )
@@ -518,7 +520,7 @@ class TestBatchOrderCancellation:
         mock_get_asset_index.side_effect = [0, 1]
 
         # Act
-        results = await order_cancellation_service.cancel_all_orders("BTC-USD")
+        results = await order_cancellation_service.cancel_all_orders(BTC_USD_HL)
 
         # Assert
         assert len(results) == 2
@@ -550,7 +552,7 @@ class TestBatchOrderCancellation:
             order = Order(
                 exchange_order_id=str(12345 + i),
                 client_order_id=f"client_{i}",
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity_requested=Decimal("0.1"),
@@ -602,7 +604,7 @@ class TestBatchOrderCancellation:
         mock_get_asset_index.side_effect = list(range(num_orders))
 
         # Act
-        results = await order_cancellation_service.cancel_all_orders("BTC-USD")
+        results = await order_cancellation_service.cancel_all_orders(BTC_USD_HL)
 
         # Assert
         assert len(results) == num_orders
@@ -813,7 +815,7 @@ class TestErrorHandling:
         test_order = Order(
             exchange_order_id="12345",
             client_order_id="client_123",
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.1"),
@@ -831,7 +833,7 @@ class TestErrorHandling:
         mock_order_query_service.get_open_orders.return_value = [test_order]
 
         with pytest.raises(APIError) as exc_info:
-            await order_cancellation_service.cancel_all_orders("BTC-USD")
+            await order_cancellation_service.cancel_all_orders(BTC_USD_HL)
 
         # Service wraps the error as "Unexpected service failure"
         assert "service failure" in str(exc_info.value).lower()
@@ -851,7 +853,7 @@ class TestValidationLogic:
         # Test validation through public method - Pydantic validates args before service
         with pytest.raises(ValidationError) as exc_info:
             await order_cancellation_service.cancel_order(
-                CancelOrderArgs(symbol="", order_id="123")
+                CancelOrderArgs(symbol="", order_id="123")  # type: ignore[arg-type]
             )
 
         assert "symbol" in str(exc_info.value).lower()
@@ -865,7 +867,7 @@ class TestValidationLogic:
         # Test validation through public method - Pydantic validates args before service
         with pytest.raises(ValidationError) as exc_info:
             await order_cancellation_service.cancel_order(
-                CancelOrderArgs(symbol="BTC-USD", order_id="")
+                CancelOrderArgs(symbol=BTC_USD_HL, order_id="")  # type: ignore[arg-type]
             )
 
         assert "order_id" in str(exc_info.value).lower()
@@ -881,7 +883,7 @@ class TestValidationLogic:
         mock_open_orders = [
             Order(
                 exchange_order_id=str(i + 1),  # Start from 1, not 0
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL,
                 exchange="hyperliquid",
                 order_type=OrderType.LIMIT,
                 side=OrderSide.BUY,
@@ -919,7 +921,7 @@ class TestValidationLogic:
     ) -> None:
         """Test cancel_order succeeds with valid single order."""
         # Arrange
-        cancel_args = CancelOrderArgs(symbol="BTC-USD", order_id="123")
+        cancel_args = CancelOrderArgs(symbol=BTC_USD_HL, order_id="123")
 
         # Mock the HTTP flow using correct method names
         mock_request_builder.build_batch_cancel_order_payload.return_value = MagicMock()
@@ -961,7 +963,7 @@ class TestValidationLogic:
         mock_open_orders = [
             Order(
                 exchange_order_id=str(i + 1),  # Start from 1, not 0
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL,
                 exchange="hyperliquid",
                 order_type=OrderType.LIMIT,
                 side=OrderSide.BUY,
@@ -1076,7 +1078,7 @@ class TestIntegrationScenarios:
             Order(
                 exchange_order_id="12345",
                 client_order_id="client_123",
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity_requested=Decimal("0.1"),
@@ -1094,7 +1096,7 @@ class TestIntegrationScenarios:
             Order(
                 exchange_order_id="67890",
                 client_order_id="client_456",
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL,
                 side=OrderSide.SELL,
                 order_type=OrderType.LIMIT,
                 quantity_requested=Decimal("0.2"),
@@ -1112,7 +1114,7 @@ class TestIntegrationScenarios:
             Order(
                 exchange_order_id="11111",
                 client_order_id="client_789",
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity_requested=Decimal("0.3"),
@@ -1150,7 +1152,7 @@ class TestIntegrationScenarios:
         mock_get_asset_index.side_effect = [0, 1, 2]
 
         # Act
-        results = await order_cancellation_service.cancel_all_orders("BTC-USD")
+        results = await order_cancellation_service.cancel_all_orders(BTC_USD_HL)
 
         # Assert
         assert len(results) == 3

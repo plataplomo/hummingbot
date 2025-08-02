@@ -14,7 +14,7 @@ from cyberdelta.core.models import (
     SpotBalance,
     Trade,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 
 
 class TestPnLCalculators:
@@ -27,11 +27,10 @@ class TestPnLCalculators:
         Returns:
             list[DerivativePosition]: List of sample derivative positions for testing.
         """
-        btc_symbol = symbols.BTC.hyperliquid()
         return [
             DerivativePosition(
                 exchange="hyperliquid",
-                symbol=btc_symbol,
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 size=Decimal("0.5"),
                 entry_price=Decimal(50000),
@@ -49,12 +48,11 @@ class TestPnLCalculators:
         Returns:
             list[Trade]: List of sample trades for testing.
         """
-        btc_symbol = symbols.BTC.hyperliquid()
         return [
             Trade(
                 id="trade_001",
                 exchange="hyperliquid",
-                symbol=btc_symbol,
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 price=Decimal(50000),
                 quantity=Decimal("0.5"),
@@ -149,10 +147,9 @@ class TestExposureCalculators:
         mock_result.notional_value = Decimal(25000)
         calculator.calculate_position_exposure.return_value = mock_result
 
-        btc_symbol = symbols.BTC.hyperliquid()
         position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=btc_symbol,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             size=Decimal("0.5"),
             entry_price=Decimal(50000),

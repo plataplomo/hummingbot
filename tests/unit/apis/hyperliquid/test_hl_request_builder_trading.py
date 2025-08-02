@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.apis.base.trading_execution_domain import (
     LiquidityRequirement,
     OrderExecution,
@@ -59,7 +59,7 @@ class TestHyperliquidTradingRequestBuilder:
         Returns:
             str: Test trading symbol.
         """
-        return symbols.BTC.hyperliquid().value
+        return BTC_HL.value
 
     def test_build_place_order_payload_limit_buy(
         self,

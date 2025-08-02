@@ -16,6 +16,7 @@ import yaml
 
 from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.models.config_models import AppSettings
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 class TestConfigManager:
@@ -38,7 +39,7 @@ class TestConfigManager:
                     "api_base_url_mainnet": "https://api.backpack.exchange",
                     "ws_url_mainnet": "wss://ws.backpack.exchange",
                     "rate_limit_per_minute": 60,
-                    "symbols": {"BTC": "BTC_USDC"},
+                    "symbols": {"BTC": BTC_USDC_BP.value},
                     "exchange_name": "backpack",
                 },
                 "hyperliquid": {
@@ -664,9 +665,9 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                         "exchange_name": "backpack",
                         "rate_limit_per_minute": 60,
                         "symbols": {
-                            "BTC": "BTC_USDC",
-                            "ETH": "ETH_USDC",
-                            "SOL": "SOL_USDC",
+                            "BTC": BTC_USDC_BP.value,
+                            "ETH": ETH_USDC_BP.value,
+                            "SOL": SOL_USDC_BP.value,
                         },
                     },
                     "hyperliquid": {
@@ -768,7 +769,7 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
             assert settings.general.log_level == "DEBUG"
             assert settings.general.module_log_levels is not None
             assert len(settings.general.module_log_levels) == 3
-            assert settings.exchanges["backpack"].symbols["SOL"] == "SOL_USDC"
+            assert settings.exchanges["backpack"].symbols["SOL"] == SOL_USDC_BP.value
             assert settings.risk.simple_sizing_method == "fixed_usd"
             assert settings.safety_systems.circuit_breakers.global_consecutive_failures == 10
             assert settings.monitoring.alert_methods == ["log", "telegram"]

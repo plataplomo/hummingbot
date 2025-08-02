@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.monitoring.persistence import PerformanceDataPersistence
 
 
@@ -67,7 +67,7 @@ def sample_trades_data() -> list[dict[str, Any]]:
         {
             "trade_id": "T001",
             "strategy": "test_strategy",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "exchange": "hyperliquid",
             "direction": "long",
             "size": Decimal("0.1"),
@@ -92,7 +92,7 @@ def sample_signals_data() -> list[dict[str, Any]]:
         {
             "signal_id": "S001",
             "strategy": "test_strategy",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "signal_type": "ENTER_LONG",
             "timestamp": datetime(2024, 1, 1, 11, 30, tzinfo=UTC),
             "confidence": Decimal("0.85"),
@@ -112,7 +112,7 @@ def sample_funding_rates_data() -> list[dict[str, Any]]:
         {
             "timestamp": datetime(2024, 1, 1, 12, 0, tzinfo=UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "funding_rate": Decimal("0.0001"),
             "predicted_rate": Decimal("0.00015"),
         }
@@ -666,7 +666,7 @@ class TestSaveLoadFundingRates:
         ("returns", "strategy1.json", {"2024-01-01T12:00:00+00:00": "0.01"}),
         ("trades", "trades.json", [{"trade_id": "T001", "pnl": "100"}]),
         ("signals", "signals.json", [{"signal_id": "S001", "executed": False}]),
-        ("funding_rates", "funding_rates.json", [{"symbol": symbols.BTC.hyperliquid().value, "funding_rate": "0.0001"}]),
+        ("funding_rates", "funding_rates.json", [{"symbol": BTC_HL.value, "funding_rate": "0.0001"}]),
     ],
 )
 def test_save_load_data_parametrized(

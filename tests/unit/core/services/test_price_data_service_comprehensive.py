@@ -16,7 +16,8 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import Ticker
 from cyberdelta.core.services.price_data_service import PriceDataService
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL, ETH_HL, BTC_BP
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
 from tests.fixtures.time_fixtures import FreezerProtocol
 
@@ -86,7 +87,7 @@ def sample_ticker() -> Ticker:
     Returns:
         Ticker: Sample BTC-PERP ticker with bid/ask spread.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return Ticker(
         symbol=btc_symbol,
         exchange="test_exchange",
@@ -103,7 +104,7 @@ def sample_ticker_with_mid_price() -> Ticker:
     Returns:
         Ticker: Sample ETH-PERP ticker with bid/ask/mid price.
     """
-    eth_symbol = symbols.ETH.hyperliquid()
+    eth_symbol = ETH_HL
     return Ticker(
         symbol=eth_symbol,
         exchange="test_exchange",
@@ -241,7 +242,7 @@ class TestGetTicker:
     ) -> None:
         """Test successful ticker fetch on cache miss."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Configure mock to return the sample ticker
         mock_api_clients["hyperliquid"].get_ticker.return_value = sample_ticker
 
@@ -265,7 +266,7 @@ class TestGetTicker:
     ) -> None:
         """Test successful ticker fetch from cache."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         price_service.cache_ticker("hyperliquid", btc_symbol.value, sample_ticker)
 
         # Act
@@ -289,7 +290,7 @@ class TestGetTicker:
     ) -> None:
         """Test ticker fetch when cache entry is expired."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Add entry to cache using public API, then manipulate time by changing cache expiry
         price_service.cache_ticker("hyperliquid", btc_symbol.value, sample_ticker)
 
@@ -327,7 +328,7 @@ class TestGetTicker:
     ) -> None:
         """Test ticker fetch when API returns None."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         mock_api_clients["hyperliquid"].get_ticker.return_value = None
 
         # Act
@@ -347,7 +348,7 @@ class TestGetTicker:
     ) -> None:
         """Test ticker fetch with no API client."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
 
         # Act
         result = await price_service.get_ticker("unknown_exchange", btc_symbol.value)
@@ -363,7 +364,7 @@ class TestGetTicker:
     ) -> None:
         """Test ticker fetch when API raises exception."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Current business logic doesn't catch RuntimeError, so it propagates
         mock_api_clients["hyperliquid"].get_ticker.side_effect = RuntimeError("Network error")
 
@@ -390,7 +391,7 @@ class TestCacheTicker:
     ) -> None:
         """Test caching ticker for new exchange."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
 
         # Act
         price_service.cache_ticker("new_exchange", btc_symbol.value, sample_ticker)
@@ -411,8 +412,8 @@ class TestCacheTicker:
     ) -> None:
         """Test caching ticker for existing exchange."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         price_service.cache_ticker("hyperliquid", btc_symbol.value, sample_ticker)
 
         # Act
@@ -432,7 +433,7 @@ class TestCacheTicker:
     ) -> None:
         """Test overwriting existing cached ticker."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         old_ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",
@@ -464,7 +465,7 @@ class TestCacheTicker:
     ) -> None:
         """Test caching same symbol across multiple exchanges."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
 
         # Act
         for exchange in ["exchange1", "exchange2", "exchange3"]:
@@ -488,7 +489,7 @@ class TestGetCachedTicker:
     ) -> None:
         """Test getting valid cached ticker through public get_ticker."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         price_service.cache_ticker("hyperliquid", btc_symbol.value, sample_ticker)
         # Ensure API won't be called by setting it to fail
         mock_api_clients["hyperliquid"].get_ticker.side_effect = Exception("Should not be called")
@@ -508,7 +509,7 @@ class TestGetCachedTicker:
     ) -> None:
         """Test expired cached ticker triggers fresh fetch."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # We can't directly set expiry, but we can test the behavior
         # by caching a ticker and relying on the service's expiry logic
         new_ticker = Ticker(
@@ -533,7 +534,7 @@ class TestGetCachedTicker:
     ) -> None:
         """Test getting cached ticker for non-existent exchange."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
 
         # Act - Test through public API, should return None for unknown exchange
         result = await price_service.get_ticker("unknown_exchange", btc_symbol.value)
@@ -550,8 +551,8 @@ class TestGetCachedTicker:
     ) -> None:
         """Test getting cached ticker for non-existent symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         price_service.cache_ticker("hyperliquid", eth_symbol.value, sample_ticker)
         # Configure API to return None for BTC-PERP
         mock_api_clients["hyperliquid"].get_ticker.return_value = None
@@ -624,7 +625,7 @@ class TestGetPriceInBaseCurrency:
     ) -> None:
         """Test getting price with only bid available."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="hyperliquid",
@@ -646,7 +647,7 @@ class TestGetPriceInBaseCurrency:
     ) -> None:
         """Test getting price with only ask available."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="hyperliquid",
@@ -672,7 +673,7 @@ class TestGetPriceInBaseCurrency:
         # Arrange
         def get_ticker_side_effect(symbol: str) -> Ticker | None:
             # Only return ticker for specific format
-            btc_symbol = symbols.BTC.backpack()
+            btc_symbol = BTC_BP
             if symbol == btc_symbol.value:
                 return sample_ticker
             return None
@@ -694,7 +695,7 @@ class TestGetPriceInBaseCurrency:
     ) -> None:
         """Test handling zero mid price."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             exchange="hyperliquid",
             symbol=btc_symbol,
@@ -733,7 +734,7 @@ class TestGetPriceInBaseCurrency:
     ) -> None:
         """Test getting price when ticker has no usable price data."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
             exchange="hyperliquid",
@@ -1213,7 +1214,7 @@ class TestEdgeCasesAndErrorHandling:
     ) -> None:
         """Test price conversion with various symbol formats."""
         # Arrange - Test different symbol format patterns
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         formats = {
             "BTC-USDC": sample_ticker,
             "BTCUSDC": sample_ticker,

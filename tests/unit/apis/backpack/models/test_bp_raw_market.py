@@ -20,6 +20,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 from cyberdelta.apis.exceptions.parsing import StructureTypeError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 def _is_nested_list_with_elements(value: object) -> TypeGuard[list[list[Any]]]:
@@ -47,7 +48,7 @@ def _has_minimum_list_elements(value: list[Any], min_count: int) -> TypeGuard[li
 def valid_market() -> dict[str, Any]:
     """Return valid market for testing."""
     return {
-        "symbol": "BTC_USDC",
+        "symbol": BTC_USDC_BP.value,
         "baseSymbol": "BTC",
         "quoteSymbol": "USDC",
         "marketType": "Spot",
@@ -63,7 +64,7 @@ def valid_market() -> dict[str, Any]:
 def test_BackpackRawMarket_happy_path() -> None:
     """Test BackpackRawMarket happy path."""
     obj = BackpackRawMarketResponse.model_validate(valid_market())
-    assert obj.symbol == "BTC_USDC"
+    assert obj.symbol == BTC_USDC_BP.value
     assert obj.base_symbol == "BTC"
     assert obj.quote_symbol == "USDC"
 
@@ -117,7 +118,7 @@ def test_BackpackRawMarket_extra_field() -> None:
     # Business logic changed: extra="ignore" now, so extra fields are allowed
     market = BackpackRawMarketResponse.model_validate(p)
     # Verify the model was created successfully and extra field was ignored
-    assert market.symbol == "BTC_USDC"
+    assert market.symbol == BTC_USDC_BP.value
     assert not hasattr(market, "foo")
 
 
@@ -132,14 +133,14 @@ def test_BackpackRawMarket_corruption_cases() -> None:
     p = valid_market().copy()
     p["symbol"] = "BTC_USDC\x00"
     obj = BackpackRawMarketResponse.model_validate(p)
-    assert "BTC_USDC" in obj.symbol
+    assert BTC_USDC_BP.value in obj.symbol
     # Excessive length
     p = valid_market().copy()
-    p["symbol"] = "BTC_USDC" * 1000
+    p["symbol"] = BTC_USDC_BP.value * 1000
     with pytest.raises(TypeFieldError):
         BackpackRawMarketResponse.model_validate(p)
     # Truncated JSON
-    bad_json = '{"symbol": "BTC_USDC", "baseSymbol": "BTC"'
+    bad_json = '{"symbol": BTC_USDC_BP.value, "baseSymbol": "BTC"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
 
@@ -150,7 +151,7 @@ def test_BackpackRawMarket_real_json_example() -> None:
     Includes edge values.
     """
     payload = {
-        "symbol": "BTC_USDC",
+        "symbol": BTC_USDC_BP.value,
         "baseSymbol": "BTC",
         "quoteSymbol": "USDC",
         "marketType": "Spot",
@@ -173,7 +174,7 @@ def test_BackpackRawMarket_real_json_example() -> None:
         "lastUpdateTime": 1678886400000,
     }
     obj = BackpackRawMarketResponse.model_validate(payload)
-    assert obj.symbol == "BTC_USDC"
+    assert obj.symbol == BTC_USDC_BP.value
     assert obj.base_symbol == "BTC"
     assert obj.quote_symbol == "USDC"
 
@@ -205,7 +206,7 @@ def test_BackpackRawMarket_corruption_nested_quoteAsset() -> None:
 def test_BackpackRawMarket_corruption_list_symbol() -> None:
     """Should fail: list for 'symbol'."""
     p = valid_market().copy()
-    p["symbol"] = ["BTC_USDC"]
+    p["symbol"] = [BTC_USDC_BP.value]
     with pytest.raises(TypeError):
         BackpackRawMarketResponse.model_validate(p)
 
@@ -222,7 +223,7 @@ def test_BackpackRawMarket_corruption_garbled_unicode_symbol() -> None:
 def valid_ticker() -> dict[str, Any]:
     """Return valid ticker for testing."""
     return {
-        "symbol": "BTC_USDC",
+        "symbol": BTC_USDC_BP.value,
         "firstPrice": "49000.0",
         "lastPrice": "50000.0",
         "high": "51000.0",
@@ -238,7 +239,7 @@ def valid_ticker() -> dict[str, Any]:
 def test_BackpackRawTicker_happy_path() -> None:
     """Test BackpackRawTicker happy path."""
     obj = BackpackRawTickerResponse.model_validate(valid_ticker())
-    assert obj.symbol == "BTC_USDC"
+    assert obj.symbol == BTC_USDC_BP.value
     assert obj.last_price == "50000.0"
     assert obj.first_price == "49000.0"
     assert obj.high == "51000.0"
@@ -299,7 +300,7 @@ def test_BackpackRawTicker_optional_fields_all_none() -> None:
     # All fields in the new model are required, so this test is no longer applicable
     # Just validate the model with all fields present
     obj = BackpackRawTickerResponse.model_validate(p)
-    assert obj.symbol == "BTC_USDC"
+    assert obj.symbol == BTC_USDC_BP.value
 
 
 def test_BackpackRawTicker_optional_fields_omitted() -> None:
@@ -328,9 +329,9 @@ def test_BackpackRawTicker_corruption_cases() -> None:
     p = valid_ticker().copy()
     p["symbol"] = "BTC_USDC\x00"
     obj = BackpackRawTickerResponse.model_validate(p)
-    assert "BTC_USDC" in obj.symbol
+    assert BTC_USDC_BP.value in obj.symbol
     # Truncated JSON
-    bad_json = '{"symbol": "BTC_USDC", "firstPrice": "49000.0"'
+    bad_json = '{"symbol": BTC_USDC_BP.value, "firstPrice": "49000.0"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
 
@@ -341,7 +342,7 @@ def test_BackpackRawTicker_real_json_example() -> None:
     Includes edge values.
     """
     payload = {
-        "symbol": "ETH_USDC",
+        "symbol": ETH_USDC_BP.value,
         "firstPrice": "0.00000001",
         "lastPrice": "0.00000002",
         "high": "99999999.99999999",
@@ -353,7 +354,7 @@ def test_BackpackRawTicker_real_json_example() -> None:
         "trades": "9999",
     }
     obj = BackpackRawTickerResponse.model_validate(payload)
-    assert obj.symbol == "ETH_USDC"
+    assert obj.symbol == ETH_USDC_BP.value
     assert obj.first_price == "0.00000001"
     assert obj.last_price == "0.00000002"
     assert obj.high == "99999999.99999999"
@@ -406,7 +407,7 @@ def test_BackpackRawTicker_corruption_garbled_unicode_symbol() -> None:
 def valid_open_interest() -> dict[str, Any]:
     """Return valid open interest for testing."""
     return {
-        "symbol": "BTC_USDC",
+        "symbol": BTC_USDC_BP.value,
         "openInterest": "12345.6789",
     }
 
@@ -414,7 +415,7 @@ def valid_open_interest() -> dict[str, Any]:
 def test_BackpackRawOpenInterest_happy_path() -> None:
     """Test BackpackRawOpenInterest happy path."""
     obj = BackpackRawOpenInterest.model_validate(valid_open_interest())
-    assert obj.symbol == "BTC_USDC"
+    assert obj.symbol == BTC_USDC_BP.value
     assert obj.open_interest == "12345.6789"
 
 
@@ -471,9 +472,9 @@ def test_BackpackRawOpenInterest_corruption_cases() -> None:
     p = valid_open_interest().copy()
     p["symbol"] = "BTC_USDC\x00"
     obj = BackpackRawOpenInterest.model_validate(p)
-    assert "BTC_USDC" in obj.symbol
+    assert BTC_USDC_BP.value in obj.symbol
     # Truncated JSON
-    bad_json = '{"symbol": "BTC_USDC", "openInterest": "12345.6789"'
+    bad_json = '{"symbol": BTC_USDC_BP.value, "openInterest": "12345.6789"'
     with pytest.raises(json.JSONDecodeError):
         json.loads(bad_json)
 
@@ -484,11 +485,11 @@ def test_BackpackRawOpenInterest_real_json_example() -> None:
     Includes edge values.
     """
     payload = {
-        "symbol": "BTC_USDC",
+        "symbol": BTC_USDC_BP.value,
         "openInterest": "99999999.99999999",
     }
     obj = BackpackRawOpenInterest.model_validate(payload)
-    assert obj.symbol == "BTC_USDC"
+    assert obj.symbol == BTC_USDC_BP.value
     assert obj.open_interest == "99999999.99999999"
 
 
@@ -519,7 +520,7 @@ def test_BackpackRawOpenInterest_corruption_nested_openInterest() -> None:
 def test_BackpackRawOpenInterest_corruption_list_symbol() -> None:
     """Should fail: list for 'symbol'."""
     p = valid_open_interest().copy()
-    p["symbol"] = ["BTC_USDC"]
+    p["symbol"] = [BTC_USDC_BP.value]
     with pytest.raises(TypeError):
         BackpackRawOpenInterest.model_validate(p)
 
@@ -539,7 +540,7 @@ def test_BackpackRawOpenInterest_corruption_garbled_unicode_symbol() -> None:
 def valid_ticker_event_data() -> dict[str, Any]:
     """Return valid ticker event data for testing."""
     return {
-        "s": "SOL_USDC",
+        "s": SOL_USDC_BP.value,
         "c": "23.50",  # Required: last_price (close price)
         "h": "24.00",  # Required: high
         "l": "22.80",  # Required: low
@@ -570,7 +571,7 @@ def valid_depth_update_data() -> dict[str, Any]:
 def test_BackpackRawTickerEvent_valid(valid_ticker_event_data: dict[str, Any]) -> None:
     """Test BackpackRawTickerEvent valid."""
     ticker = BackpackRawTickerEvent.model_validate(valid_ticker_event_data)
-    assert ticker.symbol == "SOL_USDC"
+    assert ticker.symbol == SOL_USDC_BP.value
     assert ticker.last_price == "23.50"
     assert ticker.high == "24.00"
     assert ticker.low == "22.80"

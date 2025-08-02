@@ -26,6 +26,7 @@ from cyberdelta.core.execution.orders import (
     PriceDeviationError,
 )
 from cyberdelta.core.models import OrderSide, OrderStatus, OrderType, TimeInForce
+from tests.common_symbols import BTC_USDC_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 from tests.integration.core.execution.orders.test_helpers import MarketOrderTestHelpers
 
 
@@ -66,7 +67,7 @@ class TestBackpackMarketOrderIntegration:
         """
         # Get test symbol - BTC_USDC for Backpack spot
         symbol = await MarketOrderTestHelpers.get_test_symbol(backpack_api, "backpack")
-        assert symbol == "BTC_USDC", f"Expected BTC_USDC symbol for Backpack, got {symbol}"
+        assert symbol == BTC_USDC_BP.value, f"Expected BTC_USDC symbol for Backpack, got {symbol}"
 
         # Get minimal test quantity from real market data
         test_quantity = await MarketOrderTestHelpers.get_minimal_test_quantity(
@@ -359,7 +360,7 @@ class TestBackpackMarketOrderIntegration:
 
         # Based on order history data, these PERP symbols are known to exist on Backpack
         # even if they don't appear in the markets endpoint
-        known_perp_symbols = ["BTC_USDC_PERP", "SOL_USDC_PERP", "ETH_USDC_PERP"]
+        known_perp_symbols = [BTC_USDC_PERP_BP.value, SOL_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value]
 
         for symbol in known_perp_symbols:
             try:
@@ -928,7 +929,7 @@ class TestBackpackMarketOrderIntegration:
 
         # After test cleanup
         try:
-            await MarketOrderTestHelpers.cleanup_test_positions(backpack_api, "BTC_USDC")
+            await MarketOrderTestHelpers.cleanup_test_positions(backpack_api, BTC_USDC_BP.value)
         except (APIError, ValueError, TypeError, KeyError) as e:
             # Cleanup errors should not be silenced for real failures
             pytest.fail(

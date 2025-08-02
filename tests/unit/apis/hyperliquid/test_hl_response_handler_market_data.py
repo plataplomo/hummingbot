@@ -21,7 +21,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidR
 from cyberdelta.apis.hyperliquid.response_handlers.hl_market_data_response_handler import (
     HyperliquidMarketDataResponseHandler,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import ETH_HL
 from cyberdelta.exceptions import ListFieldError
 from cyberdelta.utils.typing import ParsedJsonResponse as RawJsonResponse
 
@@ -70,7 +70,7 @@ class TestHandleInfoMetaAndAssetCtxsResponse:
     def test_validation_error_missing_universe(self) -> None:
         """Test meta and asset contexts response missing universe."""
         raw_data: list[dict[str, str] | list[Any]] = [
-            {"name": symbols.ETH.hyperliquid().value},
+            {"name": ETH_HL.value},
             [],
         ]  # Missing universe field in meta
         with pytest.raises(APIError) as exc_info:
@@ -107,12 +107,12 @@ class TestHandleInfoFundingRateResponse:
             status_code=200,
             headers={},
         )
-        assert response.name == symbols.ETH.hyperliquid().value
+        assert response.name == ETH_HL.value
         assert response.funding == "0.00015"
 
     def test_validation_error_missing_funding(self, symbol: str) -> None:
         """Test funding rate response missing funding field."""
-        raw_data = {"name": symbols.ETH.hyperliquid().value, "markPx": "3000.0"}  # Missing funding
+        raw_data = {"name": ETH_HL.value, "markPx": "3000.0"}  # Missing funding
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_funding_rate_response(
                 cast("RawJsonResponse", raw_data),
@@ -151,13 +151,13 @@ class TestHandleInfoL2BookResponse:
             headers={},
         )
         assert isinstance(response, HyperliquidRawL2Book)
-        assert response.coin == symbols.ETH.hyperliquid().value
+        assert response.coin == ETH_HL.value
         assert len(response.levels) == 2  # Bids and asks
         assert response.time == 1678889300000
 
     def test_validation_error_missing_levels(self, symbol: str) -> None:
         """Test L2 book response missing levels field."""
-        raw_data = {"coin": symbols.ETH.hyperliquid().value, "time": 1678889300000}  # Missing levels
+        raw_data = {"coin": ETH_HL.value, "time": 1678889300000}  # Missing levels
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_l2_book_response(
                 cast("RawJsonResponse", raw_data),
@@ -187,7 +187,7 @@ class TestHandleInfoL2BookResponse:
     def test_l2_book_response_empty_levels(self, symbol: str) -> None:
         """Test L2 book response with empty levels arrays."""
         raw_data: dict[str, Any] = {
-            "coin": symbols.ETH.hyperliquid().value,
+            "coin": ETH_HL.value,
             "levels": [[], []],  # Empty bids and asks
             "time": 1678889300000,
         }
@@ -197,7 +197,7 @@ class TestHandleInfoL2BookResponse:
             status_code=200,
             headers={},
         )
-        assert response.coin == symbols.ETH.hyperliquid().value
+        assert response.coin == ETH_HL.value
         assert len(response.levels) == 2
         assert len(response.levels[0]) == 0  # Empty bids
         assert len(response.levels[1]) == 0  # Empty asks
@@ -220,12 +220,12 @@ class TestHandleInfoRecentTradesResponse:
         assert isinstance(response_list, list)
         assert len(response_list) == 2
         assert isinstance(response_list[0], HyperliquidRawPublicTrade)
-        assert response_list[0].coin == symbols.ETH.hyperliquid().value
+        assert response_list[0].coin == ETH_HL.value
         assert response_list[0].side == "B"
 
     def test_validation_error_invalid_trade_item(self, symbol: str) -> None:
         """Test recent trades response with invalid trade item."""
-        invalid_trade = {"coin": symbols.ETH.hyperliquid().value}  # Missing required fields
+        invalid_trade = {"coin": ETH_HL.value}  # Missing required fields
         raw_data = [invalid_trade]
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
@@ -415,7 +415,7 @@ class TestMarketDataEdgeCases:
         unexpected fields due to the extra='forbid' configuration.
         """
         raw_data = {
-            "name": symbols.ETH.hyperliquid().value,
+            "name": ETH_HL.value,
             "funding": "0.00015",
             "markPx": "3000.0",
             "extraField": "ignored",  # Should cause ValidationError
@@ -432,7 +432,7 @@ class TestMarketDataEdgeCases:
     def test_l2_book_response_empty_levels(self, symbol: str) -> None:
         """Test L2 book response with empty levels arrays."""
         raw_data: dict[str, Any] = {
-            "coin": symbols.ETH.hyperliquid().value,
+            "coin": ETH_HL.value,
             "levels": [[], []],  # Empty bids and asks
             "time": 1678889300000,
         }
@@ -442,7 +442,7 @@ class TestMarketDataEdgeCases:
             status_code=200,
             headers={},
         )
-        assert response.coin == symbols.ETH.hyperliquid().value
+        assert response.coin == ETH_HL.value
         assert len(response.levels) == 2
         assert len(response.levels[0]) == 0  # Empty bids
         assert len(response.levels[1]) == 0  # Empty asks
@@ -453,7 +453,7 @@ class TestMarketDataEdgeCases:
         symbol: str,
     ) -> None:
         """Test recent trades response with mix of valid and invalid items."""
-        invalid_trade = {"coin": symbols.ETH.hyperliquid().value}  # Missing required fields
+        invalid_trade = {"coin": ETH_HL.value}  # Missing required fields
         raw_data = [
             valid_raw_public_trade.copy(),  # Valid
             invalid_trade,  # Invalid - should cause error

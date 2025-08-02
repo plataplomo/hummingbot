@@ -1,6 +1,7 @@
 """Test scalable registry pattern."""
 
 import pytest
+from tests.common_symbols import AVAX_HL
 from cyberdelta.core.symbols import symbol, exchanges, symbols, get_registry
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -103,7 +104,7 @@ class TestSymbolRegistry:
         symbols.add_asset(
             "AVAX",
             {
-                ExchangeName.HYPERLIQUID: {"value": "AVAX-PERP"},
+                ExchangeName.HYPERLIQUID: {"value": AVAX_HL.value},
                 ExchangeName.BACKPACK: {"value": "AVAX_USD_PERP", "symbol_id": 11111},
             },
         )
@@ -112,7 +113,7 @@ class TestSymbolRegistry:
         avax_hl = symbols.AVAX.hyperliquid()
         avax_bp = symbols.AVAX.backpack()
 
-        assert avax_hl.value == "AVAX-PERP"
+        assert avax_hl.value == AVAX_HL.value
         assert avax_bp.value == "AVAX_USD_PERP"
         assert avax_bp.metadata.symbol_id == 11111
 

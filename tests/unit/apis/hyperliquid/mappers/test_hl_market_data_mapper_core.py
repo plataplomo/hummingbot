@@ -35,7 +35,7 @@ from cyberdelta.core.models.market.funding_rate import (
     FundingRate,
     HyperliquidFundingDetails,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import ETH_HL, BTC_HL, SOL_HL, AVAX_HL
 
 
 # Aliases for shorter method calls
@@ -109,7 +109,7 @@ def hyperliquid_raw_asset_ctx_eth_fixture() -> HyperliquidRawAssetCtx:
         HyperliquidRawAssetCtx: Asset context configured with ETH-PERP test data.
     """
     return create_asset_ctx(
-        name=symbols.ETH.hyperliquid().value,
+        name=ETH_HL.value,
         funding="0.00001234",
         mark_px="3010.75",
         prev_day_px="2950.00",
@@ -132,7 +132,7 @@ def hyperliquid_raw_asset_ctx_btc_no_impact_px_fixture() -> HyperliquidRawAssetC
         HyperliquidRawAssetCtx: Asset context for BTC-PERP without impact price.
     """
     return create_asset_ctx(
-        name=symbols.BTC.hyperliquid().value,
+        name=BTC_HL.value,
         funding="-0.00000567",
         mark_px="60200.50",
         prev_day_px="61000.00",
@@ -508,10 +508,10 @@ class TestCoreBusinessLogicValidation:
     ) -> None:
         """Test that symbol names are consistent across different transformations."""
         symbol_test_cases = [
-            symbols.ETH.hyperliquid().value,
-            symbols.BTC.hyperliquid().value,
-            symbols.SOL.hyperliquid().value,
-            symbols.AVAX.hyperliquid().value,
+            ETH_HL.value,
+            BTC_HL.value,
+            SOL_HL.value,
+            AVAX_HL.value,
             "LONGNAME-PERP",  # Updated to stay within 20-char limit
         ]
 

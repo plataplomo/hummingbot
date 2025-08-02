@@ -23,7 +23,7 @@ from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.validation.position_reconciliation import (
     PositionReconciliationSystem,
 )
@@ -80,7 +80,7 @@ def sample_api_position() -> DerivativePosition:
     """
     return DerivativePosition(
         exchange="hyperliquid",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         side=OrderSide.BUY,
         size=Decimal("1.5"),
         entry_price=Decimal("50000.0"),
@@ -100,7 +100,7 @@ def sample_local_position() -> DerivativePosition:
     """
     return DerivativePosition(
         exchange="hyperliquid",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         side=OrderSide.BUY,
         size=Decimal("1.5"),
         entry_price=Decimal("50000.0"),
@@ -301,7 +301,7 @@ class TestRecordDiscrepancy:
         # Arrange - Create mismatched positions to trigger size discrepancy
         api_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             size=Decimal("1.5"),  # Different size from local
             entry_price=Decimal("50000.0"),
@@ -312,7 +312,7 @@ class TestRecordDiscrepancy:
 
         local_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             size=Decimal("1.0"),  # Different size from API
             entry_price=Decimal("50000.0"),
@@ -321,8 +321,8 @@ class TestRecordDiscrepancy:
             bp_details=None,
         )
 
-        api_positions = {symbols.BTC.hyperliquid().value: api_position}
-        local_positions = {symbols.BTC.hyperliquid().value: local_position}
+        api_positions = {BTC_HL: api_position}
+        local_positions = {BTC_HL: local_position}
 
         # Act - Trigger reconciliation which records discrepancies
         await reconciliation_system.reconcile_positions(
@@ -340,7 +340,7 @@ class TestRecordDiscrepancy:
 
         assert size_discrepancy is not None
         assert size_discrepancy.exchange_id == "hyperliquid"
-        assert size_discrepancy.detail.symbol == symbols.BTC.hyperliquid().value
+        assert size_discrepancy.detail.symbol == BTC_HL
         assert len(reconciliation_system.discrepancy_history) == 1
 
     @pytest.mark.asyncio
@@ -351,7 +351,7 @@ class TestRecordDiscrepancy:
         # Arrange - Create position that exists on API but not locally
         api_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=symbols.ETH.hyperliquid(),
+            symbol=ETH_HL,
             side=OrderSide.BUY,
             size=Decimal("1.0"),
             entry_price=Decimal("3000.0"),
@@ -360,7 +360,7 @@ class TestRecordDiscrepancy:
             bp_details=None,
         )
 
-        api_positions = {symbols.ETH.hyperliquid().value: api_position}
+        api_positions = {ETH_HL: api_position}
         local_positions: dict[
             str, DerivativePosition
         ] = {}  # No local position to create discrepancy
@@ -375,13 +375,13 @@ class TestRecordDiscrepancy:
         # Find the unknown local symbol discrepancy
         discrepancy = None
         for record in reconciliation_system.discrepancy_history:
-            if record.detail.symbol == symbols.ETH.hyperliquid().value:
+            if record.detail.symbol == ETH_HL:
                 discrepancy = record
                 break
 
         assert discrepancy is not None
         assert discrepancy.exchange_id == "hyperliquid"
-        assert discrepancy.detail.symbol == symbols.ETH.hyperliquid().value
+        assert discrepancy.detail.symbol == ETH_HL
 
     # ==================== EDGE CASES ====================
 
@@ -393,7 +393,7 @@ class TestRecordDiscrepancy:
         # Arrange - Create positions with different sides to trigger side discrepancy
         api_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             side=OrderSide.BUY,  # Different side
             size=Decimal("1.0"),
             entry_price=Decimal("50000.0"),
@@ -404,7 +404,7 @@ class TestRecordDiscrepancy:
 
         local_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             side=OrderSide.SELL,  # Different side
             size=Decimal("-1.0"),  # Negative size for SELL side
             entry_price=Decimal("50000.0"),
@@ -413,8 +413,8 @@ class TestRecordDiscrepancy:
             bp_details=None,
         )
 
-        api_positions = {symbols.BTC.hyperliquid().value: api_position}
-        local_positions = {symbols.BTC.hyperliquid().value: local_position}
+        api_positions = {BTC_HL: api_position}
+        local_positions = {BTC_HL: local_position}
 
         # Act - Trigger reconciliation which records side discrepancies
         await reconciliation_system.reconcile_positions(
@@ -425,7 +425,7 @@ class TestRecordDiscrepancy:
         assert len(reconciliation_system.discrepancy_history) >= 1
         # Check that discrepancies were recorded (different sides detected)
         assert any(
-            record.detail.symbol == symbols.BTC.hyperliquid().value
+            record.detail.symbol == BTC_HL
             for record in reconciliation_system.discrepancy_history
         )
 
@@ -443,12 +443,12 @@ class TestApplyCorrections:
     ) -> None:
         """Test successful application of size correction through reconcile_positions."""
         # Arrange - Create positions with discrepancies that will trigger corrections
-        api_positions = {symbols.BTC.hyperliquid().value: sample_api_position}  # Exchange position with size 1.5
+        api_positions = {BTC_HL: sample_api_position}  # Exchange position with size 1.5
 
         # Create local position with different size to trigger size discrepancy
         local_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             size=Decimal("2.0"),  # Different from API position size to trigger discrepancy
             entry_price=Decimal("49500.0"),
@@ -456,7 +456,7 @@ class TestApplyCorrections:
             mark_price=Decimal("50000.0"),
             liquidation_price=Decimal("45000.0"),
         )
-        local_positions = {symbols.BTC.hyperliquid().value: local_position}
+        local_positions = {BTC_HL: local_position}
 
         # Act - Use public method which internally calls _apply_corrections when discrepancies found
         result = await reconciliation_system.reconcile_positions(
@@ -470,7 +470,7 @@ class TestApplyCorrections:
             (d for d in result["discrepancies"] if d.detail.discrepancy_type == "size"), None
         )
         assert size_discrepancy is not None
-        assert size_discrepancy.detail.symbol == symbols.BTC.hyperliquid().value
+        assert size_discrepancy.detail.symbol == BTC_HL
 
     # ==================== EDGE CASES ====================
 
@@ -482,8 +482,8 @@ class TestApplyCorrections:
     ) -> None:
         """Test apply corrections with no discrepancies through reconcile_positions."""
         # Arrange - Create identical positions so no discrepancies are found
-        api_positions = {symbols.BTC.hyperliquid().value: sample_api_position}
-        local_positions = {symbols.BTC.hyperliquid().value: sample_api_position}  # Same position, no discrepancies
+        api_positions = {BTC_HL: sample_api_position}
+        local_positions = {BTC_HL: sample_api_position}  # Same position, no discrepancies
 
         # Act - Use public method with matching positions
         result = await reconciliation_system.reconcile_positions(
@@ -502,12 +502,12 @@ class TestApplyCorrections:
     ) -> None:
         """Test apply corrections with non-size discrepancy through reconcile_positions."""
         # Arrange - Create positions with different entry prices (non-size discrepancy)
-        api_positions = {symbols.BTC.hyperliquid().value: sample_api_position}  # Has entry_price=50000.0
+        api_positions = {BTC_HL: sample_api_position}  # Has entry_price=50000.0
 
         # Create local position with different entry price
         local_position = DerivativePosition(
             exchange="hyperliquid",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             size=Decimal("1.5"),  # Same size as API position
             entry_price=Decimal("49999.0"),  # Different entry price
@@ -516,7 +516,7 @@ class TestApplyCorrections:
             liquidation_price=Decimal("45000.0"),
             unrealized_pnl=Decimal("1500.0"),
         )
-        local_positions = {symbols.BTC.hyperliquid().value: local_position}
+        local_positions = {BTC_HL: local_position}
 
         # Act - Use public method which should detect entry price discrepancy
         result = await reconciliation_system.reconcile_positions(
@@ -550,7 +550,7 @@ class TestGetDiscrepancyHistory:
         now = datetime.now(UTC)
         old_record = HistoricalDiscrepancyRecord(
             detail=DiscrepancyDetail(
-                symbol="OLD",
+                symbol=BTC_HL,
                 discrepancy_type="size",
                 exchange_value="1",
                 local_value="0",
@@ -561,7 +561,7 @@ class TestGetDiscrepancyHistory:
         )
         recent_record = HistoricalDiscrepancyRecord(
             detail=DiscrepancyDetail(
-                symbol="RECENT",
+                symbol=ETH_HL,
                 discrepancy_type="size",
                 exchange_value="2",
                 local_value="1",
@@ -607,7 +607,7 @@ class TestGetReconciliationReport:
         reconciliation_system.discrepancy_history = [
             HistoricalDiscrepancyRecord(
                 detail=DiscrepancyDetail(
-                    symbol=symbols.BTC.hyperliquid(),
+                    symbol=BTC_HL,
                     discrepancy_type="size",
                     exchange_value="2",
                     local_value="1",
@@ -658,8 +658,8 @@ class TestReconcilePositions:
     ) -> None:
         """Test successful reconciliation with matching positions."""
         # Arrange
-        api_positions = {symbols.BTC.hyperliquid().value: sample_api_position}
-        local_positions = {symbols.BTC.hyperliquid().value: sample_api_position}
+        api_positions = {BTC_HL: sample_api_position}
+        local_positions = {BTC_HL: sample_api_position}
 
         # Act
         with patch.object(
@@ -685,8 +685,8 @@ class TestReconcilePositions:
         """Test successful reconciliation with discrepancies."""
         # Arrange
         sample_local_position.size = Decimal("1.0")  # Different size
-        api_positions = {symbols.BTC.hyperliquid().value: sample_api_position}
-        local_positions = {symbols.BTC.hyperliquid().value: sample_local_position}
+        api_positions = {BTC_HL: sample_api_position}
+        local_positions = {BTC_HL: sample_local_position}
 
         # Act
         with patch.object(
@@ -694,7 +694,7 @@ class TestReconcilePositions:
         ) as mock_reconcile_symbol:
             discrepancy_record = HistoricalDiscrepancyRecord(
                 detail=DiscrepancyDetail(
-                    symbol=symbols.BTC.hyperliquid(),
+                    symbol=BTC_HL,
                     discrepancy_type="size",
                     exchange_value="1.5",
                     local_value="1.0",
@@ -737,7 +737,7 @@ class TestReconcilePositions:
     ) -> None:
         """Test reconciliation when position exists only on API."""
         # Arrange
-        api_positions = {symbols.BTC.hyperliquid().value: sample_api_position}
+        api_positions = {BTC_HL: sample_api_position}
         local_positions: dict[str, DerivativePosition] = {}
 
         # Act
@@ -746,7 +746,7 @@ class TestReconcilePositions:
         ) as mock_reconcile_symbol:
             discrepancy_record = HistoricalDiscrepancyRecord(
                 detail=DiscrepancyDetail(
-                    symbol=symbols.BTC.hyperliquid(),
+                    symbol=BTC_HL,
                     discrepancy_type="size",
                     exchange_value="1.5",
                     local_value="0",
@@ -774,8 +774,8 @@ class TestReconcilePositions:
     ) -> None:
         """Test reconciliation handles errors in symbol reconciliation."""
         # Arrange
-        api_positions = {symbols.BTC.hyperliquid().value: sample_api_position}
-        local_positions = {symbols.BTC.hyperliquid().value: sample_api_position}
+        api_positions = {BTC_HL: sample_api_position}
+        local_positions = {BTC_HL: sample_api_position}
 
         # Act
         with patch.object(

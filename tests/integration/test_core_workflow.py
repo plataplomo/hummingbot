@@ -46,7 +46,7 @@ from cyberdelta.core.risk.checks.checkers.exchange_balance_checker import Portfo
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbol_service import UnifiedSymbolService
-from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL, ETH_USDC_BP, USDC_BP, BTC_ASSET_BP, USD_HL, BTC_ASSET_HL
+from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL, ETH_USDC_BP, USDC_BP, BTC_ASSET_BP, USD_HL, BTC_ASSET_HL, USD_USDC_HL, USDC_USD_BP
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.exceptions import (
@@ -177,7 +177,7 @@ def populate_data_handler(
     Args:
         dh: The DataHandler instance.
         exchange_name: The name of the exchange (e.g., "hyperliquid").
-        exchange_symbol: The exchange-specific symbol (e.g., "BTC-PERP").
+        exchange_symbol: The exchange-specific symbol (e.g., BTC_HL.value).
         ticker: The Ticker object.
         funding_rate: The FundingRate object.
         order_book: The OrderBook object.
@@ -258,7 +258,7 @@ def mock_config_dict() -> dict[str, Any]:
                 "ws_url_mainnet": "wss://ws.backpack.exchange",
                 "environment_type": EnvironmentType.MAINNET,
                 "rate_limit_per_minute": 120,
-                "symbols": {"BTC": "BTC-USDC", "ETH": "ETH-USDC"},
+                "symbols": {"BTC": BTC_USDC_BP.value, "ETH": ETH_USDC_BP.value},
             },
         },
         "strategies": {
@@ -571,14 +571,14 @@ async def test_happy_path_full_cycle(
 
     # <<< ADDED >>> Set mock tickers for USD/USDC conversion
     mock_usd_usdc_ticker = create_mock_ticker(
-        "USD-USDC",
+        USD_USDC_HL.value,
         bid="0.9998",
         ask="1.0002",
         price="1.0",
         timestamp=start_time,
     )
     mock_usdc_usd_ticker = create_mock_ticker(
-        "USDC-USD",
+        USDC_USD_BP.value,
         bid="0.9998",
         ask="1.0002",
         price="1.0",
@@ -1472,8 +1472,8 @@ def _setup_compensation_test_data(
     # Tickers
     mock_hl_ticker = create_mock_ticker(hl_symbol, 2000.0, 2000.5, 2000.25, now)
     mock_bp_ticker = create_mock_ticker(bp_symbol, 2001.0, 2001.5, 2001.25, now)
-    mock_usd_usdc_hl_ticker = create_mock_ticker("USD-USDC", "0.999", "1.001", "1.0", now)
-    mock_usdc_usd_bp_ticker = create_mock_ticker("USDC-USD", "0.999", "1.001", "1.0", now)
+    mock_usd_usdc_hl_ticker = create_mock_ticker(USD_USDC_HL.value, "0.999", "1.001", "1.0", now)
+    mock_usdc_usd_bp_ticker = create_mock_ticker(USDC_USD_BP.value, "0.999", "1.001", "1.0", now)
 
     # Funding Rates
     next_funding_dt = now + timedelta(hours=1)

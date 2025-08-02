@@ -28,7 +28,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio.services.reconciliation_service import PortfolioReconciliationService
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 
 
 def _as_mock(obj: object) -> Mock:
@@ -137,7 +137,7 @@ def sample_derivative_position() -> DerivativePosition:
     Returns:
         DerivativePosition: A sample BTC-PERP long position for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return DerivativePosition(
         exchange="hyperliquid",
         symbol=btc_symbol,
@@ -155,7 +155,7 @@ def sample_order() -> Order:
     Returns:
         Order: A sample BTC-PERP limit buy order for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return Order(
         exchange="hyperliquid",
         client_order_id="test_order_123",
@@ -200,7 +200,7 @@ def sample_ticker() -> Ticker:
     Returns:
         Ticker: A sample BTC-PERP ticker for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return Ticker(
         symbol=btc_symbol,
         exchange="test_exchange",
@@ -592,7 +592,7 @@ class TestFetchAndUpdateOrders:
     ) -> None:
         """Test fetching handles various order statuses correctly."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         orders = [
             Order(
                 exchange="hyperliquid",
@@ -756,7 +756,7 @@ class TestFetchTickerData:
         )
 
         # Act
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         result = await orchestrator.fetch_ticker_data("hyperliquid", btc_symbol.value)
 
         # Assert
@@ -779,7 +779,7 @@ class TestFetchTickerData:
         _as_mock(orchestrator.api_clients["hyperliquid"]).get_ticker = AsyncMock(return_value=None)
 
         # Act
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         result = await orchestrator.fetch_ticker_data("hyperliquid", btc_symbol.value)
 
         # Assert
@@ -794,7 +794,7 @@ class TestFetchTickerData:
     ) -> None:
         """Test ticker fetching with no API client."""
         # Act
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         result = await orchestrator.fetch_ticker_data("unknown_exchange", btc_symbol.value)
 
         # Assert
@@ -815,7 +815,7 @@ class TestFetchTickerData:
 
         # Act & Assert - Current business logic lets generic Exception propagate
         # This is the current behavior and source of truth
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         with pytest.raises(Exception) as exc_info:
             await orchestrator.fetch_ticker_data("hyperliquid", btc_symbol.value)
 

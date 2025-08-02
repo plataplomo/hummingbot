@@ -15,7 +15,7 @@ from cyberdelta.core.models.derivative_position import (
     DerivativePosition,
     HyperliquidPositionDetails,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import FieldNameMissingError
 from cyberdelta.exceptions.parsing import ParsingError
@@ -68,7 +68,7 @@ def base_derivative_position_data() -> dict[str, Any]:
     Returns:
         dict[str, Any]: Valid core data dictionary for DerivativePosition testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return {
         "exchange": "hyperliquid",
         "symbol": btc_symbol,
@@ -92,7 +92,7 @@ def test_derivative_position_successful_creation(
     base_derivative_position_data: dict[str, Any],
 ) -> None:
     """Test successful creation with valid core data, no details."""
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     pos = DerivativePosition(**base_derivative_position_data)
     assert pos.exchange == "hyperliquid"
     assert pos.symbol == btc_symbol

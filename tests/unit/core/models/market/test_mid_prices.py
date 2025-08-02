@@ -12,7 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.mid_prices import MidPrices
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 from cyberdelta.core.symbols.api import symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -25,8 +25,8 @@ class TestMidPricesInitialization:
     def test_mid_prices_init_success_with_required_fields(self) -> None:
         """Test successful initialization with required fields."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         prices = {
             btc_symbol: Decimal("50000.0"),
             eth_symbol: Decimal("3000.0"),
@@ -46,7 +46,7 @@ class TestMidPricesInitialization:
     def test_mid_prices_init_success_with_timestamp(self) -> None:
         """Test successful initialization with timestamp."""
         # Arrange
-        sol_symbol = symbols.SOL.hyperliquid()
+        sol_symbol = SOL_HL
         prices = {sol_symbol: Decimal("100.0")}
         timestamp = datetime.now(UTC)
 
@@ -80,8 +80,8 @@ class TestMidPricesInitialization:
     def test_mid_prices_init_edge_very_high_precision_prices(self) -> None:
         """Test initialization with high precision decimal prices."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         prices = {
             btc_symbol: Decimal("50000.123456789123456789"),
             eth_symbol: Decimal("3000.987654321987654321"),
@@ -133,7 +133,7 @@ class TestMidPricesInitialization:
     def test_mid_prices_init_failure_missing_exchange(self) -> None:
         """Test initialization fails without exchange field."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
@@ -155,9 +155,9 @@ class TestMidPricesSymbolLookup:
         Returns:
             MidPrices: A sample mid prices instance for testing.
         """
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
-        sol_symbol = symbols.SOL.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
+        sol_symbol = SOL_HL
         
         return MidPrices(
             prices={
@@ -174,8 +174,8 @@ class TestMidPricesSymbolLookup:
     def test_get_success_existing_symbol(self, sample_mid_prices: MidPrices) -> None:
         """Test getting price for existing symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         
         # Act
         btc_price = sample_mid_prices.get(btc_symbol)
@@ -188,9 +188,9 @@ class TestMidPricesSymbolLookup:
     def test_has_symbol_success_existing_symbols(self, sample_mid_prices: MidPrices) -> None:
         """Test checking existence of symbols."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
-        sol_symbol = symbols.SOL.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
+        sol_symbol = SOL_HL
         
         # Act & Assert
         assert sample_mid_prices.has_symbol(btc_symbol) is True
@@ -200,9 +200,9 @@ class TestMidPricesSymbolLookup:
     def test_symbols_success_returns_all_symbols(self, sample_mid_prices: MidPrices) -> None:
         """Test getting list of all symbols."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
-        sol_symbol = symbols.SOL.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
+        sol_symbol = SOL_HL
         
         # Act
         symbol_list = sample_mid_prices.symbols()
@@ -309,8 +309,8 @@ class TestMidPricesUtilityMethods:
     def test_mid_prices_is_immutable_after_creation(self) -> None:
         """Test that MidPrices behaves as expected for data integrity."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         original_prices = {
             btc_symbol: Decimal("50000.0"),
             eth_symbol: Decimal("3000.0"),
@@ -321,7 +321,7 @@ class TestMidPricesUtilityMethods:
         )
 
         # Act - Modify the original dict (should not affect MidPrices)
-        doge_symbol = symbols.SOL.hyperliquid()  # Use a different existing symbol for test
+        doge_symbol = SOL_HL  # Use a different existing symbol for test
         original_prices[doge_symbol] = Decimal("0.1")
 
         # Assert - MidPrices should be unaffected
@@ -331,7 +331,7 @@ class TestMidPricesUtilityMethods:
     def test_mid_prices_string_representation_includes_key_info(self) -> None:
         """Test that string representation contains useful information."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         mid_prices = MidPrices(
             prices={btc_symbol: Decimal("50000.0")},
             exchange="test_exchange",
@@ -347,8 +347,8 @@ class TestMidPricesUtilityMethods:
     def test_mid_prices_equality_comparison(self) -> None:
         """Test equality comparison between MidPrices instances."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         timestamp = datetime.now(UTC)
         prices = {btc_symbol: Decimal("50000.0")}
 
@@ -375,7 +375,7 @@ class TestMidPricesUtilityMethods:
     def test_mid_prices_dict_conversion_preserves_data(self) -> None:
         """Test converting MidPrices to dict preserves all data."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         timestamp = datetime.now(UTC)
         mid_prices = MidPrices(
             prices={btc_symbol: Decimal("50000.0")},
@@ -471,7 +471,7 @@ class TestMidPricesEdgeCasesAndValidation:
     def test_mid_prices_with_unicode_exchange_name(self) -> None:
         """Test MidPrices with unicode characters in exchange name."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         prices = {btc_symbol: Decimal("50000.0")}
         unicode_exchange = "测试交易所"  # Chinese characters
 

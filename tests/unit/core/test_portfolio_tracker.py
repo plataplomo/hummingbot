@@ -23,7 +23,8 @@ from cyberdelta.core.models import (
     TimeInForce,
 )
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL, ETH_HL
 
 from .conftest import create_sample_positions, populate_nested_dict
 
@@ -259,7 +260,7 @@ class TestPortfolioTracker:
     ) -> None:
         """Test the update_ticker_data method for pure state management."""
         # Apply Direct Symbol Creation pattern
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Test that portfolio tracker can update ticker data
         ticker = Ticker(
@@ -318,8 +319,8 @@ class TestPortfolioTracker:
     ) -> None:
         """Test update_positions method with validation."""
         # Apply Direct Symbol Creation pattern
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         
         # Create test position data
         positions = [
@@ -362,8 +363,8 @@ class TestPortfolioTracker:
     ) -> None:
         """Test update_orders method with validation."""
         # Apply Direct Symbol Creation pattern
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         
         # Create test order data
         orders = [
@@ -479,7 +480,7 @@ class TestPortfolioTracker:
     ) -> None:
         """Test updating a single position."""
         # Apply Direct Symbol Creation pattern
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Setup initial state
         populate_nested_dict(portfolio_tracker.positions, sample_positions)
@@ -702,7 +703,7 @@ class TestPortfolioTracker:
     ) -> None:
         """Test retrieving a specific position."""
         # Apply Direct Symbol Creation pattern
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         populate_nested_dict(portfolio_tracker.positions, sample_positions_default)
 
@@ -726,8 +727,8 @@ class TestPortfolioTracker:
     ) -> None:
         """Test retrieving positions by symbol."""
         # Apply Direct Symbol Creation pattern
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         
         populate_nested_dict(portfolio_tracker.positions, sample_positions_default)
 
@@ -895,8 +896,8 @@ class TestPortfolioTracker:
 
         # Test with symbol filter
         # Apply Direct Symbol Creation pattern for method calls
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         
         open_btc_orders_hl = portfolio_tracker.get_open_orders("hyperliquid", btc_symbol.value)  # Method call uses .value
         assert len(open_btc_orders_hl) == 1
@@ -933,7 +934,7 @@ class TestPortfolioTracker:
 
         # Test with symbol filter
         # Apply Direct Symbol Creation pattern for method calls and comparisons
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Check if there are any BTC-PERP orders for hyperliquid
         btc_orders_in_fixture = [

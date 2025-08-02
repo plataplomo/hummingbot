@@ -54,6 +54,7 @@ from cyberdelta.core.models.market.funding_rate import FundingRate
 from cyberdelta.core.models.market.market import BackpackMarketDetails
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import DecimalFieldError
+from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP, SOL_USDC_PERP_BP
 from tests.fixtures.time_fixtures import FreezerProtocol
 
 
@@ -346,7 +347,7 @@ def create_raw_kline(
 
 
 def create_raw_market(
-    symbol: str = "SOL_USDC",
+    symbol: str = SOL_USDC_BP.value,
     base_symbol: str = "SOL",
     quote_symbol: str = "USDC",
     market_type: str = "Spot",
@@ -395,7 +396,7 @@ class TestMarketTransformation:
     ) -> None:
         """Test successful transformation of BackpackRawMarketResponse to internal Market."""
         raw_market = create_raw_market(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             base_symbol="SOL",
             quote_symbol="USDC",
             market_type="Spot",
@@ -406,7 +407,7 @@ class TestMarketTransformation:
         result = mapper.transform_raw_market_to_internal(raw_market)
 
         assert isinstance(result, Market)
-        assert result.symbol == "SOL_USDC"
+        assert result.symbol == SOL_USDC_BP.value
         assert result.base_symbol == "SOL"
         assert result.quote_symbol == "USDC"
         assert result.market_type == "Spot"
@@ -466,7 +467,7 @@ class TestMarketTransformation:
         """Test market transformation with None optional fields."""
         # Create market with None optional fields (only maxPrice and maxQuantity can be None)
         raw_market = BackpackRawMarketResponse(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             baseSymbol="SOL",
             quoteSymbol="USDC",
             marketType="Spot",
@@ -519,13 +520,13 @@ class TestMarketTransformation:
     ) -> None:
         """Test market transformation with perpetual contract type."""
         raw_market = create_raw_market(
-            symbol="SOL_USDC_PERP",
+            symbol=SOL_USDC_PERP_BP.value,
             market_type="Perpetual",
         )
 
         result = mapper.transform_raw_market_to_internal(raw_market)
 
-        assert result.symbol == "SOL_USDC_PERP"
+        assert result.symbol == SOL_USDC_PERP_BP.value
         assert result.market_type == "Perpetual"
 
     def test_transform_raw_market_transformation_error(
@@ -575,7 +576,7 @@ class TestMarketTransformation:
     ) -> None:
         """Test that symbol parsing is consistent with base/quote symbols."""
         raw_market = create_raw_market(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             base_symbol="BTC",
             quote_symbol="USDC",
         )
@@ -583,7 +584,7 @@ class TestMarketTransformation:
         result = mapper.transform_raw_market_to_internal(raw_market)
 
         # Symbol should match the combination of base_quote
-        assert result.symbol == "BTC_USDC"
+        assert result.symbol == BTC_USDC_BP.value
         assert result.base_symbol == "BTC"
         assert result.quote_symbol == "USDC"
 

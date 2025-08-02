@@ -33,6 +33,8 @@ from cyberdelta.apis.models.service_args.market_data import (
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL, DOGE_HL, ETH_USDT_BP, DOGE_USDT_BP, BTC_USDC_BP, ETH_USDC_BP
+
 
 class TestPlaceOrderArgs:
     """Test PlaceOrderArgs Pydantic model validation."""
@@ -40,14 +42,14 @@ class TestPlaceOrderArgs:
     def test_valid_market_order(self) -> None:
         """Test valid market order creation."""
         args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.5"),
             time_in_force=TimeInForce.IOC,
         )
 
-        assert args.symbol == "BTC-USD"
+        assert args.symbol == BTC_HL
         assert args.side == OrderSide.BUY
         assert args.order_type == OrderType.MARKET
         assert args.quantity == Decimal("1.5")
@@ -61,7 +63,7 @@ class TestPlaceOrderArgs:
     def test_valid_limit_order(self) -> None:
         """Test valid limit order creation."""
         args = PlaceOrderArgs(
-            symbol="ETH-USDT",
+            symbol=ETH_USDT_BP,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity=Decimal("10.0"),
@@ -74,7 +76,7 @@ class TestPlaceOrderArgs:
             ),
         )
 
-        assert args.symbol == "ETH-USDT"
+        assert args.symbol == ETH_USDT_BP
         assert args.side == OrderSide.SELL
         assert args.order_type == OrderType.LIMIT
         assert args.quantity == Decimal("10.0")
@@ -87,7 +89,7 @@ class TestPlaceOrderArgs:
     def test_valid_stop_limit_order(self) -> None:
         """Test valid stop limit order creation."""
         args = PlaceOrderArgs(
-            symbol="SOL-USD",
+            symbol=SOL_HL,
             side=OrderSide.BUY,
             order_type=OrderType.STOP_LIMIT,
             quantity=Decimal(100),
@@ -103,7 +105,7 @@ class TestPlaceOrderArgs:
     def test_valid_stop_market_order(self) -> None:
         """Test valid stop market order creation."""
         args = PlaceOrderArgs(
-            symbol="DOGE-USDT",
+            symbol=DOGE_USDT_BP,
             side=OrderSide.SELL,
             order_type=OrderType.STOP_MARKET,
             quantity=Decimal("1000.0"),
@@ -119,7 +121,7 @@ class TestPlaceOrderArgs:
         """Test decimal field parsing from various input types."""
         # From string
         args1 = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.5"),
@@ -129,7 +131,7 @@ class TestPlaceOrderArgs:
 
         # From int
         args2 = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal(2),
@@ -141,7 +143,7 @@ class TestPlaceOrderArgs:
 
         # From float
         args3 = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.25"),
@@ -155,24 +157,23 @@ class TestPlaceOrderArgs:
         """Test symbol field validation."""
         # Valid symbol
         args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.IOC,
         )
-        assert args.symbol == "BTC-USD"
+        assert args.symbol == BTC_HL
 
-        # Symbol with whitespace should be validated as-is
-        # The validate_str_field doesn't automatically strip whitespace
+        # Symbol with different exchange should be validated as-is
         args2 = PlaceOrderArgs(
-            symbol="ETH-USDT",  # No whitespace
+            symbol=ETH_USDT_BP,  # Different exchange
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.IOC,
         )
-        assert args2.symbol == "ETH-USDT"
+        assert args2.symbol == ETH_USDT_BP
 
     def test_invalid_symbol_types(self) -> None:
         """Test invalid symbol types."""
@@ -192,38 +193,33 @@ class TestPlaceOrderArgs:
         """Test empty symbol validation."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="",
+                symbol=None,  # type: ignore[arg-type]
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
                 time_in_force=TimeInForce.IOC,
             )
 
-        assert "Field 'symbol': String cannot be empty" in str(exc_info.value)
+        assert "Input should be an instance of BaseSymbol" in str(exc_info.value)
 
-    def test_symbol_max_length(self) -> None:
-        """Test symbol maximum length validation."""
-        long_symbol = "A" * 65  # Exceeds 64 character limit
-
-        with pytest.raises(TypeFieldError) as exc_info:
+    def test_invalid_symbol_type(self) -> None:
+        """Test invalid symbol type validation."""
+        with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol=long_symbol,
+                symbol="INVALID_STRING",  # type: ignore[arg-type]
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
                 time_in_force=TimeInForce.IOC,
             )
 
-        expected_msg = (
-            "Field 'symbol' expected string with max length 64, got string with length 65"
-        )
-        assert expected_msg in str(exc_info.value)
+        assert "Input should be an instance of BaseSymbol" in str(exc_info.value)
 
     def test_client_order_id_validation(self) -> None:
         """Test client_order_id validation."""
         # Valid client_order_id
         args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
@@ -234,7 +230,7 @@ class TestPlaceOrderArgs:
 
         # None client_order_id
         args2 = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
@@ -248,7 +244,7 @@ class TestPlaceOrderArgs:
         # Empty string
         with pytest.raises(ValidationError) as exc_info_empty:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
@@ -262,7 +258,7 @@ class TestPlaceOrderArgs:
         long_id = "A" * 65
         with pytest.raises(TypeFieldError) as exc_info_long:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
@@ -279,7 +275,7 @@ class TestPlaceOrderArgs:
         """Test negative quantity validation."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("-1.0"),
@@ -295,7 +291,7 @@ class TestPlaceOrderArgs:
         """Test zero quantity validation."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal(0),
@@ -312,7 +308,7 @@ class TestPlaceOrderArgs:
         # Test infinite quantity
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("inf"),
@@ -329,7 +325,7 @@ class TestPlaceOrderArgs:
         # Test NaN quantity
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("nan"),
@@ -345,7 +341,7 @@ class TestPlaceOrderArgs:
         """Test negative price validation."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -362,7 +358,7 @@ class TestPlaceOrderArgs:
         """Test negative stop_price validation."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_MARKET,
                 quantity=Decimal("1.0"),
@@ -379,7 +375,7 @@ class TestPlaceOrderArgs:
         """Test that limit orders require a price."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -397,7 +393,7 @@ class TestPlaceOrderArgs:
         # Missing price
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_LIMIT,
                 quantity=Decimal("1.0"),
@@ -413,7 +409,7 @@ class TestPlaceOrderArgs:
         # Missing stop_price
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_LIMIT,
                 quantity=Decimal("1.0"),
@@ -430,7 +426,7 @@ class TestPlaceOrderArgs:
         """Test that stop market orders require stop_price."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_MARKET,
                 quantity=Decimal("1.0"),
@@ -450,7 +446,7 @@ class TestPlaceOrderArgs:
         """Test unparseable decimal values for quantity."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity="not_a_number",  # type: ignore
@@ -466,7 +462,7 @@ class TestPlaceOrderArgs:
         """Test None quantity validation (should fail as it's required)."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=None,  # type: ignore
@@ -486,7 +482,7 @@ class TestPlaceOrderArgs:
         """Test that extra fields are forbidden."""
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
@@ -501,7 +497,7 @@ class TestPlaceOrderArgs:
     def test_validate_assignment(self) -> None:
         """Test that assignment validation works."""
         args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
@@ -1131,7 +1127,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # PlaceOrderArgs
         args1 = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=tiny_amount,
@@ -1162,7 +1158,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # PlaceOrderArgs
         args1 = PlaceOrderArgs(
-            symbol="DOGE-USD",
+            symbol=DOGE_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=large_amount,
@@ -1194,13 +1190,13 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # Should work with valid UTF-8
         args1 = PlaceOrderArgs(
-            symbol=unicode_symbol,
+            symbol=unicode_symbol,  # type: ignore[arg-type]
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.IOC,
         )
-        assert args1.symbol == unicode_symbol
+        assert args1.symbol == unicode_symbol  # type: ignore[comparison-overlap]
 
         args2 = WithdrawArgs(
             asset="BTC",
@@ -1218,7 +1214,7 @@ class TestEdgeCasesAndBoundaryConditions:
         # Whitespace-only strings should fail
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="   ",  # Only whitespace
+                symbol="   ",  # type: ignore[arg-type] # Only whitespace
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
@@ -1232,7 +1228,7 @@ class TestEdgeCasesAndBoundaryConditions:
         high_precision = Decimal("1.123456789012345678901234567890")
 
         args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=high_precision,
@@ -1247,7 +1243,7 @@ class TestEdgeCasesAndBoundaryConditions:
         """Test decimal parsing with commas in strings."""
         # parse_decimal_value should strip commas
         args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1234.56"),
@@ -1260,7 +1256,7 @@ class TestEdgeCasesAndBoundaryConditions:
         """Test all order types and their specific dependencies."""
         # MARKET order - no price required
         market_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
@@ -1270,7 +1266,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # LIMIT order - price required
         limit_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
@@ -1281,7 +1277,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # STOP_MARKET order - stop_price required
         stop_market_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.STOP_MARKET,
             quantity=Decimal("1.0"),
@@ -1292,7 +1288,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # STOP_LIMIT order - both price and stop_price required
         stop_limit_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.STOP_LIMIT,
             quantity=Decimal("1.0"),
@@ -1304,7 +1300,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # TAKE_PROFIT_MARKET order - stop_price required
         tp_market_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.TAKE_PROFIT_MARKET,
             quantity=Decimal("1.0"),
@@ -1315,7 +1311,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
         # TAKE_PROFIT_LIMIT order - both price and stop_price required
         tp_limit_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.TAKE_PROFIT_LIMIT,
             quantity=Decimal("1.0"),
@@ -1329,7 +1325,7 @@ class TestEdgeCasesAndBoundaryConditions:
         """Test all time in force values."""
         for tif in TimeInForce:
             args = PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
@@ -1341,7 +1337,7 @@ class TestEdgeCasesAndBoundaryConditions:
         """Test all order sides."""
         for side in OrderSide:
             args = PlaceOrderArgs(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=side,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("1.0"),
@@ -1355,19 +1351,19 @@ class TestGetMarketArgs:
 
     def test_valid_symbol(self) -> None:
         """Test valid symbol creation."""
-        args = GetMarketArgs(symbol="BTC-USDC")
-        assert args.symbol == "BTC-USDC"
+        args = GetMarketArgs(symbol=BTC_USDC_BP)
+        assert args.symbol == BTC_USDC_BP
 
     def test_symbol_validation_empty_string(self) -> None:
         """Test that empty string is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            GetMarketArgs(symbol="")
+            GetMarketArgs(symbol="")  # type: ignore[arg-type]
         assert "String cannot be empty" in str(exc_info.value)
 
     def test_symbol_validation_whitespace_only(self) -> None:
         """Test that whitespace-only string is rejected."""
         with pytest.raises(ValidationError) as exc_info:
-            GetMarketArgs(symbol="   ")
+            GetMarketArgs(symbol="   ")  # type: ignore[arg-type]
         assert "String cannot be empty" in str(exc_info.value)
 
     def test_symbol_validation_too_long(self) -> None:
@@ -1376,32 +1372,32 @@ class TestGetMarketArgs:
         with pytest.raises(
             TypeFieldError, match="string with max length 64, got string with length 65"
         ):
-            GetMarketArgs(symbol=long_symbol)
+            GetMarketArgs(symbol=long_symbol)  # type: ignore[arg-type]
 
     def test_symbol_validation_maximum_length(self) -> None:
         """Test that 64-character string is accepted."""
         max_length_symbol = "A" * 64
-        args = GetMarketArgs(symbol=max_length_symbol)
-        assert args.symbol == max_length_symbol
+        args = GetMarketArgs(symbol=max_length_symbol)  # type: ignore[arg-type]
+        assert args.symbol == max_length_symbol  # type: ignore[comparison-overlap]
 
     def test_symbol_validation_unicode_support(self) -> None:
         """Test that Unicode characters are supported."""
         unicode_symbol = "BTC-USDC_🚀"
-        args = GetMarketArgs(symbol=unicode_symbol)
-        assert args.symbol == unicode_symbol
+        args = GetMarketArgs(symbol=unicode_symbol)  # type: ignore[arg-type]
+        assert args.symbol == unicode_symbol  # type: ignore[comparison-overlap]
 
     def test_symbol_validation_special_characters(self) -> None:
         """Test that special characters commonly used in symbols are supported."""
         special_symbols = [
-            "BTC-USDC",
+            BTC_USDC_BP.value,
             "BTC_USDC",
             "BTC/USDC",
             "BTC.USDC",
             "BTC:USDC",
         ]
         for symbol in special_symbols:
-            args = GetMarketArgs(symbol=symbol)
-            assert args.symbol == symbol
+            args = GetMarketArgs(symbol=symbol)  # type: ignore[arg-type]
+            assert args.symbol == symbol  # type: ignore[comparison-overlap]
 
     def test_symbol_required_field(self) -> None:
         """Test that symbol is a required field."""
@@ -1419,31 +1415,31 @@ class TestGetMarketArgs:
             GetMarketArgs(symbol=None)  # type: ignore[arg-type]
 
         with pytest.raises(TypeError):
-            GetMarketArgs(symbol=["BTC-USDC"])  # type: ignore[arg-type]
+            GetMarketArgs(symbol=[BTC_USDC_BP])  # type: ignore[arg-type]
 
     def test_extra_fields_forbidden(self) -> None:
         """Test that extra fields are forbidden."""
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            GetMarketArgs(symbol="BTC-USDC", extra_field="not_allowed")  # type: ignore[call-arg]
+            GetMarketArgs(symbol=BTC_USDC_BP, extra_field="not_allowed")  # type: ignore[call-arg]
 
     def test_immutability_after_creation(self) -> None:
         """Test that fields cannot be modified after creation."""
-        args = GetMarketArgs(symbol="BTC-USDC")
+        args = GetMarketArgs(symbol=BTC_USDC_BP)
 
         # Test validation on assignment
         with pytest.raises(ValidationError):
-            args.symbol = ""
+            args.symbol = ""  # type: ignore[assignment]
 
         with pytest.raises(TypeFieldError):
-            args.symbol = "A" * 65
+            args.symbol = "A" * 65  # type: ignore[assignment]
 
     def test_model_validation_assignment(self) -> None:
         """Test that validate_assignment=True works correctly."""
-        args = GetMarketArgs(symbol="BTC-USDC")
+        args = GetMarketArgs(symbol=BTC_USDC_BP)
 
         # Valid assignment should work
-        args.symbol = "ETH-USDC"
-        assert args.symbol == "ETH-USDC"
+        args.symbol = ETH_USDC_BP
+        assert args.symbol == ETH_USDC_BP
 
 
 class TestGetMarketsArgs:

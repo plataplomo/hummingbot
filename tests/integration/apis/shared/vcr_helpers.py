@@ -7,6 +7,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+from tests.common_symbols import (
+    BTC_USDC_BP,
+    BTC_USDC_PERP_BP,
+    ETH_USDC_BP,
+    ETH_USDC_PERP_BP,
+    SOL_USDC_BP,
+    SOL_USDC_PERP_BP,
+)
 
 
 if TYPE_CHECKING:
@@ -46,7 +54,7 @@ def spot_test_symbols() -> list[str]:
     Returns:
         List of spot trading symbols
     """
-    return ["SOL_USDC", "BTC_USDC", "ETH_USDC"]
+    return [SOL_USDC_BP.value, BTC_USDC_BP.value, ETH_USDC_BP.value]
 
 
 @pytest.fixture
@@ -56,7 +64,7 @@ def perp_test_symbols() -> list[str]:
     Returns:
         List of perpetual futures symbols
     """
-    return ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
+    return [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value]
 
 
 @pytest.fixture

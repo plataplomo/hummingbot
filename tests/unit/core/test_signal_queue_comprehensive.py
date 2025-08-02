@@ -16,7 +16,8 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.signal_queue import PrioritySignalQueue
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -65,7 +66,7 @@ def sample_trade_signal() -> TradeSignal:
     Returns:
         TradeSignal: Sample BTC-PERP long entry signal.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return TradeSignal(
         signal_id="test_signal_123",
         timestamp=datetime.now(UTC),
@@ -87,7 +88,7 @@ def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     Returns:
         ArbitrageOpportunity: Sample BTC-PERP arbitrage opportunity with utility scores.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return ArbitrageOpportunity(
         symbol=btc_symbol.value,
         long_exchange="hyperliquid",
@@ -237,7 +238,7 @@ class TestAddSignal:
     ) -> None:
         """Test queue trimming when full."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signal_queue.max_queue_size = 3
         signals: list[TradeSignal] = []
         for i in range(4):
@@ -398,7 +399,7 @@ class TestGetNextSignal:
     ) -> None:
         """Test signals are returned in priority order."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signals: list[TradeSignal] = []
         for i, score in enumerate([0.5, 0.9, 0.1]):
             signal = TradeSignal(
@@ -535,7 +536,7 @@ class TestGetSignals:
     async def test_get_signals_success_all(self, signal_queue: PrioritySignalQueue) -> None:
         """Test getting all signals sorted by priority."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signals: list[TradeSignal] = []
         for i, score in enumerate([0.5, 0.9, 0.1]):
             signal = TradeSignal(
@@ -572,7 +573,7 @@ class TestGetSignals:
     ) -> None:
         """Test getting limited number of signals."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         for i in range(5):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
@@ -600,8 +601,8 @@ class TestGetSignals:
     ) -> None:
         """Test getting signals filtered by symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         test_symbols = [btc_symbol, eth_symbol, btc_symbol]
         for i, symbol in enumerate(test_symbols):
             signal = TradeSignal(
@@ -700,8 +701,8 @@ class TestExpiredSignalCleaning:
     ) -> None:
         """Test expired signals are automatically cleaned during normal operations."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         now = datetime.now(UTC)
         valid_signal = TradeSignal(
             signal_id="valid",
@@ -755,7 +756,7 @@ class TestExpiredSignalCleaning:
     ) -> None:
         """Test all expired signals are cleaned through public API."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         now = datetime.now(UTC)
         # Add multiple expired signals
         for i in range(3):
@@ -794,7 +795,7 @@ class TestExpiredSignalCleaning:
     ) -> None:
         """Test no signals are removed when all are valid."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         now = datetime.now(UTC)
         # Add multiple valid signals
         for i in range(3):
@@ -936,7 +937,7 @@ class TestAsyncMethods:
     async def test_pop_signals_success_multiple(self, signal_queue: PrioritySignalQueue) -> None:
         """Test popping multiple signals at once."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         for i in range(3):
             signal = TradeSignal(
                 signal_id=f"signal_{i}",
@@ -994,7 +995,7 @@ class TestAsyncMethods:
     ) -> None:
         """Test concurrent enqueue operations to verify lock handling in add_signal."""
         # Arrange - Create multiple different signals
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signals: list[TradeSignal] = []
         for i in range(5):
             signal = TradeSignal(
@@ -1057,7 +1058,7 @@ class TestEdgeCases:
     async def test_add_signal_with_list_exchange(self, signal_queue: PrioritySignalQueue) -> None:
         """Test adding signal with list of exchanges."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signal = TradeSignal(
             signal_id="test",
             timestamp=datetime.now(UTC),
@@ -1137,7 +1138,7 @@ class TestParametrizedTests:
     ) -> None:
         """Test various utility score inputs are handled correctly."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signal = TradeSignal(
             signal_id="test",
             timestamp=datetime.now(UTC),

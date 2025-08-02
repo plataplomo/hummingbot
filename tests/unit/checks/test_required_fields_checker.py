@@ -15,7 +15,7 @@ from cyberdelta.config.models.config_models import (
 )
 from cyberdelta.core.risk.checks.checkers.required_fields_checker import RequiredFieldsChecker
 from cyberdelta.core.risk.checks.models.check_result import CheckContext, CheckResult, CheckStatus
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -37,7 +37,7 @@ def create_test_app_settings(config: dict[str, Any]) -> AppSettings:
 
 
 def create_test_opportunity(
-    symbol: str = symbols.BTC.hyperliquid().value,
+    symbol: str = BTC_HL.value,
     long_exchange: str = "hyperliquid",
     short_exchange: str = "backpack",
     long_price: float = 45000.0,
@@ -376,7 +376,7 @@ class TestRequiredFieldsChecker:
         opportunity.metadata = {
             "long_exchange": "hyperliquid",
             "short_exchange": "backpack",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "long_price": {"value": 45000.0, "currency": "USD"},  # Complex object
             "short_price": [45100.0, "USD"],  # List
             "spread_percentage": 0.22,

@@ -16,7 +16,7 @@ import pytest
 from cyberdelta.core.enums import SignalType
 from cyberdelta.core.models import OrderSide, TradeSignal
 from cyberdelta.core.signal_queue import PrioritySignalQueue
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.validation.circuit_breaker import BreakerState, CircuitBreaker, CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -63,7 +63,7 @@ def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     Returns:
         ArbitrageOpportunity: Sample arbitrage opportunity with realistic parameters.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return ArbitrageOpportunity(
         symbol=btc_symbol.value,
         long_exchange="hyperliquid",
@@ -180,7 +180,7 @@ class TestSignalQueueAddSignal:
     ) -> None:
         """Test adding a signal without utility score (should use default)."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signal = TradeSignal(
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
@@ -246,7 +246,7 @@ class TestSignalQueueAddSignal:
     ) -> None:
         """Test adding a signal with invalid utility score."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signal = TradeSignal(
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
@@ -369,7 +369,7 @@ class TestSignalQueueAddFromOpportunity:
     ) -> None:
         """Test adding signals from opportunity with zero NFD."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         opportunity = ArbitrageOpportunity(
             symbol=btc_symbol.value,
             long_exchange="hyperliquid",
@@ -418,7 +418,7 @@ class TestSignalQueueGetOperations:
     ) -> None:
         """Test getting signals respects priority order."""
         # Arrange
-        low_symbol = symbols.BTC.hyperliquid()  # Use a symbol for testing
+        low_symbol = BTC_HL  # Use a symbol for testing
         low_priority_signal = TradeSignal(
             symbol=f"LOW-{low_symbol.value}",
             side=OrderSide.BUY,
@@ -430,7 +430,7 @@ class TestSignalQueueGetOperations:
             metadata={"utility_score": 0.1},
         )
 
-        high_symbol = symbols.BTC.hyperliquid()  # Use a symbol for testing
+        high_symbol = BTC_HL  # Use a symbol for testing
         high_priority_signal = TradeSignal(
             symbol=f"HIGH-{high_symbol.value}",
             side=OrderSide.BUY,
@@ -515,7 +515,7 @@ class TestSignalQueueGetOperations:
     ) -> None:
         """Test getting next signal skips expired signals."""
         # Arrange
-        expired_symbol = symbols.BTC.hyperliquid()  # Use a symbol for testing
+        expired_symbol = BTC_HL  # Use a symbol for testing
         expired_signal = TradeSignal(
             symbol=f"EXPIRED-{expired_symbol.value}",
             side=OrderSide.BUY,
@@ -825,7 +825,7 @@ class TestSignalQueuePendingSignals:
     ) -> None:
         """Test getting pending signals includes expired ones."""
         # Arrange
-        expired_symbol = symbols.BTC.hyperliquid()  # Use a symbol for testing
+        expired_symbol = BTC_HL  # Use a symbol for testing
         expired_signal = TradeSignal(
             symbol=f"EXPIRED-{expired_symbol.value}",
             side=OrderSide.BUY,
@@ -931,7 +931,7 @@ class TestSignalQueueLifecycle:
     ) -> None:
         """Test processing expired signal."""
         # Arrange
-        expired_symbol = symbols.BTC.hyperliquid()  # Use a symbol for testing
+        expired_symbol = BTC_HL  # Use a symbol for testing
         expired_signal = TradeSignal(
             symbol=f"EXPIRED-{expired_symbol.value}",
             side=OrderSide.BUY,

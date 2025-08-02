@@ -39,7 +39,7 @@ from cyberdelta.core.models import (
     MarginAccountSummary,
     SpotBalance,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import ETH_HL
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -504,9 +504,9 @@ class TestMapRawClearinghouseStateToSpotBalances:
         raw_state_with_multiple_spot = HyperliquidRawClearinghouseState(
             assetPositions=[
                 HyperliquidRawAssetPosition(
-                    asset=symbols.ETH.hyperliquid().value,
+                    asset=ETH_HL.value,
                     position=HyperliquidRawPositionInfo(
-                        coin=symbols.ETH.hyperliquid().value,
+                        coin=ETH_HL.value,
                         szi="1.0",
                         entryPx="3000.0",
                         leverage=HyperliquidRawLeverage(type="cross", value=10),

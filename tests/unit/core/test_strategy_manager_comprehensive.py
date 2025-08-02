@@ -22,7 +22,8 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.enums import OrderSide
 
 
@@ -109,7 +110,7 @@ def mock_strategy() -> Mock:
     """
     strategy = Mock(spec=Strategy)
     strategy.name = "test_strategy"
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     strategy.symbol = btc_symbol.value
     strategy.enable = Mock()
     strategy.disable = Mock()
@@ -128,7 +129,7 @@ def sample_candle() -> Candle:
     Returns:
         Candle: Sample Candle instance with test data for BTC-PERP.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return Candle(
         symbol=btc_symbol,
         open=Decimal("50000.0"),
@@ -148,7 +149,7 @@ def sample_trade_signal() -> TradeSignal:
     Returns:
         TradeSignal: Sample TradeSignal instance with test data for entering a long position.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return TradeSignal(
         signal_id="test_signal_123",
         symbol=btc_symbol.value,
@@ -220,7 +221,7 @@ class TestRegisterStrategy:
     ) -> None:
         """Test successful replacement of existing strategy."""
         # Arrange
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         old_strategy = Mock(spec=Strategy)
         old_strategy.name = mock_strategy.name
         old_strategy.symbol = eth_symbol.value
@@ -242,7 +243,7 @@ class TestRegisterStrategy:
     ) -> None:
         """Test registering multiple strategies for the same symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
         strategy1.symbol = btc_symbol.value
@@ -476,7 +477,7 @@ class TestProcessMarketData:
         strategy_manager.enabled_strategies.add(mock_strategy.name)
         strategy_manager.active_symbols.add(sample_candle.symbol)
 
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         signal2 = TradeSignal(
             signal_id="test_signal_456",
             symbol=btc_symbol.value,
@@ -546,7 +547,7 @@ class TestProcessMarketData:
         strategy_manager.strategies[mock_strategy.name] = mock_strategy
         strategy_manager.enabled_strategies.add(mock_strategy.name)
         strategy_manager.active_symbols.add(sample_candle.symbol)
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         mock_strategy.symbol = eth_symbol.value  # Different symbol
 
         # Act
@@ -675,8 +676,8 @@ class TestGetStrategiesForSymbol:
     ) -> None:
         """Test getting multiple strategies for same symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
         strategy1.symbol = btc_symbol.value
@@ -712,7 +713,7 @@ class TestGetStrategiesForSymbol:
     ) -> None:
         """Test getting strategies when none exist for symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Act
         result = strategy_manager.get_strategies_for_symbol(btc_symbol.value)
@@ -1116,8 +1117,8 @@ class TestStrategyManagerIntegration:
     ) -> None:
         """Test coordination of multiple strategies for same symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
         strategy1.symbol = btc_symbol.value
@@ -1168,7 +1169,7 @@ class TestStrategyManagerIntegration:
     def test_lifecycle_management(self, strategy_manager: StrategyManager) -> None:
         """Test complete strategy lifecycle management."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         strategy = Mock(spec=Strategy)
         strategy.name = "lifecycle_strategy"
         strategy.symbol = btc_symbol.value

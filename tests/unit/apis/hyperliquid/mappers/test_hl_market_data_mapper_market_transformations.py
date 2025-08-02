@@ -31,7 +31,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaResponse,
 )
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Alias for shorter method calls
@@ -49,7 +49,7 @@ def mapper() -> HyperliquidMarketMetadataMapper:
 
 
 def create_asset_definition(
-    name: str = symbols.ETH.hyperliquid().value,
+    name: str = ETH_HL.value,
     max_leverage: int = 50,
     only_isolated: bool = False,
     sz_decimals: int = 4,
@@ -70,7 +70,7 @@ def create_asset_definition(
 
 
 def create_asset_ctx(
-    name: str = symbols.ETH.hyperliquid().value,
+    name: str = ETH_HL.value,
     funding: str = "0.0001",
     mark_px: str = "3000.50",
     prev_day_px: str = "2950.00",
@@ -109,14 +109,14 @@ def create_meta_and_asset_ctxs_response(
     """
     if asset_definitions is None:
         asset_definitions = [
-            create_asset_definition(symbols.ETH.hyperliquid().value),
-            create_asset_definition(symbols.BTC.hyperliquid().value, max_leverage=100, sz_decimals=5),
+            create_asset_definition(ETH_HL.value),
+            create_asset_definition(BTC_HL.value, max_leverage=100, sz_decimals=5),
         ]
 
     if asset_ctxs is None:
         asset_ctxs = [
-            create_asset_ctx(symbols.ETH.hyperliquid().value),
-            create_asset_ctx(symbols.BTC.hyperliquid().value, mark_px="65000.00"),
+            create_asset_ctx(ETH_HL.value),
+            create_asset_ctx(BTC_HL.value, mark_px="65000.00"),
         ]
 
     meta = HyperliquidRawMetaResponse(universe=asset_definitions, marginTables=None)
@@ -148,8 +148,8 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         # Check first market (ETH-PERP)
         eth_market = markets[0]
         assert isinstance(eth_market, Market)
-        assert eth_market.symbol == symbols.ETH.hyperliquid().value
-        assert eth_market.base_symbol == symbols.ETH.hyperliquid().value
+        assert eth_market.symbol == ETH_HL.value
+        assert eth_market.base_symbol == ETH_HL.value
         assert eth_market.quote_symbol == "USD"
         assert eth_market.market_type == "Perpetual"
         assert eth_market.tick_size == Decimal("0.1")  # Business logic calculates differently
@@ -169,7 +169,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
         # Check second market (BTC-PERP)
         btc_market = markets[1]
-        assert btc_market.symbol == symbols.BTC.hyperliquid().value
+        assert btc_market.symbol == BTC_HL.value
         assert btc_market.hl_details is not None
         assert btc_market.hl_details.max_leverage == 100
         assert btc_market.hl_details.sz_decimals == 5
@@ -184,11 +184,11 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         """Test transformation when asset context is missing for some assets."""
         # Create response with asset definition but no matching asset context
         asset_definitions = [
-            create_asset_definition(symbols.ETH.hyperliquid().value),
+            create_asset_definition(ETH_HL.value),
             create_asset_definition("MISSING-PERP"),  # No matching context
         ]
         asset_ctxs = [
-            create_asset_ctx(symbols.ETH.hyperliquid().value),
+            create_asset_ctx(ETH_HL.value),
             # Missing context for MISSING-PERP
         ]
 
@@ -199,7 +199,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         # Should still create markets, but missing context asset will have None values
         assert len(markets) == 2
 
-        eth_market = next(m for m in markets if m.symbol == symbols.ETH.hyperliquid().value)
+        eth_market = next(m for m in markets if m.symbol == ETH_HL.value)
         missing_market = next(m for m in markets if m.symbol == "MISSING-PERP")
 
         # ETH market should have context data
@@ -229,10 +229,10 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         caplog: pytest.LogCaptureFixture,
     ) -> None:
         """Test transformation with one invalid asset definition."""
-        valid_def = create_asset_definition(symbols.ETH.hyperliquid().value)
+        valid_def = create_asset_definition(ETH_HL.value)
 
         asset_definitions = [valid_def]
-        asset_ctxs = [create_asset_ctx(symbols.ETH.hyperliquid().value)]
+        asset_ctxs = [create_asset_ctx(ETH_HL.value)]
 
         raw_response = create_meta_and_asset_ctxs_response(asset_definitions, asset_ctxs)
 
@@ -257,7 +257,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
                 log
                 for log in warning_logs
                 if log.get("event") == "asset_definition_to_market_transform_failed"
-                and log.get("asset_name") == symbols.ETH.hyperliquid().value
+                and log.get("asset_name") == ETH_HL.value
             ]
             assert len(transformation_logs) > 0, (
                 f"Expected transformation failure logs, got: {captured_logs}"

@@ -25,7 +25,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio.services.reconciliation_service import PortfolioReconciliationService
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 class TestPortfolioOrchestrator:
@@ -210,8 +210,8 @@ class TestPortfolioOrchestrator:
     ) -> None:
         """Test successful position fetching and updating."""
         # Setup mock position data
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         mock_positions = [
             DerivativePosition(
                 exchange="hyperliquid",
@@ -250,7 +250,7 @@ class TestPortfolioOrchestrator:
     ) -> None:
         """Test successful order fetching and updating."""
         # Setup mock order data
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         mock_orders = [
             Order(
                 exchange="hyperliquid",
@@ -319,7 +319,7 @@ class TestPortfolioOrchestrator:
     ) -> None:
         """Test successful ticker data fetching."""
         # Setup mock ticker
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         mock_ticker = Ticker(
             symbol=btc_symbol,
             exchange="test_exchange",

@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -40,11 +41,11 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_ticker() with SOL_USDC_PERP returns valid Ticker model."""
-        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("SOL_USDC_PERP"))
+        ticker = await bp_api_for_test_env.get_ticker(SOL_USDC_PERP_BP)
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol.value == "SOL_USDC_PERP", (
+        assert ticker.symbol.value == SOL_USDC_PERP_BP.value, (
             f"Expected symbol 'SOL_USDC_PERP', got '{ticker.symbol.value}'"
         )
         assert isinstance(ticker.price, Decimal), (
@@ -75,11 +76,11 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_ticker() with BTC_USDC_PERP returns valid Ticker model."""
-        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("BTC_USDC_PERP"))
+        ticker = await bp_api_for_test_env.get_ticker(BTC_USDC_PERP_BP)
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol.value == "BTC_USDC_PERP", (
+        assert ticker.symbol.value == BTC_USDC_PERP_BP.value, (
             f"Expected symbol 'BTC_USDC_PERP', got '{ticker.symbol.value}'"
         )
         assert isinstance(ticker.price, Decimal), (
@@ -98,7 +99,7 @@ class TestBackpackPerpTickers:
                 f"Volume should be non-negative, got {ticker.volume}"
             )
 
-    @pytest.mark.parametrize("symbol", ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"])
+    @pytest.mark.parametrize("symbol", [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/perp/tickers"],
@@ -165,7 +166,7 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp ticker precision and decimal operations."""
-        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("SOL_USDC_PERP"))
+        ticker = await bp_api_for_test_env.get_ticker(SOL_USDC_PERP_BP)
 
         assert isinstance(ticker.price, Decimal), "Price should be Decimal type"
 
@@ -193,10 +194,10 @@ class TestBackpackPerpTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp-specific ticker features like funding rates."""
-        ticker = await bp_api_for_test_env.get_ticker(exchanges.backpack("SOL_USDC_PERP"))
+        ticker = await bp_api_for_test_env.get_ticker(SOL_USDC_PERP_BP)
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
-        assert ticker.symbol.value == "SOL_USDC_PERP", "Should be perp symbol"
+        assert ticker.symbol.value == SOL_USDC_PERP_BP.value, "Should be perp symbol"
 
         # Note: funding_rate and next_funding_time are not available in the Backpack ticker model
         # These would be separate API calls to get_funding_rate() method

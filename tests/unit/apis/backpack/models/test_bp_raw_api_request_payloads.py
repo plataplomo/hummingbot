@@ -31,6 +31,7 @@ from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawUpdateAccountSettingsRequest,
 )
 from cyberdelta.exceptions.parsing import EmptyStringError
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 class TestBackpackRawOrderExecuteRequest:
@@ -41,13 +42,13 @@ class TestBackpackRawOrderExecuteRequest:
         request = BackpackRawOrderExecuteRequest(
             orderType="Limit",
             side="Bid",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             price="100.50",
             quantity="10.0",
         )
         assert request.orderType == "Limit"
         assert request.side == "Bid"
-        assert request.symbol == "SOL_USDC"
+        assert request.symbol == SOL_USDC_BP.value
         assert request.price == "100.50"
         assert request.quantity == "10.0"
         # All optional fields should be None by default
@@ -60,12 +61,12 @@ class TestBackpackRawOrderExecuteRequest:
         request = BackpackRawOrderExecuteRequest(
             orderType="Market",
             side="Ask",
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             quantity="0.5",
         )
         assert request.orderType == "Market"
         assert request.side == "Ask"
-        assert request.symbol == "BTC_USDC"
+        assert request.symbol == BTC_USDC_BP.value
         assert request.quantity == "0.5"
         assert request.price is None  # Not required for market orders
 
@@ -74,7 +75,7 @@ class TestBackpackRawOrderExecuteRequest:
         request = BackpackRawOrderExecuteRequest(
             orderType="Limit",
             side="Bid",
-            symbol="ETH_USDC",
+            symbol=ETH_USDC_BP.value,
             clientId=12345,
             postOnly=True,
             price="1800.00",
@@ -108,7 +109,7 @@ class TestBackpackRawOrderExecuteRequest:
         request = BackpackRawOrderExecuteRequest(
             orderType="Limit",
             side="Bid",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             clientId=123,
             price="100.00",
             quantity="10.0",
@@ -117,7 +118,7 @@ class TestBackpackRawOrderExecuteRequest:
         # Access using Python attribute names
         assert request.orderType == "Limit"
         assert request.side == "Bid"
-        assert request.symbol == "SOL_USDC"
+        assert request.symbol == SOL_USDC_BP.value
         assert request.clientId == 123
 
     def test_invalid_order_type_literal(self) -> None:
@@ -125,7 +126,7 @@ class TestBackpackRawOrderExecuteRequest:
         invalid_data: dict[str, Any] = {
             "orderType": "Invalid",  # Not in Literal["Market", "Limit"]
             "side": "Bid",
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
         }
         with pytest.raises(ValidationError):
             BackpackRawOrderExecuteRequest(**invalid_data)
@@ -135,7 +136,7 @@ class TestBackpackRawOrderExecuteRequest:
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
             "side": "Invalid",  # Not in Literal["Bid", "Ask"]
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
         }
         with pytest.raises(ValidationError):
             BackpackRawOrderExecuteRequest(**invalid_data)
@@ -145,7 +146,7 @@ class TestBackpackRawOrderExecuteRequest:
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
             "side": "Bid",
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "timeInForce": "Invalid",  # Not in Literal["GTC", "IOC", "FOK"]
         }
         with pytest.raises(ValidationError):
@@ -156,7 +157,7 @@ class TestBackpackRawOrderExecuteRequest:
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
             "side": "Bid",
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "selfTradePrevention": "Invalid",  # Not in allowed literals
         }
         with pytest.raises(ValidationError):
@@ -167,7 +168,7 @@ class TestBackpackRawOrderExecuteRequest:
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
             "side": "Bid",
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "stopLossTriggerBy": "Invalid",  # Not in allowed literals
         }
         with pytest.raises(ValidationError):
@@ -177,7 +178,7 @@ class TestBackpackRawOrderExecuteRequest:
         """Test validation error for invalid clientId type."""
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "side": "Bid",
             "quantity": "1.0",
             "price": "50000.0",
@@ -190,7 +191,7 @@ class TestBackpackRawOrderExecuteRequest:
         """Test validation error for invalid price format."""
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "side": "Bid",
             "quantity": "1.0",
             "price": 50000,  # Should be string
@@ -203,7 +204,7 @@ class TestBackpackRawOrderExecuteRequest:
         """Test validation error for invalid boolean fields."""
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "side": "Bid",
             "quantity": "1.0",
             "price": "50000.0",
@@ -218,7 +219,7 @@ class TestBackpackRawOrderExecuteRequest:
         invalid_data: dict[str, Any] = {
             "orderType": "Limit",
             "side": "Bid",
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "extraField": "not_allowed",  # Should be forbidden
         }
         with pytest.raises(ValidationError):
@@ -229,7 +230,7 @@ class TestBackpackRawOrderExecuteRequest:
         request = BackpackRawOrderExecuteRequest(
             orderType="Limit",
             side="Bid",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
         )
         with pytest.raises(ValidationError):
             request.orderType = "Market"  # Should fail due to frozen=True
@@ -241,36 +242,36 @@ class TestBackpackRawOrderCancelRequest:
     def test_valid_with_order_id(self) -> None:
         """Test valid instantiation with orderId."""
         request = BackpackRawOrderCancelRequest(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             orderId="order_123",
         )
-        assert request.symbol == "SOL_USDC"
+        assert request.symbol == SOL_USDC_BP.value
         assert request.orderId == "order_123"
         assert request.clientId is None
 
     def test_valid_with_client_id(self) -> None:
         """Test valid instantiation with clientId."""
         request = BackpackRawOrderCancelRequest(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             clientId=123,
         )
-        assert request.symbol == "SOL_USDC"
+        assert request.symbol == SOL_USDC_BP.value
         assert request.clientId == 123
         assert request.orderId is None
 
     def test_valid_with_neither_id(self) -> None:
         """Test valid instantiation with neither ID (model allows this)."""
         request = BackpackRawOrderCancelRequest(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
         )
-        assert request.symbol == "SOL_USDC"
+        assert request.symbol == SOL_USDC_BP.value
         assert request.orderId is None
         assert request.clientId is None
 
     def test_invalid_client_id_type(self) -> None:
         """Test validation error for invalid clientId type."""
         invalid_data: dict[str, Any] = {
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "clientId": "not_an_int",
         }
         with pytest.raises(ValidationError):
@@ -285,9 +286,9 @@ class TestBackpackRawOrderCancelRequest:
 
     def test_model_is_frozen(self) -> None:
         """Test that model instances are immutable."""
-        request = BackpackRawOrderCancelRequest(symbol="SOL_USDC")
+        request = BackpackRawOrderCancelRequest(symbol=SOL_USDC_BP.value)
         with pytest.raises(ValidationError):
-            request.symbol = "BTC_USDC"
+            request.symbol = BTC_USDC_BP.value
 
 
 class TestBackpackRawOrderCancelAllRequest:
@@ -295,23 +296,23 @@ class TestBackpackRawOrderCancelAllRequest:
 
     def test_valid_minimal(self) -> None:
         """Test valid instantiation with only required fields."""
-        request = BackpackRawOrderCancelAllRequest(symbol="SOL_USDC")
-        assert request.symbol == "SOL_USDC"
+        request = BackpackRawOrderCancelAllRequest(symbol=SOL_USDC_BP.value)
+        assert request.symbol == SOL_USDC_BP.value
         assert request.orderType is None
 
     def test_valid_with_order_type_filter(self) -> None:
         """Test valid instantiation with orderType filter."""
         request = BackpackRawOrderCancelAllRequest(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             orderType="RestingLimitOrder",
         )
-        assert request.symbol == "SOL_USDC"
+        assert request.symbol == SOL_USDC_BP.value
         assert request.orderType == "RestingLimitOrder"
 
     def test_invalid_order_type_literal(self) -> None:
         """Test validation error for invalid orderType."""
         invalid_data: dict[str, Any] = {
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "orderType": "Invalid",  # Not in allowed literals
         }
         with pytest.raises(ValidationError):
@@ -320,7 +321,7 @@ class TestBackpackRawOrderCancelAllRequest:
     def test_conditional_order_type_valid(self) -> None:
         """Test valid ConditionalOrder orderType."""
         request = BackpackRawOrderCancelAllRequest(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             orderType="ConditionalOrder",
         )
         assert request.orderType == "ConditionalOrder"
@@ -544,22 +545,22 @@ class TestBackpackRawRequestForQuoteRequest:
 
     def test_valid_minimal_rfq(self) -> None:
         """Test valid instantiation with minimal required fields."""
-        request = BackpackRawRequestForQuoteRequest(symbol="SOL_USDC")
-        assert request.symbol == "SOL_USDC"
+        request = BackpackRawRequestForQuoteRequest(symbol=SOL_USDC_BP.value)
+        assert request.symbol == SOL_USDC_BP.value
         assert request.quantity is None
         assert request.quoteQuantity is None
 
     def test_valid_with_quantity(self) -> None:
         """Test valid instantiation with quantity."""
         request = BackpackRawRequestForQuoteRequest(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             quantity="1.0",
             autoAcceptThreshold="50000.0",
             submissionTimeMs=1640995200000,
             expiryTimeMs=1640995260000,
             clientId="rfq_123",
         )
-        assert request.symbol == "BTC_USDC"
+        assert request.symbol == BTC_USDC_BP.value
         assert request.quantity == "1.0"
         assert request.autoAcceptThreshold == "50000.0"
         assert request.submissionTimeMs == 1640995200000
@@ -569,10 +570,10 @@ class TestBackpackRawRequestForQuoteRequest:
     def test_valid_with_quote_quantity(self) -> None:
         """Test valid instantiation with quoteQuantity."""
         request = BackpackRawRequestForQuoteRequest(
-            symbol="ETH_USDC",
+            symbol=ETH_USDC_BP.value,
             quoteQuantity="1000.0",
         )
-        assert request.symbol == "ETH_USDC"
+        assert request.symbol == ETH_USDC_BP.value
         assert request.quoteQuantity == "1000.0"
         assert request.quantity is None
 
@@ -580,14 +581,14 @@ class TestBackpackRawRequestForQuoteRequest:
         """Test validation error for invalid quantity format."""
         with pytest.raises(ValidationError):
             BackpackRawRequestForQuoteRequest(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 quantity="not_a_number",
             )
 
     def test_invalid_timestamp_type(self) -> None:
         """Test validation error for invalid timestamp type."""
         invalid_data: dict[str, Any] = {
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "submissionTimeMs": "not_an_int",
         }
         with pytest.raises(ValidationError):

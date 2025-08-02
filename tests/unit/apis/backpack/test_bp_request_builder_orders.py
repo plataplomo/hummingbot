@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import ETH_BP
 
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawOrderCancelAllRequest,
@@ -363,7 +364,7 @@ class TestBuildGetOpenOrdersParams:
             (None, {}),
             ("SOL_USDC", {"symbol": "SOL_USDC"}),
             ("btc-usdt", {"symbol": "btc-usdt"}),
-            ("ETH_PERP", {"symbol": "ETH_PERP"}),
+            (ETH_BP.value.replace("-", "_"), {"symbol": ETH_BP.value.replace("-", "_")}),
         ],
     )
     def test_build_get_open_orders_params_parametrized(
@@ -403,7 +404,7 @@ class TestBuildGetOrderParams:
         [
             ("SOL_USDC", "SOL_USDC"),
             ("btc-usdt", "btc-usdt"),
-            ("ETH-PERP", "ETH-PERP"),
+            (ETH_BP.value, ETH_BP.value),
         ],
     )
     def test_build_get_order_params_parametrized(
@@ -536,7 +537,7 @@ class TestBuildCancelAllOrdersPayload:
         [
             ("SOL_USDC", {"symbol": "SOL_USDC"}),
             ("btc-usdt", {"symbol": "btc-usdt"}),
-            ("ETH-PERP", {"symbol": "ETH-PERP"}),
+            (ETH_BP.value, {"symbol": ETH_BP.value}),
         ],
     )
     def test_build_cancel_all_orders_payload_parametrized(

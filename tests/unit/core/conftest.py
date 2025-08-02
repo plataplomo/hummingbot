@@ -36,7 +36,8 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.market.candle import Candle
 # from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager - removed legacy import
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL, BTC_BP, ETH_HL, ETH_BP, SOL_HL, SOL_BP
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
@@ -118,13 +119,13 @@ def mock_symbol_mapper() -> Mock:
         Mock: A mock symbol mapper instance for testing.
     """
     mapper = Mock(spec=SymbolService)
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     mapper.get_exchange_symbol.return_value = btc_symbol.value
     mapper.get_internal_symbol.return_value = "BTC"
     mapper.get_all_internal_symbols.return_value = ["BTC", "ETH", "SOL"]
     mapper.get_exchange_symbols_for_internal.return_value = {
         "hyperliquid": btc_symbol.value,
-        "backpack": symbols.BTC.backpack().value,
+        "backpack": BTC_BP.value,
     }
     return mapper
 
@@ -152,9 +153,9 @@ def create_test_exchange_config(
     """
     if symbol_mapping is None:
         symbol_mapping = {
-            "BTC": symbols.BTC.hyperliquid().value,
-            "ETH": symbols.ETH.hyperliquid().value,
-            "SOL": symbols.SOL.hyperliquid().value,
+            "BTC": BTC_HL.value,
+            "ETH": ETH_HL.value,
+            "SOL": SOL_HL.value,
         }
 
     base_config: dict[str, Any] = {
@@ -592,7 +593,7 @@ def create_test_order(
         Order: Test order with specified or default parameters.
     """
     if symbol is None:
-        symbol = symbols.BTC.hyperliquid()
+        symbol = BTC_HL
     return Order(
         client_order_id=str(uuid4()),
         exchange=exchange,
@@ -649,7 +650,7 @@ def create_test_signal(
         TradeSignal: Test trade signal with specified or default parameters.
     """
     if symbol is None:
-        symbol = symbols.BTC.hyperliquid()
+        symbol = BTC_HL
     if metadata is None:
         metadata = {"strategy": "test_strategy"}
 
@@ -745,7 +746,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
             "hyperliquid": [
                 (
                     "hl-order-1",
-                    symbols.BTC.hyperliquid().value,
+                    BTC_HL.value,
                     OrderSide.BUY,
                     Decimal("1.0"),
                     Decimal("50000.0"),
@@ -753,7 +754,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
                 ),
                 (
                     "hl-order-2",
-                    symbols.ETH.hyperliquid().value,
+                    ETH_HL.value,
                     OrderSide.SELL,
                     Decimal("5.0"),
                     Decimal("3000.0"),
@@ -763,7 +764,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
             "backpack": [
                 (
                     "bp-order-1",
-                    symbols.SOL.backpack().value,
+                    SOL_BP.value,
                     OrderSide.BUY,
                     Decimal("10.0"),
                     Decimal("100.0"),
@@ -775,7 +776,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
             "hyperliquid": [
                 (
                     "hl-order-1",
-                    symbols.BTC.hyperliquid().value,
+                    BTC_HL.value,
                     OrderSide.BUY,
                     Decimal("1.0"),
                     Decimal("50000.0"),
@@ -783,7 +784,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
                 ),
                 (
                     "hl-order-2",
-                    symbols.ETH.hyperliquid().value,
+                    ETH_HL.value,
                     OrderSide.SELL,
                     Decimal("5.0"),
                     Decimal("3000.0"),
@@ -791,7 +792,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
                 ),
                 (
                     "hl-order-3",
-                    symbols.SOL.hyperliquid().value,
+                    SOL_HL.value,
                     OrderSide.BUY,
                     Decimal("100.0"),
                     Decimal("100.0"),
@@ -801,7 +802,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
             "backpack": [
                 (
                     "bp-order-1",
-                    symbols.SOL.backpack().value,
+                    SOL_BP.value,
                     OrderSide.BUY,
                     Decimal("10.0"),
                     Decimal("100.0"),
@@ -809,7 +810,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
                 ),
                 (
                     "bp-order-2",
-                    symbols.BTC.backpack().value,
+                    BTC_BP.value,
                     OrderSide.SELL,
                     Decimal("0.5"),
                     Decimal("51000.0"),
@@ -821,7 +822,7 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
             "hyperliquid": [
                 (
                     "hl-order-1",
-                    symbols.BTC.hyperliquid().value,
+                    BTC_HL.value,
                     OrderSide.BUY,
                     Decimal("0.001"),
                     Decimal("50000.0"),
@@ -870,7 +871,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
         "default": {
             "hyperliquid": [
                 (
-                    symbols.BTC.hyperliquid().value,
+                    BTC_HL.value,
                     OrderSide.BUY,
                     Decimal("1.0"),
                     Decimal("50000.0"),
@@ -878,7 +879,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
                     Decimal("1000.0"),
                 ),
                 (
-                    symbols.ETH.hyperliquid().value,
+                    ETH_HL.value,
                     OrderSide.SELL,
                     Decimal("-2.0"),
                     Decimal("3000.0"),
@@ -888,7 +889,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
             ],
             "backpack": [
                 (
-                    symbols.SOL.backpack().value,
+                    SOL_BP.value,
                     OrderSide.BUY,
                     Decimal("10.0"),
                     Decimal("100.0"),
@@ -900,7 +901,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
         "large": {
             "hyperliquid": [
                 (
-                    symbols.BTC.hyperliquid().value,
+                    BTC_HL.value,
                     OrderSide.BUY,
                     Decimal("5.0"),
                     Decimal("50000.0"),
@@ -908,7 +909,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
                     Decimal("5000.0"),
                 ),
                 (
-                    symbols.ETH.hyperliquid().value,
+                    ETH_HL.value,
                     OrderSide.SELL,
                     Decimal("-10.0"),
                     Decimal("3000.0"),
@@ -916,7 +917,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
                     Decimal("500.0"),
                 ),
                 (
-                    symbols.SOL.hyperliquid().value,
+                    SOL_HL.value,
                     OrderSide.BUY,
                     Decimal("100.0"),
                     Decimal("100.0"),
@@ -926,7 +927,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
             ],
             "backpack": [
                 (
-                    symbols.BTC.backpack().value,
+                    BTC_BP.value,
                     OrderSide.BUY,
                     Decimal("2.0"),
                     Decimal("49000.0"),
@@ -934,7 +935,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
                     Decimal("4000.0"),
                 ),
                 (
-                    symbols.ETH.backpack().value,
+                    ETH_BP.value,
                     OrderSide.SELL,
                     Decimal("-5.0"),
                     Decimal("3100.0"),
@@ -946,7 +947,7 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
         "minimal": {
             "hyperliquid": [
                 (
-                    symbols.BTC.hyperliquid().value,
+                    BTC_HL.value,
                     OrderSide.BUY,
                     Decimal("0.001"),
                     Decimal("50000.0"),

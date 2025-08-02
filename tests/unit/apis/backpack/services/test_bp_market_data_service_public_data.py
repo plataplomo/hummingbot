@@ -20,6 +20,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
+from tests.common_symbols import SOL_USDC_BP
 
 
 # Import fixtures from the shared conftest
@@ -64,7 +65,7 @@ class TestBackpackMarketDataServicePublicData:
         # Test zero limit
         with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_order_book(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 limit=0,  # Invalid: zero limit
             )
         assert "'limit' must be positive when provided" in str(exc_info.value)
@@ -72,7 +73,7 @@ class TestBackpackMarketDataServicePublicData:
         # Test negative limit
         with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_order_book(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 limit=-5,  # Invalid: negative limit
             )
         assert "'limit' must be positive when provided" in str(exc_info.value)
@@ -99,7 +100,7 @@ class TestBackpackMarketDataServicePublicData:
         # Test zero limit
         with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_recent_trades(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 limit=0,  # Invalid: zero limit
             )
         assert "'limit' must be positive when provided" in str(exc_info.value)
@@ -107,7 +108,7 @@ class TestBackpackMarketDataServicePublicData:
         # Test negative limit
         with pytest.raises(InvalidLimitError) as exc_info:
             await backpack_market_data_service.get_recent_trades(
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 limit=-10,  # Invalid: negative limit
             )
         assert "'limit' must be positive when provided" in str(exc_info.value)
@@ -128,7 +129,7 @@ class TestBackpackMarketDataServicePublicData:
 
         Note: Current business logic delegates to price ticker service.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         mock_timestamp_dt = datetime.fromtimestamp(1678886400, tz=UTC)
 
         mock_internal_ticker = Ticker(
@@ -165,7 +166,7 @@ class TestBackpackMarketDataServicePublicData:
 
         Note: Current business logic delegates to price ticker service.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Mock the price ticker service to raise an API error
         with patch.object(
@@ -199,7 +200,7 @@ class TestBackpackMarketDataServicePublicData:
 
         Note: Current business logic delegates to price ticker service.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Create a ValidationError by trying to validate invalid data
         try:
@@ -229,7 +230,7 @@ class TestBackpackMarketDataServicePublicData:
 
         Note: Current business logic delegates to price ticker service.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Mock the price ticker service to raise an unexpected exception
         with patch.object(
@@ -254,7 +255,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_book successfully retrieves and processes order book data."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         depth = 10
         MagicMock()
 
@@ -280,7 +281,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_book when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         depth = 5
 
         # Mock the order book service to raise an API error
@@ -311,7 +312,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_book handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Create a ValidationError by trying to validate invalid data
         try:
@@ -338,7 +339,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_book raises APIError when an unexpected exception occurs."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         depth = 5
 
         # Mock the order book service to raise an unexpected exception
@@ -367,7 +368,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_recent_trades successfully retrieves and processes trade data."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         limit = 50
 
         # Mock the historical data service since business logic delegates to it
@@ -425,7 +426,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_recent_trades handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Create a ValidationError by trying to validate invalid data
         try:
@@ -452,7 +453,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_recent_trades handles unexpected exception."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
 
         # Mock the historical data service to raise an unexpected exception
         with patch.object(

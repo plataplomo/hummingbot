@@ -13,7 +13,7 @@ from cyberdelta.core.models import (
     OrderSide,
     SpotBalance,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 
 
 class TestCurrencyConverter:
@@ -168,7 +168,7 @@ class TestPortfolioReconciliationService:
         service.reconcile_positions.return_value = mock_result
 
         # Mock position data
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         positions = {
             btc_symbol.value: DerivativePosition(
                 exchange="hyperliquid",

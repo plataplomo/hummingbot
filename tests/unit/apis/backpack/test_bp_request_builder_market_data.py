@@ -3,6 +3,7 @@
 from typing import Any, Literal
 
 import pytest
+from tests.common_symbols import BTC_BP, ETH_BP, SOL_BP
 
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetHistoricalTradesParams,
@@ -47,7 +48,7 @@ class TestBuildGetTickerParams:
         ("input_symbol", "expected_symbol"),
         [
             ("sol-usdc", "SOL_USDC"),
-            ("BTC-PERP", "BTC_PERP"),
+            (BTC_BP.value, BTC_BP.value.replace("-", "_")),
             ("eth_usdt", "ETH_USDT"),
         ],
     )
@@ -141,7 +142,7 @@ class TestBuildGetRecentTradesParams:
         [
             ("SOL_USDC", None, {"symbol": "SOL_USDC"}),
             ("BTC_USDT", 10, {"symbol": "BTC_USDT", "limit": 10}),
-            ("eth-perp", 100, {"symbol": "ETH_PERP", "limit": 100}),
+            (ETH_BP.value.lower(), 100, {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100}),
         ],
     )
     def test_build_get_recent_trades_params_parametrized(
@@ -279,13 +280,13 @@ class TestBuildGetHistoricalTradesParams:
     def test_build_get_historical_trades_params_formats_symbol(self) -> None:
         """Test build_get_historical_trades_params formats symbol correctly."""
         params = BackpackMarketDataRequestBuilder.build_get_historical_trades_params(
-            "ETH-PERP",
+            ETH_BP.value,
             100,
             "trade456",
         )
         assert isinstance(params, BackpackRawGetHistoricalTradesParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": "ETH_PERP", "limit": 100, "fromId": "trade456"}
+        expected = {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100, "fromId": "trade456"}
         assert params_dict == expected
 
     @pytest.mark.parametrize(
@@ -293,7 +294,7 @@ class TestBuildGetHistoricalTradesParams:
         [
             ("SOL_USDC", 25, None, {"symbol": "SOL_USDC", "limit": 25}),
             ("BTC_USDT", 50, "id123", {"symbol": "BTC_USDT", "limit": 50, "fromId": "id123"}),
-            ("eth-perp", 100, "id456", {"symbol": "ETH_PERP", "limit": 100, "fromId": "id456"}),
+            (ETH_BP.value.lower(), 100, "id456", {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100, "fromId": "id456"}),
         ],
     )
     def test_build_get_historical_trades_params_parametrized(
@@ -360,7 +361,7 @@ class TestBuildGetMarketParams:
         ("input_symbol", "expected_symbol"),
         [
             ("sol-usdc", "SOL_USDC"),
-            ("BTC-PERP", "BTC_PERP"),
+            (BTC_BP.value, BTC_BP.value.replace("-", "_")),
             ("eth_usdt", "ETH_USDT"),
             ("AVAX_USDC", "AVAX_USDC"),
             ("link-perp", "LINK_PERP"),

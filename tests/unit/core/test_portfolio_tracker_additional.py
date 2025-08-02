@@ -21,7 +21,7 @@ from cyberdelta.core.models import (
     Ticker,
 )
 from cyberdelta.core.portfolio.managers.portfolio_tracker import PortfolioStateManager
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
 # Import shared fixtures from conftest.py - they will be automatically available
@@ -95,7 +95,7 @@ class TestPortfolioTrackerWatchlistManagement:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test adding a new symbol to watchlist."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         symbol = btc_symbol.value
         assert symbol not in portfolio_tracker.watchlist
@@ -115,7 +115,7 @@ class TestPortfolioTrackerWatchlistManagement:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test removing an existing symbol from watchlist."""
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         # Arrange
         symbol = eth_symbol.value
         portfolio_tracker.watchlist.add(symbol)
@@ -136,9 +136,9 @@ class TestPortfolioTrackerWatchlistManagement:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test getting watchlist returns a copy."""
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
-        sol_symbol = symbols.SOL.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
+        sol_symbol = SOL_HL
         # Arrange
         symbol_set = {btc_symbol.value, eth_symbol.value, sol_symbol.value}
         portfolio_tracker.watchlist.update(symbol_set)
@@ -171,7 +171,7 @@ class TestPortfolioTrackerWatchlistManagement:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test adding symbol that's already in watchlist."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         symbol = btc_symbol.value
         portfolio_tracker.watchlist.add(symbol)
@@ -237,7 +237,7 @@ class TestPortfolioTrackerActiveSymbols:
         sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test getting active symbols when positions exist."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         exchange_id = "hyperliquid"
         portfolio_tracker.positions[exchange_id][btc_symbol.value] = sample_derivative_position
@@ -253,7 +253,7 @@ class TestPortfolioTrackerActiveSymbols:
         self, portfolio_tracker: PortfolioStateManager, sample_order: Order
     ) -> None:
         """Test getting active symbols when orders exist."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         exchange_id = "hyperliquid"
         portfolio_tracker.orders[exchange_id]["test_order_1"] = sample_order
@@ -270,7 +270,7 @@ class TestPortfolioTrackerActiveSymbols:
         sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that get_active_symbols returns a copy."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         exchange_id = "hyperliquid"
         portfolio_tracker.positions[exchange_id][btc_symbol.value] = sample_derivative_position
@@ -302,7 +302,7 @@ class TestPortfolioTrackerActiveSymbols:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test active symbols with zero-size position."""
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         # Arrange
         zero_position = DerivativePosition(
             exchange="hyperliquid",
@@ -354,7 +354,7 @@ class TestPortfolioTrackerPerformanceStats:
         sample_ticker: Ticker,
     ) -> None:
         """Test getting performance stats with data present."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         exchange_id = "hyperliquid"
 
@@ -396,7 +396,7 @@ class TestPortfolioTrackerPerformanceStats:
         sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test performance stats with multiple exchanges."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         # Create balances for multiple exchanges
         balance_hl = SpotBalance(
@@ -477,7 +477,7 @@ class TestPortfolioTrackerReset:
         sample_ticker: Ticker,
     ) -> None:
         """Test that reset clears all portfolio data."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         exchange_id = "hyperliquid"
 
@@ -592,9 +592,9 @@ class TestPortfolioTrackerUtilityMethods:
         sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that get_relevant_symbols combines active symbols and watchlist."""
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
-        sol_symbol = symbols.SOL.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
+        sol_symbol = SOL_HL
         # Arrange
         portfolio_tracker.positions["hyperliquid"][btc_symbol.value] = sample_derivative_position
         portfolio_tracker.watchlist.add(eth_symbol.value)
@@ -614,7 +614,7 @@ class TestPortfolioTrackerUtilityMethods:
         sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that get_relevant_symbols handles duplicates correctly."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         portfolio_tracker.positions["hyperliquid"][btc_symbol.value] = sample_derivative_position
         portfolio_tracker.watchlist.add(btc_symbol.value)  # Same symbol in both
@@ -633,7 +633,7 @@ class TestPortfolioTrackerUtilityMethods:
         sample_derivative_position: DerivativePosition,
     ) -> None:
         """Test that update_active_symbols identifies symbols with positions."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         portfolio_tracker.positions["hyperliquid"][btc_symbol.value] = sample_derivative_position
 
@@ -647,7 +647,7 @@ class TestPortfolioTrackerUtilityMethods:
         self, portfolio_tracker: PortfolioStateManager, sample_order: Order
     ) -> None:
         """Test that update_active_symbols identifies symbols with orders."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         # Arrange
         portfolio_tracker.orders["hyperliquid"]["test_order_1"] = sample_order
 
@@ -661,7 +661,7 @@ class TestPortfolioTrackerUtilityMethods:
         self, portfolio_tracker: PortfolioStateManager
     ) -> None:
         """Test that update_active_symbols excludes zero-size positions."""
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         # Arrange
         zero_position = DerivativePosition(
             exchange="hyperliquid",

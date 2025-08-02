@@ -38,7 +38,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.trade import BackpackTradeDetails, HyperliquidTradeDetails, Trade
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
@@ -56,7 +56,7 @@ def test_trade_minimal_valid() -> None:
     quantity = Decimal("2.0")
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -93,7 +93,7 @@ def test_trade_with_all_optionals() -> None:
     bp_details = BackpackTradeDetails()
     trade = Trade(
         id="12345",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="67890",
@@ -130,7 +130,7 @@ def test_trade_cost_computed() -> None:
     """
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -153,7 +153,7 @@ def test_trade_id_and_order_id_validation() -> None:
     for valid_id in ["idstr", "order-xyz", "1.23", "114", "abc", "hash-abc", "A" * 64]:
         trade = Trade(
             id=valid_id,
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id=valid_id,
@@ -167,7 +167,7 @@ def test_trade_id_and_order_id_validation() -> None:
     with pytest.raises(EmptyStringError):
         Trade(
             id="",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
@@ -179,7 +179,7 @@ def test_trade_id_and_order_id_validation() -> None:
     with pytest.raises(EmptyStringError):
         Trade(
             id="   ",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
@@ -191,7 +191,7 @@ def test_trade_id_and_order_id_validation() -> None:
     with pytest.raises(TypeFieldError):
         Trade(
             id="A" * 129,
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
@@ -204,7 +204,7 @@ def test_trade_id_and_order_id_validation() -> None:
         with pytest.raises((TypeError, ValueError, pydantic.ValidationError)):
             Trade(
                 id=bad_id,  # type: ignore
-                symbol=symbols.BTC.hyperliquid(),
+                symbol=BTC_HL,
                 executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
                 side=OrderSide.BUY,
                 order_id="order-xyz",
@@ -225,7 +225,7 @@ def test_trade_fee_asset_required() -> None:
     with pytest.raises(ValueError, match="fee_asset must be provided if fee is nonzero"):
         Trade(
             id="abc123",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
@@ -246,7 +246,7 @@ def test_trade_negative_fee_allowed() -> None:
     """
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -266,7 +266,7 @@ def test_trade_positive_constraints() -> None:
     with pytest.raises(pydantic.ValidationError):
         Trade(
             id="abc123",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
@@ -278,7 +278,7 @@ def test_trade_positive_constraints() -> None:
     with pytest.raises(pydantic.ValidationError):
         Trade(
             id="abc123",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
@@ -292,7 +292,7 @@ def test_trade_decimal_parsing() -> None:
     """Test that Trade accepts values for Decimal fields that can be parsed from int or str."""
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -317,7 +317,7 @@ def test_trade_optional_string_fields() -> None:
     )
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -336,7 +336,7 @@ def test_trade_optional_string_fields() -> None:
     # None
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -354,7 +354,7 @@ def test_trade_optional_string_fields() -> None:
     with pytest.raises(EmptyStringError):
         Trade(
             id="abc123",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="order-xyz",
@@ -378,7 +378,7 @@ def test_trade_optional_decimal_fields() -> None:
     )
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -398,7 +398,7 @@ def test_trade_optional_decimal_fields() -> None:
     )
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -424,7 +424,7 @@ def test_trade_custom_to_dict_serialization() -> None:
     """
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -459,7 +459,7 @@ def test_trade_model_dump_json_serialization() -> None:
     bp_details = BackpackTradeDetails(system_order_type="LIMIT")
     trade = Trade(
         id="abc123",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="order-xyz",
@@ -543,7 +543,7 @@ def test_trade_enrichment_slots_acceptance_and_serialization() -> None:
     bp_details = BackpackTradeDetails(system_order_type="LIMIT")
     trade = Trade(
         id="t1",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.BUY,
         order_id="o1",
@@ -568,7 +568,7 @@ def test_trade_enrichment_slots_none() -> None:
     """Test that Trade accepts None for enrichment slots and serializes as null."""
     trade = Trade(
         id="t2",
-        symbol=symbols.BTC.hyperliquid(),
+        symbol=BTC_HL,
         executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
         side=OrderSide.SELL,
         order_id="o2",
@@ -591,7 +591,7 @@ def test_trade_enrichment_invalid_details() -> None:
     with pytest.raises(EmptyStringError):
         Trade(
             id="t3",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="o3",
@@ -604,7 +604,7 @@ def test_trade_enrichment_invalid_details() -> None:
     with pytest.raises(TypeFieldError):
         Trade(
             id="t4",
-            symbol=symbols.BTC.hyperliquid(),
+            symbol=BTC_HL,
             executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="o4",

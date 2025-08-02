@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -42,11 +43,11 @@ class TestBackpackPerpOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_order_book() with SOL_USDC_PERP returns valid OrderBook model."""
-        order_book = await bp_api_for_test_env.get_order_book(exchanges.backpack("SOL_USDC_PERP"))
+        order_book = await bp_api_for_test_env.get_order_book(SOL_USDC_PERP_BP)
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
 
-        assert order_book.symbol.value == "SOL_USDC_PERP", (
+        assert order_book.symbol.value == SOL_USDC_PERP_BP.value, (
             f"Expected symbol 'SOL_USDC_PERP', got '{order_book.symbol.value}'"
         )
 
@@ -100,10 +101,10 @@ class TestBackpackPerpOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_order_book() with BTC_USDC_PERP returns valid OrderBook model."""
-        order_book = await bp_api_for_test_env.get_order_book(exchanges.backpack("BTC_USDC_PERP"))
+        order_book = await bp_api_for_test_env.get_order_book(BTC_USDC_PERP_BP)
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
-        assert order_book.symbol.value == "BTC_USDC_PERP", (
+        assert order_book.symbol.value == BTC_USDC_PERP_BP.value, (
             f"Expected symbol 'BTC_USDC_PERP', got '{order_book.symbol.value}'"
         )
 
@@ -116,7 +117,7 @@ class TestBackpackPerpOrderBooks:
             ask_price, _ = order_book.asks[0]
             assert ask_price > Decimal(0), f"BTC perp ask price must be positive: {ask_price}"
 
-    @pytest.mark.parametrize("symbol", ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"])
+    @pytest.mark.parametrize("symbol", [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/perp/order_books"],
@@ -163,7 +164,7 @@ class TestBackpackPerpOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order book depth and liquidity characteristics."""
-        order_book = await bp_api_for_test_env.get_order_book(exchanges.backpack("SOL_USDC_PERP"))
+        order_book = await bp_api_for_test_env.get_order_book(SOL_USDC_PERP_BP)
 
         assert isinstance(order_book, OrderBook), "Expected OrderBook"
         assert len(order_book.bids) > 0, "Should have bids"
@@ -199,7 +200,7 @@ class TestBackpackPerpOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order book characteristics related to leverage trading."""
-        order_book = await bp_api_for_test_env.get_order_book(exchanges.backpack("SOL_USDC_PERP"))
+        order_book = await bp_api_for_test_env.get_order_book(SOL_USDC_PERP_BP)
 
         # Perp markets should have positive size levels for leverage trading
         if len(order_book.bids) > 0:
@@ -240,7 +241,7 @@ class TestBackpackPerpOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order book decimal precision handling."""
-        order_book = await bp_api_for_test_env.get_order_book(exchanges.backpack("SOL_USDC_PERP"))
+        order_book = await bp_api_for_test_env.get_order_book(SOL_USDC_PERP_BP)
 
         # Test precision on all bids
         for bid_price, bid_size in order_book.bids:

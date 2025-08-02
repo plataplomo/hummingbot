@@ -17,7 +17,7 @@ from cyberdelta.core.models.market.market import (
     HyperliquidMarketDetails,
     Market,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
@@ -26,7 +26,7 @@ pytestmark = pytest.mark.timing
 
 # Constants for testing
 NOW: datetime = datetime.now(UTC)
-BTC_SYMBOL = symbols.BTC.hyperliquid()
+BTC_SYMBOL = BTC_HL
 MARKET_TYPE: str = "Perpetual"
 STATUS: str = "Trading"
 DEC_ZERO: Decimal = Decimal(0)
@@ -328,7 +328,7 @@ class TestMarket:
         )
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            market.symbol = symbols.ETH.hyperliquid()
+            market.symbol = ETH_HL
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
             market.tick_size = Decimal("0.01")

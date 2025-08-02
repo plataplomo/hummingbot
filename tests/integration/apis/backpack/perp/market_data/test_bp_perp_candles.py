@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -58,7 +59,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("SOL_USDC_PERP"),
+            symbol=SOL_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,  # Convert to milliseconds
             end_time_ms=end_time * 1000,
@@ -134,7 +135,7 @@ class TestBackpackPerpCandles:
                 )
 
                 # Validate symbol
-                assert candle.symbol == "SOL_USDC_PERP", (
+                assert candle.symbol == SOL_USDC_PERP_BP.value, (
                     f"Candle {i} symbol should be 'SOL_USDC_PERP', got '{candle.symbol}'"
                 )
 
@@ -162,7 +163,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("BTC_USDC_PERP"),
+            symbol=BTC_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -179,7 +180,7 @@ class TestBackpackPerpCandles:
                 assert isinstance(candle, Candle), (
                     f"Candle {i} should be Candle model, got {type(candle)}"
                 )
-                assert candle.symbol == "BTC_USDC_PERP", (
+                assert candle.symbol == BTC_USDC_PERP_BP.value, (
                     f"Candle {i} symbol should be 'BTC_USDC_PERP', got '{candle.symbol}'"
                 )
 
@@ -219,7 +220,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("ETH_USDC_PERP"),
+            symbol=ETH_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -236,7 +237,7 @@ class TestBackpackPerpCandles:
                 assert isinstance(candle, Candle), (
                     f"Candle {i} should be Candle model, got {type(candle)}"
                 )
-                assert candle.symbol == "ETH_USDC_PERP", (
+                assert candle.symbol == ETH_USDC_PERP_BP.value, (
                     f"Candle {i} symbol should be 'ETH_USDC_PERP', got '{candle.symbol}'"
                 )
 
@@ -283,7 +284,7 @@ class TestBackpackPerpCandles:
                 start_time = end_time - 3600  # 1 hour earlier
 
             args = GetMarketDataArgs(
-                symbol=exchanges.backpack("SOL_USDC_PERP"),
+                symbol=SOL_USDC_PERP_BP,
                 timeframe=interval,
                 start_time_ms=start_time * 1000,
                 end_time_ms=end_time * 1000,
@@ -303,7 +304,7 @@ class TestBackpackPerpCandles:
                         assert isinstance(candle, Candle), (
                             f"Should be Candle for interval {interval}"
                         )
-                        assert candle.symbol == "SOL_USDC_PERP", (
+                        assert candle.symbol == SOL_USDC_PERP_BP.value, (
                             f"Wrong symbol for interval {interval}"
                         )
 
@@ -332,7 +333,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("SOL_USDC_PERP"),
+            symbol=SOL_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -391,7 +392,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("SOL_USDC_PERP"),
+            symbol=SOL_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -486,7 +487,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("SOL_USDC_PERP"),
+            symbol=SOL_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -585,7 +586,7 @@ class TestBackpackPerpCandles:
         freezer: FreezerProtocol,
     ) -> None:
         """Test BackpackAPI.get_market_data() returns consistent structure across perp symbols."""
-        symbols = ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
+        symbols = [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value]
         all_candles: dict[str, list[Candle]] = {}
 
         # Use dynamic timestamps that are recent but deterministic for VCR
@@ -656,7 +657,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("SOL_USDC_PERP"),
+            symbol=SOL_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -713,7 +714,7 @@ class TestBackpackPerpCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=exchanges.backpack("SOL_USDC_PERP"),
+            symbol=SOL_USDC_PERP_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,

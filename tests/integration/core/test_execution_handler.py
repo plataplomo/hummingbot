@@ -31,6 +31,7 @@ from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk_manager import SizedOpportunity
 from cyberdelta.core.symbols.service import SymbolService
+from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.test_utils.testable_classes import TestableExecutionHandler
@@ -49,7 +50,7 @@ def mock_arbitrage_opportunity() -> ArbitrageOpportunity:
         ArbitrageOpportunity: A mock opportunity with predefined values for testing.
     """
     return ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="hyperliquid",
         short_exchange="backpack",
         long_price=Decimal("41000.0"),
@@ -219,9 +220,9 @@ class TestExecutionHandler:
                 str | None: Exchange-specific symbol or None if not found.
             """
             mapping = {
-                ("BTC", "hyperliquid"): "BTC-PERP",
-                ("BTC", "backpack"): "BTC_USDC",
-                ("ETH", "hyperliquid"): "ETH-PERP",
+                ("BTC", "hyperliquid"): BTC_HL.value,
+                ("BTC", "backpack"): BTC_USDC_BP.value,
+                ("ETH", "hyperliquid"): ETH_HL.value,
                 ("INVALID_SYMBOL", "hyperliquid"): None,
             }
             return mapping.get((internal_symbol, ex_id))
@@ -233,9 +234,9 @@ class TestExecutionHandler:
                 str | None: Internal symbol or None if not found.
             """
             mapping = {
-                ("BTC-PERP", "hyperliquid"): "BTC",
-                ("BTC_USDC", "backpack"): "BTC",
-                ("ETH-PERP", "hyperliquid"): "ETH",
+                (BTC_HL.value, "hyperliquid"): "BTC",
+                (BTC_USDC_BP.value, "backpack"): "BTC",
+                (ETH_HL.value, "hyperliquid"): "ETH",
             }
             return mapping.get((ex_sym, ex_id))
 
@@ -388,7 +389,7 @@ class TestExecutionHandler:
             Returns:
                 str | None: Exchange symbol or None for failure simulation.
             """
-            return "BTC-PERP" if ex_id == "hyperliquid" else None
+            return BTC_HL.value if ex_id == "hyperliquid" else None
 
         mock_symbol_service.get_exchange_symbol.side_effect = get_symbol_side_effect
         execution = await execution_handler.execute_opportunity(sized_opportunity)
@@ -419,7 +420,7 @@ class TestExecutionHandler:
             exchange_order_id="EX123",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             status=OrderStatus.NEW,
@@ -447,7 +448,7 @@ class TestExecutionHandler:
         result_order = await testable_execution_handler.expose_place_order_with_retry(
             execution=execution,
             exchange_id="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL.value,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
@@ -470,7 +471,7 @@ class TestExecutionHandler:
             await testable_execution_handler.expose_place_order_with_retry(
                 execution=execution,
                 exchange_id="hyperliquid",
-                symbol="BTC-PERP",
+                symbol=BTC_HL.value,
                 side=OrderSide.BUY,
                 order_type=OrderType.MARKET,
                 quantity=Decimal("0.1"),
@@ -492,7 +493,7 @@ class TestExecutionHandler:
             exchange_order_id="EX124",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             status=OrderStatus.FILLED,
@@ -563,7 +564,7 @@ class TestExecutionHandler:
     ) -> None:
         """Test successful compensation placement."""
         mock_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             bid=Decimal(40900),
@@ -583,7 +584,7 @@ class TestExecutionHandler:
             exchange_order_id="EX125",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             status=OrderStatus.NEW,
@@ -610,14 +611,14 @@ class TestExecutionHandler:
         execution.long_order_id = "Original-Long-ID"
         execution.short_order_id = "Original-Short-ID"
 
-        mock_symbol_service.get_exchange_symbol.return_value = "BTC-PERP"
+        mock_symbol_service.get_exchange_symbol.return_value = BTC_HL.value
 
         original_filled_order = Order(
             client_order_id="Original-Long-ID",
             exchange_order_id="EX-ORIG-L",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             status=OrderStatus.FILLED,
@@ -642,12 +643,12 @@ class TestExecutionHandler:
             result: bool = await testable_execution_handler.test_compensate_position(
                 execution=execution,
                 exchange_id="hyperliquid",
-                symbol="BTC-PERP",
+                symbol=BTC_HL.value,
                 side=OrderSide.SELL,
                 quantity=Decimal("0.1"),
             )
             assert result is True
-            mock_hl_api.get_ticker.assert_called_once_with("BTC-PERP")
+            mock_hl_api.get_ticker.assert_called_once_with(BTC_HL.value)
             mock_place_comp.assert_called_once()
 
             pos_args, kwargs = mock_place_comp.call_args
@@ -670,7 +671,7 @@ class TestExecutionHandler:
     ) -> None:
         """Test compensation failure due to API error during placement."""
         mock_hl_api.get_ticker.return_value = Ticker(
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             bid=Decimal(40900),
@@ -686,7 +687,7 @@ class TestExecutionHandler:
             exchange_order_id="EX-ORIG-L-FAIL",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             status=OrderStatus.FILLED,
@@ -724,7 +725,7 @@ class TestExecutionHandler:
                 await testable_execution_handler.test_compensate_position(
                     execution=execution,
                     exchange_id="hyperliquid",
-                    symbol="BTC-PERP",
+                    symbol=BTC_HL.value,
                     side=OrderSide.SELL,
                     quantity=Decimal("0.1"),
                 )
@@ -732,7 +733,7 @@ class TestExecutionHandler:
             assert exc_info.value.code == APIErrorCode.UNKNOWN.value
 
             mock_hl_api.get_ticker.assert_called_once_with(
-                "BTC-PERP",
+                BTC_HL.value,
             )  # Ticker is fetched for price
             mock_place_retry_method.assert_called_once()  # Check it was actually called
 
@@ -743,14 +744,14 @@ class TestExecutionHandler:
             tuple[Ticker, Ticker]: Hyperliquid and Backpack test tickers.
         """
         hl_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             exchange="hyperliquid",
             timestamp=now_ts,
             bid=Decimal(41000),
             ask=Decimal(41050),
         )
         bp_ticker = Ticker(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP,
             exchange="backpack",
             timestamp=now_ts,
             bid=Decimal(41100),
@@ -772,7 +773,7 @@ class TestExecutionHandler:
             client_order_id="HL-CONC-L-1",
             exchange_order_id="EX-HL-CONC-L-126",
             exchange="hyperliquid",
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             status=OrderStatus.NEW,
@@ -799,7 +800,7 @@ class TestExecutionHandler:
             client_order_id="BP-CONC-S-1",
             exchange_order_id="EX-BP-CONC-S-127",
             exchange="backpack",
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP,
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
             status=OrderStatus.NEW,
@@ -1110,14 +1111,14 @@ class TestExecutionHandler:
         # TODO: Implement helper methods for test setup
         # For now, create minimal test objects
         hl_ticker = Ticker(
-            symbol="BTC-PERP",
+            symbol=BTC_HL,
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
             bid=Decimal(41000),
             ask=Decimal(41050),
         )
         bp_ticker = Ticker(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP,
             exchange="backpack",
             timestamp=datetime.now(UTC),
             bid=Decimal(41100),

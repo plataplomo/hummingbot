@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from tests.common_symbols import SOL_BP
 
 from cyberdelta.apis.backpack.bp_validators import BackpackValidators
 from cyberdelta.apis.hyperliquid.hl_validators import HyperliquidValidators
@@ -122,7 +123,7 @@ class TestWebSocketPayloadValidators:
         ("symbol", "expected"),
         [
             ("BTC_USDC", "BTC_USDC"),
-            ("SOL-PERP", "SOL-PERP"),
+            (SOL_BP.value, SOL_BP.value),
             ("ETH_USD", "ETH_USD"),
             ("AVAX123", "AVAX123"),
         ],
@@ -255,7 +256,7 @@ class TestBackpackValidators:
         ("topic", "expected_type", "expected_symbol"),
         [
             ("depth.BTC_USDC", "depth", "BTC_USDC"),
-            ("ticker.SOL-PERP", "ticker", "SOL-PERP"),
+            (f"ticker.{SOL_BP.value}", "ticker", SOL_BP.value),
             ("trades.ETH_USD", "trades", "ETH_USD"),
         ],
     )

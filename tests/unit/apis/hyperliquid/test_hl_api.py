@@ -59,6 +59,8 @@ from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
 
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
+
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
 
@@ -411,18 +413,14 @@ class TestHyperliquidAPIMarketDataMethods:
         # Create test data
         expected_markets = [
             Market(
-                symbol="BTC-USD",
-                base_symbol="BTC",
-                quote_symbol="USD",
+                symbol=BTC_HL,
                 market_type="Perpetual",
                 tick_size=Decimal("0.01"),
                 step_size=Decimal("0.001"),
                 status="Trading",
             ),
             Market(
-                symbol="ETH-USD",
-                base_symbol="ETH",
-                quote_symbol="USD",
+                symbol=ETH_HL,
                 market_type="Perpetual",
                 tick_size=Decimal("0.01"),
                 step_size=Decimal("0.01"),
@@ -443,8 +441,8 @@ class TestHyperliquidAPIMarketDataMethods:
         # Verify
         assert result == expected_markets
         assert len(result) == 2
-        assert result[0].symbol == "BTC-USD"
-        assert result[1].symbol == "ETH-USD"
+        assert result[0].symbol == BTC_HL
+        assert result[1].symbol == ETH_HL
 
         # Verify service was called correctly
         mock_hl_market_data_service.get_markets.assert_called_once_with(args=args)
@@ -506,11 +504,9 @@ class TestHyperliquidAPIMarketDataMethods:
     ) -> None:
         """Test successful get_market call delegates to market data service."""
         # Create test data
-        symbol = "BTC-USD"
+        symbol = BTC_HL.value
         expected_market = Market(
-            symbol=symbol,
-            base_symbol="BTC",
-            quote_symbol="USD",
+            symbol=BTC_HL,
             market_type="Perpetual",
             tick_size=Decimal("0.01"),
             step_size=Decimal("0.001"),
@@ -524,14 +520,12 @@ class TestHyperliquidAPIMarketDataMethods:
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
         # Execute
-        args = GetMarketArgs(symbol=symbol)
+        args = GetMarketArgs(symbol=BTC_HL)
         result = await api.get_market(args)
 
         # Verify
         assert result == expected_market
-        assert result.symbol == symbol
-        assert result.base_symbol == "BTC"
-        assert result.quote_symbol == "USD"
+        assert result.symbol == BTC_HL
         assert result.market_type == "Perpetual"
 
         # Verify service was called correctly
@@ -545,9 +539,9 @@ class TestHyperliquidAPIMarketDataMethods:
     ) -> None:
         """Test get_market works with different symbol formats."""
         test_cases = [
-            ("BTC-USD", "BTC", "USD"),
-            ("ETH-USDC", "ETH", "USDC"),
-            ("SOL-USD", "SOL", "USD"),
+            (BTC_HL, "BTC", "USD"),
+            (ETH_HL, "ETH", "USD"),
+            (SOL_HL, "SOL", "USD"),
         ]
 
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
@@ -556,8 +550,6 @@ class TestHyperliquidAPIMarketDataMethods:
             # Create expected market for this test case
             expected_market = Market(
                 symbol=symbol,
-                base_symbol=base,
-                quote_symbol=quote,
                 market_type="Perpetual",
                 tick_size=Decimal("0.01"),
                 step_size=Decimal("0.001"),
@@ -574,8 +566,6 @@ class TestHyperliquidAPIMarketDataMethods:
             # Verify
             assert result == expected_market
             assert result.symbol == symbol
-            assert result.base_symbol == base
-            assert result.quote_symbol == quote
 
         # Verify service was called for each test case
         assert mock_hl_market_data_service.get_market.call_count == len(test_cases)
@@ -588,7 +578,7 @@ class TestHyperliquidAPIMarketDataMethods:
     ) -> None:
         """Test that exceptions from market data service are propagated."""
         # Configure mock service to raise an error
-        symbol = "BTC-USD"
+        symbol = BTC_HL.value
         api_error = APIError(
             message=f"Market {symbol} not found",
             code=APIErrorCode.SYMBOL_NOT_FOUND.value,
@@ -599,7 +589,7 @@ class TestHyperliquidAPIMarketDataMethods:
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
         # Execute and verify exception is propagated
-        args = GetMarketArgs(symbol=symbol)
+        args = GetMarketArgs(symbol=BTC_HL)
         with pytest.raises(APIError) as exc_info:
             await api.get_market(args)
 
@@ -614,19 +604,18 @@ class TestHyperliquidAPIMarketDataMethods:
     ) -> None:
         """Test that GetMarketArgs validation works correctly."""
         # Test valid args creation
-        valid_args = GetMarketArgs(symbol="BTC-USD")
-        assert valid_args.symbol == "BTC-USD"
+        valid_args = GetMarketArgs(symbol=BTC_HL)
+        assert valid_args.symbol == BTC_HL
 
-        # Test invalid args - empty symbol should fail validation
+        # Test invalid args - None symbol should fail validation
         with pytest.raises(ValidationError) as exc_info:
-            GetMarketArgs(symbol="")
-        assert "String cannot be empty" in str(exc_info.value)
+            GetMarketArgs(symbol=None)  # type: ignore[arg-type]
+        assert "Input should be an instance of BaseSymbol" in str(exc_info.value)
 
-        # Test args with very long symbol (should fail max length validation)
+        # Test args with invalid symbol type
         with pytest.raises(ValidationError) as exc_info:
-            GetMarketArgs(symbol="A" * 65)  # Max length is 64
-        # The validation error should contain the max length message
-        assert "expected string with max length 64" in str(exc_info.value)
+            GetMarketArgs(symbol="INVALID")  # type: ignore[arg-type]
+        assert "Input should be an instance of BaseSymbol" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_markets_args_validation(
@@ -656,10 +645,11 @@ class TestHyperliquidAPIAccountMethods:
     ) -> None:
         """Test successful get_balances call delegates to account service."""
         # Create test data
+        from tests.common_symbols import USD_HL, BTC_ASSET_HL
         expected_balances = {
             "USDC": SpotBalance(
                 exchange="hyperliquid",
-                asset="USDC",
+                asset=USD_HL,
                 timestamp=datetime.now(UTC),
                 total_quantity=Decimal("1050.00"),
                 available_quantity=Decimal("1000.00"),
@@ -668,7 +658,7 @@ class TestHyperliquidAPIAccountMethods:
             ),
             "BTC": SpotBalance(
                 exchange="hyperliquid",
-                asset="BTC",
+                asset=BTC_ASSET_HL,
                 timestamp=datetime.now(UTC),
                 total_quantity=Decimal("0.6"),
                 available_quantity=Decimal("0.5"),
@@ -707,7 +697,7 @@ class TestHyperliquidAPIAccountMethods:
         expected_positions = [
             DerivativePosition(
                 exchange="hyperliquid",
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 size=Decimal("1.0"),
                 entry_price=Decimal("50000.00"),
@@ -730,16 +720,16 @@ class TestHyperliquidAPIAccountMethods:
         api = hl_api_with_di(account_service=mock_hl_account_service)
 
         # Execute
-        result = await api.get_positions(symbol="BTC-USD")
+        result = await api.get_positions(symbol=BTC_HL)
 
         # Verify
         assert result == expected_positions
         assert len(result) == 1
-        assert result[0].symbol == "BTC-USD"
+        assert result[0].symbol == BTC_HL
         assert result[0].unrealized_pnl == Decimal("1000.00")
 
         # Verify service was called correctly
-        mock_hl_account_service.get_positions.assert_called_once_with(symbol="BTC-USD")
+        mock_hl_account_service.get_positions.assert_called_once_with(symbol=BTC_HL)
 
     @pytest.mark.asyncio
     async def test_get_positions_all(
@@ -813,7 +803,7 @@ class TestHyperliquidAPIAccountMethods:
                 exchange_order_id="ex123",
                 related_order_id=None,
                 exchange="hyperliquid",
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 status=OrderStatus.FILLED,
@@ -845,7 +835,7 @@ class TestHyperliquidAPIAccountMethods:
         api = hl_api_with_di(account_service=mock_hl_account_service)
 
         # Execute
-        args = GetOrderHistoryArgs(symbol="BTC-USD", limit=10)
+        args = GetOrderHistoryArgs(symbol=BTC_HL, limit=10)
         result = await api.get_order_history(args)
 
         # Verify
@@ -867,7 +857,7 @@ class TestHyperliquidAPIAccountMethods:
         expected_trades = [
             Trade(
                 id="trade123",
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
                 side=OrderSide.BUY,
                 order_id="order123",
@@ -890,7 +880,7 @@ class TestHyperliquidAPIAccountMethods:
         api = hl_api_with_di(account_service=mock_hl_account_service)
 
         # Execute
-        args = GetTradeHistoryArgs(symbol="BTC-USD", limit=10)
+        args = GetTradeHistoryArgs(symbol=BTC_HL, limit=10)
         result = await api.get_trade_history(args)
 
         # Verify
@@ -914,7 +904,7 @@ class TestHyperliquidAPITradingMethods:
         """Test successful place_order call."""
         # Create test data
         args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
@@ -927,7 +917,7 @@ class TestHyperliquidAPITradingMethods:
             exchange_order_id="ex123",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             status=OrderStatus.OPEN,
@@ -978,11 +968,11 @@ class TestHyperliquidAPITradingMethods:
         # Create test data
         args = CancelOrderArgs(
             order_id="order123",
-            symbol="BTC-USD",
+            symbol=BTC_HL,
         )
 
         expected_result = CancelOrderResult(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             order_id="order123",
             client_order_id=None,
             success=True,
@@ -1018,7 +1008,7 @@ class TestHyperliquidAPITradingMethods:
         # Create test data
         expected_results = [
             CancelOrderResult(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 order_id="order1",
                 client_order_id=None,
                 success=True,
@@ -1027,7 +1017,7 @@ class TestHyperliquidAPITradingMethods:
                 raw_response=None,
             ),
             CancelOrderResult(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 order_id="order2",
                 client_order_id=None,
                 success=True,
@@ -1044,7 +1034,7 @@ class TestHyperliquidAPITradingMethods:
         api = hl_api_with_di(trading_service=mock_hl_trading_service)
 
         # Execute
-        result = await api.cancel_all_orders(symbol="BTC-USD")
+        result = await api.cancel_all_orders(symbol=BTC_HL)
 
         # Verify
         assert result == expected_results
@@ -1052,7 +1042,7 @@ class TestHyperliquidAPITradingMethods:
         assert all(r.success for r in result)
 
         # Verify service was called correctly
-        mock_hl_trading_service.cancel_all_orders.assert_called_once_with(symbol="BTC-USD")
+        mock_hl_trading_service.cancel_all_orders.assert_called_once_with(symbol=BTC_HL)
 
     @pytest.mark.asyncio
     async def test_get_open_orders_success(
@@ -1068,7 +1058,7 @@ class TestHyperliquidAPITradingMethods:
                 exchange_order_id="ex123",
                 related_order_id=None,
                 exchange="hyperliquid",
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 status=OrderStatus.OPEN,
@@ -1100,7 +1090,7 @@ class TestHyperliquidAPITradingMethods:
         api = hl_api_with_di(trading_service=mock_hl_trading_service)
 
         # Execute
-        result = await api.get_open_orders(symbol="BTC-USD")
+        result = await api.get_open_orders(symbol=BTC_HL)
 
         # Verify
         assert result == expected_orders
@@ -1108,7 +1098,7 @@ class TestHyperliquidAPITradingMethods:
         assert result[0].status == OrderStatus.OPEN
 
         # Verify service was called correctly
-        mock_hl_trading_service.get_open_orders.assert_called_once_with(symbol="BTC-USD")
+        mock_hl_trading_service.get_open_orders.assert_called_once_with(symbol=BTC_HL)
 
     @pytest.mark.asyncio
     async def test_get_order_status_success(
@@ -1118,13 +1108,13 @@ class TestHyperliquidAPITradingMethods:
     ) -> None:
         """Test successful get_order_status call."""
         # Create test data
-        args = GetOrderArgs(order_id="order123", symbol="BTC-USD")
+        args = GetOrderArgs(order_id="order123", symbol=BTC_HL)
         expected_order = Order(
             client_order_id="order123",
             exchange_order_id="ex123",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             status=OrderStatus.PARTIALLY_FILLED,
@@ -1173,13 +1163,13 @@ class TestHyperliquidAPITradingMethods:
     ) -> None:
         """Test successful get_order call (alias for get_order_status)."""
         # Create test data
-        args = GetOrderArgs(order_id="order123", symbol="BTC-USD")
+        args = GetOrderArgs(order_id="order123", symbol=BTC_HL)
         expected_order = Order(
             client_order_id="order123",
             exchange_order_id="ex123",
             related_order_id=None,
             exchange="hyperliquid",
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
             status=OrderStatus.FILLED,
@@ -1233,7 +1223,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         """Test successful get_ticker call."""
         # Create test data
         expected_ticker = Ticker(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             exchange="hyperliquid",
             timestamp=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
             price=Decimal("50000.50"),
@@ -1251,16 +1241,16 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
         # Execute
-        result = await api.get_ticker("BTC-USD")
+        result = await api.get_ticker(BTC_HL)
 
         # Verify
         assert result == expected_ticker
         assert result is not None
-        assert result.symbol == "BTC-USD"
+        assert result.symbol == BTC_HL
         assert result.bid == Decimal("50000.00")
 
         # Verify service was called correctly
-        mock_hl_market_data_service.get_ticker.assert_called_once_with(symbol="BTC-USD")
+        mock_hl_market_data_service.get_ticker.assert_called_once_with(symbol=BTC_HL)
 
     @pytest.mark.asyncio
     async def test_get_order_book_success(
@@ -1271,7 +1261,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         """Test successful get_order_book call."""
         # Create test data
         expected_order_book = OrderBook(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             timestamp=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
             bids=[(Decimal("50000.00"), Decimal("10.0"))],
             asks=[(Decimal("50001.00"), Decimal("10.0"))],
@@ -1284,17 +1274,17 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
         # Execute
-        result = await api.get_order_book("BTC-USD", depth=10)
+        result = await api.get_order_book(BTC_HL, depth=10)
 
         # Verify
         assert result == expected_order_book
         assert result is not None
-        assert result.symbol == "BTC-USD"
+        assert result.symbol == BTC_HL
         assert len(result.bids) == 1
         assert len(result.asks) == 1
 
         # Verify service was called correctly
-        mock_hl_market_data_service.get_order_book.assert_called_once_with(symbol="BTC-USD")
+        mock_hl_market_data_service.get_order_book.assert_called_once_with(symbol=BTC_HL)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -1307,7 +1297,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         expected_trades = [
             Trade(
                 id="trade123",
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
                 side=OrderSide.BUY,
                 order_id="order123",
@@ -1323,7 +1313,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
             ),
             Trade(
                 id="trade124",
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:01+00:00"),
                 side=OrderSide.SELL,
                 order_id="order124",
@@ -1346,7 +1336,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
         # Execute
-        result = await api.get_recent_trades("BTC-USD", limit=50)
+        result = await api.get_recent_trades(BTC_HL, limit=50)
 
         # Verify
         assert result == expected_trades
@@ -1355,7 +1345,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
 
         # Verify service was called correctly
         # Note: Hyperliquid's get_recent_trades only takes symbol parameter, not limit
-        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(symbol="BTC-USD")
+        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(symbol=BTC_HL)
 
     @pytest.mark.asyncio
     async def test_get_funding_rates_success(
@@ -1365,10 +1355,10 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
     ) -> None:
         """Test successful get_funding_rates call."""
         # Create test data
-        args = GetFundingRatesArgs(symbols=["BTC-USD", "ETH-USD"])
+        args = GetFundingRatesArgs(symbols=[BTC_HL, ETH_HL])
         expected_rates = [
             FundingRate(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 timestamp=datetime.fromisoformat("2024-01-01T08:00:00+00:00"),
                 funding_rate=Decimal("0.0001"),
                 predicted_rate=None,
@@ -1379,7 +1369,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
                 bp_details=None,
             ),
             FundingRate(
-                symbol="ETH-USD",
+                symbol=ETH_HL,
                 timestamp=datetime.fromisoformat("2024-01-01T08:00:00+00:00"),
                 funding_rate=Decimal("0.0002"),
                 predicted_rate=None,
@@ -1417,7 +1407,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         """Test successful get_market_data call."""
         # Create test data
         args = GetMarketDataArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             timeframe="1h",
             start_time_ms=1704067200000,  # 2024-01-01T00:00:00Z
             end_time_ms=1704110400000,  # 2024-01-01T12:00:00Z
@@ -1425,7 +1415,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         )
         expected_candles = [
             Candle(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 interval="1h",
                 open_time=datetime.fromisoformat("2024-01-01T00:00:00+00:00"),
                 open=Decimal("50000.00"),
@@ -1462,13 +1452,13 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         """Test successful get_historical_funding_rates call."""
         # Create test data
         args = GetHistoricalFundingRatesArgs(
-            symbol="BTC-USD",
+            symbol=BTC_HL,
             start_time=datetime.fromisoformat("2024-01-01T00:00:00+00:00"),
             end_time=datetime.fromisoformat("2024-01-02T00:00:00+00:00"),
         )
         expected_rates = [
             FundingRate(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 timestamp=datetime.fromisoformat("2024-01-01T00:00:00+00:00"),
                 funding_rate=Decimal("0.0001"),
                 predicted_rate=None,
@@ -1479,7 +1469,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
                 bp_details=None,
             ),
             FundingRate(
-                symbol="BTC-USD",
+                symbol=BTC_HL,
                 timestamp=datetime.fromisoformat("2024-01-01T08:00:00+00:00"),
                 funding_rate=Decimal("0.0002"),
                 predicted_rate=None,

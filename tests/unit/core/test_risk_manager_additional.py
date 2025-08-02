@@ -16,7 +16,7 @@ import pytest
 from cyberdelta.config.models.config_models import AppSettings, GlobalRiskSettings, RiskSettings
 from cyberdelta.core.models.spot_balance import SpotBalance
 from cyberdelta.core.risk_manager import RiskManager, SimpleSizingMethod, SizedOpportunity
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.risk import RiskConfigError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -138,7 +138,7 @@ def sample_arbitrage_opportunity() -> ArbitrageOpportunity:
     Returns:
         ArbitrageOpportunity: Sample BTC-PERP arbitrage opportunity with 20 bps spread.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return ArbitrageOpportunity(
         symbol=btc_symbol.value,
         long_exchange="hyperliquid",
@@ -249,7 +249,7 @@ class TestRiskManagerOpportunityValidation:
     ) -> None:
         """Test validation with minimal valid opportunity."""
         # Arrange
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         opportunity = ArbitrageOpportunity(
             symbol=eth_symbol.value,
             long_exchange="hyperliquid",
@@ -274,7 +274,7 @@ class TestRiskManagerOpportunityValidation:
     async def test_validate_opportunity_edge_zero_nfd(self, risk_manager: RiskManager) -> None:
         """Test validation with zero net funding difference."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         opportunity = ArbitrageOpportunity(
             symbol=btc_symbol.value,
             long_exchange="hyperliquid",
@@ -299,7 +299,7 @@ class TestRiskManagerOpportunityValidation:
     ) -> None:
         """Test validation with very small spread."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         opportunity = ArbitrageOpportunity(
             symbol=btc_symbol.value,
             long_exchange="hyperliquid",
@@ -448,7 +448,7 @@ class TestRiskManagerPositionSizing:
     ) -> None:
         """Test position sizing with very large opportunity."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         large_opportunity = ArbitrageOpportunity(
             symbol=btc_symbol.value,
             long_exchange="hyperliquid",
@@ -481,7 +481,7 @@ class TestRiskManagerRiskCalculations:
     ) -> None:
         """Test calculation of position exposure for existing symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
 
         # Mock portfolio tracker to return some positions
@@ -506,7 +506,7 @@ class TestRiskManagerRiskCalculations:
     ) -> None:
         """Test calculation when no positions exist for symbol."""
         # Arrange
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         symbol = eth_symbol.value
         with patch.object(risk_manager.portfolio_tracker, "get_all_positions", return_value=[]):
             # Act
@@ -528,7 +528,7 @@ class TestRiskManagerRiskCalculations:
     def test_calculate_required_margin_success(self, risk_manager: RiskManager) -> None:
         """Test calculation of required margin for position."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
         position_size_usd = Decimal("0.2")  # Position size in base asset
         price = Decimal("50000.0")  # Price per unit
@@ -547,7 +547,7 @@ class TestRiskManagerRiskCalculations:
     def test_evaluate_liquidation_risk_success(self, risk_manager: RiskManager) -> None:
         """Test evaluation of liquidation risk for symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
 
         # Act
@@ -562,7 +562,7 @@ class TestRiskManagerRiskCalculations:
     def test_calculate_required_margin_edge_zero_leverage(self, risk_manager: RiskManager) -> None:
         """Test margin calculation with zero leverage."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
         position_size_usd = Decimal("0.2")  # Position size in base asset
         price = Decimal("50000.0")  # Price per unit
@@ -584,7 +584,7 @@ class TestRiskManagerRiskCalculations:
     ) -> None:
         """Test margin calculation with very high leverage."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
         position_size = Decimal("0.2")  # Position size in base asset
         price = Decimal("50000.0")  # Price per unit
@@ -659,7 +659,7 @@ class TestRiskManagerPortfolioManagement:
     ) -> None:
         """Test profitability check for unprofitable opportunity."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         unprofitable_opportunity = ArbitrageOpportunity(
             symbol=btc_symbol.value,
             long_exchange="hyperliquid",
@@ -701,7 +701,7 @@ class TestRiskManagerPortfolioManagement:
     def test_adjust_order_size_success_within_limits(self, risk_manager: RiskManager) -> None:
         """Test order size adjustment when within limits."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
         requested_size = Decimal("1000.0")
 
@@ -716,7 +716,7 @@ class TestRiskManagerPortfolioManagement:
     def test_adjust_order_size_edge_zero_requested_size(self, risk_manager: RiskManager) -> None:
         """Test order size adjustment with zero requested size."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
         requested_size = Decimal("0.0")
 
@@ -778,7 +778,7 @@ class TestRiskManagerUtilityMethods:
         """Test getting collateral asset for exchange and symbol."""
         # Arrange
         exchange = "hyperliquid"
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
 
         # Act
@@ -816,7 +816,7 @@ class TestRiskManagerUtilityMethods:
         """Test getting collateral asset for unknown exchange."""
         # Arrange
         exchange = "unknown_exchange"
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         symbol = btc_symbol.value
 
         # Act

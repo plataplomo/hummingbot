@@ -18,7 +18,7 @@ from unittest.mock import MagicMock, patch
 import pandas as pd
 import pytest
 
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.monitoring.performance_tracker import PerformanceTracker
 
 
@@ -53,7 +53,7 @@ def sample_trade() -> dict[str, Any]:
     return {
         "trade_id": "TEST001",
         "strategy_name": "test_strategy",
-        "symbol": symbols.BTC.hyperliquid().value,
+        "symbol": BTC_HL.value,
         "exchange": "hyperliquid",
         "direction": "long",
         "size": Decimal("0.1"),
@@ -76,7 +76,7 @@ def sample_signal() -> dict[str, Any]:
     return {
         "signal_id": "SIG001",
         "strategy_name": "test_strategy",
-        "symbol": symbols.BTC.hyperliquid().value,
+        "symbol": BTC_HL.value,
         "signal_type": "ENTER_LONG",
         "timestamp": datetime(2024, 1, 1, 11, 30, tzinfo=UTC),
         "confidence": Decimal("0.85"),
@@ -287,7 +287,7 @@ class TestTrackTrade:
         open_trade: dict[str, Any] = {
             "trade_id": "OPEN001",
             "strategy_name": "test_strategy",
-            "symbol": symbols.ETH.hyperliquid().value,
+            "symbol": ETH_HL.value,
             "exchange": "hyperliquid",
             "direction": "short",
             "size": Decimal("1.0"),
@@ -317,7 +317,7 @@ class TestTrackTrade:
         breakeven_trade: dict[str, Any] = {
             "trade_id": "BREAK001",
             "strategy_name": "test_strategy",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "exchange": "hyperliquid",
             "direction": "long",
             "size": Decimal("0.1"),
@@ -346,7 +346,7 @@ class TestTrackTrade:
         initial_trade: dict[str, Any] = {
             "trade_id": trade_id,
             "strategy_name": "test_strategy",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "exchange": "hyperliquid",
             "direction": "long",
             "size": Decimal("0.1"),
@@ -387,7 +387,7 @@ class TestTrackTradeExit:
         performance_tracker.track_trade(
             trade_id=trade_id,
             strategy_name="test_strategy",
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             exchange="hyperliquid",
             direction="long",
             size=Decimal("0.1"),
@@ -425,7 +425,7 @@ class TestTrackTradeExit:
         performance_tracker.track_trade(
             trade_id=trade_id,
             strategy_name="test_strategy",
-            symbol=symbols.ETH.hyperliquid().value,
+            symbol=ETH_HL.value,
             exchange="hyperliquid",
             direction="short",
             size=Decimal("1.0"),
@@ -493,7 +493,7 @@ class TestTrackSignal:
         exit_signal: dict[str, Any] = {
             "signal_id": "EXIT001",
             "strategy_name": "test_strategy",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "signal_type": "EXIT",
             "timestamp": datetime.now(UTC),
         }
@@ -516,7 +516,7 @@ class TestTrackSignal:
         initial_signal: dict[str, Any] = {
             "signal_id": signal_id,
             "strategy_name": "test_strategy",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "signal_type": "ENTER_LONG",
             "timestamp": datetime.now(UTC),
         }
@@ -551,7 +551,7 @@ class TestTrackSignalExecution:
         performance_tracker.track_signal(
             signal_id=signal_id,
             strategy_name="test_strategy",
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             signal_type="ENTER_LONG",
             timestamp=datetime.now(UTC),
         )
@@ -573,7 +573,7 @@ class TestTrackSignalExecution:
         performance_tracker.track_signal(
             signal_id=signal_id,
             strategy_name="test_strategy",
-            symbol=symbols.ETH.hyperliquid().value,
+            symbol=ETH_HL.value,
             signal_type="ENTER_SHORT",
             timestamp=datetime.now(UTC),
         )
@@ -602,7 +602,7 @@ class TestTrackFundingRate:
         funding_data: dict[str, Any] = {
             "timestamp": datetime.now(UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "funding_rate": Decimal("0.0001"),
             "predicted_rate": Decimal("0.00015"),
         }
@@ -627,7 +627,7 @@ class TestTrackFundingRate:
         negative_funding: dict[str, Any] = {
             "timestamp": datetime.now(UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.ETH.hyperliquid().value,
+            "symbol": ETH_HL.value,
             "funding_rate": Decimal("-0.0002"),
         }
 
@@ -651,7 +651,7 @@ class TestGetStrategyNames:
         performance_tracker.track_trade(
             trade_id="T1",
             strategy_name="strategy2",
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             exchange="hyperliquid",
             direction="long",
             size=Decimal("0.1"),
@@ -661,7 +661,7 @@ class TestGetStrategyNames:
         performance_tracker.track_signal(
             signal_id="S1",
             strategy_name="strategy3",
-            symbol=symbols.ETH.hyperliquid().value,
+            symbol=ETH_HL.value,
             signal_type="ENTER_LONG",
             timestamp=datetime.now(UTC),
         )
@@ -757,7 +757,7 @@ class TestGetTradesDataframe:
         performance_tracker.track_trade(
             trade_id="T1",
             strategy_name="strategy1",
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             exchange="hyperliquid",
             direction="long",
             size=Decimal("0.1"),
@@ -767,7 +767,7 @@ class TestGetTradesDataframe:
         performance_tracker.track_trade(
             trade_id="T2",
             strategy_name="strategy2",
-            symbol=symbols.ETH.hyperliquid().value,
+            symbol=ETH_HL.value,
             exchange="hyperliquid",
             direction="short",
             size=Decimal("1.0"),
@@ -794,7 +794,7 @@ class TestGetTradesDataframe:
         performance_tracker.track_trade(
             trade_id="OPEN",
             strategy_name="test",
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             exchange="hyperliquid",
             direction="long",
             size=Decimal("0.1"),
@@ -805,7 +805,7 @@ class TestGetTradesDataframe:
         performance_tracker.track_trade(
             trade_id="COMPLETE",
             strategy_name="test",
-            symbol=symbols.ETH.hyperliquid().value,
+            symbol=ETH_HL.value,
             exchange="hyperliquid",
             direction="short",
             size=Decimal("1.0"),
@@ -838,7 +838,7 @@ class TestGetSignalsDataframe:
         performance_tracker.track_signal(
             signal_id="S1",
             strategy_name="test",
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             signal_type="ENTER_LONG",
             timestamp=datetime.now(UTC),
         )
@@ -846,7 +846,7 @@ class TestGetSignalsDataframe:
         performance_tracker.track_signal(
             signal_id="S2",
             strategy_name="test",
-            symbol=symbols.ETH.hyperliquid().value,
+            symbol=ETH_HL.value,
             signal_type="ENTER_SHORT",
             timestamp=datetime.now(UTC),
         )
@@ -880,7 +880,7 @@ class TestGetFundingRatesDataframe:
         performance_tracker.track_funding_rate(
             timestamp=t1,
             exchange="hyperliquid",
-            symbol=symbols.BTC.hyperliquid().value,
+            symbol=BTC_HL.value,
             funding_rate=Decimal("0.0001"),
         )
 
@@ -890,7 +890,7 @@ class TestGetFundingRatesDataframe:
         # Assert
         assert isinstance(df, pd.DataFrame)
         assert len(df) == 1
-        assert df.iloc[0]["symbol"] == symbols.BTC.hyperliquid().value
+        assert df.iloc[0]["symbol"] == BTC_HL.value
 
     # ==================== EDGE CASES ====================
 
@@ -922,7 +922,7 @@ def test_get_trades_dataframe_parametrized(
     """Test get_trades_dataframe with different strategy filters."""
     # Arrange
     base_trade_data: dict[str, Any] = {
-        "symbol": symbols.BTC.hyperliquid().value,
+        "symbol": BTC_HL.value,
         "exchange": "hyperliquid",
         "direction": "long",
         "size": Decimal("0.1"),

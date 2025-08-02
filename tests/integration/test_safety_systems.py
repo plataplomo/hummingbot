@@ -41,6 +41,7 @@ from tests.integration.conftest import (
     create_mock_ticker,  # Type partially unknown; acceptable for test code
 )
 from tests.integration.mocks.mock_exchange import MockExchangeAPI  # Added MockExchangeAPI
+from tests.common_symbols import BTC_HL
 
 
 pytestmark = pytest.mark.timing
@@ -111,8 +112,8 @@ async def test_circuit_breaker_global_halts_execution(
     await real_portfolio_state_manager.initialize()
     ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
-    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
-    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
+    mock_bp_api.set_mock_ticker(create_mock_ticker(BTC_HL.value, 30000, 30001, 30000.5, ts_dt))
+    mock_hl_api.set_mock_ticker(create_mock_ticker(BTC_HL.value, 30010, 30011, 30010.5, ts_dt))
 
     # 2. Trigger Global Circuit Breaker Directly
     global_breaker_name = "global/api_error"  # Name used by system for global API error breaker
@@ -225,8 +226,8 @@ async def test_circuit_breaker_exchange_halts_execution(
     await real_portfolio_state_manager.initialize()
     ts_dt = datetime.now(UTC)
     # Ensure timestamp is int (milliseconds since epoch)
-    mock_bp_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30000, 30001, 30000.5, ts_dt))
-    mock_hl_api.set_mock_ticker(create_mock_ticker("BTC-PERP", 30010, 30011, 30010.5, ts_dt))
+    mock_bp_api.set_mock_ticker(create_mock_ticker(BTC_HL.value, 30000, 30001, 30000.5, ts_dt))
+    mock_hl_api.set_mock_ticker(create_mock_ticker(BTC_HL.value, 30010, 30011, 30010.5, ts_dt))
 
     # 2. Trigger Exchange Circuit Breaker Directly (for long exchange)
     target_exchange = basic_opportunity.long_exchange  # e.g., "mock_bp"
@@ -480,7 +481,7 @@ def _check_hl_discrepancies(discrepancies: list[Any]) -> None:
     found_btc_discrepancy = False
     for disc in discrepancies:
         assert isinstance(disc, HistoricalDiscrepancyRecord)
-        if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
+        if disc.detail.symbol == BTC_HL.value and disc.detail.discrepancy_type == "size":
             found_btc_discrepancy = True
             break
     assert found_btc_discrepancy, "BTC-PERP size discrepancy not found for hyperliquid"
@@ -494,11 +495,11 @@ def _check_bp_discrepancies(discrepancies: list[Any]) -> None:
     """
     for disc in discrepancies:
         assert isinstance(disc, HistoricalDiscrepancyRecord)
-        if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
+        if disc.detail.symbol == BTC_HL.value and disc.detail.discrepancy_type == "size":
             logger.error(
                 "unexpected_discrepancy_found",
                 exchange="backpack",
-                symbol="BTC-PERP",
+                symbol=BTC_HL.value,
                 discrepancy_type="size",
                 detail=disc.detail,
                 message="Found unexpected BTC-PERP size discrepancy on backpack",
@@ -522,7 +523,7 @@ async def test_position_reconciler_detects_discrepancy(
     # 1. Setup - Place a known position via mock API
     mock_bp_api.reset()
     exchange_id = "backpack"
-    symbol = "BTC-PERP"
+    symbol = BTC_HL.value
     mock_position = _setup_test_position(exchange_id, symbol)
 
     # Use public method to set the position
@@ -621,12 +622,12 @@ async def test_position_reconciler_detects_discrepancy(
     found_unexpected_btc_discrepancy_bp = False
     for disc in discrepancies_bp:
         assert isinstance(disc, HistoricalDiscrepancyRecord)
-        if disc.detail.symbol == "BTC-PERP" and disc.detail.discrepancy_type == "size":
+        if disc.detail.symbol == BTC_HL.value and disc.detail.discrepancy_type == "size":
             found_unexpected_btc_discrepancy_bp = True
             logger.error(
                 "unexpected_discrepancy_found",
                 exchange="backpack",
-                symbol="BTC-PERP",
+                symbol=BTC_HL.value,
                 discrepancy_type="size",
                 detail=disc.detail,
                 message="Found unexpected BTC-PERP size discrepancy on backpack",

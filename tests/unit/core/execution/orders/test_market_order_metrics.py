@@ -14,7 +14,7 @@ from cyberdelta.core.execution.orders.market_order_metrics import (
     MarketOrderExecutionMetric,
     MarketOrderMetrics,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.enums import OrderSide
 
 
@@ -28,7 +28,7 @@ class TestMarketOrderExecutionMetric:
         Returns:
             MarketOrderExecutionMetric: A filled buy order metric for testing.
         """
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         return MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=btc_symbol.value,
@@ -46,7 +46,7 @@ class TestMarketOrderExecutionMetric:
         """Test that metric initializes correctly with all required fields."""
         # Arrange
         timestamp = datetime.now(UTC)
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
 
         # Act
         metric = MarketOrderExecutionMetric(
@@ -87,7 +87,7 @@ class TestMarketOrderExecutionMetric:
     def test_fill_rate_calculation_for_partial_fill(self) -> None:
         """Test fill rate calculation for partially filled order."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=btc_symbol.value,
@@ -110,7 +110,7 @@ class TestMarketOrderExecutionMetric:
     def test_fill_rate_returns_zero_for_zero_requested_quantity(self) -> None:
         """Test fill rate returns zero when requested quantity is zero."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=btc_symbol.value,
@@ -133,7 +133,7 @@ class TestMarketOrderExecutionMetric:
     def test_actual_slippage_calculation_for_buy_order(self) -> None:
         """Test actual slippage calculation for buy orders (paid more than expected)."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=btc_symbol.value,
@@ -156,7 +156,7 @@ class TestMarketOrderExecutionMetric:
     def test_actual_slippage_calculation_for_sell_order(self) -> None:
         """Test actual slippage calculation for sell orders (received less than expected)."""
         # Arrange
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=eth_symbol.value,
@@ -179,7 +179,7 @@ class TestMarketOrderExecutionMetric:
     def test_actual_slippage_returns_none_when_actual_price_none(self) -> None:
         """Test actual slippage returns None when actual price is None."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=btc_symbol.value,
@@ -202,7 +202,7 @@ class TestMarketOrderExecutionMetric:
     def test_price_improvement_calculation_with_better_execution(self) -> None:
         """Test price improvement calculation when execution was better than expected."""
         # Arrange - buy order that paid less than expected slippage
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=btc_symbol.value,
@@ -226,7 +226,7 @@ class TestMarketOrderExecutionMetric:
     def test_price_improvement_returns_none_when_actual_slippage_none(self) -> None:
         """Test price improvement returns None when actual slippage is None."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
             symbol=btc_symbol.value,
@@ -274,7 +274,7 @@ class TestMarketOrderMetrics:
     ) -> None:
         """Test that recording execution creates and stores a metric."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Act
         metrics_tracker.record_execution(
@@ -302,7 +302,7 @@ class TestMarketOrderMetrics:
         """Test that metrics tracker respects max history constraint."""
         # Arrange
         metrics_tracker = MarketOrderMetrics(max_history=2)
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
 
         # Act - record 3 metrics
         for i in range(3):
@@ -329,7 +329,7 @@ class TestMarketOrderMetrics:
     ) -> None:
         """Test get_symbol_stats returns statistics for a symbol."""
         # Arrange - record metrics for symbol
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metrics_tracker.record_execution(
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
@@ -356,8 +356,8 @@ class TestMarketOrderMetrics:
     ) -> None:
         """Test get_overall_stats aggregates statistics across all symbols."""
         # Arrange - record metrics for different symbols
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         
         metrics_tracker.record_execution(
             symbol=btc_symbol.value,
@@ -396,7 +396,7 @@ class TestMarketOrderMetrics:
     ) -> None:
         """Test get_slippage_analysis provides slippage statistics."""
         # Arrange - record metric with slippage
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metrics_tracker.record_execution(
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
@@ -422,7 +422,7 @@ class TestMarketOrderMetrics:
     ) -> None:
         """Test clear_metrics removes all stored metrics."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         metrics_tracker.record_execution(
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
@@ -447,7 +447,7 @@ class TestMarketOrderMetrics:
     ) -> None:
         """Test get_recent_metrics respects the count parameter."""
         # Arrange - record 5 metrics
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         for i in range(5):
             metrics_tracker.record_execution(
                 symbol=f"{btc_symbol.value}-{i}",

@@ -15,7 +15,7 @@ from cyberdelta.core.models import (
     SpotBalance,
     Trade,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL
 
 
 class TestMarginAccountSummaryManager:
@@ -97,7 +97,7 @@ class TestTradeManager:
             Trade: A sample trade instance for testing.
         """
         """Create a sample trade."""
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         return Trade(
             id="trade_001",
             exchange="hyperliquid",
@@ -134,7 +134,7 @@ class TestTradeManager:
         manager = AsyncMock()
         manager.calculate_pnl.return_value = Decimal(899)
 
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         pnl = await manager.calculate_pnl("hyperliquid", btc_symbol.value)
         assert pnl == Decimal(899)
 
@@ -198,7 +198,7 @@ class TestPortfolioStateManager:
         # Mock manager
         manager = AsyncMock()
 
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         position = DerivativePosition(
             exchange="hyperliquid",
             symbol=btc_symbol,

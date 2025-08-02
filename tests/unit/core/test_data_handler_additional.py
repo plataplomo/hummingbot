@@ -13,7 +13,8 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.data_handler import (
     DEFAULT_STALENESS_SECONDS,
@@ -108,7 +109,7 @@ def sample_ticker() -> Ticker:
     Returns:
         Ticker: A sample BTC-PERP ticker for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return Ticker(
         symbol=btc_symbol,
         exchange="test_exchange",
@@ -126,7 +127,7 @@ def sample_order_book() -> OrderBook:
     Returns:
         OrderBook: A sample BTC-PERP order book for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return OrderBook(
         symbol=btc_symbol,
         bids=[
@@ -148,7 +149,7 @@ def sample_funding_rate() -> FundingRate:
     Returns:
         FundingRate: A sample BTC-PERP funding rate for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return FundingRate(
         symbol=btc_symbol,
         funding_rate=Decimal("0.0001"),
@@ -164,7 +165,7 @@ def sample_candle() -> Candle:
     Returns:
         Candle: A sample BTC-PERP candle for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return Candle(
         symbol=btc_symbol,
         interval="1m",
@@ -444,7 +445,7 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting fresh ticker data."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         symbol = btc_symbol.value
 
@@ -464,7 +465,7 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting fresh order book data."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         symbol = btc_symbol.value
 
@@ -484,7 +485,7 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting fresh funding rate data."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         symbol = btc_symbol.value
 
@@ -500,8 +501,8 @@ class TestDataHandlerDataRetrieval:
     def test_get_all_tickers_success_multiple_tickers(self, data_handler: DataHandler) -> None:
         """Test getting all tickers for an exchange."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         exchange_id = "hyperliquid"
         ticker1 = Ticker(
             symbol=btc_symbol,
@@ -540,7 +541,7 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting stale ticker data returns None."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         symbol = btc_symbol.value
 
@@ -558,7 +559,7 @@ class TestDataHandlerDataRetrieval:
     def test_get_latest_ticker_edge_nonexistent_exchange(self, data_handler: DataHandler) -> None:
         """Test getting ticker for non-existent exchange."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Act
         result = data_handler.get_latest_ticker("nonexistent", btc_symbol.value)
@@ -571,7 +572,7 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting ticker for non-existent symbol."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         data_handler.tickers[exchange_id] = {btc_symbol.value: sample_ticker}
 
@@ -606,7 +607,7 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting stale order book data returns None."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         symbol = btc_symbol.value
 
@@ -626,7 +627,7 @@ class TestDataHandlerDataRetrieval:
     ) -> None:
         """Test getting stale funding rate data returns data with warning."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         symbol = btc_symbol.value
 
@@ -733,8 +734,8 @@ class TestDataHandlerFundingRateHandling:
     ) -> None:
         """Test fetching funding rates for specific symbols."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         exchange_id = "hyperliquid"
         symbol_list = [btc_symbol.value, eth_symbol.value]
 
@@ -770,7 +771,7 @@ class TestDataHandlerFundingRateHandling:
     async def test_fetch_funding_rates_edge_no_api_client(self, data_handler: DataHandler) -> None:
         """Test fetching funding rates with no registered API client."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         # Act & Assert
         with patch("cyberdelta.core.data_handler.logger") as mock_logger:
@@ -784,7 +785,7 @@ class TestDataHandlerFundingRateHandling:
     ) -> None:
         """Test fetching funding rates when API client raises exception."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         exchange_id = "hyperliquid"
         data_handler.register_api_client(exchange_id, mock_api_client)
         mock_api_client.get_funding_rates.side_effect = ConnectionError("API error")

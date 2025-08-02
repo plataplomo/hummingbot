@@ -26,7 +26,7 @@ from cyberdelta.core.models import (
     OrderType,
     TimeInForce,
 )
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -40,7 +40,7 @@ def create_test_opportunity() -> ArbitrageOpportunity:
     Returns:
         ArbitrageOpportunity: Configured test arbitrage opportunity for order submission tests.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return ArbitrageOpportunity(
         symbol=btc_symbol.value,  # ArbitrageOpportunity expects string symbols
         long_exchange="hyperliquid",
@@ -61,7 +61,7 @@ def create_test_order() -> Mock:
     Returns:
         Mock: Mock Order instance with to_dict method for testing.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     order = Order(
         client_order_id="test_order_123",
         exchange_order_id="exchange_123",
@@ -226,7 +226,7 @@ class TestOrderVerifierSimple:
 
         verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
 
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         expected_details = {
             "symbol": btc_symbol.value,  # String representation for details comparison
             "side": OrderSide.BUY,
@@ -289,7 +289,7 @@ class TestOrderVerifierSimple:
         verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
 
         # Act
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         result = await verifier.verify_order_placement(
             "test_exchange",
             "test-order-nonexistent",
@@ -337,14 +337,14 @@ class TestOrderVerifierSimple:
         exchange_adapters: dict[str, Any] = {}
 
         test_order = create_test_order()
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         test_order.symbol = eth_symbol  # Wrong symbol (Symbol object)
 
         portfolio_state_manager.get_order_by_id.return_value = test_order
 
         verifier = OrderVerifier(config, portfolio_tracker, exchange_adapters)
 
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         expected_details = {"symbol": btc_symbol.value}  # Expected different symbol
 
         # Act
@@ -509,7 +509,7 @@ class TestSynchronizedOrderSubmissionServiceSimple:
         """Test order submission with minimal opportunity data."""
         # Arrange
         # Create minimal opportunity
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         opportunity = ArbitrageOpportunity(
             symbol=btc_symbol.value,  # ArbitrageOpportunity expects string symbols
             long_exchange="hyperliquid",

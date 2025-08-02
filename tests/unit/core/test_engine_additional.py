@@ -22,8 +22,9 @@ from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.portfolio.services import PortfolioServiceFactory
 from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
 from cyberdelta.core.strategy import Strategy
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.symbols.api import symbol
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -130,7 +131,7 @@ def mock_strategy() -> Mock:
     Returns:
         Mock: Mocked Strategy with BTC-PERP symbol and test configuration.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     strategy = Mock(spec=Strategy)
     strategy.name = "test_strategy"
     strategy.symbol = btc_symbol.value
@@ -148,7 +149,7 @@ def sample_candle() -> Candle:
     Returns:
         Candle: Sample BTC-PERP candle with test price data.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return Candle(
         symbol=btc_symbol,
         interval="1m",
@@ -168,7 +169,7 @@ def sample_trade_signal() -> TradeSignal:
     Returns:
         TradeSignal: Sample long entry signal for BTC-PERP.
     """
-    btc_symbol = symbols.BTC.hyperliquid()
+    btc_symbol = BTC_HL
     return TradeSignal(
         symbol=btc_symbol,
         signal_type=SignalType.ENTER_LONG,
@@ -275,8 +276,8 @@ class TestEngineStrategyManagement:
     def test_add_strategy_success_replaces_existing_strategy(self, engine: Engine) -> None:
         """Test replacing an existing strategy with same name."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
-        eth_symbol = symbols.ETH.hyperliquid()
+        btc_symbol = BTC_HL
+        eth_symbol = ETH_HL
         
         old_strategy = Mock(spec=Strategy)
         old_strategy.name = "test_strategy"
@@ -526,7 +527,7 @@ class TestEngineMarketDataProcessing:
     ) -> None:
         """Test processing market data with multiple enabled strategies."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         
         strategy1 = Mock(spec=Strategy)
         strategy1.name = "strategy1"
@@ -599,8 +600,8 @@ class TestEngineMarketDataProcessing:
     ) -> None:
         """Test processing market data for symbol not monitored by any strategy."""
         # Arrange
-        eth_symbol = symbols.ETH.hyperliquid()
-        btc_symbol = symbols.BTC.hyperliquid()
+        eth_symbol = ETH_HL
+        btc_symbol = BTC_HL
         
         mock_strategy.symbol = eth_symbol.value  # Different symbol
         engine.add_strategy(mock_strategy)
@@ -667,7 +668,7 @@ class TestEngineDataFrameProcessing:
     ) -> None:
         """Test processing a valid DataFrame."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         candle_data = pd.DataFrame({
             "timestamp": [datetime.now(UTC), datetime.now(UTC)],
             "open": [50000.0, 50010.0],
@@ -695,7 +696,7 @@ class TestEngineDataFrameProcessing:
     ) -> None:
         """Test processing an empty DataFrame."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         empty_data = pd.DataFrame()
         engine.set_signal_handler(mock_signal_handler)
         engine.start()
@@ -713,7 +714,7 @@ class TestEngineDataFrameProcessing:
     ) -> None:
         """Test processing DataFrame with missing required columns."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         incomplete_data = pd.DataFrame({
             "timestamp": [datetime.now(UTC)],
             "open": [50000.0],
@@ -736,7 +737,7 @@ class TestEngineDataFrameProcessing:
     ) -> None:
         """Test processing DataFrame with invalid data types."""
         # Arrange
-        btc_symbol = symbols.BTC.hyperliquid()
+        btc_symbol = BTC_HL
         invalid_data = pd.DataFrame({
             "timestamp": [datetime.now(UTC)],
             "open": ["invalid"],  # Invalid numeric data
@@ -914,7 +915,7 @@ class TestEngineUtilityMethods:
     ) -> None:
         """Test that market data is ignored for unmonitored symbols."""
         # Arrange
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         mock_strategy.symbol = eth_symbol.value  # Different symbol
         engine.add_strategy(mock_strategy)
         engine.enable_strategy(mock_strategy.name)

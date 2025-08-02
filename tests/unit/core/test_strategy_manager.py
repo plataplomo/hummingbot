@@ -19,7 +19,8 @@ from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
-from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.enums import OrderSide, SignalType
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
 
@@ -108,7 +109,7 @@ class MockStrategy(Strategy):
             symbol: Symbol object for the strategy (defaults to None for backwards compatibility)
         """
         # Use provided symbol or default for backwards compatibility
-        strategy_symbol = symbol if symbol is not None else symbols.BTC.hyperliquid().value
+        strategy_symbol = symbol if symbol is not None else BTC_HL.value
         super().__init__(name="test_strategy", symbol=strategy_symbol)
         self._performance_metrics = {"win_rate": 0.75, "total_trades": 100}
         # Store mock callables as attributes that can be checked
@@ -685,7 +686,7 @@ class TestProcessMarketData:
         strategy_manager.enable_strategy("test_strategy")
 
         # Create candle for different symbol
-        eth_symbol = symbols.ETH.hyperliquid()
+        eth_symbol = ETH_HL
         candle = Candle(
             symbol=eth_symbol,  # Different from strategy symbol
             open=Decimal("3000.0"),

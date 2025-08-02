@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 
 from cyberdelta.config.models.config_models import AppSettings
-from cyberdelta.core.symbols import symbols
+from tests.common_symbols import BTC_HL, ETH_HL, ETH_BP, BTC_BP
 from cyberdelta.validation.funding_rate_validator import FundingRateValidator
 
 
@@ -51,7 +51,7 @@ def sample_predictions() -> list[dict[str, Any]]:
             "timestamp": base_time - 3600000,  # 1 hour ago
             "datetime": datetime.fromtimestamp((base_time - 3600000) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.0001,
             "method": "api",
             "confidence": 0.9,
@@ -60,7 +60,7 @@ def sample_predictions() -> list[dict[str, Any]]:
             "timestamp": base_time - 1800000,  # 30 minutes ago
             "datetime": datetime.fromtimestamp((base_time - 1800000) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.00015,
             "method": "model",
             "confidence": 0.8,
@@ -81,7 +81,7 @@ def sample_payments() -> list[dict[str, Any]]:
             "timestamp": base_time - 600000,  # 10 minutes ago
             "datetime": datetime.fromtimestamp((base_time - 600000) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "actual_rate": 0.00012,
             "payment_amount": 1.2,
             "position_size": 10000.0,
@@ -119,7 +119,7 @@ class TestRecordPrediction:
         """Test successful recording of a basic prediction."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
         predicted_rate = 0.0001
         mock_time_patch.return_value = 1640995200  # Fixed timestamp
 
@@ -142,7 +142,7 @@ class TestRecordPrediction:
         """Test successful recording of prediction with optional parameters."""
         # Arrange
         exchange = "backpack"
-        symbol = symbols.ETH.hyperliquid().value
+        symbol = ETH_HL.value
         predicted_rate = 0.00025
         method = "model"
         confidence = 0.85
@@ -163,8 +163,8 @@ class TestRecordPrediction:
     def test_record_prediction_success_multiple(self, validator: FundingRateValidator) -> None:
         """Test recording multiple predictions."""
         # Act
-        validator.record_prediction("exchange1", symbols.BTC.hyperliquid().value, 0.0001)
-        validator.record_prediction("exchange2", symbols.ETH.hyperliquid().value, 0.0002)
+        validator.record_prediction("exchange1", BTC_HL.value, 0.0001)
+        validator.record_prediction("exchange2", ETH_HL.value, 0.0002)
 
         # Assert
         assert len(validator.predictions) == 2
@@ -176,7 +176,7 @@ class TestRecordPrediction:
     def test_record_prediction_edge_zero_rate(self, validator: FundingRateValidator) -> None:
         """Test recording prediction with zero rate."""
         # Act
-        validator.record_prediction("hyperliquid", symbols.BTC.hyperliquid().value, 0.0)
+        validator.record_prediction("hyperliquid", BTC_HL.value, 0.0)
 
         # Assert
         assert len(validator.predictions) == 1
@@ -185,7 +185,7 @@ class TestRecordPrediction:
     def test_record_prediction_edge_negative_rate(self, validator: FundingRateValidator) -> None:
         """Test recording prediction with negative rate."""
         # Act
-        validator.record_prediction("hyperliquid", symbols.BTC.hyperliquid().value, -0.0001)
+        validator.record_prediction("hyperliquid", BTC_HL.value, -0.0001)
 
         # Assert
         assert len(validator.predictions) == 1
@@ -196,8 +196,8 @@ class TestRecordPrediction:
     ) -> None:
         """Test recording prediction with extreme confidence values."""
         # Act
-        validator.record_prediction("hyperliquid", symbols.BTC.hyperliquid().value, 0.0001, confidence=0.0)
-        validator.record_prediction("hyperliquid", symbols.ETH.hyperliquid().value, 0.0002, confidence=1.0)
+        validator.record_prediction("hyperliquid", BTC_HL.value, 0.0001, confidence=0.0)
+        validator.record_prediction("hyperliquid", ETH_HL.value, 0.0002, confidence=1.0)
 
         # Assert
         assert len(validator.predictions) == 2
@@ -216,7 +216,7 @@ class TestRecordPayment:
         """Test successful recording of a basic payment."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
         actual_rate = 0.00012
         payment_amount = 1.2
         position_size = 10000.0
@@ -239,8 +239,8 @@ class TestRecordPayment:
     def test_record_payment_success_multiple(self, validator: FundingRateValidator) -> None:
         """Test recording multiple payments."""
         # Act
-        validator.record_payment("exchange1", symbols.BTC.hyperliquid().value, 0.0001, 1.0, 10000.0)
-        validator.record_payment("exchange2", symbols.ETH.hyperliquid().value, 0.0002, 2.0, 5000.0)
+        validator.record_payment("exchange1", BTC_HL.value, 0.0001, 1.0, 10000.0)
+        validator.record_payment("exchange2", ETH_HL.value, 0.0002, 2.0, 5000.0)
 
         # Assert
         assert len(validator.payments) == 2
@@ -252,7 +252,7 @@ class TestRecordPayment:
     def test_record_payment_edge_zero_values(self, validator: FundingRateValidator) -> None:
         """Test recording payment with zero values."""
         # Act
-        validator.record_payment("hyperliquid", symbols.BTC.hyperliquid().value, 0.0, 0.0, 0.0)
+        validator.record_payment("hyperliquid", BTC_HL.value, 0.0, 0.0, 0.0)
 
         # Assert
         assert len(validator.payments) == 1
@@ -264,7 +264,7 @@ class TestRecordPayment:
     def test_record_payment_edge_negative_values(self, validator: FundingRateValidator) -> None:
         """Test recording payment with negative values."""
         # Act
-        validator.record_payment("hyperliquid", symbols.BTC.hyperliquid().value, -0.0001, -1.5, 10000.0)
+        validator.record_payment("hyperliquid", BTC_HL.value, -0.0001, -1.5, 10000.0)
 
         # Assert
         assert len(validator.payments) == 1
@@ -283,7 +283,7 @@ class TestCalculateMetrics:
         """Test successful calculation of metrics with sufficient data."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
 
         # Add prediction data (older than payment)
         base_time = int(time.time() * 1000)
@@ -332,7 +332,7 @@ class TestCalculateMetrics:
         """Test calculating metrics with multiple prediction-payment pairs."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
         base_time = int(time.time() * 1000)
 
         # Add multiple predictions
@@ -385,7 +385,7 @@ class TestCalculateMetrics:
         """Test calculating metrics when no predictions exist."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
 
         # Add only payment data
         validator.payments.append({
@@ -412,7 +412,7 @@ class TestCalculateMetrics:
         """Test calculating metrics when no payments exist."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
 
         # Add only prediction data
         validator.predictions.append({
@@ -441,7 +441,7 @@ class TestCalculateMetrics:
         """Test calculating metrics when predictions and payments don't match temporally."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
         base_time = int(time.time() * 1000)
 
         # Add prediction AFTER payment (no valid pairs)
@@ -480,7 +480,7 @@ class TestCalculateMetrics:
         """Test calculating metrics with time filtering."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
         base_time = int(time.time() * 1000)
 
         # Add old prediction (should be filtered out)
@@ -513,7 +513,7 @@ class TestGetValidationReport:
         base_time = int(time.time() * 1000)
 
         # Add data for multiple exchange-symbol pairs
-        exchanges_symbols = [("hyperliquid", symbols.BTC.hyperliquid().value), ("backpack", symbols.ETH.backpack().value)]
+        exchanges_symbols = [("hyperliquid", BTC_HL.value), ("backpack", ETH_BP.value)]
 
         for exchange, symbol in exchanges_symbols:
             validator.predictions.append({
@@ -543,11 +543,11 @@ class TestGetValidationReport:
         assert isinstance(report, dict)
         assert "hyperliquid" in report
         assert "backpack" in report
-        assert symbols.BTC.hyperliquid().value in report["hyperliquid"]
-        assert symbols.ETH.backpack().value in report["backpack"]
+        assert BTC_HL.value in report["hyperliquid"]
+        assert ETH_BP.value in report["backpack"]
 
         # Check metrics structure
-        btc_metrics = report["hyperliquid"][symbols.BTC.hyperliquid().value]
+        btc_metrics = report["hyperliquid"][BTC_HL.value]
         assert "rmse" in btc_metrics
         assert "mae" in btc_metrics
         assert "bias" in btc_metrics
@@ -571,7 +571,7 @@ class TestGetValidationReport:
             "timestamp": base_time - 3600000,
             "datetime": datetime.fromtimestamp((base_time - 3600000) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.0001,
             "method": "api",
             "confidence": 0.9,
@@ -595,9 +595,9 @@ class TestGetRecentPredictions:
         # Arrange
         base_time = int(time.time() * 1000)
         predictions = [
-            ("hyperliquid", symbols.BTC.hyperliquid().value, base_time - 3600000),
-            ("hyperliquid", symbols.ETH.hyperliquid().value, base_time - 1800000),
-            ("backpack", symbols.BTC.backpack().value, base_time - 900000),
+            ("hyperliquid", BTC_HL.value, base_time - 3600000),
+            ("hyperliquid", ETH_HL.value, base_time - 1800000),
+            ("backpack", BTC_BP.value, base_time - 900000),
         ]
 
         for exchange, symbol, timestamp in predictions:
@@ -633,7 +633,7 @@ class TestGetRecentPredictions:
                 "timestamp": base_time - (i * 1800000),
                 "datetime": datetime.fromtimestamp((base_time - (i * 1800000)) / 1000, UTC),
                 "exchange": exchange,
-                "symbol": symbols.BTC.hyperliquid().value,
+                "symbol": BTC_HL.value,
                 "predicted_rate": 0.0001,
                 "method": "api",
                 "confidence": 0.9,
@@ -653,7 +653,7 @@ class TestGetRecentPredictions:
         """Test getting recent predictions filtered by symbol."""
         # Arrange
         base_time = int(time.time() * 1000)
-        test_symbols = [symbols.BTC.hyperliquid().value, symbols.ETH.hyperliquid().value, symbols.BTC.hyperliquid().value]
+        test_symbols = [BTC_HL.value, ETH_HL.value, BTC_HL.value]
 
         for i, symbol in enumerate(test_symbols):
             validator.predictions.append({
@@ -667,12 +667,12 @@ class TestGetRecentPredictions:
             })
 
         # Act
-        recent = validator.get_recent_predictions(symbol=symbols.BTC.hyperliquid().value)
+        recent = validator.get_recent_predictions(symbol=BTC_HL.value)
 
         # Assert
         assert len(recent) == 2
         for prediction in recent:
-            assert prediction["symbol"] == symbols.BTC.hyperliquid().value
+            assert prediction["symbol"] == BTC_HL.value
 
     def test_get_recent_predictions_success_with_limit(
         self, validator: FundingRateValidator
@@ -685,7 +685,7 @@ class TestGetRecentPredictions:
                 "timestamp": base_time - (i * 1800000),
                 "datetime": datetime.fromtimestamp((base_time - (i * 1800000)) / 1000, UTC),
                 "exchange": "hyperliquid",
-                "symbol": symbols.BTC.hyperliquid().value,
+                "symbol": BTC_HL.value,
                 "predicted_rate": 0.0001,
                 "method": "api",
                 "confidence": 0.9,
@@ -714,7 +714,7 @@ class TestGetRecentPredictions:
             "timestamp": int(time.time() * 1000),
             "datetime": datetime.now(UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.0001,
             "method": "api",
             "confidence": 0.9,
@@ -741,7 +741,7 @@ class TestGetRecentPayments:
                 "timestamp": base_time - (i * 1800000),
                 "datetime": datetime.fromtimestamp((base_time - (i * 1800000)) / 1000, UTC),
                 "exchange": "hyperliquid",
-                "symbol": symbols.BTC.hyperliquid().value,
+                "symbol": BTC_HL.value,
                 "actual_rate": 0.0001,
                 "payment_amount": 1.0,
                 "position_size": 10000.0,
@@ -762,9 +762,9 @@ class TestGetRecentPayments:
         # Arrange
         base_time = int(time.time() * 1000)
         test_data = [
-            ("hyperliquid", symbols.BTC.hyperliquid().value),
-            ("hyperliquid", symbols.ETH.hyperliquid().value),
-            ("backpack", symbols.BTC.backpack().value),
+            ("hyperliquid", BTC_HL.value),
+            ("hyperliquid", ETH_HL.value),
+            ("backpack", BTC_BP.value),
         ]
 
         for i, (exchange, symbol) in enumerate(test_data):
@@ -779,12 +779,12 @@ class TestGetRecentPayments:
             })
 
         # Act
-        recent = validator.get_recent_payments(exchange="hyperliquid", symbol=symbols.BTC.hyperliquid().value)
+        recent = validator.get_recent_payments(exchange="hyperliquid", symbol=BTC_HL.value)
 
         # Assert
         assert len(recent) == 1
         assert recent[0]["exchange"] == "hyperliquid"
-        assert recent[0]["symbol"] == symbols.BTC.hyperliquid().value
+        assert recent[0]["symbol"] == BTC_HL.value
 
     # ==================== EDGE CASES ====================
 
@@ -806,7 +806,7 @@ class TestGetPredictionHistory:
         """Test getting prediction history with data."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
         base_time = int(time.time() * 1000)
 
         # Add predictions
@@ -855,7 +855,7 @@ class TestGetPredictionHistory:
     def test_get_prediction_history_edge_no_data(self, validator: FundingRateValidator) -> None:
         """Test getting prediction history with no data."""
         # Act
-        history = validator.get_prediction_history("hyperliquid", symbols.BTC.hyperliquid().value)
+        history = validator.get_prediction_history("hyperliquid", BTC_HL.value)
 
         # Assert
         assert "predictions" in history
@@ -867,7 +867,7 @@ class TestGetPredictionHistory:
         """Test getting prediction history with custom day range."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
         base_time = int(time.time() * 1000)
 
         # Add old prediction (should be filtered out)
@@ -905,7 +905,7 @@ class TestClearOldData:
             "timestamp": base_time - (100 * 24 * 3600 * 1000),  # 100 days ago
             "datetime": datetime.fromtimestamp((base_time - (100 * 24 * 3600 * 1000)) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.0001,
             "method": "api",
             "confidence": 0.9,
@@ -916,7 +916,7 @@ class TestClearOldData:
             "timestamp": base_time - 3600000,  # 1 hour ago
             "datetime": datetime.fromtimestamp((base_time - 3600000) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.0002,
             "method": "api",
             "confidence": 0.9,
@@ -927,7 +927,7 @@ class TestClearOldData:
             "timestamp": base_time - (100 * 24 * 3600 * 1000),  # 100 days ago
             "datetime": datetime.fromtimestamp((base_time - (100 * 24 * 3600 * 1000)) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "actual_rate": 0.0001,
             "payment_amount": 1.0,
             "position_size": 10000.0,
@@ -951,7 +951,7 @@ class TestClearOldData:
             "timestamp": base_time - 3600000,  # 1 hour ago
             "datetime": datetime.fromtimestamp((base_time - 3600000) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.0001,
             "method": "api",
             "confidence": 0.9,
@@ -971,7 +971,7 @@ class TestClearOldData:
             "timestamp": base_time - (100 * 24 * 3600 * 1000),  # 100 days ago
             "datetime": datetime.fromtimestamp((base_time - (100 * 24 * 3600 * 1000)) / 1000, UTC),
             "exchange": "hyperliquid",
-            "symbol": symbols.BTC.hyperliquid().value,
+            "symbol": BTC_HL.value,
             "predicted_rate": 0.0001,
             "method": "api",
             "confidence": 0.9,
@@ -995,7 +995,7 @@ class TestGetSymbolMetrics:
         """Test that get_symbol_metrics delegates to calculate_metrics."""
         # Arrange
         exchange = "hyperliquid"
-        symbol = symbols.BTC.hyperliquid().value
+        symbol = BTC_HL.value
 
         # Mock calculate_metrics to verify delegation
         with patch.object(validator, "calculate_metrics") as mock_calculate:
@@ -1030,7 +1030,7 @@ def test_metric_calculation_parametrized(
     """Test metric calculations for various prediction-actual rate combinations."""
     # Arrange
     exchange = "hyperliquid"
-    symbol = symbols.BTC.hyperliquid().value
+    symbol = BTC_HL.value
     base_time = int(time.time() * 1000)
 
     # Add prediction
@@ -1083,7 +1083,7 @@ def test_record_prediction_methods_parametrized(
 ) -> None:
     """Test recording predictions with different methods and confidence levels."""
     # Act
-    validator.record_prediction("hyperliquid", symbols.BTC.hyperliquid().value, 0.0001, method, confidence)
+    validator.record_prediction("hyperliquid", BTC_HL.value, 0.0001, method, confidence)
 
     # Assert
     assert len(validator.predictions) == 1

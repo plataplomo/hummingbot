@@ -14,6 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -39,11 +40,11 @@ class TestBackpackSpotTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_ticker() with SOL_USDC returns valid Ticker model."""
-        ticker = await bp_api_for_test_env.get_ticker("SOL_USDC")
+        ticker = await bp_api_for_test_env.get_ticker(SOL_USDC_BP)
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == "SOL_USDC", f"Expected symbol 'SOL_USDC', got '{ticker.symbol}'"
+        assert ticker.symbol == SOL_USDC_BP.value, f"Expected symbol 'SOL_USDC', got '{ticker.symbol}'"
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
         )
@@ -72,11 +73,11 @@ class TestBackpackSpotTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_ticker() with BTC_USDC returns valid Ticker model."""
-        ticker = await bp_api_for_test_env.get_ticker("BTC_USDC")
+        ticker = await bp_api_for_test_env.get_ticker(BTC_USDC_BP)
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == "BTC_USDC", f"Expected symbol 'BTC_USDC', got '{ticker.symbol}'"
+        assert ticker.symbol == BTC_USDC_BP.value, f"Expected symbol 'BTC_USDC', got '{ticker.symbol}'"
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
         )
@@ -93,7 +94,7 @@ class TestBackpackSpotTickers:
                 f"Volume should be non-negative, got {ticker.volume}"
             )
 
-    @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
+    @pytest.mark.parametrize("symbol", [SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/tickers"],
@@ -155,7 +156,7 @@ class TestBackpackSpotTickers:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot ticker precision and decimal operations."""
-        ticker = await bp_api_for_test_env.get_ticker("SOL_USDC")
+        ticker = await bp_api_for_test_env.get_ticker(SOL_USDC_BP)
 
         assert isinstance(ticker.price, Decimal), "Price should be Decimal type"
 

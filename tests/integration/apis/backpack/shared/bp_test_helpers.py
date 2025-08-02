@@ -21,6 +21,7 @@ from cyberdelta.core.models.spot_balance import SpotBalance
 from cyberdelta.core.symbols.models import BaseSymbol, BackpackMetadata, Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums import OrderSide
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP, BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 if TYPE_CHECKING:
@@ -987,16 +988,16 @@ COMMON_PERP_SYMBOLS = [
 ]
 
 DEFAULT_TEST_SYMBOL_SPOT = "SOL_USDC"
-DEFAULT_TEST_SYMBOL_PERP = "SOL_USDC_PERP"
+DEFAULT_TEST_SYMBOL_PERP = SOL_USDC_PERP_BP.value
 
-TEST_SYMBOL_SOL_USDC = "SOL_USDC"
-TEST_SYMBOL_BTC_USDC = "BTC_USDC"
-TEST_SYMBOL_ETH_USDC = "ETH_USDC"
-TEST_SYMBOL_USDT_USDC = "USDT_USDC"
+TEST_SYMBOL_SOL_USDC = SOL_USDC_BP.value
+TEST_SYMBOL_BTC_USDC = BTC_USDC_BP.value
+TEST_SYMBOL_ETH_USDC = ETH_USDC_BP.value
+TEST_SYMBOL_USDT_USDC = "USDT_USDC"  # Keep as string since not in common_symbols
 
-TEST_SYMBOL_SOL_PERP = "SOL_USDC_PERP"
-TEST_SYMBOL_BTC_PERP = "BTC_USDC_PERP"
-TEST_SYMBOL_ETH_PERP = "ETH_USDC_PERP"
+TEST_SYMBOL_SOL_PERP = SOL_USDC_PERP_BP.value
+TEST_SYMBOL_BTC_PERP = BTC_USDC_PERP_BP.value
+TEST_SYMBOL_ETH_PERP = ETH_USDC_PERP_BP.value
 
 # Invalid/delisted symbols for negative testing
 INVALID_SPOT_SYMBOL = "INVALID_USDC"

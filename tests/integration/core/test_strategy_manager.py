@@ -24,6 +24,7 @@ from cyberdelta.core.portfolio.managers.portfolio_state_manager import Portfolio
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy_manager import StrategyManager
+from tests.common_symbols import BTC_USDT_BP, ETH_USDT_BP, SOL_USDT_BP, SYM_USDT_BP
 from tests.unit.mocks.mock_strategy import MockStrategy
 
 
@@ -178,11 +179,11 @@ def test_get_strategies_for_symbol(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_btc_instance = MockStrategy(name="BTCStrategy", symbol="BTC/USDT", enabled=True)
-    mock_strategy_eth_instance = MockStrategy(name="ETHStrategy", symbol="ETH/USDT", enabled=True)
+    mock_strategy_btc_instance = MockStrategy(name="BTCStrategy", symbol=BTC_USDT_BP.value, enabled=True)
+    mock_strategy_eth_instance = MockStrategy(name="ETHStrategy", symbol=ETH_USDT_BP.value, enabled=True)
     mock_strategy_disabled_instance = MockStrategy(
         name="DisabledBTCStrategy",
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP.value,
         enabled=False,
     )
 
@@ -193,9 +194,9 @@ def test_get_strategies_for_symbol(
     }
     strategy_manager_for_test.enabled_strategies = {"BTCStrategy", "ETHStrategy"}
 
-    btc_strategies = strategy_manager_for_test.get_strategies_for_symbol("BTC/USDT")
-    eth_strategies = strategy_manager_for_test.get_strategies_for_symbol("ETH/USDT")
-    sol_strategies = strategy_manager_for_test.get_strategies_for_symbol("SOL/USDT")
+    btc_strategies = strategy_manager_for_test.get_strategies_for_symbol(BTC_USDT_BP)
+    eth_strategies = strategy_manager_for_test.get_strategies_for_symbol(ETH_USDT_BP)
+    sol_strategies = strategy_manager_for_test.get_strategies_for_symbol(SOL_USDT_BP)
 
     assert len(btc_strategies) == 1
     assert mock_strategy_btc_instance in btc_strategies
@@ -263,10 +264,10 @@ async def test_process_market_data(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol=BTC_USDT_BP.value, enabled=True)
 
     mock_signal = TradeSignal(
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal(50000),
@@ -278,7 +279,7 @@ async def test_process_market_data(
     strategy_manager_for_test.enable_strategy("TestStrategy")
 
     market_data = Candle(
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(49990),
@@ -322,11 +323,11 @@ async def test_process_market_data_no_enabled_strategies(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=False)
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol=BTC_USDT_BP.value, enabled=False)
     strategy_manager_for_test.register_strategy(mock_strategy_instance)
 
     market_data = Candle(
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(49990),
@@ -365,12 +366,12 @@ async def test_process_market_data_exception(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol=BTC_USDT_BP.value, enabled=True)
     strategy_manager_for_test.register_strategy(mock_strategy_instance)
     strategy_manager_for_test.enable_strategy("TestStrategy")
 
     market_data = Candle(
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(49990),
@@ -410,9 +411,9 @@ async def test_process_market_data_signal_handler_raises(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol=BTC_USDT_BP.value, enabled=True)
     mock_signal = TradeSignal(
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal(50000),
@@ -426,7 +427,7 @@ async def test_process_market_data_signal_handler_raises(
     mock_signal_queue.add_signal.side_effect = ValueError("Signal Queue Error")
 
     market_data = Candle(
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(49990),
@@ -475,10 +476,10 @@ async def test_process_market_data_duplicate_signals(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="BTC/USDT", enabled=True)
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol=BTC_USDT_BP.value, enabled=True)
     signal1 = TradeSignal(
         signal_id="dup_signal_123",
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal(50000),
@@ -490,7 +491,7 @@ async def test_process_market_data_duplicate_signals(
     strategy_manager_for_test.enable_strategy("TestStrategy")
 
     market_data = Candle(
-        symbol="BTC/USDT",
+        symbol=BTC_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(49990),
@@ -529,10 +530,10 @@ async def test_process_market_data_mixed_valid_invalid(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol="ETH/USDT", enabled=True)
+    mock_strategy_instance = MockStrategy(name="TestStrategy", symbol=ETH_USDT_BP.value, enabled=True)
     valid_signal = TradeSignal(
         signal_id="valid_sig_789",
-        symbol="ETH/USDT",
+        symbol=ETH_USDT_BP,
         signal_type=SignalType.ENTER_SHORT,
         side=OrderSide.SELL,
         price=Decimal(3000),
@@ -546,7 +547,7 @@ async def test_process_market_data_mixed_valid_invalid(
     strategy_manager_for_test.enable_strategy("TestStrategy")
 
     market_data = Candle(
-        symbol="ETH/USDT",
+        symbol=ETH_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(2990),
@@ -608,10 +609,10 @@ async def test_signal_handler_risk_manager_exception(
         risk_manager=mock_risk_manager,
         signal_queue=mock_signal_queue,
     )
-    mock_strategy_instance = MockStrategy(name="TestStrategyRMEx", symbol="SYM/USDT", enabled=True)
+    mock_strategy_instance = MockStrategy(name="TestStrategyRMEx", symbol=SYM_USDT_BP.value, enabled=True)
     mock_signal = TradeSignal(
         signal_id="test_signal_rm_ex",
-        symbol="SYM/USDT",
+        symbol=SYM_USDT_BP,
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal(100),
@@ -625,7 +626,7 @@ async def test_signal_handler_risk_manager_exception(
     mock_risk_manager.validate_and_size_trade_signal.side_effect = ValueError("Risk Eval Error")
 
     market_data = Candle(
-        symbol="SYM/USDT",
+        symbol=SYM_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(99),
@@ -673,14 +674,14 @@ async def test_signal_handler_update_historical_data_exception(
     )
     mock_strategy_instance = MockStrategy(
         name="TestStrategyHistEx",
-        symbol="SYM/USDT",
+        symbol=SYM_USDT_BP.value,
         enabled=True,
     )
     strategy_manager.register_strategy(mock_strategy_instance)
     strategy_manager.enable_strategy("TestStrategyHistEx")
 
     market_data = Candle(
-        symbol="SYM/USDT",
+        symbol=SYM_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(99),
@@ -728,12 +729,12 @@ async def test_process_market_data_malformed_signal(
     )
     mock_strategy_instance = MockStrategy(
         name="TestStrategyMalformed",
-        symbol="SYM/USDT",
+        symbol=SYM_USDT_BP.value,
         enabled=True,
     )
     malformed_signal_dict: dict[str, Any] = {
         "signal_id": "malformed_123",
-        "symbol": "SYM/USDT",
+        "symbol": SYM_USDT_BP.value,
         "signal_type": SignalType.ENTER_LONG,
         "side": OrderSide.BUY,
         "quantity": Decimal(1),
@@ -745,7 +746,7 @@ async def test_process_market_data_malformed_signal(
     strategy_manager.enable_strategy("TestStrategyMalformed")
 
     market_data = Candle(
-        symbol="SYM/USDT",
+        symbol=SYM_USDT_BP,
         interval="1m",
         open_time=datetime.now(UTC),
         open=Decimal(99),
