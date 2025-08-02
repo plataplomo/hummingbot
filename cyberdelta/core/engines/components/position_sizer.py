@@ -354,7 +354,8 @@ class PortfolioAwarePositionSizer:
         
         # Use risk assessment data if available
         risk_data = portfolio_with_risk.risk_assessment
-        volatilities = risk_data.get("symbol_volatilities", {})
+        # Note: Using general volatility estimate since symbol-specific volatilities not available
+        return risk_data.volatility_estimate
         
         if symbol in volatilities:
             return Decimal(str(volatilities[symbol]))

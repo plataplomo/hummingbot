@@ -212,7 +212,7 @@ class UnifiedServiceFactory(BaseModel):
         if not self._initialized:
             return {"status": "not_initialized", "services": {}}
 
-        health_status = {
+        health_status: dict[str, Any] = {
             "status": "healthy",
             "services": {},
             "timestamp": asyncio.get_event_loop().time()

@@ -18,12 +18,13 @@ from cyberdelta.core.portfolio.exceptions.state import (
     StateOperationFailedError,
 )
 from cyberdelta.core.portfolio.models.base import BaseStateModel
-from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState, ComponentHealthData
+from cyberdelta.core.portfolio.models.portfolio_state import ComponentHealthData
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.portfolio.portfolio_types.models import (
     BalanceUpdateRequest,
     OrderUpdateRequest,
     PortfolioMetrics,
+    PortfolioState,
     PositionUpdateRequest,
 )
 from cyberdelta.core.portfolio.portfolio_types.infrastructure import (

@@ -461,7 +461,7 @@ class PortfolioServiceFactory:
                 "timestamp": datetime.now(UTC).isoformat()
             }
 
-        health_status = {
+        health_status: Dict[str, Any] = {
             "status": "healthy",
             "services": {},
             "timestamp": datetime.now(UTC).isoformat()

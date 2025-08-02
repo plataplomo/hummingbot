@@ -322,9 +322,7 @@ class PortfolioAwareTradeExecutor:
         # Calculate expected slippage based on order size and market conditions
         # Larger orders have more slippage
         size_impact = position_size / Decimal("10000")  # Impact per $10k
-        market_volatility = portfolio_with_risk.risk_assessment.get(
-            "symbol_volatilities", {}
-        ).get(signal.symbol, Decimal("0.02"))
+        market_volatility = portfolio_with_risk.risk_assessment.volatility_estimate
         
         expected_slippage = min(
             size_impact * market_volatility * Decimal("0.1"),  # 10% of volatility

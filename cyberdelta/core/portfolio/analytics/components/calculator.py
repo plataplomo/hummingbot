@@ -6,7 +6,7 @@ from decimal import Decimal
 from typing import Optional, List
 
 from cyberdelta.core.portfolio.analytics.performance import PerformanceSnapshot
-from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState
+from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.symbols import exchanges

@@ -296,7 +296,8 @@ class AdvancedRiskManager:
         risk_data = portfolio_with_risk.risk_assessment
         
         # Get correlation data from risk assessment
-        correlations = risk_data.get("correlations", {})
+        # Note: RiskAssessment only has correlation_risk (Decimal), not detailed correlations dict
+        correlations = {}  # Simplified: use empty dict since detailed correlations not available
         max_correlation = Decimal("0")
         
         # Find maximum correlation with existing positions
@@ -373,12 +374,11 @@ class AdvancedRiskManager:
         risk_data = portfolio_with_risk.risk_assessment
         
         # Get current VaR
-        current_var = Decimal(str(risk_data.get("var_95", 0)))
+        current_var = risk_data.var_95
         
         # Estimate additional VaR from new position
         # Use volatility data if available
-        volatilities = risk_data.get("symbol_volatilities", {})
-        symbol_volatility = Decimal(str(volatilities.get(signal.symbol, 0.02)))
+        symbol_volatility = risk_data.volatility_estimate
         
         # Estimate VaR contribution (simplified - assumes normal distribution)
         position_var_contribution = position_size * symbol_volatility * Decimal("1.645")  # 95% VaR

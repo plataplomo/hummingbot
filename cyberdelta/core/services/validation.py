@@ -155,12 +155,12 @@ class ExecutionInputValidator(BaseService, IInputValidator):
     ) -> None:
         """Validate position sizes for both legs."""
         # Validate long position size
-        if opportunity.long_size:
-            self._validate_single_position_size(opportunity.long_size, "Long", errors, warnings)
+        if opportunity.long_size_usd:
+            self._validate_single_position_size(opportunity.long_size_usd, "Long", errors, warnings)
 
         # Validate short position size
-        if opportunity.short_size:
-            self._validate_single_position_size(opportunity.short_size, "Short", errors, warnings)
+        if opportunity.short_size_usd:
+            self._validate_single_position_size(opportunity.short_size_usd, "Short", errors, warnings)
 
     def _validate_single_position_size(
         self, size: Decimal, leg_name: str, errors: list[str], warnings: list[str]
@@ -181,11 +181,11 @@ class ExecutionInputValidator(BaseService, IInputValidator):
 
     def _validate_size_imbalance(self, opportunity: SizedOpportunity, warnings: list[str]) -> None:
         """Validate size imbalance between long and short positions."""
-        if not (opportunity.long_size and opportunity.short_size):
+        if not (opportunity.long_size_usd and opportunity.short_size_usd):
             return
 
-        size_diff = abs(opportunity.long_size - opportunity.short_size)
-        avg_size = (opportunity.long_size + opportunity.short_size) / 2
+        size_diff = abs(opportunity.long_size_usd - opportunity.short_size_usd)
+        avg_size = (opportunity.long_size_usd + opportunity.short_size_usd) / 2
         imbalance_pct = (size_diff / avg_size) * 100
 
         if imbalance_pct > self.config.max_size_imbalance_pct:
@@ -198,7 +198,7 @@ class ExecutionInputValidator(BaseService, IInputValidator):
         self, opportunity: SizedOpportunity, warnings: list[str]
     ) -> None:
         """Validate expected profit is reasonable."""
-        if opportunity.expected_profit and opportunity.expected_profit <= 0:
+        if opportunity.expected_profit_usd and opportunity.expected_profit_usd <= 0:
             warnings.append("Expected profit is not positive")
 
     def _log_validation_results(

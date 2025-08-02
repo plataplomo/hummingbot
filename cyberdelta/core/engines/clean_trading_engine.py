@@ -291,7 +291,7 @@ class CleanTradingEngine:
             "uptime": self._get_uptime(),
             "portfolio": {
                 "total_capital": portfolio_with_risk.portfolio_state.total_capital,
-                "total_exposure": portfolio_with_risk.risk_assessment.get("total_exposure", Decimal(0)),
+                "total_exposure": portfolio_with_risk.risk_assessment.total_exposure,
                 "position_count": len(portfolio_with_risk.portfolio_state.positions),
                 "unrealized_pnl": getattr(portfolio_with_risk.portfolio_state, "unrealized_pnl", Decimal(0))
             },
@@ -443,7 +443,7 @@ class CleanTradingEngine:
             "risk_assessment": portfolio_with_risk.risk_assessment,
             "total_capital": portfolio_with_risk.portfolio_state.total_capital,
             "available_capital": portfolio_with_risk.portfolio_state.total_capital - 
-                               portfolio_with_risk.risk_assessment.get("total_exposure", Decimal(0)),
+                               portfolio_with_risk.risk_assessment.total_exposure,
             "position_count": len(portfolio_with_risk.portfolio_state.positions),
             "timestamp": portfolio_with_risk.timestamp
         }
@@ -567,7 +567,7 @@ class CleanTradingEngine:
         violations = []
         warnings: list[dict[str, Any]] = []
         
-        total_exposure = portfolio_with_risk.risk_assessment.get("total_exposure", Decimal(0))
+        total_exposure = portfolio_with_risk.risk_assessment.total_exposure
         total_capital = portfolio_with_risk.portfolio_state.total_capital
         
         # Check exposure limit (80% of capital)

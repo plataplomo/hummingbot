@@ -544,7 +544,7 @@ class PortfolioRiskCoordinator(BaseModel):
         
         # Calculate risk change
         current_risk = await self._calculate_comprehensive_risk(portfolio_state)
-        current_var = current_risk.get("var_95", Decimal("0"))
+        current_var = current_risk.var_95
         
         # Estimate new VaR after trade (simplified)
         volatility = self.risk_params.default_volatilities["default"]
