@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.trade import Trade
-from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.infrastructure.services.base_service import BaseService
 from cyberdelta.core.symbols import Symbol
 
 logger = get_logger(__name__)
@@ -30,7 +30,7 @@ class TradeDiscrepancy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class TradeReconciliationService(BasePortfolioService):
+class TradeReconciliationService(BaseService):
     """Validates trade integrity and consistency."""
     
     # Configuration

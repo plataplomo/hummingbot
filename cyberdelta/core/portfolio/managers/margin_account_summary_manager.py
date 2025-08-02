@@ -15,7 +15,7 @@ from cyberdelta.core.portfolio.events import (
     EventPriority,
     EventType,
 )
-from cyberdelta.core.portfolio.events.base import BasePortfolioEvent, EventMetadata
+from cyberdelta.core.infrastructure.events import BaseEvent, EventMetadata
 from cyberdelta.core.portfolio.events.error_events import ErrorContext
 
 
@@ -398,7 +398,7 @@ class MarginAccountSummaryManager:
         # Check warning threshold
         elif margin_ratio >= self.risk_threshold_margin_ratio:
             # Create a risk warning event
-            class RiskWarningEvent(BasePortfolioEvent[dict[str, str | float]]):
+            class RiskWarningEvent(BaseEvent[dict[str, str | float]]):
                 def _serialize_data(self) -> dict[str, str | float]:
                     return self.data
 

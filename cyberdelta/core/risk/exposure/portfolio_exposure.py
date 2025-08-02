@@ -20,7 +20,7 @@ REASONABLE_VALUE_MIN = -1e15
 REASONABLE_VALUE_MAX = 1e15
 
 if TYPE_CHECKING:
-    from cyberdelta.core.portfolio.calculators.position_exposure_calculator import PositionExposure
+    from cyberdelta.core.risk.exposure.individual_position import PositionExposure
 
 logger = get_logger(__name__)
 

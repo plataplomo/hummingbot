@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, TypedDict, TypeVar, Unpack
 
-from cyberdelta.core.portfolio.exceptions.base import PortfolioError
+from cyberdelta.core.infrastructure.exceptions.base import CoreError
 
 
 # Type variables for generic error/value types
@@ -20,7 +20,7 @@ class StateExceptionKwargs(TypedDict, total=False):
     recoverable: bool
 
 
-class StateError(PortfolioError):
+class StateError(CoreError):
     """Base exception for state management errors."""
 
     def _get_default_error_code(self) -> str:

@@ -1,6 +1,6 @@
 """Portfolio exception hierarchy for comprehensive error handling."""
 
-from .base import PortfolioCriticalError, PortfolioError
+from cyberdelta.core.infrastructure.exceptions.base import PortfolioCriticalError, CoreError as PortfolioError
 from .calculation import (
     CalculationError,
     CalculatorConfigurationError,

@@ -758,7 +758,7 @@ async def test_happy_path_full_cycle(
         message="BP balance before sizing",
     )
     # Let's assume RM uses get_total_capital directly from balances for now
-    total_capital = await portfolio_tracker.get_current_state().total_capital
+    total_capital = await portfolio_tracker.get_current_state().total_account_value
     logger.info(
         "portfolio_total_capital_for_sizing",
         total_capital=total_capital,
@@ -1358,7 +1358,7 @@ async def test_partial_fill(
         balances=portfolio_tracker.balances,
         message="PT Balances before RM validation",
     )
-    total_cap_debug = await portfolio_tracker.get_current_state().total_capital  # Added await
+    total_cap_debug = await portfolio_tracker.get_current_state().total_account_value  # Added await
     logger.debug(
         "portfolio_total_capital_before_validation",
         total_capital=str(total_cap_debug),
@@ -1873,7 +1873,7 @@ async def _log_debug_info(portfolio_tracker: PortfolioStateManager) -> None:
         balances=portfolio_tracker.balances,
         message="PT Balances before RM validation",
     )
-    total_cap_debug = await portfolio_tracker.get_current_state().total_capital
+    total_cap_debug = await portfolio_tracker.get_current_state().total_account_value
     logger.debug(
         "portfolio_total_capital_debug_info",
         total_capital=str(total_cap_debug),
@@ -2220,7 +2220,7 @@ async def test_failed_execution(
     await portfolio_tracker.update()  # Explicitly update derived metrics
 
     # Verify balances are set
-    total_balance = await portfolio_tracker.get_current_state().total_capital
+    total_balance = await portfolio_tracker.get_current_state().total_account_value
     logger.info(
         "total_balance_after_setup",
         total_balance=str(total_balance),

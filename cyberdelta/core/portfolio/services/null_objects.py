@@ -41,7 +41,7 @@ from cyberdelta.core.symbols import Symbol
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import Order
-    from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+    from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData as PortfolioState
 
 
 logger = get_logger(__name__)
@@ -447,12 +447,13 @@ class NullPortfolioManager(PortfolioManagerProtocol[None]):
     
     async def get_portfolio_state(self) -> PortfolioState:
         """Return minimal portfolio state."""
-        from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+        from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData
         logger.debug("null_portfolio_get_portfolio_state")
         # Return a minimal PortfolioState with required fields
-        return PortfolioState(
+        return PortfolioStateData(
+            state_id="null_portfolio_state",
             portfolio_id="null_portfolio",
-            total_capital=Decimal(0)
+            total_account_value=Decimal(0)
         )
     
     async def update_portfolio(self, update: PortfolioUpdate) -> None:

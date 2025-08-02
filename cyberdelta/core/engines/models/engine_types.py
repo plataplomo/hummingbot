@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 # Import TradingSignal from clean_trading_engine since it's defined there
 # Import PortfolioState from portfolio_types.models
-from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData as PortfolioState
 
 
 @dataclass

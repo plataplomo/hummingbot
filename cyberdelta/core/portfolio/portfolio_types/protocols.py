@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.core.models import DerivativePosition as Position, Order, SpotBalance, Trade
-from cyberdelta.core.portfolio.exceptions.base import PortfolioError
+from cyberdelta.core.infrastructure.exceptions.base import CoreError as PortfolioError
 from cyberdelta.core.portfolio.exceptions.state import StateValidationError
 from cyberdelta.core.symbols import Symbol
 # Import SpotBalance from core models, not portfolio_types models

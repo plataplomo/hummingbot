@@ -130,14 +130,12 @@ from .calculations import (
 # ==================== Infrastructure ====================
 from .infrastructure import (
     # Events
-    BasePortfolioEvent,
     EventFilter,
     EventHandler,
     EventMetadata,
     EventMetadataContext,
     EventPriority,
     EventType,
-    PortfolioEvent,
     # Exceptions
     CalculationError,
     CalculationExceptionContext,
@@ -303,14 +301,12 @@ __all__ = [
     "UnrealizedPnLResult",
     "VaRCalculationResult",
     # Infrastructure - Events
-    "BasePortfolioEvent",
     "EventFilter",
     "EventHandler",
     "EventMetadata",
     "EventMetadataContext",
     "EventPriority",
     "EventType",
-    "PortfolioEvent",
     # Infrastructure - Exceptions
     "CalculationError",
     "CalculationExceptionContext",

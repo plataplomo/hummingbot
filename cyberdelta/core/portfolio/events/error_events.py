@@ -7,8 +7,8 @@ from typing import Any, Unpack
 from pydantic import BaseModel, Field, field_validator
 from pydantic.dataclasses import dataclass
 
-from cyberdelta.core.portfolio.events.base.base_event import (
-    BasePortfolioEvent,
+from cyberdelta.core.infrastructure.events import (
+    BaseEvent,
     EventMetadata,
     EventMetadataKwargs,
     EventPriority,
@@ -256,7 +256,7 @@ class StateSnapshotData:
 
 
 @dataclass
-class ErrorOccurredEvent(BasePortfolioEvent[ErrorData]):
+class ErrorOccurredEvent(BaseEvent[ErrorData]):
     """Event fired when an error occurs."""
 
     @classmethod
@@ -320,7 +320,7 @@ class ErrorOccurredEvent(BasePortfolioEvent[ErrorData]):
 
 
 @dataclass
-class ErrorRecoveredEvent(BasePortfolioEvent[ErrorData]):
+class ErrorRecoveredEvent(BaseEvent[ErrorData]):
     """Event fired when an error is recovered from."""
 
     @classmethod
@@ -384,7 +384,7 @@ class ErrorRecoveredEvent(BasePortfolioEvent[ErrorData]):
 
 
 @dataclass
-class ComponentInitializedEvent(BasePortfolioEvent[ComponentStateData]):
+class ComponentInitializedEvent(BaseEvent[ComponentStateData]):
     """Event fired when a component is initialized."""
 
     @classmethod
@@ -440,7 +440,7 @@ class ComponentInitializedEvent(BasePortfolioEvent[ComponentStateData]):
 
 
 @dataclass
-class ComponentShutdownEvent(BasePortfolioEvent[ComponentStateData]):
+class ComponentShutdownEvent(BaseEvent[ComponentStateData]):
     """Event fired when a component is shut down."""
 
     @classmethod
@@ -501,7 +501,7 @@ class ComponentShutdownEvent(BasePortfolioEvent[ComponentStateData]):
 
 
 @dataclass
-class StateSnapshotCreatedEvent(BasePortfolioEvent[StateSnapshotData]):
+class StateSnapshotCreatedEvent(BaseEvent[StateSnapshotData]):
     """Event fired when a state snapshot is created."""
 
     @classmethod
@@ -559,7 +559,7 @@ class StateSnapshotCreatedEvent(BasePortfolioEvent[StateSnapshotData]):
 
 
 @dataclass
-class StateRestoredEvent(BasePortfolioEvent[StateSnapshotData]):
+class StateRestoredEvent(BaseEvent[StateSnapshotData]):
     """Event fired when state is restored from snapshot."""
 
     @classmethod

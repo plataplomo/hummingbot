@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.infrastructure.services.base_service import BaseService
 from cyberdelta.core.symbols import Symbol
 
 if TYPE_CHECKING:
@@ -32,7 +32,7 @@ class PositionDiscrepancy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class PositionReconciliationService(BasePortfolioService):
+class PositionReconciliationService(BaseService):
     """Validates position calculations and consistency."""
     
     # Configuration

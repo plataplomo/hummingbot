@@ -22,6 +22,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.core.models import Order, SpotBalance, Trade
 from cyberdelta.core.symbols import Symbol
+from cyberdelta.core.portfolio.models import PortfolioStateData as PortfolioState
 
 
 # ==================== Enums ====================
@@ -94,42 +95,6 @@ class ExposureMetrics(BaseModel):
     max_leverage_used: Decimal | None = None
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
-
-class PortfolioState(BaseModel):
-    """Complete portfolio state snapshot."""
-    portfolio_id: str
-    total_capital: Decimal
-    free_capital: Decimal = Decimal(0)
-    positions: dict[str, list[Position]] = Field(default_factory=dict)
-    balances: dict[str, dict[str, SpotBalance]] = Field(default_factory=dict)
-    exposure_metrics: ExposureMetrics | None = None
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    
-    # P&L metrics
-    total_realized_pnl: Decimal = Decimal(0)
-    total_unrealized_pnl: Decimal = Decimal(0)
-    daily_pnl: Decimal = Decimal(0)
-    
-    # Risk metrics
-    portfolio_var_95: Decimal | None = None
-    max_drawdown: Decimal | None = None
-    sharpe_ratio: Decimal | None = None
-    
-    # Counts
-    active_positions: int = 0
-    open_orders: int = 0
-    total_trades: int = 0
-    
-    # Exchange summaries
-    exchange_summaries: dict[str, ExchangeSummary] = Field(default_factory=dict)
-    
-    # Component health
-    component_health: dict[str, ComponentHealth] = Field(default_factory=dict)
-    
-    # Metadata
-    metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
 class ExchangeSummary(BaseModel):
@@ -782,3 +747,49 @@ class OrderUpdateRequest(BaseModel):
     exchange_id: str
     order: Order
     update_source: str | None = None
+
+
+# Export all models
+__all__ = [
+    # Enums
+    "HealthStatus",
+    "PortfolioComponentType",
+    # Core Models - Including the PortfolioState alias
+    "PortfolioState",
+    "BalanceUpdate",
+    "BalanceUpdateRequest",
+    "CacheStatistics",
+    "CapitalSummary",
+    "ComponentHealth",
+    "ConfigurationData",
+    "ConfigurationMetadata",
+    "ErrorContext",
+    "ExchangeBalances",
+    "ExchangeOrders",
+    "ExchangePositions",
+    "ExchangeSummary",
+    "ExposureMetrics",
+    "ManagerStats",
+    "MetricsData",
+    "MetricsMetadata",
+    "OperationContext",
+    "OperationMetadata",
+    "OrderUpdate",
+    "OrderUpdateRequest",
+    "PerformanceMetrics",
+    "PnLSummary",
+    "PortfolioConfig",
+    "PortfolioMetrics",
+    "PortfolioSnapshot",
+    "PortfolioSummary",
+    "PortfolioUpdate",
+    "Position",
+    "PositionUpdate",
+    "PositionUpdateRequest",
+    "RiskParameters",
+    "TradeUpdate",
+    "TradingSession",
+    "ValidationContext",
+    "ValidationMetadata",
+    "ValidationStatistics",
+]

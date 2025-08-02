@@ -9,8 +9,8 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.core.symbols import Symbol
-from cyberdelta.core.portfolio.events.base.base_event import (
-    BasePortfolioEvent,
+from cyberdelta.core.infrastructure.events import (
+    BaseEvent,
     EventMetadata,
     EventMetadataKwargsWithoutExchange,
     EventMetadataKwargsWithoutSymbol,
@@ -148,7 +148,7 @@ class PositionData:
 
 
 @dataclass
-class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
+class PositionOpenedEvent(BaseEvent[PositionData]):
     """Event fired when a new position is opened."""
 
     @classmethod
@@ -214,7 +214,7 @@ class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
 
 
 @dataclass
-class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
+class PositionUpdatedEvent(BaseEvent[PositionData]):
     """Event fired when a position is updated."""
 
     @classmethod
@@ -287,7 +287,7 @@ class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
 
 
 @dataclass
-class PositionClosedEvent(BasePortfolioEvent[PositionData]):
+class PositionClosedEvent(BaseEvent[PositionData]):
     """Event fired when a position is closed."""
 
     @classmethod
@@ -372,7 +372,7 @@ class PositionErrorData(BaseModel):
 
 
 @dataclass
-class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
+class PositionErrorEvent(BaseEvent[PositionErrorData]):
     """Event fired when a position operation fails."""
 
     @classmethod

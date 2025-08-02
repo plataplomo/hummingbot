@@ -256,7 +256,7 @@ class TestStateManagerProtocolCompliance:
         # Test capital methods
         capital = await manager.get_total_capital()
         assert isinstance(capital, CapitalSummary)
-        assert capital.total_capital == Decimal(0)
+        assert capital.total_account_value == Decimal(0)
 
         # Test summary methods
         summary = await manager.get_portfolio_summary()

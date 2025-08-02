@@ -7,12 +7,13 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from cyberdelta.core.models import DerivativePosition, SpotBalance
 from cyberdelta.core.models.market.order import Order
-from cyberdelta.core.portfolio.portfolio_types.models import PortfolioSnapshot, PortfolioState
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData as PortfolioState
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     StateUpdateResult,
     StateValidationResult,
 )
+from cyberdelta.core.portfolio.portfolio_types.models import PortfolioSnapshot
 from cyberdelta.enums.exchange_names import ExchangeName
 
 

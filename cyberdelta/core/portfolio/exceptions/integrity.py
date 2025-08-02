@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Unpack
 
-from cyberdelta.core.portfolio.exceptions.base import PortfolioError
+from cyberdelta.core.infrastructure.exceptions.base import CoreError
 from cyberdelta.core.portfolio.exceptions.service import ServiceError
 
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
         recoverable: bool
 
 
-class PortfolioIntegrityError(PortfolioError):
+class PortfolioIntegrityError(CoreError):
     """Base exception for portfolio data integrity and consistency errors."""
 
     def _get_default_error_code(self) -> str:

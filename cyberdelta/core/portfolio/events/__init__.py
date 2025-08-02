@@ -8,7 +8,7 @@ from .balance_events import (
     BalanceUpdatedEvent,
 )
 from .base import (
-    BasePortfolioEvent,
+    BaseEvent,
     CompositeEventFilter,
     EventDispatcher,
     EventFilter,
@@ -54,7 +54,7 @@ __all__ = [
     "BalanceSnapshot",
     "BalanceUpdatedEvent",
     # Core classes
-    "BasePortfolioEvent",
+    "BaseEvent",
     "ComponentInitializedEvent",
     "ComponentShutdownEvent",
     "ComponentStateData",

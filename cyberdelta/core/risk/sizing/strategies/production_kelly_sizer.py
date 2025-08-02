@@ -10,7 +10,7 @@ from cyberdelta.core.risk.sizing.strategies.kelly_criterion_sizer import KellyCr
 from cyberdelta.core.risk.sizing.models.sizing_result import SizingContext
 from cyberdelta.core.risk.exceptions.sizing_exceptions import KellyCalculationError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
-from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData as PortfolioState
 from cyberdelta.core.portfolio.config.risk_parameters import MarketDataProvider
 from cyberdelta.config.structlog_config import get_logger
 

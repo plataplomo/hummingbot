@@ -5,7 +5,7 @@ import asyncio
 import signal
 from contextlib import asynccontextmanager
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 
 from cyberdelta.core.engines.clean_trading_engine import CleanTradingEngine
 from cyberdelta.core.portfolio.coordinators.unified_service_factory import UnifiedServiceFactory
@@ -22,10 +22,10 @@ class CyberDeltaApplication:
         self.unified_factory = UnifiedServiceFactory(config=config)
 
         # Core components will be initialized during startup
-        self.engine = None
-        self.strategy_manager = None
-        self.execution_handler = None
-        self.risk_manager = None
+        self.engine: Optional[CleanTradingEngine] = None
+        self.strategy_manager: Optional[Any] = None  # Week 6
+        self.execution_handler: Optional[Any] = None  # Week 6
+        self.risk_manager: Optional[Any] = None  # Week 6
 
         # Application state
         self._running = False
@@ -129,7 +129,7 @@ class CyberDeltaApplication:
             pass
 
     @asynccontextmanager
-    async def application_context(self):
+    async def application_context(self) -> Any:
         """Context manager for application lifecycle."""
         try:
             await self.start()
@@ -193,23 +193,10 @@ class CyberDeltaApplication:
         """
         portfolio_state: PortfolioState = await self.portfolio_manager.get_portfolio_summary()
         
-        # Calculate total value and position count
-        total_capital = Decimal("0")
-        position_count = 0
-        
-        # Sum balance values
-        for exchange_balances in portfolio_state.balances.values():
-            for balance in exchange_balances.values():
-                if hasattr(balance, 'available_quantity') and balance.asset.value == "USDC":
-                    total_capital += Decimal(str(balance.available_quantity))
-        
-        # Count positions
-        for exchange_positions in portfolio_state.positions.values():
-            position_count += len(exchange_positions)
-        
+        # Use aggregated data from portfolio state
         return {
-            "total_capital": str(total_capital),
-            "position_count": position_count,
+            "total_capital": str(portfolio_state.total_account_value),
+            "position_count": portfolio_state.active_positions,
             "portfolio_id": portfolio_state.portfolio_id,
-            "timestamp": portfolio_state.timestamp.isoformat()
+            "timestamp": portfolio_state.updated_at.isoformat()
         }

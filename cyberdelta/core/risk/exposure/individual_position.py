@@ -9,13 +9,13 @@ from pydantic import Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.exceptions import RiskCalculationError
+from cyberdelta.core.risk.exceptions.base_exceptions import RiskCalculationError
 from cyberdelta.core.symbols import Symbol
 
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import DerivativePosition
-    from cyberdelta.core.portfolio.services.currency import CurrencyConversionService
+    from cyberdelta.core.integrations.currency import CurrencyConversionService
 
 logger = get_logger(__name__)
 
@@ -103,7 +103,8 @@ class PositionExposure:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise RiskCalculationError(
-                parameter="decimal_value", value=value, expected="finite decimal"
+                f"Invalid decimal value: {value} (expected finite decimal)",
+                metadata={"parameter": "decimal_value", "value": str(value), "expected": "finite decimal"}
             )
         return value
 
@@ -126,15 +127,21 @@ class PositionExposure:
             net = info.data["net_exposure"]
             if v == "LONG" and net < 0:
                 raise RiskCalculationError(
-                    parameter="side_consistency",
-                    value=f"LONG with net_exposure={net}",
-                    expected="LONG position with positive net exposure",
+                    f"Side consistency error: LONG with net_exposure={net} (LONG position with positive net exposure)",
+                    metadata={
+                        "parameter": "side_consistency",
+                        "value": f"LONG with net_exposure={net}",
+                        "expected": "LONG position with positive net exposure"
+                    }
                 )
             if v == "SHORT" and net > 0:
                 raise RiskCalculationError(
-                    parameter="side_consistency",
-                    value=f"SHORT with net_exposure={net}",
-                    expected="SHORT position with negative net exposure",
+                    f"Side consistency error: SHORT with net_exposure={net} (SHORT position with negative net exposure)",
+                    metadata={
+                        "parameter": "side_consistency",
+                        "value": f"SHORT with net_exposure={net}",
+                        "expected": "SHORT position with negative net exposure"
+                    }
                 )
         return v
 
@@ -155,7 +162,8 @@ class PositionExposure:
         if v is not None:
             if not v.strip():
                 raise RiskCalculationError(
-                    parameter="currency_code", value=v, expected="non-empty string"
+                    f"Invalid currency code: '{v}' (expected non-empty string)",
+                    metadata={"parameter": "currency_code", "value": v, "expected": "non-empty string"}
                 )
             return v.upper().strip()
         return v
@@ -226,9 +234,12 @@ class PortfolioImpactMetrics:
         value: float = v if isinstance(v, (int, float)) else float(v)
         if not (REASONABLE_PERCENTAGE_MIN < value < REASONABLE_PERCENTAGE_MAX):
             raise RiskCalculationError(
-                parameter="percentage_value",
-                value=value,
-                expected="finite and reasonable percentage",
+                f"Invalid percentage value: {value} (expected finite and reasonable percentage)",
+                metadata={
+                    "parameter": "percentage_value",
+                    "value": str(value),
+                    "expected": "finite and reasonable percentage"
+                },
             )
         return value
 

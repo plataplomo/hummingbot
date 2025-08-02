@@ -224,8 +224,8 @@ class UnifiedServiceFactory(BaseModel):
                 portfolio_state = await self._portfolio_manager.get_portfolio_summary()
                 health_status["services"]["portfolio_manager"] = {
                     "status": "healthy",
-                    "total_capital": float(portfolio_state.total_capital),
-                    "position_count": len([p for positions in portfolio_state.positions.values() for p in positions])
+                    "total_capital": float(portfolio_state.total_account_value),
+                    "position_count": portfolio_state.active_positions
                 }
             except Exception as e:
                 health_status["services"]["portfolio_manager"] = {"status": "unhealthy", "error": str(e)}

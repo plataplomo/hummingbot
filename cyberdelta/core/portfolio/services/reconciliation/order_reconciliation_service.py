@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.infrastructure.services.base_service import BaseService
 from cyberdelta.core.symbols import Symbol, symbol as create_symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -35,7 +35,7 @@ class OrderDiscrepancy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class OrderReconciliationService(BasePortfolioService):
+class OrderReconciliationService(BaseService):
     """Checks order status consistency and validity."""
     
     # Configuration

@@ -8,8 +8,8 @@ from typing import Any, Unpack
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
 
-from cyberdelta.core.portfolio.events.base.base_event import (
-    BasePortfolioEvent,
+from cyberdelta.core.infrastructure.events import (
+    BaseEvent,
     EventMetadata,
     EventMetadataKwargs,
     EventMetadataKwargsWithoutExchange,
@@ -192,7 +192,7 @@ class BalanceSnapshot:
 
 
 @dataclass
-class BalanceUpdatedEvent(BasePortfolioEvent[BalanceChange]):
+class BalanceUpdatedEvent(BaseEvent[BalanceChange]):
     """Event fired when a balance is updated."""
 
     @classmethod
@@ -251,7 +251,7 @@ class BalanceUpdatedEvent(BasePortfolioEvent[BalanceChange]):
 
 
 @dataclass
-class BalanceReconciledEvent(BasePortfolioEvent[BalanceSnapshot]):
+class BalanceReconciledEvent(BaseEvent[BalanceSnapshot]):
     """Event fired when balances are reconciled with exchange."""
 
     @classmethod
@@ -326,7 +326,7 @@ class BalanceErrorData(BaseModel):
 
 
 @dataclass
-class BalanceErrorEvent(BasePortfolioEvent[BalanceErrorData]):
+class BalanceErrorEvent(BaseEvent[BalanceErrorData]):
     """Event fired when a balance operation fails."""
 
     @classmethod

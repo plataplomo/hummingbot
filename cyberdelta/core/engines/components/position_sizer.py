@@ -139,9 +139,10 @@ class PortfolioAwarePositionSizer:
                 from cyberdelta.validation.funding_data import ArbitrageOpportunity
                 
                 # Create sizing context
-                sizing_context = SizingContext()
-                sizing_context.available_capital = portfolio_context["total_capital"]
-                sizing_context.portfolio_state = portfolio_context.get("portfolio_state")
+                sizing_context = SizingContext(
+                    sizing_method="kelly",  # or get from config
+                    available_capital=portfolio_context["total_capital"]
+                )
                 
                 # Add evaluation data to context
                 sizing_context.add_metadata("expected_win_rate", evaluation.get("expected_win_rate", 0.5))
@@ -150,17 +151,21 @@ class PortfolioAwarePositionSizer:
                 
                 # Create opportunity object for Kelly sizer
                 opportunity = ArbitrageOpportunity(
+                    id=signal.signal_id,
+                    exchange_buy=signal.exchange_buy,
+                    exchange_sell=signal.exchange_sell,
                     symbol=signal.symbol,
-                    expected_return=evaluation.get("expected_win_amount", 0.02),
-                    volatility=await self._get_symbol_volatility(signal.symbol),
-                    win_probability=evaluation.get("expected_win_rate", 0.5),
-                    strategy_id=signal.strategy_id
+                    price_buy=signal.price_buy,
+                    price_sell=signal.price_sell,
+                    spread_percentage=signal.spread_percentage,
+                    signal_strength=signal.signal_strength,
+                    detected_at=signal.timestamp
                 )
                 
                 # Get Kelly sizing result from production sizer
-                sizing_result = await self.coordinator.position_sizer.calculate_position_size(
+                sizing_result = await self.coordinator.position_sizer.size_opportunity(
                     opportunity,
-                    sizing_context
+                    portfolio_context["total_capital"]
                 )
                 
                 if sizing_result.success:
@@ -210,9 +215,10 @@ class PortfolioAwarePositionSizer:
         
         # Get positions through coordinator
         portfolio_with_risk = await self.coordinator.get_current_portfolio_with_risk_assessment()
+        # TODO: Refactor to get actual positions from exchange_summaries
         positions = []
-        for exchange_positions in portfolio_with_risk.portfolio_state.positions.values():
-            positions.extend(exchange_positions)
+        # for exchange_positions in portfolio_with_risk.portfolio_state.positions.values():
+        #     positions.extend(exchange_positions)
 
         if not positions:
             # First position gets standard allocation
@@ -381,10 +387,11 @@ class PortfolioAwarePositionSizer:
         portfolio_with_risk = await self.coordinator.get_current_portfolio_with_risk_assessment()
         existing_exposure = Decimal("0")
 
-        for exchange_positions in portfolio_with_risk.portfolio_state.positions.values():
-            for position in exchange_positions:
-                if position.symbol == signal.symbol:
-                    existing_exposure += abs(position.size)
+        # TODO: Refactor to get actual positions from exchange_summaries
+        # for exchange_positions in portfolio_with_risk.portfolio_state.positions.values():
+        #     for position in exchange_positions:
+        #         if position.symbol == signal.symbol:
+        #             existing_exposure += abs(position.size)
 
         if existing_exposure == 0:
             return Decimal("1")  # No concentration penalty

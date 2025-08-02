@@ -8,8 +8,8 @@ from pydantic import BaseModel, Field
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.core.models import Trade
-from cyberdelta.core.portfolio.events.base.base_event import (
-    BasePortfolioEvent,
+from cyberdelta.core.infrastructure.events import (
+    BaseEvent,
     EventMetadata,
     EventMetadataKwargsWithoutSymbol,
     EventType,
@@ -29,7 +29,7 @@ class ValidationResults(BaseModel):
 
 
 @dataclass
-class TradeReceivedEvent(BasePortfolioEvent[Trade]):
+class TradeReceivedEvent(BaseEvent[Trade]):
     """Event fired when a new trade is received."""
 
     @classmethod
@@ -84,7 +84,7 @@ class TradeReceivedEvent(BasePortfolioEvent[Trade]):
 
 
 @dataclass
-class TradeValidatedEvent(BasePortfolioEvent[Trade]):
+class TradeValidatedEvent(BaseEvent[Trade]):
     """Event fired when a trade passes validation."""
 
     @classmethod
@@ -147,7 +147,7 @@ class TradeValidatedEvent(BasePortfolioEvent[Trade]):
 
 
 @dataclass
-class TradeProcessedEvent(BasePortfolioEvent[Trade]):
+class TradeProcessedEvent(BaseEvent[Trade]):
     """Event fired when a trade is successfully processed."""
 
     @classmethod
@@ -227,7 +227,7 @@ class RejectedTradeData(BaseModel):
 
 
 @dataclass
-class TradeRejectedEvent(BasePortfolioEvent[RejectedTradeData]):
+class TradeRejectedEvent(BaseEvent[RejectedTradeData]):
     """Event fired when a trade is rejected."""
 
     @classmethod

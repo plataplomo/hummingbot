@@ -73,8 +73,7 @@ class Engine(BaseModel):
         """Get current portfolio capital for position sizing."""
         # Clean separation: portfolio provides state, performance calculates metrics
         portfolio_state = await self.portfolio_manager.get_portfolio_summary()
-        # TODO: Fix PortfolioState type mismatch - two different classes with same name
-        performance = await self.performance_analytics.calculate_performance(portfolio_state)  # type: ignore[arg-type]
+        performance = await self.performance_analytics.calculate_performance(portfolio_state)
         return performance.total_capital
 
     async def get_position_size_for_trade(self, symbol: Symbol, signal_strength: float) -> Decimal:

@@ -286,7 +286,7 @@ class AdvancedPortfolioStrategy:
 
         # Get total capital
         capital_summary = await self.portfolio_manager.get_total_capital()
-        total_capital = capital_summary.total_capital
+        total_capital = capital_summary.total_account_value
 
         if total_capital == 0:
             return {}
@@ -330,7 +330,7 @@ class AdvancedPortfolioStrategy:
             if abs(weight_diff) > target.rebalance_threshold:
                 # Calculate trade size
                 capital_summary = await self.portfolio_manager.get_total_capital()
-                total_capital = capital_summary.total_capital
+                total_capital = capital_summary.total_account_value
 
                 trade_value = weight_diff * total_capital
 
@@ -436,7 +436,7 @@ class AdvancedPortfolioStrategy:
         portfolio_summary = await self.portfolio_manager.get_portfolio_summary()
 
         # Check position size limits
-        total_capital = portfolio_summary.capital_summary.total_capital
+        total_capital = portfolio_summary.capital_summary.total_account_value
         trade_value = trade_spec["quantity"]
 
         if total_capital > 0:
@@ -577,7 +577,7 @@ class AdvancedPortfolioStrategy:
         # Check drawdown
         total_pnl = pnl_summary.total_realized_pnl + pnl_summary.total_unrealized_pnl
         capital_summary = await self.portfolio_manager.get_total_capital()
-        total_capital = capital_summary.total_capital
+        total_capital = capital_summary.total_account_value
 
         if total_capital > 0:
             drawdown = abs(min(total_pnl, Decimal(0))) / total_capital

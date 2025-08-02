@@ -10,7 +10,7 @@ from cyberdelta.core.risk.sizing.strategies.simple_sizer import SimpleSizer
 from cyberdelta.core.risk.sizing.strategies.kelly_criterion_sizer import KellyCriterionSizer
 from cyberdelta.core.risk.sizing.strategies.production_kelly_sizer import ProductionKellySizer
 from cyberdelta.core.risk.utils.risk_metrics_calculator import RiskMetricsCalculator
-from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData as PortfolioState
 from cyberdelta.core.portfolio.config.risk_parameters import MarketDataProvider
 
 

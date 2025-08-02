@@ -493,10 +493,10 @@ class PortfolioAwareTradeExecutor:
             }
             
             # Update instance variables
-            self.max_slippage = config.get("max_slippage", self.max_slippage)
-            self.execution_timeout = config.get("execution_timeout", self.execution_timeout)
-            self.max_retry_attempts = config.get("max_retry_attempts", self.max_retry_attempts)
-            self.partial_fill_threshold = config.get("partial_fill_threshold", self.partial_fill_threshold)
+            self.max_slippage = Decimal(str(config.get("max_slippage", self.max_slippage)))
+            self.execution_timeout = int(config.get("execution_timeout", self.execution_timeout))
+            self.max_retry_attempts = int(config.get("max_retry_attempts", self.max_retry_attempts))
+            self.partial_fill_threshold = Decimal(str(config.get("partial_fill_threshold", self.partial_fill_threshold)))
             
         except Exception:
             # Use defaults if config loading fails

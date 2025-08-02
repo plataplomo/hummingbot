@@ -290,9 +290,9 @@ class CleanTradingEngine:
             "state": self._state.value,
             "uptime": self._get_uptime(),
             "portfolio": {
-                "total_capital": portfolio_with_risk.portfolio_state.total_capital,
+                "total_capital": portfolio_with_risk.portfolio_state.total_account_value,
                 "total_exposure": portfolio_with_risk.risk_assessment.total_exposure,
-                "position_count": len(portfolio_with_risk.portfolio_state.positions),
+                "position_count": portfolio_with_risk.portfolio_state.active_positions,
                 "unrealized_pnl": getattr(portfolio_with_risk.portfolio_state, "unrealized_pnl", Decimal(0))
             },
             "execution_stats": self._execution_stats.copy(),
@@ -441,10 +441,10 @@ class CleanTradingEngine:
         return {
             "portfolio_state": portfolio_with_risk.portfolio_state,
             "risk_assessment": portfolio_with_risk.risk_assessment,
-            "total_capital": portfolio_with_risk.portfolio_state.total_capital,
-            "available_capital": portfolio_with_risk.portfolio_state.total_capital - 
+            "total_capital": portfolio_with_risk.portfolio_state.total_account_value,
+            "available_capital": portfolio_with_risk.portfolio_state.total_account_value - 
                                portfolio_with_risk.risk_assessment.total_exposure,
-            "position_count": len(portfolio_with_risk.portfolio_state.positions),
+            "position_count": portfolio_with_risk.portfolio_state.active_positions,
             "timestamp": portfolio_with_risk.timestamp
         }
 
@@ -568,7 +568,7 @@ class CleanTradingEngine:
         warnings: list[dict[str, Any]] = []
         
         total_exposure = portfolio_with_risk.risk_assessment.total_exposure
-        total_capital = portfolio_with_risk.portfolio_state.total_capital
+        total_capital = portfolio_with_risk.portfolio_state.total_account_value
         
         # Check exposure limit (80% of capital)
         if total_exposure > total_capital * Decimal("0.8"):

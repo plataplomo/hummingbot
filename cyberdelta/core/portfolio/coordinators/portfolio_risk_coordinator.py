@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState, Position
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioStateData as PortfolioState, Position
 from cyberdelta.core.portfolio.services import PortfolioServiceFactory
 from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
 from cyberdelta.core.portfolio.config.risk_parameters import (
@@ -158,7 +158,7 @@ class PortfolioRiskCoordinator(BaseModel):
         execution_parameters = {}
         
         # 1. Capital adequacy validation
-        total_capital = portfolio_state.total_capital
+        total_capital = portfolio_state.total_account_value
         estimated_price = trade_request.price or await self._get_estimated_price(trade_request.symbol)
         trade_value = trade_request.quantity * estimated_price
         
@@ -309,7 +309,7 @@ class PortfolioRiskCoordinator(BaseModel):
             volatility_estimate = risk_metrics.portfolio_volatility
         except Exception:
             # Professional fallback calculations
-            leverage_ratio = total_exposure / portfolio_state.total_capital if portfolio_state.total_capital > 0 else Decimal("0")
+            leverage_ratio = total_exposure / portfolio_state.total_account_value if portfolio_state.total_account_value > 0 else Decimal("0")
             
             # VaR calculation using parametric method
             portfolio_volatility = await self._calculate_portfolio_volatility(positions_list)
@@ -324,13 +324,13 @@ class PortfolioRiskCoordinator(BaseModel):
             volatility_estimate = portfolio_volatility
 
         # Calculate additional risk metrics
-        concentration_risk = await self._calculate_concentration_risk(positions_list, portfolio_state.total_capital)
+        concentration_risk = await self._calculate_concentration_risk(positions_list, portfolio_state.total_account_value)
         correlation_risk = await self._calculate_correlation_risk(positions_list)
         liquidity_risk = await self._calculate_liquidity_risk(positions_list)
         
         # Calculate comprehensive risk score
         risk_score = await self._calculate_risk_score(
-            leverage_ratio, max_drawdown, concentration_risk, var_95, portfolio_state.total_capital
+            leverage_ratio, max_drawdown, concentration_risk, var_95, portfolio_state.total_account_value
         )
 
         return RiskAssessment(
@@ -393,7 +393,7 @@ class PortfolioRiskCoordinator(BaseModel):
         
         # If we have negative unrealized P&L, that contributes to drawdown
         if total_unrealized_pnl < 0:
-            return abs(total_unrealized_pnl) / portfolio_state.total_capital if portfolio_state.total_capital > 0 else Decimal("0")
+            return abs(total_unrealized_pnl) / portfolio_state.total_account_value if portfolio_state.total_account_value > 0 else Decimal("0")
         
         return Decimal("0")
 
@@ -553,7 +553,7 @@ class PortfolioRiskCoordinator(BaseModel):
         risk_change = new_var - current_var
         
         # Estimate performance impact
-        total_capital = portfolio_state.total_capital
+        total_capital = portfolio_state.total_account_value
         position_percent = abs(notional_value) / total_capital if total_capital > 0 else Decimal("0")
         expected_return = self.risk_params.default_expected_returns["default"]
         performance_impact = position_percent * expected_return
@@ -793,7 +793,7 @@ class PortfolioRiskCoordinator(BaseModel):
             pass
         
         # Professional position sizing calculation
-        total_capital = portfolio_state.total_capital
+        total_capital = portfolio_state.total_account_value
         
         # Method 1: Risk parity sizing
         target_risk_contribution = total_capital * self.risk_params.target_risk_per_position

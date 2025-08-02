@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.infrastructure.services.base_service import BaseService
 
 from .balance_reconciliation_service import BalanceDiscrepancy, BalanceReconciliationService
 from .order_reconciliation_service import OrderDiscrepancy, OrderReconciliationService
@@ -84,7 +84,7 @@ class ReconciliationResult:
         }
 
 
-class ReconciliationOrchestrator(BasePortfolioService):
+class ReconciliationOrchestrator(BaseService):
     """Orchestrates portfolio reconciliation using focused services."""
     
     # Service dependencies

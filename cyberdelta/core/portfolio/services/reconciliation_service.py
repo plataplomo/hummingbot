@@ -8,7 +8,8 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.portfolio_types.infrastructure import EventType, PortfolioEvent
+from cyberdelta.core.infrastructure.events import EventType
+from cyberdelta.core.portfolio.events.error_events import ComponentInitializedEvent, ComponentStateData, ErrorOccurredEvent, ErrorData
 
 if TYPE_CHECKING:
     from cyberdelta.core.portfolio.services import PortfolioServiceFactory
@@ -65,11 +66,14 @@ class PortfolioReconciliationService(BaseModel):
 
             # Dispatch reconciliation complete event - using existing event type
             if self.event_dispatcher:
-                event = PortfolioEvent(
-                    event_type=EventType.COMPONENT_INITIALIZED,  # Using existing event type
-                    exchange_id="all",
-                    timestamp=datetime.now(UTC).timestamp(),  # Convert to float
-                    data={"message": "reconciliation_complete", "exchange_count": len(exchange_data) if exchange_data else 0}
+                component_data = ComponentStateData(
+                    component_name="reconciliation_service",
+                    state="reconciliation_complete",
+                    metadata={"exchange_count": len(exchange_data) if exchange_data else 0}
+                )
+                event = ComponentInitializedEvent.create(
+                    component=component_data,
+                    exchange_id="all"
                 )
                 await self.event_dispatcher.dispatch(event)
 
@@ -97,11 +101,14 @@ class PortfolioReconciliationService(BaseModel):
 
             # Dispatch exchange reconciliation complete event - using existing event type
             if self.event_dispatcher:
-                event = PortfolioEvent(
-                    event_type=EventType.COMPONENT_INITIALIZED,  # Using existing event type
-                    exchange_id=exchange_id,
-                    timestamp=datetime.now(UTC).timestamp(),  # Convert to float
-                    data={"message": "exchange_reconciled", "exchange_id": exchange_id}
+                component_data = ComponentStateData(
+                    component_name="reconciliation_service",
+                    state="exchange_reconciled",
+                    metadata={"exchange_id": exchange_id}
+                )
+                event = ComponentInitializedEvent.create(
+                    component=component_data,
+                    exchange_id=exchange_id
                 )
                 await self.event_dispatcher.dispatch(event)
 
@@ -120,10 +127,14 @@ class PortfolioReconciliationService(BaseModel):
         
         # Create validation failure event - using existing event type
         if self.event_dispatcher:
-            event = PortfolioEvent(
-                event_type=EventType.ERROR_OCCURRED,  # Using existing event type
-                exchange_id="validation",
-                timestamp=datetime.now(UTC).timestamp(),  # Convert to float
-                data={"message": "validation_failed", "errors": errors, "validation_result": str(validation_result)}
+            error_data = ErrorData(
+                component="reconciliation_service",
+                error_type="validation_failed",
+                error_message=f"Validation failed with {len(errors)} errors",
+                context={"errors": errors, "validation_result": str(validation_result)}
+            )
+            event = ErrorOccurredEvent.create(
+                error=error_data,
+                exchange_id="validation"
             )
             await self.event_dispatcher.dispatch(event)

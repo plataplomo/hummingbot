@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Unpack
 
-from cyberdelta.core.portfolio.exceptions.base import PortfolioError
+from cyberdelta.core.infrastructure.exceptions.base import CoreError
 from cyberdelta.core.portfolio.portfolio_types.infrastructure import ServiceExceptionContext
 
 
@@ -24,7 +24,7 @@ HTTP_SERVER_ERROR_START = 500
 HTTP_SERVER_ERROR_END = 600
 
 
-class ServiceError(PortfolioError):
+class ServiceError(CoreError):
     """Base exception for service errors."""
 
     def _get_default_error_code(self) -> str:

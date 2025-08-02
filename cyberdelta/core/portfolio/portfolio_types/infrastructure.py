@@ -21,7 +21,8 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, field_validator
 from pydantic.dataclasses import dataclass
 
-from cyberdelta.core.portfolio.exceptions.base import PortfolioError
+from cyberdelta.core.infrastructure.exceptions.base import CoreError as PortfolioError
+from cyberdelta.core.infrastructure.events import BaseEvent
 from cyberdelta.core.portfolio.exceptions.state import (
     ContainerSizeLimitExceededError,
     StateValidationError,
@@ -121,67 +122,14 @@ class EventMetadata:
         }
 
 
-@dataclass
-class BasePortfolioEvent[T](ABC):
-    """Base class for all portfolio events."""
-    event_type: EventType
-    data: T
-    metadata: EventMetadata = Field(default_factory=EventMetadata)
+# BasePortfolioEvent has been removed - use BaseEvent[T] from infrastructure/events instead
     
-    def __post_init__(self) -> None:
-        """Post-initialization setup."""
-        if not self.metadata.source_component:
-            self.metadata.source_component = self.__class__.__name__
-    
-    @property
-    def event_id(self) -> UUID:
-        """Get event ID."""
-        return self.metadata.event_id
-    
-    @property
-    def timestamp(self) -> float:
-        """Get event timestamp."""
-        return self.metadata.timestamp
-    
-    @property
-    def age(self) -> float:
-        """Get event age in seconds."""
-        return time.time() - self.metadata.timestamp
-    
-    def is_expired(self, max_age_seconds: float) -> bool:
-        """Check if event has expired."""
-        return self.age > max_age_seconds
-    
-    def to_dict(self) -> dict[str, Any]:
-        """Convert event to dictionary representation."""
-        return {
-            "event_type": self.event_type.value,
-            "data": self._serialize_data(),
-            "metadata": self.metadata.to_dict(),
-        }
-    
-    @abstractmethod
-    def _serialize_data(self) -> dict[str, Any]:
-        """Serialize event data."""
-        ...
-    
-    def __str__(self) -> str:
-        """String representation."""
-        return (
-            f"{self.__class__.__name__}("
-            f"type={self.event_type.value}, "
-            f"id={self.event_id}, "
-            f"source={self.metadata.source_component})"
-        )
+# Methods removed - these belonged to BasePortfolioEvent which has been removed
 
 
-class PortfolioEvent(BaseModel):
-    """Portfolio event base class."""
-    event_type: EventType
-    exchange_id: str
-    timestamp: float
-    data: dict[str, Any]
-    metadata: EventMetadata | None = None
+# PortfolioEvent has been removed - use BaseEvent[T] from infrastructure/events instead
+# For untyped events, use BaseEvent[dict[str, Any]]
+# For typed events, use concrete event classes like TradeProcessedEvent, BalanceUpdatedEvent, etc.
 
 
 # ==================== State Management Types ====================
@@ -926,12 +874,12 @@ class EventHandler[T](ABC):
     """Abstract base class for event handlers."""
     
     @abstractmethod
-    async def handle(self, event: BasePortfolioEvent[T]) -> None:
+    async def handle(self, event: BaseEvent[T]) -> None:
         """Handle an event."""
         ...
     
     @abstractmethod
-    def can_handle(self, event: BasePortfolioEvent[Any]) -> bool:
+    def can_handle(self, event: BaseEvent[Any]) -> bool:
         """Check if handler can handle the event."""
         ...
     
@@ -944,7 +892,7 @@ class EventFilter(ABC):
     """Abstract base class for event filters."""
     
     @abstractmethod
-    def should_process(self, event: BasePortfolioEvent[Any]) -> bool:
+    def should_process(self, event: BaseEvent[Any]) -> bool:
         """Check if event should be processed."""
         ...
 

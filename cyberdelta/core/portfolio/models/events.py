@@ -285,13 +285,10 @@ class MetricsEvent(BaseStateModel):
         )
 
 
-# Discriminated union of all portfolio events
-PortfolioEvent = StateChangeEvent | ErrorEvent | ValidationEvent | MetricsEvent
-
 # Type alias for annotated discriminated union
-
-
-AnnotatedPortfolioEvent = Annotated[PortfolioEvent, Field(discriminator="event_type")]
+# Use discriminated union directly in type annotations like:
+# Union[StateChangeEvent, ErrorEvent, ValidationEvent, MetricsEvent]
+AnnotatedPortfolioEvent = Annotated[StateChangeEvent | ErrorEvent | ValidationEvent | MetricsEvent, Field(discriminator="event_type")]
 
 
 # Factory functions for creating events

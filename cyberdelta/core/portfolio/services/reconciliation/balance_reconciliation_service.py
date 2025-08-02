@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
+from cyberdelta.core.infrastructure.services.base_service import BaseService
 
 if TYPE_CHECKING:
     from cyberdelta.core.models import SpotBalance
@@ -31,7 +31,7 @@ class BalanceDiscrepancy(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class BalanceReconciliationService(BasePortfolioService):
+class BalanceReconciliationService(BaseService):
     """Verifies balance consistency across exchanges."""
     
     # Configuration

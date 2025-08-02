@@ -10,10 +10,8 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.portfolio.exceptions import (
-    CurrencyMismatchError,
-    RiskCalculationError,
-)
+from cyberdelta.core.portfolio.exceptions import CurrencyMismatchError
+from cyberdelta.core.risk.exceptions.base_exceptions import RiskCalculationError
 from cyberdelta.enums import OrderSide
 
 

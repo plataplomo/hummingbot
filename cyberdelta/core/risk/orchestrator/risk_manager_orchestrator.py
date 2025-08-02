@@ -213,7 +213,7 @@ class RiskManagerOrchestrator:
         self.portfolio_snapshots: list[PortfolioSnapshot] = []
 
         # Capital management from AppSettings
-        self.total_capital = self.sizing_settings.total_capital or Decimal("10000.0")
+        self.total_account_value = self.sizing_settings.total_capital or Decimal("10000.0")
         self.available_capital = self.sizing_settings.total_capital or Decimal("10000.0")
 
         # Performance tracking
@@ -572,13 +572,13 @@ class RiskManagerOrchestrator:
         # Calculate current leverage
         total_position_value = sum(pos.total_size_usd for pos in self.current_positions)
         current_leverage = (
-            total_position_value / self.total_capital if self.total_capital > 0 else Decimal(0)
+            total_position_value / self.total_account_value if self.total_account_value > 0 else Decimal(0)
         )
 
         return ConstraintContext(
-            total_capital=self.total_capital,
+            total_capital=self.total_account_value,
             available_capital=self.available_capital,
-            reserved_capital=self.total_capital - self.available_capital,
+            reserved_capital=self.total_account_value - self.available_capital,
             current_positions=self.current_positions,
             current_allocations=current_allocations,
             current_exchange_allocations=current_exchange_allocations,
@@ -601,12 +601,12 @@ class RiskManagerOrchestrator:
 
         # Update available capital
         self.position_sizer.reserve_capital(sized_opportunity.total_size_usd)
-        self.available_capital = self.position_sizer.get_available_capital(self.total_capital)
+        self.available_capital = self.position_sizer.get_available_capital(self.total_account_value)
 
         # Create portfolio snapshot
         snapshot = PortfolioSnapshot(
             timestamp=datetime.now(tz=UTC),
-            total_value=self.total_capital,
+            total_value=self.total_account_value,
             positions=self.current_positions.copy(),
             cash_balance=self.available_capital,
             total_exposure=sum((pos.total_size_usd for pos in self.current_positions), Decimal(0)),
@@ -617,8 +617,8 @@ class RiskManagerOrchestrator:
             ),
             gross_leverage=(
                 sum((pos.total_size_usd for pos in self.current_positions), Decimal(0))
-                / self.total_capital
-                if self.total_capital > 0
+                / self.total_account_value
+                if self.total_account_value > 0
                 else Decimal(0)
             ),
         )
@@ -641,7 +641,7 @@ class RiskManagerOrchestrator:
                 # Release capital
                 self.position_sizer.release_capital(position.total_size_usd)
                 self.available_capital = self.position_sizer.get_available_capital(
-                    self.total_capital
+                    self.total_account_value
                 )
 
                 # Remove position
@@ -668,7 +668,7 @@ class RiskManagerOrchestrator:
             risk_dict = None
 
         return {
-            "portfolio_value": float(self.total_capital),
+            "portfolio_value": float(self.total_account_value),
             "available_capital": float(self.available_capital),
             "position_count": len(self.current_positions),
             "total_exposure": float(sum(pos.total_size_usd for pos in self.current_positions)),
@@ -723,7 +723,7 @@ class RiskManagerOrchestrator:
 
     def set_capital(self, total_capital: Decimal) -> None:
         """Update total capital."""
-        self.total_capital = total_capital
+        self.total_account_value = total_capital
         self.available_capital = self.position_sizer.get_available_capital(total_capital)
         self.logger.info("Set total capital", total_capital_usd=float(total_capital))
 
@@ -746,7 +746,7 @@ class RiskManagerOrchestrator:
         """
         return (
             f"RiskManagerOrchestrator(positions={len(self.current_positions)}, "
-            f"total_capital=${self.total_capital:.2f}, "
+            f"total_capital=${self.total_account_value:.2f}, "
             f"available_capital=${self.available_capital:.2f}, "
             f"processed={self.opportunities_processed})"
         )

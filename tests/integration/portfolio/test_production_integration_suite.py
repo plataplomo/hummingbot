@@ -188,7 +188,7 @@ class ProductionIntegrationTestFramework:
                 
             # Validate portfolio state contains real data
             if hasattr(portfolio_state, 'total_capital'):
-                total_capital = portfolio_state.total_capital
+                total_capital = portfolio_state.total_account_value
                 if not isinstance(total_capital, Decimal):
                     pytest.fail(f"Total capital must be Decimal, got {type(total_capital)}")
                 if total_capital < Decimal("0"):

@@ -1,31 +1,36 @@
-"""Base classes for the portfolio event system."""
+"""Re-export event infrastructure from new location.
 
-from .base_event import (
-    BasePortfolioEvent,
+Note: Event infrastructure has been moved to cyberdelta.core.infrastructure.events
+This module now only re-exports for compatibility.
+"""
+
+from cyberdelta.core.infrastructure.events import (
+    BaseEvent,
     CompositeEventFilter,
+    EventDispatcher,
     EventFilter,
     EventHandler,
     EventMetadata,
     EventPriority,
     EventType,
     ExchangeEventFilter,
+    HandlerRegistration,
     PriorityEventFilter,
     TypeEventFilter,
 )
-from .event_dispatcher import EventDispatcher, HandlerRegistration
-from .event_handler_protocol import (
-    EventDispatcherProtocol,
-    EventMetrics,
-    EventProcessor,
-    EventPublisher,
-    EventStore,
-    EventSubscriber,
-)
+
+# These protocols need to be moved or defined elsewhere
+EventDispatcherProtocol = None
+EventMetrics = None
+EventProcessor = None  
+EventPublisher = None
+EventStore = None
+EventSubscriber = None
 
 
 __all__ = [
     # Base event classes
-    "BasePortfolioEvent",
+    "BaseEvent",
     "CompositeEventFilter",
     # Dispatcher
     "EventDispatcher",

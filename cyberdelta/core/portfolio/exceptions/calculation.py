@@ -5,7 +5,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, TypedDict, Unpack
 
-from cyberdelta.core.portfolio.exceptions.base import PortfolioError
+from cyberdelta.core.infrastructure.exceptions.base import CoreError
 
 
 class ExceptionKwargs(TypedDict, total=False):
@@ -16,7 +16,7 @@ class ExceptionKwargs(TypedDict, total=False):
     recoverable: bool
 
 
-class CalculationError(PortfolioError):
+class CalculationError(CoreError):
     """Base exception for calculation errors."""
 
     def _get_default_error_code(self) -> str:

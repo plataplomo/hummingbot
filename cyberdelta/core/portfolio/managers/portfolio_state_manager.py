@@ -386,7 +386,7 @@ class PortfolioStateManager:
             # Validate trade if validation service is available
             if self.validation_service and self.validation_enabled:
                 validation_result = await self.validation_service.validate_trade(trade)
-                if not validation_result.valid:
+                if not validation_result.is_valid:
                     logger.warning(
                         "trade_validation_failed",
                         trade_id=trade.id,
@@ -648,7 +648,7 @@ class PortfolioStateManager:
             # Validate using the validation service
             validation_result = await self.validation_service.validate_portfolio_state(summary)
 
-            if validation_result.valid:
+            if validation_result.is_valid:
                 self.validation_count += 1
             else:
                 self.error_count += 1
@@ -664,7 +664,7 @@ class PortfolioStateManager:
         else:
             # Convert ValidationResult to StateValidationResult
             return StateValidationResult(
-                is_valid=validation_result.valid,
+                is_valid=validation_result.is_valid,
                 errors=validation_result.errors,
                 warnings=validation_result.warnings,
                 metadata={},
