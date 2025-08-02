@@ -21,9 +21,9 @@ class SystemHealthMetric:
     threshold_value: float | None = None
     unit: str = ""
     status: HealthStatus = HealthStatus.HEALTHY
-    timestamp: datetime = None
+    timestamp: datetime | None = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now(UTC)
 
@@ -37,9 +37,9 @@ class SystemHealthAlert:
     metric_name: str
     current_value: float
     threshold_value: float
-    timestamp: datetime = None
+    timestamp: datetime | None = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now(UTC)
 
@@ -48,20 +48,21 @@ class SystemHealthMonitor(BasePortfolioService):
     """Monitors system-level health metrics like CPU, memory, disk usage."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__("system_health_monitor")
-        self.config = config or {}
+        super().__init__("system_health_monitor", config)
+        # Access the thresholds from the provided config dict for backwards compatibility
+        config_dict = config or {}
         self.logger = get_logger(__name__)
         
         # System thresholds
         self.thresholds = {
-            "cpu_usage_warning": self.config.get("cpu_warning", 80.0),
-            "cpu_usage_critical": self.config.get("cpu_critical", 95.0),
-            "memory_usage_warning": self.config.get("memory_warning", 85.0),
-            "memory_usage_critical": self.config.get("memory_critical", 95.0),
-            "disk_usage_warning": self.config.get("disk_warning", 80.0),
-            "disk_usage_critical": self.config.get("disk_critical", 90.0),
-            "response_time_warning": self.config.get("response_time_warning", 1000.0),  # ms
-            "response_time_critical": self.config.get("response_time_critical", 5000.0)  # ms
+            "cpu_usage_warning": config_dict.get("cpu_warning", 80.0),
+            "cpu_usage_critical": config_dict.get("cpu_critical", 95.0),
+            "memory_usage_warning": config_dict.get("memory_warning", 85.0),
+            "memory_usage_critical": config_dict.get("memory_critical", 95.0),
+            "disk_usage_warning": config_dict.get("disk_warning", 80.0),
+            "disk_usage_critical": config_dict.get("disk_critical", 90.0),
+            "response_time_warning": config_dict.get("response_time_warning", 1000.0),  # ms
+            "response_time_critical": config_dict.get("response_time_critical", 5000.0)  # ms
         }
         
         # Performance tracking
@@ -131,7 +132,7 @@ class SystemHealthMonitor(BasePortfolioService):
             # Determine status
             status = HealthStatus.HEALTHY
             if cpu_percent >= self.thresholds["cpu_usage_critical"]:
-                status = HealthStatus.CRITICAL
+                status = HealthStatus.ERROR
                 alerts.append(SystemHealthAlert(
                     alert_type="high_cpu_usage",
                     severity="critical",
@@ -161,12 +162,13 @@ class SystemHealthMonitor(BasePortfolioService):
             
             # CPU count metric
             cpu_count = psutil.cpu_count()
-            metrics.append(SystemHealthMetric(
-                metric_name="cpu_count",
-                current_value=float(cpu_count),
-                unit="cores",
-                status=HealthStatus.HEALTHY
-            ))
+            if cpu_count is not None:
+                metrics.append(SystemHealthMetric(
+                    metric_name="cpu_count",
+                    current_value=float(cpu_count),
+                    unit="cores",
+                    status=HealthStatus.HEALTHY
+                ))
             
         except Exception as e:
             self.logger.error(f"Error checking CPU health: {e}")
@@ -194,7 +196,7 @@ class SystemHealthMonitor(BasePortfolioService):
             # Determine status
             status = HealthStatus.HEALTHY
             if memory_percent >= self.thresholds["memory_usage_critical"]:
-                status = HealthStatus.CRITICAL
+                status = HealthStatus.ERROR
                 alerts.append(SystemHealthAlert(
                     alert_type="high_memory_usage",
                     severity="critical",
@@ -262,7 +264,7 @@ class SystemHealthMonitor(BasePortfolioService):
             # Determine status
             status = HealthStatus.HEALTHY
             if disk_percent >= self.thresholds["disk_usage_critical"]:
-                status = HealthStatus.CRITICAL
+                status = HealthStatus.ERROR
                 alerts.append(SystemHealthAlert(
                     alert_type="high_disk_usage",
                     severity="critical",
@@ -330,7 +332,7 @@ class SystemHealthMonitor(BasePortfolioService):
                 # Determine status
                 status = HealthStatus.HEALTHY
                 if avg_response_time >= self.thresholds["response_time_critical"]:
-                    status = HealthStatus.CRITICAL
+                    status = HealthStatus.ERROR
                     alerts.append(SystemHealthAlert(
                         alert_type="slow_response_time",
                         severity="critical",
@@ -417,17 +419,17 @@ class SystemHealthMonitor(BasePortfolioService):
         # Check for critical alerts
         critical_alerts = [a for a in alerts if a.severity == "critical"]
         if critical_alerts:
-            return HealthStatus.CRITICAL
+            return HealthStatus.ERROR
         
         # Check metric statuses
         metric_statuses = [metric.status for metric in metrics]
         
-        if HealthStatus.CRITICAL in metric_statuses:
-            return HealthStatus.CRITICAL
+        if HealthStatus.ERROR in metric_statuses:
+            return HealthStatus.ERROR
         if HealthStatus.WARNING in metric_statuses:
             return HealthStatus.WARNING
-        if HealthStatus.DEGRADED in metric_statuses:
-            return HealthStatus.DEGRADED
+        if HealthStatus.WARNING in metric_statuses:
+            return HealthStatus.WARNING
         return HealthStatus.HEALTHY
 
     def _calculate_system_score(self, metrics: list[SystemHealthMetric]) -> float:
@@ -437,9 +439,9 @@ class SystemHealthMonitor(BasePortfolioService):
         
         status_weights = {
             HealthStatus.HEALTHY: 1.0,
-            HealthStatus.DEGRADED: 0.8,
+            HealthStatus.WARNING: 0.8,
             HealthStatus.WARNING: 0.6,
-            HealthStatus.CRITICAL: 0.2,
+            HealthStatus.ERROR: 0.2,
             HealthStatus.UNKNOWN: 0.5
         }
         
@@ -454,7 +456,7 @@ class SystemHealthMonitor(BasePortfolioService):
             "threshold_value": metric.threshold_value,
             "unit": metric.unit,
             "status": metric.status.value,
-            "timestamp": metric.timestamp.isoformat()
+            "timestamp": metric.timestamp.isoformat() if metric.timestamp else None
         }
 
     def _alert_to_dict(self, alert: SystemHealthAlert) -> dict[str, Any]:
@@ -466,5 +468,5 @@ class SystemHealthMonitor(BasePortfolioService):
             "metric_name": alert.metric_name,
             "current_value": alert.current_value,
             "threshold_value": alert.threshold_value,
-            "timestamp": alert.timestamp.isoformat()
+            "timestamp": alert.timestamp.isoformat() if alert.timestamp else None
         }

@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 
 
 if TYPE_CHECKING:
@@ -69,13 +70,13 @@ class ConcurrencyManager:
                 logger.debug("exchange_lock_released", exchange_id=exchange_id)
 
     @asynccontextmanager
-    async def symbol_lock(self, symbol: str) -> AsyncIterator[None]:
+    async def symbol_lock(self, symbol: Symbol) -> AsyncIterator[None]:
         """Acquire symbol-specific lock for position operations.
 
         Args:
             symbol: Trading symbol to lock
         """
-        lock = self._symbol_locks[symbol]
+        lock = self._symbol_locks[symbol.value]
         async with lock:
             logger.debug("symbol_lock_acquired", symbol=symbol)
             try:
@@ -119,7 +120,7 @@ class ConcurrencyManager:
                 )
 
     @asynccontextmanager
-    async def trade_processing_lock(self, exchange_id: str, symbol: str) -> AsyncIterator[None]:
+    async def trade_processing_lock(self, exchange_id: str, symbol: Symbol) -> AsyncIterator[None]:
         """Acquire locks for trade processing in correct order.
 
         Prevents deadlocks by acquiring exchange lock before symbol lock.

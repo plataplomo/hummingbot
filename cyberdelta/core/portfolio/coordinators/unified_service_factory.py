@@ -2,7 +2,12 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from cyberdelta.core.portfolio.services.analytics.performance_analytics import PerformanceAnalyticsService
+    from cyberdelta.core.portfolio.services.event_dispatcher import EventDispatcher
+    from cyberdelta.core.portfolio.services.market_data.market_data_service import RealMarketDataService
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -44,10 +49,10 @@ class UnifiedServiceFactory(BaseModel):
         self.risk_factory = RiskServiceFactory(risk_config)
         
         # API clients for exchange integration (will be set during initialization)
-        self._api_clients = None
+        self._api_clients: dict[str, Any] | None = None
         
         # Market data provider will be created during initialization
-        self._market_data_provider = None
+        self._market_data_provider: RealMarketDataService | None = None
 
         # Integration layer - the core coordinator
         self.coordinator = PortfolioRiskCoordinator(
@@ -56,11 +61,11 @@ class UnifiedServiceFactory(BaseModel):
         )
 
         # Service instances (initialized during startup)
-        self._portfolio_manager = None
-        self._performance_analytics = None
-        self._risk_analytics = None
-        self._exposure_analytics = None
-        self._event_dispatcher = None
+        self._portfolio_manager: PortfolioStateManager | None = None
+        self._performance_analytics: PerformanceAnalyticsService | None = None
+        self._risk_analytics: Any | None = None  # TODO: Add proper type
+        self._exposure_analytics: Any | None = None  # TODO: Add proper type
+        self._event_dispatcher: EventDispatcher | None = None
         
         # Initialization state
         self._initialized = False
@@ -93,8 +98,9 @@ class UnifiedServiceFactory(BaseModel):
             # Phase 3: Create service instances
             self._portfolio_manager = self.portfolio_factory.create_portfolio_state_manager()
             self._performance_analytics = self.portfolio_factory.create_performance_analytics()
-            self._risk_analytics = self.risk_factory.create_risk_analytics()
-            self._exposure_analytics = self.risk_factory.create_exposure_analytics()
+            # Create risk calculators instead of analytics services
+            self._risk_analytics = self.risk_factory.create_risk_metrics_calculator()
+            self._exposure_analytics = self.risk_factory.create_exposure_calculator()
             
             # Get event dispatcher if available
             try:
@@ -141,27 +147,29 @@ class UnifiedServiceFactory(BaseModel):
         """Pure portfolio state management."""
         if not self._initialized:
             raise RuntimeError("UnifiedServiceFactory not initialized - call initialize_all() first")
+        if self._portfolio_manager is None:
+            raise RuntimeError("Portfolio manager not created - initialization may have failed")
         return self._portfolio_manager
 
-    def get_performance_analytics(self):
+    def get_performance_analytics(self) -> PerformanceAnalyticsService | None:
         """Get performance analytics service."""
         if not self._initialized:
             raise RuntimeError("UnifiedServiceFactory not initialized - call initialize_all() first")
         return self._performance_analytics
 
-    def get_risk_analytics(self):
+    def get_risk_analytics(self) -> Any | None:
         """Get risk analytics service.""" 
         if not self._initialized:
             raise RuntimeError("UnifiedServiceFactory not initialized - call initialize_all() first")
         return self._risk_analytics
 
-    def get_exposure_analytics(self):
+    def get_exposure_analytics(self) -> Any | None:
         """Get exposure analytics service."""
         if not self._initialized:
             raise RuntimeError("UnifiedServiceFactory not initialized - call initialize_all() first")
         return self._exposure_analytics
 
-    def get_event_dispatcher(self):
+    def get_event_dispatcher(self) -> EventDispatcher | None:
         """Get event dispatcher service."""
         if not self._initialized:
             raise RuntimeError("UnifiedServiceFactory not initialized - call initialize_all() first")
@@ -188,7 +196,7 @@ class UnifiedServiceFactory(BaseModel):
         """Get risk service factory."""
         return self.risk_factory
     
-    def get_market_data_provider(self):
+    def get_market_data_provider(self) -> RealMarketDataService | None:
         """Get market data provider."""
         if not self._initialized:
             raise RuntimeError("UnifiedServiceFactory not initialized - call initialize_all() first")
@@ -211,27 +219,33 @@ class UnifiedServiceFactory(BaseModel):
         }
 
         # Check portfolio manager
-        try:
-            portfolio_state = await self._portfolio_manager.get_portfolio_summary()
-            health_status["services"]["portfolio_manager"] = {
-                "status": "healthy",
-                "total_capital": float(portfolio_state.total_capital),
-                "position_count": len([p for positions in portfolio_state.positions.values() for p in positions])
-            }
-        except Exception as e:
-            health_status["services"]["portfolio_manager"] = {"status": "unhealthy", "error": str(e)}
-            health_status["status"] = "degraded"
+        if self._portfolio_manager:
+            try:
+                portfolio_state = await self._portfolio_manager.get_portfolio_summary()
+                health_status["services"]["portfolio_manager"] = {
+                    "status": "healthy",
+                    "total_capital": float(portfolio_state.total_capital),
+                    "position_count": len([p for positions in portfolio_state.positions.values() for p in positions])
+                }
+            except Exception as e:
+                health_status["services"]["portfolio_manager"] = {"status": "unhealthy", "error": str(e)}
+                health_status["status"] = "degraded"
+        else:
+            health_status["services"]["portfolio_manager"] = {"status": "not_initialized"}
 
         # Check performance analytics
-        try:
-            if hasattr(self._performance_analytics, 'health_check'):
-                perf_health = await self._performance_analytics.health_check()
-                health_status["services"]["performance_analytics"] = perf_health
-            else:
-                health_status["services"]["performance_analytics"] = {"status": "healthy", "note": "no health check method"}
-        except Exception as e:
-            health_status["services"]["performance_analytics"] = {"status": "unhealthy", "error": str(e)}
-            health_status["status"] = "degraded"
+        if self._performance_analytics:
+            try:
+                if hasattr(self._performance_analytics, 'health_check'):
+                    perf_health = await self._performance_analytics.health_check()
+                    health_status["services"]["performance_analytics"] = perf_health
+                else:
+                    health_status["services"]["performance_analytics"] = {"status": "healthy", "note": "no health check method"}
+            except Exception as e:
+                health_status["services"]["performance_analytics"] = {"status": "unhealthy", "error": str(e)}
+                health_status["status"] = "degraded"
+        else:
+            health_status["services"]["performance_analytics"] = {"status": "not_initialized"}
 
         # Check risk analytics
         try:

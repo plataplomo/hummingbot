@@ -18,6 +18,9 @@ import structlog
 # Import the new persistence handler
 from .persistence import PerformanceDataPersistence
 
+# Import Symbol for type-safe symbol handling
+from cyberdelta.core.symbols import Symbol
+
 
 logger = structlog.get_logger(__name__)
 
@@ -86,7 +89,7 @@ class PerformanceTracker:
         self,
         trade_id: str,
         strategy_name: str,
-        symbol: str,
+        symbol: Symbol,
         exchange: str,
         direction: str,
         size: Decimal,
@@ -119,7 +122,7 @@ class PerformanceTracker:
             trade = {
                 "trade_id": trade_id,
                 "strategy": strategy_name,
-                "symbol": symbol,
+                "symbol": symbol.value,  # Store symbol as string for consistency
                 "exchange": exchange,
                 "direction": direction,
                 "size": size,
@@ -251,7 +254,7 @@ class PerformanceTracker:
         self,
         signal_id: str,
         strategy_name: str,
-        symbol: str,
+        symbol: Symbol,
         signal_type: str,
         timestamp: datetime,
         confidence: Decimal | None = None,
@@ -274,7 +277,7 @@ class PerformanceTracker:
             signal = {
                 "signal_id": signal_id,
                 "strategy": strategy_name,
-                "symbol": symbol,
+                "symbol": symbol.value,  # Store symbol as string for consistency
                 "signal_type": signal_type,
                 "timestamp": timestamp,
                 "confidence": confidence,
@@ -350,7 +353,7 @@ class PerformanceTracker:
         self,
         timestamp: datetime,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         funding_rate: Decimal,
         predicted_rate: Decimal | None = None,
         metadata: dict[str, Any] | None = None,
@@ -371,7 +374,7 @@ class PerformanceTracker:
             funding_data = {
                 "timestamp": timestamp,
                 "exchange": exchange,
-                "symbol": symbol,
+                "symbol": symbol.value,  # Store symbol as string for consistency
                 "funding_rate": funding_rate,
                 "predicted_rate": predicted_rate,
                 "metadata": metadata or {},
@@ -592,7 +595,7 @@ class PerformanceTracker:
     def get_funding_rates_dataframe(
         self,
         exchange: str | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
         pivot: bool = False,  # Add pivot option
@@ -629,7 +632,7 @@ class PerformanceTracker:
     def _filter_funding_rates(
         self,
         exchange: str | None,
-        symbol: str | None,
+        symbol: Symbol | None,
         start_time: datetime | None,
         end_time: datetime | None,
     ) -> list[dict[str, Any]]:
@@ -651,7 +654,9 @@ class PerformanceTracker:
             filtered_rates = [r for r in filtered_rates if r.get("exchange") == exchange]
 
         if symbol:
-            filtered_rates = [r for r in filtered_rates if r.get("symbol") == symbol]
+            # Convert Symbol to string for comparison with stored data
+            symbol_str = symbol.value
+            filtered_rates = [r for r in filtered_rates if r.get("symbol") == symbol_str]
 
         # Filter by time
         if start_time:

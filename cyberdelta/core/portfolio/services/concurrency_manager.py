@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.models.base import BaseStateModel, ValidationResult
+from cyberdelta.core.symbols import Symbol
 
 
 logger = get_logger(__name__)
@@ -145,7 +146,7 @@ class ConcurrencyManager(BaseStateModel):
         # Return type is explicitly asyncio.Lock
         return self._exchange_locks[exchange_id]
 
-    def _get_symbol_lock(self, symbol: str) -> asyncio.Lock:
+    def _get_symbol_lock(self, symbol: Symbol) -> asyncio.Lock:
         """Get symbol lock with explicit type safety.
 
         Args:
@@ -157,20 +158,21 @@ class ConcurrencyManager(BaseStateModel):
         Raises:
             RuntimeError: If maximum number of symbol locks is reached
         """
-        if symbol not in self._symbol_locks:
+        symbol_key = symbol.value
+        if symbol_key not in self._symbol_locks:
             if len(self._symbol_locks) >= self.max_locks_per_type:
                 msg = f"Maximum symbol locks ({self.max_locks_per_type}) reached"
                 raise RuntimeError(msg)
 
             # Explicit asyncio.Lock creation - no type inference
-            self._symbol_locks[symbol] = asyncio.Lock()
+            self._symbol_locks[symbol_key] = asyncio.Lock()
 
             logger.debug(
                 "symbol_lock_created", symbol=symbol, total_symbol_locks=len(self._symbol_locks)
             )
 
         # Return type is explicitly asyncio.Lock
-        return self._symbol_locks[symbol]
+        return self._symbol_locks[symbol_key]
 
     @asynccontextmanager
     async def global_lock(self) -> AsyncIterator[None]:
@@ -221,7 +223,7 @@ class ConcurrencyManager(BaseStateModel):
                 )
 
     @asynccontextmanager
-    async def symbol_lock(self, symbol: str) -> AsyncIterator[None]:
+    async def symbol_lock(self, symbol: Symbol) -> AsyncIterator[None]:
         """Acquire symbol-specific lock.
 
         Args:
@@ -288,7 +290,7 @@ class ConcurrencyManager(BaseStateModel):
                 )
 
     @asynccontextmanager
-    async def trade_processing_lock(self, exchange_id: str, symbol: str) -> AsyncIterator[None]:
+    async def trade_processing_lock(self, exchange_id: str, symbol: Symbol) -> AsyncIterator[None]:
         """Acquire locks for trade processing in correct order.
 
         Args:

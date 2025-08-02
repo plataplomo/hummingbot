@@ -131,8 +131,8 @@ def with_resilience[**P, T](
                 error = ResilienceError(
                     error_type=ResilienceErrorType.TIMEOUT,
                     message=f"Operation timed out: {e!s}",
-                    service_name=service_name,
-                    cause=e,
+                    component=service_name,
+                    original_error=str(e),
                 )
                 metrics = ResilienceMetrics(
                     total_requests=1,
@@ -147,15 +147,20 @@ def with_resilience[**P, T](
                     service_name=service_name,
                     duration_ms=duration_ms,
                 )
-                return ResilienceResult[T].failed(error, metrics)
+                return ResilienceResult[T](
+                    success=False,
+                    error=error,
+                    metrics=metrics,
+                    duration_ms=duration_ms
+                )
 
             except Exception as e:
                 duration_ms = (time.time() - start_time) * 1000
                 error = ResilienceError(
-                    error_type=ResilienceErrorType.SERVICE_UNAVAILABLE,
+                    error_type=ResilienceErrorType.UNKNOWN,
                     message=f"Service error: {e!s}",
-                    service_name=service_name,
-                    cause=e,
+                    component=service_name,
+                    original_error=str(e),
                 )
                 metrics = ResilienceMetrics(
                     total_requests=1,
@@ -164,14 +169,18 @@ def with_resilience[**P, T](
                     circuit_breaker_opens=0,
                     fallback_successes=0,
                     average_response_time_ms=duration_ms,
-                    last_error=error,
                 )
                 logger.exception(
                     "resilience_error",
                     service_name=service_name,
                     duration_ms=duration_ms,
                 )
-                return ResilienceResult[T].failed(error, metrics)
+                return ResilienceResult[T](
+                    success=False,
+                    error=error,
+                    metrics=metrics,
+                    duration_ms=duration_ms
+                )
 
         return wrapper
 
@@ -287,10 +296,10 @@ class ResilienceContext:
             )
         else:
             error = ResilienceError(
-                error_type=ResilienceErrorType.SERVICE_UNAVAILABLE,
+                error_type=ResilienceErrorType.UNKNOWN,
                 message=f"Context error: {exc_val!s}",
-                service_name=self.service_name,
-                cause=exc_val if isinstance(exc_val, Exception) else None,
+                component=self.service_name,
+                original_error=str(exc_val) if exc_val else None,
             )
             self.metrics = ResilienceMetrics(
                 total_requests=1,
@@ -299,7 +308,6 @@ class ResilienceContext:
                 circuit_breaker_opens=0,
                 fallback_successes=0,
                 average_response_time_ms=duration_ms,
-                last_error=error,
             )
             logger.warning(
                 "resilience_context_error",

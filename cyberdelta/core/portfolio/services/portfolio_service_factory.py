@@ -35,22 +35,16 @@ logger = get_logger(__name__)
 class PortfolioServiceFactory:
     """Factory for creating REAL portfolio services following Week 4 specifications."""
 
-    def __init__(self, config: Any = None):
-        """Initialize portfolio service factory with real dependencies."""
-        # Use AppSettings if no config provided
+    def __init__(self, config: Any):
+        """Initialize portfolio service factory with real dependencies.
+        
+        Args:
+            config: AppSettings or config object with required attributes
+        """
         if config is None:
-            # Create minimal SmartSymbolsConfig for default AppSettings
-            patterns = SymbolPatterns(
-                hyperliquid={"perp": "{symbol}-USD"},
-                backpack={"perp": "{symbol}_USDC"}
-            )
-            symbols_config = SmartSymbolsConfig(
-                list=["BTC", "ETH"],
-                patterns=patterns
-            )
-            self.app_settings = AppSettings(symbols=symbols_config)
-        else:
-            self.app_settings = config
+            raise ValueError("Config is required for PortfolioServiceFactory")
+            
+        self.app_settings = config
             
         self._services: Dict[str, Any] = {}
         self._initialized = False
@@ -90,26 +84,24 @@ class PortfolioServiceFactory:
     def create_performance_analytics(self) -> PerformanceAnalyticsService:
         """Create performance analytics service."""
         if "performance_analytics" not in self._services:
-            base_currency = getattr(self.app_settings.portfolio_tracker, 'base_currency', 'USDC')
+            # Use default base currency since portfolio_tracker was removed
+            base_currency = 'USDC'
             self._services["performance_analytics"] = PerformanceAnalyticsService(
-                base_currency=base_currency,
-                cache_service=self._cache_service
+                base_currency=base_currency
             )
         return self._services["performance_analytics"]
 
     def create_risk_analytics(self) -> ReportingService:
         """Create risk analytics service."""
         if "risk_analytics" not in self._services:
-            self._services["risk_analytics"] = ReportingService(
-                risk_config=self.app_settings.risk_manager,
-                validation_service=self._validation_service
-            )
+            self._services["risk_analytics"] = ReportingService()
         return self._services["risk_analytics"]
 
     def create_exposure_analytics(self) -> ExposureMetricsService:
         """Create exposure analytics service."""
         if "exposure_analytics" not in self._services:
-            base_currency = getattr(self.app_settings.portfolio_tracker, 'base_currency', 'USDC')
+            # Use default base currency since portfolio_tracker was removed
+            base_currency = 'USDC'
             self._services["exposure_analytics"] = ExposureMetricsService(
                 base_currency=base_currency
             )
@@ -187,11 +179,10 @@ class PortfolioServiceFactory:
             
         # Cache service
         if not self._cache_service:
-            cache_config = getattr(self.app_settings.portfolio_tracker, 'cache', None)
-            if cache_config:
-                self._cache_service = MemoryCacheService[str, Any](app_settings=self.app_settings)
-                if hasattr(self._cache_service, 'start'):
-                    await self._cache_service.start()
+            # Create cache service without portfolio_tracker config
+            self._cache_service = MemoryCacheService[str, Any](app_settings=self.app_settings)
+            if hasattr(self._cache_service, 'start'):
+                await self._cache_service.start()
                     
         # Health service
         if not self._health_service:
@@ -274,7 +265,7 @@ class PortfolioServiceFactory:
         if hasattr(manager, 'handle_position_update'):
             await dispatcher.register_handler(EventType.POSITION_UPDATED, manager.handle_position_update)
         if hasattr(manager, 'handle_trade_execution'):
-            await dispatcher.register_handler(EventType.TRADE_EXECUTED, manager.handle_trade_execution)
+            await dispatcher.register_handler(EventType.TRADE_PROCESSED, manager.handle_trade_execution)
         if hasattr(manager, 'handle_order_fill'):
             await dispatcher.register_handler(EventType.ORDER_FILLED, manager.handle_order_fill)
             

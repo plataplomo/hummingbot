@@ -18,7 +18,7 @@ from cyberdelta.core.portfolio.exceptions.state import (
     StateOperationFailedError,
 )
 from cyberdelta.core.portfolio.models.base import BaseStateModel
-from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState, ComponentHealthData
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.portfolio.portfolio_types.models import (
     BalanceUpdateRequest,
@@ -58,7 +58,7 @@ class PortfolioStateManager:
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[BaseStateModel],
+        state_container: StateContainerProtocol,
         validation_service: ValidationServiceProtocol | None = None,
         metrics_collector: MetricsCollectorProtocol | None = None,
     ) -> None:
@@ -71,7 +71,8 @@ class PortfolioStateManager:
             metrics_collector: Optional metrics collector
         """
         self.app_settings = app_settings
-        self.portfolio_config = app_settings.portfolio_tracker
+        # portfolio_tracker was removed - use risk settings for portfolio limits
+        self.risk_config = app_settings.risk
         self.state_container = state_container
         self.validation_service = validation_service
         self.metrics_collector = metrics_collector
@@ -83,10 +84,10 @@ class PortfolioStateManager:
         self._last_update: datetime | None = None
         self._is_initialized = False
 
-        # Configuration from AppSettings
-        self.atomic_updates = self.portfolio_config.state.atomic_updates
-        self.validation_enabled = self.portfolio_config.validation.enabled
-        self.cache_enabled = self.portfolio_config.cache.enabled
+        # Configuration defaults since portfolio_config was removed
+        self.atomic_updates = True
+        self.validation_enabled = True
+        self.cache_enabled = True
 
         # Performance tracking
         self.update_count = 0
@@ -158,13 +159,13 @@ class PortfolioStateManager:
             raise
 
     async def update_balances(
-        self, exchange: ExchangeName, update_request: BalanceUpdateRequest
+        self, exchange: ExchangeName, balances: list[SpotBalance]
     ) -> bool:
         """Update balances for an exchange.
 
         Args:
             exchange: Exchange name
-            update_request: Typed balance update request
+            balances: List of balance updates
 
         Returns:
             True if update was successful
@@ -178,23 +179,23 @@ class PortfolioStateManager:
         try:
             # Create state update
             update = StateUpdate(
-                data=update_request.balances,
+                data=balances,
                 timestamp=datetime.now(UTC),
                 source=f"balance_update_{exchange}",
                 metadata=StateManagerMetadata(
                     operation_type="update_balances",
-                    source=update_request.update_source,
+                    source="portfolio_state_manager",
                     additional_data={
-                        "exchange": exchange,
-                        "force_update": str(update_request.force_update),
+                        "exchange": str(exchange),
+                        "balance_count": str(len(balances)),
                     },
                 ),
             )
 
             # Perform atomic update
             async with self._state_lock:
-                balances_dict = update_request.balances
-
+                # Convert list to dict with asset symbol value as key
+                balances_dict = {balance.asset.value: balance for balance in balances}
                 result = await self.state_container.update_balances(exchange, balances_dict)
 
                 if result.success:
@@ -204,8 +205,10 @@ class PortfolioStateManager:
 
                     # Collect metrics if available
                     if self.metrics_collector:
+                        # Calculate duration since update started
+                        duration_ms = (time.time() - update.timestamp.timestamp()) * 1000
                         self.metrics_collector.record_state_update(
-                            "balance_update", exchange, "success" if result.success else "failed"
+                            "balance_update", result.success, duration_ms
                         )
                 else:
                     self.error_count += 1
@@ -213,7 +216,7 @@ class PortfolioStateManager:
             logger.info(
                 "balances_updated",
                 exchange=exchange,
-                balance_count=len(update_request.balances),
+                balance_count=len(balances),
                 success=result.success,
             )
             return bool(result.success)
@@ -224,13 +227,13 @@ class PortfolioStateManager:
             return False
 
     async def update_positions(
-        self, exchange: ExchangeName, update_request: PositionUpdateRequest
+        self, exchange: ExchangeName, positions: list[DerivativePosition]
     ) -> bool:
         """Update positions for an exchange.
 
         Args:
             exchange: Exchange name
-            update_request: Typed position update request
+            positions: List of position updates
 
         Returns:
             True if update was successful
@@ -244,26 +247,23 @@ class PortfolioStateManager:
         try:
             # Create state update
             update = StateUpdate(
-                data=update_request.positions,
+                data=positions,
                 timestamp=datetime.now(UTC),
                 source=f"position_update_{exchange}",
                 metadata=StateManagerMetadata(
                     operation_type="update_positions",
-                    source=update_request.update_source,
+                    source="portfolio_state_manager",
                     additional_data={
-                        "exchange": exchange,
-                        "force_update": str(update_request.force_update),
+                        "exchange": str(exchange),
+                        "position_count": str(len(positions)),
                     },
                 ),
             )
 
             # Perform atomic update
             async with self._state_lock:
-                # Convert list to dict - positions are always a list in PositionUpdateRequest
-                positions_dict = {
-                    str(i): position for i, position in enumerate(update_request.positions)
-                }
-
+                # Convert list to dict with symbol as key
+                positions_dict = {str(position.symbol): position for position in positions}
                 result = await self.state_container.update_positions(exchange, positions_dict)
 
                 if result.success:
@@ -273,8 +273,10 @@ class PortfolioStateManager:
 
                     # Collect metrics if available
                     if self.metrics_collector:
+                        # Calculate duration since update started
+                        duration_ms = (time.time() - update.timestamp.timestamp()) * 1000
                         self.metrics_collector.record_state_update(
-                            "position_update", exchange, "success" if result.success else "failed"
+                            "position_update", result.success, duration_ms
                         )
                 else:
                     self.error_count += 1
@@ -282,7 +284,7 @@ class PortfolioStateManager:
             logger.info(
                 "positions_updated",
                 exchange=exchange,
-                position_count=len(update_request.positions),
+                position_count=len(positions),
                 success=result.success,
             )
             return bool(result.success)
@@ -293,13 +295,13 @@ class PortfolioStateManager:
             return False
 
     async def update_orders(
-        self, exchange: ExchangeName, update_request: OrderUpdateRequest
+        self, exchange: ExchangeName, orders: list[Order]
     ) -> bool:
         """Update orders for an exchange.
 
         Args:
             exchange: Exchange name
-            update_request: Typed order update request
+            orders: List of order updates
 
         Returns:
             True if update was successful
@@ -313,15 +315,15 @@ class PortfolioStateManager:
         try:
             # Create state update
             update = StateUpdate(
-                data=update_request.orders,
+                data=orders,
                 timestamp=datetime.now(UTC),
                 source=f"order_update_{exchange}",
                 metadata=StateManagerMetadata(
                     operation_type="update_orders",
-                    source=update_request.update_source,
+                    source="portfolio_state_manager",
                     additional_data={
-                        "exchange": exchange,
-                        "force_update": str(update_request.force_update),
+                        "exchange": str(exchange),
+                        "order_count": str(len(orders)),
                     },
                 ),
             )
@@ -333,7 +335,7 @@ class PortfolioStateManager:
                 result = StateUpdateResult(
                     success=True,
                     execution_time_ms=1.0,
-                    affected_entities=len(update_request.orders),
+                    affected_entities=len(orders),
                 )
 
                 if result.success:
@@ -343,8 +345,10 @@ class PortfolioStateManager:
 
                     # Collect metrics if available
                     if self.metrics_collector:
+                        # Calculate duration since update started
+                        duration_ms = (time.time() - update.timestamp.timestamp()) * 1000
                         self.metrics_collector.record_state_update(
-                            "order_update", exchange, "success" if result.success else "failed"
+                            "order_update", result.success, duration_ms
                         )
                 else:
                     self.error_count += 1
@@ -352,7 +356,7 @@ class PortfolioStateManager:
             logger.info(
                 "orders_updated",
                 exchange=exchange,
-                order_count=len(update_request.orders),
+                order_count=len(orders),
                 success=result.success,
             )
             return bool(result.success)
@@ -432,10 +436,12 @@ class PortfolioStateManager:
 
                     # Collect metrics if available
                     if self.metrics_collector:
+                        # Calculate duration since update started
+                        duration_ms = (time.time() - update.timestamp.timestamp()) * 1000
                         self.metrics_collector.record_state_update(
                             "trade_processing",
-                            trade.exchange or "unknown",
-                            "success" if result.success else "failed",
+                            result.success,
+                            duration_ms,
                         )
                 else:
                     self.error_count += 1
@@ -542,20 +548,23 @@ class PortfolioStateManager:
             current_time = time.time()
 
             # Gather actual data from all exchanges
-            all_balances = {}
-            all_trades = []
-            all_orders = []
-            exchange_summaries = {}
+            all_balances: dict[str, SpotBalance] = {}  # Flat dict for all balances
+            all_trades: list[Trade] = []
+            all_orders: list[Order] = []
+            exchange_summaries: dict[str, ExchangeSummaryData] = {}
             total_value = Decimal(0)
             
             # Get real data from each exchange
             for exchange in ExchangeName:
                 try:
-                    # Get balances
+                    # Get balances and flatten into single dict
                     balances = await self.get_balances(exchange)
                     if balances:
-                        all_balances[exchange.value] = balances
-                        for balance in balances.values():
+                        # Add each balance to flat dict with prefixed key
+                        for symbol_key, balance in balances.items():
+                            flat_key = f"{exchange.value}_{symbol_key}"
+                            all_balances[flat_key] = balance
+                            
                             if hasattr(balance, 'total_quantity'):
                                 # Create Symbol objects for comparison based on current exchange
                                 usdc_symbol = getattr(exchanges, exchange.value.lower())('USDC')
@@ -568,11 +577,14 @@ class PortfolioStateManager:
                     if orders_dict:
                         all_orders.extend(orders_dict.values())
                     
-                    exchange_summaries[exchange.value] = {
-                        "balance_count": len(balances) if balances else 0,
-                        "order_count": len(orders_dict) if orders_dict else 0,
-                        "last_update": current_time
-                    }
+                    # Create proper ExchangeSummaryData
+                    from cyberdelta.core.portfolio.models.portfolio_state import ExchangeSummaryData
+                    exchange_summaries[exchange.value] = ExchangeSummaryData(
+                        exchange_id=exchange.value,
+                        account_value=Decimal(0),  # TODO: Calculate from balances
+                        collateral=Decimal(0),
+                        margin_used=Decimal(0)
+                    )
                 except Exception as e:
                     logger.warning(f"Failed to get data from {exchange.value}: {e}")
             
@@ -586,11 +598,16 @@ class PortfolioStateManager:
                 total_account_value=total_value,
                 exchange_summaries=exchange_summaries,
                 component_health={
-                    "state_manager": {
-                        "status": "healthy" if self.error_count == 0 else "degraded",
-                        "update_count": self.update_count,
-                        "error_count": self.error_count
-                    }
+                    "state_manager": ComponentHealthData(
+                        component_type="state_manager",
+                        component_name="portfolio_state_manager",
+                        status="healthy" if self.error_count == 0 else "degraded",
+                        last_update=current_time,
+                        metrics={
+                            "update_count": self.update_count,
+                            "error_count": self.error_count
+                        }
+                    )
                 },
                 metadata={
                     "version": self._state_version,
@@ -658,12 +675,19 @@ class PortfolioStateManager:
         Returns:
             Typed portfolio metrics
         """
-        current_time = time.time()
-
+        # Return default metrics for now
+        # TODO: Implement proper metric calculation
         return PortfolioMetrics(
-            last_update_timestamp=current_time,
-            active_positions=self.update_count,
-            total_orders=self.trade_processing_count,
+            total_value=Decimal(0),
+            total_pnl=Decimal(0),
+            unrealized_pnl=Decimal(0),
+            realized_pnl=Decimal(0),
+            total_exposure=Decimal(0),
+            long_exposure=Decimal(0),
+            short_exposure=Decimal(0),
+            net_exposure=Decimal(0),
+            leverage=Decimal(0),
+            margin_usage=Decimal(0),
         )
 
     def reset_metrics(self) -> None:

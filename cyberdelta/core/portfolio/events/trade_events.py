@@ -14,6 +14,8 @@ from cyberdelta.core.portfolio.events.base.base_event import (
     EventMetadataKwargsWithoutSymbol,
     EventType,
 )
+from cyberdelta.core.symbols import symbol, Symbol
+from cyberdelta.enums import ExchangeName
 
 
 class ValidationResults(BaseModel):
@@ -44,7 +46,7 @@ class TradeReceivedEvent(BasePortfolioEvent[Trade]):
             TradeReceivedEvent: A new trade received event instance.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=trade.exchange, symbol=str(trade.symbol))
+        metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -103,7 +105,7 @@ class TradeValidatedEvent(BasePortfolioEvent[Trade]):
             TradeValidatedEvent: A new trade validated event instance.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=trade.exchange, symbol=str(trade.symbol))
+        metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -168,7 +170,7 @@ class TradeProcessedEvent(BasePortfolioEvent[Trade]):
             TradeProcessedEvent: A new trade processed event instance.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=trade.exchange, symbol=str(trade.symbol))
+        metadata = EventMetadata(exchange_id=trade.exchange, symbol=trade.symbol)
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -214,7 +216,7 @@ class RejectedTradeData(BaseModel):
 
     trade_id: str | None = Field(default=None, description="Trade ID if available")
     exchange_id: str | None = Field(default=None, description="Exchange ID")
-    symbol: str | None = Field(default=None, description="Trading symbol")
+    symbol: Symbol | None = Field(default=None, description="Trading symbol")
     side: str | None = Field(default=None, description="Trade side")
     size: str | None = Field(default=None, description="Trade size")
     price: str | None = Field(default=None, description="Trade price")
@@ -262,9 +264,12 @@ class TradeRejectedEvent(BasePortfolioEvent[RejectedTradeData]):
         )
 
         # Build metadata with explicit fields first
+        # Use Symbol object if available
+        symbol_obj = rejected_data.symbol
+                
         metadata = EventMetadata(
             exchange_id=rejected_data.exchange_id,
-            symbol=rejected_data.symbol,
+            symbol=symbol_obj,
         )
 
         # Apply additional fields from kwargs

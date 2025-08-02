@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from cyberdelta.core.models import DerivativePosition, SpotBalance
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.portfolio.portfolio_types.models import PortfolioSnapshot, PortfolioState
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.portfolio_types.infrastructure import (
     StateUpdateResult,
     StateValidationResult,
@@ -124,15 +125,15 @@ class StateContainerProtocol(Protocol):
 class PriceServiceProtocol(Protocol):
     """Protocol for price service operations."""
 
-    async def get_price(self, symbol: str, exchange: ExchangeName) -> Decimal | None:
+    async def get_price(self, symbol: Symbol, exchange: ExchangeName) -> Decimal | None:
         """Get current price for a symbol."""
         ...
 
-    async def get_prices(self, symbols: list[str], exchange: ExchangeName) -> dict[str, Decimal]:
+    async def get_prices(self, symbols: list[Symbol], exchange: ExchangeName) -> dict[Symbol, Decimal]:
         """Get prices for multiple symbols."""
         ...
 
-    async def get_mark_price(self, symbol: str, exchange: ExchangeName) -> Decimal | None:
+    async def get_mark_price(self, symbol: Symbol, exchange: ExchangeName) -> Decimal | None:
         """Get mark price for a symbol."""
         ...
 

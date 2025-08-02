@@ -4,16 +4,13 @@ from __future__ import annotations
 
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.core.portfolio.services.base.base_service import BasePortfolioService
 from cyberdelta.core.symbols import Symbol
-
-if TYPE_CHECKING:
-    from cyberdelta.core.models import Trade
 
 logger = get_logger(__name__)
 
@@ -138,20 +135,8 @@ class TradeReconciliationService(BasePortfolioService):
                 message=f"Negative trade fee",
             ))
         
-        # Check cost calculation
-        expected_cost = trade.price * trade.quantity
-        cost_difference = abs(expected_cost - trade.cost)
-        if cost_difference > Decimal("0.01"):  # Allow small rounding differences
-            discrepancies.append(TradeDiscrepancy(
-                exchange=exchange,
-                trade_id=trade.id,
-                symbol=trade.symbol,
-                discrepancy_type="cost_mismatch",
-                expected_value=expected_cost,
-                actual_value=trade.cost,
-                severity="error",
-                message=f"Trade cost calculation mismatch",
-            ))
+        # Note: Cost calculation check removed as Trade.cost is a computed field that
+        # always returns price * quantity, so checking it is redundant
         
         # Check timestamp validity
         current_time = time.time()

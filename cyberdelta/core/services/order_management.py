@@ -35,7 +35,8 @@ from cyberdelta.core.services.interfaces import (
     OrderRequest,
     OrderServiceConfig,
 )
-from cyberdelta.core.symbols.api import symbol
+from cyberdelta.core.symbols import Symbol
+from cyberdelta.core.symbols.api import symbol as create_symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -277,7 +278,7 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self,
         order_id: str,
         exchange_id: str,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionResult:
         """Get order status with proper error handling.
@@ -341,7 +342,7 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self,
         order_id: str,
         exchange_id: str,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionResult:
         """Cancel an existing order.
@@ -497,14 +498,8 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         # Remove None values to avoid API issues
         filtered_args = {k: v for k, v in order_args.items() if v is not None}
 
-        # Create Symbol from string symbol
-        # TODO: OrderRequest should be updated to use Symbol
-        exchange_name = (
-            ExchangeName.HYPERLIQUID
-            if api_client.exchange_name == "hyperliquid"
-            else ExchangeName.BACKPACK
-        )
-        exchange_symbol = symbol(value=str(filtered_args["symbol"]), exchange=exchange_name)
+        # Clean Break: OrderRequest.symbol is always a Symbol object
+        exchange_symbol = request.symbol  # Direct access to avoid type union issues
 
         place_order_args = PlaceOrderArgs(
             symbol=exchange_symbol,
@@ -539,7 +534,7 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self,
         api_client: ExchangeAPI,
         order_id: str,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         client_order_id: str | None = None,
     ) -> Order:
         """Internal method to get order status through API client.
@@ -557,18 +552,9 @@ class OrderManagementService(BaseAsyncService, IOrderService):
             APIError: If status check fails
         """
         # Prepare arguments for status check
-        # Create Symbol from string if symbol is provided
-        exchange_symbol = None
-        if symbol:
-            exchange_name = (
-                ExchangeName.HYPERLIQUID
-                if api_client.exchange_name == "hyperliquid"
-                else ExchangeName.BACKPACK
-            )
-            exchange_symbol = symbol(value=str(symbol), exchange=exchange_name)
-
+        # Symbol is already a Symbol object or None
         get_order_args = GetOrderArgs(
-            order_id=order_id, symbol=exchange_symbol, client_order_id=client_order_id
+            order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
 
         # Get order status through API client
@@ -582,7 +568,7 @@ class OrderManagementService(BaseAsyncService, IOrderService):
         self,
         api_client: ExchangeAPI,
         order_id: str,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         client_order_id: str | None = None,
     ) -> bool:
         """Internal method to cancel order through API client.
@@ -597,18 +583,9 @@ class OrderManagementService(BaseAsyncService, IOrderService):
             True if cancellation was successful
         """
         # Prepare arguments for cancellation
-        # Create Symbol from string if symbol is provided
-        exchange_symbol = None
-        if symbol:
-            exchange_name = (
-                ExchangeName.HYPERLIQUID
-                if api_client.exchange_name == "hyperliquid"
-                else ExchangeName.BACKPACK
-            )
-            exchange_symbol = symbol(value=str(symbol), exchange=exchange_name)
-
+        # Symbol is already a Symbol object or None
         cancel_order_args = CancelOrderArgs(
-            order_id=order_id, symbol=exchange_symbol, client_order_id=client_order_id
+            order_id=order_id, symbol=symbol, client_order_id=client_order_id
         )
 
         # Cancel order through API client

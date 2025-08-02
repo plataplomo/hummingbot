@@ -60,7 +60,7 @@ class ConstraintViolationError(RiskManagerError):
         constraint_type: str,
         current_value: float | None = None,
         limit_value: float | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> None:
         """Initialize constraint violation error.
 

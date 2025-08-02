@@ -8,6 +8,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cyberdelta.core.symbols import Symbol
+
 
 class AnalyticsState(str, Enum):
     """Analytics operational states."""
@@ -66,11 +68,11 @@ class AttributionResult(BaseModel):
     period: timedelta
     total_pnl: Decimal
     by_exchange: dict[str, Decimal]
-    by_symbol: dict[str, Decimal]
+    by_symbol: dict[Symbol, Decimal]
     by_strategy: dict[str, Decimal]  # Attribution to strategies, not implementation
     by_time_bucket: dict[str, Decimal]
-    top_winners: list[tuple[str, Decimal]]
-    top_losers: list[tuple[str, Decimal]]
+    top_winners: list[tuple[Symbol, Decimal]]
+    top_losers: list[tuple[Symbol, Decimal]]
 
     model_config = ConfigDict(validate_assignment=True)
 
@@ -82,6 +84,6 @@ class AttributionResult(BaseModel):
         """Get P&L contribution from a specific exchange."""
         return self.by_exchange.get(exchange, Decimal(0))
     
-    def get_symbol_contribution(self, symbol: str) -> Decimal:
+    def get_symbol_contribution(self, symbol: Symbol) -> Decimal:
         """Get P&L contribution from a specific symbol."""
         return self.by_symbol.get(symbol, Decimal(0))

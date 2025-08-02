@@ -18,7 +18,8 @@ class MetricsAggregator:
         """Initialize metrics aggregator."""
         self._initialized = False
         self._metrics_buffer: Dict[str, List[Dict[str, Any]]] = {}
-        self._aggregated_metrics: Dict[str, Dict[str, Any]] = {}
+        self._aggregated_metrics: Dict[str, Dict[str, List[Dict[str, Any]]]] = {}
+        self._trade_counters: Dict[str, int | Decimal]
         self._aggregation_intervals = {
             "1m": timedelta(minutes=1),
             "5m": timedelta(minutes=5),
@@ -151,7 +152,7 @@ class MetricsAggregator:
         Returns:
             Summary of key metrics across all categories
         """
-        summary = {
+        summary: Dict[str, Any] = {
             "timestamp": datetime.now(UTC),
             "categories": {}
         }
@@ -322,7 +323,7 @@ class MetricsAggregator:
         
     async def _update_trade_counters(self, event: PortfolioEvent) -> None:
         """Update running trade counters."""
-        if event.event_type != EventType.TRADE_EXECUTED:
+        if event.event_type != EventType.TRADE_PROCESSED:
             return
             
         data = event.data
@@ -354,7 +355,11 @@ class MetricsAggregator:
         if not interval_metrics:
             return datetime.min.replace(tzinfo=UTC)
             
-        return interval_metrics[-1]["period_end"]
+        last_metric = interval_metrics[-1]
+        period_end = last_metric.get("period_end")
+        if isinstance(period_end, datetime):
+            return period_end
+        return datetime.min.replace(tzinfo=UTC)
         
     def _trim_aggregated_metrics(self, category: str, interval: str) -> None:
         """Trim old aggregated metrics to prevent memory growth."""

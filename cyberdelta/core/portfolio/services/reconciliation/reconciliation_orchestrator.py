@@ -121,21 +121,21 @@ class ReconciliationOrchestrator(BasePortfolioService):
     
     async def _initialize_internal(self) -> None:
         """Initialize orchestrator and all services."""
-        # Initialize services in parallel
-        await self.balance_service.initialize()
-        await self.position_service.initialize()
-        await self.order_service.initialize()
-        await self.trade_service.initialize()
+        # Start services using base class lifecycle methods
+        await self.balance_service.start()
+        await self.position_service.start()
+        await self.order_service.start()
+        await self.trade_service.start()
         
         logger.info("Reconciliation orchestrator initialized")
     
     async def _shutdown_internal(self) -> None:
         """Shutdown orchestrator and all services."""
-        # Shutdown services
-        await self.trade_service.shutdown()
-        await self.order_service.shutdown()
-        await self.position_service.shutdown()
-        await self.balance_service.shutdown()
+        # Stop services using base class lifecycle methods
+        await self.trade_service.stop()
+        await self.order_service.stop()
+        await self.position_service.stop()
+        await self.balance_service.stop()
         
         logger.info("Reconciliation orchestrator shutdown")
     

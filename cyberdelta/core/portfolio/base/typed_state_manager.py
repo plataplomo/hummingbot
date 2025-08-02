@@ -146,7 +146,6 @@ class TypedStateManager[T](ABC):
             manager_name: Name of this manager for logging
         """
         self.app_settings = app_settings
-        self.portfolio_config = app_settings.portfolio_tracker
         self.state_container = state_container
         self.manager_name = manager_name
         self.logger = get_logger(f"{self.__class__.__module__}.{self.__class__.__name__}")
@@ -156,12 +155,12 @@ class TypedStateManager[T](ABC):
         self._state_version = 0
         self._last_update: datetime | None = None
         self._state_history: list[StateUpdate[T]] = []
-        self._max_history_size = self.portfolio_config.state.max_state_history_size
+        self._max_history_size = app_settings.state.max_state_history_size
 
         # Configuration from AppSettings
-        self.atomic_updates = self.portfolio_config.state.atomic_updates
-        self.update_timeout = self.portfolio_config.state.update_timeout
-        self.validate_on_update = self.portfolio_config.state.validate_on_update
+        self.atomic_updates = app_settings.state.atomic_updates
+        self.update_timeout = app_settings.state.update_timeout
+        self.validate_on_update = app_settings.state.validate_on_update
 
         # Performance tracking
         self.update_count = 0

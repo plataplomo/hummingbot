@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 
 
 if TYPE_CHECKING:
@@ -43,16 +44,15 @@ class PriceDataService:
             api_clients: Dictionary of exchange API clients
         """
         self.app_settings = app_settings
-        self.portfolio_config = app_settings.portfolio_tracker
         self.cache_service = cache_service
         self.api_clients = api_clients or {}
         self.logger = get_logger(self.__class__.__name__)
 
         # Configuration from AppSettings
-        self.default_cache_ttl = float(self.portfolio_config.calculation.price_cache_ttl)
-        self.batch_size_limit = int(self.portfolio_config.calculation.batch_size_limit)
+        self.default_cache_ttl = float(app_settings.calculation.price_cache_ttl)
+        self.batch_size_limit = int(app_settings.calculation.batch_size_limit)
         self.price_staleness_threshold = float(
-            self.portfolio_config.calculation.price_staleness_threshold
+            app_settings.calculation.price_staleness_threshold
         )
 
         self.logger.info(
@@ -62,7 +62,7 @@ class PriceDataService:
             price_staleness_threshold=self.price_staleness_threshold,
         )
 
-    async def get_current_price(self, symbol: str, exchange_id: str | None = None) -> Decimal:
+    async def get_current_price(self, symbol: Symbol, exchange_id: str | None = None) -> Decimal:
         """Get current price for a symbol.
 
         Args:
@@ -103,7 +103,7 @@ class PriceDataService:
             return price
 
     async def get_price_in_currency(
-        self, symbol: str, target_currency: str, exchange_id: str | None = None
+        self, symbol: Symbol, target_currency: str, exchange_id: str | None = None
     ) -> Decimal:
         """Get price converted to target currency.
 
@@ -120,10 +120,10 @@ class PriceDataService:
         base_price = await self.get_current_price(symbol, exchange_id)
 
         # Extract base currency from symbol (simplified logic)
-        if "/" in symbol:
-            quote_currency = symbol.split("/")[1]
-        elif "-" in symbol:
-            quote_currency = symbol.split("-")[1]
+        if "/" in symbol.value:
+            quote_currency = symbol.value.split("/")[1]
+        elif "-" in symbol.value:
+            quote_currency = symbol.value.split("-")[1]
         else:
             quote_currency = "USD"  # Default assumption
 
@@ -144,8 +144,8 @@ class PriceDataService:
         return base_price * conversion_rate
 
     async def batch_get_prices(
-        self, symbols: list[str], target_currency: str, exchange_id: str | None = None
-    ) -> dict[str, Decimal]:
+        self, symbols: list[Symbol], target_currency: str, exchange_id: str | None = None
+    ) -> dict[Symbol, Decimal]:
         """Get prices for multiple symbols in batch.
 
         This addresses the performance bottleneck of individual price lookups
@@ -185,8 +185,8 @@ class PriceDataService:
         return converted_prices
 
     async def _get_batch_prices_raw(
-        self, symbols: list[str], exchange_id: str | None
-    ) -> dict[str, Decimal]:
+        self, symbols: list[Symbol], exchange_id: str | None
+    ) -> dict[Symbol, Decimal]:
         """Get raw prices from cache and API.
 
         Args:
@@ -194,9 +194,9 @@ class PriceDataService:
             exchange_id: Optional specific exchange ID
 
         Returns:
-            dict[str, Decimal]: Dictionary mapping symbols to their raw prices
+            dict[Symbol, Decimal]: Dictionary mapping symbols to their raw prices
         """
-        result: dict[str, Decimal] = {}
+        result: dict[Symbol, Decimal] = {}
         cache_hits, cache_misses = await self._check_price_cache(symbols, exchange_id)
 
         # Add cache hits to result
@@ -210,8 +210,8 @@ class PriceDataService:
         return result
 
     async def _check_price_cache(
-        self, symbols: list[str], exchange_id: str | None
-    ) -> tuple[dict[str, Decimal], list[str]]:
+        self, symbols: list[Symbol], exchange_id: str | None
+    ) -> tuple[dict[Symbol, Decimal], list[Symbol]]:
         """Check cache for symbol prices.
 
         Args:
@@ -219,12 +219,12 @@ class PriceDataService:
             exchange_id: Optional specific exchange ID
 
         Returns:
-            tuple[dict[str, Decimal], list[str]]: Tuple of (cache_hits, cache_misses)
+            tuple[dict[Symbol, Decimal], list[Symbol]]: Tuple of (cache_hits, cache_misses)
                 where cache_hits maps symbols to cached prices and cache_misses
                 contains symbols not found in cache
         """
-        cache_hits: dict[str, Decimal] = {}
-        cache_misses: list[str] = []
+        cache_hits: dict[Symbol, Decimal] = {}
+        cache_misses: list[Symbol] = []
 
         if self.cache_service:
             for symbol in symbols:
@@ -236,7 +236,7 @@ class PriceDataService:
                 else:
                     cache_misses.append(symbol)
         else:
-            cache_misses = symbols
+            cache_misses = list(symbols)
 
         self.logger.debug(
             "batch_price_lookup",
@@ -248,8 +248,8 @@ class PriceDataService:
         return cache_hits, cache_misses
 
     async def _fetch_and_cache_prices(
-        self, symbols: list[str], exchange_id: str | None
-    ) -> dict[str, Decimal]:
+        self, symbols: list[Symbol], exchange_id: str | None
+    ) -> dict[Symbol, Decimal]:
         """Fetch prices from API and cache them.
 
         Args:
@@ -257,14 +257,14 @@ class PriceDataService:
             exchange_id: Optional specific exchange ID
 
         Returns:
-            dict[str, Decimal]: Dictionary mapping symbols to fetched prices
+            dict[Symbol, Decimal]: Dictionary mapping symbols to fetched prices
         """
-        result: dict[str, Decimal] = {}
+        result: dict[Symbol, Decimal] = {}
 
         try:
             fetched_prices = await self._batch_fetch_from_api(symbols, exchange_id)
 
-            # Cache the fetched prices
+            # Cache the fetched prices  
             if self.cache_service:
                 for symbol, price in fetched_prices.items():
                     cache_key = self._get_price_cache_key(symbol, exchange_id)
@@ -277,14 +277,14 @@ class PriceDataService:
             # Fill missing symbols with fallback values
             for symbol in symbols:
                 if symbol not in result:
-                    self.logger.warning("price_unavailable", symbol=symbol)
+                    self.logger.warning("price_unavailable", symbol=symbol.value)
                     result[symbol] = Decimal(0)
 
         return result
 
     async def _convert_batch_currencies(
-        self, prices: dict[str, Decimal], target_currency: str, exchange_id: str | None
-    ) -> dict[str, Decimal]:
+        self, prices: dict[Symbol, Decimal], target_currency: str, exchange_id: str | None
+    ) -> dict[Symbol, Decimal]:
         """Convert batch prices to target currency.
 
         Args:
@@ -293,9 +293,9 @@ class PriceDataService:
             exchange_id: Optional specific exchange ID
 
         Returns:
-            dict[str, Decimal]: Dictionary mapping symbols to converted prices
+            dict[Symbol, Decimal]: Dictionary mapping symbols to converted prices
         """
-        converted_result: dict[str, Decimal] = {}
+        converted_result: dict[Symbol, Decimal] = {}
 
         for symbol, price in prices.items():
             try:
@@ -311,7 +311,7 @@ class PriceDataService:
 
         return converted_result
 
-    async def _fetch_price_from_api(self, symbol: str, exchange_id: str | None = None) -> Decimal:
+    async def _fetch_price_from_api(self, symbol: Symbol, exchange_id: str | None = None) -> Decimal:
         """Fetch price from exchange API.
 
         Args:
@@ -344,9 +344,9 @@ class PriceDataService:
             except Exception:
                 continue
 
-        raise ValueError(f"No exchange has price for {symbol}")
+        raise ValueError(f"No exchange has price for {symbol.value}")
 
-    async def _fetch_generic_price(self, api_client: Any, symbol: str, exchange_id: str) -> Decimal:
+    async def _fetch_generic_price(self, api_client: Any, symbol: Symbol, exchange_id: str) -> Decimal:
         """Fetch price from any exchange using generic API interface.
         
         Args:
@@ -381,7 +381,7 @@ class PriceDataService:
                 return (Decimal(str(bid)) + Decimal(str(ask))) / 2
                 
         except Exception as e:
-            self.logger.debug(f"Ticker fetch failed for {symbol} on {exchange_id}: {e}")
+            self.logger.debug(f"Ticker fetch failed for {symbol.value} on {exchange_id}: {e}")
         
         # Fallback: Try orderbook mid price
         try:
@@ -394,9 +394,9 @@ class PriceDataService:
                     best_ask = Decimal(str(asks[0]["price"] if isinstance(asks[0], dict) else asks[0][0]))
                     return (best_bid + best_ask) / 2
         except Exception as e:
-            self.logger.debug(f"Orderbook fetch failed for {symbol} on {exchange_id}: {e}")
+            self.logger.debug(f"Orderbook fetch failed for {symbol.value} on {exchange_id}: {e}")
         
-        raise ValueError(f"No valid price data for {symbol} on {exchange_id}")
+        raise ValueError(f"No valid price data for {symbol.value} on {exchange_id}")
     
 
     async def _get_conversion_rate(self, from_currency: str, to_currency: str) -> Decimal:
@@ -418,15 +418,19 @@ class PriceDataService:
             return Decimal("1.00")
 
         # Try to get FX rate from exchanges
-        fx_symbol = f"{from_currency}/{to_currency}"
+        # Import Symbol API here to avoid circular imports
+        from cyberdelta.core.symbols import symbol as create_symbol
+        from cyberdelta.enums.exchange_names import ExchangeName
+        
         try:
-            # Try direct pair
+            # Try direct pair - create Symbol from string with default exchange
+            fx_symbol = create_symbol(f"{from_currency}/{to_currency}", ExchangeName.HYPERLIQUID)
             fx_price = await self.get_current_price(fx_symbol)
             return fx_price
         except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
             # Try inverse pair
             try:
-                inverse_symbol = f"{to_currency}/{from_currency}"
+                inverse_symbol = create_symbol(f"{to_currency}/{from_currency}", ExchangeName.HYPERLIQUID)
                 inverse_price = await self.get_current_price(inverse_symbol)
                 return Decimal("1") / inverse_price
             except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
@@ -442,8 +446,8 @@ class PriceDataService:
                 return Decimal("1.00")
 
     async def _batch_fetch_from_api(
-        self, symbols: list[str], exchange_id: str | None = None
-    ) -> dict[str, Decimal]:
+        self, symbols: list[Symbol], exchange_id: str | None = None
+    ) -> dict[Symbol, Decimal]:
         """Fetch multiple prices from exchange API in batch.
 
         Args:
@@ -453,7 +457,7 @@ class PriceDataService:
         Returns:
             Dictionary mapping symbol to price
         """
-        result: dict[str, Decimal] = {}
+        result: dict[Symbol, Decimal] = {}
         
         # If exchange supports batch API, use it
         if exchange_id and exchange_id in self.api_clients:
@@ -462,10 +466,18 @@ class PriceDataService:
             # Check if exchange supports batch ticker API
             if hasattr(api_client, 'get_tickers'):
                 try:
-                    # Fetch all tickers at once
-                    tickers = await api_client.get_tickers(symbols)
+                    # Fetch all tickers at once - pass symbol values as strings to API
+                    symbol_values = [symbol.value for symbol in symbols]
+                    tickers = await api_client.get_tickers(symbol_values)
                     
-                    for symbol, ticker_data in tickers.items():
+                    # Map string symbol keys back to Symbol objects
+                    symbol_lookup = {symbol.value: symbol for symbol in symbols}
+                    
+                    for symbol_str, ticker_data in tickers.items():
+                        symbol = symbol_lookup.get(symbol_str)
+                        if not symbol:
+                            continue
+                            
                         # Generic price extraction using same logic as _fetch_generic_price
                         price_candidates = [
                             ticker_data.get("last"),
@@ -509,13 +521,13 @@ class PriceDataService:
                 price = await task
                 result[symbol] = price
             except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
-                self.logger.warning("individual_price_fetch_failed", symbol=symbol)
+                self.logger.warning("individual_price_fetch_failed", symbol=symbol.value)
 
         return result
 
     async def _process_large_batch(
-        self, symbols: list[str], target_currency: str, exchange_id: str | None = None
-    ) -> dict[str, Decimal]:
+        self, symbols: list[Symbol], target_currency: str, exchange_id: str | None = None
+    ) -> dict[Symbol, Decimal]:
         """Process large batch by splitting into smaller chunks.
 
         Args:
@@ -526,7 +538,7 @@ class PriceDataService:
         Returns:
             Dictionary mapping symbol to price
         """
-        result: dict[str, Decimal] = {}
+        result: dict[Symbol, Decimal] = {}
 
         # Split into chunks
         for i in range(0, len(symbols), self.batch_size_limit):
@@ -536,7 +548,7 @@ class PriceDataService:
 
         return result
 
-    def _get_price_cache_key(self, symbol: str, exchange_id: str | None = None) -> str:
+    def _get_price_cache_key(self, symbol: Symbol, exchange_id: str | None = None) -> str:
         """Generate cache key for price data.
 
         Args:
@@ -547,10 +559,10 @@ class PriceDataService:
             Cache key string
         """
         if exchange_id:
-            return f"price:{exchange_id}:{symbol}"
-        return f"price:any:{symbol}"
+            return f"price:{exchange_id}:{symbol.value}"
+        return f"price:any:{symbol.value}"
 
-    async def invalidate_price_cache(self, symbol: str | None = None) -> None:
+    async def invalidate_price_cache(self, symbol: Symbol | None = None) -> None:
         """Invalidate price cache for symbol or all symbols.
 
         Args:

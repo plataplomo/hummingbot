@@ -19,13 +19,15 @@ from pydantic.dataclasses import dataclass
 from cyberdelta.core.models import DerivativePosition as Position, Order, SpotBalance, Trade
 from cyberdelta.core.portfolio.exceptions.base import PortfolioError
 from cyberdelta.core.portfolio.exceptions.state import StateValidationError
+from cyberdelta.core.symbols import Symbol
+# Import SpotBalance from core models, not portfolio_types models
+from cyberdelta.core.models import SpotBalance as PortfolioSpotBalance
 
 from .models import (
     ExposureMetrics,
     PortfolioState,
     PortfolioUpdate,
     Position as PortfolioPosition,
-    SpotBalance as PortfolioSpotBalance,
 )
 
 
@@ -228,7 +230,7 @@ class PositionManagerProtocol(Protocol):
     """Protocol for position management."""
 
     @abstractmethod
-    async def get_position(self, exchange_id: str, symbol: str) -> Position | None:
+    async def get_position(self, exchange_id: str, symbol: Symbol) -> Position | None:
         """Get position for specific symbol on exchange."""
         ...
 
@@ -248,7 +250,7 @@ class PositionManagerProtocol(Protocol):
         ...
 
     @abstractmethod
-    async def close_position(self, exchange_id: str, symbol: str) -> None:
+    async def close_position(self, exchange_id: str, symbol: Symbol) -> None:
         """Mark position as closed."""
         ...
 
@@ -301,7 +303,7 @@ class StateManagerProtocol(Protocol):
         ...
 
     @abstractmethod
-    async def get_position(self, exchange_id: str, symbol: str) -> Position | None:
+    async def get_position(self, exchange_id: str, symbol: Symbol) -> Position | None:
         """Get position for specific symbol."""
         ...
 
@@ -478,12 +480,12 @@ class ServiceLifecycle(Protocol):
 class PriceServiceProtocol(Protocol):
     """Protocol for price data services."""
 
-    async def get_current_price(self, symbol: str, exchange_id: str | None = None) -> Decimal:
+    async def get_current_price(self, symbol: Symbol, exchange_id: str | None = None) -> Decimal:
         """Get current price for a symbol."""
         ...
 
     async def get_price_in_currency(
-        self, symbol: str, target_currency: str, exchange_id: str | None = None
+        self, symbol: Symbol, target_currency: str, exchange_id: str | None = None
     ) -> Decimal:
         """Get price converted to target currency."""
         ...

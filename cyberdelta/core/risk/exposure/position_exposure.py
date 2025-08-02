@@ -9,7 +9,7 @@ from pydantic import Field, field_validator
 from pydantic.dataclasses import dataclass
 
 from cyberdelta.config import AppSettings
-from cyberdelta.core.risk.calculations import RiskCalculationResult
+# RiskCalculationResult import removed - not found in calculations module
 from cyberdelta.core.risk.utils.calculator_base import RiskCalculatorBase
 from cyberdelta.core.risk.exceptions import RiskCalculationError
 from cyberdelta.core.symbols.models import Symbol
@@ -59,7 +59,9 @@ class ExposureMetrics:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise RiskCalculationError(
-                parameter="exposure_metrics", value=value, expected="finite decimal value"
+                f"Invalid exposure metric value: {value} (expected finite decimal value)",
+                calculation_type="exposure_validation",
+                metadata={"parameter": "exposure_metrics", "value": str(value)}
             )
         return value
 
@@ -80,16 +82,18 @@ class ExposureMetrics:
         for currency, exposure in v.items():
             if not currency:
                 raise RiskCalculationError(
-                    parameter="currency_code", value=currency, expected="non-empty string"
+                    f"Invalid currency code: {currency} (expected non-empty string)",
+                    calculation_type="currency_exposure_validation",
+                    metadata={"parameter": "currency_code", "value": str(currency)}
                 )
             exposure_val: Decimal = (
                 exposure if isinstance(exposure, Decimal) else Decimal(str(exposure))
             )
             if not exposure_val.is_finite():
                 raise RiskCalculationError(
-                    parameter=f"exposure_{currency}",
-                    value=exposure_val,
-                    expected="finite decimal value",
+                    f"Invalid exposure value for {currency}: {exposure_val} (expected finite decimal value)",
+                    calculation_type="currency_exposure_validation",
+                    metadata={"parameter": f"exposure_{currency}", "value": str(exposure_val)}
                 )
             validated[currency.upper()] = exposure_val
         return validated
@@ -138,7 +142,9 @@ class AggregateExposureMetrics:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise RiskCalculationError(
-                parameter="exposure_value", value=value, expected="finite decimal value"
+                f"Invalid exposure value: {value} (expected finite decimal value)",
+                calculation_type="exposure_validation",
+                metadata={"parameter": "exposure_value", "value": str(value)}
             )
         return value
 
@@ -159,16 +165,18 @@ class AggregateExposureMetrics:
         for currency, exposure in v.items():
             if not currency:
                 raise RiskCalculationError(
-                    parameter="currency_code", value=currency, expected="non-empty string"
+                    f"Invalid currency code: {currency} (expected non-empty string)",
+                    calculation_type="currency_exposure_validation",
+                    metadata={"parameter": "currency_code", "value": str(currency)}
                 )
             exposure_val: Decimal = (
                 exposure if isinstance(exposure, Decimal) else Decimal(str(exposure))
             )
             if not exposure_val.is_finite():
                 raise RiskCalculationError(
-                    parameter=f"exposure_{currency}",
-                    value=exposure_val,
-                    expected="finite decimal value",
+                    f"Invalid exposure value for {currency}: {exposure_val} (expected finite decimal value)",
+                    calculation_type="currency_exposure_validation",
+                    metadata={"parameter": f"exposure_{currency}", "value": str(exposure_val)}
                 )
             validated[currency.upper()] = exposure_val
         return validated
@@ -187,11 +195,15 @@ class AggregateExposureMetrics:
         value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
         if not value.is_finite():
             raise RiskCalculationError(
-                parameter="current_price", value=value, expected="finite decimal value"
+                f"Invalid current price: {value} (expected finite decimal value)",
+                calculation_type="price_validation",
+                metadata={"parameter": "current_price", "value": str(value)}
             )
         if value <= 0:
             raise RiskCalculationError(
-                parameter="current_price", value=value, expected="positive decimal value"
+                f"Invalid current price: {value} (expected positive decimal value)",
+                calculation_type="price_validation",
+                metadata={"parameter": "current_price", "value": str(value)}
             )
         return value
 
@@ -210,17 +222,21 @@ class AggregateExposureMetrics:
             value: Decimal = v if isinstance(v, Decimal) else Decimal(str(v))
             if not value.is_finite():
                 raise RiskCalculationError(
-                    parameter="volatility", value=value, expected="finite decimal value"
+                    f"Invalid volatility: {value} (expected finite decimal value)",
+                    calculation_type="volatility_validation",
+                    metadata={"parameter": "volatility", "value": str(value)}
                 )
             if value < 0:
                 raise RiskCalculationError(
-                    parameter="volatility", value=value, expected="non-negative decimal value"
+                    f"Invalid volatility: {value} (expected non-negative decimal value)",
+                    calculation_type="volatility_validation",
+                    metadata={"parameter": "volatility", "value": str(value)}
                 )
             if value > MAX_VOLATILITY_DECIMAL:
                 raise RiskCalculationError(
-                    parameter="volatility",
-                    value=value,
-                    expected=f"value <= {MAX_VOLATILITY_DECIMAL}",
+                    f"Invalid volatility: {value} (expected value <= {MAX_VOLATILITY_DECIMAL})",
+                    calculation_type="volatility_validation",
+                    metadata={"parameter": "volatility", "value": str(value), "max_allowed": str(MAX_VOLATILITY_DECIMAL)}
                 )
             return value
         return v
@@ -242,9 +258,9 @@ class AggregateExposureMetrics:
                 # Additional validation for correlation range
                 if not -1 <= corr <= 1:
                     raise RiskCalculationError(
-                        parameter=f"correlation_{key}",
-                        value=corr,
-                        expected="value between -1 and 1",
+                        f"Invalid correlation for {key}: {corr} (expected value between -1 and 1)",
+                        calculation_type="correlation_validation",
+                        metadata={"parameter": f"correlation_{key}", "value": str(corr)}
                     )
         return v
 
@@ -262,7 +278,7 @@ class ExposureCalculator(RiskCalculatorBase[ExposureInput, ExposureMetrics]):
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[BaseStateModel],
+        state_container: StateContainerProtocol,
     ) -> None:
         """Initialize the exposure calculator.
 
@@ -287,7 +303,7 @@ class ExposureCalculator(RiskCalculatorBase[ExposureInput, ExposureMetrics]):
             var_confidence_level=self.var_confidence_level,
         )
 
-    async def calculate(self, input_data: ExposureInput) -> CalculationResult[ExposureMetrics]:
+    async def calculate(self, input_data: ExposureInput) -> ExposureMetrics:
         """Calculate exposure metrics for a position.
 
         Args:
@@ -344,18 +360,24 @@ class ExposureCalculator(RiskCalculatorBase[ExposureInput, ExposureMetrics]):
             if leverage > self.leverage_warning_threshold:
                 warnings.append(f"High leverage detected: {leverage}")
 
-            return CalculationResult[ExposureMetrics].success_result(
-                result=metrics,
-                warnings=warnings,
-                metadata=CalculationMetadata(calculator=self.calculator_name),
-            )
+            # Log warnings if any
+            if warnings:
+                for warning in warnings:
+                    self.logger.warning(warning)
+            
+            return metrics
 
         except (ValueError, TypeError, ArithmeticError) as e:
-            return CalculationResult[ExposureMetrics].failure_result(
-                errors=[f"Exposure calculation failed: {e}"],
-                metadata=CalculationMetadata(
-                    calculator=self.calculator_name, error_type=type(e).__name__
-                ),
+            self.logger.error(
+                "Exposure calculation failed",
+                error=str(e),
+                error_type=type(e).__name__,
+                calculator=self.calculator_name
+            )
+            raise RiskCalculationError(
+                f"Exposure calculation failed: {e}",
+                calculation_type="exposure",
+                original_exception=e
             )
 
     async def validate_input(self, input_data: ExposureInput) -> tuple[bool, list[str]]:
@@ -480,16 +502,14 @@ class ExposureCalculator(RiskCalculatorBase[ExposureInput, ExposureMetrics]):
 
                 input_data = ExposureInput(position=position, current_price=current_price)
 
-                result = await self.calculate(input_data)
-                if result.success and result.result:
-                    metrics = result.result
-                    total_gross_exposure += metrics.gross_exposure
-                    total_net_exposure += metrics.net_exposure
+                metrics = await self.calculate(input_data)
+                total_gross_exposure += metrics.gross_exposure
+                total_net_exposure += metrics.net_exposure
 
-                    # Aggregate currency exposures
-                    for currency, exposure in metrics.currency_exposures.items():
-                        current_exposure = currency_exposures.get(currency, Decimal(0))
-                        currency_exposures[currency] = current_exposure + exposure
+                # Aggregate currency exposures
+                for currency, exposure in metrics.currency_exposures.items():
+                    current_exposure = currency_exposures.get(currency, Decimal(0))
+                    currency_exposures[currency] = current_exposure + exposure
 
             except (ValueError, TypeError, ArithmeticError) as e:
                 self.logger.warning(

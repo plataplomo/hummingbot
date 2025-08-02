@@ -89,8 +89,13 @@ class MarketRateFetcherService:
             f"{from_currency}{to_currency}",
         ]
 
-        for symbol in symbols:
+        # Import Symbol API here to convert strings to Symbol objects
+        from cyberdelta.core.symbols import symbol as create_symbol
+        from cyberdelta.enums.exchange_names import ExchangeName
+        
+        for symbol_str in symbols:
             try:
+                symbol = create_symbol(symbol_str, ExchangeName.HYPERLIQUID)
                 price = await self.price_service.get_price_in_currency(symbol, to_currency)
                 if price:
                     return FXRate(
@@ -121,8 +126,13 @@ class MarketRateFetcherService:
             f"{to_currency}{from_currency}",
         ]
 
-        for symbol in inv_symbols:
+        # Import Symbol API here to convert strings to Symbol objects
+        from cyberdelta.core.symbols import symbol as create_symbol
+        from cyberdelta.enums.exchange_names import ExchangeName
+        
+        for symbol_str in inv_symbols:
             try:
+                symbol = create_symbol(symbol_str, ExchangeName.HYPERLIQUID)
                 price = await self.price_service.get_price_in_currency(symbol, to_currency)
                 if price and price > 0:
                     return FXRate(

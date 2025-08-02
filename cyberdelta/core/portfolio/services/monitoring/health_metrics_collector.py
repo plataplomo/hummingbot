@@ -160,11 +160,11 @@ class HealthMetricsCollector(BasePortfolioService):
             total_open_orders = len([o for o in orders if o.status.value in {"open", "partial"}])
             
             # Calculate total capital from balances
-            total_capital = sum(balance.total_quantity for balance in balances)
+            total_capital = sum((balance.total_quantity for balance in balances), Decimal(0))
             
             # Calculate P&L
-            unrealized_pnl = sum(p.unrealized_pnl or Decimal(0) for p in positions)
-            realized_pnl = sum(p.realized_pnl or Decimal(0) for p in positions)
+            unrealized_pnl = sum((p.unrealized_pnl or Decimal(0) for p in positions), Decimal(0))
+            realized_pnl = sum((p.realized_pnl or Decimal(0) for p in positions), Decimal(0))
             
             # Count active exchanges
             active_exchanges = len({p.exchange for p in positions})
@@ -254,7 +254,7 @@ class HealthMetricsCollector(BasePortfolioService):
         Returns:
             Dictionary containing system, portfolio (if data provided), and application metrics.
         """
-        metrics = {}
+        metrics: dict[str, Any] = {}
         
         # Collect system metrics
         metrics["system"] = await self.collect_system_metrics()

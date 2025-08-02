@@ -535,7 +535,7 @@ class PortfolioAwareTradeExecutor:
         Uses the configured price service to fetch real market prices.
         """
         if self.price_service:
-            return await self.price_service.get_current_price(symbol.value, exchange)
+            return await self.price_service.get_current_price(symbol, exchange)
         
         raise NotImplementedError(
             "Market price fetching not configured. "

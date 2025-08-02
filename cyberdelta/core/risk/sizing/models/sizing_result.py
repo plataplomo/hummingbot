@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Any
 
 from cyberdelta.core.risk.exceptions.sizing_exceptions import SizingError
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -393,13 +394,13 @@ class SizedOpportunity:
         return self.sizing_result.allocation_percentage
 
     @property
-    def symbol(self) -> str:
+    def symbol(self) -> Symbol:
         """Symbol from the opportunity.
 
         Returns:
-            Trading symbol or 'unknown' if not available
+            Trading symbol
         """
-        return getattr(self.opportunity, "symbol", "unknown")
+        return self.opportunity.symbol
 
     @property
     def long_exchange(self) -> str:
@@ -426,7 +427,7 @@ class SizedOpportunity:
             dict[str, Any]: Dictionary representation of the sized opportunity including all fields.
         """
         return {
-            "symbol": self.symbol,
+            "symbol": self.symbol.value,
             "long_exchange": self.long_exchange,
             "short_exchange": self.short_exchange,
             "long_size_usd": float(self.long_size_usd),

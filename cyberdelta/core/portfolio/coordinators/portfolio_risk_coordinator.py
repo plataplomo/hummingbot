@@ -582,7 +582,7 @@ class PortfolioRiskCoordinator(BaseModel):
                 if hasattr(symbol, 'exchange_name') and symbol.exchange_name:
                     exchange_id = symbol.exchange_name
                 
-                return await self.price_service.get_current_price(symbol.value, exchange_id)
+                return await self.price_service.get_current_price(symbol, exchange_id)
             except Exception:
                 # Log error and continue to fallback
                 pass

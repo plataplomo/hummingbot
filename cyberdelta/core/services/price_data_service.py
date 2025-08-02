@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import Ticker
-from cyberdelta.core.symbols import Symbol, symbol as create_symbol
+from cyberdelta.core.symbols import Symbol, symbol as create_symbol, exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -61,7 +61,8 @@ class PriceDataService:
         )
 
         # Get ticker data (cached or fresh)
-        ticker = await price_service.get_ticker("hyperliquid", "BTC-PERP")
+        btc_perp = exchanges.hyperliquid("BTC-PERP")
+        ticker = await price_service.get_ticker("hyperliquid", btc_perp)
 
         # Price conversions
         btc_price_usdc = await price_service.get_price_in_base_currency(
@@ -98,7 +99,7 @@ class PriceDataService:
         self.cache_expiry_seconds = cache_expiry_seconds
 
         # Ticker cache: {exchange_id: {symbol: (ticker, timestamp)}}
-        self._ticker_cache: dict[str, dict[str, tuple[Ticker, datetime]]] = {}
+        self._ticker_cache: dict[str, dict[Symbol, tuple[Ticker, datetime]]] = {}
 
         self.logger.info(
             "PriceDataService initialized",
@@ -196,7 +197,7 @@ class PriceDataService:
             self._ticker_cache[exchange_id] = {}
 
         # Use symbol.value as key for cache storage
-        self._ticker_cache[exchange_id][symbol.value] = (ticker, datetime.now(UTC))
+        self._ticker_cache[exchange_id][symbol] = (ticker, datetime.now(UTC))
 
         self.logger.debug(
             "ticker_cached",
@@ -220,11 +221,10 @@ class PriceDataService:
             return None
 
         exchange_cache = self._ticker_cache[exchange_id]
-        symbol_key = symbol.value
-        if symbol_key not in exchange_cache:
+        if symbol not in exchange_cache:
             return None
 
-        ticker, timestamp = exchange_cache[symbol_key]
+        ticker, timestamp = exchange_cache[symbol]
 
         # Check if cache entry is expired
         now = datetime.now(UTC)
@@ -233,7 +233,7 @@ class PriceDataService:
         if age_seconds <= self.cache_expiry_seconds:
             return ticker
         # Remove expired entry
-        del exchange_cache[symbol_key]
+        del exchange_cache[symbol]
         self.logger.debug(
             "ticker_cache_expired",
             exchange_id=exchange_id,
@@ -377,7 +377,7 @@ class PriceDataService:
         removed_count = 0
 
         for exchange_id, exchange_cache in list(self._ticker_cache.items()):
-            expired_symbols: list[str] = []
+            expired_symbols: list[Symbol] = []
 
             for symbol, (_ticker, timestamp) in exchange_cache.items():
                 age_seconds = (now - timestamp).total_seconds()

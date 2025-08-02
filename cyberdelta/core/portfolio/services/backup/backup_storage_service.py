@@ -193,36 +193,28 @@ class BackupStorageService(BasePortfolioService):
     def _serialize_portfolio_state(self, state_data: PortfolioStateData) -> dict[str, Any]:
         """Serialize portfolio state for storage."""
         return {
-            "positions": [
-                {
-                    "symbol": pos.symbol,
-                    "size": str(pos.size),
-                    "value": str(pos.value),
-                    "exchange_id": pos.exchange_id,
-                }
-                for pos in state_data.positions
-            ],
-            "balances": [
-                {
-                    "asset": bal.asset,
-                    "total": str(bal.total),
-                    "available": str(bal.available),
-                    "exchange_id": bal.exchange_id,
-                }
-                for bal in state_data.balances
-            ],
-            "orders": [
-                {
-                    "order_id": order.order_id,
-                    "symbol": order.symbol,
-                    "size": str(order.size),
-                    "price": str(order.price),
-                    "side": order.side,
-                    "exchange_id": order.exchange_id,
-                }
-                for order in state_data.orders
-            ],
-            "timestamp": state_data.timestamp,
+            "state_id": state_data.state_id,
+            "portfolio_id": state_data.portfolio_id,
+            "total_account_value": str(state_data.total_account_value),
+            "total_collateral": str(state_data.total_collateral),
+            "free_collateral": str(state_data.free_collateral),
+            "total_realized_pnl": str(state_data.total_realized_pnl),
+            "total_unrealized_pnl": str(state_data.total_unrealized_pnl),
+            "daily_pnl": str(state_data.daily_pnl),
+            "gross_exposure": str(state_data.gross_exposure),
+            "net_exposure": str(state_data.net_exposure),
+            "leverage": str(state_data.leverage),
+            "portfolio_var_95": str(state_data.portfolio_var_95),
+            "max_drawdown": str(state_data.max_drawdown),
+            "sharpe_ratio": str(state_data.sharpe_ratio) if state_data.sharpe_ratio is not None else None,
+            "active_positions": state_data.active_positions,
+            "open_orders": state_data.open_orders,
+            "total_trades": state_data.total_trades,
+            "exchange_summaries": {k: v.model_dump() for k, v in state_data.exchange_summaries.items()},
+            "currency_exposures": {k: str(v) for k, v in state_data.currency_exposures.items()},
+            "component_health": {k: v.model_dump() for k, v in state_data.component_health.items()},
+            "metadata": state_data.metadata,
+            "timestamp": state_data.created_at.isoformat() if hasattr(state_data, 'created_at') else None,
         }
 
     async def _save_json_file(self, file_path: str, data: dict[str, Any]) -> None:
@@ -272,13 +264,30 @@ class BackupStorageService(BasePortfolioService):
 
     def _deserialize_portfolio_state(self, data: dict[str, Any]) -> PortfolioStateData:
         """Deserialize portfolio state from storage format."""
-        # This would need proper deserialization based on actual PortfolioStateData structure
-        # For now, returning a basic structure
+        from decimal import Decimal
+        
         return PortfolioStateData(
-            positions=data.get("positions", []),
-            balances=data.get("balances", []),
-            orders=data.get("orders", []),
-            timestamp=data.get("timestamp", 0.0),
+            state_id=data.get("state_id", "backup_state"),
+            portfolio_id=data.get("portfolio_id", ""),
+            total_account_value=Decimal(data.get("total_account_value", "0")),
+            total_collateral=Decimal(data.get("total_collateral", "0")),
+            free_collateral=Decimal(data.get("free_collateral", "0")),
+            total_realized_pnl=Decimal(data.get("total_realized_pnl", "0")),
+            total_unrealized_pnl=Decimal(data.get("total_unrealized_pnl", "0")),
+            daily_pnl=Decimal(data.get("daily_pnl", "0")),
+            gross_exposure=Decimal(data.get("gross_exposure", "0")),
+            net_exposure=Decimal(data.get("net_exposure", "0")),
+            leverage=Decimal(data.get("leverage", "0")),
+            portfolio_var_95=Decimal(data.get("portfolio_var_95", "0")),
+            max_drawdown=Decimal(data.get("max_drawdown", "0")),
+            sharpe_ratio=Decimal(data["sharpe_ratio"]) if data.get("sharpe_ratio") is not None else None,
+            active_positions=data.get("active_positions", 0),
+            open_orders=data.get("open_orders", 0),
+            total_trades=data.get("total_trades", 0),
+            exchange_summaries=data.get("exchange_summaries", {}),
+            currency_exposures={k: Decimal(v) for k, v in data.get("currency_exposures", {}).items()},
+            component_health=data.get("component_health", {}),
+            metadata=data.get("metadata", {}),
         )
 
     async def _calculate_checksum(self, file_path: str) -> str:

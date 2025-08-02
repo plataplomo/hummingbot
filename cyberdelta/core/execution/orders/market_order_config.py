@@ -53,15 +53,15 @@ class MarketOrderConfig(BaseModel):
         description="Minimum liquidity ratio (2.0 = 2x order size required)",
     )
 
-    # Symbol-specific slippage overrides
-    slippage_by_symbol: dict[str, Decimal] = Field(
+    # Base asset slippage overrides  
+    slippage_by_base_asset: dict[str, Decimal] = Field(
         default_factory=lambda: {
             "BTC": Decimal("0.005"),  # 0.5% for high liquidity
             "ETH": Decimal("0.005"),
             "SOL": Decimal("0.01"),
             "default": Decimal("0.02"),  # 2% for others
         },
-        description="Symbol-specific slippage overrides",
+        description="Slippage overrides by base asset (BTC, ETH, etc)",
     )
 
     # Market order enablement
@@ -102,10 +102,10 @@ class MarketOrderConfig(BaseModel):
             raise MarketOrderParameterError.positive_error()
         return v
 
-    @field_validator("slippage_by_symbol")
+    @field_validator("slippage_by_base_asset")
     @classmethod
     def validate_slippage_map(cls, v: dict[str, Decimal]) -> dict[str, Decimal]:
-        """Validate all slippage values in the symbol map.
+        """Validate all slippage values in the base asset map.
 
         Returns:
             dict[str, Decimal]: Validated slippage mapping with required 'default' entry.
@@ -117,14 +117,14 @@ class MarketOrderConfig(BaseModel):
         if "default" not in v:
             raise MarketOrderParameterError.slippage_default_error()
 
-        for symbol, slippage in v.items():
+        for base_asset, slippage in v.items():
             parsed = parse_decimal_value(
                 slippage,
                 allow_none=False,
-                field_name=f"slippage_by_symbol[{symbol}]",
+                field_name=f"slippage_by_base_asset[{base_asset}]",
             )
             if not parsed.is_finite() or parsed <= Decimal(0):
-                raise MarketOrderParameterError.slippage_invalid_error(symbol, slippage)
+                raise MarketOrderParameterError.slippage_invalid_error(base_asset, slippage)
 
         return v
 
@@ -139,7 +139,7 @@ class MarketOrderConfig(BaseModel):
         """
         # Extract base asset from symbol for configuration lookup
         symbol_key = symbol.base_asset if hasattr(symbol, 'base_asset') and symbol.base_asset else symbol.value
-        return self.slippage_by_symbol.get(symbol_key, self.slippage_by_symbol["default"])
+        return self.slippage_by_base_asset.get(symbol_key, self.slippage_by_base_asset["default"])
 
     def validate_slippage(self, slippage: Decimal) -> Decimal:
         """Validate and cap slippage to maximum allowed.

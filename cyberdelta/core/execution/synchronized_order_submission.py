@@ -1308,7 +1308,7 @@ class SynchronizedOrderSubmissionService:
         # Circuit breaker check for long leg
         cb_long_ok, cb_long_msg = self.circuit_breaker_system.can_execute(
             opportunity.long_exchange,
-            opportunity.symbol.value,
+            opportunity.symbol,
         )
         if self.execution_coordinator:
             await self.execution_coordinator.add_checkpoint(
@@ -1333,7 +1333,7 @@ class SynchronizedOrderSubmissionService:
         if all_success:  # Only check short leg if long leg is okay
             cb_short_ok, cb_short_msg = self.circuit_breaker_system.can_execute(
                 opportunity.short_exchange,
-                opportunity.symbol.value,
+                opportunity.symbol,
             )
             if self.execution_coordinator:
                 await self.execution_coordinator.add_checkpoint(

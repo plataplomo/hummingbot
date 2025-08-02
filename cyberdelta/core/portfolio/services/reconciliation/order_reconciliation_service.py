@@ -163,28 +163,29 @@ class OrderReconciliationService(BasePortfolioService):
         expected_remaining = order.quantity_requested - order.quantity_filled
         actual_remaining = self._get_order_remaining(order)
         if actual_remaining is not None and abs(expected_remaining - actual_remaining) > Decimal("0.00001"):
+            # actual_remaining is guaranteed to be Decimal here due to the None check
             discrepancies.append(OrderDiscrepancy(
                 exchange=exchange,
                 order_id=order.exchange_order_id or order.client_order_id,
                 symbol=order.symbol,
                 discrepancy_type="remaining_mismatch",
                 expected_value=expected_remaining,
-                actual_value=actual_remaining,
+                actual_value=actual_remaining,  # Type: Decimal (not None)
                 severity="error",
                 message=f"Order remaining calculation mismatch",
             ))
         
         # Check price validity
-        if order.price <= 0:
+        if order.price is not None and order.price <= 0:
             discrepancies.append(OrderDiscrepancy(
                 exchange=exchange,
                 order_id=order.exchange_order_id or order.client_order_id,
                 symbol=order.symbol,
                 discrepancy_type="invalid_price",
                 expected_value=Decimal("0.01"),
-                actual_value=order.price,
+                actual_value=order.price,  # Type: Decimal (not None)
                 severity="error",
-                message=f"Invalid order price",
+                message="Invalid order price",
             ))
         
         # Check size validity

@@ -63,7 +63,7 @@ class AuditRecorderService(BasePortfolioService):
     
     # Context
     user_context: dict[str, str | None] = Field(
-        default_factory=lambda: {"user_id": None, "session_id": None},
+        default_factory=dict,
         description="Current user context"
     )
     
@@ -106,10 +106,13 @@ class AuditRecorderService(BasePortfolioService):
         if metadata:
             if isinstance(metadata, OperationMetadata):
                 metadata_dict = {
+                    "user_id": metadata.user_id,
+                    "session_id": metadata.session_id,
                     "request_id": metadata.request_id,
-                    "source": metadata.source,
-                    "request_timestamp": metadata.request_timestamp,
-                    "priority": metadata.priority,
+                    "correlation_id": metadata.correlation_id,
+                    "environment": metadata.environment,
+                    "service_version": metadata.service_version,
+                    "execution_context": metadata.execution_context,
                 }
             else:
                 metadata_dict = dict(metadata)

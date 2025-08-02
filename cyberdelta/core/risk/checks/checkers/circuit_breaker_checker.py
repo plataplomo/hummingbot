@@ -5,6 +5,7 @@ from typing import Any, Final, Protocol
 from cyberdelta.config import AppSettings
 from cyberdelta.core.risk.checks.checkers.typed_base_checker import TypedBaseChecker
 from cyberdelta.core.risk.checks.models.check_result import CheckContext, CheckResult
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -12,7 +13,7 @@ from cyberdelta.validation.funding_data import ArbitrageOpportunity
 class CircuitBreakerSystemProtocol(Protocol):
     """Protocol for circuit breaker system."""
 
-    def check_circuit_state(self, symbol: str, exchange: str) -> dict[str, Any]:
+    def check_circuit_state(self, symbol: Symbol, exchange: str) -> dict[str, Any]:
         """Check circuit breaker state."""
         ...
 
@@ -20,7 +21,7 @@ class CircuitBreakerSystemProtocol(Protocol):
         """Get system status."""
         ...
 
-    def can_execute(self, symbol: str, exchange: str) -> bool:
+    def can_execute(self, symbol: Symbol, exchange: str) -> bool:
         """Check if can execute trade."""
         ...
 
@@ -101,8 +102,7 @@ class CircuitBreakerChecker(TypedBaseChecker[CheckResult]):
         for exchange in exchanges_to_check:
             try:
                 # can_execute expects symbol and exchange parameters based on Protocol
-                # Using a default symbol since the Protocol requires it
-                can_execute = self.circuit_breaker_system.can_execute("", exchange)
+                can_execute = self.circuit_breaker_system.can_execute(opportunity.symbol, exchange)
 
                 # Get breaker state for more detailed information
                 breaker = self.circuit_breaker_system.get_exchange_breaker(exchange)

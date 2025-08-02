@@ -5,6 +5,8 @@ from decimal import Decimal
 from enum import Enum
 from typing import Any
 
+from cyberdelta.core.symbols import Symbol
+
 
 class ConstraintType(Enum):
     """Types of constraints."""
@@ -38,7 +40,7 @@ class ConstraintViolation:
     limit_value: Decimal | None = None
 
     # Context
-    symbol: str | None = None
+    symbol: Symbol | None = None
     exchange: str | None = None
 
     @property
@@ -230,7 +232,7 @@ class PortfolioConstraint:
         return violations
 
     def validate_symbol_concentration(
-        self, symbol: str, current_allocation: Decimal, new_allocation: Decimal
+        self, symbol: Symbol, current_allocation: Decimal, new_allocation: Decimal
     ) -> list[ConstraintViolation]:
         """Validate symbol concentration.
 
@@ -251,7 +253,7 @@ class PortfolioConstraint:
                     constraint_type=ConstraintType.PORTFOLIO,
                     severity=ConstraintSeverity.ERROR,
                     message=(
-                        f"Symbol {symbol} allocation {total_allocation:.2%} exceeds maximum "
+                        f"Symbol {symbol.value} allocation {total_allocation:.2%} exceeds maximum "
                         f"{self.max_allocation_per_symbol:.2%}"
                     ),
                     details={"constraint": "max_allocation_per_symbol"},
@@ -457,7 +459,7 @@ class LeverageConstraint:
 
         return violations
 
-    def validate_symbol_leverage(self, symbol: str, leverage: Decimal) -> list[ConstraintViolation]:
+    def validate_symbol_leverage(self, symbol: Symbol, leverage: Decimal) -> list[ConstraintViolation]:
         """Validate symbol-specific leverage.
 
         Args:
@@ -470,15 +472,15 @@ class LeverageConstraint:
         """
         violations: list[ConstraintViolation] = []
 
-        if symbol in self.max_leverage_per_symbol:
-            max_leverage = self.max_leverage_per_symbol[symbol]
+        if symbol.value in self.max_leverage_per_symbol:
+            max_leverage = self.max_leverage_per_symbol[symbol.value]
             if leverage > max_leverage:
                 violations.append(
                     ConstraintViolation(
                         constraint_type=ConstraintType.LEVERAGE,
                         severity=ConstraintSeverity.ERROR,
                         message=(
-                            f"Leverage {leverage:.2f}x for {symbol} exceeds maximum "
+                            f"Leverage {leverage:.2f}x for {symbol.value} exceeds maximum "
                             f"{max_leverage:.2f}x"
                         ),
                         details={"constraint": "max_leverage_per_symbol"},

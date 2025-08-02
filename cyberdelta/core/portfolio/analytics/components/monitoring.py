@@ -258,7 +258,7 @@ class HealthMonitor:
             return 0.0
             
         first_check = self._health_history[0]["timestamp"]
-        return (datetime.now(UTC) - first_check).total_seconds()
+        return float((datetime.now(UTC) - first_check).total_seconds())
         
     def _count_recent_errors(self) -> int:
         """Count errors in last hour."""

@@ -36,7 +36,6 @@ class RealMarketDataService(MarketDataProvider):
     ) -> None:
         """Initialize market data service."""
         self.app_settings = app_settings
-        self.portfolio_config = app_settings.portfolio_tracker
         self.cache_service = cache_service
         self.api_clients = api_clients or {}
         self.logger = get_logger(self.__class__.__name__)

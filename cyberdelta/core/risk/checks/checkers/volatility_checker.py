@@ -8,6 +8,7 @@ from cyberdelta.config import AppSettings
 from cyberdelta.core.risk.checks.checkers.typed_base_checker import TypedBaseChecker
 from cyberdelta.core.risk.checks.models.check_result import CheckContext, CheckResult
 from cyberdelta.core.risk.exceptions.check_exceptions import VolatilityError
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -68,7 +69,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         # Historical data tracking
         self.volatility_history: dict[
             str, list[Decimal]
-        ] = {}  # symbol -> list of recent volatility
+        ] = {}  # symbol.value -> list of recent volatility
         self.max_history_size = 168  # 1 week of hourly data
 
         # Correlation checks
@@ -131,7 +132,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _extract_opportunity_data(
         self, opportunity: ArbitrageOpportunity, details: dict[str, Any]
-    ) -> tuple[str, Decimal] | tuple[str, CheckResult]:
+    ) -> tuple[Symbol, Decimal] | tuple[Symbol, CheckResult]:
         """Extract and validate opportunity data.
 
         Args:
@@ -141,13 +142,13 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         Returns:
             Tuple of (symbol, spread_decimal) on success, or (symbol, CheckResult) on failure
         """
-        symbol = getattr(opportunity, "symbol", "unknown")
+        symbol = opportunity.symbol
         spread_percentage = getattr(opportunity, "spread_percentage", None)
 
         if spread_percentage is None:
             return symbol, CheckResult.failure(
                 message="Cannot check volatility: missing spread_percentage",
-                details={"symbol": symbol},
+                details={"symbol": symbol.value if hasattr(symbol, "value") else str(symbol)},
             )
 
         # Convert spread to Decimal
@@ -160,7 +161,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
             )
 
         details.update({
-            "symbol": symbol,
+            "symbol": symbol.value if hasattr(symbol, "value") else str(symbol),
             "current_spread": float(spread_decimal),
         })
 
@@ -190,7 +191,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _perform_volatility_checks(
         self,
-        symbol: str,
+        symbol: Symbol,
         spread_decimal: Decimal,
         current_volatility: Decimal | None,
         historical_volatility: list[Decimal] | None,
@@ -254,7 +255,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
     def _handle_regime_and_history(
         self,
-        symbol: str,
+        symbol: Symbol,
         current_volatility: Decimal | None,
         historical_volatility: list[Decimal] | None,
         details: dict[str, Any],
@@ -309,7 +310,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
             return None
 
         # Check if we have historical data
-        return self.volatility_history.get(symbol, [])
+        return self.volatility_history.get(symbol.value, [])
 
     def _calculate_current_volatility(
         self, opportunity: ArbitrageOpportunity, historical_data: list[Decimal] | None
@@ -441,7 +442,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         return CheckResult.success("Basis volatility check passed")
 
     def _check_volatility_stability(
-        self, symbol: str, current_volatility: Decimal, historical_data: list[Decimal] | None
+        self, symbol: Symbol, current_volatility: Decimal, historical_data: list[Decimal] | None
     ) -> CheckResult:
         """Check volatility stability and detect spikes.
 
@@ -632,33 +633,34 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
 
         return max(MIN_VOLATILITY_SCORE, min(MAX_VOLATILITY_SCORE, base_score))
 
-    def _update_volatility_history(self, symbol: str, volatility: Decimal) -> None:
+    def _update_volatility_history(self, symbol: Symbol, volatility: Decimal) -> None:
         """Update volatility history for the symbol."""
-        if symbol not in self.volatility_history:
-            self.volatility_history[symbol] = []
+        symbol_key = symbol.value
+        if symbol_key not in self.volatility_history:
+            self.volatility_history[symbol_key] = []
 
-        self.volatility_history[symbol].append(volatility)
+        self.volatility_history[symbol_key].append(volatility)
 
         # Maintain history size limit
-        if len(self.volatility_history[symbol]) > self.max_history_size:
-            self.volatility_history[symbol] = self.volatility_history[symbol][
+        if len(self.volatility_history[symbol_key]) > self.max_history_size:
+            self.volatility_history[symbol_key] = self.volatility_history[symbol_key][
                 -self.max_history_size :
             ]
 
-    def clear_volatility_history(self, symbol: str | None = None) -> None:
+    def clear_volatility_history(self, symbol: Symbol | None = None) -> None:
         """Clear volatility history.
 
         Args:
             symbol: Symbol to clear history for, or None to clear all
         """
         if symbol:
-            self.volatility_history.pop(symbol, None)
-            self.logger.info("Cleared volatility history", symbol=symbol)
+            self.volatility_history.pop(symbol.value, None)
+            self.logger.info("Cleared volatility history", symbol=symbol.value)
         else:
             self.volatility_history.clear()
             self.logger.info("Cleared all volatility history")
 
-    def get_volatility_history(self, symbol: str) -> list[Decimal]:
+    def get_volatility_history(self, symbol: Symbol) -> list[Decimal]:
         """Get volatility history for a symbol.
 
         Args:
@@ -667,7 +669,7 @@ class VolatilityChecker(TypedBaseChecker[CheckResult]):
         Returns:
             List of historical volatility values
         """
-        return self.volatility_history.get(symbol, []).copy()
+        return self.volatility_history.get(symbol.value, []).copy()
 
     def set_volatility_thresholds(self, min_threshold: Decimal, max_threshold: Decimal) -> None:
         """Set volatility thresholds.

@@ -169,7 +169,7 @@ class PositionOpenedEvent(BasePortfolioEvent[PositionData]):
             PositionOpenedEvent: The created position opened event.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=str(position.symbol))
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -239,7 +239,7 @@ class PositionUpdatedEvent(BasePortfolioEvent[PositionData]):
             PositionUpdatedEvent: The created position updated event.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=str(position.symbol))
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -312,7 +312,7 @@ class PositionClosedEvent(BasePortfolioEvent[PositionData]):
             PositionClosedEvent: The created position closed event.
         """
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=str(position.symbol))
+        metadata = EventMetadata(exchange_id=position.exchange_id, symbol=position.symbol)
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:
@@ -411,7 +411,7 @@ class PositionErrorEvent(BasePortfolioEvent[PositionErrorData]):
         )
 
         # Build metadata with explicit fields first
-        metadata = EventMetadata(exchange_id=exchange_id, symbol=str(symbol))
+        metadata = EventMetadata(exchange_id=exchange_id, symbol=symbol)
 
         # Apply additional fields from kwargs
         if "source_component" in kwargs:

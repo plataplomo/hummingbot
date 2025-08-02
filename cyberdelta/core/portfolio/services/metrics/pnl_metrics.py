@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
 from cyberdelta.core.portfolio.portfolio_types.calculations import PnLBreakdown
+from cyberdelta.core.symbols import Symbol
 
 
 class PnLMetricsService(BaseModel):
@@ -116,12 +117,12 @@ class PnLMetricsService(BaseModel):
             breakdown[exchange] = exchange_pnl
         return breakdown
 
-    async def _calculate_pnl_by_symbol(self, state: PortfolioState) -> dict[str, Decimal]:
+    async def _calculate_pnl_by_symbol(self, state: PortfolioState) -> dict[Symbol, Decimal]:
         """Calculate P&L breakdown by symbol."""
         breakdown = {}
         for exchange, positions in state.positions.items():
             for position in positions:
-                symbol_key = position.symbol.value
+                symbol_key = position.symbol
                 if symbol_key not in breakdown:
                     breakdown[symbol_key] = Decimal(0)
                 

@@ -131,7 +131,7 @@ class UnrealizedPnLCalculator(BaseCalculator[UnrealizedPnLResult]):
         else:
             try:
                 current_price = await self.price_service.get_price_in_currency(
-                    position.symbol.value, base_currency
+                    position.symbol, base_currency
                 )
             except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError):
                 logger.exception("failed_to_get_current_price", symbol=position.symbol)

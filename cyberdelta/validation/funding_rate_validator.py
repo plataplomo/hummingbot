@@ -12,7 +12,8 @@ from typing import Any, TypedDict, cast
 
 from cyberdelta.config.models.config_models import AppSettings  # Correct path
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import Symbol
+from cyberdelta.core.symbols import Symbol, symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 class HistorySeries(TypedDict):
@@ -94,7 +95,7 @@ class FundingRateValidator:
             "timestamp": timestamp,
             "datetime": datetime.fromtimestamp(timestamp / 1000, UTC),
             "exchange": exchange,
-            "symbol": symbol.value,
+            "symbol": symbol,
             "predicted_rate": predicted_rate,
             "method": method,
             "confidence": confidence,
@@ -104,14 +105,14 @@ class FundingRateValidator:
         self.logger.debug(
             "funding_rate_prediction_recorded",
             exchange=exchange,
-            symbol=symbol.value,
+            symbol=symbol,
             predicted_rate=predicted_rate,
             method=method,
             confidence=confidence,
             timestamp=timestamp,
             action="prediction_stored",
             message=(
-                f"Recorded funding rate prediction: {exchange}/{symbol.value}, "
+                f"Recorded funding rate prediction: {exchange}/{symbol}, "
                 f"rate={predicted_rate:.6f}, method={method}"
             ),
         )
@@ -119,7 +120,7 @@ class FundingRateValidator:
     def record_payment(
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         actual_rate: float,
         payment_amount: float,
         position_size: float,
@@ -165,7 +166,7 @@ class FundingRateValidator:
     def calculate_metrics(
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         days: int = 7,
     ) -> dict[str, float | None]:
         """Calculate prediction accuracy metrics.
@@ -321,7 +322,7 @@ class FundingRateValidator:
         report: dict[str, dict[str, dict[str, float | None]]] = {}
 
         # Get unique exchange-symbol pairs from all predictions and payments
-        exchange_symbols: set[tuple[str, str]] = set()
+        exchange_symbols: set[tuple[ExchangeName, Symbol]] = set()
 
         exchange_symbols.update(
             (prediction["exchange"], prediction["symbol"]) for prediction in self.predictions
@@ -332,19 +333,19 @@ class FundingRateValidator:
         )
 
         # Generate report for each pair
-        for exchange, symbol in exchange_symbols:
+        for exchange, symbol_obj in exchange_symbols:
             if exchange not in report:
                 report[exchange] = {}
 
-            metrics = self.calculate_metrics(exchange, symbol, days)
-            report[exchange][symbol] = metrics
+            metrics = self.calculate_metrics(exchange, symbol_obj, days)
+            report[exchange][symbol_obj.value] = metrics
 
         return report
 
     def get_recent_predictions(
         self,
         exchange: str | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Get recent funding rate predictions.
@@ -378,7 +379,7 @@ class FundingRateValidator:
     def get_recent_payments(
         self,
         exchange: str | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         """Get recent funding payments.
@@ -412,7 +413,7 @@ class FundingRateValidator:
     def get_prediction_history(
         self,
         exchange: str,
-        symbol: str,
+        symbol: Symbol,
         days: int = 30,
     ) -> PredictionHistory:
         """Get prediction history for a specific exchange and symbol.
@@ -494,7 +495,7 @@ class FundingRateValidator:
             ),
         )
 
-    def get_symbol_metrics(self, exchange: str, symbol: str) -> dict[str, float | None]:
+    def get_symbol_metrics(self, exchange: str, symbol: Symbol) -> dict[str, float | None]:
         """Protocol-compatible method for RiskManager; delegates to calculate_metrics.
 
         Returns:

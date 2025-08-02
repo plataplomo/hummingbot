@@ -9,6 +9,7 @@ from cyberdelta.core.portfolio.analytics.performance import AttributionResult
 from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 
 logger = get_logger(__name__)
 
@@ -130,7 +131,7 @@ class AttributionAnalyzer:
         self, 
         portfolio_state: PortfolioState, 
         period: timedelta
-    ) -> Dict[str, Decimal]:
+    ) -> Dict[Symbol, Decimal]:
         """Attribute P&L by symbol."""
         attribution = {}
         
@@ -236,8 +237,8 @@ class AttributionAnalyzer:
         
     async def _find_top_performers(
         self, 
-        by_symbol: Dict[str, Decimal]
-    ) -> Tuple[List[Tuple[str, Decimal]], List[Tuple[str, Decimal]]]:
+        by_symbol: Dict[Symbol, Decimal]
+    ) -> Tuple[List[Tuple[Symbol, Decimal]], List[Tuple[Symbol, Decimal]]]:
         """Find top winning and losing positions."""
         # Sort by P&L
         sorted_symbols = sorted(

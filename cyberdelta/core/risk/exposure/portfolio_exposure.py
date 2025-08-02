@@ -12,6 +12,7 @@ from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.risk.exceptions import RiskCalculationError
+from cyberdelta.core.symbols import Symbol
 
 
 # Constants
@@ -473,23 +474,21 @@ class PortfolioExposureCalculator:
 
         return portfolio_exposure
 
-    def _parse_base_asset(self, symbol: str) -> str:
-        """Extract base asset from symbol.
+    def _parse_base_asset(self, symbol: Symbol) -> str:
+        """Extract base asset from Symbol object.
+
+        Uses Symbol's built-in component parsing instead of manual string manipulation.
 
         Returns:
-            Base asset symbol after removing common suffixes and quote currencies.
+            Base asset from Symbol's parsed components.
         """
-        # Remove common suffixes
-        for suffix in ["-PERP", "-SWAP", "-FUTURES", "/USD", "/USDT", "/USDC"]:
-            if suffix in symbol:
-                return symbol.split(suffix, maxsplit=1)[0]
-
-        # Handle concatenated pairs
-        for quote in ["USDT", "USDC", "USD", "BTC", "ETH"]:
-            if symbol.endswith(quote) and len(symbol) > len(quote):
-                return symbol[: -len(quote)]
-
-        return symbol
+        # Use Symbol's built-in base_asset property
+        try:
+            # Symbol objects have base_asset property that contains the parsed base asset
+            return symbol.base_asset if symbol.base_asset else symbol.value
+        except (AttributeError, Exception):
+            # Fallback to symbol value if base_asset not available
+            return symbol.value
 
     def _calculate_concentration_metrics(
         self,

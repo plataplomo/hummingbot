@@ -75,7 +75,7 @@ class MemoryCacheService[K, V]:
             app_settings: Application settings with portfolio configuration
         """
         self.app_settings = app_settings
-        self.cache_config = app_settings.portfolio_tracker.cache
+        self.cache_config = app_settings.monitoring.cache
         self.logger = get_logger(self.__class__.__name__)
 
         # Configuration from AppSettings

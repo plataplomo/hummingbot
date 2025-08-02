@@ -14,6 +14,7 @@ from typing import Any, Literal, TypeVar
 from pydantic import BaseModel, ConfigDict, Field
 
 from .models import Position
+from cyberdelta.core.symbols import Symbol
 
 
 # Type variables
@@ -93,7 +94,7 @@ class PortfolioExposureResult(BaseModel):
     total_net_exposure: Decimal
     total_gross_exposure: Decimal
     currency: str
-    by_symbol: dict[str, ExposureResult]
+    by_symbol: dict[Symbol, ExposureResult]
     by_exchange: dict[str, ExposureResult]
     metadata: CalculationMetadata | None = None
 
@@ -187,7 +188,7 @@ class BreakdownMetrics(BaseModel):
     model_config = ConfigDict(frozen=True)
     
     by_exchange: dict[str, ExchangeBreakdown]
-    by_symbol: dict[str, UnrealizedPnLResult]
+    by_symbol: dict[Symbol, UnrealizedPnLResult]
     long_positions: list[UnrealizedPnLResult]
     short_positions: list[UnrealizedPnLResult]
 
@@ -277,7 +278,7 @@ class PnLBreakdown(BaseModel):
     unrealized: Decimal
     total: Decimal
     by_exchange: dict[str, Decimal]
-    by_symbol: dict[str, Decimal]
+    by_symbol: dict[Symbol, Decimal]
     by_strategy: dict[str, Decimal] | None = None
     fees_paid: Decimal = Decimal(0)
     net_pnl: Decimal = Decimal(0)

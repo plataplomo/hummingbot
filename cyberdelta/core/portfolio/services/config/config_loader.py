@@ -10,12 +10,12 @@ from typing import Any
 try:
     import toml
 except ImportError:
-    toml = None
+    toml = None  # type: ignore[assignment]
 
 try:
     import yaml
 except ImportError:
-    yaml = None
+    yaml = None  # type: ignore[assignment]
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.core.portfolio.portfolio_types.models import PortfolioConfig
@@ -54,7 +54,7 @@ class ConfigLoaderService(BaseModel):
             "enable_exposure_monitoring": os.getenv("PORTFOLIO_ENABLE_EXPOSURE", "true").lower() == "true",
         }
         
-        return PortfolioConfig(**env_config)
+        return PortfolioConfig(**env_config)  # type: ignore[arg-type]
 
     async def load_from_dict(self, config_data: dict[str, Any]) -> PortfolioConfig:
         """Load configuration from dictionary."""

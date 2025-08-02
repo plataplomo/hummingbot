@@ -9,6 +9,7 @@ from typing import Any
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.risk.checks.models.check_result import CheckResult
 from cyberdelta.core.risk.exceptions.sizing_exceptions import ValidationFactorError
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -737,7 +738,7 @@ class ValidationFactorApplier:
         self.exchange_scores[exchange.lower()] = score
         self.logger.info("Set exchange score", exchange=exchange, score=float(score))
 
-    def set_symbol_risk_score(self, symbol: str, score: Decimal) -> None:
+    def set_symbol_risk_score(self, symbol: Symbol, score: Decimal) -> None:
         """Set risk score for a symbol.
 
         Raises:
@@ -746,8 +747,8 @@ class ValidationFactorApplier:
         if score < 0 or score > 1:
             raise ValidationFactorError(ValidationFactorError.SCORE_OUT_OF_RANGE)
 
-        self.symbol_risk_scores[symbol.upper()] = score
-        self.logger.info("Set symbol risk score", symbol=symbol, score=float(score))
+        self.symbol_risk_scores[symbol.value.upper()] = score
+        self.logger.info("Set symbol risk score", symbol=symbol.value, score=float(score))
 
     def get_applier_stats(self) -> dict[str, Any]:
         """Get applier statistics.

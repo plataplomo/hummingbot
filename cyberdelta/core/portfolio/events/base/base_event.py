@@ -13,6 +13,7 @@ from pydantic.dataclasses import dataclass
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.portfolio.exceptions import MalformedTradeError
+from cyberdelta.core.symbols import Symbol
 
 
 # Type-preserving factory function for tags dict
@@ -91,7 +92,7 @@ class EventMetadataKwargs(TypedDict, total=False):
     source_component: NotRequired[str]
     correlation_id: NotRequired[UUID | None]
     exchange_id: NotRequired[str | None]
-    symbol: NotRequired[str | None]
+    symbol: NotRequired[Symbol | None]
     priority: NotRequired[EventPriority]
     retry_count: NotRequired[int]
     tags: NotRequired[dict[str, str]]
@@ -102,7 +103,7 @@ class EventMetadataKwargsWithoutExchange(TypedDict, total=False):
 
     source_component: NotRequired[str]
     correlation_id: NotRequired[UUID | None]
-    symbol: NotRequired[str | None]
+    symbol: NotRequired[Symbol | None]
     priority: NotRequired[EventPriority]
     retry_count: NotRequired[int]
     tags: NotRequired[dict[str, str]]
@@ -127,7 +128,7 @@ class EventMetadata:
     source_component: str = ""
     correlation_id: UUID | None = None
     exchange_id: str | None = None
-    symbol: str | None = None
+    symbol: Symbol | None = None
     priority: EventPriority = EventPriority.NORMAL
     retry_count: int = 0
     tags: dict[str, str] = Field(default_factory=_str_str_dict_factory)

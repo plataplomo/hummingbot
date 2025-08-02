@@ -88,7 +88,7 @@ class SymbolMappingError(APIError):
 
     def __init__(
         self,
-        symbol: str,
+        symbol: Symbol,
         leg: str,
         exchange: str,
         available_exchanges: list[str] | None = None,
@@ -110,7 +110,7 @@ class SymbolMappingError(APIError):
         self.symbol_type = symbol_type
 
         # Build detailed error message
-        error_msg = f"Symbol mapping failed for {symbol} on {exchange} ({leg} leg)"
+        error_msg = f"Symbol mapping failed for {symbol.value} on {exchange} ({leg} leg)"
         if available_exchanges:
             error_msg += f". Symbol is available on: {', '.join(available_exchanges)}"
         if symbol_type:

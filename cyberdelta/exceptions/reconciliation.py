@@ -6,6 +6,8 @@ These exceptions handle errors during position reconciliation and validation pro
 from decimal import Decimal
 from typing import Any
 
+from cyberdelta.core.symbols import Symbol
+
 
 class ReconciliationError(Exception):
     """Base class for reconciliation-related errors."""
@@ -15,7 +17,7 @@ class ReconciliationError(Exception):
         message: str,
         *,
         exchange_id: str | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
         """Initialize reconciliation error.
@@ -42,7 +44,7 @@ class PositionFieldError(ReconciliationError):
         reason: str,
         *,
         exchange_id: str | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> None:
         """Initialize position field error.
 
@@ -77,7 +79,7 @@ class NonFinitePositionValueError(PositionFieldError):
         value: Decimal,
         *,
         exchange_id: str | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> None:
         """Initialize non-finite position value error.
 
@@ -108,7 +110,7 @@ class PositionDiscrepancyError(ReconciliationError):
         source2_value: object,
         *,
         exchange_id: str | None = None,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         threshold: float | None = None,
     ) -> None:
         """Initialize position discrepancy error.

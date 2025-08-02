@@ -398,7 +398,7 @@ class PortfolioSnapshot(BaseModel):
     
     # Position details
     position_count: int
-    positions_by_symbol: dict[str, Decimal] = Field(default_factory=dict)
+    positions_by_symbol: dict[Symbol, Decimal] = Field(default_factory=dict)
     
     # Balance details
     balances_by_asset: dict[str, Decimal] = Field(default_factory=dict)
@@ -669,7 +669,7 @@ class PnLSummary(BaseModel):
     net_pnl: Decimal
     
     by_exchange: dict[str, Decimal] = Field(default_factory=dict)
-    by_symbol: dict[str, Decimal] = Field(default_factory=dict)
+    by_symbol: dict[Symbol, Decimal] = Field(default_factory=dict)
     by_date: dict[str, Decimal] = Field(default_factory=dict)
 
 

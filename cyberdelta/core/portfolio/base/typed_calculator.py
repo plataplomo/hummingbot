@@ -192,14 +192,13 @@ class TypedCalculator[TInput, TResult](ABC):
             calculator_name: Name of this calculator for logging
         """
         self.app_settings = app_settings
-        self.portfolio_config = app_settings.portfolio_tracker
         self.state_container = state_container
         self.calculator_name = calculator_name
         self.logger = get_logger(f"{self.__class__.__module__}.{self.__class__.__name__}")
 
         # Configuration from AppSettings
-        self.calculation_config = self.portfolio_config.calculation
-        self.validation_config = self.portfolio_config.validation
+        self.calculation_config = app_settings.calculation
+        self.validation_config = app_settings.validation
 
         # Performance tracking
         self.calculation_count = 0

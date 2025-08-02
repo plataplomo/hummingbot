@@ -38,7 +38,7 @@ class PortfolioValidationCoordinator:
     def __init__(
         self,
         app_settings: AppSettings,
-        state_container: StateContainerProtocol[BaseStateModel],
+        state_container: StateContainerProtocol,
     ) -> None:
         """Initialize portfolio validation service.
 
@@ -47,8 +47,7 @@ class PortfolioValidationCoordinator:
             state_container: State container for accessing portfolio data
         """
         self.app_settings = app_settings
-        self.portfolio_config = app_settings.portfolio_tracker
-        self.validation_config = app_settings.portfolio_tracker.validation
+        self.validation_config = app_settings.validation
         self.state_container = state_container
 
         # Initialize individual validation services
@@ -128,7 +127,11 @@ class PortfolioValidationCoordinator:
             result = await self.validate_trade(trade)
             all_issues.extend(result.issues)
 
-        return ValidationResult[list[Trade]].from_issues(trades, all_issues)
+        return ValidationResult[list[Trade]](
+            is_valid=len(all_issues) == 0,
+            validated_data=trades,
+            issues=all_issues
+        )
 
     def _record_validation(self, validation_type: str, result: ValidationResult[Any]) -> None:
         """Record validation statistics and recent issues.
@@ -165,9 +168,7 @@ class PortfolioValidationCoordinator:
             total_validations=total_validations,
             successful_validations=successful_validations,
             failed_validations=failed_validations,
-            success_rate=successful_validations / total_validations if total_validations > 0 else 0.0,
-            recent_issues_count=len(self.recent_issues),
-            last_validation_time=time.time(),
+            error_count=len(self.recent_issues),
         )
 
     def get_recent_issues(self, limit: int | None = None) -> list[ValidationIssue]:

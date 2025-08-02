@@ -866,6 +866,7 @@ class MonitoringSettings(BaseModel):
 
     notifications_enabled: bool = True
     alert_methods: list[Literal["log", "telegram"]] = Field(default_factory=_default_alert_methods)
+    cache: PortfolioCacheSettings = Field(default_factory=lambda: PortfolioCacheSettings())
 
     @field_validator("alert_methods", mode="before")
     @classmethod
@@ -1044,6 +1045,9 @@ class AppSettings(BaseModel):
     execution: ExecutionSettings
     safety_systems: SafetySystemsSettings
     monitoring: MonitoringSettings
+    calculation: PortfolioCalculationSettings = Field(default_factory=lambda: PortfolioCalculationSettings())
+    validation: PortfolioValidationSettings = Field(default_factory=lambda: PortfolioValidationSettings())
+    state: PortfolioStateSettings = Field(default_factory=lambda: PortfolioStateSettings())
     # portfolio_tracker field removed - replaced by modular portfolio system
     # CLEAN BREAK: Smart symbol configuration replaces verbose unified_symbols
     symbols: "SmartSymbolsConfig" = Field(..., description="Smart symbol configuration")

@@ -146,7 +146,7 @@ from .infrastructure import (
     CurrentState,
     ExceptionContext,
     IntegrityExceptionContext,
-    PortfolioError,
+    # PortfolioError removed - does not exist
     ServiceExceptionContext,
     StateError,
     StateExceptionContext,
@@ -319,7 +319,7 @@ __all__ = [
     "CurrentState",
     "ExceptionContext",
     "IntegrityExceptionContext",
-    "PortfolioError",
+    # "PortfolioError" removed - does not exist
     "ServiceExceptionContext",
     "StateError",
     "StateExceptionContext",

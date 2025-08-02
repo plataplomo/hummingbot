@@ -4,6 +4,7 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.risk.constraints.exceptions.constraint_exceptions import (
     LeverageConstraintError,
 )
@@ -435,7 +436,7 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
         self.logger.info("Set leverage limits", max_total=float(max_total), max_net=float(max_net))
 
-    def set_symbol_leverage_limit(self, symbol: str, max_leverage: Decimal) -> None:
+    def set_symbol_leverage_limit(self, symbol: Symbol, max_leverage: Decimal) -> None:
         """Set leverage limit for a specific symbol.
 
         Args:
@@ -448,9 +449,9 @@ class LeverageConstraintChecker(BaseConstraintValidator):
         if max_leverage <= 0:
             raise LeverageConstraintError(LeverageConstraintError.LEVERAGE_LIMITS_MUST_BE_POSITIVE)
 
-        self.leverage_constraint.max_leverage_per_symbol[symbol] = max_leverage
+        self.leverage_constraint.max_leverage_per_symbol[symbol.value] = max_leverage
         self.logger.info(
-            "Set symbol leverage limit", symbol=symbol, max_leverage=float(max_leverage)
+            "Set symbol leverage limit", symbol=symbol.value, max_leverage=float(max_leverage)
         )
 
     def set_exchange_leverage_limit(self, exchange: str, max_leverage: Decimal) -> None:
@@ -490,7 +491,7 @@ class LeverageConstraintChecker(BaseConstraintValidator):
 
         self.logger.info("Set volatility leverage limits", limits=dict(volatility_limits))
 
-    def get_leverage_limit_for_symbol(self, symbol: str) -> Decimal:
+    def get_leverage_limit_for_symbol(self, symbol: Symbol) -> Decimal:
         """Get leverage limit for a specific symbol.
 
         Args:
@@ -500,7 +501,7 @@ class LeverageConstraintChecker(BaseConstraintValidator):
             Maximum leverage allowed for the symbol
         """
         return self.leverage_constraint.max_leverage_per_symbol.get(
-            symbol, self.leverage_constraint.max_total_leverage
+            symbol.value, self.leverage_constraint.max_total_leverage
         )
 
     def get_leverage_limit_for_exchange(self, exchange: str) -> Decimal:

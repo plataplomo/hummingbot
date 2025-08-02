@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 

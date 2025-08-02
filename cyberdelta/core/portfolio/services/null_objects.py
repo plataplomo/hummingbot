@@ -29,11 +29,14 @@ from cyberdelta.core.portfolio.portfolio_types.models import (
     CapitalSummary,
     ExposureMetrics,
     ManagerStats,
-    PerformanceMetadata,
+    PerformanceMetrics,
     PnLSummary,
     PortfolioSummary,
 )
 from cyberdelta.core.portfolio.portfolio_types.infrastructure import ValidationResult
+# Import SpotBalance from core models, not portfolio_types models
+from cyberdelta.core.models import Trade, DerivativePosition, SpotBalance
+from cyberdelta.core.symbols import Symbol
 
 
 if TYPE_CHECKING:
@@ -53,7 +56,7 @@ class NullBalanceManager(BalanceManagerProtocol):
             message="Using null balance manager - balance operations will be no-ops",
         )
 
-    async def update_balances(self, exchange_id: str, balances: dict[str, SpotBalance]) -> None:
+    async def update_balances(self, exchange_id: str, balances: list[SpotBalance]) -> None:
         """No-op balance update."""
         logger.debug("null_balance_update", exchange_id=exchange_id, balance_count=len(balances))
 
@@ -70,6 +73,10 @@ class NullBalanceManager(BalanceManagerProtocol):
     async def update_balance_from_trade(self, trade: Trade) -> None:
         """No-op trade update."""
         logger.debug("null_balance_trade_update", trade_id=trade.id)
+    
+    async def update_balance(self, exchange_id: str, balance: SpotBalance) -> None:
+        """No-op single balance update."""
+        logger.debug("null_balance_single_update", exchange_id=exchange_id, asset=balance.asset)
 
 
 class NullPositionManager(PositionManagerProtocol):
@@ -90,15 +97,23 @@ class NullPositionManager(PositionManagerProtocol):
         """No-op trade update."""
         logger.debug("null_position_trade_update", trade_id=trade.id)
 
-    async def get_position(self, exchange_id: str, symbol: str) -> DerivativePosition | None:
+    async def get_position(self, exchange_id: str, symbol: Symbol) -> DerivativePosition | None:
         """Return None for all position queries."""
         logger.debug("null_position_get", exchange_id=exchange_id, symbol=symbol)
         return None
 
-    async def get_positions_by_symbol(self, symbol: str) -> list[DerivativePosition]:
+    async def get_positions_by_symbol(self, symbol: Symbol) -> list[DerivativePosition]:
         """Return empty list."""
         logger.debug("null_positions_by_symbol", symbol=symbol)
         return []
+    
+    async def update_position(self, exchange_id: str, position: DerivativePosition) -> None:
+        """No-op position update."""
+        logger.debug("null_position_update", exchange_id=exchange_id, symbol=position.symbol)
+    
+    async def close_position(self, exchange_id: str, symbol: Symbol) -> None:
+        """No-op position close."""
+        logger.debug("null_position_close", exchange_id=exchange_id, symbol=symbol)
 
 
 class NullOrderManager(OrderManagerProtocol):
@@ -120,10 +135,27 @@ class NullOrderManager(OrderManagerProtocol):
         logger.debug("null_order_get", exchange_id=exchange_id, order_id=order_id)
         return None
 
-    async def get_orders_by_symbol(self, symbol: str) -> list[Order]:
+    async def get_orders_by_symbol(self, symbol: Symbol) -> list[Order]:
         """Return empty list."""
         logger.debug("null_orders_by_symbol", symbol=symbol)
         return []
+    
+    async def get_open_orders(self, exchange_id: str | None = None) -> list[Order]:
+        """Return empty list of orders."""
+        logger.debug("null_get_open_orders", exchange_id=exchange_id)
+        return []
+    
+    async def add_order(self, exchange_id: str, order: Order) -> None:
+        """No-op order add."""
+        logger.debug("null_add_order", exchange_id=exchange_id, order_id=order.id)
+    
+    async def update_order(self, exchange_id: str, order: Order) -> None:
+        """No-op order update."""
+        logger.debug("null_update_order", exchange_id=exchange_id, order_id=order.id)
+    
+    async def cancel_order(self, exchange_id: str, order_id: str) -> None:
+        """No-op order cancel."""
+        logger.debug("null_cancel_order", exchange_id=exchange_id, order_id=order_id)
 
 
 class NullStateManager(StateManagerProtocol):
@@ -151,7 +183,21 @@ class NullStateManager(StateManagerProtocol):
 
     async def get_portfolio_snapshot(self) -> PortfolioSnapshot:
         """Return empty portfolio snapshot."""
-        return PortfolioSnapshot()
+        import time
+        return PortfolioSnapshot(
+            portfolio_id="null_portfolio",
+            timestamp=time.time(),
+            total_value=Decimal(0),
+            cash_balance=Decimal(0),
+            positions_value=Decimal(0),
+            realized_pnl=Decimal(0),
+            unrealized_pnl=Decimal(0),
+            fees_paid=Decimal(0),
+            gross_exposure=Decimal(0),
+            net_exposure=Decimal(0),
+            leverage=Decimal(0),
+            position_count=0
+        )
 
     async def calculate_total_pnl(self) -> Decimal:
         """Return zero PnL."""
@@ -173,27 +219,31 @@ class NullStateManager(StateManagerProtocol):
             total_capital=Decimal(0),
             free_capital=Decimal(0),
             used_capital=Decimal(0),
-            capital_by_exchange={},
-            capital_by_currency={},
-            timestamp=0.0,
+            reserved_capital=Decimal(0),
+            by_exchange={},
+            by_asset={},
         )
 
     async def get_portfolio_summary(self) -> PortfolioSummary:
         """Return empty portfolio summary."""
-        capital_summary = await self.get_total_capital()
-        pnl_summary = await self.get_pnl_summary()
-        exposure_metrics = await self.calculate_exposure_metrics()
-
+        from datetime import datetime, UTC
+        
         return PortfolioSummary(
+            portfolio_id="null_portfolio",
+            timestamp=datetime.now(UTC),
             total_value=Decimal(0),
-            capital_summary=capital_summary,
-            pnl_summary=pnl_summary,
-            exposure_metrics=exposure_metrics,
-            position_count=0,
-            order_count=0,
-            trade_count=0,
-            health_status="healthy",
-            timestamp=0.0,
+            cash_balance=Decimal(0),
+            positions_value=Decimal(0),
+            total_pnl=Decimal(0),
+            daily_pnl=Decimal(0),
+            leverage=Decimal(0),
+            exposure=Decimal(0),
+            var_95=None,
+            active_positions=0,
+            open_orders=0,
+            today_trades=0,
+            is_healthy=True,
+            warnings=[],
         )
 
     async def calculate_portfolio_exposure(self, base_currency: str) -> PortfolioExposureResult:
@@ -220,11 +270,11 @@ class NullStateManager(StateManagerProtocol):
             by_symbol={},
         )
 
-    async def get_all_positions(self) -> dict[str, DerivativePosition]:
+    async def get_all_positions(self, exchange_id: str | None = None) -> list[DerivativePosition]:
         """Return empty positions."""
-        return {}
+        return []
 
-    async def get_all_balances(self) -> dict[str, SpotBalance]:
+    async def get_all_balances(self, exchange_id: str | None = None) -> dict[str, SpotBalance]:
         """Return empty balances."""
         return {}
 
@@ -236,10 +286,12 @@ class NullStateManager(StateManagerProtocol):
         """Return empty stats."""
         return ManagerStats(
             manager_name="null_state_manager",
-            processed_items=0,
+            operations_count=0,
+            success_count=0,
             error_count=0,
-            last_update=0.0,
-            performance_metrics=PerformanceMetadata(),
+            avg_response_time_ms=0.0,
+            last_operation_time=None,
+            uptime_seconds=0.0,
         )
 
     async def update_balances(self, exchange_id: str, balances: dict[str, SpotBalance]) -> None:
@@ -309,14 +361,26 @@ class NullResilienceService:
     def get_resilience_result(self, value: object) -> ResilienceResult[object]:
         """Return successful result without resilience metrics."""
         metrics = ResilienceMetrics(
-            total_attempts=1,
-            successful_attempts=1,
-            failed_attempts=0,
-            circuit_breaker_trips=0,
-            fallback_executions=0,
-            total_duration_ms=0,
+            total_requests=1,
+            successful_requests=1,
+            failed_requests=0,
+            timeouts=0,
+            circuit_breaker_opens=0,
+            fallback_successes=0,
+            fallback_failures=0,
+            average_response_time_ms=0.0,
+            p95_response_time_ms=0.0,
+            p99_response_time_ms=0.0,
         )
-        return ResilienceResult[object].successful(value, metrics)
+        # Create a ResilienceResult instance directly
+        from cyberdelta.core.portfolio.portfolio_types.infrastructure import ResilienceResult
+        return ResilienceResult(
+            success=True,
+            value=value,
+            metrics=metrics,
+            error=None,
+            used_fallback=False,
+        )
 
 
 class NullValidationService:
@@ -335,7 +399,12 @@ class NullValidationService:
         Returns:
             ValidationResult[Trade]: Successful validation result for the trade
         """
-        return ValidationResult[Trade].success(trade)
+        return ValidationResult[Trade](
+            is_valid=True,
+            validated_data=trade,
+            issues=[],
+            validator_name="null_validator",
+        )
 
     async def validate_balance(self, balance: SpotBalance) -> ValidationResult[SpotBalance]:
         """Always return valid.
@@ -343,7 +412,12 @@ class NullValidationService:
         Returns:
             ValidationResult[SpotBalance]: Successful validation result for the balance
         """
-        return ValidationResult[SpotBalance].success(balance)
+        return ValidationResult[SpotBalance](
+            is_valid=True,
+            validated_data=balance,
+            issues=[],
+            validator_name="null_validator",
+        )
 
     async def validate_position(
         self, position: DerivativePosition
@@ -353,7 +427,12 @@ class NullValidationService:
         Returns:
             ValidationResult[DerivativePosition]: Successful validation result for the position
         """
-        return ValidationResult[DerivativePosition].success(position)
+        return ValidationResult[DerivativePosition](
+            is_valid=True,
+            validated_data=position,
+            issues=[],
+            validator_name="null_validator",
+        )
 
     async def validate_portfolio_state(self) -> ValidationResult[object]:
         """Always return valid.
@@ -361,7 +440,12 @@ class NullValidationService:
         Returns:
             ValidationResult[object]: Successful validation result for the portfolio state
         """
-        return ValidationResult[object].success({})
+        return ValidationResult[object](
+            is_valid=True,
+            validated_data={},
+            issues=[],
+            validator_name="null_validator",
+        )
 
 
 # Factory functions for creating null objects

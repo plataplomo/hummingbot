@@ -8,6 +8,7 @@ from cyberdelta.config import AppSettings
 from cyberdelta.core.risk.checks.checkers.typed_base_checker import TypedBaseChecker
 from cyberdelta.core.risk.checks.models.check_result import CheckContext, CheckResult
 from cyberdelta.core.risk.exceptions.check_exceptions import PriceSanityError
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -42,7 +43,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         self.enable_precision_check = True
 
         # Historical price tracking (for anomaly detection)
-        self.price_history: dict[str, list[Decimal]] = {}  # symbol -> list of recent prices
+        self.price_history: dict[Symbol, list[Decimal]] = {}  # symbol -> list of recent prices
         self.max_history_size = 100
 
         # Market data validation
@@ -73,7 +74,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         # Get prices
         long_price = getattr(opportunity, "long_price", None)
         short_price = getattr(opportunity, "short_price", None)
-        symbol = getattr(opportunity, "symbol", "unknown")
+        symbol = opportunity.symbol
 
         if long_price is None or short_price is None:
             return CheckResult.failure(
@@ -288,7 +289,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
     def _check_price_anomalies(
         self,
-        symbol: str,
+        symbol: Symbol,
         long_price: Decimal,
         short_price: Decimal,
     ) -> CheckResult:
@@ -363,7 +364,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
 
         return CheckResult.success("No price anomalies detected")
 
-    def _update_price_history(self, symbol: str, long_price: Decimal, short_price: Decimal) -> None:
+    def _update_price_history(self, symbol: Symbol, long_price: Decimal, short_price: Decimal) -> None:
         """Update price history for anomaly detection.
 
         Args:
@@ -382,7 +383,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
         if len(self.price_history[symbol]) > max_history:
             self.price_history[symbol] = self.price_history[symbol][-max_history:]
 
-    def clear_price_history(self, symbol: str | None = None) -> None:
+    def clear_price_history(self, symbol: Symbol | None = None) -> None:
         """Clear price history for anomaly detection.
 
         Args:
@@ -395,7 +396,7 @@ class PriceSanityChecker(TypedBaseChecker[CheckResult]):
             self.price_history.clear()
             self.logger.info("Cleared all price history")
 
-    def get_price_history(self, symbol: str) -> list[Decimal]:
+    def get_price_history(self, symbol: Symbol) -> list[Decimal]:
         """Get price history for a symbol.
 
         Args:

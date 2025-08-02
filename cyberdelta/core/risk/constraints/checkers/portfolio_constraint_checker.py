@@ -417,7 +417,7 @@ class PortfolioConstraintChecker(BaseConstraintValidator):
         similar_positions = [
             pos
             for pos in context.current_positions
-            if pos.symbol.startswith(symbol[:3])  # Simplified similarity check
+            if pos.symbol.value.startswith(symbol.value[:3])  # Simplified similarity check
         ]
 
         if similar_positions:

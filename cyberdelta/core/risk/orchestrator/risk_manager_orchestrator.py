@@ -16,6 +16,7 @@ from cyberdelta.core.risk.constraints.orchestrator.constraint_validator import C
 from cyberdelta.core.risk.exceptions.base_exceptions import RiskError
 from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
 from cyberdelta.core.risk.sizing.orchestrator.position_sizer import PositionSizer
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.risk.utils.risk_metrics_calculator import (
     PortfolioSnapshot,
     RiskMetricsCalculator,
@@ -557,10 +558,10 @@ class RiskManagerOrchestrator:
             long_exchange = position.long_exchange
             short_exchange = position.short_exchange
 
-            # Symbol allocation
-            if symbol not in current_allocations:
-                current_allocations[symbol] = Decimal(0)
-            current_allocations[symbol] += position.allocation_percentage
+            # Symbol allocation - use symbol.value as key
+            if symbol.value not in current_allocations:
+                current_allocations[symbol.value] = Decimal(0)
+            current_allocations[symbol.value] += position.allocation_percentage
 
             # Exchange allocations
             for exchange in [long_exchange, short_exchange]:
@@ -629,7 +630,7 @@ class RiskManagerOrchestrator:
             size_usd=float(sized_opportunity.total_size_usd),
         )
 
-    def remove_position(self, symbol: str) -> bool:
+    def remove_position(self, symbol: Symbol) -> bool:
         """Remove a position from the portfolio.
 
         Returns:

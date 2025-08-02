@@ -23,6 +23,7 @@ from cyberdelta.core.portfolio.portfolio_types.calculations import (
     RealizedPnLSummaryMetrics,
     UnrealizedPnLResult,
 )
+from cyberdelta.core.symbols import Symbol
 
 
 if TYPE_CHECKING:
@@ -355,7 +356,7 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
         """
         # Initialize with empty typed structures
         by_exchange: dict[str, ExchangeBreakdown] = {}
-        by_symbol: dict[str, UnrealizedPnLResult] = {}
+        by_symbol: dict[Symbol, UnrealizedPnLResult] = {}
         long_positions: list[UnrealizedPnLResult] = []
         short_positions: list[UnrealizedPnLResult] = []
 
@@ -445,13 +446,13 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
 
     def _group_by_symbol_typed(
         self, unrealized_result: PortfolioUnrealizedPnLResult
-    ) -> dict[str, UnrealizedPnLResult]:
+    ) -> dict[Symbol, UnrealizedPnLResult]:
         """Group results by symbol with typed return.
 
         Returns:
             Dictionary mapping symbols to their unrealized P&L results
         """
-        by_symbol: dict[str, UnrealizedPnLResult] = {}
+        by_symbol: dict[Symbol, UnrealizedPnLResult] = {}
 
         for result in unrealized_result.position_results:
             symbol = self._extract_symbol_from_result(result)
@@ -459,18 +460,33 @@ class PnLAggregator(BaseCalculator[PerformanceMetrics]):
 
         return by_symbol
 
-    def _extract_symbol_from_result(self, result: UnrealizedPnLResult) -> str:
+    def _extract_symbol_from_result(self, result: UnrealizedPnLResult) -> Symbol:
         """Extract symbol from result metadata.
 
         Returns:
-            The extracted symbol name, or 'unknown' if not found
+            The extracted symbol as Symbol object, or unknown symbol if not found
         """
+        from cyberdelta.core.symbols import symbol as create_symbol
+        from cyberdelta.enums.exchange_names import ExchangeName
+        
         if result.metadata and result.metadata.notes and "symbol=" in result.metadata.notes:
-            # Extract symbol from notes field like "symbol=BTC"
+            # Extract symbol from notes field like "symbol=BTC-PERP"
             for part in result.metadata.notes.split():
                 if part.startswith("symbol="):
-                    return part.split("=", 1)[1]
-        return "unknown"
+                    symbol_str = part.split("=", 1)[1]
+                    # Extract exchange from notes if available, otherwise default to hyperliquid
+                    exchange = ExchangeName.HYPERLIQUID
+                    if "exchange=" in result.metadata.notes:
+                        for exch_part in result.metadata.notes.split():
+                            if exch_part.startswith("exchange="):
+                                try:
+                                    exchange = ExchangeName(exch_part.split("=", 1)[1])
+                                except ValueError:
+                                    pass  # Keep default
+                    return create_symbol(symbol_str, exchange)
+        
+        # Fallback to unknown symbol
+        return create_symbol("UNKNOWN", ExchangeName.HYPERLIQUID)
 
     def _separate_long_short_typed(
         self, unrealized_result: PortfolioUnrealizedPnLResult

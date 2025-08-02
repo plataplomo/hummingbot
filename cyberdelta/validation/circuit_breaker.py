@@ -12,6 +12,7 @@ from typing import Any
 
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 
 
 # Circuit breaker constants
@@ -667,7 +668,7 @@ class CircuitBreakerSystem:
         self.breakers: dict[str, CircuitBreaker] = {}
         self.exchange_breakers: dict[
             str,
-            dict[str, CircuitBreaker | dict[str, CircuitBreaker]],
+            dict[str, CircuitBreaker | dict[Symbol, CircuitBreaker]],
         ] = {}
         self.last_status: dict[str, Any] = {}
 
@@ -784,7 +785,7 @@ class CircuitBreakerSystem:
         self,
         exchange: str,
         breaker_type: str,
-    ) -> CircuitBreaker | dict[str, CircuitBreaker] | None:
+    ) -> CircuitBreaker | dict[Symbol, CircuitBreaker] | None:
         """Get an exchange-specific circuit breaker or a dictionary of symbol-specific breakers.
 
         Args:
@@ -799,7 +800,7 @@ class CircuitBreakerSystem:
             return None
         return self.exchange_breakers[exchange].get(breaker_type)
 
-    def can_execute(self, exchange: str, symbol: str | None = None) -> tuple[bool, str | None]:
+    def can_execute(self, exchange: str, symbol: Symbol | None = None) -> tuple[bool, str | None]:
         """Check if an operation can be executed for an exchange/symbol or globally.
 
         Args:
@@ -869,13 +870,13 @@ class CircuitBreakerSystem:
     def _check_exchange_breakers(
         self,
         exchange: str,
-        symbol: str | None,
+        symbol: Symbol | None,
     ) -> tuple[bool, str | None]:
         """Check exchange-specific circuit breakers.
 
         Args:
             exchange: Exchange identifier.
-            symbol: Optional symbol for symbol-specific checks.
+            symbol: Optional Symbol object for symbol-specific checks.
 
         Returns:
             Tuple of (can_execute, reason_if_blocked).
@@ -895,14 +896,14 @@ class CircuitBreakerSystem:
 
     def _get_breakers_to_check(
         self,
-        breaker_item: CircuitBreaker | dict[str, CircuitBreaker],
-        symbol: str | None,
+        breaker_item: CircuitBreaker | dict[Symbol, CircuitBreaker],
+        symbol: Symbol | None,
     ) -> list[CircuitBreaker]:
         """Get the list of breakers to check based on the breaker item type.
 
         Args:
             breaker_item: Either a single breaker or a dictionary of symbol-specific breakers.
-            symbol: Optional symbol for filtering symbol-specific breakers.
+            symbol: Optional Symbol object for filtering symbol-specific breakers.
 
         Returns:
             List of circuit breakers to check.
@@ -1223,7 +1224,7 @@ class CircuitBreakerSystem:
                             f"{error_message}",
                         )
 
-    def update_price(self, exchange: str, symbol: str, price: float) -> None:
+    def update_price(self, exchange: str, symbol: Symbol, price: float) -> None:
         """Update price data for volatility monitoring.
 
         Args:
@@ -1232,7 +1233,7 @@ class CircuitBreakerSystem:
             price: Current price
 
         """
-        vol_breaker = self.get_exchange_breaker(exchange, f"{symbol}_volatility")
+        vol_breaker = self.get_exchange_breaker(exchange, f"{symbol.value}_volatility")
         if vol_breaker and isinstance(vol_breaker, VolatilityBreaker):
             vol_breaker.add_price(price)
             vol_breaker.check()
@@ -1249,7 +1250,7 @@ class CircuitBreakerSystem:
         if draw_breaker and isinstance(draw_breaker, DrawdownBreaker):
             draw_breaker.check(value)
 
-    def update_liquidity(self, exchange: str, symbol: str, liquidity: float) -> None:
+    def update_liquidity(self, exchange: str, symbol: Symbol, liquidity: float) -> None:
         """Update market liquidity for monitoring.
 
         Args:
@@ -1258,7 +1259,7 @@ class CircuitBreakerSystem:
             liquidity: Current market liquidity
 
         """
-        liq_breaker = self.get_exchange_breaker(exchange, f"{symbol}_liquidity")
+        liq_breaker = self.get_exchange_breaker(exchange, f"{symbol.value}_liquidity")
         if liq_breaker and isinstance(liq_breaker, LiquidityBreaker):
             liq_breaker.check(liquidity)
 
@@ -1348,9 +1349,9 @@ class CircuitBreakerSystem:
                     ),
                 )
                 reset_count += 1
-            else:  # If not CircuitBreaker, it must be dict[str, CircuitBreaker]
+            else:  # If not CircuitBreaker, it must be dict[Symbol, CircuitBreaker]
                 # This is a map of symbol-specific breakers (e.g., for volatility, liquidity)
-                for symbol_key, specific_breaker_item in breaker_or_symbol_map_item.items():
+                for symbol_obj, specific_breaker_item in breaker_or_symbol_map_item.items():
                     # specific_breaker_item is known to be CircuitBreaker here due to the structure
                     was_open = specific_breaker_item.state == BreakerState.OPEN
                     specific_breaker_item.reset()
@@ -1360,12 +1361,12 @@ class CircuitBreakerSystem:
                         "symbol_specific_breaker_reset",
                         breaker_name=specific_breaker_item.name,
                         exchange=exchange,
-                        symbol=symbol_key,
+                        symbol=symbol_obj.value,
                         was_open=was_open,
                         new_state=specific_breaker_item.state.name,
                         message=(
                             f"Symbol-specific breaker '{specific_breaker_item.name}' "
-                            f"for exchange '{exchange}', symbol '{symbol_key}' reset. "
+                            f"for exchange '{exchange}', symbol '{symbol_obj.value}' reset. "
                             f"Was open: {was_open}, New state: {specific_breaker_item.state.name}"
                         ),
                     )
@@ -1505,7 +1506,7 @@ class CircuitBreakerSystem:
         breaker_specific_config: dict[str, Any],
         exchange_name_context: str,  # Used for default cooldown lookup if override not provided
         breaker_class: type[CircuitBreaker],
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         default_cooldown_override: int | None = None,  # New parameter for explicit default
     ) -> CircuitBreaker | None:
         """Create a circuit breaker from configuration.

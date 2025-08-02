@@ -6,12 +6,13 @@ from decimal import Decimal
 from typing import Optional, List
 
 from cyberdelta.core.portfolio.analytics.performance import PerformanceSnapshot
-from cyberdelta.core.portfolio.portfolio_types.models import PortfolioState
+from cyberdelta.core.portfolio.models.portfolio_state import PortfolioState
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.core.models.market.trade import Trade
+from cyberdelta.enums.trading import OrderSide
 
 logger = get_logger(__name__)
 
@@ -77,10 +78,8 @@ class PerformanceCalculator:
         sharpe_ratio = await self._calculate_sharpe_ratio()
         max_drawdown = await self._calculate_max_drawdown()
         
-        # Count positions
-        positions_count = sum(
-            len(positions) for positions in portfolio_state.positions.values()
-        )
+        # Count positions from active_positions field
+        positions_count = portfolio_state.active_positions
         
         return PerformanceSnapshot(
             timestamp=datetime.now(UTC),
@@ -99,21 +98,17 @@ class PerformanceCalculator:
         """Calculate total portfolio value."""
         total = Decimal("0")
         
-        # Add balance values
-        for exchange_balances in portfolio_state.balances.values():
-            for balance in exchange_balances.values():
-                if hasattr(balance, 'available_quantity'):
-                    # Simplified - would need price data for non-USDC assets
-                    if balance.asset.value == "USDC":
-                        total += Decimal(str(balance.available_quantity))
+        # Add balance values - balances is flat dict in models.portfolio_state
+        for balance in portfolio_state.balances.values():
+            if hasattr(balance, 'available_quantity'):
+                # Simplified - would need price data for non-USDC assets
+                if balance.asset.value == "USDC":
+                    total += Decimal(str(balance.available_quantity))
                         
-        # Add position values
-        for exchange_positions in portfolio_state.positions.values():
-            for position in exchange_positions.values():
-                if hasattr(position, 'size') and hasattr(position, 'entry_price'):
-                    if position.entry_price:
-                        position_value = abs(position.size) * position.entry_price
-                        total += position_value
+        # Note: Position values would need to be calculated from a different source
+        # as models.portfolio_state.PortfolioState doesn't have positions field
+        # Using total_account_value field instead
+        total = portfolio_state.total_account_value
                         
         return total
         
@@ -164,7 +159,7 @@ class PerformanceCalculator:
                         trade_size = trade.quantity
                         trade_value = trade.price * trade.quantity
                         
-                        if trade.side == "buy":
+                        if trade.side == OrderSide.BUY:
                             # Adding to position
                             position_cost += trade_value + trade.fee
                             position_size += trade_size
@@ -197,14 +192,8 @@ class PerformanceCalculator:
         
     async def _calculate_unrealized_pnl(self, portfolio_state: PortfolioState) -> Decimal:
         """Calculate unrealized P&L from open positions."""
-        total_unrealized = Decimal("0")
-        
-        for exchange_positions in portfolio_state.positions.values():
-            for position in exchange_positions.values():
-                if hasattr(position, 'unrealized_pnl') and position.unrealized_pnl:
-                    total_unrealized += position.unrealized_pnl
-                    
-        return total_unrealized
+        # Use the total_unrealized_pnl field from PortfolioState
+        return portfolio_state.total_unrealized_pnl
         
     async def _calculate_win_rate(self, portfolio_state: PortfolioState) -> Decimal:
         """Calculate win rate from trade history."""
@@ -217,7 +206,7 @@ class PerformanceCalculator:
                     return Decimal("0")
                 
                 # Calculate win rate from closed positions
-                closed_positions = {}
+                closed_positions: dict[Symbol, dict[str, Decimal | int]] = {}
                 
                 # Group trades by symbol and track positions
                 for trade in sorted(trades, key=lambda t: t.executed_at):
@@ -234,7 +223,7 @@ class PerformanceCalculator:
                     
                     pos = closed_positions[symbol]
                     
-                    if trade.side == "buy":
+                    if trade.side == OrderSide.BUY:
                         # Opening/adding to position
                         pos['total_cost'] += trade.price * trade.quantity + trade.fee
                         pos['position_size'] += trade.quantity

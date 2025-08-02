@@ -8,6 +8,7 @@ from cyberdelta.config import AppSettings
 from cyberdelta.core.risk.checks.checkers.typed_base_checker import TypedBaseChecker
 from cyberdelta.core.risk.checks.models.check_result import CheckContext, CheckResult
 from cyberdelta.core.risk.exceptions.check_exceptions import FundingRateError
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -20,7 +21,7 @@ MIN_RATES_FOR_CONSECUTIVE_ANALYSIS = 2  # Need at least 2 rates to calculate con
 class FundingRateValidatorProtocol(Protocol):
     """Protocol for funding rate validator."""
 
-    def get_symbol_metrics(self, exchange: str, symbol: str) -> dict[str, Any]:
+    def get_symbol_metrics(self, exchange: str, symbol: Symbol) -> dict[str, Any]:
         """Get symbol metrics."""
         ...
 

@@ -24,9 +24,9 @@ class PortfolioHealthAlert:
     severity: str
     message: str
     details: dict[str, Any]
-    timestamp: datetime = None
+    timestamp: datetime | None = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now(UTC)
 
@@ -38,9 +38,9 @@ class PortfolioHealthMetric:
     current_value: float
     threshold_value: float | None = None
     status: HealthStatus = HealthStatus.HEALTHY
-    timestamp: datetime = None
+    timestamp: datetime | None = None
     
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.timestamp is None:
             self.timestamp = datetime.now(UTC)
 
@@ -50,7 +50,7 @@ class PortfolioHealthChecker(BasePortfolioService):
 
     def __init__(
         self, 
-        portfolio_manager: PortfolioManagerProtocol,
+        portfolio_manager: PortfolioManagerProtocol[Any],
         config: dict[str, Any] | None = None
     ):
         super().__init__("portfolio_health_checker")
@@ -314,9 +314,8 @@ class PortfolioHealthChecker(BasePortfolioService):
         # Score based on status distribution
         status_weights = {
             HealthStatus.HEALTHY: 1.0,
-            HealthStatus.DEGRADED: 0.8,
             HealthStatus.WARNING: 0.6,
-            HealthStatus.CRITICAL: 0.2,
+            HealthStatus.ERROR: 0.2,
             HealthStatus.UNKNOWN: 0.5
         }
         
@@ -332,15 +331,13 @@ class PortfolioHealthChecker(BasePortfolioService):
         # Check for critical alerts
         critical_alerts = [a for a in alerts if a.severity == "critical"]
         if critical_alerts:
-            return HealthStatus.CRITICAL
+            return HealthStatus.ERROR
         
         # Check metric statuses
         metric_statuses = [metric.status for metric in metrics]
         
-        if HealthStatus.CRITICAL in metric_statuses:
-            return HealthStatus.CRITICAL
+        if HealthStatus.ERROR in metric_statuses:
+            return HealthStatus.ERROR
         if HealthStatus.WARNING in metric_statuses:
             return HealthStatus.WARNING
-        if HealthStatus.DEGRADED in metric_statuses:
-            return HealthStatus.DEGRADED
         return HealthStatus.HEALTHY

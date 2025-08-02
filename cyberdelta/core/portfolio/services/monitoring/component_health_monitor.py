@@ -29,8 +29,7 @@ class ComponentHealthMonitor(BasePortfolioService):
     """Monitors health of individual portfolio components."""
 
     def __init__(self, config: dict[str, Any] | None = None):
-        super().__init__("component_health_monitor")
-        self.config = config or {}
+        super().__init__("component_health_monitor", config)
         self.logger = get_logger(__name__)
         
         # Component health tracking
@@ -38,9 +37,10 @@ class ComponentHealthMonitor(BasePortfolioService):
         self.component_metrics: dict[str, list[ComponentHealthMetric]] = {}
         self.last_check_time = datetime.now(UTC)
         
-        # Configuration
-        self.check_interval = timedelta(seconds=self.config.get("check_interval", 30))
-        self.metric_retention_days = self.config.get("metric_retention_days", 7)
+        # Configuration - use the provided config dict for backwards compatibility
+        config_dict = config or {}
+        self.check_interval = timedelta(seconds=config_dict.get("check_interval", 30))
+        self.metric_retention_days = config_dict.get("metric_retention_days", 7)
 
     async def _initialize_service(self) -> None:
         """Initialize component health monitoring."""
@@ -87,7 +87,7 @@ class ComponentHealthMonitor(BasePortfolioService):
             except Exception as e:
                 self.logger.error(f"Error checking health for {component_name}: {e}")
                 health_results[component_name] = {
-                    "status": HealthStatus.CRITICAL,
+                    "status": HealthStatus.ERROR,
                     "error": str(e),
                     "timestamp": current_time
                 }
@@ -176,12 +176,10 @@ class ComponentHealthMonitor(BasePortfolioService):
         # Find worst status
         statuses = [metric.status for metric in metrics]
         
-        if HealthStatus.CRITICAL in statuses:
-            return HealthStatus.CRITICAL
+        if HealthStatus.ERROR in statuses:
+            return HealthStatus.ERROR
         if HealthStatus.WARNING in statuses:
             return HealthStatus.WARNING
-        if HealthStatus.DEGRADED in statuses:
-            return HealthStatus.DEGRADED
         return HealthStatus.HEALTHY
 
     def _cleanup_old_metrics(self, component: str) -> None:

@@ -11,6 +11,7 @@ from typing import Any, Protocol
 from cyberdelta.core.risk.constraints.models.constraint_models import ConstraintViolation
 from cyberdelta.core.risk.exceptions.base_exceptions import RiskError
 from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
+from cyberdelta.core.symbols import Symbol
 
 
 # Type alias for configuration and metadata values
@@ -200,7 +201,7 @@ class ConstraintContext:
     config: dict[str, Any] | None = None
     metadata: dict[str, Any] | None = None
 
-    def get_current_allocation(self, symbol: str) -> Decimal:
+    def get_current_allocation(self, symbol: Symbol) -> Decimal:
         """Get current allocation for a symbol.
 
         Args:
@@ -209,7 +210,7 @@ class ConstraintContext:
         Returns:
             Current allocation amount for the symbol
         """
-        return self.current_allocations.get(symbol, Decimal(0))
+        return self.current_allocations.get(symbol.value, Decimal(0))
 
     def get_current_exchange_allocation(self, exchange: str) -> Decimal:
         """Get current allocation for an exchange.

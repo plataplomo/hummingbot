@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from cyberdelta.core.models import DerivativePosition, SpotBalance
 from cyberdelta.core.models.market.order import Order
@@ -80,16 +82,21 @@ class AsyncStateContainer:
         # Create snapshot using state container
         snapshot = self._container.create_snapshot()
         
-        # Convert to PortfolioSnapshot
+        # Convert to PortfolioSnapshot with proper field mapping
         return PortfolioSnapshot(
-            snapshot_id=snapshot.snapshot_id,
-            timestamp=snapshot.timestamp,
-            exchange=exchange,
-            balances={},  # Would be populated with real data
-            positions={},  # Would be populated with real data
-            orders=[],  # Would be populated with real data
-            total_value=0.0,
-            metadata=snapshot.metadata,
+            snapshot_id=UUID(snapshot.snapshot_id) if isinstance(snapshot.snapshot_id, str) else snapshot.snapshot_id,
+            portfolio_id=exchange,  # Use exchange as portfolio ID
+            timestamp=snapshot.timestamp.timestamp() if hasattr(snapshot.timestamp, "timestamp") else (float(snapshot.timestamp) if isinstance(snapshot.timestamp, (int, float)) else 0.0),
+            total_value=Decimal("0.0"),
+            cash_balance=Decimal("0.0"),
+            positions_value=Decimal("0.0"),
+            realized_pnl=Decimal("0.0"),
+            unrealized_pnl=Decimal("0.0"),
+            fees_paid=Decimal("0.0"),
+            gross_exposure=Decimal("0.0"),
+            net_exposure=Decimal("0.0"),
+            leverage=Decimal("1.0"),
+            position_count=0,
         )
 
     async def initialize(self) -> None:
