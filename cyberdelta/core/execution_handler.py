@@ -21,9 +21,6 @@ from cyberdelta.core.services.config_validation import (
 )
 from cyberdelta.core.services.factory import ServiceFactory
 from cyberdelta.core.services.interfaces import ExecutionResult, OrderRequest
-
-# from cyberdelta.core.symbols.helpers import get_domain_helpers  # TODO: Remove obsolete import
-# from cyberdelta.core.symbols.logging_helpers import create_operation_logger  # TODO: Remove obsolete import
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
@@ -34,7 +31,7 @@ if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
     from cyberdelta.config.models.config_models import AppSettings
     from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-    from cyberdelta.core.risk_manager import SizedOpportunity
+    from cyberdelta.core.risk_types import SizedOpportunity
     from cyberdelta.core.services.interfaces import IAlertService
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 

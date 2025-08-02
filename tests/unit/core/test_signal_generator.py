@@ -19,7 +19,6 @@ from cyberdelta.core.models import (
     Ticker,
 )
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.core.symbol_service import UnifiedSymbolService
 from tests.common_symbols import BTC_HL, BTC_BP, ETH_HL, ETH_BP
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.funding_data import ArbitrageOpportunity

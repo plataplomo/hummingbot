@@ -34,7 +34,7 @@ from cyberdelta.core.services import PriceDataService
 from cyberdelta.core.signal_queue import PrioritySignalQueue
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
-from cyberdelta.core.symbol_service import initialize_symbol_service
+from cyberdelta.core.symbols import get_symbol_service
 from cyberdelta.core.symbols.config_loader import load_symbols_from_config
 from cyberdelta.core.symbols.exceptions import SymbolRegistryError
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -54,6 +54,10 @@ _signal_handler_tasks: set[asyncio.Task[Any]] = set()
 
 async def _stop_components(app_state: dict[str, Any]) -> None:
     """Stop application components in proper order."""
+    logger.info("Stopping Strategy Manager...")
+    if "strategy_manager" in app_state:
+        app_state["strategy_manager"].stop_all()
+    
     logger.info("Stopping Engine...")
     if "engine" in app_state:
         app_state["engine"].stop()
@@ -262,12 +266,11 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
             logger.exception("Failed to load symbols from configuration")
             raise SymbolRegistryError("initialization", f"Symbol loading failed: {e}") from e
 
-        # Initialize the unified symbol service
-        unified_symbol_service = initialize_symbol_service()
-        app_state["symbol_service"] = unified_symbol_service
+        # Initialize the symbol service
+        symbol_service = get_symbol_service()
+        app_state["symbol_service"] = symbol_service
 
-        # Get the underlying SymbolService for components that need it
-        symbol_service = unified_symbol_service.service
+        # Store symbol service reference
         app_state["symbol_mapper"] = symbol_service
 
         # Create portfolio reconciliation service to replace orchestrator
@@ -299,12 +302,13 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         )
         app_state["execution_handler"] = execution_handler
 
-        # RiskManager with portfolio state manager
+        # RiskManager with portfolio state manager and risk factory
         risk_manager = RiskManager(
             config,
             portfolio_state_manager,  # Portfolio state manager instead of tracker
             circuit_breaker,
             None,  # No funding rate validator for now
+            risk_factory,  # Pass risk factory for position sizer creation
         )
         app_state["risk_manager"] = risk_manager
 
@@ -588,10 +592,14 @@ async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Tas
 
 
 def _start_engine(app_state: dict[str, Any]) -> None:
-    """Start the trading engine."""
+    """Start the trading engine and strategy manager."""
     logger.info("Starting Trading Engine...")
-    app_state["engine"].start()  # Call the synchronous start method
-    logger.info("Engine started. Entering main monitoring loop.")
+    app_state["engine"].start()  # Start the engine orchestration
+    
+    logger.info("Starting Strategy Manager...")
+    app_state["strategy_manager"].start_all()  # Start all enabled strategies
+    
+    logger.info("Engine and strategies started. Entering main monitoring loop.")
 
 
 async def _run_main_loop() -> None:
@@ -701,11 +709,11 @@ async def main() -> None:
     # Wire components
     _wire_components(app_state)
 
-    # Add and enable strategies in the Engine
+    # Add and enable strategies in the StrategyManager
     for strategy in strategies:
-        app_state["engine"].add_strategy(strategy)
-        app_state["engine"].enable_strategy(strategy.name)
-    logger.info("Added and enabled strategies in Engine", count=len(strategies))
+        app_state["strategy_manager"].register_strategy(strategy)
+        app_state["strategy_manager"].enable_strategy(strategy.name)
+    logger.info("Added and enabled strategies in StrategyManager", count=len(strategies))
 
     # Start components and main loop
     try:

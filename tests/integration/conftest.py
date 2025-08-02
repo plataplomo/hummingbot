@@ -89,7 +89,7 @@ from cyberdelta.core.risk_manager import (
     # PortfolioTrackerProtocol removed - no longer exists
 )
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.core.symbol_service import UnifiedSymbolService
+from cyberdelta.core.symbols import get_symbol_service
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -334,10 +334,9 @@ def symbol_mapper(mock_config: AppSettings) -> SymbolService:
     Returns:
         SymbolService: Symbol service instance for testing.
     """
-    # Create a UnifiedSymbolService which returns the underlying SymbolService
+    # Get the global symbol service
     # In real usage, the service is initialized with the global registry
-    unified_service = UnifiedSymbolService()
-    return unified_service.service
+    return get_symbol_service()
 
 
 @pytest.fixture
@@ -399,9 +398,8 @@ def execution_handler(
     Returns:
         ExecutionHandler: Execution handler with registered mock API clients.
     """
-    # Create a mock UnifiedSymbolService for testing
-    symbol_service = UnifiedSymbolService()
-    symbol_mapper_instance = symbol_service.service
+    # Get the global symbol service for testing
+    symbol_mapper_instance = get_symbol_service()
     eh = ExecutionHandler(
         app_settings=mock_config,
         portfolio_tracker=real_portfolio_tracker,

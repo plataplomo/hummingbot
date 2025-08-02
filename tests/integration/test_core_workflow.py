@@ -45,7 +45,7 @@ from cyberdelta.core.portfolio.managers.portfolio_state_manager import Portfolio
 from cyberdelta.core.risk.checks.checkers.exchange_balance_checker import PortfolioTrackerProtocol
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.signal_generator import SignalGenerator
-from cyberdelta.core.symbol_service import UnifiedSymbolService
+from cyberdelta.core.symbols import get_symbol_service
 from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL, ETH_USDC_BP, USDC_BP, BTC_ASSET_BP, USD_HL, BTC_ASSET_HL, USD_USDC_HL, USDC_USD_BP
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.environment import EnvironmentType
@@ -426,9 +426,8 @@ def data_handler(
 @pytest.fixture
 def symbol_mapper(mock_config: AppSettings) -> SymbolService:
     """Return a SymbolService instance initialized with the mock config."""
-    # Create a UnifiedSymbolService which returns the underlying SymbolService
-    unified_service = UnifiedSymbolService()
-    return unified_service.service
+    # Get the global symbol service
+    return get_symbol_service()
 
 
 @pytest.fixture

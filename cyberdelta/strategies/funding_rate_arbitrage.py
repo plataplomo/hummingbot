@@ -34,7 +34,8 @@ from cyberdelta.core.models.market import Candle  # Import Candle
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.risk_types import SizedOpportunity
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.exceptions.field_validation import RequiredFieldError, TypeFieldError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
