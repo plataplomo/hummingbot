@@ -94,6 +94,7 @@ from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
+from tests.common_symbols import BTC_HL
 from tests.integration.mocks.mock_exchange import MockExchangeAPI
 
 
@@ -136,7 +137,7 @@ def basic_opportunity() -> ArbitrageOpportunity:
     # Note: basis_volatility is set after creation currently, which is fine.
     # Ensure all required fields are present.
     return ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",  # Use real exchange name
         short_exchange="hyperliquid",  # Use real exchange name
         long_price=Decimal(30001),  # Already correct
@@ -476,7 +477,7 @@ def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
 def mock_opportunity() -> ArbitrageOpportunity:
     """Return mock opportunity for testing."""
     return ArbitrageOpportunity(
-        symbol="BTC-PERP",
+        symbol=BTC_HL,
         long_exchange="mock_hl",
         short_exchange="mock_bp",
         long_price=Decimal(30000),  # Already correct

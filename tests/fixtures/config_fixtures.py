@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 import pytest
 from pydantic import AnyUrl, HttpUrl
+from tests.common_symbols import BTC_HL, ETH_HL, BTC_USDC_BP, ETH_USDC_BP
 
 from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.models.config_models import (
@@ -159,7 +160,7 @@ def mock_config() -> AppSettings:
                 environment_type=EnvironmentType.TESTNET,  # Default to testnet for testing
                 chain_id=1337,
                 rate_limit_per_minute=120,
-                symbols={"BTC": "BTC", "ETH": "ETH"},
+                symbols={"BTC": BTC_HL.value, "ETH": ETH_HL.value},
                 # Hyperliquid-specific required fields
                 ip_weight_limit_per_minute=1200,
                 info_request_type_ip_weights={
@@ -179,7 +180,7 @@ def mock_config() -> AppSettings:
                 ws_url_mainnet=AnyUrl("wss://ws.backpack.exchange"),
                 environment_type=EnvironmentType.MAINNET,  # Backpack only has mainnet
                 rate_limit_per_minute=120,
-                symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
+                symbols={"BTC": BTC_USDC_BP.value, "ETH": ETH_USDC_BP.value},
             ),
         },
         strategies=StrategiesSettings(
@@ -187,8 +188,8 @@ def mock_config() -> AppSettings:
                 enabled=True,
                 long_exchange="backpack",
                 short_exchange="hyperliquid",
-                symbol_long="BTC",
-                symbol_short="BTC",
+                symbol_long=BTC_HL.value,
+                symbol_short=BTC_HL.value,
                 params=StrategyParamsHLPerpBPSpot(
                     funding_threshold=Decimal("0.0001"),
                     max_price_spread_pct=Decimal("0.002"),

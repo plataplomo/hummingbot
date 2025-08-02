@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -62,7 +63,7 @@ def create_raw_order(
     executed_quantity: str | None = "0.0",
     order_id: str = "12345",
     client_id: str | None = "test_order_001",
-    symbol: str = "SOL_USDC",
+    symbol: str = SOL_USDC_BP.value,
     time_in_force: str | None = "GTC",
     created_at: str | None = None,
     updated_at: str | None = None,
@@ -136,13 +137,13 @@ class TestBoundaryValueHandling:
             executed_quantity="0",
             order_id="1",
             client_id=None,
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(minimal_order)
 
         assert result.exchange_order_id == "1"
-        assert result.symbol == "BTC_USDC"
+        assert result.symbol == BTC_USDC_BP.value
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.status == OrderStatus.OPEN
@@ -311,7 +312,7 @@ class TestUnicodeAndEncodingSupport:
         # Test via order data method since raw model validation might prevent empty strings
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="123",
-            symbol="SOL_USDC",  # Cannot be empty
+            symbol=SOL_USDC_BP.value,  # Cannot be empty
             side="Buy",
             order_type="LIMIT",
             status="NEW",
@@ -533,7 +534,7 @@ class TestDataConsistencyAndValidation:
         # Test via order data method for case sensitivity
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="123",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             side="Buy",
             order_type="LIMIT",
             status=status_input,
@@ -550,7 +551,7 @@ class TestDataConsistencyAndValidation:
         """Test that all enum mappings are case insensitive."""
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="123",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             side="buy",  # lowercase
             order_type="market",  # lowercase
             status="filled",  # lowercase

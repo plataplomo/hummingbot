@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP, COMMON_SPOT_SYMBOLS_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -94,7 +94,7 @@ class TestBackpackSpotTickers:
                 f"Volume should be non-negative, got {ticker.volume}"
             )
 
-    @pytest.mark.parametrize("symbol", [SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP])
+    @pytest.mark.parametrize("symbol", COMMON_SPOT_SYMBOLS_BP)
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/tickers"],

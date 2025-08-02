@@ -16,6 +16,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP
 from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
@@ -103,7 +104,7 @@ def create_raw_ticker_event(
 
 
 def create_raw_depth_event(
-    symbol: str = "SOL_USDC",
+    symbol: str = SOL_USDC_BP.value,
     last_update_id: str = "12345",
     first_update_id: str = "12340",
     bids: list[tuple[str, str]] | None = None,

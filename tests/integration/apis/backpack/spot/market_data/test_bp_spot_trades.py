@@ -16,6 +16,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, COMMON_SPOT_SYMBOLS_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -110,7 +111,7 @@ class TestBackpackSpotTrades:
                     f"BTC trade price seems too high: {trade.price}"
                 )
 
-    @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
+    @pytest.mark.parametrize("symbol", [s.value for s in COMMON_SPOT_SYMBOLS_BP])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/trades"],

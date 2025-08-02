@@ -11,6 +11,7 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -50,8 +51,8 @@ def mock_exchange_api() -> AsyncMock:
             available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
-        "BTC": SpotBalance(
-            asset="BTC",
+        BTC_HL.value: SpotBalance(
+            asset=BTC_HL.value,
             exchange="hyperliquid",
             total_quantity=Decimal(1),
             available_quantity=Decimal(1),
@@ -60,20 +61,20 @@ def mock_exchange_api() -> AsyncMock:
     }
 
     mock_api.get_positions.return_value = {
-        "BTC": DerivativePosition(
+        BTC_HL.value: DerivativePosition(
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
-            symbol="BTC",
+            symbol=BTC_HL.value,
             size=Decimal("0.5"),
             entry_price=Decimal(60000),
             mark_price=Decimal(61000),
             side=OrderSide.BUY,
             unrealized_pnl=Decimal(500),
         ),
-        "ETH": DerivativePosition(
+        ETH_HL.value: DerivativePosition(
             exchange="hyperliquid",
             timestamp=datetime.now(UTC),
-            symbol="ETH",
+            symbol=ETH_HL.value,
             size=Decimal(-10),
             entry_price=Decimal(3000),
             mark_price=Decimal(2950),

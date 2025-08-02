@@ -360,7 +360,7 @@ async def test_funding_rate_validator_accepts_safe_opportunity(
     await real_portfolio_state_manager.update()  # Ensure total capital is calculated
     # Safe opportunity: low expected_return, high volatility
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -426,7 +426,7 @@ async def test_funding_rate_validator_rejects_oversized_opportunity(
     await real_portfolio_state_manager.update()  # Ensure total capital is calculated
     # Oversized opportunity: high expected_return, low volatility
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -661,7 +661,7 @@ async def test_kelly_size_exactly_at_max_position_size(
     risk_manager.use_simple_sizing_path = False
     # Set up so Kelly size = max_position_size = 1000
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -695,7 +695,7 @@ async def test_kelly_size_just_below_max_position_size(
     risk_manager.use_simple_sizing_path = False
     # Kelly size just below max (e.g., 999)
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -729,7 +729,7 @@ async def test_kelly_size_just_above_max_position_size(
     risk_manager.use_simple_sizing_path = False
     # Kelly size just above max (e.g., 1001), should be clamped to 1000 and accepted
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -763,7 +763,7 @@ async def test_kelly_size_near_zero(
     risk_manager.use_simple_sizing_path = False
     # Kelly size near zero (very high volatility)
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -798,7 +798,7 @@ async def test_kelly_negative_expected_return(
     risk_manager.use_simple_sizing_path = False
     # Negative expected return
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -832,7 +832,7 @@ async def test_kelly_zero_or_negative_volatility(
     risk_manager.use_simple_sizing_path = False
     # Test with zero volatility
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -851,7 +851,7 @@ async def test_kelly_zero_or_negative_volatility(
     assert len(sized_opps) == 0, "Zero volatility should be rejected."
     # Negative volatility
     opp2 = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -884,7 +884,7 @@ async def test_kelly_insufficient_balance(
     risk_manager.use_simple_sizing_path = False
     # Kelly size valid, but balance is too low
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -962,7 +962,7 @@ async def test_kelly_zero_total_capital(
     await real_portfolio_state_manager.update()  # Ensure total capital is calculated
 
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -999,7 +999,7 @@ async def test_kelly_max_position_size_zero(
     # Override max_position_size to zero
     risk_manager.max_position_size = Decimal(0)
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),
@@ -1034,7 +1034,7 @@ async def test_kelly_max_position_size_very_large(
     # Override max_position_size to a very large value
     risk_manager.max_position_size = Decimal(1000000)
     opp = ArbitrageOpportunity(
-        symbol="BTC",
+        symbol=BTC_HL,
         long_exchange="backpack",
         short_exchange="hyperliquid",
         long_price=Decimal(30001),

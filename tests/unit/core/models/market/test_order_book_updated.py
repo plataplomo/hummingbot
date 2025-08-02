@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
-from tests.factories.symbol_factories import ExchangeSymbolFactory
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.core.symbols.models import ExchangeSymbol
 
 
@@ -26,12 +26,12 @@ class TestOrderBook:
     @pytest.fixture
     def btc_symbol(self) -> ExchangeSymbol:
         """Fixture providing a BTC exchange symbol."""
-        return ExchangeSymbolFactory.create_hyperliquid_btc_perp()
+        return BTC_HL
 
     @pytest.fixture
     def eth_symbol(self) -> ExchangeSymbol:
         """Fixture providing an ETH exchange symbol."""
-        return ExchangeSymbolFactory.create_hyperliquid_eth_perp()
+        return ETH_HL
 
     def test_minimal_creation(self, btc_symbol: ExchangeSymbol) -> None:
         """Test creating an OrderBook with minimal valid data (empty bids/asks)."""

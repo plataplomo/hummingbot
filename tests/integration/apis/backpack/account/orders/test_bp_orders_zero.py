@@ -21,10 +21,8 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.core.models import Order
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
-    DEFAULT_TEST_SYMBOL_SPOT,
-    TEST_SYMBOL_BTC_USDC,
-    TEST_SYMBOL_ETH_USDC,
     generate_invalid_order_id,
     get_dynamic_test_price,
     get_minimal_order_size_for_zero_balance_test,
@@ -70,7 +68,7 @@ class TestBackpackOrdersZero:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving open orders for a symbol with no orders."""
-        symbol = exchanges.backpack(TEST_SYMBOL_BTC_USDC)
+        symbol = BTC_USDC_BP
         args = GetAllOpenOrdersArgs(symbol=symbol)
         orders = await bp_api_for_zero_balance_test.get_all_open_orders(args)
 
@@ -86,7 +84,7 @@ class TestBackpackOrdersZero:
     ) -> None:
         """Test cancelling all orders when no open orders exist."""
         # Backpack requires symbol parameter for cancel_all_orders
-        symbol = exchanges.backpack(DEFAULT_TEST_SYMBOL_SPOT)
+        symbol = SOL_USDC_BP
         results = await bp_api_for_zero_balance_test.cancel_all_orders(
             symbol=symbol,
         )
@@ -106,7 +104,7 @@ class TestBackpackOrdersZero:
         fake_order_id = generate_invalid_order_id()
 
         with pytest.raises(APIError) as exc_info:
-            symbol = exchanges.backpack(DEFAULT_TEST_SYMBOL_SPOT)
+            symbol = SOL_USDC_BP
             args = CancelOrderArgs(
                 order_id=fake_order_id,
                 symbol=symbol,

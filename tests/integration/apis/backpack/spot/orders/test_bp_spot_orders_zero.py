@@ -36,9 +36,8 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
-    TEST_SYMBOL_BTC_USDC,
-    TEST_SYMBOL_SOL_USDC,
     get_current_market_price,
     get_dynamic_test_price,
     get_market_constraints,
@@ -95,7 +94,7 @@ class TestBackpackOrdersZeroBalance:
         Tests edge cases like extremely small quantities, extreme prices, and boundary conditions.
         With zero balance, these should fail with appropriate error codes.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         current_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -319,7 +318,7 @@ class TestBackpackOrdersZeroBalance:
 
         Tests very high precision numbers, scientific notation edge cases, and rounding behaviors.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         base_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -397,7 +396,7 @@ class TestBackpackOrdersZeroBalance:
         Tests multiple simultaneous order placement attempts with zero balance.
         Should handle concurrent requests gracefully.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -480,7 +479,7 @@ class TestBackpackOrdersZeroBalance:
         Simulates realistic order workflow: place -> query status -> cancel -> history
         All operations should fail appropriately with zero balance.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -1588,7 +1587,7 @@ class TestBackpackOrdersZeroBalance:
 
         Validates that error responses contain useful information for debugging and logging.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -1662,7 +1661,7 @@ class TestBackpackOrdersZeroBalance:
             ValueError: If invalid values are encountered
             APIError: If API errors occur during order operations
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP.value
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,

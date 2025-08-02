@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from tests.common_symbols import SOL_USDC_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models.spot_balance import SpotBalance
@@ -155,7 +156,9 @@ class TestBackpackBalancesZero:
         """
         # Check balance for an asset that was withdrawn
         balances = await bp_api_for_zero_balance_test.get_balances()
-        balance = balances.get("SOL")
+        # Extract base asset from symbol (SOL from SOL_USDC)
+        sol_asset = SOL_USDC_BP.value.split("_")[0]
+        balance = balances.get(sol_asset)
 
         # SOL might not be in the dict if balance is zero
         if balance is None:
@@ -163,7 +166,7 @@ class TestBackpackBalancesZero:
             assert True
         else:
             assert isinstance(balance, SpotBalance)
-            assert balance.asset == "SOL"
+            assert balance.asset == sol_asset
 
             # Check if auto-lending is detected (lend_quantity populated)
             auto_lending_detected = (

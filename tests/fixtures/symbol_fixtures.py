@@ -11,12 +11,16 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.factories.symbol_factories import (
-    ExchangeSymbolFactory,
     InternalSymbolFactory,
     UnifiedSymbolFactory,
     SymbolFactory,
 )
 from cyberdelta.core.symbols import Symbol
+from tests.common_symbols import (
+    BTC_HL, BTC_BP, ETH_HL, ETH_BP, SOL_HL, SOL_BP,
+    BTC_USDC_HL, BTC_USDC_BP
+)
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -28,37 +32,37 @@ if TYPE_CHECKING:
 @pytest.fixture
 def btc_perp_hl() -> Symbol:
     """BTC perpetual symbol for Hyperliquid."""
-    return ExchangeSymbolFactory.create_hyperliquid_btc_perp()
+    return BTC_HL
 
 
 @pytest.fixture
 def btc_perp_bp() -> Symbol:
     """BTC perpetual symbol for Backpack."""
-    return ExchangeSymbolFactory.create_backpack_btc_perp()
+    return BTC_BP
 
 
 @pytest.fixture
 def eth_perp_hl() -> Symbol:
     """ETH perpetual symbol for Hyperliquid."""
-    return ExchangeSymbolFactory.create_hyperliquid_eth_perp()
+    return ETH_HL
 
 
 @pytest.fixture
 def eth_perp_bp() -> Symbol:
     """ETH perpetual symbol for Backpack."""
-    return ExchangeSymbolFactory.create_backpack_eth_perp()
+    return ETH_BP
 
 
 @pytest.fixture
 def btc_spot_hl() -> Symbol:
     """BTC spot symbol for Hyperliquid."""
-    return ExchangeSymbolFactory.create_hyperliquid_btc_usdc_spot()
+    return BTC_USDC_HL
 
 
 @pytest.fixture
 def btc_spot_bp() -> Symbol:
     """BTC spot symbol for Backpack."""
-    return ExchangeSymbolFactory.create_backpack_btc_usdc_spot()
+    return BTC_USDC_BP
 
 
 # Spot asset fixtures (single assets for balance tracking)
@@ -92,7 +96,8 @@ def spot_asset(any_exchange: ExchangeName) -> Callable[[str], Symbol]:
     """Factory for creating spot asset symbols for any exchange."""
 
     def _create(asset: str) -> Symbol:
-        return ExchangeSymbolFactory.create_custom(asset, any_exchange)
+        # Use exchanges API for dynamic symbol creation
+        return getattr(exchanges, any_exchange.value.lower())(f"{asset}_USDC")
 
     return _create
 
@@ -103,7 +108,8 @@ def exchange_symbol() -> Callable[[str, ExchangeName], Symbol]:
     """Factory for creating exchange symbols."""
 
     def _create(value: str, exchange: ExchangeName) -> Symbol:
-        return ExchangeSymbolFactory.create_custom(value, exchange)
+        # Use exchanges API for dynamic symbol creation
+        return getattr(exchanges, exchange.value.lower())(value)
 
     return _create
 
@@ -151,8 +157,8 @@ def btc_spot_unified() -> Symbol:
 def btc_perp_pair() -> tuple[Symbol, Symbol]:
     """BTC perpetual symbol pair for arbitrage."""
     return (
-        ExchangeSymbolFactory.create_hyperliquid_btc_perp(),
-        ExchangeSymbolFactory.create_backpack_btc_perp(),
+        BTC_HL,
+        BTC_BP,
     )
 
 
@@ -160,8 +166,8 @@ def btc_perp_pair() -> tuple[Symbol, Symbol]:
 def eth_perp_pair() -> tuple[Symbol, Symbol]:
     """ETH perpetual symbol pair for arbitrage."""
     return (
-        ExchangeSymbolFactory.create_hyperliquid_eth_perp(),
-        ExchangeSymbolFactory.create_backpack_eth_perp(),
+        ETH_HL,
+        ETH_BP,
     )
 
 
@@ -169,8 +175,8 @@ def eth_perp_pair() -> tuple[Symbol, Symbol]:
 def sol_perp_pair() -> tuple[Symbol, Symbol]:
     """SOL perpetual symbol pair for arbitrage."""
     return (
-        ExchangeSymbolFactory.create_hyperliquid_sol_perp(),
-        ExchangeSymbolFactory.create_backpack_sol_perp(),
+        SOL_HL,
+        SOL_BP,
     )
 
 

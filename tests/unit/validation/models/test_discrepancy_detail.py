@@ -9,7 +9,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL, ADA_HL, DOT_HL
 from cyberdelta.validation.models.discrepancy_detail import (
     DiscrepancyDetail,
     HistoricalDiscrepancyRecord,
@@ -221,7 +221,7 @@ def test_historical_record_invalid_detail_type() -> None:
 
 def test_historical_record_validate_assignment_for_is_corrected() -> None:
     """Test that is_corrected can be updated and validates new value."""
-    discrepancy = DiscrepancyDetail(symbol="ADA-PERP", discrepancy_type="unrealized_pnl")
+    discrepancy = DiscrepancyDetail(symbol=ADA_HL.value, discrepancy_type="unrealized_pnl")
     now = datetime.now(UTC)
     initial_data = {
         "detail": discrepancy,
@@ -250,7 +250,7 @@ def test_historical_record_validate_assignment_for_is_corrected() -> None:
 
 def test_historical_record_extra_fields_forbidden() -> None:
     """Test ValidationError when extra fields are provided (extra='forbid')."""
-    discrepancy = DiscrepancyDetail(symbol="DOT-PERP", discrepancy_type="api_parsing_error")
+    discrepancy = DiscrepancyDetail(symbol=DOT_HL.value, discrepancy_type="api_parsing_error")
     now = datetime.now(UTC)
     data_dict = {
         "detail": discrepancy,

@@ -7,6 +7,7 @@ import pytest
 
 from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Note: Fixtures risk_manager, sample_opportunity
@@ -56,7 +57,7 @@ class TestRiskManagerValidation:
             # Use a real ArbitrageOpportunity with values that are valid for the model
             # but should logically fail sizing (e.g., unprofitable)
             invalid_opportunity = ArbitrageOpportunity(
-                symbol="INVALID_SYM",
+                symbol=BTC_HL.value,  # Use real symbol value
                 long_exchange="invalid_long",
                 short_exchange="invalid_short",
                 long_price=Decimal("10000.0"),  # Valid price, but make it unprofitable
@@ -93,7 +94,7 @@ class TestRiskManagerValidation:
             mixed_opportunities: list[ArbitrageOpportunity] = [
                 sample_opportunity,  # This will be sized successfully
                 ArbitrageOpportunity(  # This one will fail sizing due to the side_effect mock
-                    symbol="OTHER-PERP",
+                    symbol=ETH_HL.value,  # Use real symbol value
                     long_exchange="other_long",
                     short_exchange="other_short",
                     long_price=Decimal(99),

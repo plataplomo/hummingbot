@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, ADA_USDC_BP, DOGE_USDC_BP
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -716,7 +716,7 @@ class TestTransformOrderDataToInternal:
         """Test transformation with case insensitive enum values."""
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="789",
-            symbol="ADA_USDC",
+            symbol=ADA_USDC_BP.value,
             side="sell",  # lowercase
             order_type="market",  # lowercase
             status="filled",  # lowercase
@@ -739,7 +739,7 @@ class TestTransformOrderDataToInternal:
 
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="999",
-            symbol="DOGE_USDC",
+            symbol=DOGE_USDC_BP.value,
             side="Buy",
             order_type="LIMIT",
             status="NEW",

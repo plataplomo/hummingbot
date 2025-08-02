@@ -73,7 +73,7 @@ def create_raw_fill(
     price: str = "100.50",
     quantity: str = "10.0",
     side: str = "Bid",  # Changed from "Buy" to "Bid" to match BP_ORDER_SIDES validation
-    symbol: str = "SOL-USDC",
+    symbol: str = SOL_USDC_BP.value,
     timestamp: str = "2024-01-15T10:30:00Z",
     trade_id: int = 123456,
     client_id: str | None = None,
@@ -101,7 +101,7 @@ def create_raw_fill(
 
 def create_raw_trade(
     trade_id: str = "trade123",
-    symbol: str = "SOL-USDC",
+    symbol: str = SOL_USDC_BP.value,
     price: str = "100.50",
     qty: str = "10.0",
     time: str = "2024-01-15T10:30:00Z",

@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, COMMON_SPOT_SYMBOLS_BP
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
@@ -196,7 +196,7 @@ class TestBackpackSpotCandles:
                     f"BTC low {candle.low} should be <= close {candle.close}"
                 )
 
-    @pytest.mark.parametrize("symbol", [SOL_USDC_BP.value, BTC_USDC_BP.value, ETH_USDC_BP.value])
+    @pytest.mark.parametrize("symbol", [s.value for s in COMMON_SPOT_SYMBOLS_BP])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/candles"],

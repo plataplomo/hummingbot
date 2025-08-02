@@ -549,7 +549,14 @@ async def get_most_active_symbol(api: BackpackAPI) -> str:
     ticker_volumes: list[tuple[str, Decimal]] = []
 
     # Check common active pairs first - use consistent naming
-    priority_symbols = ["SOL_USDC", "BTC_USDC", "ETH_USDC", "SOL_PERP", "BTC_PERP", "ETH_PERP"]
+    from tests.common_symbols import (
+        SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP,
+        SOL_PERP_BP, BTC_PERP_BP, ETH_PERP_BP
+    )
+    priority_symbols = [
+        SOL_USDC_BP.value, BTC_USDC_BP.value, ETH_USDC_BP.value,
+        SOL_PERP_BP.value, BTC_PERP_BP.value, ETH_PERP_BP.value
+    ]
     available_priority = [m.symbol for m in markets if m.symbol in priority_symbols]
 
     # Check first 10 markets or priority symbols
@@ -599,7 +606,7 @@ async def get_most_active_symbol(api: BackpackAPI) -> str:
         return most_active
 
     # Fallback: try known active perpetual markets
-    for symbol in ["SOL_PERP", "BTC_PERP", "ETH_PERP"]:
+    for symbol in [SOL_PERP_BP.value, BTC_PERP_BP.value, ETH_PERP_BP.value]:
         if any(m.symbol == symbol for m in markets):
             logger.warning(
                 "using_fallback_symbol",

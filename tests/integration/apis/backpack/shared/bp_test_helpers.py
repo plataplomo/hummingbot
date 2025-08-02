@@ -332,13 +332,13 @@ def validate_symbol_format(symbol: str, exchange_name: str = "backpack") -> bool
         True if symbol format is valid for exchange
 
     Example:
-        >>> validate_symbol_format("SOL_USDC", "backpack")  # True
-        >>> validate_symbol_format("SOL_USDC_PERP", "backpack")  # True
+        >>> validate_symbol_format(SOL_USDC_BP.value, "backpack")  # True
+        >>> validate_symbol_format(SOL_USDC_PERP_BP.value, "backpack")  # True
         >>> validate_symbol_format("invalid-format", "backpack")  # False
     """
     if exchange_name.lower() == "backpack":
-        # Backpack uses underscore format like "SOL_USDC" for spot
-        # and "SOL_USDC_PERP" for perpetuals
+        # Backpack uses underscore format like SOL_USDC_BP.value for spot
+        # and SOL_USDC_PERP_BP.value for perpetuals
         if not symbol:
             return False
 
@@ -905,15 +905,15 @@ def get_base_quote_assets(symbol: Symbol) -> tuple[str, str]:
     """Extract base and quote assets from a trading symbol.
 
     Args:
-        symbol: Trading symbol (e.g., exchanges.backpack("SOL_USDC"), exchanges.backpack("BTC_USDC_PERP"))
+        symbol: Trading symbol (e.g., SOL_USDC_BP, BTC_USDC_PERP_BP)
 
     Returns:
         Tuple of (base_asset, quote_asset)
 
     Example:
-        >>> get_base_quote_assets(exchanges.backpack("SOL_USDC"))
+        >>> get_base_quote_assets(SOL_USDC_BP)
         ("SOL", "USDC")
-        >>> get_base_quote_assets(exchanges.backpack("BTC_USDC_PERP"))
+        >>> get_base_quote_assets(BTC_USDC_PERP_BP)
         ("BTC", "USDC")
     """
     symbol_str = symbol.value
@@ -974,20 +974,23 @@ def generate_deterministic_client_order_id(test_name: str, symbol: str, side: st
 # =============================================================================
 
 
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, USDT_USDC_BP
+from tests.common_symbols import SOL_USDC_PERP_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP
+
 COMMON_SPOT_SYMBOLS = [
-    "SOL_USDC",
-    "BTC_USDC",
-    "ETH_USDC",
-    "USDT_USDC",
+    SOL_USDC_BP.value,
+    BTC_USDC_BP.value,
+    ETH_USDC_BP.value,
+    USDT_USDC_BP.value,
 ]
 
 COMMON_PERP_SYMBOLS = [
-    "SOL_USDC_PERP",
-    "BTC_USDC_PERP",
-    "ETH_USDC_PERP",
+    SOL_USDC_PERP_BP.value,
+    BTC_USDC_PERP_BP.value,
+    ETH_USDC_PERP_BP.value,
 ]
 
-DEFAULT_TEST_SYMBOL_SPOT = "SOL_USDC"
+DEFAULT_TEST_SYMBOL_SPOT = SOL_USDC_BP.value
 DEFAULT_TEST_SYMBOL_PERP = SOL_USDC_PERP_BP.value
 
 TEST_SYMBOL_SOL_USDC = SOL_USDC_BP.value

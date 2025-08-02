@@ -31,7 +31,7 @@ from cyberdelta.core.models.market.trade import Trade  # Needed for Order.trades
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
-from tests.factories.symbol_factories import ExchangeSymbolFactory
+from tests.common_symbols import BTC_HL
 
 
 pytestmark = pytest.mark.timing
@@ -79,7 +79,7 @@ def base_order_data() -> dict[str, Any]:
     """
     return {
         "exchange": "backpack",
-        "symbol": ExchangeSymbolFactory.btc_perp_hyperliquid(),
+        "symbol": BTC_HL,
         "side": OrderSide.BUY,
         "order_type": OrderType.LIMIT,
         "quantity_requested": Decimal("1.0"),
@@ -127,7 +127,7 @@ def test_order_all_core_fields(base_order_data: dict[str, Any]) -> None:
         order_id="bp12345",  # Assume this matches exchange_order_id below
         client_order_id=client_order_id_for_trade,
         exchange="backpack",
-        symbol=ExchangeSymbolFactory.btc_perp_hyperliquid(),
+        symbol=BTC_HL,
         side=OrderSide.BUY,
         quantity=Decimal("0.5"),
         price=Decimal("50001.0"),
@@ -573,7 +573,7 @@ class TestOrderModel:
         # Use the base_order_data fixture or a minimal valid dict
         order_data: dict[str, Any] = {
             "exchange": "test_exchange",
-            "symbol": ExchangeSymbolFactory.btc_perp_hyperliquid(),
+            "symbol": BTC_HL,
             "side": OrderSide.BUY,
             "order_type": OrderType.LIMIT,
             "quantity_requested": Decimal("1.0"),

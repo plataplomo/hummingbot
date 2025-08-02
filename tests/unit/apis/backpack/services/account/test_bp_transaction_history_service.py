@@ -34,6 +34,7 @@ from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, Get
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models import Order, Trade
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import INVALID_SPOT_BP
 
 
 @pytest.fixture
@@ -327,7 +328,7 @@ class TestBackpackTransactionHistoryService:
     ) -> None:
         """Test order history with empty response."""
         # Arrange
-        args = GetOrderHistoryArgs(symbol="NONEXISTENT-USDC")
+        args = GetOrderHistoryArgs(symbol=INVALID_SPOT_BP.value)
 
         mock_http_client.return_value = ([], 200, {})
         mock_response_handler.handle_get_order_history_response.return_value = []
@@ -492,7 +493,7 @@ class TestBackpackTransactionHistoryService:
     ) -> None:
         """Test trade history with empty response."""
         # Arrange
-        args = GetTradeHistoryArgs(symbol="NONEXISTENT-USDC")
+        args = GetTradeHistoryArgs(symbol=INVALID_SPOT_BP.value)
 
         mock_http_client.return_value = ([], 200, {})
         mock_response_handler.handle_get_fills_response.return_value = []

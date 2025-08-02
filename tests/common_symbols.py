@@ -20,6 +20,8 @@ SOL_HL = symbols.SOL.hyperliquid()
 DOGE_HL = symbols.DOGE.hyperliquid()
 AVAX_HL = symbols.AVAX.hyperliquid()
 MATIC_HL = symbols.MATIC.hyperliquid()
+ADA_HL = symbols.ADA.hyperliquid()
+DOT_HL = symbols.DOT.hyperliquid()
 
 # Hyperliquid USD symbols (for tests that use -USD format)
 BTC_USD_HL = exchanges.hyperliquid("BTC-USD")
@@ -42,6 +44,7 @@ BTC_USDT_BP = exchanges.backpack("BTC_USDT")
 SOL_USDT_BP = exchanges.backpack("SOL_USDT")
 DOGE_USDT_BP = exchanges.backpack("DOGE_USDT")
 ADA_BTC_BP = exchanges.backpack("ADA_BTC")
+ADA_USDC_BP = exchanges.backpack("ADA_USDC")
 
 # Backpack USDC perpetual symbols
 BTC_USDC_PERP_BP = exchanges.backpack("BTC_USDC_PERP")
@@ -81,3 +84,14 @@ SYMBOL_MAPPINGS = {
     ETH_HL.value: ETH_USDC_BP.value,
     SOL_HL.value: SOL_USDC_BP.value,
 }
+
+# Parametrized test symbol lists for efficient testing
+COMMON_SPOT_SYMBOLS_BP = [SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP]
+COMMON_PERP_SYMBOLS_BP = [SOL_USDC_PERP_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP]
+COMMON_SYMBOLS_HL = [SOL_HL, BTC_HL, ETH_HL]
+
+# Invalid symbols for error testing
+INVALID_SYMBOL_BP = exchanges.backpack("INVALID_SYMBOL")
+INVALID_PERP_BP = exchanges.backpack("INVALID_PERP")
+INVALID_SPOT_BP = exchanges.backpack("INVALID_SPOT")
+INVALID_SYMBOL_HL = exchanges.hyperliquid("INVALID-USD")

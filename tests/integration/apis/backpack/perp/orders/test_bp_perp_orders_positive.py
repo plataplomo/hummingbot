@@ -40,7 +40,6 @@ from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
-    TEST_SYMBOL_SOL_PERP,
     get_current_market_price,
     get_dynamic_test_price,
     get_market_constraints,
@@ -86,8 +85,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Tests margin usage and leverage effects for perp trading.
         """
         _ = custom_vcr_config
-        symbol_str = TEST_SYMBOL_SOL_PERP
-        symbol = exchanges.backpack(value=symbol_str)
+        symbol = SOL_USDC_PERP_BP
         side = OrderSide.BUY
 
         # Get minimal order size for perp market order

@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
-from tests.common_symbols import SOL_USDC_BP
+from tests.common_symbols import SOL_USDC_BP, ETH_USDC_BP
 
 
 # Import fixtures from the shared conftest
@@ -393,7 +393,7 @@ class TestBackpackMarketDataServicePublicData:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_recent_trades when HTTP client returns None content."""
-        symbol = "ETH_USDC"
+        symbol = ETH_USDC_BP.value
         limit = 5
 
         # Mock the historical data service to raise an API error

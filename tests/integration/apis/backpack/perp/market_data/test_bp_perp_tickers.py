@@ -14,7 +14,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP, COMMON_PERP_SYMBOLS_BP, INVALID_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -99,7 +99,7 @@ class TestBackpackPerpTickers:
                 f"Volume should be non-negative, got {ticker.volume}"
             )
 
-    @pytest.mark.parametrize("symbol", [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value])
+    @pytest.mark.parametrize("symbol", [s.value for s in COMMON_PERP_SYMBOLS_BP])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/perp/tickers"],
@@ -149,10 +149,10 @@ class TestBackpackPerpTickers:
     ) -> None:
         """Test BackpackAPI.get_ticker() with invalid perp symbol raises appropriate error."""
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.get_ticker(exchanges.backpack("INVALID_PERP"))
+            await bp_api_for_test_env.get_ticker(INVALID_PERP_BP)
 
         error = exc_info.value
-        assert "INVALID_PERP" in str(error) or "symbol" in str(error).lower()
+        assert INVALID_PERP_BP.value in str(error) or "symbol" in str(error).lower()
 
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",

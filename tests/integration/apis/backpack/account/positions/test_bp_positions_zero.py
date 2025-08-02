@@ -14,13 +14,12 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     COMMON_SPOT_SYMBOLS,
     DELISTED_PERP_SYMBOL,
     DUST_THRESHOLD,
     SMALL_VALUE_TOLERANCE,
-    TEST_SYMBOL_BTC_PERP,
-    TEST_SYMBOL_ETH_PERP,
 )
 
 
@@ -63,7 +62,7 @@ class TestBackpackPositionsZero:
             APIError: If API call fails with non-symbol-not-found errors.
         """
         try:
-            symbol = exchanges.backpack(TEST_SYMBOL_BTC_PERP)
+            symbol = BTC_USDC_PERP_BP
             positions = await bp_api_for_zero_balance_test.get_positions(
                 symbol=symbol,
             )
@@ -160,7 +159,7 @@ class TestBackpackPositionsZero:
 
         # Try specific symbols
         try:
-            symbol = exchanges.backpack(TEST_SYMBOL_BTC_PERP)
+            symbol = BTC_USDC_PERP_BP
             btc_positions = await bp_api_for_zero_balance_test.get_positions(
                 symbol=symbol,
             )
@@ -174,7 +173,7 @@ class TestBackpackPositionsZero:
                 raise
 
         try:
-            symbol = exchanges.backpack(TEST_SYMBOL_ETH_PERP)
+            symbol = ETH_USDC_PERP_BP
             eth_positions = await bp_api_for_zero_balance_test.get_positions(
                 symbol=symbol,
             )

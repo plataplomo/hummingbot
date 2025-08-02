@@ -17,6 +17,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import SOL_USDC_PERP_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, INVALID_PERP_BP
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp]
@@ -39,7 +40,7 @@ class TestBackpackPerpMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perpetual market retrieval with authenticated context."""
-        args = GetMarketArgs(symbol=exchanges.backpack("SOL_USDC_PERP"))
+        args = GetMarketArgs(symbol=SOL_USDC_PERP_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
@@ -105,7 +106,7 @@ class TestBackpackPerpMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test authenticated perpetual market data is consistent."""
-        test_symbols = ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
+        test_symbols = [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value]
 
         for symbol in test_symbols:
             try:
@@ -172,7 +173,7 @@ class TestBackpackPerpMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test error handling for authenticated perpetual market requests."""
-        invalid_args = GetMarketArgs(symbol=exchanges.backpack("INVALID_PERP_SYMBOL_AUTH"))
+        invalid_args = GetMarketArgs(symbol=INVALID_PERP_BP)
 
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_market(invalid_args)

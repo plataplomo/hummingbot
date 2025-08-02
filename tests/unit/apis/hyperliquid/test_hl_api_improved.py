@@ -8,6 +8,7 @@ from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL, BTC_USD_HL, ETH_USD_HL, SOL_USD_HL
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -138,7 +139,7 @@ class TestHyperliquidAPIImproved:
         mock_dependencies["account_service"].get_balances.assert_called_once()
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("symbol", [None, "BTC-USD", "ETH-USD"])
+    @pytest.mark.parametrize("symbol", [None, BTC_HL.value, ETH_HL.value])
     async def test_get_positions_delegation_parametrized(
         self,
         api_instance: Callable[[], HyperliquidAPI],
@@ -162,7 +163,7 @@ class TestHyperliquidAPIImproved:
     # Trading Service Delegation Tests
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("symbol", [None, "BTC-USD", "ETH-USD"])
+    @pytest.mark.parametrize("symbol", [None, BTC_HL.value, ETH_HL.value])
     async def test_get_open_orders_delegation_parametrized(
         self,
         api_instance: Callable[[], HyperliquidAPI],
@@ -195,7 +196,7 @@ class TestHyperliquidAPIImproved:
         mock_dependencies["trading_service"].cancel_order.assert_called_once_with(args=args)
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("symbol", [None, "BTC-USD"])
+    @pytest.mark.parametrize("symbol", [None, BTC_HL.value])
     async def test_cancel_all_orders_delegation_parametrized(
         self,
         api_instance: Callable[[], HyperliquidAPI],
@@ -212,7 +213,7 @@ class TestHyperliquidAPIImproved:
     # Market Data Service Delegation Tests
 
     @pytest.mark.asyncio
-    @pytest.mark.parametrize("symbol", ["BTC-USD", "ETH-USD", "SOL-USD"])
+    @pytest.mark.parametrize("symbol", [BTC_HL.value, ETH_HL.value, SOL_HL.value])
     async def test_get_ticker_delegation_parametrized(
         self,
         api_instance: Callable[[], HyperliquidAPI],
@@ -228,9 +229,9 @@ class TestHyperliquidAPIImproved:
     @pytest.mark.parametrize(
         ("symbol", "depth"),
         [
-            ("BTC-USD", None),
-            ("ETH-USD", 10),
-            ("SOL-USD", 50),
+            (BTC_USD_HL.value, None),
+            (ETH_USD_HL.value, 10),
+            (SOL_USD_HL.value, 50),
         ],
     )
     async def test_get_order_book_delegation_parametrized(
@@ -251,9 +252,9 @@ class TestHyperliquidAPIImproved:
     @pytest.mark.parametrize(
         ("symbol", "limit"),
         [
-            ("BTC-USD", 50),
-            ("ETH-USD", 100),
-            ("SOL-USD", None),
+            (BTC_USD_HL.value, 50),
+            (ETH_USD_HL.value, 100),
+            (SOL_USD_HL.value, None),
         ],
     )
     async def test_get_recent_trades_delegation_parametrized(
@@ -276,7 +277,7 @@ class TestHyperliquidAPIImproved:
         self, api_instance: Callable[[], HyperliquidAPI], mock_dependencies: dict[str, MagicMock]
     ) -> None:
         """Test get_market delegates to market data service."""
-        args = GetMarketArgs(symbol="BTC-USD")
+        args = GetMarketArgs(symbol=BTC_USD_HL.value)
         api = api_instance()
         await api.get_market(args)
         mock_dependencies["market_data_service"].get_market.assert_called_once_with(args=args)
@@ -316,7 +317,7 @@ class TestHyperliquidAPIImproved:
         api = api_instance()
 
         with pytest.raises(APIError) as exc_info:
-            await api.get_ticker("BTC-USD")
+            await api.get_ticker(BTC_USD_HL.value)
 
         assert exc_info.value == api_error
         assert exc_info.value.message == error_message
@@ -335,7 +336,7 @@ class TestHyperliquidAPIImproved:
         api = api_instance()
 
         # Test that methods are called (focus on delegation)
-        await api.get_ticker("BTC-USD")
+        await api.get_ticker(BTC_USD_HL.value)
         await api.get_order(GetOrderArgs(order_id="nonexistent"))
 
         # Verify delegation occurred
@@ -496,8 +497,8 @@ class TestHyperliquidAPIImproved:
         assert mock_dependencies["trading_service"].cancel_all_orders.call_count == 1
 
         # Verify market data service methods are consistently delegated
-        await api.get_ticker("BTC-USD")
-        await api.get_recent_trades("BTC-USD")
+        await api.get_ticker(BTC_USD_HL.value)
+        await api.get_recent_trades(BTC_USD_HL.value)
 
         assert mock_dependencies["market_data_service"].get_ticker.call_count == 1
         assert mock_dependencies["market_data_service"].get_recent_trades.call_count == 1

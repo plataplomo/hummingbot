@@ -36,6 +36,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import SOL_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_dynamic_test_price,
     get_market_constraints,
@@ -75,7 +76,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing perp order with insufficient margin returns appropriate error."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
@@ -121,7 +122,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing large perp order with zero margin fails appropriately."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
@@ -167,7 +168,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp market order with zero margin fails appropriately."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         # Get minimal quantity using current market price for calculation
         current_price = await get_dynamic_test_price(
@@ -204,7 +205,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test canceling non-existent perp order returns appropriate error."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
         fake_order_id = "nonexistent_perp_order_123"
 
         cancel_args = CancelOrderArgs(
@@ -232,7 +233,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test getting perp order history with zero balance account."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         end_time = datetime.now(UTC)
         start_time = end_time - timedelta(days=7)  # Last 7 days
@@ -262,7 +263,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test that perp order requests properly validate authentication."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
@@ -308,7 +309,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order precision validation even with zero margin."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         # Get market constraints for precision testing
         constraints = await get_market_constraints(bp_api_for_zero_balance_test, symbol)
@@ -351,7 +352,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order leverage limit validation with zero margin."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
@@ -389,7 +390,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp short order with zero margin fails appropriately."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
@@ -434,7 +435,7 @@ class TestBackpackPerpOrdersZeroBalance:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp order time-in-force validation with zero margin."""
-        symbol = exchanges.backpack("SOL_USDC_PERP")
+        symbol = SOL_USDC_PERP_BP
 
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,

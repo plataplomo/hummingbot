@@ -10,6 +10,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
+from tests.common_symbols import SOL_USDC_PERP_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ async def bp_perp_test_config(
 
         if not perp_symbols:
             # Fallback to common symbols if no markets available
-            perp_symbols = ["SOL_USDC_PERP", "BTC_USDC_PERP", "ETH_USDC_PERP"]
+            perp_symbols = [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value]
 
         # Get actual constraints from first available perp market
         constraints = await get_market_constraints(bp_api_for_test_env, perp_symbols[0])

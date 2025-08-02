@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, COMMON_SPOT_SYMBOLS_BP
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.core.models import OrderBook
@@ -111,7 +111,7 @@ class TestBackpackSpotOrderBooks:
             ask_price, _ = order_book.asks[0]
             assert ask_price > Decimal(1000), f"BTC ask price seems too low: {ask_price}"
 
-    @pytest.mark.parametrize("symbol", [SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP])
+    @pytest.mark.parametrize("symbol", COMMON_SPOT_SYMBOLS_BP)
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/order_books"],
