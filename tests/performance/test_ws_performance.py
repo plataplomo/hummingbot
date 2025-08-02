@@ -12,6 +12,7 @@ from typing import Any
 import orjson
 import pytest
 
+from tests.common_symbols import BTC_USDC_BP
 from cyberdelta.apis.backpack.bp_ws_router import BackpackWebSocketRouter
 from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
@@ -48,9 +49,9 @@ from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProces
 
 # Sample messages for testing
 BACKPACK_DEPTH_MESSAGE = {
-    "topic": "depth.BTC_USDC",
+    "topic": f"depth.{BTC_USDC_BP.value}",
     "data": {
-        "symbol": "BTC_USDC",
+        "symbol": BTC_USDC_BP.value,
         "asks": [["50100.00", "1.5"], ["50110.00", "2.0"]],
         "bids": [["50090.00", "1.2"], ["50080.00", "1.8"]],
         "lastUpdateId": "123456",
@@ -252,7 +253,7 @@ class TestValidationPerformance:
         # This tests the raw Pydantic validation speed
         # Valid depth update data
         depth_data = {
-            "symbol": "BTC_USDC",
+            "symbol": BTC_USDC_BP.value,
             "asks": [["50100.00", "1.5"], ["50110.00", "2.0"]],
             "bids": [["50090.00", "1.2"], ["50080.00", "1.8"]],
             "lastUpdateId": "123456",

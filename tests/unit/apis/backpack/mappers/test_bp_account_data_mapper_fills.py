@@ -18,6 +18,7 @@ from unittest.mock import patch
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
@@ -124,7 +125,7 @@ def create_raw_trade(
 def create_raw_position_update(
     event_type: Literal["positionUpdate"] = "positionUpdate",
     event_time: int = 1678886400000,
-    symbol: str = "SOL_USDC",
+    symbol: str = SOL_USDC_BP.value,
     break_event_price: str | None = "100.25",
     entry_price: str | None = "100.00",
     liquidation_price: str | None = "90.00",

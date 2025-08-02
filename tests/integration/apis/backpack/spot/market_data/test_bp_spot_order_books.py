@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.core.models import OrderBook
@@ -40,11 +41,11 @@ class TestBackpackSpotOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_order_book() with SOL_USDC returns valid OrderBook model."""
-        order_book = await bp_api_for_test_env.get_order_book("SOL_USDC")
+        order_book = await bp_api_for_test_env.get_order_book(SOL_USDC_BP)
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
 
-        assert order_book.symbol == "SOL_USDC", (
+        assert order_book.symbol == SOL_USDC_BP.value, (
             f"Expected symbol 'SOL_USDC', got '{order_book.symbol}'"
         )
 
@@ -94,10 +95,10 @@ class TestBackpackSpotOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_order_book() with BTC_USDC returns valid OrderBook model."""
-        order_book = await bp_api_for_test_env.get_order_book("BTC_USDC")
+        order_book = await bp_api_for_test_env.get_order_book(BTC_USDC_BP)
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
-        assert order_book.symbol == "BTC_USDC", (
+        assert order_book.symbol == BTC_USDC_BP.value, (
             f"Expected symbol 'BTC_USDC', got '{order_book.symbol}'"
         )
 
@@ -110,7 +111,7 @@ class TestBackpackSpotOrderBooks:
             ask_price, _ = order_book.asks[0]
             assert ask_price > Decimal(1000), f"BTC ask price seems too low: {ask_price}"
 
-    @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
+    @pytest.mark.parametrize("symbol", [SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/order_books"],
@@ -155,7 +156,7 @@ class TestBackpackSpotOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot order book depth and liquidity."""
-        order_book = await bp_api_for_test_env.get_order_book("SOL_USDC")
+        order_book = await bp_api_for_test_env.get_order_book(SOL_USDC_BP)
 
         assert isinstance(order_book, OrderBook), "Expected OrderBook"
         assert len(order_book.bids) > 0, "Should have bids"
@@ -198,7 +199,7 @@ class TestBackpackSpotOrderBooks:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot order book decimal precision handling."""
-        order_book = await bp_api_for_test_env.get_order_book("SOL_USDC")
+        order_book = await bp_api_for_test_env.get_order_book(SOL_USDC_BP)
 
         # Test precision on all bids
         for bid_price, bid_size in order_book.bids:

@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 
+from tests.common_symbols import BTC_USD_HL, ETH_USD_HL
 from cyberdelta.config import AppSettings
 from cyberdelta.core.models.spot_balance import SpotBalance
 from cyberdelta.core.risk.config.migration import ConfigurationMigrator
@@ -312,7 +313,7 @@ def sample_opportunity() -> "ArbitrageOpportunity":
         ArbitrageOpportunity: Sample arbitrage opportunity configured for risk pipeline tests.
     """
     return ArbitrageOpportunity(
-        symbol="BTC-USD",
+        symbol=BTC_USD_HL,
         long_exchange="Hyperliquid",
         short_exchange="Backpack",
         long_price=Decimal(50000),
@@ -385,7 +386,7 @@ class TestRiskPipelineIntegration:
         """Test risk pipeline with failing checks (low profitability)."""
         # Create opportunity with very low spread (will fail profitability check)
         low_profit_opportunity = ArbitrageOpportunity(
-            symbol="ETH-USD",
+            symbol=ETH_USD_HL,
             long_exchange="Hyperliquid",
             short_exchange="Backpack",
             long_price=Decimal(3000),

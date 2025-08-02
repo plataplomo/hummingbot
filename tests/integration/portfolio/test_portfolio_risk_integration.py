@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tests.common_symbols import BTC_USD_HL
 from cyberdelta.app.integrated_application import CyberDeltaApplication
 from cyberdelta.core.portfolio.coordinators.portfolio_risk_coordinator import (
     PortfolioRiskCoordinator,
@@ -69,7 +70,7 @@ class TestPortfolioRiskCoordinator:
     async def test_trade_validation_success(self, coordinator):
         """Test successful trade validation."""
         trade_request = TradeRequestModel(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL.value,
             side="buy",
             quantity=Decimal("1.0"),
             price=Decimal("50000"),
@@ -86,7 +87,7 @@ class TestPortfolioRiskCoordinator:
     async def test_trade_validation_insufficient_capital(self, coordinator):
         """Test trade validation with insufficient capital."""
         trade_request = TradeRequestModel(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL.value,
             side="buy",
             quantity=Decimal("1000"),  # Very large quantity
             price=Decimal("50000"),
@@ -105,7 +106,7 @@ class TestPortfolioRiskCoordinator:
         # Test negative quantity
         with pytest.raises(ValueError, match="Quantity must be positive"):
             TradeRequestModel(
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL.value,
                 side="buy",
                 quantity=Decimal("-1.0"),
                 exchange_id="hyperliquid"
@@ -114,7 +115,7 @@ class TestPortfolioRiskCoordinator:
         # Test invalid signal strength
         with pytest.raises(ValueError, match="Signal strength must be between"):
             TradeRequestModel(
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL.value,
                 side="buy",
                 quantity=Decimal("1.0"),
                 signal_strength=1.5,
@@ -124,7 +125,7 @@ class TestPortfolioRiskCoordinator:
         # Test invalid side
         with pytest.raises(ValueError, match="Side must be"):
             TradeRequestModel(
-                symbol="BTC-USD",
+                symbol=BTC_USD_HL.value,
                 side="invalid",
                 quantity=Decimal("1.0"),
                 exchange_id="hyperliquid"
@@ -227,7 +228,7 @@ if __name__ == "__main__":
         
         # Test trade request validation
         trade_request = TradeRequestModel(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL.value,
             side="buy",
             quantity=Decimal("1.0"),
             price=Decimal("50000"),

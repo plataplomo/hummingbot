@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, DOGE_USDT_BP, ADA_BTC_BP
 
 # Third-party imports for type checking only
 if TYPE_CHECKING:
@@ -60,7 +61,7 @@ def create_raw_order(
     executed_quantity: str | None = "0.0",
     order_id: str = "12345",
     client_id: str | None = "test_order_001",
-    symbol: str = "SOL_USDC",
+    symbol: str = SOL_USDC_BP.value,
     time_in_force: str | None = "GTC",
     created_at: str | None = None,
     updated_at: str | None = None,
@@ -175,7 +176,7 @@ class TestTradingDataMapperIntegration:
         with pytest.raises(TransformationError):
             trading_data_mapper.transform_order_data_to_internal(
                 order_id="123",
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side="Buy",
                 order_type="LIMIT",
                 status="NEW",
@@ -207,7 +208,7 @@ class TestTradingDataMapperIntegration:
 
         # Verify the result is a complete, valid Order
         assert result.exchange == ExchangeName.BACKPACK.value
-        assert result.symbol.value == "SOL_USDC"
+        assert result.symbol.value == SOL_USDC_BP.value
         assert result.quantity_requested > Decimal(0)
         assert result.quantity_filled == Decimal("1.0")
         assert result.average_fill_price == Decimal("3000.00")
@@ -233,7 +234,7 @@ class TestTradingDataMapperIntegration:
             avg_fill_price="45050.25",
             order_id="complex_order_123",
             client_id="complex_client_456",
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             time_in_force="IOC",
             created_at=created_at,
             updated_at=updated_at,
@@ -254,7 +255,7 @@ class TestTradingDataMapperIntegration:
         # Verify all fields are correctly transformed
         assert result.exchange_order_id == "complex_order_123"
         assert result.client_order_id == "complex_client_456"
-        assert result.symbol.value == "BTC_USDC"
+        assert result.symbol.value == BTC_USDC_BP.value
         assert result.side == OrderSide.SELL
         assert result.order_type == OrderType.STOP_MARKET
         assert result.status == OrderStatus.PARTIALLY_FILLED
@@ -364,7 +365,7 @@ class TestTradingDataMapperIntegration:
         trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation consistency across different trading symbols."""
-        symbols = ["BTC_USDC", "ETH_USDC", "SOL_USDC", "DOGE_USDT", "ADA_BTC"]
+        symbols = [BTC_USDC_BP.value, ETH_USDC_BP.value, SOL_USDC_BP.value, DOGE_USDT_BP.value, ADA_BTC_BP.value]
 
         for symbol in symbols:
             raw_order = create_raw_order(

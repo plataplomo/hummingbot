@@ -16,6 +16,7 @@ from typing import Any
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
@@ -55,7 +56,7 @@ class TestBackpackSpotCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -124,7 +125,7 @@ class TestBackpackSpotCandles:
                     f"Candle {i} low {candle.low} should be <= close {candle.close}"
                 )
 
-                assert candle.symbol == "SOL_USDC", (
+                assert candle.symbol == SOL_USDC_BP.value, (
                     f"Candle {i} symbol should be 'SOL_USDC', got '{candle.symbol}'"
                 )
 
@@ -154,7 +155,7 @@ class TestBackpackSpotCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -169,7 +170,7 @@ class TestBackpackSpotCandles:
                 assert isinstance(candle, Candle), (
                     f"Candle {i} should be Candle model, got {type(candle)}"
                 )
-                assert candle.symbol == "BTC_USDC", (
+                assert candle.symbol == BTC_USDC_BP.value, (
                     f"Candle {i} symbol should be 'BTC_USDC', got '{candle.symbol}'"
                 )
 
@@ -195,7 +196,7 @@ class TestBackpackSpotCandles:
                     f"BTC low {candle.low} should be <= close {candle.close}"
                 )
 
-    @pytest.mark.parametrize("symbol", ["SOL_USDC", "BTC_USDC", "ETH_USDC"])
+    @pytest.mark.parametrize("symbol", [SOL_USDC_BP.value, BTC_USDC_BP.value, ETH_USDC_BP.value])
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/candles"],

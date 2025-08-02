@@ -24,7 +24,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.symbols import Symbol
-from tests.common_symbols import BTC_HL, ETH_HL
+from tests.common_symbols import BTC_HL, ETH_HL, BTC_USDC_BP, ETH_USDC_BP
 
 from .conftest import create_sample_positions, populate_nested_dict
 
@@ -62,8 +62,8 @@ def _get_mock_price_data() -> dict[str, Decimal]:
     # Using spot pair notation for price data simulation
     # These are used as dictionary keys for price lookups in tests
     from cyberdelta.core.symbols.api import symbol
-    btc_usdc = symbol("BTC_USDC", "backpack")
-    eth_usdc = symbol("ETH_USDC", "backpack")
+    btc_usdc = BTC_USDC_BP
+    eth_usdc = ETH_USDC_BP
     eth_btc = symbol("ETH_BTC", "backpack")
     
     return {

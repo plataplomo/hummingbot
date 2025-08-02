@@ -59,9 +59,9 @@ def strategy_with_risk_manager(
     """
     return FundingRateArbitrageStrategy(
         name="test_funding_arb",
-        symbol=BTC_HL.value,
+        symbol=BTC_HL,
         data_handler=setup_dependencies["data_handler"],
-        portfolio_tracker=setup_dependencies["portfolio_tracker"],
+        portfolio_state_manager=setup_dependencies["portfolio_tracker"],
         risk_manager=setup_dependencies["risk_manager"],
         params={
             "min_funding_differential": 0.01,  # 0.01% minimum
@@ -85,9 +85,9 @@ def strategy_without_risk_manager(
     """
     return FundingRateArbitrageStrategy(
         name="test_no_rm",
-        symbol=BTC_HL.value,
+        symbol=BTC_HL,
         data_handler=setup_dependencies["data_handler"],
-        portfolio_tracker=setup_dependencies["portfolio_tracker"],
+        portfolio_state_manager=setup_dependencies["portfolio_tracker"],
         params={
             "min_funding_differential": Decimal("0.01"),
             "min_profit_threshold": Decimal("1.0"),
@@ -108,7 +108,7 @@ def mock_opportunity() -> ArbitrageOpportunity:
         ArbitrageOpportunity: Mock arbitrage opportunity with test data.
     """
     return ArbitrageOpportunity(
-        symbol="BTC/USDT",
+        symbol=BTC_HL,
         long_exchange="ExchangeA",
         short_exchange="ExchangeB",
         long_price=Decimal(50000),
@@ -186,7 +186,7 @@ async def test_position_sizing_integration(
             mock_evaluate.return_value = [
                 MagicMock(
                     spec=TradeSignal,
-                    symbol=BTC_HL.value,
+                    symbol=BTC_HL,
                     signal_type=SignalType.ENTER_SHORT,
                     metadata={
                         "position_sizing": {
@@ -210,7 +210,7 @@ async def test_position_sizing_integration(
 
     # Use the first signal for assertions (perp leg)
     signal = signals[0]
-    assert signal.symbol == BTC_HL.value
+    assert signal.symbol == BTC_HL
     assert signal.signal_type == SignalType.ENTER_SHORT
 
     # Check metadata for position sizing

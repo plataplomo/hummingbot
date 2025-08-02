@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -73,7 +74,7 @@ def create_raw_order(
     executed_quantity: str | None = "0.0",
     order_id: str = "12345",
     client_id: str | None = "test_order_001",
-    symbol: str = "SOL_USDC",
+    symbol: str = SOL_USDC_BP.value,
     time_in_force: str | None = "GTC",
     created_at: str | None = None,
     updated_at: str | None = None,
@@ -153,7 +154,7 @@ class TestOrderSideMapping:
         """Test order side mapping via order data transformation."""
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="12345",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             side=bp_side,
             order_type="LIMIT",
             status="NEW",
@@ -175,7 +176,7 @@ def test_invalid_order_side_raises_error(
     with pytest.raises(TransformationError) as exc_info:
         trading_data_mapper.transform_order_data_to_internal(
             order_id="12345",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             side=invalid_side,
             order_type="LIMIT",
             status="NEW",
@@ -220,7 +221,7 @@ def test_unsupported_order_status_via_data_method(
     # Test "pending" which actually maps to OPEN according to the mapper
     result_pending = trading_data_mapper.transform_order_data_to_internal(
         order_id="12345",
-        symbol="SOL_USDC",
+        symbol=SOL_USDC_BP.value,
         side="Buy",
         order_type="LIMIT",
         status="PENDING",
@@ -234,7 +235,7 @@ def test_unsupported_order_status_via_data_method(
     for status in unsupported_statuses:
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="12345",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             side="Buy",
             order_type="LIMIT",
             status=status,
@@ -255,7 +256,7 @@ def test_invalid_order_status_defaults_to_unknown(
     """Test that invalid order statuses default to UNKNOWN."""
     result = trading_data_mapper.transform_order_data_to_internal(
         order_id="12345",
-        symbol="SOL_USDC",
+        symbol=SOL_USDC_BP.value,
         side="Buy",
         order_type="LIMIT",
         status=invalid_status,
@@ -351,7 +352,7 @@ def test_empty_time_in_force_mapping(
     """Test empty string time in force mapping via order data method."""
     result = trading_data_mapper.transform_order_data_to_internal(
         order_id="12345",
-        symbol="SOL_USDC",
+        symbol=SOL_USDC_BP.value,
         side="Buy",
         order_type="LIMIT",
         status="NEW",
@@ -386,7 +387,7 @@ class TestTransformRawOrderToInternal:
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "12345"
-        assert result.symbol == "SOL_USDC"
+        assert result.symbol == SOL_USDC_BP.value
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.status == OrderStatus.OPEN
@@ -416,14 +417,14 @@ class TestTransformRawOrderToInternal:
             avg_fill_price="50000.00",
             order_id="67890",
             client_id=None,
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
         )
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "67890"
-        assert result.symbol == "BTC_USDC"
+        assert result.symbol == BTC_USDC_BP.value
         assert result.side == OrderSide.SELL
         assert result.order_type == OrderType.MARKET
         assert result.status == OrderStatus.OPEN
@@ -590,7 +591,7 @@ class TestTransformOrderDataToInternal:
 
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="98765",
-            symbol="ETH_USDC",
+            symbol=ETH_USDC_BP.value,
             side="Sell",
             order_type="MARKET",
             status="FILLED",
@@ -604,7 +605,7 @@ class TestTransformOrderDataToInternal:
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "98765"
-        assert result.symbol == "ETH_USDC"
+        assert result.symbol == ETH_USDC_BP.value
         assert result.side == OrderSide.SELL
         assert result.order_type == OrderType.MARKET
         assert result.status == OrderStatus.FILLED
@@ -624,7 +625,7 @@ class TestTransformOrderDataToInternal:
         """Test transformation with minimal required parameters."""
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="123",
-            symbol="SOL_USDC",
+            symbol=SOL_USDC_BP.value,
             side="Buy",
             order_type="LIMIT",
             status="NEW",
@@ -634,7 +635,7 @@ class TestTransformOrderDataToInternal:
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "123"
-        assert result.symbol == "SOL_USDC"
+        assert result.symbol == SOL_USDC_BP.value
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.status == OrderStatus.OPEN
@@ -653,7 +654,7 @@ class TestTransformOrderDataToInternal:
         """Test transformation with price parameter."""
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="456",
-            symbol="BTC_USDC",
+            symbol=BTC_USDC_BP.value,
             side="Buy",
             order_type="LIMIT",
             status="NEW",
@@ -677,7 +678,7 @@ class TestTransformOrderDataToInternal:
         with pytest.raises(TransformationError, match="quantity_requested is required"):
             trading_data_mapper.transform_order_data_to_internal(
                 order_id="123",
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side="Buy",
                 order_type="LIMIT",
                 status="NEW",
@@ -701,7 +702,7 @@ class TestTransformOrderDataToInternal:
         ):
             trading_data_mapper.transform_order_data_to_internal(
                 order_id="123",
-                symbol="SOL_USDC",
+                symbol=SOL_USDC_BP.value,
                 side="Buy",
                 order_type="LIMIT",
                 status="NEW",

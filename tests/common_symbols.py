@@ -19,6 +19,7 @@ ETH_HL = symbols.ETH.hyperliquid()
 SOL_HL = symbols.SOL.hyperliquid()
 DOGE_HL = symbols.DOGE.hyperliquid()
 AVAX_HL = symbols.AVAX.hyperliquid()
+MATIC_HL = symbols.MATIC.hyperliquid()
 
 # Hyperliquid USD symbols (for tests that use -USD format)
 BTC_USD_HL = exchanges.hyperliquid("BTC-USD")
@@ -40,6 +41,7 @@ ETH_USDT_BP = exchanges.backpack("ETH_USDT")
 BTC_USDT_BP = exchanges.backpack("BTC_USDT")
 SOL_USDT_BP = exchanges.backpack("SOL_USDT")
 DOGE_USDT_BP = exchanges.backpack("DOGE_USDT")
+ADA_BTC_BP = exchanges.backpack("ADA_BTC")
 
 # Backpack USDC perpetual symbols
 BTC_USDC_PERP_BP = exchanges.backpack("BTC_USDC_PERP")

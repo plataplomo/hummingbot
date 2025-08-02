@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.order_book import OrderBook
-from tests.common_symbols import BTC_HL
+from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
@@ -281,7 +281,7 @@ class TestOrderBook:
 
         # Direct attribute assignment raises ValidationError due to frozen=True
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            ob.symbol = symbols.ETH.hyperliquid()
+            ob.symbol = ETH_HL
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ob.timestamp = now + timedelta(seconds=1)
         with pytest.raises(ValidationError, match="Instance is frozen"):

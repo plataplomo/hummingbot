@@ -17,7 +17,7 @@ from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.models import Ticker
 from cyberdelta.core.services.price_data_service import PriceDataService
 from cyberdelta.core.symbols import Symbol
-from tests.common_symbols import BTC_HL, ETH_HL, BTC_BP
+from tests.common_symbols import BTC_HL, ETH_HL, BTC_BP, SOL_HL, AVAX_HL, MATIC_HL
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
 from tests.fixtures.time_fixtures import FreezerProtocol
 
@@ -1103,8 +1103,8 @@ class TestConcurrentOperations:
         price_service.api_clients["hyperliquid"].get_ticker.side_effect = get_ticker_for_symbol  # type: ignore[attr-defined]
 
         # Act - Request different symbols concurrently
-        avax_symbol = symbols.AVAX.hyperliquid()
-        matic_symbol = symbols.MATIC.hyperliquid()
+        avax_symbol = AVAX_HL
+        matic_symbol = MATIC_HL
         symbols = [btc_symbol.value, eth_symbol.value, sol_symbol.value, avax_symbol.value, matic_symbol.value]
         tasks = [price_service.get_ticker("hyperliquid", symbol) for symbol in symbols]
         results = await asyncio.gather(*tasks)

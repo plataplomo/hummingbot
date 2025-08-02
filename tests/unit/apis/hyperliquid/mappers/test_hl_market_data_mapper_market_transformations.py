@@ -31,7 +31,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaResponse,
 )
 from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
-from tests.common_symbols import BTC_HL, ETH_HL
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
 # Alias for shorter method calls
@@ -329,8 +329,8 @@ class TestCreateMarketFromAssetDefinition:
         mapper: HyperliquidMarketMetadataMapper,
     ) -> None:
         """Test creating market from asset definition with context."""
-        asset_def = create_asset_definition(symbols.SOL.hyperliquid().value, max_leverage=75, sz_decimals=3)
-        asset_ctx = create_asset_ctx(symbols.SOL.hyperliquid().value, mark_px="100.50", funding="0.0002")
+        asset_def = create_asset_definition(SOL_HL.value, max_leverage=75, sz_decimals=3)
+        asset_ctx = create_asset_ctx(SOL_HL.value, mark_px="100.50", funding="0.0002")
 
         market = mapper.transform_single_asset_to_market(asset_def, asset_ctx)
 

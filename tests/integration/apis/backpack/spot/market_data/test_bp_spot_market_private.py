@@ -12,6 +12,7 @@ from typing import Any
 
 import pytest
 
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
@@ -38,11 +39,11 @@ class TestBackpackSpotMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot market retrieval with authenticated context."""
-        args = GetMarketArgs(symbol="SOL_USDC")
+        args = GetMarketArgs(symbol=SOL_USDC_BP)
         market = await bp_api_for_test_env.get_market(args)
 
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
-        assert market.symbol == "SOL_USDC", f"Expected symbol 'SOL_USDC', got '{market.symbol}'"
+        assert market.symbol == SOL_USDC_BP.value, f"Expected symbol '{SOL_USDC_BP.value}', got '{market.symbol}'"
 
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"
@@ -102,7 +103,7 @@ class TestBackpackSpotMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test authenticated spot market data is consistent."""
-        test_symbols = ["SOL_USDC", "BTC_USDC", "ETH_USDC"]
+        test_symbols = [SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP]
 
         for symbol in test_symbols:
             try:
