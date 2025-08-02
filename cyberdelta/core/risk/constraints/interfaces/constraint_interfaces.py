@@ -178,6 +178,21 @@ class ConstraintResult:
             "warning_violations_count": len(self.warning_violations),
         }
 
+    def get_failure_reason(self) -> str | None:
+        """Get failure reason from constraint result.
+        
+        Returns:
+            str | None: The failure message if failed, otherwise None
+        """
+        if self.failed:
+            if self.message:
+                return self.message
+            # Build message from violations
+            if self.blocking_violations:
+                violation_messages = [v.message for v in self.blocking_violations]
+                return "; ".join(violation_messages)
+        return None
+
 
 @dataclass
 class ConstraintContext:

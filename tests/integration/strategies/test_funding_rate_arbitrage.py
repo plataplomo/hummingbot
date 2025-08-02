@@ -30,7 +30,7 @@ from cyberdelta.core.models.market.funding_rate import (
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from tests.common_symbols import BTC_HL, BTC_BP, ETH_HL, ETH_BP, BTC_USDC_BP
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -358,7 +358,7 @@ async def test_process_data_rebalance_signal_generation(
     assert any(s.signal_type == SignalType.REBALANCE for s in signals)
 
 
-@pytest.mark.skip(reason="Strategy has a bug - not awaiting async method size_opportunity")
+@pytest.mark.skip(reason="Strategy has a bug - not awaiting async method analyze_opportunity")
 @pytest.mark.asyncio
 @patch("cyberdelta.strategies.funding_rate_arbitrage.logger")
 async def test_evaluate_entry_opportunity_found(
@@ -368,18 +368,25 @@ async def test_evaluate_entry_opportunity_found(
     """Test that evaluate_entry_opportunities identifies and logs profitable opportunities."""
     mock_opportunity = create_mock_opportunity(symbol=BTC_HL, expected_profit=Decimal(100))
     ep = cast("Decimal", mock_opportunity.expected_profit)
-    mock_sized_opportunity = SizedOpportunity(
-        opportunity=mock_opportunity,
-        long_size=Decimal(10000),
-        short_size=Decimal(10000),
+    from cyberdelta.core.risk.sizing.models.sizing_result import SizingResult
+    
+    mock_sizing_result = SizingResult.success_result(
+        position_size_usd=Decimal("10000"),
         allocation_percentage=Decimal("0.1"),
-        expected_profit=ep,
         expected_return=Decimal("0.01"),
-        risk_adjusted_return=Decimal("0.008"),
+        kelly_fraction=Decimal("0.1")
+    )
+    
+    mock_risk_analysis = RiskAnalysis(
+        opportunity=mock_opportunity,
+        approved=True,
+        sizing=mock_sizing_result,
+        checks={"all": "passed"},
+        constraints={"all": "satisfied"}
     )
 
-    def mock_size_opportunity(opp: ArbitrageOpportunity) -> SizedOpportunity:
-        return mock_sized_opportunity
+    def mock_analyze_opportunity(opp: ArbitrageOpportunity) -> RiskAnalysis:
+        return mock_risk_analysis
 
     with (
         patch.object(strategy.data_handler, "get_latest_ticker", side_effect=fake_get_ticker),
@@ -398,8 +405,8 @@ async def test_evaluate_entry_opportunity_found(
         ) as mock_check_internal,
         patch.object(
             strategy.risk_manager,
-            "size_opportunity",
-            side_effect=mock_size_opportunity,
+            "analyze_opportunity",
+            side_effect=mock_analyze_opportunity,
         ) as mock_calc_size,
         patch.object(
             strategy,
@@ -441,7 +448,7 @@ async def test_evaluate_entry_opportunity_no_opportunity(
             strategy,
             "_check_opportunity",
         ) as mock_check_internal,
-        patch.object(strategy.risk_manager, "size_opportunity") as mock_calc_size,
+        patch.object(strategy.risk_manager, "analyze_opportunity") as mock_calc_size,
         patch.object(strategy, "_generate_entry_signal") as mock_gen_signal,
     ):
         # Configure async mock to return None

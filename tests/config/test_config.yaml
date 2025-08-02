@@ -110,14 +110,12 @@ risk:
     max_position_usd: 20000.0      # Increased to be higher than sizing defaults
     max_total_exposure_usd: 100000.0 # Increased proportionally
 
-  # --- Simple Sizing Path (Optional Alternative to Kelly) ---
-  use_simple_sizing_path: true            # Default to standard Kelly sizing
-  simple_sizing_method: "fixed_fraction" # Default method if simple path is enabled
-  simple_fixed_fraction: "0.01"          # Default fraction (1%) if method is fixed_fraction
-  simple_fixed_usd_size: "10.0"          # Default USD size if method is fixed_usd
-
-  # Override default sizing settings to ensure validation passes
+  # Modern sizing configuration using explicit method selection
   sizing:
+    method: "simple"  # or "kelly" or "production_kelly"
+    parameters:
+      mode: "fixed_fraction"  # Default method for simple sizing
+      fraction: 0.01          # Default fraction (1%)
     max_position_size: 10000.0  # Explicitly set to default (must be <= global max_position_usd)
 
 # Execution parameters

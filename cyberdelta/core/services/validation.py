@@ -25,7 +25,7 @@ from cyberdelta.enums import OrderType
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
-    from cyberdelta.core.risk_manager import SizedOpportunity
+    from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
     from cyberdelta.core.symbols.service import SymbolService
 
 

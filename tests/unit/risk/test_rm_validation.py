@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
 
@@ -23,24 +23,36 @@ class TestRiskManagerValidation:
         sample_opportunity: ArbitrageOpportunity,
     ) -> None:
         """Test validating opportunities."""
-        # Test with a valid opportunity (needs size_opportunity to return something)
-        valid_sized = SizedOpportunity(
-            sample_opportunity,
-            Decimal(100),
-            Decimal(100),
+        # Test with a valid opportunity (needs analyze_opportunity to return something)
+        from cyberdelta.core.risk.sizing.models.sizing_result import SizingResult
+        
+        sizing_result = SizingResult.success_result(
+            position_size_usd=Decimal("100"),
+            allocation_percentage=Decimal("0.1")
+        )
+        
+        valid_analysis = RiskAnalysis(
+            opportunity=sample_opportunity,
+            approved=True,
+            sizing=sizing_result
             Decimal("0.1"),  # allocation_percentage
             Decimal(1),
             Decimal("0.01"),  # expected_return
             Decimal("0.1"),  # risk_adjusted_return
         )
-        with patch.object(risk_manager, "size_opportunity", return_value=valid_sized):
+        with patch.object(risk_manager, "analyze_opportunity", return_value=valid_analysis):
             valid_opportunities = [sample_opportunity]
             validated = await risk_manager.validate_opportunities(valid_opportunities)
             assert len(validated) == 1
-            assert validated[0] == valid_sized
+            assert validated[0] == valid_analysis
 
-        # Test with an invalid opportunity (mock size_opportunity returning None)
-        with patch.object(risk_manager, "size_opportunity", return_value=None):
+        # Test with an invalid opportunity (mock analyze_opportunity returning rejected)
+        rejected_analysis = RiskAnalysis(
+            opportunity=sample_opportunity,
+            approved=False,
+            rejection_reason="Test rejection"
+        )
+        with patch.object(risk_manager, "analyze_opportunity", return_value=rejected_analysis):
             # Use a real ArbitrageOpportunity with values that are valid for the model
             # but should logically fail sizing (e.g., unprofitable)
             invalid_opportunity = ArbitrageOpportunity(
@@ -66,13 +78,18 @@ class TestRiskManagerValidation:
             )
 
         # Test mixed list
-        def size_side_effect(opp: ArbitrageOpportunity) -> SizedOpportunity | None:
-            """Return sized opportunity or None based on input opportunity."""
+        def analyze_side_effect(opp: ArbitrageOpportunity) -> RiskAnalysis:
+            """Return analysis based on input opportunity."""
             if opp == sample_opportunity:
-                return valid_sized
-            return None
+                return valid_analysis
+            # Return rejected analysis for other opportunities
+            return RiskAnalysis(
+                opportunity=opp,
+                approved=False,
+                rejection_reason="Test rejection for non-sample opportunity"
+            )
 
-        with patch.object(risk_manager, "size_opportunity", side_effect=size_side_effect):
+        with patch.object(risk_manager, "analyze_opportunity", side_effect=analyze_side_effect):
             mixed_opportunities: list[ArbitrageOpportunity] = [
                 sample_opportunity,  # This will be sized successfully
                 ArbitrageOpportunity(  # This one will fail sizing due to the side_effect mock

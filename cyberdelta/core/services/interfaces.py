@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 from cyberdelta.apis.common import APIError
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
 from cyberdelta.core.models import Order, Trade
-from cyberdelta.core.risk_manager import SizedOpportunity
+from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 

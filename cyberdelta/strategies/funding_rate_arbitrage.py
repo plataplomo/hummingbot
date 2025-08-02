@@ -34,8 +34,7 @@ from cyberdelta.core.models.market import Candle  # Import Candle
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.core.risk_manager import RiskManager
-from cyberdelta.core.risk_types import SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.core.strategy import Strategy
 from cyberdelta.exceptions.field_validation import RequiredFieldError, TypeFieldError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -163,8 +162,8 @@ class FundingRateArbitrageStrategy(Strategy):
             spot_symbol = create_symbol(spot_symbol_str, ExchangeName(self.spot_exchange))
             self.symbol_mapping[symbol] = spot_symbol
 
-        # Position sizing info storage
-        self.sized_opportunities: dict[Symbol, SizedOpportunity] = {}
+        # Risk analysis storage
+        self.risk_analyses: dict[Symbol, RiskAnalysis] = {}
         self.signals_generated: int = 0
 
         logger.info(
@@ -915,18 +914,13 @@ class FundingRateArbitrageStrategy(Strategy):
             )
             self.active_opportunities.append(opportunity)
 
-            sized_opportunity_raw = self.risk_manager.size_opportunity(opportunity)
-            sized_opportunity = cast("SizedOpportunity | None", sized_opportunity_raw)
+            analysis = await self.risk_manager.analyze_opportunity(opportunity)
 
-            if (
-                sized_opportunity
-                and sized_opportunity.long_size > Decimal(0)
-                and sized_opportunity.short_size > Decimal(0)
-            ):
-                self.sized_opportunities[opportunity.symbol] = sized_opportunity
+            if analysis.approved:
+                self.risk_analyses[opportunity.symbol] = analysis
                 entry_signals = self._generate_entry_signal(
                     opportunity,
-                    sized_opportunity,
+                    analysis,
                     perp_ticker_live,
                     spot_ticker_live,
                 )
@@ -938,8 +932,7 @@ class FundingRateArbitrageStrategy(Strategy):
                         opportunity_id=opportunity.id,
                         symbol=opportunity.symbol,
                         signals_count=len(entry_signals),
-                        long_size=float(sized_opportunity.long_size),
-                        short_size=float(sized_opportunity.short_size),
+                        position_size=float(analysis.sizing.position_size),
                         action="signals_added_to_queue",
                         message=(
                             f"Generated {len(entry_signals)} entry signals for {opportunity.id}"
@@ -947,16 +940,15 @@ class FundingRateArbitrageStrategy(Strategy):
                     )
             else:
                 logger.info(
-                    "opportunity_not_sized_or_zero_size",
+                    "opportunity_not_approved",
                     strategy=self.name,
                     opportunity_id=opportunity.id,
                     symbol=opportunity.symbol,
-                    sized_opportunity_exists=sized_opportunity is not None,
-                    long_size=float(sized_opportunity.long_size) if sized_opportunity else None,
-                    short_size=float(sized_opportunity.short_size) if sized_opportunity else None,
+                    approved=analysis.approved,
+                    rejection_reason=analysis.rejection_reason,
                     action="no_entry_signals_generated",
                     message=(
-                        f"Opportunity {opportunity.id} not sized or size is zero, "
+                        f"Opportunity {opportunity.id} not approved: {analysis.rejection_reason}, "
                         f"no entry signals generated"
                     ),
                 )
@@ -1080,7 +1072,7 @@ class FundingRateArbitrageStrategy(Strategy):
     def _generate_entry_signal(
         self,
         opportunity: ArbitrageOpportunity,
-        sized_opportunity: SizedOpportunity | None = None,
+        analysis: RiskAnalysis,
         perp_ticker_entry: Ticker | None = None,  # ADDED param
         spot_ticker_entry: Ticker | None = None,  # ADDED param
     ) -> list[TradeSignal]:
@@ -1121,68 +1113,18 @@ class FundingRateArbitrageStrategy(Strategy):
         perp_quantity = default_size
         spot_quantity = default_size
 
-        if sized_opportunity:
-            # Use sized opportunity details if available
-            perp_size = (
-                sized_opportunity.long_size
-                if perp_side == OrderSide.BUY
-                else sized_opportunity.short_size
-            )
-            spot_size = (
-                sized_opportunity.short_size
-                if perp_side == OrderSide.BUY
-                else sized_opportunity.long_size
-            )
+        # Delta neutral strategy - same size for both legs
+        position_size = analysis.sizing.position_size
+        
+        perp_size = position_size
+        spot_size = position_size
 
-            perp_quantity = (
-                perp_size / perp_price_entry if perp_price_entry > Decimal(0) else default_size
-            )
-            spot_quantity = (
-                spot_size / spot_price_entry if spot_price_entry > Decimal(0) else default_size
-            )
-        else:
-            # Fallback if no sized_opportunity (should ideally not happen
-            # if risk_manager is used properly)
-            # For non-sized opportunity, perhaps use a default quantity or skip
-            # if prices are zero
-            if perp_price_entry <= Decimal(0) or spot_price_entry <= Decimal(0):
-                logger.warning(
-                    "prices_zero_or_invalid_non_sized_opportunity",
-                    strategy=self.name,
-                    opportunity_id=opportunity.id,
-                    symbol=opportunity.symbol,
-                    perp_price=float(perp_price_entry),
-                    spot_price=float(spot_price_entry),
-                    action="returning_empty_signals",
-                    message=(
-                        "Prices for non-sized opportunity are zero/None or invalid, "
-                        "cannot determine quantity"
-                    ),
-                )
-                return []  # For safety, do not proceed if not properly sized.
-            # Simplified: use a nominal quantity based on opportunity target if not sized
-            # This part needs careful consideration for a real strategy.
-            # For now, we assume sizing is always done by risk manager if opportunity is pursued.
-            logger.warning(
-                "no_sized_opportunity_fallback_risky",
-                strategy=self.name,
-                opportunity_id=opportunity.id,
-                symbol=opportunity.symbol,
-                expected_profit=float(opportunity.expected_profit)
-                if opportunity.expected_profit is not None
-                else 0.0,
-                action="returning_empty_signals_for_safety",
-                message=(
-                    f"No sized_opportunity for {opportunity.id}, using fallback "
-                    f"quantities might be risky"
-                ),
-            )
-            # Example fallback (not recommended for live trading without proper sizing logic):
-            #     nominal_trade_value / perp_price_entry # MODIFIED
-            #     if perp_price_entry > Decimal(0) else default_size
-            #     nominal_trade_value / spot_price_entry # MODIFIED
-            #     if spot_price_entry > Decimal(0) else default_size
-            return []  # For safety, do not proceed if not properly sized.
+        perp_quantity = (
+            perp_size / perp_price_entry if perp_price_entry > Decimal(0) else default_size
+        )
+        spot_quantity = (
+            spot_size / spot_price_entry if spot_price_entry > Decimal(0) else default_size
+        )
 
         if perp_quantity > Decimal(0):
             signals.append(

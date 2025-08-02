@@ -18,7 +18,8 @@ from cyberdelta.core.models.market import Candle
 from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.core.models.trade_signal import TradeSignal
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
+from cyberdelta.core.risk.sizing.models.sizing_result import SizingResult
 from cyberdelta.enums import OrderSide, SignalType
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -109,18 +110,25 @@ def mock_risk_manager() -> Mock:
         expected_profit=Decimal("100.0"),
     )
 
-    # Create a mock SizedOpportunity
-    mock_sized_opportunity = SizedOpportunity(
+    # Create a mock RiskAnalysis
+    mock_sizing_result = SizingResult(
+        success=True,
+        position_size=Decimal("1000.0"),
+        message="Sized successfully",
+        risk_metrics={"sharpe_ratio": 5.0},
+        expected_profit_usd=Decimal("100.0")
+    )
+    
+    mock_risk_analysis = RiskAnalysis(
         opportunity=mock_opportunity,
-        long_size=Decimal("1000.0"),
-        short_size=Decimal("1000.0"),
-        allocation_percentage=Decimal("10.0"),
-        expected_profit=Decimal("100.0"),
-        expected_return=Decimal("10.0"),
-        risk_adjusted_return=Decimal("5.0"),
+        approved=True,
+        sizing=mock_sizing_result,
+        checks={},
+        constraints={},
+        rejection_reason=None
     )
 
-    manager.size_opportunity = Mock(return_value=mock_sized_opportunity)
+    manager.analyze_opportunity = AsyncMock(return_value=mock_risk_analysis)
     manager.validate_signal = Mock(return_value=True)
     return manager
 
@@ -1930,17 +1938,25 @@ class TestIntegrationScenarios:
         mock_opportunity.short_exchange = "hyperliquid"
         mock_opportunity.net_funding_differential = Decimal("0.002")
 
-        # Mock risk manager sizing - using correct attributes based on SizedOpportunity
-        mock_sized_opp = Mock(spec=SizedOpportunity)
-        mock_sized_opp.opportunity = mock_opportunity
-        mock_sized_opp.long_size = Decimal("1000.0")
-        mock_sized_opp.short_size = Decimal("1000.0")
-        mock_sized_opp.allocation_percentage = Decimal("10.0")
-        mock_sized_opp.expected_profit = Decimal("100.0")
-        mock_sized_opp.expected_return = Decimal("10.0")
-        mock_sized_opp.risk_adjusted_return = Decimal("5.0")
+        # Mock risk manager analysis
+        mock_sizing_result = SizingResult(
+            success=True,
+            position_size=Decimal("1000.0"),
+            message="Sized successfully",
+            risk_metrics={"sharpe_ratio": 5.0},
+            expected_profit_usd=Decimal("100.0")
+        )
+        
+        mock_risk_analysis = RiskAnalysis(
+            opportunity=mock_opportunity,
+            approved=True,
+            sizing=mock_sizing_result,
+            checks={},
+            constraints={},
+            rejection_reason=None
+        )
 
-        mock_risk_manager.size_opportunity.return_value = mock_sized_opp
+        mock_risk_manager.analyze_opportunity.return_value = mock_risk_analysis
         mock_risk_manager.validate_signal.return_value = True
 
         # Act

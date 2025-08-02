@@ -10,7 +10,7 @@ import pytest
 from cyberdelta.config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models import SpotBalance
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 from tests.common_symbols import BTC_HL
 
@@ -35,12 +35,16 @@ MINIMAL_MOCK_CONFIG_DICT: dict[str, Any] = {
             "max_leverage_cap": "3.0",
             "min_edge_bps": "5",
         },
-        "simple_sizing_method": "fixed_usd",  # Default to fixed_usd
-        "simple_fixed_usd_size": "1000.0",
-        "simple_fixed_fraction": "0.01",
-        "use_simple_sizing_path": True,  # Default to simple path for these tests
+        "sizing": {
+            "method": "simple",
+            "parameters": {
+                "mode": "fixed_usd",
+                "usd_size": "1000.0",
+                "fraction": "0.01"
+            }
+        }
         "min_validation_factor": "0.5",
-        "min_nfd_bps": "1",  # Default min NFD in bps
+        "min_nfd_bps": "1"
     },
     "exchanges": {
         "exchange_a": {
@@ -115,7 +119,7 @@ def sample_opportunity() -> ArbitrageOpportunity:
     Returns:
         ArbitrageOpportunity: Sample arbitrage opportunity with required fields for sizing.
     """
-    # Ensure all necessary fields for SizedOpportunity creation are present
+    # Ensure all necessary fields for RiskAnalysis creation are present
     return ArbitrageOpportunity(
         symbol=BTC_HL.value,
         long_exchange="exchange_a",
@@ -135,7 +139,7 @@ class TestRiskManagerSizingSimple:
     """Test suite for RiskManager simple sizing path (v0.0.1)."""
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_simple_path_fixed_fraction(
+    async def test_analyze_opportunity_simple_path_fixed_fraction(
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
@@ -171,12 +175,12 @@ class TestRiskManagerSizingSimple:
             mock_circuit_breaker,
             mock_funding_validator,
         )
-        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        analysis = await risk_manager.analyze_opportunity(sample_opportunity)
 
-        assert sized_opp is None, "Expected None due to max_position_usd cap because 0.1*100k > 5k"
+        assert not analysis.approved, "Expected None due to max_position_usd cap because 0.1*100k > 5k"
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_simple_path_fixed_fraction_capped(
+    async def test_analyze_opportunity_simple_path_fixed_fraction_capped(
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
@@ -212,12 +216,12 @@ class TestRiskManagerSizingSimple:
             mock_circuit_breaker,
             mock_funding_validator,
         )
-        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        analysis = await risk_manager.analyze_opportunity(sample_opportunity)
 
-        assert sized_opp is None, "Expected None due to max_position_usd cap because 0.1*100k > 5k"
+        assert not analysis.approved, "Expected None due to max_position_usd cap because 0.1*100k > 5k"
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_simple_path_fixed_usd(
+    async def test_analyze_opportunity_simple_path_fixed_usd(
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
@@ -253,14 +257,17 @@ class TestRiskManagerSizingSimple:
             mock_circuit_breaker,
             mock_funding_validator,
         )
-        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        analysis = await risk_manager.analyze_opportunity(sample_opportunity)
 
-        assert isinstance(sized_opp, SizedOpportunity)
-        assert sized_opp.long_size == Decimal("7500.0")
-        assert sized_opp.short_size == Decimal("7500.0")
+        assert isinstance(analysis, RiskAnalysis)
+        assert analysis.approved
+        assert analysis.sizing is not None
+        # For delta neutral, position size represents total allocation
+        # Each leg would get position_size / 2 in a typical implementation
+        assert analysis.sizing.position_size_usd == Decimal("1000.0")  # Fixed USD size
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_simple_path_fixed_usd_capped(
+    async def test_analyze_opportunity_simple_path_fixed_usd_capped(
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
@@ -296,12 +303,12 @@ class TestRiskManagerSizingSimple:
             mock_circuit_breaker,
             mock_funding_validator,
         )
-        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        analysis = await risk_manager.analyze_opportunity(sample_opportunity)
 
-        assert sized_opp is None, "Expected rejection due to max_position_usd cap"
+        assert not analysis.approved, "Expected rejection due to max_position_usd cap"
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_reject_low_nfd(
+    async def test_analyze_opportunity_reject_low_nfd(
         self,
         mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
@@ -356,10 +363,10 @@ class TestRiskManagerSizingSimple:
         risk_manager.use_simple_sizing_path = True
         sized_opp = await risk_manager.size_opportunity(low_nfd_opportunity)
 
-        assert sized_opp is None
+        assert not analysis.approved
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_total_exposure_limit(
+    async def test_analyze_opportunity_total_exposure_limit(
         self,
         mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
@@ -417,12 +424,12 @@ class TestRiskManagerSizingSimple:
             mock_funding_validator,
         )
         risk_manager.use_simple_sizing_path = True
-        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        analysis = await risk_manager.analyze_opportunity(sample_opportunity)
 
-        assert sized_opp is None, "Opportunity should be rejected due to max_total_exposure_usd"
+        assert not analysis.approved, "Opportunity should be rejected due to max_total_exposure_usd"
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_insufficient_capital(
+    async def test_analyze_opportunity_insufficient_capital(
         self,
         mock_config: AppSettings,
         mock_config_dict: dict[str, Any],
@@ -479,7 +486,7 @@ class TestRiskManagerSizingSimple:
             mock_funding_validator,
         )
         risk_manager.use_simple_sizing_path = True
-        sized_opp = await risk_manager.size_opportunity(sample_opportunity)
+        analysis = await risk_manager.analyze_opportunity(sample_opportunity)
 
         # Behavior depends on whether RM sizes down or rejects.
         # Assuming simple_fixed_usd_size is a hard target for now,
@@ -490,12 +497,12 @@ class TestRiskManagerSizingSimple:
         # For fixed_usd, it uses fixed_usd_size.
         # If this is > capital, it should likely be rejected.
         # Let's assume rejection for now.
-        assert sized_opp is None, (
+        assert not analysis.approved, (
             "Opportunity should be rejected or sized to zero due to insufficient capital"
         )
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_config_change_enforcement(
+    async def test_analyze_opportunity_config_change_enforcement(
         self,
         mock_config: MagicMock,
         mock_config_dict: dict[str, Any],
@@ -530,9 +537,10 @@ class TestRiskManagerSizingSimple:
             mock_circuit_breaker,
             mock_funding_validator,
         )
-        sized_opp1 = await risk_manager.size_opportunity(sample_opportunity)
-        assert isinstance(sized_opp1, SizedOpportunity), "First sizing should succeed"
-        assert sized_opp1.long_size == Decimal("200.0")
+        analysis1 = await risk_manager.analyze_opportunity(sample_opportunity)
+        assert isinstance(analysis1, RiskAnalysis), "First analysis should succeed"
+        assert analysis1.approved, "First analysis should be approved"
+        assert analysis1.sizing.position_size_usd == Decimal("200.0")
 
         # Change config to lower max_position_usd and create new RiskManager
         mock_config.risk.global_risk.max_position_usd = Decimal("10.0")  # Much lower than 200
@@ -546,13 +554,13 @@ class TestRiskManagerSizingSimple:
         )
 
         # Second sizing: should be rejected due to low max_position_usd
-        sized_opp2 = await risk_manager_2.size_opportunity(sample_opportunity)
-        assert sized_opp2 is None, (
+        analysis2 = await risk_manager_2.analyze_opportunity(sample_opportunity)
+        assert not analysis2.approved, (
             "Second sizing should be rejected due to max_position_usd constraint"
         )
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_validation_factor_happy_path(
+    async def test_analyze_opportunity_validation_factor_happy_path(
         self,
         mock_config_dict: dict[str, Any],
         mock_portfolio_state_manager: MagicMock,
@@ -564,7 +572,7 @@ class TestRiskManagerSizingSimple:
         # This test method has AppSettings validation issues - skip it for now
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_validation_factor_safety_path(
+    async def test_analyze_opportunity_validation_factor_safety_path(
         self,
         mock_config_dict: dict[str, Any],
         mock_portfolio_state_manager: MagicMock,
@@ -580,7 +588,7 @@ class TestRiskManagerSizingSimple:
         """Test sizing functionality with variable arguments and keyword arguments."""
         # This method is not provided in the original file or the new code block
         # It's assumed to exist as it's called in the
-        #               test_size_opportunity_config_change_enforcement method
+        #               test_analyze_opportunity_config_change_enforcement method
 
     async def some_method(self, exchange: str, symbol: str) -> None:
         """Perform some operation with exchange and symbol for testing."""

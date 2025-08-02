@@ -651,14 +651,6 @@ class EnhancedRiskSettings(BaseModel):
     checkers: CheckerSettings = Field(default_factory=CheckerSettings)
     sizing: SizingSettings = Field(default_factory=SizingSettings)
 
-    # BACKWARD COMPATIBILITY: Preserve legacy simple sizing fields during migration
-    use_simple_sizing_path: bool = True
-    simple_sizing_method: Literal["fixed_usd", "fixed_fraction"] = "fixed_fraction"
-    simple_fixed_fraction: ConfigDecimal = Field(
-        default=Decimal("0.1"), gt=Decimal(0), lt=Decimal(1)
-    )
-    simple_fixed_usd_size: ConfigDecimal = Field(default=Decimal("10.0"), gt=Decimal(0))
-
     # System configuration
     enabled: bool = True
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
@@ -668,15 +660,6 @@ class EnhancedRiskSettings(BaseModel):
     # Concurrency limits
     max_concurrent_checks: int = Field(default=10, gt=0, le=50)
     max_concurrent_sizing: int = Field(default=5, gt=0, le=20)
-
-    @field_validator("simple_sizing_method", mode="before")
-    @classmethod
-    def _validate_sizing_method(cls, v: str | float | bool, info: ValidationInfo) -> str:
-        return validate_enum_field(
-            v,
-            allowed={"fixed_usd", "fixed_fraction"},
-            field_name=info.field_name or "simple_sizing_method",
-        )
 
     @field_validator("log_level", mode="before")
     @classmethod

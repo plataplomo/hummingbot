@@ -15,7 +15,7 @@ import pytest
 
 from cyberdelta.config.models.config_models import AppSettings, GlobalRiskSettings, RiskSettings
 from cyberdelta.core.models.spot_balance import SpotBalance
-from cyberdelta.core.risk_manager import RiskManager, SimpleSizingMethod, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.risk import RiskConfigError
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -36,11 +36,16 @@ def mock_app_settings() -> Mock:
     global_risk.max_total_exposure_usd = Decimal("50000.0")
 
     risk_config = Mock(spec=RiskSettings)
-    risk_config.use_simple_sizing_path = True
     risk_config.global_risk = global_risk
-    risk_config.simple_sizing_method = "fixed_usd"
-    risk_config.simple_fixed_usd_size = Decimal("1000.0")
-    risk_config.simple_fixed_fraction = Decimal("0.1")
+    # New modular sizing config
+    sizing_config = Mock()
+    sizing_config.method = "simple"
+    sizing_config.parameters = {
+        "mode": "fixed_usd", 
+        "usd_size": Decimal("1000.0"),
+        "fraction": Decimal("0.1")
+    }
+    risk_config.sizing = sizing_config
 
     # Create mock exchanges configuration
     exchange_config = Mock()
@@ -380,31 +385,27 @@ class TestRiskManagerPositionSizing:
     # ==================== SUCCESS CASES ====================
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_success_simple_sizing(
+    async def test_analyze_opportunity_success_simple_sizing(
         self, risk_manager: RiskManager, sample_arbitrage_opportunity: ArbitrageOpportunity
     ) -> None:
-        """Test successful position sizing with simple sizing method."""
-        # Arrange
-        risk_manager.use_simple_sizing_path = True
-        risk_manager.simple_sizing_method_str = SimpleSizingMethod.FIXED_USD.value
-        risk_manager.simple_fixed_usd_size = Decimal("1000.0")
-
+        """Test successful opportunity analysis with simple sizing method."""
         # Act
-        result = await risk_manager.size_opportunity(sample_arbitrage_opportunity)
+        result = await risk_manager.analyze_opportunity(sample_arbitrage_opportunity)
 
         # Assert
         assert result is not None
-        assert isinstance(result, SizedOpportunity)
+        assert isinstance(result, RiskAnalysis)
         assert result.opportunity is sample_arbitrage_opportunity
-        assert result.long_size > Decimal(0)
-        assert result.short_size > Decimal(0)
-        assert result.allocation_percentage >= Decimal(0)
+        assert result.approved
+        assert result.sizing is not None
+        assert result.sizing.position_size_usd > Decimal(0)
+        assert result.sizing.allocation_percentage >= Decimal(0)
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_success_returns_none_for_invalid(
+    async def test_analyze_opportunity_rejects_invalid(
         self, risk_manager: RiskManager
     ) -> None:
-        """Test size_opportunity returns None for invalid opportunity."""
+        """Test analyze_opportunity rejects invalid opportunity."""
         # Arrange
         invalid_opportunity = ArbitrageOpportunity(
             symbol="",  # Invalid symbol
@@ -419,34 +420,34 @@ class TestRiskManagerPositionSizing:
         )
 
         # Act
-        result = await risk_manager.size_opportunity(invalid_opportunity)
+        result = await risk_manager.analyze_opportunity(invalid_opportunity)
 
         # Assert
-        assert result is None
+        assert result is not None
+        assert not result.approved
+        assert result.rejection_reason is not None
 
     # ==================== EDGE CASES ====================
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_edge_kelly_sizing_disabled(
+    async def test_analyze_opportunity_with_simple_sizing(
         self, risk_manager: RiskManager, sample_arbitrage_opportunity: ArbitrageOpportunity
     ) -> None:
-        """Test position sizing when Kelly sizing is disabled."""
-        # Arrange
-        risk_manager.kelly_enabled = False
-        risk_manager.use_simple_sizing_path = True
-
+        """Test opportunity analysis with simple sizing method."""
         # Act
-        result = await risk_manager.size_opportunity(sample_arbitrage_opportunity)
+        result = await risk_manager.analyze_opportunity(sample_arbitrage_opportunity)
 
         # Assert
         assert result is not None
-        # Should use simple sizing instead of Kelly
+        assert result.approved
+        assert result.sizing is not None
+        # Should use configured sizing method
 
     @pytest.mark.asyncio
-    async def test_size_opportunity_edge_very_large_opportunity(
+    async def test_analyze_opportunity_edge_very_large_opportunity(
         self, risk_manager: RiskManager
     ) -> None:
-        """Test position sizing with very large opportunity."""
+        """Test opportunity analysis with very large opportunity."""
         # Arrange
         btc_symbol = BTC_HL
         large_opportunity = ArbitrageOpportunity(
@@ -462,13 +463,14 @@ class TestRiskManagerPositionSizing:
         )
 
         # Act
-        result = await risk_manager.size_opportunity(large_opportunity)
+        result = await risk_manager.analyze_opportunity(large_opportunity)
 
         # Assert
-        if result is not None:
+        assert result is not None
+        if result.approved:
             # Should be capped by position limits
-            assert result.long_size <= risk_manager.max_position_size
-            assert result.short_size <= risk_manager.max_position_size
+            max_position = Decimal("10000.0")  # From mock config
+            assert result.sizing.position_size_usd <= max_position
 
 
 class TestRiskManagerRiskCalculations:

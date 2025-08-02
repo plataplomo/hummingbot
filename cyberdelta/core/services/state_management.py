@@ -22,7 +22,7 @@ from cyberdelta.core.services.interfaces import (
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.risk_manager import SizedOpportunity
+    from cyberdelta.core.risk.sizing.models.sizing_result import SizedOpportunity
 
 
 class ThreadSafeExecutionStateManager(BaseAsyncService, IStateManager):

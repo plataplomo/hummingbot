@@ -96,6 +96,33 @@ class CheckResult:
             details=details,
         )
 
+    def to_dict(self) -> dict[str, Any]:
+        """Convert check result to dictionary.
+        
+        Returns:
+            dict: Dictionary representation of the check result
+        """
+        return {
+            "status": self.status.value,
+            "message": self.message,
+            "details": self.details or {},
+            "execution_time_ms": self.execution_time_ms,
+            "passed": self.passed,
+            "failed": self.failed,
+            "skipped": self.skipped,
+            "has_error": self.has_error
+        }
+        
+    def get_failure_reason(self) -> str | None:
+        """Get failure reason from check result.
+        
+        Returns:
+            str | None: The failure message if failed, otherwise None
+        """
+        if self.failed or self.has_error:
+            return self.message
+        return None
+
     @classmethod
     def error(cls, message: str, details: dict[str, Any] | None = None) -> "CheckResult":
         """Create an error check result.

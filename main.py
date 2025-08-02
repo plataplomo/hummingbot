@@ -27,7 +27,6 @@ from cyberdelta.core.data_handler import DataHandler
 from cyberdelta.core.engine import Engine
 from cyberdelta.core.execution_handler import ExecutionHandler
 from cyberdelta.core.portfolio.services import PortfolioServiceFactory
-from cyberdelta.core.portfolio.services.reconciliation_service import PortfolioReconciliationService
 from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
 from cyberdelta.core.risk_manager import RiskManager
 from cyberdelta.core.services import PriceDataService
@@ -36,7 +35,6 @@ from cyberdelta.core.strategy import Strategy
 from cyberdelta.core.strategy_manager import StrategyManager
 from cyberdelta.core.symbols import get_symbol_service
 from cyberdelta.core.symbols.config_loader import load_symbols_from_config
-from cyberdelta.core.symbols.exceptions import SymbolRegistryError
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.strategies.factory import StrategyCreationError, StrategyFactory
 from cyberdelta.utils.async_state_manager import AsyncStateManager
@@ -225,7 +223,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         dict[str, Any]: Dictionary containing initialized components.
 
     Raises:
-        SymbolRegistryError: If symbol loading fails or no symbols are found.
+        RuntimeError: If symbol loading fails or no symbols are found.
     """
     app_state: dict[str, Any] = {}
 
@@ -251,10 +249,10 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
             """Raise error when no symbols are loaded.
 
             Raises:
-                SymbolRegistryError: Always raised to indicate no symbols were loaded.
+                RuntimeError: Always raised to indicate no symbols were loaded.
             """
             logger.error("No symbols loaded from configuration")
-            raise SymbolRegistryError("initialization", "No symbols found in configuration")
+            raise RuntimeError("No symbols found in configuration")
 
         logger.info("Initializing unified symbol registry...")
         try:
@@ -264,7 +262,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
             logger.info("Loaded symbols into registry", loaded_count=loaded_count)
         except Exception as e:
             logger.exception("Failed to load symbols from configuration")
-            raise SymbolRegistryError("initialization", f"Symbol loading failed: {e}") from e
+            raise RuntimeError(f"Symbol loading failed: {e}") from e
 
         # Initialize the symbol service
         symbol_service = get_symbol_service()
@@ -302,13 +300,11 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         )
         app_state["execution_handler"] = execution_handler
 
-        # RiskManager with portfolio state manager and risk factory
+        # RiskManager with clean API - risk_factory is REQUIRED
         risk_manager = RiskManager(
             config,
-            portfolio_state_manager,  # Portfolio state manager instead of tracker
-            circuit_breaker,
-            None,  # No funding rate validator for now
-            risk_factory,  # Pass risk factory for position sizer creation
+            portfolio_state_manager,
+            risk_factory
         )
         app_state["risk_manager"] = risk_manager
 

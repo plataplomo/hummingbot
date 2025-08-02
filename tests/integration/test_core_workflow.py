@@ -43,7 +43,7 @@ from cyberdelta.core.models import (
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
 from cyberdelta.core.risk.checks.checkers.exchange_balance_checker import PortfolioTrackerProtocol
-from cyberdelta.core.risk_manager import RiskManager
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.core.signal_generator import SignalGenerator
 from cyberdelta.core.symbols import get_symbol_service
 from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL, ETH_USDC_BP, USDC_BP, BTC_ASSET_BP, USD_HL, BTC_ASSET_HL, USD_USDC_HL, USDC_USD_BP
@@ -776,31 +776,31 @@ async def test_happy_path_full_cycle(
     assert len(sized_opportunities_list) == 1, (
         "Opportunity should be valid and sized by RiskManager"
     )
-    sized_opportunity = sized_opportunities_list[0]  # Now a SizedOpportunity
+    risk_analysis = sized_opportunities_list[0]  # Now a RiskAnalysis
 
-    # Check sizing logic results (already SizedOpportunity)
-    assert sized_opportunity.long_size > 0
-    assert sized_opportunity.short_size > 0
-    assert sized_opportunity.long_size == sized_opportunity.short_size  # Should be delta neutral
+    # Check risk analysis results
+    assert risk_analysis.approved
+    assert risk_analysis.sizing is not None
+    position_size = risk_analysis.sizing.position_size_usd
+    assert position_size > 0
+    # For delta neutral, both legs use same position size
     # Check against max position size config
     max_size_usd = mock_config.risk.global_risk.max_position_usd
 
-    assert sized_opportunity.long_size <= max_size_usd, "Long size exceeds max position size"
-    assert sized_opportunity.short_size <= max_size_usd, "Short size exceeds max position size"
+    assert position_size <= max_size_usd, "Position size exceeds max position size"
 
     # 6. Execute Sized Opportunity (sized_opportunity is now correct type)
     logger.info(
         "executing_opportunity",
-        long_exchange=sized_opportunity.opportunity.long_exchange,
-        long_size=float(sized_opportunity.long_size),
+        long_exchange=risk_analysis.opportunity.long_exchange,
+        position_size=float(position_size),
         long_symbol=symbol_bp.value,
-        short_exchange=sized_opportunity.opportunity.short_exchange,
-        short_size=float(sized_opportunity.short_size),
+        short_exchange=risk_analysis.opportunity.short_exchange,
         short_symbol=symbol_hl.value,
         message="Executing arbitrage opportunity",
     )
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
-        sized_opportunity,
+        risk_analysis,
     )
 
     # 7. Verify Execution Result from ExecutionHandler
@@ -864,8 +864,8 @@ async def test_happy_path_full_cycle(
     assert bp_pos is not None, f"Backpack position ({symbol_base}) not found in tracker"
 
     # Expected quantities (approximate due to division)
-    expected_bp_quantity = sized_opportunity.long_size / sized_opportunity.opportunity.long_price
-    expected_hl_quantity = sized_opportunity.short_size / sized_opportunity.opportunity.short_price
+    expected_bp_quantity = position_size / risk_analysis.opportunity.long_price
+    expected_hl_quantity = position_size / risk_analysis.opportunity.short_price
 
     assert bp_pos.side == OrderSide.BUY, f"Expected Backpack ({symbol_base}) side to be BUY"
     # Check position sizes with tolerance for floating point precision
@@ -1369,20 +1369,19 @@ async def test_partial_fill(
     # 2. Validate & Size
     sized_opportunities_list = await risk_manager.validate_opportunities([opportunity])
     assert len(sized_opportunities_list) == 1
-    sized_opportunity = sized_opportunities_list[0]  # Now SizedOpportunity
+    risk_analysis = sized_opportunities_list[0]  # Now RiskAnalysis
 
     # --- Manually set sizes for testing partial fill ---
     assert mock_bp_ticker.ask is not None, "Mock BP ticker ASK price should not be None for sizing"
     assert mock_hl_ticker.bid is not None, "Mock HL ticker BID price should not be None for sizing"
-    sized_opportunity.long_size = target_qty * mock_bp_ticker.ask  # Correct USD value for long leg
-    sized_opportunity.short_size = (
-        target_qty * mock_hl_ticker.bid
-    )  # Correct USD value for short leg
+    # Override sizing result for testing
+    target_position_size = target_qty * mock_bp_ticker.ask
+    risk_analysis.sizing.position_size_usd = target_position_size
 
     # 3. Execute
     logger.info("Executing partially filled opportunity...")
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
-        sized_opportunity,  # Pass SizedOpportunity
+        risk_analysis,  # Pass RiskAnalysis
     )
     logger.info(
         "execution_result",
@@ -2051,7 +2050,7 @@ async def test_execution_failure_compensation(
     # 2. Validate & Size
     sized_opportunities_list = await risk_manager.validate_opportunities([opportunity])
     assert len(sized_opportunities_list) == 1
-    sized_opportunity = sized_opportunities_list[0]  # Now SizedOpportunity
+    risk_analysis = sized_opportunities_list[0]  # Now RiskAnalysis
 
     # --- Manually set sizes for testing ---
     assert mock_bp_ticker.ask is not None, (
@@ -2059,18 +2058,17 @@ async def test_execution_failure_compensation(
         "test_execution_failure_compensation"
     )
     assert mock_hl_ticker.bid is not None, (
-        "Mock HL ticker BID price should not be None for sizing in "
+        "Mock HL ticket BID price should not be None for sizing in "
         "test_execution_failure_compensation"
     )
-    sized_opportunity.long_size = target_qty * mock_bp_ticker.ask  # Correct USD value for long leg
-    sized_opportunity.short_size = (
-        target_qty * mock_hl_ticker.bid
-    )  # Correct USD value for short leg
+    # Override sizing result for testing
+    target_position_size = target_qty * mock_bp_ticker.ask
+    risk_analysis.sizing.position_size_usd = target_position_size
 
     # 3. Execute
     logger.info("Executing failing opportunity (HL short fails)...")
     trade_execution_result: TradeExecution = await execution_handler.execute_opportunity(
-        sized_opportunity,  # Pass SizedOpportunity
+        risk_analysis,  # Pass RiskAnalysis
     )
     logger.info(
         "execution_result",
@@ -2301,17 +2299,15 @@ async def test_failed_execution(
     )
 
     # --- Size and Validate ---
-    sized_opportunity = await risk_manager.size_opportunity(
+    risk_analysis = await risk_manager.analyze_opportunity(
         opportunity_eth,
     )  # Pass ArbitrageOpportunity
-    assert sized_opportunity is not None, "Opportunity rejected by risk manager"
-    # Manually set the target quantity for this test, as ArbitrageOpportunity doesn't carry it.
-    # RiskManager would normally determine this if not pre-set.
-    sized_opportunity.long_size = target_qty
-    sized_opportunity.short_size = target_qty
+    assert risk_analysis.approved, "Opportunity rejected by risk manager"
+    # Manually set the target quantity for this test
+    risk_analysis.sizing.position_size_usd = target_qty
 
     # --- Execute ---
-    trade_execution_result = await execution_handler.execute_opportunity(sized_opportunity)
+    trade_execution_result = await execution_handler.execute_opportunity(risk_analysis)
 
     # --- Verify Result ---
     logger.info(

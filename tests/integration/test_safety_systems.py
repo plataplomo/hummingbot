@@ -26,7 +26,6 @@ from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager  # Added PortfolioStateManager
 from cyberdelta.core.risk_manager import (
     RiskManager,
-    SizedOpportunity,
 )
 from cyberdelta.core.signal_generator import SignalGenerator  # Added SignalGenerator
 from cyberdelta.validation import ArbitrageOpportunity

@@ -96,11 +96,11 @@ risk:
   global:
     max_position_usd: 200.0
     max_total_exposure_usd: 1000.0
-  use_simple_sizing_path: true
-  simple_sizing_method: fixed_fraction
-  simple_fixed_fraction: '0.01'
-  simple_fixed_usd_size: '10.0'
   sizing:
+    method: "simple"
+    parameters:
+      mode: "fixed_fraction"
+      fraction: 0.01
     max_position_size: 200.0
 execution:
   max_slippage_pct: 0.001

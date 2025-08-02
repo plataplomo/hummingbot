@@ -61,10 +61,13 @@ risk:
   global:
     max_position_usd: 100.0
     max_total_exposure_usd: 200.0
-  use_simple_sizing_path: true
-  simple_sizing_method: "fixed_usd"
-  simple_fixed_fraction: 0.01
-  simple_fixed_usd_size: 10.0
+  # Modern sizing configuration for testing
+  sizing:
+    method: "simple"
+    parameters:
+      mode: "fixed_usd"    # Use fixed USD sizing for consistent tests
+      fixed_usd: 10.0      # Fixed $10 position size for tests
+    max_position_size: 100.0
 
 # Execution settings for testing (minimal but valid)
 execution:

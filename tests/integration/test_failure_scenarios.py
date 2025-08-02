@@ -18,7 +18,7 @@ from cyberdelta.core.models import (
 )
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
 from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.risk_manager import SizedOpportunity
+# Removed unused import: SizedOpportunity
 from cyberdelta.validation import ArbitrageOpportunity
 from cyberdelta.validation.circuit_breaker import (
     APIErrorBreaker,  # Import specific breaker type

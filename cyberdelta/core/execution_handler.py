@@ -31,7 +31,7 @@ if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
     from cyberdelta.config.models.config_models import AppSettings
     from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-    from cyberdelta.core.risk_types import SizedOpportunity
+    from cyberdelta.core.risk_manager import RiskAnalysis
     from cyberdelta.core.services.interfaces import IAlertService
     from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
 
@@ -247,32 +247,31 @@ class ExecutionHandler:
         await self.services.stop_all()
         self.logger.info("ExecutionHandler stopped successfully")
 
-    async def execute_opportunity(self, opportunity: SizedOpportunity) -> TradeExecution:
+    async def execute_opportunity(self, risk_analysis: RiskAnalysis) -> TradeExecution:
         """Execute an arbitrage opportunity with full service integration.
 
         Args:
-            opportunity: Sized arbitrage opportunity
+            risk_analysis: Approved risk analysis with sizing information
 
         Returns:
             TradeExecution object representing the outcome
         """
         self.logger.info(
             "Execution starting",
-            symbol=opportunity.opportunity.symbol,
-            long_exchange=opportunity.opportunity.long_exchange,
-            short_exchange=opportunity.opportunity.short_exchange,
-            long_size=str(opportunity.long_size),
-            short_size=str(opportunity.short_size),
+            symbol=risk_analysis.opportunity.symbol,
+            long_exchange=risk_analysis.opportunity.long_exchange,
+            short_exchange=risk_analysis.opportunity.short_exchange,
+            position_size_usd=str(risk_analysis.sizing.position_size_usd) if risk_analysis.sizing else "unknown",
         )
 
         try:
             # Step 1: Validate the execution request
             validation_result = await self.services.input_validator.validate_execution_request(
-                opportunity
+                risk_analysis
             )
 
             if not validation_result.is_valid:
-                return await self._handle_validation_failure(opportunity, validation_result)
+                return await self._handle_validation_failure(risk_analysis, validation_result)
 
             # Log any validation warnings
             if validation_result.warnings:
@@ -280,14 +279,14 @@ class ExecutionHandler:
                     "Execution validation passed with warnings", warnings=validation_result.warnings
                 )
 
-            # Step 2: Create execution tracking
-            execution = await self.services.state_manager.create_execution(opportunity)
+            # Step 2: Create execution tracking  
+            execution = await self.services.state_manager.create_execution(risk_analysis)
             execution.start_time = datetime.now(UTC)
 
             self.logger.info("Execution created", execution_id=execution.id)
 
             # Step 3: Setup prerequisites (API clients and symbols)
-            prerequisites_result = await self._setup_execution_prerequisites(execution, opportunity)
+            prerequisites_result = await self._setup_execution_prerequisites(execution, risk_analysis)
             if not prerequisites_result.success:
                 return await self._handle_prerequisites_failure(execution, prerequisites_result)
 
@@ -295,7 +294,7 @@ class ExecutionHandler:
 
             # Step 4: Execute the main order placement logic
             await self._place_orders_for_opportunity(
-                execution, opportunity, long_client, short_client, long_symbol, short_symbol
+                execution, risk_analysis, long_client, short_client, long_symbol, short_symbol
             )
 
             # Step 5: Finalize execution
@@ -305,7 +304,7 @@ class ExecutionHandler:
             self.logger.exception("Unexpected error during execution", error=str(e))
 
             # Create a failed execution if we don't have one yet
-            execution = TradeExecution(opportunity=opportunity)
+            execution = TradeExecution(opportunity=risk_analysis)
             execution.status = ExecutionStatus.FAILED
             execution.error_message = f"Unexpected error: {e}"
             execution.end_time = datetime.now(UTC)
@@ -314,18 +313,18 @@ class ExecutionHandler:
             return execution
 
     async def _handle_validation_failure(
-        self, opportunity: SizedOpportunity, validation_result: object
+        self, risk_analysis: RiskAnalysis, validation_result: object
     ) -> TradeExecution:
         """Handle validation failure by creating a failed execution.
 
         Args:
-            opportunity: The sized opportunity that failed validation
+            risk_analysis: The risk analysis that failed validation
             validation_result: The validation result containing errors
 
         Returns:
             TradeExecution: A failed execution with validation error details
         """
-        execution = TradeExecution(opportunity=opportunity)
+        execution = TradeExecution(opportunity=risk_analysis)
         execution.status = ExecutionStatus.FAILED
         errors = getattr(validation_result, "errors", [])
         execution.error_message = f"Validation failed: {', '.join(errors)}"
@@ -339,7 +338,7 @@ class ExecutionHandler:
         )
 
         # Track the failed execution
-        await self.services.state_manager.create_execution(opportunity)
+        await self.services.state_manager.create_execution(risk_analysis)
         await self.services.state_manager.update_execution_status(
             execution.id, ExecutionStatus.FAILED, execution.error_message
         )
@@ -348,13 +347,13 @@ class ExecutionHandler:
         return execution
 
     async def _setup_execution_prerequisites(
-        self, execution: TradeExecution, opportunity: SizedOpportunity
+        self, execution: TradeExecution, risk_analysis: RiskAnalysis
     ) -> ExecutionResult:
         """Setup and validate API clients and symbols for execution.
 
         Args:
             execution: The trade execution being processed
-            opportunity: The sized opportunity to execute
+            risk_analysis: The risk analysis to execute
 
         Returns:
             ExecutionResult: Success result with tuple of (long_client, short_client, long_symbol,
@@ -362,14 +361,14 @@ class ExecutionHandler:
         """
         try:
             # Get API clients
-            long_client = self.api_clients.get(opportunity.opportunity.long_exchange)
-            short_client = self.api_clients.get(opportunity.opportunity.short_exchange)
+            long_client = self.api_clients.get(risk_analysis.opportunity.long_exchange)
+            short_client = self.api_clients.get(risk_analysis.opportunity.short_exchange)
 
             if not long_client or not short_client:
                 missing_exchange = (
-                    opportunity.opportunity.long_exchange
+                    risk_analysis.opportunity.long_exchange
                     if not long_client
-                    else opportunity.opportunity.short_exchange
+                    else risk_analysis.opportunity.short_exchange
                 )
                 return await self.services.error_handler.handle_validation_error(
                     f"No API client available for exchange: {missing_exchange}",
@@ -377,14 +376,14 @@ class ExecutionHandler:
                 )
 
             # Use existing Symbol objects - clean break approach
-            # opportunity.opportunity.symbol is already a Symbol object
-            long_symbol = opportunity.opportunity.symbol
-            short_symbol = opportunity.opportunity.symbol
+            # risk_analysis.opportunity.symbol is already a Symbol object
+            long_symbol = risk_analysis.opportunity.symbol
+            short_symbol = risk_analysis.opportunity.symbol
             
             # Validate that the Symbol supports the required exchanges
             from cyberdelta.enums.exchange_names import ExchangeName
-            long_exchange = ExchangeName(opportunity.opportunity.long_exchange)
-            short_exchange = ExchangeName(opportunity.opportunity.short_exchange)
+            long_exchange = ExchangeName(risk_analysis.opportunity.long_exchange)
+            short_exchange = ExchangeName(risk_analysis.opportunity.short_exchange)
             
             # Check if Symbol supports the exchanges (basic validation)
             if long_symbol.exchange != long_exchange:
@@ -403,9 +402,9 @@ class ExecutionHandler:
             if not long_symbol or not short_symbol:
                 missing_leg = "long" if not long_symbol else "short"
                 missing_exchange = (
-                    opportunity.opportunity.long_exchange
+                    risk_analysis.opportunity.long_exchange
                     if not long_symbol
-                    else opportunity.opportunity.short_exchange
+                    else risk_analysis.opportunity.short_exchange
                 )
 
                 # Get available exchanges for better error context
@@ -421,7 +420,7 @@ class ExecutionHandler:
                 return await self.services.error_handler.handle_validation_error(
                     f"Symbol mapping failed for {missing_leg} leg",
                     {
-                        "symbol": opportunity.opportunity.symbol,
+                        "symbol": risk_analysis.opportunity.symbol,
                         "exchange": missing_exchange,
                         "leg": missing_leg,
                         "execution_id": execution.id,
@@ -468,7 +467,7 @@ class ExecutionHandler:
     async def _place_orders_for_opportunity(
         self,
         execution: TradeExecution,
-        opportunity: SizedOpportunity,
+        risk_analysis: RiskAnalysis,
         long_client: ExchangeAPI,
         short_client: ExchangeAPI,
         long_symbol: Symbol,
@@ -479,7 +478,7 @@ class ExecutionHandler:
         self.logger.info(
             "Placing orders for execution",
             execution_id=execution.id,
-            symbol=opportunity.opportunity.symbol,
+            symbol=risk_analysis.opportunity.symbol,
             long_exchange=long_symbol.exchange.value,
             short_exchange=short_symbol.exchange.value,
             long_symbol=long_symbol.value,
@@ -492,7 +491,7 @@ class ExecutionHandler:
         )
 
         # Calculate base asset quantities
-        base_quantities = self._calculate_base_asset_quantities(execution, opportunity)
+        base_quantities = self._calculate_base_asset_quantities(execution, risk_analysis)
         if base_quantities is None:
             return  # Error already set in execution
 
@@ -503,7 +502,7 @@ class ExecutionHandler:
 
         # Place long order first
         long_order_result = await self._place_long_order(
-            execution, opportunity, long_symbol, base_asset_quantity_long, default_tif
+            execution, risk_analysis, long_symbol, base_asset_quantity_long, default_tif
         )
 
         if long_order_result is None or not long_order_result.success:
@@ -523,55 +522,68 @@ class ExecutionHandler:
 
         # Process the filled long order
         await self._handle_filled_order(
-            execution, long_order, opportunity.opportunity.long_exchange, True, long_symbol
+            execution, long_order, risk_analysis.opportunity.long_exchange, True, long_symbol
         )
 
         # Place short order with compensation handling
         await self._place_short_order_with_compensation(
-            execution, opportunity, short_symbol, base_asset_quantity_short, default_tif
+            execution, risk_analysis, short_symbol, base_asset_quantity_short, default_tif
         )
 
     def _calculate_base_asset_quantities(
-        self, execution: TradeExecution, opportunity: SizedOpportunity
+        self, execution: TradeExecution, risk_analysis: RiskAnalysis
     ) -> tuple[Decimal, Decimal] | None:
         """Calculate base asset quantities for both legs.
 
         Args:
             execution: The trade execution for error reporting
-            opportunity: The sized opportunity containing prices and sizes
+            risk_analysis: The risk analysis containing opportunity and sizing
 
         Returns:
             tuple[Decimal, Decimal] | None: A tuple of (long_quantity, short_quantity) if
                 successful, or None if calculation fails (error details set in execution)
         """
         try:
+            # Get position size from risk analysis
+            if not risk_analysis.sizing or not risk_analysis.sizing.position_size_usd:
+                error_msg = "No position sizing available in risk analysis"
+                execution.error_message = error_msg
+                execution.status = ExecutionStatus.FAILED
+                self.logger.error(
+                    "No position sizing in risk analysis",
+                    execution_id=execution.id,
+                )
+                return None
+
+            position_size_usd = risk_analysis.sizing.position_size_usd
+
             # Calculate long quantity
-            if not opportunity.opportunity.long_price or opportunity.opportunity.long_price <= 0:
-                error_msg = f"Invalid long price: {opportunity.opportunity.long_price}"
+            if not risk_analysis.opportunity.long_price or risk_analysis.opportunity.long_price <= 0:
+                error_msg = f"Invalid long price: {risk_analysis.opportunity.long_price}"
                 execution.error_message = error_msg
                 execution.status = ExecutionStatus.FAILED
                 self.logger.error(
                     "Invalid long price for quantity calculation",
                     execution_id=execution.id,
-                    long_price=str(opportunity.opportunity.long_price),
+                    long_price=str(risk_analysis.opportunity.long_price),
                 )
                 return None
 
-            base_asset_quantity_long = opportunity.long_size / opportunity.opportunity.long_price
+            base_asset_quantity_long = position_size_usd / risk_analysis.opportunity.long_price
 
             # Calculate short quantity
-            if not opportunity.opportunity.short_price or opportunity.opportunity.short_price <= 0:
-                error_msg = f"Invalid short price: {opportunity.opportunity.short_price}"
+            if not risk_analysis.opportunity.short_price or risk_analysis.opportunity.short_price <= 0:
+                error_msg = f"Invalid short price: {risk_analysis.opportunity.short_price}"
                 execution.error_message = error_msg
                 execution.status = ExecutionStatus.FAILED
                 self.logger.error(
                     "Invalid short price for quantity calculation",
                     execution_id=execution.id,
-                    short_price=str(opportunity.opportunity.short_price),
+                    short_price=str(risk_analysis.opportunity.short_price),
                 )
                 return None
 
-            base_asset_quantity_short = opportunity.short_size / opportunity.opportunity.short_price
+            base_asset_quantity_short = position_size_usd / risk_analysis.opportunity.short_price
 
             self.logger.debug(
                 "Base asset quantities calculated",
@@ -603,7 +615,7 @@ class ExecutionHandler:
     async def _place_long_order(
         self,
         execution: TradeExecution,
-        opportunity: SizedOpportunity,
+        risk_analysis: RiskAnalysis,
         long_symbol: Symbol,
         base_asset_quantity_long: Decimal,
         default_tif: TimeInForce,
@@ -614,7 +626,7 @@ class ExecutionHandler:
             ExecutionResult containing order details on success, or error information on failure
         """
         order_request = OrderRequest(
-            exchange_id=opportunity.opportunity.long_exchange,
+            exchange_id=risk_analysis.opportunity.long_exchange,
             symbol=long_symbol,  # Use the Symbol object
             side=OrderSide.BUY,
             quantity=base_asset_quantity_long,
@@ -627,7 +639,7 @@ class ExecutionHandler:
         # Log with rich domain context
         log_data = {
             "execution_id": execution.id,
-            "exchange_id": opportunity.opportunity.long_exchange,
+            "exchange_id": risk_analysis.opportunity.long_exchange,
             "symbol": long_symbol.value,
             "base_asset": long_symbol.base_asset,
             "market_type": long_symbol.market_type.value,
@@ -664,14 +676,14 @@ class ExecutionHandler:
     async def _place_short_order_with_compensation(
         self,
         execution: TradeExecution,
-        opportunity: SizedOpportunity,
+        risk_analysis: RiskAnalysis,
         short_symbol: Symbol,
         base_asset_quantity_short: Decimal,
         default_tif: TimeInForce,
     ) -> None:
         """Place short order and handle compensation if needed with domain objects."""
         order_request = OrderRequest(
-            exchange_id=opportunity.opportunity.short_exchange,
+            exchange_id=risk_analysis.opportunity.short_exchange,
             symbol=short_symbol,  # Use the Symbol object
             side=OrderSide.SELL,
             quantity=base_asset_quantity_short,
@@ -684,7 +696,7 @@ class ExecutionHandler:
         # Log with rich domain context
         log_data = {
             "execution_id": execution.id,
-            "exchange_id": opportunity.opportunity.short_exchange,
+            "exchange_id": risk_analysis.opportunity.short_exchange,
             "symbol": short_symbol.value,
             "base_asset": short_symbol.base_asset,
             "market_type": short_symbol.market_type.value,
@@ -713,7 +725,7 @@ class ExecutionHandler:
             execution.short_fill_quantity = getattr(short_order, "quantity_filled", None)
 
             await self._handle_filled_order(
-                execution, short_order, opportunity.opportunity.short_exchange, False, short_symbol
+                execution, short_order, risk_analysis.opportunity.short_exchange, False, short_symbol
             )
 
             # Both orders successful - mark as completed

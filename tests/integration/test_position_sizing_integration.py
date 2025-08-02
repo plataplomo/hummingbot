@@ -20,7 +20,7 @@ from cyberdelta.core.models import (
     Ticker,
     TradeSignal,
 )
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.strategies.funding_rate_arbitrage import FundingRateArbitrageStrategy
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
 
@@ -163,18 +163,26 @@ async def test_position_sizing_integration(
             return_value=MagicMock(spec=Ticker, price=Decimal(30000)),
         ),
     ):
-        # Setup risk manager to return a sized opportunity
-        mock_sized_opportunity = SizedOpportunity(
-            opportunity=mock_opportunity,
-            long_size=Decimal("15000.0"),
-            short_size=Decimal("15000.0"),
-            expected_profit=Decimal("50.0"),
-            allocation_percentage=Decimal("0.1"),  # Example: 10% allocation
-            expected_return=Decimal("0.001"),  # Example: 0.1% return
-            risk_adjusted_return=Decimal("0.15"),  # Example: risk-adjusted score
+        # Setup risk manager to return a risk analysis
+        from cyberdelta.core.risk.sizing.models.sizing_result import SizingResult
+        
+        mock_sizing_result = SizingResult.success_result(
+            position_size_usd=Decimal("15000.0"),
+            allocation_percentage=Decimal("0.1"),
+            expected_return=Decimal("0.001"),
+            kelly_fraction=Decimal("0.1")
         )
-        setup_dependencies["risk_manager"].size_opportunity = MagicMock(
-            return_value=mock_sized_opportunity,
+        
+        mock_risk_analysis = RiskAnalysis(
+            opportunity=mock_opportunity,
+            approved=True,
+            sizing=mock_sizing_result,
+            checks={"all": "passed"},
+            constraints={"all": "satisfied"}
+        )
+        
+        setup_dependencies["risk_manager"].analyze_opportunity = MagicMock(
+            return_value=mock_risk_analysis,
         )
 
         # Mock the opportunity checking to return our test opportunity
@@ -253,7 +261,12 @@ async def test_risk_manager_rejection(
         ),
     ):
         # Configure risk manager to reject the opportunity
-        setup_dependencies["risk_manager"].size_opportunity = MagicMock(return_value=None)
+        rejected_analysis = RiskAnalysis(
+            opportunity=mock_opportunity,
+            approved=False,
+            rejection_reason="Test rejection"
+        )
+        setup_dependencies["risk_manager"].analyze_opportunity = MagicMock(return_value=rejected_analysis)
 
         # Mock the evaluation to return None (rejected)
         with patch.object(

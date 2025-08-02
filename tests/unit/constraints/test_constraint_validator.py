@@ -19,7 +19,6 @@ from cyberdelta.core.risk.constraints.models.constraint_models import (
 )
 from cyberdelta.core.risk.constraints.orchestrator.constraint_validator import ConstraintValidator
 from cyberdelta.core.risk.sizing.models.sizing_result import (
-    SizedOpportunity,
     SizingResult,
 )
 from tests.common_symbols import BTC_HL

@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from cyberdelta.core.risk_manager import RiskManager, SizedOpportunity
+from cyberdelta.core.risk_manager import RiskManager, RiskAnalysis
 from cyberdelta.exceptions.risk import RiskCheckError
 from tests.common_symbols import BTC_HL
 from cyberdelta.validation.funding_data import ArbitrageOpportunity
@@ -98,12 +98,12 @@ class TestRiskManagerErrorHandlingComprehensive:
         if exception_type is ValueError:
             # ValueError from get_total_capital during _check_leverage is caught
             # in _validate_and_get_factors and results in None (rejected)
-            sized_opp = await risk_manager.size_opportunity(opportunity)
-            assert sized_opp is None
+            analysis = await risk_manager.analyze_opportunity(opportunity)
+            assert not analysis.approved
         else:
             # Other exceptions bubble up
             with pytest.raises(exception_type):
-                await risk_manager.size_opportunity(opportunity)
+                await risk_manager.analyze_opportunity(opportunity)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -151,12 +151,12 @@ class TestRiskManagerErrorHandlingComprehensive:
         # Execute sizing - ValueError from circuit breaker is caught in _validate_and_get_factors
         if isinstance(circuit_breaker_exception, ValueError):
             # ValueError is caught during validation and results in rejection
-            sized_opp = await risk_manager.size_opportunity(opportunity)
-            assert sized_opp is None
+            analysis = await risk_manager.analyze_opportunity(opportunity)
+            assert not analysis.approved
         else:
             # Other exceptions bubble up since they're not handled
             with pytest.raises(type(circuit_breaker_exception)):
-                await risk_manager.size_opportunity(opportunity)
+                await risk_manager.analyze_opportunity(opportunity)
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize(
@@ -203,12 +203,12 @@ class TestRiskManagerErrorHandlingComprehensive:
         )
 
         # Execute sizing - should handle exception gracefully
-        sized_opp = await risk_manager.size_opportunity(opportunity)
+        analysis = await risk_manager.analyze_opportunity(opportunity)
 
         # Should either reject or apply conservative fallback when funding validator fails
-        if sized_opp is not None:
+        if analysis.approved:
             # If accepted, should apply conservative fallback
-            assert sized_opp.long_size <= Decimal(500)  # Conservative fallback
+            assert analysis.sizing.position_size_usd <= Decimal(500)  # Conservative fallback
         else:
             # Opportunity was rejected - also acceptable
             pass
@@ -271,12 +271,12 @@ class TestRiskManagerErrorHandlingComprehensive:
             )
 
             # Execute sizing - should handle invalid config gracefully
-            sized_opp = await risk_manager.size_opportunity(opportunity)
+            analysis = await risk_manager.analyze_opportunity(opportunity)
 
             # Should either reject or apply safe fallbacks
-            if sized_opp is not None:
-                assert sized_opp.long_size >= Decimal(0)
-                assert sized_opp.short_size >= Decimal(0)
+            if analysis.approved:
+                assert analysis.sizing.position_size_usd >= Decimal(0)
+                assert analysis.sizing.position_size_usd >= Decimal(0)
 
         except (ValueError, TypeError, AttributeError):
             # Invalid configuration may cause initialization to fail - this is acceptable
@@ -329,14 +329,14 @@ class TestRiskManagerErrorHandlingComprehensive:
             )
 
             # Execute sizing - should handle invalid opportunity data gracefully
-            sized_opp = await risk_manager.size_opportunity(opportunity)
+            analysis = await risk_manager.analyze_opportunity(opportunity)
 
             # Some "invalid" values like None may be handled gracefully by the system
             # The key is that the system doesn't crash and handles the data robustly
-            if sized_opp is not None:
+            if analysis.approved:
                 # System handled the data gracefully, verify basic constraints
-                assert sized_opp.long_size >= Decimal(0)
-                assert sized_opp.short_size >= Decimal(0)
+                assert analysis.sizing.position_size_usd >= Decimal(0)
+                assert analysis.sizing.position_size_usd >= Decimal(0)
 
         except (ValueError, TypeError):
             # Pydantic validation may catch invalid data before processing
@@ -377,9 +377,9 @@ class TestRiskManagerErrorHandlingComprehensive:
 
         # Execute sizing - zero capital should be caught by validation
         try:
-            sized_opp = await risk_manager.size_opportunity(opportunity)
+            analysis = await risk_manager.analyze_opportunity(opportunity)
             # Should reject when capital is zero (this is handled by the risk manager)
-            assert sized_opp is None
+            assert not analysis.approved
         except RiskCheckError:
             # Zero capital may raise RiskCheckError during leverage validation
             # This is also acceptable behavior
@@ -420,7 +420,7 @@ class TestRiskManagerErrorHandlingComprehensive:
         )
 
         # Execute multiple sizing operations concurrently
-        tasks = [risk_manager.size_opportunity(opp) for opp in opportunities]
+        tasks = [risk_manager.analyze_opportunity(opp) for opp in opportunities]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify all operations completed without exceptions
@@ -432,7 +432,7 @@ class TestRiskManagerErrorHandlingComprehensive:
                 result is not None
                 and hasattr(result, "long_size")
                 and hasattr(result, "short_size")
-                and isinstance(result, SizedOpportunity)
+                and isinstance(result, RiskAnalysis) and result.approved
             ):
                 # Type narrowing passed, check sizes
                 assert result.long_size > Decimal(0)
@@ -485,11 +485,11 @@ class TestRiskManagerErrorHandlingComprehensive:
             opportunity = create_test_opportunity(frozen_time=frozen_time)
 
             try:
-                sized_opp = await risk_manager.size_opportunity(opportunity)
+                analysis = await risk_manager.analyze_opportunity(opportunity)
                 # If we get here, all calls to get_total_capital succeeded
-                assert sized_opp is not None
-                assert isinstance(sized_opp.long_size, Decimal)
-                assert sized_opp.long_size > Decimal(0)
+                assert analysis.approved
+                assert isinstance(analysis.sizing.position_size_usd, Decimal)
+                assert analysis.sizing.position_size_usd > Decimal(0)
             except ValueError:
                 # ValueError from get_total_capital can occur either:
                 # 1. During _check_leverage in validation (caught and returns None)

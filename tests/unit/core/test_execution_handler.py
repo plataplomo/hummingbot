@@ -31,7 +31,7 @@ from cyberdelta.core.models import (
     TimeInForce,
 )
 from cyberdelta.core.models.execution import ExecutionStatus, TradeExecution
-from cyberdelta.core.risk_manager import SizedOpportunity
+from cyberdelta.core.risk_manager import RiskAnalysis
 from cyberdelta.core.services.config_validation import ConfigValidationError
 from cyberdelta.core.services.interfaces import (
     ExecutionError,
@@ -246,20 +246,27 @@ def sample_opportunity() -> ArbitrageOpportunity:
 
 
 @pytest.fixture
-def sized_opportunity(sample_opportunity: ArbitrageOpportunity) -> SizedOpportunity:
-    """Create sample sized opportunity.
+def sized_opportunity(sample_opportunity: ArbitrageOpportunity) -> RiskAnalysis:
+    """Create sample risk analysis for testing.
 
     Returns:
-        SizedOpportunity: A sample sized opportunity for testing.
+        RiskAnalysis: A sample risk analysis for testing.
     """
-    return SizedOpportunity(
-        opportunity=sample_opportunity,
-        long_size=Decimal("1.0"),
-        short_size=Decimal("1.0"),
+    from cyberdelta.core.risk.sizing.models.sizing_result import SizingResult
+    
+    sizing_result = SizingResult.success_result(
+        position_size_usd=Decimal("1.0"),  # Delta neutral - same for both legs
         allocation_percentage=Decimal("0.1"),
-        expected_profit=Decimal(300),
         expected_return=Decimal("0.03"),
-        risk_adjusted_return=Decimal("0.025"),
+        kelly_fraction=Decimal("0.1")
+    )
+    
+    return RiskAnalysis(
+        opportunity=sample_opportunity,
+        approved=True,
+        sizing=sizing_result,
+        checks={"all": "passed"},
+        constraints={"all": "satisfied"}
     )
 
 
@@ -569,7 +576,7 @@ class TestExecuteOpportunity:
     async def test_execute_opportunity_success_full_execution(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test successful full execution of an opportunity."""
@@ -633,7 +640,7 @@ class TestExecuteOpportunity:
     async def test_execute_opportunity_success_partial_fill(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test successful execution with partial fills."""
@@ -701,14 +708,21 @@ class TestExecuteOpportunity:
     ) -> None:
         """Test execution with zero-sized opportunity."""
         # Arrange
-        zero_sized = SizedOpportunity(
-            opportunity=sample_opportunity,
-            long_size=Decimal(0),
-            short_size=Decimal(0),
+        from cyberdelta.core.risk.sizing.models.sizing_result import SizingResult
+        
+        zero_sizing = SizingResult.success_result(
+            position_size_usd=Decimal(0),
             allocation_percentage=Decimal(0),
-            expected_profit=Decimal(0),
             expected_return=Decimal(0),
-            risk_adjusted_return=Decimal(0),
+            kelly_fraction=Decimal(0)
+        )
+        
+        zero_sized = RiskAnalysis(
+            opportunity=sample_opportunity,
+            approved=True,  # Still approved but with zero size
+            sizing=zero_sizing,
+            checks={"size": "zero"},
+            constraints={"all": "satisfied"}
         )
 
         # Act - zero-sized opportunities should be handled by validation
@@ -728,14 +742,19 @@ class TestExecuteOpportunity:
     ) -> None:
         """Test execution with negative expected profit."""
         # Arrange
-        negative_profit = SizedOpportunity(
-            opportunity=sample_opportunity,
-            long_size=Decimal("1.0"),
-            short_size=Decimal("1.0"),
+        negative_sizing = SizingResult.success_result(
+            position_size_usd=Decimal("1.0"),
             allocation_percentage=Decimal("0.1"),
-            expected_profit=Decimal(-100),
             expected_return=Decimal("-0.01"),
-            risk_adjusted_return=Decimal("-0.008"),
+            kelly_fraction=Decimal("0.1")
+        )
+        
+        negative_profit = RiskAnalysis(
+            opportunity=sample_opportunity,
+            approved=True,  # Risk manager approved despite negative expected return
+            sizing=negative_sizing,
+            checks={"profit": "negative"},
+            constraints={"all": "satisfied"}
         )
 
         # Act - negative profit might be caught by validation or processed anyway
@@ -759,14 +778,19 @@ class TestExecuteOpportunity:
     ) -> None:
         """Test execution with mismatched long/short sizes."""
         # Arrange
-        mismatched = SizedOpportunity(
-            opportunity=sample_opportunity,
-            long_size=Decimal("1.0"),
-            short_size=Decimal("2.0"),
+        mismatched_sizing = SizingResult.success_result(
+            position_size_usd=Decimal("1.5"),  # Average of mismatched sizes
             allocation_percentage=Decimal("0.15"),
-            expected_profit=Decimal(100),
             expected_return=Decimal("0.01"),
-            risk_adjusted_return=Decimal("0.008"),
+            kelly_fraction=Decimal("0.15")
+        )
+        
+        mismatched = RiskAnalysis(
+            opportunity=sample_opportunity,
+            approved=True,
+            sizing=mismatched_sizing,
+            checks={"sizes": "mismatched"},
+            constraints={"all": "satisfied"}
         )
 
         # Act - mismatched sizes might be handled by validation or execution logic
@@ -785,7 +809,7 @@ class TestExecuteOpportunity:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_circuit_breaker_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis
     ) -> None:
         """Test execution fails when circuit breaker is tripped."""
         # Arrange - mock the validation service to fail due to circuit breaker
@@ -811,7 +835,7 @@ class TestExecuteOpportunity:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_missing_api_client(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis
     ) -> None:
         """Test execution fails when API client is missing."""
         # Arrange - no API clients registered (default state)
@@ -840,7 +864,7 @@ class TestExecuteOpportunity:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_symbol_mapping_error(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis
     ) -> None:
         """Test execution fails when symbol mapping fails."""
         # Arrange - register API clients but mock symbol mapper to return None
@@ -878,7 +902,7 @@ class TestExecuteOpportunity:
     async def test_execute_opportunity_failure_order_placement_error(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test execution fails when order placement fails."""
@@ -932,7 +956,7 @@ class TestCircuitBreakerIntegration:
     # SUCCESS CASES
     @pytest.mark.asyncio
     async def test_execute_opportunity_success_circuit_breakers_not_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis, btc_symbols: SymbolSet
     ) -> None:
         """Test execution succeeds when circuit breakers are not tripped."""
         # Arrange - circuit breaker should allow execution
@@ -987,7 +1011,7 @@ class TestCircuitBreakerIntegration:
         mock_app_settings: Mock,
         mock_portfolio_state_manager: Mock,
         mock_symbol_service: Mock,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         btc_symbols: SymbolSet,
     ) -> None:
         """Test execution succeeds when circuit breaker system is None."""
@@ -1042,7 +1066,7 @@ class TestCircuitBreakerIntegration:
     # EDGE CASES
     @pytest.mark.asyncio
     async def test_execute_opportunity_edge_both_exchanges_checked(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis, btc_symbols: SymbolSet
     ) -> None:
         """Test that both exchanges are checked for circuit breaker status."""
         # Arrange - circuit breaker should allow execution
@@ -1097,7 +1121,7 @@ class TestCircuitBreakerIntegration:
     # FAILURE CASES
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_long_exchange_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis, btc_symbols: SymbolSet
     ) -> None:
         """Test execution fails when long exchange circuit breaker is tripped."""
         # Arrange
@@ -1130,7 +1154,7 @@ class TestCircuitBreakerIntegration:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_short_exchange_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis, btc_symbols: SymbolSet
     ) -> None:
         """Test execution fails when short exchange circuit breaker is tripped."""
         # Arrange
@@ -1193,7 +1217,7 @@ class TestCircuitBreakerIntegration:
 
     @pytest.mark.asyncio
     async def test_execute_opportunity_failure_both_exchanges_tripped(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis, btc_symbols: SymbolSet
     ) -> None:
         """Test execution fails when both exchange circuit breakers are tripped."""
         # Arrange
@@ -1321,7 +1345,7 @@ class TestTradeExecution:
     """Test suite for TradeExecution class."""
 
     # SUCCESS CASES
-    def test_trade_execution_creation_success(self, sized_opportunity: SizedOpportunity) -> None:
+    def test_trade_execution_creation_success(self, sized_opportunity: RiskAnalysis) -> None:
         """Test TradeExecution object creation."""
         # Arrange & Act
         execution = TradeExecution(opportunity=sized_opportunity)
@@ -1338,7 +1362,7 @@ class TestTradeExecution:
         assert execution.error_message is None
 
     def test_trade_execution_state_transitions_success(
-        self, sized_opportunity: SizedOpportunity
+        self, sized_opportunity: RiskAnalysis
     ) -> None:
         """Test TradeExecution state transitions."""
         # Arrange
@@ -1354,7 +1378,7 @@ class TestTradeExecution:
 
     # EDGE CASES
     def test_trade_execution_edge_with_timestamps(
-        self, sized_opportunity: SizedOpportunity
+        self, sized_opportunity: RiskAnalysis
     ) -> None:
         """Test TradeExecution with start and end times."""
         # Arrange
@@ -1371,7 +1395,7 @@ class TestTradeExecution:
         assert execution.end_time == end
         assert (execution.end_time - execution.start_time).total_seconds() == 5
 
-    def test_trade_execution_edge_with_orders(self, sized_opportunity: SizedOpportunity) -> None:
+    def test_trade_execution_edge_with_orders(self, sized_opportunity: RiskAnalysis) -> None:
         """Test TradeExecution with order attachments."""
         # Arrange
         execution = TradeExecution(opportunity=sized_opportunity)
@@ -1389,7 +1413,7 @@ class TestTradeExecution:
         assert execution.short_order_id == short_order.id
 
     # FAILURE CASES
-    def test_trade_execution_failure_with_error(self, sized_opportunity: SizedOpportunity) -> None:
+    def test_trade_execution_failure_with_error(self, sized_opportunity: RiskAnalysis) -> None:
         """Test TradeExecution in failed state with error message."""
         # Arrange
         execution = TradeExecution(opportunity=sized_opportunity)
@@ -1403,7 +1427,7 @@ class TestTradeExecution:
         assert execution.error_message == "Connection timeout"
 
     def test_trade_execution_failure_rejected_state(
-        self, sized_opportunity: SizedOpportunity
+        self, sized_opportunity: RiskAnalysis
     ) -> None:
         """Test TradeExecution in rejected state."""
         # Arrange
@@ -1426,7 +1450,7 @@ class TestExecutionHandlerIntegration:
     async def test_full_execution_workflow_success(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -1440,7 +1464,7 @@ class TestExecutionHandlerIntegration:
         mock_order = _create_mock_order(
             client_order_id="order123",
             status=OrderStatus.FILLED,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
         )
         mock_order.id = "order123"  # Keep for compatibility
         mock_exchange_api.place_order.return_value = mock_order
@@ -1467,7 +1491,7 @@ class TestExecutionHandlerIntegration:
 
     @pytest.mark.asyncio
     async def test_execution_cleanup_on_failure(
-        self, execution_handler: ExecutionHandler, sized_opportunity: SizedOpportunity, btc_symbols: SymbolSet
+        self, execution_handler: ExecutionHandler, sized_opportunity: RiskAnalysis, btc_symbols: SymbolSet
     ) -> None:
         """Test that execution is properly cleaned up on failure."""
         # Arrange
@@ -1509,7 +1533,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
     async def test_execute_opportunity_success_both_orders_filled(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -1570,7 +1594,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
     async def test_execute_opportunity_success_with_trades(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -1643,14 +1667,19 @@ class TestOrderPlacementThroughExecuteOpportunity:
             timestamp=datetime.now(UTC),
             expected_profit=sample_opportunity.expected_profit,
         )
-        sized_opp = SizedOpportunity(
-            opportunity=zero_price_opportunity,
-            long_size=Decimal("1.0"),
-            short_size=Decimal("1.0"),
+        zero_price_sizing = SizingResult.success_result(
+            position_size_usd=Decimal("1.0"),
             allocation_percentage=Decimal("0.1"),
-            expected_profit=Decimal(100),
             expected_return=Decimal("0.01"),
-            risk_adjusted_return=Decimal("0.008"),
+            kelly_fraction=Decimal("0.1")
+        )
+        
+        sized_opp = RiskAnalysis(
+            opportunity=zero_price_opportunity,
+            approved=True,
+            sizing=zero_price_sizing,
+            checks={"prices": "zero"},
+            constraints={"all": "satisfied"}
         )
 
         # Mock circuit breakers as passing
@@ -1677,7 +1706,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
     async def test_execute_opportunity_edge_long_fills_short_fails(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -1777,7 +1806,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
     async def test_execute_opportunity_failure_long_order_fails(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -1810,7 +1839,7 @@ class TestOrderPlacementThroughExecuteOpportunity:
     async def test_execute_opportunity_failure_api_error_on_short(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -1894,7 +1923,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_success_orders_first_attempt(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -1943,7 +1972,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_success_after_retry(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2002,7 +2031,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_edge_retries_both_orders(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2061,7 +2090,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_edge_max_retries_on_long(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2094,7 +2123,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_edge_no_client(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         btc_symbols: SymbolSet,
     ) -> None:
         """Test execution with no API client registered through execute_opportunity."""
@@ -2120,7 +2149,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_failure_non_retryable_error(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2149,7 +2178,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_failure_max_retries_exhausted(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2181,7 +2210,7 @@ class TestOrderRetryBehaviorThroughExecuteOpportunity:
     async def test_execute_opportunity_failure_unexpected_error(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2214,7 +2243,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_order_status_checked_during_execution(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2233,8 +2262,8 @@ class TestOrderStatusCheckingThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2244,8 +2273,8 @@ class TestOrderStatusCheckingThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.short_size,
-            quantity_filled=sized_opportunity.short_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50100),
         )
 
@@ -2267,7 +2296,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_order_retry_on_api_error_during_execution(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2287,8 +2316,8 @@ class TestOrderStatusCheckingThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2298,8 +2327,8 @@ class TestOrderStatusCheckingThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.short_size,
-            quantity_filled=sized_opportunity.short_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50100),
         )
 
@@ -2324,7 +2353,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_execution_fails_with_no_api_client(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         btc_symbols: SymbolSet,
     ) -> None:
         """Test execution fails when no API client is registered."""
@@ -2348,7 +2377,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_execution_handles_order_not_found(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test handling when order placement fails with ORDER_NOT_FOUND."""
@@ -2375,7 +2404,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_execution_handles_rate_limiting(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2395,8 +2424,8 @@ class TestOrderStatusCheckingThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2406,8 +2435,8 @@ class TestOrderStatusCheckingThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.short_size,
-            quantity_filled=sized_opportunity.short_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50100),
         )
 
@@ -2436,7 +2465,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_execution_fails_on_auth_error(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2467,7 +2496,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_execution_fails_on_invalid_request(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test invalid request error causes execution failure without retries."""
@@ -2494,7 +2523,7 @@ class TestOrderStatusCheckingThroughPublicInterface:
     async def test_execution_handles_unexpected_error(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2531,7 +2560,7 @@ class TestCompensationBehaviorThroughPublicInterface:
     async def test_compensation_success_when_short_fails(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2550,8 +2579,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2562,8 +2591,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(49900),
         )
 
@@ -2590,7 +2619,7 @@ class TestCompensationBehaviorThroughPublicInterface:
     async def test_compensation_success_limit_order_when_short_fails(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2610,8 +2639,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2628,8 +2657,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(49900),
         )
 
@@ -2651,7 +2680,7 @@ class TestCompensationBehaviorThroughPublicInterface:
     async def test_compensation_edge_ticker_unavailable_falls_back_to_market(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2671,8 +2700,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2689,8 +2718,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(49900),
         )
 
@@ -2711,7 +2740,7 @@ class TestCompensationBehaviorThroughPublicInterface:
     async def test_compensation_edge_order_not_immediately_filled(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2731,8 +2760,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2749,7 +2778,7 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.NEW,  # Not filled yet
-            quantity_requested=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
             quantity_filled=Decimal(0),
             average_fill_price=None,
         )
@@ -2770,7 +2799,7 @@ class TestCompensationBehaviorThroughPublicInterface:
     async def test_compensation_failure_when_compensation_order_fails(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2795,8 +2824,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2823,7 +2852,7 @@ class TestCompensationBehaviorThroughPublicInterface:
     async def test_compensation_failure_when_compensation_order_raises_exception(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2853,8 +2882,8 @@ class TestCompensationBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2889,7 +2918,7 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
     async def test_execution_success_with_filled_orders(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2908,8 +2937,8 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -2919,8 +2948,8 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.short_size,
-            quantity_filled=sized_opportunity.short_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50100),
         )
 
@@ -2941,7 +2970,7 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
     async def test_order_monitoring_detects_canceled_orders(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -2978,7 +3007,7 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
     async def test_order_monitoring_edge_with_expired_order_status(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -3014,7 +3043,7 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
     async def test_order_monitoring_edge_rejected_order_status(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -3051,7 +3080,7 @@ class TestOrderMonitoringBehaviorThroughPublicInterface:
     async def test_order_monitoring_failure_when_api_error_occurs(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -3090,7 +3119,7 @@ class TestOrderStateVerificationThroughPublicInterface:
     async def test_order_verification_success_both_orders_filled(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -3146,7 +3175,7 @@ class TestOrderStateVerificationThroughPublicInterface:
     async def test_order_verification_handles_canceled_orders_properly(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test system handles canceled orders properly."""
@@ -3179,7 +3208,7 @@ class TestOrderStateVerificationThroughPublicInterface:
     async def test_order_verification_edge_partially_filled_order_status(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test execution handles orders with PARTIALLY_FILLED status."""
@@ -3212,7 +3241,7 @@ class TestOrderStateVerificationThroughPublicInterface:
     async def test_order_verification_edge_new_order_status_failure(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test execution handles orders that remain in NEW status."""
@@ -3245,7 +3274,7 @@ class TestOrderStateVerificationThroughPublicInterface:
     async def test_order_verification_failure_unexpected_order_status(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -3299,7 +3328,7 @@ class TestOrderStateVerificationThroughPublicInterface:
     async def test_order_verification_failure_rejected_orders(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -3341,7 +3370,7 @@ class TestPnLCalculationThroughPublicInterface:
     async def test_pnl_calculation_success_profitable_trade(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
         btc_symbols: SymbolSet,
     ) -> None:
@@ -3398,7 +3427,7 @@ class TestPnLCalculationThroughPublicInterface:
     async def test_pnl_calculation_success_losing_trade(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test PnL calculation for losing trade."""
@@ -3455,7 +3484,7 @@ class TestPnLCalculationThroughPublicInterface:
     async def test_pnl_calculation_edge_failed_execution_no_pnl(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test PnL not calculated for failed executions."""
@@ -3485,7 +3514,7 @@ class TestPnLCalculationThroughPublicInterface:
     async def test_pnl_calculation_edge_compensated_execution(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test PnL calculation for compensated execution."""
@@ -3552,7 +3581,7 @@ class TestPnLCalculationThroughPublicInterface:
     async def test_pnl_calculation_edge_different_fill_quantities(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test PnL calculation when fill quantities differ."""
@@ -3607,7 +3636,7 @@ class TestPnLCalculationThroughPublicInterface:
     async def test_pnl_calculation_failure_zero_fill_quantities(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test PnL calculation when orders have zero fill."""
@@ -3696,7 +3725,7 @@ class TestMiscellaneousMethods:
     async def test_execution_history_management_success(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test execution is added to history after completion."""
@@ -3714,8 +3743,8 @@ class TestMiscellaneousMethods:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -3725,8 +3754,8 @@ class TestMiscellaneousMethods:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.short_size,
-            quantity_filled=sized_opportunity.short_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50100),
         )
 
@@ -3753,7 +3782,7 @@ class TestMiscellaneousMethods:
     async def test_execution_history_max_size_maintained(
         self,
         execution_handler: ExecutionHandler,
-        sized_opportunity: SizedOpportunity,
+        sized_opportunity: RiskAnalysis,
         mock_exchange_api: Mock,
     ) -> None:
         """Test history maintains max size by removing old entries."""
@@ -3772,8 +3801,8 @@ class TestMiscellaneousMethods:
             symbol=btc_symbol.value,
             side=OrderSide.BUY,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.long_size,
-            quantity_filled=sized_opportunity.long_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50000),
         )
 
@@ -3783,8 +3812,8 @@ class TestMiscellaneousMethods:
             symbol=btc_symbol.value,
             side=OrderSide.SELL,
             status=OrderStatus.FILLED,
-            quantity_requested=sized_opportunity.short_size,
-            quantity_filled=sized_opportunity.short_size,
+            quantity_requested=sized_opportunity.sizing.position_size_usd,
+            quantity_filled=sized_opportunity.sizing.position_size_usd,
             average_fill_price=Decimal(50100),
         )
 
@@ -3818,7 +3847,7 @@ class TestMiscellaneousMethods:
         # The actual history management is now internal to the state manager
         assert isinstance(active_executions, list)
 
-    def test_trade_execution_to_dict(self, sized_opportunity: SizedOpportunity) -> None:
+    def test_trade_execution_to_dict(self, sized_opportunity: RiskAnalysis) -> None:
         """Test TradeExecution to_dict method."""
         # Arrange
         execution = TradeExecution(opportunity=sized_opportunity)
@@ -3841,7 +3870,7 @@ class TestMiscellaneousMethods:
         assert result["end_time"] is not None
         assert "opportunity" in result
 
-    def test_trade_execution_str(self, sized_opportunity: SizedOpportunity) -> None:
+    def test_trade_execution_str(self, sized_opportunity: RiskAnalysis) -> None:
         """Test TradeExecution string representation."""
         # Arrange
         execution = TradeExecution(opportunity=sized_opportunity)
