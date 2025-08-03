@@ -13,6 +13,8 @@ from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
 from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
     BackpackAccountRequestBuilder,
 )
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.core.symbols import exchanges
 
 
 class TestBuildWithdrawPayload:
@@ -20,7 +22,7 @@ class TestBuildWithdrawPayload:
 
     def test_build_withdraw_payload_minimal(
         self,
-        usdc_asset: str,
+        usdc_asset: Symbol,
         withdrawal_amount: Decimal,
         withdrawal_address: str,
         solana_network: str,
@@ -35,14 +37,14 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": usdc_asset,
+            "symbol": usdc_asset.value,
             "blockchain": solana_network,
             "quantity": "100.0",
             "address": withdrawal_address,
         }
         assert payload_dict == expected_payload
 
-    def test_build_withdraw_payload_full(self, eth_asset: str, ethereum_network: str) -> None:
+    def test_build_withdraw_payload_full(self, eth_asset: Symbol, ethereum_network: str) -> None:
         """Test build_withdraw_payload with all optional fields."""
         payload = BackpackAccountRequestBuilder.build_withdraw_payload(
             asset_symbol=eth_asset,
@@ -55,7 +57,7 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": eth_asset,
+            "symbol": eth_asset.value,
             "blockchain": ethereum_network,
             "quantity": "1.5",
             "address": "0x123",
@@ -66,7 +68,7 @@ class TestBuildWithdrawPayload:
 
     def test_build_withdraw_payload_with_tag(
         self,
-        usdc_asset: str,
+        usdc_asset: Symbol,
         withdrawal_amount: Decimal,
         withdrawal_address: str,
         solana_network: str,
@@ -82,7 +84,7 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": usdc_asset,
+            "symbol": usdc_asset.value,
             "blockchain": solana_network,
             "quantity": "100.0",
             "address": withdrawal_address,
@@ -92,7 +94,7 @@ class TestBuildWithdrawPayload:
 
     def test_build_withdraw_payload_with_client_id(
         self,
-        sol_asset: str,
+        sol_asset: Symbol,
         withdrawal_address: str,
         solana_network: str,
     ) -> None:
@@ -107,7 +109,7 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": sol_asset,
+            "symbol": sol_asset.value,
             "blockchain": solana_network,
             "quantity": "5.0",
             "address": withdrawal_address,
@@ -117,7 +119,7 @@ class TestBuildWithdrawPayload:
 
     def test_build_withdraw_payload_with_2fa(
         self,
-        usdc_asset: str,
+        usdc_asset: Symbol,
         withdrawal_amount: Decimal,
         withdrawal_address: str,
         solana_network: str,
@@ -132,7 +134,7 @@ class TestBuildWithdrawPayload:
         assert isinstance(payload, BackpackRawAccountWithdrawalRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": usdc_asset,
+            "symbol": usdc_asset.value,
             "blockchain": solana_network,
             "quantity": "100.0",
             "address": withdrawal_address,
@@ -141,7 +143,7 @@ class TestBuildWithdrawPayload:
 
     def test_build_withdraw_payload_no_network(
         self,
-        usdc_asset: str,
+        usdc_asset: Symbol,
         withdrawal_amount: Decimal,
         withdrawal_address: str,
     ) -> None:
@@ -170,7 +172,7 @@ class TestBuildWithdrawPayload:
     )
     def test_build_withdraw_payload_parametrized(
         self,
-        asset: str,
+        asset: Symbol,
         amount_str: str,
         network: str,
         expected_asset: str,
@@ -209,7 +211,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": usdc_asset,
+            "symbol": usdc_asset.value,
             "quantity": "100.50",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
@@ -227,7 +229,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": sol_asset,
+            "symbol": sol_asset.value,
             "quantity": "10",
             "fromAccount": "MARGIN",
             "toAccount": "SPOT",
@@ -236,8 +238,9 @@ class TestBuildInternalTransferPayload:
 
     def test_build_internal_transfer_payload_symbol_formatting(self) -> None:
         """Test build_internal_transfer_payload formats symbol correctly."""
+        sol_perp_symbol = exchanges.backpack("sol-perp")
         payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
-            asset_symbol="sol-perp",  # Test with format that needs changing
+            asset_symbol=sol_perp_symbol,  # Test with format that needs changing
             amount=Decimal(5),
             from_wallet="SPOT",
             to_wallet="FUTURES",
@@ -245,7 +248,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": "sol-perp",  # Current implementation passes symbol as-is, no formatting
+            "symbol": sol_perp_symbol.value,  # Current implementation passes symbol as-is, no formatting
             "quantity": "5",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
@@ -263,7 +266,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": usdc_asset,
+            "symbol": usdc_asset.value,
             "quantity": "250.75",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",
@@ -281,7 +284,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": eth_asset,
+            "symbol": eth_asset.value,
             "quantity": "1.0",
             "fromAccount": "FUTURES",
             "toAccount": "SPOT",
@@ -300,7 +303,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": sol_asset,
+            "symbol": sol_asset.value,
             "quantity": "50.25",
             "fromAccount": "MARGIN",
             "toAccount": "FUTURES",
@@ -359,7 +362,7 @@ class TestBuildInternalTransferPayload:
     )
     def test_build_internal_transfer_payload_account_combinations(
         self,
-        usdc_asset: str,
+        usdc_asset: Symbol,
         from_wallet: str,
         to_wallet: str,
     ) -> None:
@@ -373,7 +376,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected = {
-            "symbol": usdc_asset,
+            "symbol": usdc_asset.value,
             "quantity": "100.0",
             "fromAccount": from_wallet,
             "toAccount": to_wallet,

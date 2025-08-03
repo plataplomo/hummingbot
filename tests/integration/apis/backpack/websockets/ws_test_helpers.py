@@ -24,6 +24,8 @@ from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
 
@@ -78,7 +80,7 @@ async def wait_for_websocket_data[T](
         ) from None
 
 
-async def get_real_ticker_data(api: BackpackAPI, symbol: str) -> BackpackRawTickerEvent:
+async def get_real_ticker_data(api: BackpackAPI, symbol: Symbol) -> BackpackRawTickerEvent:
     """Get real ticker data from WebSocket stream.
 
     Args:
@@ -109,30 +111,30 @@ async def get_real_ticker_data(api: BackpackAPI, symbol: str) -> BackpackRawTick
                 )
 
     try:
-        await api.subscribe(f"ticker.{symbol}", ticker_collector)
+        await api.subscribe(f"ticker.{symbol.value}", ticker_collector)
         await wait_for_websocket_data(received_tickers, min_count=1, timeout_seconds=5.0)
 
         if not received_tickers:
-            raise RuntimeError(f"No ticker data received for {symbol}")
+            raise RuntimeError(f"No ticker data received for {symbol.value}")
 
         return received_tickers[0]
 
     except (TimeoutError, APIError) as e:
         # Rule #10: Handle network timeout specifically
         raise RuntimeError(
-            f"Failed to get real ticker data for {symbol}: {e}. "
+            f"Failed to get real ticker data for {symbol.value}: {e}. "
             "Tests require real WebSocket data, not hardcoded values. "
             "Check network connectivity and WebSocket stream availability."
         ) from e
     except (ConnectionError, OSError) as e:
         # Rule #10: Handle network errors
         raise RuntimeError(
-            f"Network error while getting ticker data for {symbol}: {e}. "
+            f"Network error while getting ticker data for {symbol.value}: {e}. "
             "Test requires stable network connection to WebSocket streams."
         ) from e
 
 
-async def get_real_depth_data(api: BackpackAPI, symbol: str) -> BackpackRawDepthUpdateEvent:
+async def get_real_depth_data(api: BackpackAPI, symbol: Symbol) -> BackpackRawDepthUpdateEvent:
     """Get real depth/orderbook data from WebSocket stream.
 
     Args:
@@ -171,25 +173,25 @@ async def get_real_depth_data(api: BackpackAPI, symbol: str) -> BackpackRawDepth
                 )
 
     try:
-        await api.subscribe(f"depth.{symbol}", depth_collector)
+        await api.subscribe(f"depth.{symbol.value}", depth_collector)
         await wait_for_websocket_data(received_depths, min_count=1, timeout_seconds=5.0)
 
         if not received_depths:
-            raise RuntimeError(f"No depth data received for {symbol}")
+            raise RuntimeError(f"No depth data received for {symbol.value}")
 
         return received_depths[0]
 
     except (TimeoutError, APIError) as e:
         # Rule #10: Handle network timeout specifically
         raise RuntimeError(
-            f"Failed to get real depth data for {symbol}: {e}. "
+            f"Failed to get real depth data for {symbol.value}: {e}. "
             "Tests require real WebSocket data, not hardcoded values. "
             "Check network connectivity and WebSocket stream availability."
         ) from e
     except (ConnectionError, OSError) as e:
         # Rule #10: Handle network errors
         raise RuntimeError(
-            f"Network error while getting depth data for {symbol}: {e}. "
+            f"Network error while getting depth data for {symbol.value}: {e}. "
             "Test requires stable network connection to WebSocket streams."
         ) from e
 
@@ -197,7 +199,7 @@ async def get_real_depth_data(api: BackpackAPI, symbol: str) -> BackpackRawDepth
 async def collect_stream_data_sample(
     api: BackpackAPI,
     stream_type: str,
-    symbol: str,
+    symbol: Symbol,
     sample_size: int = 5,
     timeout_seconds: float = 10.0,
 ) -> list[dict[str, Any]]:
@@ -233,7 +235,7 @@ async def collect_stream_data_sample(
                 collected_data.append({"context": str(context)})
 
     try:
-        topic = f"{stream_type}.{symbol}"
+        topic = f"{stream_type}.{symbol.value}"
         await api.subscribe(topic, data_collector)
         await wait_for_websocket_data(
             collected_data, min_count=sample_size, timeout_seconds=timeout_seconds
@@ -241,7 +243,7 @@ async def collect_stream_data_sample(
     except (TimeoutError, APIError) as e:
         # Rule #10: Handle network timeout specifically
         raise RuntimeError(
-            f"Failed to collect {stream_type} data for {symbol}: {e}. "
+            f"Failed to collect {stream_type} data for {symbol.value}: {e}. "
             "Tests require real stream data samples. "
             "Check network connectivity and stream availability."
         ) from e
@@ -317,7 +319,7 @@ async def wait_for_model_in_context[T](
         ) from e
 
 
-async def create_real_orderbook_from_stream(api: BackpackAPI, symbol: str) -> OrderBook:
+async def create_real_orderbook_from_stream(api: BackpackAPI, symbol: Symbol) -> OrderBook:
     """Create a real OrderBook model from live WebSocket depth data.
 
     Args:
@@ -429,7 +431,7 @@ async def validate_stream_continuity(
 
 async def test_model_transformation_with_real_data(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     stream_type: str,
 ) -> dict[str, Any]:
     """Test model transformation using real WebSocket data.
@@ -451,7 +453,7 @@ async def test_model_transformation_with_real_data(
             ticker_raw_data = await get_real_ticker_data(api, symbol)
             ticker_model = Ticker(
                 symbol=symbol,
-                exchange="backpack",
+                exchange=ExchangeName.BACKPACK,
                 price=Decimal(ticker_raw_data.last_price),
                 timestamp=datetime.now(UTC),
                 volume=Decimal(ticker_raw_data.volume) if ticker_raw_data.volume else None,
@@ -526,7 +528,7 @@ async def ensure_websocket_connected(api: BackpackAPI) -> None:
         )
 
 
-async def get_most_active_symbol(api: BackpackAPI) -> str:
+async def get_most_active_symbol(api: BackpackAPI) -> Symbol:
     """Get the most actively traded symbol based on volume and recent trades.
 
     This ensures WebSocket tests use symbols with actual trading activity,
@@ -546,25 +548,25 @@ async def get_most_active_symbol(api: BackpackAPI) -> str:
         raise RuntimeError("No markets available from exchange")
 
     # Try to get ticker data for markets to check volume
-    ticker_volumes: list[tuple[str, Decimal]] = []
+    ticker_volumes: list[tuple[Symbol, Decimal]] = []
 
     # Check common active pairs first - use consistent naming
     from tests.common_symbols import (
-        BTC_PERP_BP,
+        BTC_USDC_PERP_BP,
         BTC_USDC_BP,
-        ETH_PERP_BP,
+        ETH_USDC_PERP_BP,
         ETH_USDC_BP,
-        SOL_PERP_BP,
+        SOL_USDC_PERP_BP,
         SOL_USDC_BP,
     )
 
     priority_symbols = [
-        SOL_USDC_BP.value,
-        BTC_USDC_BP.value,
-        ETH_USDC_BP.value,
-        SOL_PERP_BP.value,
-        BTC_PERP_BP.value,
-        ETH_PERP_BP.value,
+        SOL_USDC_BP,
+        BTC_USDC_BP,
+        ETH_USDC_BP,
+        SOL_USDC_PERP_BP,
+        BTC_USDC_PERP_BP,
+        ETH_USDC_PERP_BP,
     ]
     available_priority = [m.symbol for m in markets if m.symbol in priority_symbols]
 
@@ -583,21 +585,21 @@ async def get_most_active_symbol(api: BackpackAPI) -> str:
                 ticker_volumes.append((symbol, volume))
                 logger.info(
                     "market_volume_check",
-                    symbol=symbol,
+                    symbol=symbol.value,
                     volume=str(volume),
                     trades=(
                         ticker.bp_details.trades
                         if ticker.bp_details and ticker.bp_details.trades
                         else "N/A"
                     ),
-                    message=f"Market {symbol} has volume {volume}",
+                    message=f"Market {symbol.value} has volume {volume}",
                 )
         except (ConnectionError, TimeoutError, ValidationError) as e:
             logger.warning(
                 "ticker_fetch_failed",
-                symbol=symbol,
+                symbol=symbol.value,
                 error=str(e),
-                message=f"Failed to get ticker for {symbol}",
+                message=f"Failed to get ticker for {symbol.value}",
             )
             continue
 
@@ -608,19 +610,19 @@ async def get_most_active_symbol(api: BackpackAPI) -> str:
         most_active = ticker_volumes[0][0]
         logger.info(
             "most_active_symbol_selected",
-            symbol=most_active,
+            symbol=most_active.value,
             volume=str(ticker_volumes[0][1]),
-            message=f"Selected {most_active} as most active symbol",
+            message=f"Selected {most_active.value} as most active symbol",
         )
         return most_active
 
     # Fallback: try known active perpetual markets
-    for symbol in [SOL_PERP_BP.value, BTC_PERP_BP.value, ETH_PERP_BP.value]:
+    for symbol in [SOL_USDC_PERP_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP]:
         if any(m.symbol == symbol for m in markets):
             logger.warning(
                 "using_fallback_symbol",
-                symbol=symbol,
-                message=f"No volume data available, using known active market {symbol}",
+                symbol=symbol.value,
+                message=f"No volume data available, using known active market {symbol.value}",
             )
             return symbol
 
@@ -628,7 +630,7 @@ async def get_most_active_symbol(api: BackpackAPI) -> str:
     fallback = markets[0].symbol
     logger.error(
         "no_active_markets_found",
-        fallback_symbol=fallback,
+        fallback_symbol=fallback.value,
         message="No active markets found, using first available market. Test may timeout.",
     )
     return fallback

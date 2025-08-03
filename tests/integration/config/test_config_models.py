@@ -383,10 +383,12 @@ class TestRiskSettings:
                 "max_position_usd": "1000.0",
                 "max_total_exposure_usd": "5000.0",
             },
-            "use_simple_sizing_path": True,
-            "simple_sizing_method": "fixed_fraction",
-            "simple_fixed_fraction": "0.1",
-            "simple_fixed_usd_size": "10.0",
+            "sizing": {
+                "method": "simple",
+                "simple_method": "fixed_fraction",
+                "simple_fixed_fraction": "0.1",
+                "simple_fixed_usd": "10.0",
+            },
         }
         return data
 
@@ -399,10 +401,10 @@ class TestRiskSettings:
         assert isinstance(settings.global_risk, GlobalRiskSettings)
         assert settings.global_risk.max_position_usd == Decimal("1000.0")
         assert settings.global_risk.max_total_exposure_usd == Decimal("5000.0")
-        assert settings.use_simple_sizing_path is True
-        assert settings.simple_sizing_method == "fixed_fraction"
-        assert settings.simple_fixed_fraction == Decimal("0.1")
-        assert settings.simple_fixed_usd_size == Decimal("10.0")
+        assert settings.sizing.method == "simple"
+        assert settings.sizing.simple_method == "fixed_fraction"
+        assert settings.sizing.simple_fixed_fraction == Decimal("0.1")
+        assert settings.sizing.simple_fixed_usd == Decimal("10.0")
 
     def test_risk_settings_defaults(self) -> None:
         """Test RiskSettings with default values."""
@@ -415,10 +417,11 @@ class TestRiskSettings:
 
         settings = RiskSettings.model_validate(data)
 
-        assert settings.use_simple_sizing_path is True
-        assert settings.simple_sizing_method == "fixed_fraction"
-        assert settings.simple_fixed_fraction == Decimal("0.1")
-        assert settings.simple_fixed_usd_size == Decimal("10.0")
+        # Test defaults for sizing settings
+        assert settings.sizing.method == "simple"
+        assert settings.sizing.simple_method == "fixed_fraction"
+        assert settings.sizing.simple_fixed_fraction == Decimal("0.02")  # Default value
+        assert settings.sizing.simple_fixed_usd == Decimal("1000")  # Default value
 
     def test_alias_field(self) -> None:
         """Test that 'global' alias works for global_risk field."""
@@ -443,45 +446,45 @@ class TestRiskSettings:
         assert settings.global_risk.max_position_usd == Decimal("1000.0")
 
     def test_sizing_method_validation(self) -> None:
-        """Test simple_sizing_method validation."""
+        """Test simple_method validation."""
         base_data = self.create_valid_risk_data()
 
         # Valid methods
         for method in ["fixed_usd", "fixed_fraction"]:
             data = base_data.copy()
-            data["simple_sizing_method"] = method
+            data["sizing"]["simple_method"] = method
             settings = RiskSettings.model_validate(data)
-            assert settings.simple_sizing_method == method
+            assert settings.sizing.simple_method == method
 
         # Invalid method
-        base_data["simple_sizing_method"] = "invalid_method"
+        base_data["sizing"]["simple_method"] = "invalid_method"
         with pytest.raises(ValidationError) as exc_info:
             RiskSettings.model_validate(base_data)
-        assert "simple_sizing_method" in str(exc_info.value)
+        assert "simple_method" in str(exc_info.value)
 
     def test_fraction_constraints(self) -> None:
         """Test simple_fixed_fraction constraints."""
         base_data = self.create_valid_risk_data()
 
         # Valid fraction (between 0 and 1)
-        base_data["simple_fixed_fraction"] = "0.5"
+        base_data["sizing"]["simple_fixed_fraction"] = "0.5"
         settings = RiskSettings.model_validate(base_data)
-        assert settings.simple_fixed_fraction == Decimal("0.5")
+        assert settings.sizing.simple_fixed_fraction == Decimal("0.5")
 
         # Invalid fraction (equal to 0)
-        base_data["simple_fixed_fraction"] = "0"
+        base_data["sizing"]["simple_fixed_fraction"] = "0"
         with pytest.raises(ValidationError) as exc_info:
             RiskSettings.model_validate(base_data)
         assert "simple_fixed_fraction" in str(exc_info.value)
 
         # Invalid fraction (equal to 1)
-        base_data["simple_fixed_fraction"] = "1"
+        base_data["sizing"]["simple_fixed_fraction"] = "1"
         with pytest.raises(ValidationError) as exc_info:
             RiskSettings.model_validate(base_data)
         assert "simple_fixed_fraction" in str(exc_info.value)
 
         # Invalid fraction (greater than 1)
-        base_data["simple_fixed_fraction"] = "1.5"
+        base_data["sizing"]["simple_fixed_fraction"] = "1.5"
         with pytest.raises(ValidationError) as exc_info:
             RiskSettings.model_validate(base_data)
         assert "simple_fixed_fraction" in str(exc_info.value)

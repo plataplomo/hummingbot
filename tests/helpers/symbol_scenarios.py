@@ -142,7 +142,7 @@ class SymbolTestScenarios:
         orders = [
             Order(
                 id="buy_1",
-                symbol=symbol.value,
+                symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 price=bid_price,
@@ -152,7 +152,7 @@ class SymbolTestScenarios:
             ),
             Order(
                 id="sell_1",
-                symbol=symbol.value,
+                symbol=symbol,
                 side=OrderSide.SELL,
                 order_type=OrderType.LIMIT,
                 price=ask_price,
@@ -188,7 +188,7 @@ class SymbolTestScenarios:
         # Active positions
         positions = {
             symbols.BTC.hyperliquid(): DerivativePosition(
-                symbol=symbols.BTC.hyperliquid().value,
+                symbol=symbols.BTC.hyperliquid(),
                 contracts=Decimal("2.5"),
                 notional=Decimal(125000),  # 2.5 * 50000
                 entry_price=Decimal(48000),
@@ -200,7 +200,7 @@ class SymbolTestScenarios:
                 timestamp=datetime.now(UTC),
             ),
             symbols.ETH.backpack(): DerivativePosition(
-                symbol=symbols.ETH.backpack().value,
+                symbol=symbols.ETH.backpack(),
                 contracts=Decimal("-15.0"),  # Short
                 notional=Decimal(-45000),  # -15 * 3000
                 entry_price=Decimal(3100),
@@ -242,7 +242,7 @@ class SymbolTestScenarios:
             symbols.BTC.hyperliquid(): [
                 Order(
                     id="btc_stop_loss",
-                    symbol=symbols.BTC.hyperliquid().value,
+                    symbol=symbols.BTC.hyperliquid(),
                     side=OrderSide.SELL,
                     order_type=OrderType.STOP,
                     price=Decimal(48000),
@@ -254,7 +254,7 @@ class SymbolTestScenarios:
             symbols.ETH.backpack(): [
                 Order(
                     id="eth_take_profit",
-                    symbol=symbols.ETH.backpack().value,
+                    symbol=symbols.ETH.backpack(),
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     price=Decimal(2900),
@@ -294,7 +294,7 @@ class SymbolTestScenarios:
             },
             "tickers": {
                 symbols.BTC.hyperliquid(): Ticker(
-                    symbol=symbols.BTC.hyperliquid().value,
+                    symbol=symbols.BTC.hyperliquid(),
                     bid=Decimal(49990),
                     ask=Decimal(50010),
                     last=Decimal(50000),
@@ -302,7 +302,7 @@ class SymbolTestScenarios:
                     timestamp=datetime.now(UTC),
                 ),
                 symbols.BTC.backpack(): Ticker(
-                    symbol=symbols.BTC.backpack().value,
+                    symbol=symbols.BTC.backpack(),
                     bid=Decimal(50000),
                     ask=Decimal(50020),
                     last=Decimal(50010),
@@ -312,13 +312,13 @@ class SymbolTestScenarios:
             },
             "funding_rates": {
                 symbols.BTC.hyperliquid(): FundingRate(
-                    symbol=symbols.BTC.hyperliquid().value,
+                    symbol=symbols.BTC.hyperliquid(),
                     funding_rate=Decimal("0.0001"),
                     next_funding_time=datetime.now(UTC) + timedelta(hours=8),
                     timestamp=datetime.now(UTC),
                 ),
                 symbols.BTC.backpack(): FundingRate(
-                    symbol=symbols.BTC.backpack().value,
+                    symbol=symbols.BTC.backpack(),
                     funding_rate=Decimal("-0.0002"),
                     next_funding_time=datetime.now(UTC) + timedelta(hours=8),
                     timestamp=datetime.now(UTC),

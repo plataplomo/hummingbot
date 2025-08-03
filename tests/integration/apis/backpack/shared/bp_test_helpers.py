@@ -120,7 +120,7 @@ async def wait_for_value(
 # =============================================================================
 
 
-async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> list[str]:
+async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> list[Symbol]:
     """Get available trading symbols from the Backpack exchange.
 
     Args:
@@ -187,7 +187,7 @@ async def get_available_symbols(api: BackpackAPI, market_type: str = "all") -> l
         return symbols
 
 
-async def get_test_symbol(api: BackpackAPI, market_type: str = "spot", index: int = 0) -> str:
+async def get_test_symbol(api: BackpackAPI, market_type: str = "spot", index: int = 0) -> Symbol:
     """Get a specific test symbol by index.
 
     Args:
@@ -222,7 +222,7 @@ async def get_major_crypto_symbol(
     api: BackpackAPI,
     crypto: str = "BTC",
     market_type: str = "spot",
-) -> str:
+) -> Symbol:
     """Get symbol for a major cryptocurrency if available.
 
     Args:
@@ -245,7 +245,7 @@ async def get_major_crypto_symbol(
     symbols = await get_available_symbols(api, market_type)
 
     # Look for symbols containing the crypto name
-    matching_symbols = [s for s in symbols if crypto.upper() in s.upper()]
+    matching_symbols = [s for s in symbols if crypto.upper() in s.value.upper()]
 
     if not matching_symbols:
         raise RuntimeError(
@@ -296,12 +296,12 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
             "spot_symbols": [
                 m.symbol
                 for m in markets
-                if not m.symbol.endswith("_PERP") and "perp" not in m.market_type.lower()
+                if not m.symbol.value.endswith("_PERP") and "perp" not in m.market_type.lower()
             ],
             "perp_symbols": [
                 m.symbol
                 for m in markets
-                if m.symbol.endswith("_PERP") or "perp" in m.market_type.lower()
+                if m.symbol.value.endswith("_PERP") or "perp" in m.market_type.lower()
             ],
             "symbol_details": {
                 m.symbol: {
@@ -312,8 +312,6 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
                     "min_price": m.min_price,
                     "max_price": m.max_price,
                     "market_type": m.market_type,
-                    "base_symbol": m.base_symbol,
-                    "quote_symbol": m.quote_symbol,
                     "status": m.status,
                 }
                 for m in markets
@@ -327,7 +325,7 @@ async def get_exchange_symbol_mapping(api: BackpackAPI) -> dict[str, Any]:
         ) from e
 
 
-def validate_symbol_format(symbol: str, exchange_name: str = "backpack") -> bool:
+def validate_symbol_format(symbol: Symbol, exchange_name: str = "backpack") -> bool:
     """Validate symbol format for specific exchange.
 
     Args:
@@ -348,21 +346,23 @@ def validate_symbol_format(symbol: str, exchange_name: str = "backpack") -> bool
         if not symbol:
             return False
 
+        symbol_str = symbol.value
+        
         # Check for valid characters (alphanumeric and underscores)
-        if not all(c.isalnum() or c == "_" for c in symbol):
+        if not all(c.isalnum() or c == "_" for c in symbol_str):
             return False
 
         # Must have at least one underscore for spot pairs
-        if "_" not in symbol:
+        if "_" not in symbol_str:
             return False
 
         # Perp symbols should end with _PERP
-        if symbol.endswith("_PERP"):
+        if symbol_str.endswith("_PERP"):
             # Remove _PERP and check the base format
-            base_symbol = symbol[:-5]  # Remove "_PERP"
+            base_symbol = symbol_str[:-5]  # Remove "_PERP"
             return "_" in base_symbol and len(base_symbol.split("_")) >= 2
         # Spot symbols should have exactly one underscore (base_quote)
-        parts = symbol.split("_")
+        parts = symbol_str.split("_")
         return len(parts) == 2 and all(len(part) > 0 for part in parts)
 
     return True  # Default to permissive for unknown exchanges
@@ -602,7 +602,7 @@ async def get_dynamic_test_price(
 
 async def get_minimal_order_size_for_zero_balance_test(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     side: OrderSide,
     price: Decimal,
 ) -> Decimal:
@@ -692,7 +692,7 @@ def _log_balance_details(
 
 async def _check_buy_order_balance(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     min_quantity: Decimal,
     price: Decimal,
 ) -> None:
@@ -751,7 +751,7 @@ async def _check_buy_order_balance(
 
 async def get_minimal_order_size(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     side: OrderSide,
     price: Decimal,
 ) -> Decimal:
@@ -815,7 +815,7 @@ async def get_minimal_order_size(
 
 async def validate_order_constraints(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     side: OrderSide,
     quantity: Decimal,
     price: Decimal,
@@ -945,7 +945,7 @@ def get_base_quote_assets(symbol: Symbol) -> tuple[str, str]:
     return symbol_str, "USDC"
 
 
-def generate_deterministic_client_order_id(test_name: str, symbol: str, side: str) -> str:
+def generate_deterministic_client_order_id(test_name: str, symbol: Symbol, side: str) -> str:
     """Generate a deterministic client order ID for VCR testing.
 
     This creates a consistent client order ID based on the test name, symbol, and side
@@ -996,8 +996,8 @@ COMMON_PERP_SYMBOLS = [
     ETH_USDC_PERP_BP.value,
 ]
 
-DEFAULT_TEST_SYMBOL_SPOT = SOL_USDC_BP.value
-DEFAULT_TEST_SYMBOL_PERP = SOL_USDC_PERP_BP.value
+DEFAULT_TEST_SYMBOL_SPOT = SOL_USDC_BP
+DEFAULT_TEST_SYMBOL_PERP = SOL_USDC_PERP_BP
 
 TEST_SYMBOL_SOL_USDC = SOL_USDC_BP.value
 TEST_SYMBOL_BTC_USDC = BTC_USDC_BP.value
@@ -1440,7 +1440,7 @@ def generate_invalid_order_id() -> str:
 
 async def get_unreasonably_large_price(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     multiplier: Decimal = Decimal(1000),
 ) -> Decimal:
     """Get an unreasonably high price for insufficient balance tests.
@@ -1471,7 +1471,7 @@ async def get_unreasonably_large_price(
 
 async def get_unreasonably_large_quantity(
     api: BackpackAPI,
-    symbol: str,
+    symbol: Symbol,
     multiplier: Decimal = Decimal(1000),
 ) -> Decimal:
     """Get an unreasonably large quantity for insufficient balance tests.

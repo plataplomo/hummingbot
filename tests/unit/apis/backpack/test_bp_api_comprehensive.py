@@ -42,6 +42,7 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import (
@@ -142,7 +143,7 @@ class TestBackpackAPIPublicBehavior:
         backpack_api = bp_api_with_di()
 
         with patch.object(backpack_api.market_data_service, "get_ticker", return_value=mock_ticker):
-            result = await backpack_api.get_ticker(SOL_USDC_BP.value)
+            result = await backpack_api.get_ticker(SOL_USDC_BP)
 
             assert result == mock_ticker
             assert result.symbol == SOL_USDC_BP
@@ -161,7 +162,7 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(backpack_api.market_data_service, "get_ticker", side_effect=api_error):
             with pytest.raises(APIError) as exc_info:
-                await backpack_api.get_ticker(SOL_USDC_BP.value)
+                await backpack_api.get_ticker(SOL_USDC_BP)
 
             assert exc_info.value.code == APIErrorCode.RATE_LIMITED.value
             assert "Rate limit exceeded" in str(exc_info.value)
@@ -182,7 +183,7 @@ class TestBackpackAPIPublicBehavior:
         ):
             # Current implementation propagates service exceptions directly
             with pytest.raises(ValueError) as exc_info:
-                await backpack_api.get_ticker(SOL_USDC_BP.value)
+                await backpack_api.get_ticker(SOL_USDC_BP)
 
             assert "Unexpected error" in str(exc_info.value)
 
@@ -200,11 +201,11 @@ class TestBackpackAPIPublicBehavior:
             "get_order_book",
             return_value=mock_order_book,
         ) as mock_get_order_book:
-            result = await backpack_api.get_order_book(SOL_USDC_BP.value, 50)
+            result = await backpack_api.get_order_book(SOL_USDC_BP, 50)
 
             assert result == mock_order_book
             assert result.symbol == SOL_USDC_BP
-            mock_get_order_book.assert_called_once_with(SOL_USDC_BP.value, 50)
+            mock_get_order_book.assert_called_once_with(SOL_USDC_BP, 50)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_success(
@@ -225,7 +226,7 @@ class TestBackpackAPIPublicBehavior:
             "get_recent_trades",
             return_value=mock_trades,
         ):
-            result = await backpack_api.get_recent_trades(SOL_USDC_BP.value, 100)
+            result = await backpack_api.get_recent_trades(SOL_USDC_BP, 100)
 
             assert result == mock_trades
             assert len(result) == 3
@@ -249,7 +250,7 @@ class TestBackpackAPIPublicBehavior:
             "get_funding_rate",
             return_value=mock_funding_rate,
         ):
-            result = await backpack_api.get_funding_rate(SOL_USDC_BP.value)
+            result = await backpack_api.get_funding_rate(SOL_USDC_BP)
 
             assert result == mock_funding_rate
             assert result.symbol == SOL_USDC_BP
@@ -275,7 +276,7 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_candles,
         ):
             args = GetMarketDataArgs(
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 timeframe="1h",
                 limit=200,
                 start_time_ms=1234567890000,
@@ -326,7 +327,7 @@ class TestBackpackAPIPublicBehavior:
             "get_positions",
             return_value=mock_positions,
         ):
-            result = await backpack_api.get_positions(SOL_USDC_BP.value)
+            result = await backpack_api.get_positions(SOL_USDC_BP)
 
             assert result == mock_positions
             assert len(result) == 2
@@ -358,7 +359,7 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_order,
         ) as mock_place_order:
             place_order_args = PlaceOrderArgs(
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("10.0"),
@@ -391,7 +392,7 @@ class TestBackpackAPIPublicBehavior:
         with patch.object(backpack_api.trading_service, "place_order", side_effect=api_error):
             with pytest.raises(APIError) as exc_info:
                 place_order_args = PlaceOrderArgs(
-                    symbol=SOL_USDC_BP.value,
+                    symbol=SOL_USDC_BP,
                     side=OrderSide.BUY,
                     order_type=OrderType.MARKET,
                     quantity=Decimal("10.0"),
@@ -412,7 +413,7 @@ class TestBackpackAPIPublicBehavior:
             backpack_api.trading_service,
             "cancel_order",
             return_value=CancelOrderResult(
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 order_id="order123",
                 client_order_id=None,
                 success=True,
@@ -421,7 +422,7 @@ class TestBackpackAPIPublicBehavior:
                 raw_response=None,
             ),
         ) as mock_cancel:
-            cancel_args = CancelOrderArgs(order_id="order123", symbol=SOL_USDC_BP.value)
+            cancel_args = CancelOrderArgs(order_id="order123", symbol=SOL_USDC_BP)
             result = await backpack_api.cancel_order(cancel_args)
 
             assert result.success is True
@@ -467,7 +468,7 @@ class TestBackpackAPIPublicBehavior:
             "get_open_orders",
             return_value=mock_orders,
         ):
-            result = await backpack_api.get_open_orders(SOL_USDC_BP.value)
+            result = await backpack_api.get_open_orders(SOL_USDC_BP)
 
             assert result == mock_orders
             assert len(result) == 3
@@ -490,7 +491,7 @@ class TestBackpackAPIPublicBehavior:
             "get_funding_rates",
             return_value=mock_funding_rates,
         ):
-            funding_args = GetFundingRatesArgs(symbols=[SOL_USDC_BP.value, BTC_USDC_BP.value])
+            funding_args = GetFundingRatesArgs(symbols=[SOL_USDC_BP, BTC_USDC_BP])
             result = await backpack_api.get_funding_rates(funding_args)
 
             assert result == mock_funding_rates
@@ -588,7 +589,7 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_orders,
         ):
             args = GetOrderHistoryArgs(
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 start_time=datetime.now(UTC) - timedelta(days=1),
                 end_time=datetime.now(UTC),
                 limit=100,
@@ -617,7 +618,7 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_trades,
         ):
             result = await backpack_api.get_trade_history(
-                args=GetTradeHistoryArgs(symbol=SOL_USDC_BP.value, limit=50),
+                args=GetTradeHistoryArgs(symbol=SOL_USDC_BP, limit=50),
             )
 
             assert result == mock_trades
@@ -634,9 +635,7 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(backpack_api.trading_service, "get_order", return_value=mock_order):
             result = await backpack_api.get_order(
-                GetOrderArgs(
-                    order_id="order123", symbol=SOL_USDC_BP.value, client_order_id="client123"
-                ),
+                GetOrderArgs(order_id="order123", symbol=SOL_USDC_BP, client_order_id="client123"),
             )
 
             result_order: Order | None = result
@@ -677,9 +676,7 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_order,
         ):
             result = await backpack_api.get_order_status(
-                GetOrderArgs(
-                    order_id="order123", symbol=SOL_USDC_BP.value, client_order_id="client123"
-                ),
+                GetOrderArgs(order_id="order123", symbol=SOL_USDC_BP, client_order_id="client123"),
             )
 
             assert result == mock_order
@@ -722,13 +719,11 @@ class TestBackpackAPIPublicBehavior:
             new_callable=AsyncMock,
             return_value=mock_market,
         ):
-            args = GetMarketArgs(symbol=BTC_USDC_BP.value)
+            args = GetMarketArgs(symbol=BTC_USDC_BP)
             result = await backpack_api.get_market(args)
 
             assert result == mock_market
             assert result.symbol == BTC_USDC_BP
-            assert result.base_symbol == "BTC"
-            assert result.quote_symbol == "USDC"
             assert result.market_type == "Spot"
 
     @pytest.mark.asyncio
@@ -749,7 +744,7 @@ class TestBackpackAPIPublicBehavior:
             new_callable=AsyncMock,
             side_effect=api_error,
         ):
-            args = GetMarketArgs(symbol="INVALID_SYMBOL")
+            args = GetMarketArgs(symbol=exchanges.backpack("INVALID_SYMBOL"))
 
             with pytest.raises(APIError) as exc_info:
                 await backpack_api.get_market(args)
@@ -859,7 +854,7 @@ class TestBackpackAPIPublicBehavior:
             new_callable=AsyncMock,
             return_value=mock_market,
         ) as mock_service_method:
-            args = GetMarketArgs(symbol="TEST_USDC")
+            args = GetMarketArgs(symbol=exchanges.backpack("TEST_USDC"))
             result = await backpack_api.get_market(args)
 
             # Verify delegation
@@ -908,12 +903,12 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_orders,
         ) as mock_get_open_orders:
             result = await backpack_api.get_all_open_orders(
-                args=GetAllOpenOrdersArgs(symbol=SOL_USDC_BP.value),
+                args=GetAllOpenOrdersArgs(symbol=SOL_USDC_BP),
             )
 
             assert result == mock_orders
             assert len(result) == 7
-            mock_get_open_orders.assert_called_once_with(SOL_USDC_BP.value)
+            mock_get_open_orders.assert_called_once_with(SOL_USDC_BP)
 
     @pytest.mark.asyncio
     async def test_get_historical_funding_rates_success(
@@ -934,7 +929,7 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_funding_rates,
         ):
             args = GetHistoricalFundingRatesArgs(
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 start_time=start_time,
                 end_time=end_time,
                 limit=100,
@@ -956,7 +951,7 @@ class TestBackpackAPIPublicBehavior:
         # The validation now happens at the args model level
         with pytest.raises(ValueError) as exc_info:
             GetHistoricalFundingRatesArgs(
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 start_time=start_time,
                 end_time=end_time,
             )
@@ -989,7 +984,7 @@ class TestBackpackAPIPublicBehavior:
         ) as mock_get_historical_funding_rates:
             # This should work without issues
             args = GetHistoricalFundingRatesArgs(
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 start_time=start_time_aware,
                 end_time=end_time_aware,
                 limit=100,
@@ -1020,7 +1015,7 @@ class TestBackpackAPIPublicBehavior:
             "cancel_all_orders",
             return_value=mock_results,
         ):
-            result = await backpack_api.cancel_all_orders(SOL_USDC_BP.value)
+            result = await backpack_api.cancel_all_orders(SOL_USDC_BP)
 
             assert result == mock_results
             assert len(result) == 5
@@ -1036,9 +1031,9 @@ class TestBackpackAPIPublicBehavior:
 
         with patch("cyberdelta.apis.backpack.bp_api.logger") as mock_logger:
             # Test each subscription method
-            await backpack_api.subscribe_to_order_book(SOL_USDC_BP.value)
-            await backpack_api.subscribe_to_ticker(SOL_USDC_BP.value)
-            await backpack_api.subscribe_to_trades(SOL_USDC_BP.value)
+            await backpack_api.subscribe_to_order_book(SOL_USDC_BP)
+            await backpack_api.subscribe_to_ticker(SOL_USDC_BP)
+            await backpack_api.subscribe_to_trades(SOL_USDC_BP)
             await backpack_api.subscribe_to_account_updates()
 
             # Each method should have logged debug information

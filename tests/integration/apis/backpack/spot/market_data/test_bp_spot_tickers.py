@@ -18,7 +18,9 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.models import Ticker
-from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
+from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP, ETH_USDC_BP
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 
 
 # Mark all tests in this file
@@ -44,8 +46,8 @@ class TestBackpackSpotTickers:
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == SOL_USDC_BP.value, (
-            f"Expected symbol 'SOL_USDC', got '{ticker.symbol}'"
+        assert ticker.symbol == SOL_USDC_BP, (
+            f"Expected symbol SOL_USDC_BP, got '{ticker.symbol}'"
         )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
@@ -79,8 +81,8 @@ class TestBackpackSpotTickers:
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == BTC_USDC_BP.value, (
-            f"Expected symbol 'BTC_USDC', got '{ticker.symbol}'"
+        assert ticker.symbol == BTC_USDC_BP, (
+            f"Expected symbol BTC_USDC_BP, got '{ticker.symbol}'"
         )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
@@ -109,7 +111,7 @@ class TestBackpackSpotTickers:
         self,
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
-        symbol: str,
+        symbol: Symbol,
     ) -> None:
         """Test spot ticker data types and validation across symbols."""
         ticker = await bp_api_for_test_env.get_ticker(symbol)
@@ -143,7 +145,7 @@ class TestBackpackSpotTickers:
     ) -> None:
         """Test BackpackAPI.get_ticker() with invalid spot symbol raises appropriate error."""
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.get_ticker("INVALID_SPOT_SYMBOL")
+            await bp_api_for_test_env.get_ticker(exchanges.backpack("INVALID_SPOT_SYMBOL"))
 
         error = exc_info.value
         assert "INVALID_SPOT_SYMBOL" in str(error) or "symbol" in str(error).lower()

@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 from cyberdelta.models.margin_account import (
     BackpackMarginDetails,
@@ -244,7 +245,7 @@ def test_margin_summary_immutability(base_margin_summary_data: dict[str, Any]) -
     logger = get_logger(__name__)
     original_exchange = summary.exchange
     try:
-        summary.exchange = "new_exchange"
+        summary.exchange = ExchangeName.BACKPACK
         if summary.exchange != original_exchange:
             logger.warning(
                 "immutability_test_warning",

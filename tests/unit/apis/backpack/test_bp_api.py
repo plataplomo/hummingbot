@@ -30,7 +30,9 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
@@ -279,8 +281,8 @@ class TestBackpackAPIAccountOperations:
         # Configure mock account service
         expected_balances = {
             "USDC": SpotBalance(
-                exchange="backpack",
-                asset="USDC",
+                exchange=ExchangeName.BACKPACK,
+                asset=exchanges.backpack("USDC"),
                 total_quantity=Decimal("5000.0"),
                 available_quantity=Decimal("4800.0"),
                 timestamp=datetime.now(UTC),
@@ -308,7 +310,7 @@ class TestBackpackAPIAccountOperations:
 
         # Configure mock account service
         expected_summary = MarginAccountSummary(
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             timestamp=datetime.now(UTC),
             total_equity=Decimal("5000.0"),
             available_equity=Decimal("4200.0"),
@@ -363,10 +365,10 @@ class TestBackpackAPIAccountOperations:
         mock_bp_account_service.get_positions.return_value = expected_positions
 
         # Test delegation with symbol
-        result = await api.get_positions(symbol="SOL")
+        result = await api.get_positions(symbol=exchanges.backpack("SOL"))
 
         # Verify service was called with correct parameters (positional argument)
-        mock_bp_account_service.get_positions.assert_called_once_with(symbol="SOL")
+        mock_bp_account_service.get_positions.assert_called_once_with(symbol=exchanges.backpack("SOL"))
         assert result == expected_positions
 
         await api.close()
@@ -385,7 +387,7 @@ class TestBackpackAPIAccountOperations:
         mock_bp_account_service.get_order_history.return_value = expected_orders
 
         # Test delegation
-        args = GetOrderHistoryArgs(symbol="SOL")
+        args = GetOrderHistoryArgs(symbol=exchanges.backpack("SOL"))
         result = await api.get_order_history(args)
 
         # Verify service was called with correct parameters
@@ -408,11 +410,11 @@ class TestBackpackAPIAccountOperations:
         mock_bp_account_service.get_trade_history.return_value = expected_trades
 
         # Test delegation
-        result = await api.get_trade_history(args=GetTradeHistoryArgs(symbol="SOL", limit=50))
+        result = await api.get_trade_history(args=GetTradeHistoryArgs(symbol=exchanges.backpack("SOL"), limit=50))
 
         # Verify service was called with correct parameters
         mock_bp_account_service.get_trade_history.assert_called_once_with(
-            GetTradeHistoryArgs(symbol="SOL", limit=50),
+            GetTradeHistoryArgs(symbol=exchanges.backpack("SOL"), limit=50),
         )
         assert result == expected_trades
 
@@ -436,8 +438,8 @@ class TestBackpackAPITradingOperations:
         expected_order = Order(
             client_order_id="test_order_789",
             exchange_order_id="bp_order_101",
-            exchange="backpack",
-            symbol="SOL",
+            exchange=ExchangeName.BACKPACK,
+            symbol=exchanges.backpack("SOL"),
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             status=OrderStatus.NEW,
@@ -459,7 +461,7 @@ class TestBackpackAPITradingOperations:
 
         # Test delegation
         args = PlaceOrderArgs(
-            symbol="SOL",
+            symbol=exchanges.backpack("SOL"),
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity=Decimal("10.0"),
@@ -485,7 +487,7 @@ class TestBackpackAPITradingOperations:
 
         # Configure mock trading service
         mock_bp_trading_service.cancel_order.return_value = CancelOrderResult(
-            symbol="SOL",
+            symbol=exchanges.backpack("SOL"),
             order_id="order_789",
             client_order_id=None,
             success=True,
@@ -495,7 +497,7 @@ class TestBackpackAPITradingOperations:
         )
 
         # Test delegation
-        cancel_args = CancelOrderArgs(order_id="order_789", symbol="SOL")
+        cancel_args = CancelOrderArgs(order_id="order_789", symbol=exchanges.backpack("SOL"))
         result = await api.cancel_order(args=cancel_args)
 
         # Verify service was called and result returned
@@ -517,8 +519,8 @@ class TestBackpackAPITradingOperations:
         test_order = Order(
             client_order_id="bp_test_order",
             exchange_order_id="bp_order_102",
-            exchange="backpack",
-            symbol="SOL",
+            exchange=ExchangeName.BACKPACK,
+            symbol=exchanges.backpack("SOL"),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             status=OrderStatus.FILLED,
@@ -539,11 +541,11 @@ class TestBackpackAPITradingOperations:
         mock_bp_trading_service.get_order.return_value = test_order
 
         # Test delegation
-        result = await api.get_order(GetOrderArgs(order_id="order_102", symbol="SOL"))
+        result = await api.get_order(GetOrderArgs(order_id="order_102", symbol=exchanges.backpack("SOL")))
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order.assert_called_once_with(
-            GetOrderArgs(order_id="order_102", symbol="SOL"),
+            GetOrderArgs(order_id="order_102", symbol=exchanges.backpack("SOL")),
         )
         assert result == test_order
 
@@ -562,8 +564,8 @@ class TestBackpackAPITradingOperations:
         test_order = Order(
             client_order_id="bp_status_order",
             exchange_order_id="bp_order_103",
-            exchange="backpack",
-            symbol="SOL",
+            exchange=ExchangeName.BACKPACK,
+            symbol=exchanges.backpack("SOL"),
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             status=OrderStatus.PARTIALLY_FILLED,
@@ -585,12 +587,12 @@ class TestBackpackAPITradingOperations:
 
         # Test delegation
         result = await api.get_order_status(
-            GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None),
+            GetOrderArgs(order_id="order_103", symbol=exchanges.backpack("SOL"), client_order_id=None),
         )
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order.assert_called_once_with(
-            GetOrderArgs(order_id="order_103", symbol="SOL", client_order_id=None),
+            GetOrderArgs(order_id="order_103", symbol=exchanges.backpack("SOL"), client_order_id=None),
         )
         assert result == test_order
 
@@ -634,15 +636,15 @@ class TestBackpackAPIMarketDataOperations:
         # Configure mock market data service
 
         expected_ticker = Ticker(
-            symbol="SOL",
-            exchange="backpack",
+            symbol=exchanges.backpack("SOL"),
+            exchange=ExchangeName.BACKPACK,
             price=Decimal("150.0"),
             timestamp=datetime.now(UTC),
         )
         mock_bp_market_data_service.get_ticker.return_value = expected_ticker
 
         # Test delegation
-        result = await api.get_ticker("SOL")
+        result = await api.get_ticker(exchanges.backpack("SOL"))
 
         # Verify service was called with correct parameters
         mock_bp_market_data_service.get_ticker.assert_called_once_with("SOL")
@@ -662,7 +664,7 @@ class TestBackpackAPIMarketDataOperations:
         # Configure mock market data service
         expected_rates = [
             FundingRate(
-                symbol="SOL",
+                symbol=exchanges.backpack("SOL"),
                 funding_rate=Decimal("0.0003"),
                 timestamp=datetime.now(UTC),
                 next_funding_time=datetime.now(UTC),
@@ -671,7 +673,7 @@ class TestBackpackAPIMarketDataOperations:
         mock_bp_market_data_service.get_funding_rates.return_value = expected_rates
 
         # Test delegation
-        funding_args = GetFundingRatesArgs(symbols=["SOL"])
+        funding_args = GetFundingRatesArgs(symbols=[exchanges.backpack("SOL")])
         result = await api.get_funding_rates(args=funding_args)
 
         # Verify service was called and result returned
@@ -699,7 +701,7 @@ class TestBackpackAPIMarketDataOperations:
 
         # Test exact error propagation
         with pytest.raises(APIError) as exc_info:
-            await api.get_ticker("UNKNOWN_SYMBOL")
+            await api.get_ticker(exchanges.backpack("UNKNOWN_SYMBOL"))
 
         assert exc_info.value is symbol_not_found_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
@@ -729,7 +731,7 @@ class TestBackpackAPIErrorHandling:
 
         # API client should propagate the exact same APIError
         with pytest.raises(APIError) as exc_info:
-            await api.get_order(GetOrderArgs(order_id="missing_order", symbol="SOL"))
+            await api.get_order(GetOrderArgs(order_id="missing_order", symbol=exchanges.backpack("SOL")))
 
         # Assert exact error propagation
         assert exc_info.value is service_error  # Same instance
@@ -751,7 +753,7 @@ class TestBackpackAPIErrorHandling:
         # API client should propagate the exact same ValueError
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="SOL",
+                symbol=exchanges.backpack("SOL"),
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -795,7 +797,7 @@ class TestBackpackAPIErrorHandling:
 
         # Test trading service APIError propagation
         with pytest.raises(APIError) as trading_exc:
-            cancel_args = CancelOrderArgs(order_id="12345", symbol="SOL")
+            cancel_args = CancelOrderArgs(order_id="12345", symbol=exchanges.backpack("SOL"))
             await api.cancel_order(args=cancel_args)
         assert trading_exc.value is trading_api_error
 
@@ -806,7 +808,7 @@ class TestBackpackAPIErrorHandling:
 
         # Test market data service APIError propagation
         with pytest.raises(APIError) as market_exc:
-            await api.get_ticker(symbol="SOL")
+            await api.get_ticker(symbol=exchanges.backpack("SOL"))
         assert market_exc.value is market_data_api_error
 
 
@@ -913,7 +915,7 @@ class TestBackpackAPIComprehensiveErrorHandling:
 
         # Test error propagation
         with pytest.raises(APIError) as exc_info:
-            args = GetOrderHistoryArgs(symbol="SOL")
+            args = GetOrderHistoryArgs(symbol=exchanges.backpack("SOL"))
             await api.get_order_history(args)
 
         assert exc_info.value.code == APIErrorCode.TIMEOUT.value

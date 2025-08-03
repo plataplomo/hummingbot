@@ -20,7 +20,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 class MockSymbolService:
     """Enhanced mock for SymbolService with builder pattern."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the mock service builder."""
         self._conversions: dict[tuple[str, ExchangeName, ExchangeName], Symbol] = {}
         self._equivalences: dict[str, list[Symbol]] = {}
@@ -285,7 +285,7 @@ class MockExchangeHandler:
         self._canonical_rules[value] = (canonical, components)
         return self
 
-    def build(self) -> ExchangeHandler:
+    def build(self) -> ExchangeHandler[Any]:
         """Build the mock handler.
 
         Returns:
@@ -379,10 +379,10 @@ class MockExchangeHandler:
 class MockSymbolRegistry:
     """Mock symbol registry with builder pattern."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize mock registry builder."""
         self._symbols: dict[tuple[str, ExchangeName], Symbol] = {}
-        self._handlers: dict[ExchangeName, ExchangeHandler] = {}
+        self._handlers: dict[ExchangeName, ExchangeHandler[Any]] = {}
         self._common_symbols: dict[str, dict[ExchangeName, Symbol]] = {}
 
     def with_symbol(self, symbol: Symbol) -> Self:
@@ -398,7 +398,7 @@ class MockSymbolRegistry:
         self._symbols[key] = symbol
         return self
 
-    def with_handler(self, exchange: ExchangeName, handler: ExchangeHandler) -> Self:
+    def with_handler(self, exchange: ExchangeName, handler: ExchangeHandler[Any]) -> Self:
         """Register a handler.
 
         Args:
@@ -452,7 +452,7 @@ class MockSymbolRegistry:
         mock.get_factory.side_effect = get_factory
 
         # Configure get_handlers
-        def get_handlers() -> dict[ExchangeName, ExchangeHandler]:
+        def get_handlers() -> dict[ExchangeName, ExchangeHandler[Any]]:
             return self._handlers.copy()
 
         mock.get_handlers.side_effect = get_handlers
@@ -461,7 +461,7 @@ class MockSymbolRegistry:
         def getattr_handler(name: str) -> Any:
             exchange = ExchangeName[name.upper()]
             return get_factory(exchange)
-
-        mock.__getattr__.side_effect = getattr_handler
+        
+        setattr(mock, "__getattr__", getattr_handler)
 
         return mock

@@ -21,6 +21,7 @@ from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler 
     BackpackMarketDataResponseHandler,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -37,7 +38,7 @@ type RawJsonResponse = RawJson
 class TestHandleGetTickerResponse:
     """Tests for BackpackMarketDataResponseHandler.handle_get_ticker_response."""
 
-    def test_valid(self, valid_raw_ticker: dict[str, Any], symbol_spot: str) -> None:
+    def test_valid(self, valid_raw_ticker: dict[str, Any], symbol_spot: Symbol) -> None:
         """Test handling a valid raw ticker response."""
         ticker: BackpackRawTickerResponse = (
             BackpackMarketDataResponseHandler.handle_get_ticker_response(
@@ -48,7 +49,7 @@ class TestHandleGetTickerResponse:
             )
         )
         assert isinstance(ticker, BackpackRawTickerResponse)
-        assert ticker.symbol == symbol_spot
+        assert ticker.symbol == symbol_spot.value
         assert ticker.first_price == "140.00"
         assert ticker.last_price == "140.50"
         assert ticker.high == "141.00"
@@ -56,7 +57,7 @@ class TestHandleGetTickerResponse:
         assert ticker.volume == "500000.0"
         assert ticker.trades == "1250"
 
-    def test_invalid_top_level_type(self, symbol_spot: str) -> None:
+    def test_invalid_top_level_type(self, symbol_spot: Symbol) -> None:
         """Test ticker response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
@@ -70,7 +71,7 @@ class TestHandleGetTickerResponse:
         assert "expected dict" in exc_info.value.message
         assert "got list" in exc_info.value.message
 
-    def test_validation_error_missing_field(self, symbol_spot: str) -> None:
+    def test_validation_error_missing_field(self, symbol_spot: Symbol) -> None:
         """Test ticker response missing required field."""
         raw_data = {
             # Missing 'symbol' field (required)
@@ -96,7 +97,7 @@ class TestHandleGetTickerResponse:
         assert isinstance(exc_info.value.original_exception, ValidationError)
         assert "symbol" in str(exc_info.value.original_exception)
 
-    def test_validation_error_invalid_price_format(self, symbol_spot: str) -> None:
+    def test_validation_error_invalid_price_format(self, symbol_spot: Symbol) -> None:
         """Test ticker response with invalid price format."""
         raw_data = {
             "symbol": symbol_spot,
@@ -120,7 +121,7 @@ class TestHandleGetTickerResponse:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
-    def test_extra_fields_ignored(self, symbol_spot: str) -> None:
+    def test_extra_fields_ignored(self, symbol_spot: Symbol) -> None:
         """Test that extra fields in ticker response cause ValidationError due to extra='forbid'."""
         raw_data = {
             "symbol": symbol_spot,
@@ -149,7 +150,7 @@ class TestHandleGetTickerResponse:
 class TestHandleGetOrderBookResponse:
     """Tests for BackpackMarketDataResponseHandler.handle_get_order_book_response."""
 
-    def test_valid(self, valid_raw_order_book: dict[str, Any], symbol_spot: str) -> None:
+    def test_valid(self, valid_raw_order_book: dict[str, Any], symbol_spot: Symbol) -> None:
         """Test handling a valid raw order book response."""
         order_book: BackpackRawOrderBook = (
             BackpackMarketDataResponseHandler.handle_get_order_book_response(
@@ -169,7 +170,7 @@ class TestHandleGetOrderBookResponse:
         assert order_book.last_update_id == "update123"
         assert order_book.timestamp == 1678886401000
 
-    def test_empty_order_book(self, symbol_spot: str) -> None:
+    def test_empty_order_book(self, symbol_spot: Symbol) -> None:
         """Test handling order book with empty bids and asks."""
         raw_data: dict[str, Any] = {
             "bids": [],
@@ -187,7 +188,7 @@ class TestHandleGetOrderBookResponse:
         assert len(order_book.asks) == 0
         assert order_book.last_update_id == "update456"
 
-    def test_validation_error_invalid_bid_format(self, symbol_spot: str) -> None:
+    def test_validation_error_invalid_bid_format(self, symbol_spot: Symbol) -> None:
         """Test order book response with invalid bid format."""
         raw_data = {
             "bids": [["140.10", "10"], ["invalid_price", "20"]],  # Invalid price
@@ -206,7 +207,7 @@ class TestHandleGetOrderBookResponse:
         assert f"Invalid order book ({symbol_spot}) - Status: 200" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
-    def test_invalid_top_level_type(self, symbol_spot: str) -> None:
+    def test_invalid_top_level_type(self, symbol_spot: Symbol) -> None:
         """Test order book response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
@@ -224,7 +225,9 @@ class TestHandleGetOrderBookResponse:
 class TestHandleGetRecentTradesResponse:
     """Tests for BackpackMarketDataResponseHandler.handle_get_recent_trades_response."""
 
-    def test_valid(self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: str) -> None:
+    def test_valid(
+        self, valid_raw_recent_trades: list[dict[str, Any]], symbol_spot: Symbol
+    ) -> None:
         """Test handling a valid raw recent trades response."""
         trades: list[BackpackRawRecentPublicTrade] = (
             BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
@@ -249,7 +252,7 @@ class TestHandleGetRecentTradesResponse:
         assert trades[1].quantity == "0.5"
         assert trades[1].timestamp == 1678886403000
 
-    def test_empty_trades_list(self, symbol_spot: str) -> None:
+    def test_empty_trades_list(self, symbol_spot: Symbol) -> None:
         """Test handling empty recent trades response."""
         raw_data: list[Any] = []
         trades = BackpackMarketDataResponseHandler.handle_get_recent_trades_response(
@@ -263,7 +266,7 @@ class TestHandleGetRecentTradesResponse:
 
     def test_invalid_trade_item_raises_error(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
     ) -> None:
         """Test that invalid trade items raise APIError with centralized validation."""
         valid_trade = {
@@ -286,7 +289,7 @@ class TestHandleGetRecentTradesResponse:
         assert f"recent trades ({symbol_spot}) - Status: 200 item[1]" in exc_info.value.message
         assert "expected dict, got str" in exc_info.value.message
 
-    def test_validation_error_missing_field(self, symbol_spot: str) -> None:
+    def test_validation_error_missing_field(self, symbol_spot: Symbol) -> None:
         """Test recent trades response with missing required field."""
         invalid_trade = {
             "id": 1001,
@@ -308,7 +311,7 @@ class TestHandleGetRecentTradesResponse:
         assert "single trade item" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
-    def test_invalid_top_level_type(self, symbol_spot: str) -> None:
+    def test_invalid_top_level_type(self, symbol_spot: Symbol) -> None:
         """Test recent trades response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
@@ -326,7 +329,7 @@ class TestHandleGetRecentTradesResponse:
 class TestHandleGetMarketDataResponse:
     """Tests for BackpackMarketDataResponseHandler.handle_get_market_data_response."""
 
-    def test_valid(self, valid_raw_market_data: list[list[Any]], symbol_spot: str) -> None:
+    def test_valid(self, valid_raw_market_data: list[list[Any]], symbol_spot: Symbol) -> None:
         """Test handling a valid raw market data (klines) response."""
         klines: list[BackpackRawKlineResponse] = (
             BackpackMarketDataResponseHandler.handle_get_market_data_response(
@@ -348,7 +351,7 @@ class TestHandleGetMarketDataResponse:
         assert klines[1].start_time_ms == 1678886460000
         assert klines[1].close_price.quantize(10) == Decimal(140)  # 139.8 quantizes to 140
 
-    def test_empty_klines_list(self, symbol_spot: str) -> None:
+    def test_empty_klines_list(self, symbol_spot: Symbol) -> None:
         """Test handling empty market data response."""
         raw_data: list[Any] = []
         klines = BackpackMarketDataResponseHandler.handle_get_market_data_response(
@@ -363,7 +366,7 @@ class TestHandleGetMarketDataResponse:
 
     def test_invalid_kline_item_skipped(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
     ) -> None:
         """Test that invalid kline items are skipped with warning."""
         valid_kline = [
@@ -403,7 +406,7 @@ class TestHandleGetMarketDataResponse:
             f"Expected warning about skipping kline item, got: {warning_logs}"
         )
 
-    def test_invalid_top_level_type(self, symbol_spot: str) -> None:
+    def test_invalid_top_level_type(self, symbol_spot: Symbol) -> None:
         """Test market data response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
@@ -425,7 +428,7 @@ class TestHandleGetHistoricalTradesResponse:
     def test_valid(
         self,
         valid_raw_historical_trades: list[dict[str, Any]],
-        symbol_spot: str,
+        symbol_spot: Symbol,
     ) -> None:
         """Test handling a valid raw historical trades response."""
         trades: list[BackpackRawPublicTrade] = (
@@ -442,7 +445,7 @@ class TestHandleGetHistoricalTradesResponse:
         assert isinstance(trades[0], BackpackRawPublicTrade)
         assert trades[0].id == "1001"
         assert trades[0].order_id == "histOrderA"
-        assert trades[0].symbol == symbol_spot
+        assert trades[0].symbol == symbol_spot.value
         assert trades[0].price == "135.00"
         assert trades[0].quantity == "2.0"
         assert trades[0].time == 1678880000000
@@ -450,12 +453,12 @@ class TestHandleGetHistoricalTradesResponse:
         assert isinstance(trades[1], BackpackRawPublicTrade)
         assert trades[1].id == "1002"
         assert trades[1].order_id == "histOrderB"
-        assert trades[1].symbol == symbol_spot
+        assert trades[1].symbol == symbol_spot.value
         assert trades[1].price == "135.10"
         assert trades[1].quantity == "1.0"
         assert trades[1].time == 1678880100000
 
-    def test_empty_historical_trades_list(self, symbol_spot: str) -> None:
+    def test_empty_historical_trades_list(self, symbol_spot: Symbol) -> None:
         """Test handling empty historical trades response."""
         raw_data: list[Any] = []
         trades = BackpackMarketDataResponseHandler.handle_get_historical_trades_response(
@@ -469,7 +472,7 @@ class TestHandleGetHistoricalTradesResponse:
 
     def test_invalid_trade_item_raises_error(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
     ) -> None:
         """Test that invalid historical trade items raise APIError with centralized validation."""
         valid_trade = {
@@ -492,7 +495,7 @@ class TestHandleGetHistoricalTradesResponse:
         assert f"historical trades ({symbol_spot}) - Status: 200 item[1]" in exc_info.value.message
         assert "expected dict, got str" in exc_info.value.message
 
-    def test_validation_error_missing_field(self, symbol_spot: str) -> None:
+    def test_validation_error_missing_field(self, symbol_spot: Symbol) -> None:
         """Test historical trades response with missing required field."""
         invalid_trade = {
             "id": "1001",
@@ -515,7 +518,7 @@ class TestHandleGetHistoricalTradesResponse:
         assert isinstance(exc_info.value.original_exception, ValidationError)
         assert "price" in str(exc_info.value.original_exception)
 
-    def test_invalid_top_level_type(self, symbol_spot: str) -> None:
+    def test_invalid_top_level_type(self, symbol_spot: Symbol) -> None:
         """Test historical trades response with wrong top-level type."""
         raw_data = {"error": "expected list"}
         with pytest.raises(APIError) as exc_info:
@@ -533,7 +536,7 @@ class TestHandleGetHistoricalTradesResponse:
 class TestMarketDataEdgeCases:
     """Tests for additional edge cases in market data response handling."""
 
-    def test_ticker_with_zero_values(self, symbol_spot: str) -> None:
+    def test_ticker_with_zero_values(self, symbol_spot: Symbol) -> None:
         """Test ticker response with zero/null values."""
         raw_data = {
             "symbol": symbol_spot,
@@ -557,7 +560,7 @@ class TestMarketDataEdgeCases:
         assert ticker.volume == "0.0"
         assert ticker.trades == "0"
 
-    def test_order_book_with_single_level(self, symbol_spot: str) -> None:
+    def test_order_book_with_single_level(self, symbol_spot: Symbol) -> None:
         """Test order book response with single bid/ask level."""
         raw_data = {
             "bids": [["140.10", "10"]],
@@ -576,7 +579,7 @@ class TestMarketDataEdgeCases:
         assert order_book.bids[0] == ("140.10", "10")
         assert order_book.asks[0] == ("140.20", "15")
 
-    def test_trades_with_precision_values(self, symbol_spot: str) -> None:
+    def test_trades_with_precision_values(self, symbol_spot: Symbol) -> None:
         """Test trades response with high precision decimal values."""
         trade_item = {
             "id": 12345,
@@ -597,7 +600,7 @@ class TestMarketDataEdgeCases:
         assert trades[0].price == "141.123456789"
         assert trades[0].quantity == "1.000000001"
 
-    def test_klines_with_missing_optional_fields(self, symbol_spot: str) -> None:
+    def test_klines_with_missing_optional_fields(self, symbol_spot: Symbol) -> None:
         """Test klines response that handles optional fields gracefully."""
         # Using minimum required fields for kline
         minimal_kline = [
@@ -769,7 +772,7 @@ class TestHandleGetMarketsResponse:
 class TestHandleGetMarketResponse:
     """Tests for BackpackMarketDataResponseHandler.handle_get_market_response."""
 
-    def test_valid_market(self, symbol_spot: str) -> None:
+    def test_valid_market(self, symbol_spot: Symbol) -> None:
         """Test handling a valid raw market response."""
         raw_data = {
             "symbol": symbol_spot,
@@ -790,13 +793,13 @@ class TestHandleGetMarketResponse:
             {},
         )
         assert isinstance(market, BackpackRawMarketResponse)
-        assert market.symbol == symbol_spot
+        assert market.symbol == symbol_spot.value
         assert market.base_symbol == "SOL"
         assert market.quote_symbol == "USDC"
         assert market.filters.price.tick_size == "0.01"
         assert market.filters.quantity.step_size == "0.01"
 
-    def test_invalid_top_level_type(self, symbol_spot: str) -> None:
+    def test_invalid_top_level_type(self, symbol_spot: Symbol) -> None:
         """Test market response with wrong top-level type."""
         raw_data = ["not", "a", "dict"]
         with pytest.raises(APIError) as exc_info:
@@ -811,7 +814,7 @@ class TestHandleGetMarketResponse:
         assert "got list" in exc_info.value.message
         assert f"market for {symbol_spot}" in exc_info.value.message
 
-    def test_validation_error_missing_field(self, symbol_spot: str) -> None:
+    def test_validation_error_missing_field(self, symbol_spot: Symbol) -> None:
         """Test market response missing required field."""
         raw_data = {
             "symbol": symbol_spot,
@@ -829,7 +832,7 @@ class TestHandleGetMarketResponse:
         assert f"Invalid market for {symbol_spot}" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
-    def test_validation_error_invalid_field_type(self, symbol_spot: str) -> None:
+    def test_validation_error_invalid_field_type(self, symbol_spot: Symbol) -> None:
         """Test market response with invalid field type."""
         raw_data: dict[str, Any] = {
             "symbol": symbol_spot,
@@ -857,7 +860,7 @@ class TestHandleGetMarketResponse:
             )
         assert "Field 'min_quantity' must be string, got float" in str(exc_info.value)
 
-    def test_market_with_all_optional_fields(self, symbol_spot: str) -> None:
+    def test_market_with_all_optional_fields(self, symbol_spot: Symbol) -> None:
         """Test market response with all optional fields populated."""
         raw_data = {
             "symbol": symbol_spot,
@@ -878,23 +881,22 @@ class TestHandleGetMarketResponse:
             {},
         )
         assert isinstance(market, BackpackRawMarketResponse)
-        assert market.symbol == symbol_spot
+        assert market.symbol == symbol_spot.value
         assert market.filters.price.min_price == "0.001"
         assert market.filters.price.max_price == "10000.0"
         assert market.filters.quantity.min_quantity == "0.1"
         assert market.filters.quantity.max_quantity == "1000000.0"
         assert market.order_book_state == "NORMAL"
 
-    def test_market_context_in_error_message(self) -> None:
+    def test_market_context_in_error_message(self, symbol_spot: Symbol) -> None:
         """Test that error messages include market context."""
-        symbol = "TEST_SYMBOL"
         raw_data = "not a dict"
         with pytest.raises(APIError) as exc_info:
             BackpackMarketDataResponseHandler.handle_get_market_response(
                 cast("ParsedJsonResponse", raw_data),
-                symbol,
+                symbol_spot,
                 404,
                 {},
             )
-        assert f"market for {symbol}" in exc_info.value.message
+        assert f"market for {symbol_spot.value}" in exc_info.value.message
         assert exc_info.value.http_status == 404

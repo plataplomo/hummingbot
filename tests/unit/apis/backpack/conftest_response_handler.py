@@ -4,35 +4,38 @@ from typing import Any
 
 import pytest
 
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
+
 
 @pytest.fixture
-def symbol_spot() -> str:
+def symbol_spot() -> Symbol:
     """Return spot trading symbol for testing.
 
     Returns:
-        str: Spot trading symbol for testing.
+        Symbol: Spot trading symbol for testing.
     """
-    return "SOL_USDC"
+    return exchanges.backpack("SOL_USDC")
 
 
 @pytest.fixture
-def symbol_perp() -> str:
+def symbol_perp() -> Symbol:
     """Return perpetual trading symbol for testing.
 
     Returns:
-        str: Perpetual trading symbol for testing.
+        Symbol: Perpetual trading symbol for testing.
     """
-    return "SOL-PERP"
+    return exchanges.backpack("SOL_USD_PERP")
 
 
 @pytest.fixture
-def symbol_any() -> str:
+def symbol_any() -> Symbol:
     """Return generic symbol fixture for tests not specific to spot/perp.
 
     Returns:
-        str: Generic symbol fixture for testing.
+        Symbol: Generic symbol fixture for testing.
     """
-    return "GENERIC_SYMBOL"
+    return exchanges.backpack("SOL_USDC")
 
 
 @pytest.fixture
@@ -56,14 +59,14 @@ def client_id() -> str:
 
 
 @pytest.fixture
-def valid_raw_ticker(symbol_spot: str) -> dict[str, Any]:
+def valid_raw_ticker(symbol_spot: Symbol) -> dict[str, Any]:
     """Return valid raw ticker for testing.
 
     Returns:
         dict[str, Any]: Valid raw ticker data for testing.
     """
     return {
-        "symbol": symbol_spot,
+        "symbol": symbol_spot.value,
         "firstPrice": "140.00",
         "lastPrice": "140.50",
         "high": "141.00",
@@ -77,7 +80,7 @@ def valid_raw_ticker(symbol_spot: str) -> dict[str, Any]:
 
 
 @pytest.fixture
-def valid_raw_order_book(symbol_spot: str) -> dict[str, Any]:
+def valid_raw_order_book(symbol_spot: Symbol) -> dict[str, Any]:
     """Return valid raw order book for testing.
 
     Returns:
@@ -92,7 +95,7 @@ def valid_raw_order_book(symbol_spot: str) -> dict[str, Any]:
 
 
 @pytest.fixture
-def valid_raw_trade_item(symbol_spot: str) -> dict[str, Any]:
+def valid_raw_trade_item(symbol_spot: Symbol) -> dict[str, Any]:
     """Return valid raw trade item for testing.
 
     Returns:
@@ -165,7 +168,7 @@ def valid_raw_market_data() -> list[list[Any]]:
 
 
 @pytest.fixture
-def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
+def valid_raw_historical_trades(symbol_spot: Symbol) -> list[dict[str, Any]]:
     """Return valid raw historical trades for testing.
 
     Returns:
@@ -174,7 +177,7 @@ def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
     trade1 = {
         "id": "1001",
         "orderId": "histOrderA",
-        "symbol": symbol_spot,
+        "symbol": symbol_spot.value,
         "price": "135.00",
         "qty": "2.0",
         "time": 1678880000000,
@@ -182,7 +185,7 @@ def valid_raw_historical_trades(symbol_spot: str) -> list[dict[str, Any]]:
     trade2 = {
         "id": "1002",
         "orderId": "histOrderB",
-        "symbol": symbol_spot,
+        "symbol": symbol_spot.value,
         "price": "135.10",
         "qty": "1.0",
         "time": 1678880100000,
@@ -220,14 +223,14 @@ def valid_raw_balances(valid_raw_balance_item: dict[str, Any]) -> dict[str, Any]
 
 
 @pytest.fixture
-def valid_raw_position_item(symbol_spot: str) -> dict[str, Any]:
+def valid_raw_position_item(symbol_spot: Symbol) -> dict[str, Any]:
     """Return valid raw position item for testing.
 
     Returns:
         dict[str, Any]: Valid raw position item data for testing.
     """
     return {
-        "symbol": symbol_spot,
+        "symbol": symbol_spot.value,
         "breakEvenPrice": "131.00",
         "entryPrice": "130.00",
         "estLiquidationPrice": "120.00",
@@ -300,7 +303,7 @@ def valid_raw_account_summary() -> dict[str, Any]:
 
 
 @pytest.fixture
-def valid_raw_order(order_id: str, client_id: str, symbol_spot: str) -> dict[str, Any]:
+def valid_raw_order(order_id: str, client_id: str, symbol_spot: Symbol) -> dict[str, Any]:
     """Return valid raw order for testing.
 
     Returns:
@@ -309,7 +312,7 @@ def valid_raw_order(order_id: str, client_id: str, symbol_spot: str) -> dict[str
     return {
         "id": order_id,
         "clientId": client_id,
-        "symbol": symbol_spot,
+        "symbol": symbol_spot.value,
         "side": "buy",
         "orderType": "LIMIT",
         "quantity": "10.0",
@@ -340,14 +343,14 @@ def valid_raw_open_orders(valid_raw_order: dict[str, Any]) -> list[dict[str, Any
 
 
 @pytest.fixture
-def valid_raw_funding_rate(symbol_perp: str) -> dict[str, Any]:
+def valid_raw_funding_rate(symbol_perp: Symbol) -> dict[str, Any]:
     """Return valid raw funding rate for testing.
 
     Returns:
         dict[str, Any]: Valid raw funding rate data for testing.
     """
     return {
-        "symbol": symbol_perp,
+        "symbol": symbol_perp.value,
         "rate": "0.000123",
         "markPrice": "140.00",
         "indexPrice": "139.90",
@@ -406,14 +409,14 @@ def valid_raw_order_history(valid_raw_order: dict[str, Any]) -> list[dict[str, A
 
 
 @pytest.fixture
-def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
+def valid_raw_trade_history(symbol_spot: Symbol) -> list[dict[str, Any]]:
     """Return valid raw trade history for testing.
 
     Returns:
         list[dict[str, Any]]: Valid raw trade history data for testing.
     """
     trade1 = {
-        "symbol": symbol_spot,
+        "symbol": symbol_spot.value,
         "price": "141.00",
         "qty": "1.5",
         "time": 1678886000000,
@@ -421,7 +424,7 @@ def valid_raw_trade_history(symbol_spot: str) -> list[dict[str, Any]]:
         "orderId": "histOrderX001",
     }
     trade2 = {
-        "symbol": symbol_spot,
+        "symbol": symbol_spot.value,
         "price": "141.05",
         "qty": "0.75",
         "time": 1678886001000,

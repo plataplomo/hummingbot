@@ -251,9 +251,9 @@ class TestBoundaryValueConditions:
         )
 
         # Should handle large values without error
-        assert ticker.symbol == "LARGE-VALUES-PERP"
+        assert ticker.symbol.value == "LARGE-VALUES-PERP"
         assert funding_rate is not None
-        assert funding_rate.symbol == "LARGE-VALUES-PERP"
+        assert funding_rate.symbol.value == "LARGE-VALUES-PERP"
 
     def test_extremely_small_numeric_values(
         self,

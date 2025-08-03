@@ -43,6 +43,7 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus, OrderStatus
 from cyberdelta.enums.environment import EnvironmentType
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import (
@@ -648,7 +649,7 @@ class TestHyperliquidAPIAccountMethods:
 
         expected_balances = {
             "USDC": SpotBalance(
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 asset=USD_HL,
                 timestamp=datetime.now(UTC),
                 total_quantity=Decimal("1050.00"),
@@ -657,7 +658,7 @@ class TestHyperliquidAPIAccountMethods:
                 bp_details=None,
             ),
             "BTC": SpotBalance(
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 asset=BTC_ASSET_HL,
                 timestamp=datetime.now(UTC),
                 total_quantity=Decimal("0.6"),
@@ -696,7 +697,7 @@ class TestHyperliquidAPIAccountMethods:
         # Create test data
         expected_positions = [
             DerivativePosition(
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 symbol=BTC_HL,
                 side=OrderSide.BUY,
                 size=Decimal("1.0"),
@@ -760,7 +761,7 @@ class TestHyperliquidAPIAccountMethods:
         """Test successful get_account_summary call."""
         # Create test data
         expected_summary = MarginAccountSummary(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=datetime.now(UTC),
             total_equity=Decimal("10000.00"),
             available_equity=Decimal("8000.00"),
@@ -802,7 +803,7 @@ class TestHyperliquidAPIAccountMethods:
                 client_order_id="order123",
                 exchange_order_id="ex123",
                 related_order_id=None,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -861,7 +862,7 @@ class TestHyperliquidAPIAccountMethods:
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
                 side=OrderSide.BUY,
                 order_id="order123",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=Decimal("50000.00"),
                 quantity=Decimal("1.0"),
                 client_order_id="order123",
@@ -916,7 +917,7 @@ class TestHyperliquidAPITradingMethods:
             client_order_id="order123",
             exchange_order_id="ex123",
             related_order_id=None,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -1057,7 +1058,7 @@ class TestHyperliquidAPITradingMethods:
                 client_order_id="order123",
                 exchange_order_id="ex123",
                 related_order_id=None,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
@@ -1113,7 +1114,7 @@ class TestHyperliquidAPITradingMethods:
             client_order_id="order123",
             exchange_order_id="ex123",
             related_order_id=None,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -1168,7 +1169,7 @@ class TestHyperliquidAPITradingMethods:
             client_order_id="order123",
             exchange_order_id="ex123",
             related_order_id=None,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
@@ -1224,7 +1225,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         # Create test data
         expected_ticker = Ticker(
             symbol=BTC_HL,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
             price=Decimal("50000.50"),
             bid=Decimal("50000.00"),
@@ -1301,7 +1302,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
                 side=OrderSide.BUY,
                 order_id="order123",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=Decimal("50000.00"),
                 quantity=Decimal("0.1"),
                 client_order_id=None,
@@ -1317,7 +1318,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:01+00:00"),
                 side=OrderSide.SELL,
                 order_id="order124",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=Decimal("50001.00"),
                 quantity=Decimal("0.2"),
                 client_order_id=None,

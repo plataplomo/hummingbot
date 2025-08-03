@@ -172,7 +172,7 @@ class TestMarketOrderService:
             )
 
         error = exc_info.value
-        assert error.symbol == "ILLIQUID"
+        assert error.symbol.value == "ILLIQUID"
         assert error.requested_quantity == Decimal(10)
         assert error.available_quantity == Decimal("0.1")
 
@@ -264,7 +264,7 @@ class TestMarketOrderService:
             )
 
         error = exc_info.value
-        assert error.symbol == "EXTREME"
+        assert error.symbol.value == "EXTREME"
         assert error.deviation_pct > error.max_deviation_pct
 
     def test_calculate_liquidity_ratio(self, service: MarketOrderService) -> None:

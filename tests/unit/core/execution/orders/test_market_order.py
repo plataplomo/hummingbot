@@ -182,7 +182,7 @@ class TestMarketOrder:
         mock_exchange_api.place_order.assert_called_once()
         args = mock_exchange_api.place_order.call_args[0][0]
         assert isinstance(args, PlaceOrderArgs)
-        assert args.symbol == "BTC"
+        assert args.symbol.value == "BTC"
         assert args.side == OrderSide.BUY
         assert args.order_type == OrderType.LIMIT
         assert args.quantity == Decimal(1)

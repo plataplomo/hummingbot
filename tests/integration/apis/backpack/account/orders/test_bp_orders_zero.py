@@ -21,7 +21,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models import Order
-from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     generate_invalid_order_id,
     get_dynamic_test_price,
@@ -29,6 +29,12 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_unreasonably_large_price,
     get_unreasonably_large_quantity,
 )
+
+
+# Constants for test symbols
+DEFAULT_TEST_SYMBOL_SPOT = SOL_USDC_BP.value
+TEST_SYMBOL_ETH_USDC = ETH_USDC_BP.value  
+TEST_SYMBOL_BTC_USDC = BTC_USDC_BP.value
 
 
 # Mark all tests in this file

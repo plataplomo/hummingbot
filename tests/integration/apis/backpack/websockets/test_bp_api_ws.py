@@ -21,6 +21,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.timing]
@@ -28,7 +29,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 logger = get_logger(__name__)
 
 
-async def get_available_spot_symbols(api: BackpackAPI) -> list[str]:
+async def get_available_spot_symbols(api: BackpackAPI) -> list[Symbol]:
     """Get available spot trading symbols from the exchange.
 
     Args:
@@ -61,7 +62,7 @@ async def get_available_spot_symbols(api: BackpackAPI) -> list[str]:
         ) from e
 
 
-def get_websocket_topics_for_symbol(symbol: str) -> list[str]:
+def get_websocket_topics_for_symbol(symbol: Symbol) -> list[str]:
     """Generate valid WebSocket topics for a trading symbol.
 
     Args:
@@ -70,7 +71,7 @@ def get_websocket_topics_for_symbol(symbol: str) -> list[str]:
     Returns:
         List of valid WebSocket topics for the symbol
     """
-    return [f"ticker.{symbol}", f"depth.{symbol}", f"trades.{symbol}"]
+    return [f"ticker.{symbol.value}", f"depth.{symbol.value}", f"trades.{symbol.value}"]
 
 
 class TestBackpackAPIWebSocketBasicOperations:
@@ -113,7 +114,7 @@ class TestBackpackAPIWebSocketBasicOperations:
             )
         except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
-                f"WebSocket subscription failed for real symbol {test_symbol}: {e}. "
+                f"WebSocket subscription failed for real symbol {test_symbol.value}: {e}. "
                 "WebSocket operations are critical and must work reliably.",
             )
 
@@ -149,8 +150,8 @@ class TestBackpackAPIWebSocketBasicOperations:
             )
 
         symbol1, symbol2 = available_symbols[0], available_symbols[1]
-        topic1 = f"ticker.{symbol1}"
-        topic2 = f"depth.{symbol2}"
+        topic1 = f"ticker.{symbol1.value}"
+        topic2 = f"depth.{symbol2.value}"
 
         try:
             await bp_api_for_test_env.subscribe(topic1, handler1)
@@ -176,7 +177,7 @@ class TestBackpackAPIWebSocketBasicOperations:
         """Test WebSocket connection status validation with fail-fast behavior."""
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
-        topic = f"ticker.{test_symbol}"
+        topic = f"ticker.{test_symbol.value}"
 
         async def status_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
@@ -262,7 +263,7 @@ class TestBackpackAPIWebSocketLifecycle:
             )
         except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
-                f"Subscription lifecycle failed for {test_symbol}: {e}. "
+                f"Subscription lifecycle failed for {test_symbol.value}: {e}. "
                 "WebSocket subscription is a critical trading operation.",
             )
 
@@ -284,7 +285,7 @@ class TestBackpackAPIWebSocketLifecycle:
             )
         except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
-                f"Handler replacement failed for {test_symbol}: {e}. "
+                f"Handler replacement failed for {test_symbol.value}: {e}. "
                 "WebSocket handler management is critical for real-time data.",
             )
 
@@ -314,7 +315,7 @@ class TestBackpackAPIWebSocketLifecycle:
         # Create subscription tasks for multiple symbols
         subscription_tasks: list[tuple[str, Any]] = []
         for symbol in available_symbols:
-            topic = f"ticker.{symbol}"
+            topic = f"ticker.{symbol.value}"
             task = asyncio.create_task(bp_api_for_test_env.subscribe(topic, concurrent_handler))
             subscription_tasks.append((topic, task))
 
@@ -433,7 +434,7 @@ class TestBackpackAPIWebSocketEdgeCases:
         """Test subscription followed by connection establishment."""
         available_symbols = await get_available_spot_symbols(bp_api_for_test_env)
         test_symbol = available_symbols[0]
-        topic = f"depth.{test_symbol}"
+        topic = f"depth.{test_symbol.value}"
 
         async def sequence_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029
@@ -484,7 +485,7 @@ class TestBackpackAPIWebSocketEdgeCases:
                 handler="rapid_handler",
             )
 
-        topic = f"trades.{test_symbol}"
+        topic = f"trades.{test_symbol.value}"
         rapid_subscription_count = 5
 
         try:

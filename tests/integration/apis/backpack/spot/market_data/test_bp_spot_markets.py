@@ -23,6 +23,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import BaseSymbol, Symbol
 from cyberdelta.models.market.market import BackpackMarketDetails, Market
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
@@ -50,8 +51,8 @@ class TestBackpackSpotMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == SOL_USDC_BP.value, (
-            f"Expected symbol 'SOL_USDC', got '{market.symbol}'"
+        assert market.symbol == SOL_USDC_BP, (
+            f"Expected symbol '{SOL_USDC_BP}', got '{market.symbol}'"
         )
         assert market.base_symbol == "SOL", (
             f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
@@ -161,9 +162,7 @@ class TestBackpackSpotMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == BTC_USDC_BP.value, (
-            f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
-        )
+        assert market.symbol == BTC_USDC_BP, f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
         assert market.base_symbol == "BTC", (
             f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
         )
@@ -194,9 +193,7 @@ class TestBackpackSpotMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == ETH_USDC_BP.value, (
-            f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
-        )
+        assert market.symbol == ETH_USDC_BP, f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
         assert market.base_symbol == "ETH", (
             f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
         )
@@ -217,7 +214,7 @@ class TestBackpackSpotMarkets:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_market() with invalid spot symbol raises appropriate error."""
-        args = GetMarketArgs(symbol="INVALID_SPOT_SYMBOL")
+        args = GetMarketArgs(symbol=exchanges.backpack("INVALID_SPOT_SYMBOL"))
 
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_market(args)
@@ -268,13 +265,14 @@ class TestBackpackSpotMarkets:
         spot_markets = [
             market
             for market in all_markets
-            if not market.symbol.endswith("_PERP") and "perp" not in market.market_type.lower()
+            if not market.symbol.value.endswith("_PERP")
+            and "perp" not in market.market_type.lower()
         ]
 
         assert len(spot_markets) > 0, "Should return at least some spot markets"
 
         # Validate each spot market
-        symbols_seen: set[str] = set()
+        symbols_seen: set[Symbol] = set()
         for market in spot_markets:
             assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
@@ -283,15 +281,16 @@ class TestBackpackSpotMarkets:
             symbols_seen.add(market.symbol)
 
             # Validate it's actually a spot market
-            assert not market.symbol.endswith("_PERP"), (
+            assert not market.symbol.value.endswith("_PERP"), (
                 f"Should not include perp symbols: {market.symbol}"
             )
 
             # Validate core fields are present and valid
-            assert isinstance(market.symbol, str), (
-                f"symbol should be str, got {type(market.symbol)}"
+            # Validate symbol is a Symbol object (BaseSymbol subclass)
+            assert isinstance(market.symbol, BaseSymbol), (
+                f"symbol should be Symbol, got {type(market.symbol)}"
             )
-            assert len(market.symbol) > 0, "symbol should not be empty"
+            assert len(market.symbol.value) > 0, "symbol should not be empty"
 
             assert isinstance(market.base_symbol, str), (
                 f"base_symbol should be str, got {type(market.base_symbol)}"
@@ -329,11 +328,11 @@ class TestBackpackSpotMarkets:
 
         # Should include common spot trading pairs
         market_symbols = {market.symbol for market in spot_markets}
-        common_spot_pairs = {SOL_USDC_BP.value, BTC_USDC_BP.value, ETH_USDC_BP.value}
+        common_spot_pairs = {SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP}
         found_pairs = common_spot_pairs.intersection(market_symbols)
         assert len(found_pairs) > 0, (
             f"Expected to find at least one common spot pair from {common_spot_pairs}, "
-            f"got symbols: {sorted(market_symbols)}"
+            f"got symbols: {sorted(symbol.value for symbol in market_symbols)}"
         )
 
     @pytest.mark.vcr
@@ -347,7 +346,9 @@ class TestBackpackSpotMarkets:
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
 
-        spot_markets = [market for market in all_markets if not market.symbol.endswith("_PERP")]
+        spot_markets = [
+            market for market in all_markets if not market.symbol.value.endswith("_PERP")
+        ]
 
         assert len(spot_markets) > 1, "Need multiple spot markets for consistency testing"
 
@@ -386,7 +387,9 @@ class TestBackpackSpotMarkets:
         args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(args)
 
-        spot_markets = [market for market in all_markets if not market.symbol.endswith("_PERP")]
+        spot_markets = [
+            market for market in all_markets if not market.symbol.value.endswith("_PERP")
+        ]
 
         for market in spot_markets:
             # Validate tick_size precision
@@ -443,7 +446,9 @@ class TestBackpackSpotMarkets:
         markets_args = GetMarketsArgs()
         all_markets = await bp_api_for_test_env.get_markets(markets_args)
 
-        spot_markets = [market for market in all_markets if not market.symbol.endswith("_PERP")]
+        spot_markets = [
+            market for market in all_markets if not market.symbol.value.endswith("_PERP")
+        ]
 
         assert len(spot_markets) > 0, "Should have at least one spot market for consistency testing"
 
@@ -488,8 +493,8 @@ class TestBackpackSpotMarkets:
         market = await bp_api_for_test_env.get_market(args)
 
         # Validate symbol parsing consistency for spot markets
-        if "_" in market.symbol and not market.symbol.endswith("_PERP"):
-            parts = market.symbol.split("_")
+        if "_" in market.symbol.value and not market.symbol.value.endswith("_PERP"):
+            parts = market.symbol.value.split("_")
             if len(parts) == 2:  # Simple base_quote format for spot
                 assert market.base_symbol == parts[0], (
                     f"base_symbol '{market.base_symbol}' should match first part of "

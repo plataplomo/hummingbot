@@ -64,7 +64,7 @@ class TestMarketOrderExecutionMetric:
 
         # Assert
         assert metric.timestamp == timestamp
-        assert metric.symbol == eth_symbol.value
+        assert metric.symbol == eth_symbol.value.value
         assert metric.side == OrderSide.SELL
         assert metric.requested_quantity == Decimal("2.5")
         assert metric.filled_quantity == Decimal("2.0")
@@ -294,7 +294,7 @@ class TestMarketOrderMetrics:
         assert len(recent_metrics) == 1
 
         metric = recent_metrics[0]
-        assert metric.symbol == btc_symbol.value
+        assert metric.symbol == btc_symbol.value.value
         assert metric.side == OrderSide.BUY
         assert metric.status == OrderStatus.FILLED
 
@@ -321,8 +321,8 @@ class TestMarketOrderMetrics:
         # Assert
         recent_metrics = metrics_tracker.get_recent_metrics()
         assert len(recent_metrics) == 2  # Only last 2 kept
-        assert recent_metrics[0].symbol == f"{btc_symbol.value}-1"  # Oldest of the kept
-        assert recent_metrics[1].symbol == f"{btc_symbol.value}-2"  # Newest
+        assert recent_metrics[0].symbol.value == f"{btc_symbol.value}-1"  # Oldest of the kept
+        assert recent_metrics[1].symbol.value == f"{btc_symbol.value}-2"  # Newest
 
     def test_get_symbol_stats_returns_statistics_for_symbol(
         self, metrics_tracker: MarketOrderMetrics
@@ -467,6 +467,6 @@ class TestMarketOrderMetrics:
         # Assert
         assert len(recent_metrics) == 3
         # Should return the 3 most recent
-        assert recent_metrics[0].symbol == f"{btc_symbol.value}-2"
-        assert recent_metrics[1].symbol == f"{btc_symbol.value}-3"
-        assert recent_metrics[2].symbol == f"{btc_symbol.value}-4"
+        assert recent_metrics[0].symbol.value == f"{btc_symbol.value}-2"
+        assert recent_metrics[1].symbol.value == f"{btc_symbol.value}-3"
+        assert recent_metrics[2].symbol.value == f"{btc_symbol.value}-4"

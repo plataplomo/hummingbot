@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
+from cyberdelta.core.symbols import exchanges
 
 
 class TestMarketOrderConfig:
@@ -54,9 +55,9 @@ class TestMarketOrderConfig:
         """Test getting slippage for specific symbols."""
         config = MarketOrderConfig()
 
-        assert config.get_slippage_for_symbol("BTC") == Decimal("0.005")
-        assert config.get_slippage_for_symbol("ETH") == Decimal("0.005")
-        assert config.get_slippage_for_symbol("UNKNOWN") == Decimal("0.02")  # Uses default
+        assert config.get_slippage_for_symbol(exchanges.backpack("BTC")) == Decimal("0.005")
+        assert config.get_slippage_for_symbol(exchanges.backpack("ETH")) == Decimal("0.005")
+        assert config.get_slippage_for_symbol(exchanges.backpack("UNKNOWN")) == Decimal("0.02")  # Uses default
 
     def test_custom_slippage_by_symbol(self) -> None:
         """Test custom slippage by symbol configuration."""
@@ -67,9 +68,9 @@ class TestMarketOrderConfig:
         }
         config = MarketOrderConfig(slippage_by_symbol=custom_slippage)
 
-        assert config.get_slippage_for_symbol("AVAX") == Decimal("0.015")
-        assert config.get_slippage_for_symbol("MATIC") == Decimal("0.012")
-        assert config.get_slippage_for_symbol("XYZ") == Decimal("0.025")
+        assert config.get_slippage_for_symbol(exchanges.backpack("AVAX")) == Decimal("0.015")
+        assert config.get_slippage_for_symbol(exchanges.backpack("MATIC")) == Decimal("0.012")
+        assert config.get_slippage_for_symbol(exchanges.backpack("XYZ")) == Decimal("0.025")
 
     def test_validate_slippage(self) -> None:
         """Test slippage validation method."""

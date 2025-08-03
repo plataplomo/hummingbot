@@ -21,7 +21,9 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.enums import OrderSide
 from cyberdelta.models import Trade
-from tests.common_symbols import COMMON_SPOT_SYMBOLS_BP
+from cyberdelta.core.symbols.models import Symbol
+from tests.common_symbols import COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
+from cyberdelta.core.symbols import exchanges
 
 
 # Mark all tests in this file
@@ -43,7 +45,7 @@ class TestBackpackSpotTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_recent_trades() with SOL_USDC returns valid Trade models."""
-        trades = await bp_api_for_test_env.get_recent_trades("SOL_USDC", limit=10)
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_BP, limit=10)
 
         assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
 
@@ -72,8 +74,8 @@ class TestBackpackSpotTrades:
                     f"Trade {i} quantity should be positive, got {trade.quantity}"
                 )
 
-                assert trade.symbol == "SOL_USDC", (
-                    f"Trade {i} symbol should be 'SOL_USDC', got '{trade.symbol}'"
+                assert trade.symbol == SOL_USDC_BP, (
+                    f"Trade {i} symbol should be SOL_USDC_BP, got '{trade.symbol}'"
                 )
 
                 assert isinstance(trade.executed_at, datetime), (
@@ -92,7 +94,7 @@ class TestBackpackSpotTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_recent_trades() with BTC_USDC returns valid Trade models."""
-        trades = await bp_api_for_test_env.get_recent_trades("BTC_USDC", limit=5)
+        trades = await bp_api_for_test_env.get_recent_trades(BTC_USDC_BP, limit=5)
 
         assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
 
@@ -101,8 +103,8 @@ class TestBackpackSpotTrades:
                 assert isinstance(trade, Trade), (
                     f"Trade {i} should be Trade model, got {type(trade)}"
                 )
-                assert trade.symbol == "BTC_USDC", (
-                    f"Trade {i} symbol should be 'BTC_USDC', got '{trade.symbol}'"
+                assert trade.symbol == BTC_USDC_BP, (
+                    f"Trade {i} symbol should be BTC_USDC_BP, got '{trade.symbol}'"
                 )
 
                 # BTC prices should be in reasonable range
@@ -122,7 +124,7 @@ class TestBackpackSpotTrades:
         self,
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
-        symbol: str,
+        symbol: Symbol,
     ) -> None:
         """Test spot trade chronological ordering across symbols."""
         trades = await bp_api_for_test_env.get_recent_trades(symbol, limit=20)
@@ -154,7 +156,7 @@ class TestBackpackSpotTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot trade side validation and distribution."""
-        trades = await bp_api_for_test_env.get_recent_trades("SOL_USDC", limit=50)
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_BP, limit=50)
 
         if len(trades) > 0:
             buy_trades = 0
@@ -188,7 +190,7 @@ class TestBackpackSpotTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot trade volume and size distribution."""
-        trades = await bp_api_for_test_env.get_recent_trades("SOL_USDC", limit=30)
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_BP, limit=30)
 
         if len(trades) > 0:
             total_volume = Decimal(0)
@@ -224,7 +226,7 @@ class TestBackpackSpotTrades:
         Raises appropriate error.
         """
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.get_recent_trades("INVALID_SPOT_SYMBOL", limit=5)
+            await bp_api_for_test_env.get_recent_trades(exchanges.backpack("INVALID_SPOT_SYMBOL"), limit=5)
 
         error = exc_info.value
         assert "INVALID_SPOT_SYMBOL" in str(error) or "symbol" in str(error).lower()
@@ -241,7 +243,7 @@ class TestBackpackSpotTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test spot trade decimal precision handling."""
-        trades = await bp_api_for_test_env.get_recent_trades("SOL_USDC", limit=10)
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_BP, limit=10)
 
         if len(trades) > 0:
             for trade in trades:
@@ -275,7 +277,7 @@ class TestBackpackSpotTrades:
         limit: int,
     ) -> None:
         """Test spot trade limit parameter functionality."""
-        trades = await bp_api_for_test_env.get_recent_trades("SOL_USDC", limit=limit)
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_BP, limit=limit)
 
         assert isinstance(trades, list), "Should return list"
         assert len(trades) <= limit, f"Should not exceed requested limit of {limit}"

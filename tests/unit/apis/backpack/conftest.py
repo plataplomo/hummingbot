@@ -10,47 +10,50 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import BTC_USDT_BP, ETH_USDT_BP, SOL_USDC_BP, SOL_USDC_PERP_BP, USDC_BP
 
 
 @pytest.fixture
-def symbol_spot() -> str:
+def symbol_spot() -> Symbol:
     """Return standard spot trading symbol.
 
     Returns:
-        str: The standard spot trading symbol.
+        Symbol: The standard spot trading symbol.
     """
-    return "SOL_USDC"
+    return SOL_USDC_BP
 
 
 @pytest.fixture
-def symbol_perp() -> str:
+def symbol_perp() -> Symbol:
     """Return standard perpetual trading symbol.
 
     Returns:
-        str: The standard perpetual trading symbol.
+        Symbol: The standard perpetual trading symbol.
     """
-    return "SOL-PERP"
+    return SOL_USDC_PERP_BP
 
 
 @pytest.fixture
-def symbol_btc_spot() -> str:
+def symbol_btc_spot() -> Symbol:
     """Bitcoin spot trading symbol.
 
     Returns:
-        str: The Bitcoin spot trading symbol.
+        Symbol: The Bitcoin spot trading symbol.
     """
-    return "BTC_USDT"
+    return BTC_USDT_BP
 
 
 @pytest.fixture
-def symbol_eth_spot() -> str:
+def symbol_eth_spot() -> Symbol:
     """Ethereum spot trading symbol.
 
     Returns:
-        str: The Ethereum spot trading symbol.
+        Symbol: The Ethereum spot trading symbol.
     """
-    return "ETH_USDC"
+    return ETH_USDT_BP
 
 
 @pytest.fixture
@@ -244,33 +247,33 @@ def past_timestamp_ms(current_timestamp_ms: int) -> int:
 
 
 @pytest.fixture
-def usdc_asset() -> str:
+def usdc_asset() -> Symbol:
     """USDC asset symbol.
 
     Returns:
-        str: The USDC asset symbol.
+        Symbol: The USDC asset symbol.
     """
-    return "USDC"
+    return USDC_BP
 
 
 @pytest.fixture
-def sol_asset() -> str:
+def sol_asset() -> Symbol:
     """SOL asset symbol.
 
     Returns:
-        str: The SOL asset symbol.
+        Symbol: The SOL asset symbol.
     """
-    return "SOL"
+    return exchanges.backpack("SOL")
 
 
 @pytest.fixture
-def eth_asset() -> str:
+def eth_asset() -> Symbol:
     """ETH asset symbol.
 
     Returns:
-        str: The ETH asset symbol.
+        Symbol: The ETH asset symbol.
     """
-    return "ETH"
+    return exchanges.backpack("ETH")
 
 
 # Removed hardcoded active_bp_config fixture - now using centralized fixture from tests/conftest.py

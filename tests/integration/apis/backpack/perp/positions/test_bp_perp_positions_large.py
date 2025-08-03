@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any, TypedDict
 if TYPE_CHECKING:
     from cyberdelta.models import MarginAccountSummary
 
+from cyberdelta.core.symbols.models import Symbol
+
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
@@ -92,7 +94,7 @@ class TestBackpackPerpLargePositions:
                         # Wait for position to be closed
                         position_symbol = position.symbol
 
-                        async def position_closed(symbol: str = position_symbol) -> bool:
+                        async def position_closed(symbol: Symbol = position_symbol) -> bool:
                             current_positions = await api.get_positions()
                             # Position is closed when it has zero size,
                             # not when it's removed from the list
@@ -126,7 +128,7 @@ class TestBackpackPerpLargePositions:
     async def _find_max_order_via_exchange_limits(
         self,
         api: BackpackAPI,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
     ) -> Decimal:
         """Find maximum order size by querying exchange limits and validating.
@@ -171,7 +173,7 @@ class TestBackpackPerpLargePositions:
             )
 
     async def _calculate_max_notional(
-        self, api: BackpackAPI, symbol: str, account_summary: MarginAccountSummary
+        self, api: BackpackAPI, symbol: Symbol, account_summary: MarginAccountSummary
     ) -> Decimal:
         """Calculate maximum notional based on exchange limits.
 
@@ -258,7 +260,7 @@ class TestBackpackPerpLargePositions:
     async def _validate_test_size(
         self,
         api: BackpackAPI,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         max_quantity: Decimal,
         constraints: dict[str, Any],
@@ -371,7 +373,7 @@ class TestBackpackPerpLargePositions:
     async def _find_maximum_position_using_exchange_limits(
         self,
         api: BackpackAPI,
-        symbol: str,
+        symbol: Symbol,
     ) -> MaxPositionParams:
         """Find the absolute maximum position using exchange's max order endpoint.
 
@@ -689,7 +691,7 @@ class TestBackpackPerpLargePositions:
             await self._close_all_positions(bp_api_for_large_balance_test)
             # Position update handled by proper polling
 
-            positions_created: list[str] = []
+            positions_created: list[Symbol] = []
 
             for symbol in symbols:
                 # Get max order quantity for this symbol with current state
@@ -837,7 +839,7 @@ class TestBackpackPerpLargePositions:
 
         # Use first 2 available symbols (or all if less than 2)
         symbols = available_symbols[:2]
-        max_sizes: dict[str, dict[str, Decimal]] = {}
+        max_sizes: dict[Symbol, dict[str, Decimal]] = {}
 
         try:
             for symbol in symbols:

@@ -49,26 +49,8 @@ class TestHyperliquidCommonMappers:
         # With custom default
         assert HyperliquidCommonMappers.parse_decimal_safely("invalid", Decimal(99)) == Decimal(99)
 
-    def test_normalize_symbol(self) -> None:
-        """Test symbol normalization."""
-        # Basic normalization
-        assert HyperliquidCommonMappers.normalize_symbol("btc") == "BTC"
-        assert HyperliquidCommonMappers.normalize_symbol("ETH") == "ETH"
-        assert HyperliquidCommonMappers.normalize_symbol(" btc ") == "BTC"
-
-        # Perpetual normalization
-        assert HyperliquidCommonMappers.normalize_symbol("BTC-PERP") == "BTC"
-        assert HyperliquidCommonMappers.normalize_symbol("ETH-PERP") == "ETH"
-        assert HyperliquidCommonMappers.normalize_symbol("USDC-PERP") == "USDC"
-
-        # Empty string
-        assert not HyperliquidCommonMappers.normalize_symbol("")
-
-    def test_denormalize_symbol(self) -> None:
-        """Test symbol denormalization."""
-        # Currently just returns as-is
-        assert HyperliquidCommonMappers.denormalize_symbol("BTC") == "BTC"
-        assert not HyperliquidCommonMappers.denormalize_symbol("")
+    # NOTE: Symbol normalization tests have been removed as this functionality
+    # is now handled by the unified Symbol system in cyberdelta.core.symbols
 
     def test_timestamp_ms_to_datetime(self) -> None:
         """Test timestamp conversion."""
@@ -182,19 +164,8 @@ class TestHyperliquidCommonMappers:
                 Decimal(-10), "field", NumberValidationPolicy.NON_NEGATIVE
             )
 
-    def test_is_valid_symbol(self) -> None:
-        """Test symbol validation."""
-        # Valid symbols
-        assert HyperliquidCommonMappers.is_valid_symbol("BTC") is True
-        assert HyperliquidCommonMappers.is_valid_symbol("ETH-PERP") is True
-        assert HyperliquidCommonMappers.is_valid_symbol("BTC_USDC") is True
-        assert HyperliquidCommonMappers.is_valid_symbol("BTC/USDC") is True
-
-        # Invalid symbols
-        assert HyperliquidCommonMappers.is_valid_symbol("") is False
-        assert HyperliquidCommonMappers.is_valid_symbol("A" * 25) is False  # Too long
-        assert HyperliquidCommonMappers.is_valid_symbol("BTC$USD") is False  # Invalid char
-        assert HyperliquidCommonMappers.is_valid_symbol(cast(Any, None)) is False
+    # NOTE: Symbol validation tests have been removed as this functionality
+    # is now handled by the unified Symbol system in cyberdelta.core.symbols
 
     def test_calculate_percentage(self) -> None:
         """Test percentage calculation."""
@@ -230,37 +201,11 @@ class TestHyperliquidCommonMappers:
         # Neither ID
         assert HyperliquidCommonMappers.format_order_id() == "unknown"
 
-    def test_extract_base_quote_from_symbol(self) -> None:
-        """Test base/quote extraction from symbols."""
-        # Perpetual format
-        assert HyperliquidCommonMappers.extract_base_quote_from_symbol("BTC-PERP") == (
-            "BTC",
-            "USDC",
-        )
+    # NOTE: Symbol extraction tests have been removed as this functionality
+    # is now handled by the unified Symbol system in cyberdelta.core.symbols
 
-        # Slash format
-        assert HyperliquidCommonMappers.extract_base_quote_from_symbol("BTC/USDC") == (
-            "BTC",
-            "USDC",
-        )
-
-        # Underscore format
-        assert HyperliquidCommonMappers.extract_base_quote_from_symbol("ETH_USDT") == (
-            "ETH",
-            "USDT",
-        )
-
-        # Single symbol (assumes USDC quote)
-        assert HyperliquidCommonMappers.extract_base_quote_from_symbol("BTC") == ("BTC", "USDC")
-
-        # Invalid formats
-        assert HyperliquidCommonMappers.extract_base_quote_from_symbol("") is None
-        assert HyperliquidCommonMappers.extract_base_quote_from_symbol("INVALID/TOO/MANY") is None
-
-    def test_create_internal_symbol(self) -> None:
-        """Test internal symbol creation."""
-        assert HyperliquidCommonMappers.create_internal_symbol("BTC", "USDC") == "BTC/USDC"
-        assert HyperliquidCommonMappers.create_internal_symbol("eth", "usdt") == "ETH/USDT"
+    # NOTE: Internal symbol creation tests have been removed as this functionality
+    # is now handled by the unified Symbol system in cyberdelta.core.symbols
 
     def test_safe_divide(self) -> None:
         """Test safe division."""

@@ -17,6 +17,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+from cyberdelta.core.symbols import exchanges
 
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
@@ -84,14 +85,14 @@ class TestHyperliquidAPIWebSocketPublicInterface:
         """Test that subscribe_to_order_book public method exists."""
         # Test that the public method exists and can be called
         # If AttributeError is raised, it means the public method doesn't exist
-        await hl_api.subscribe_to_order_book("ETH")
+        await hl_api.subscribe_to_order_book(exchanges.hyperliquid("ETH"))
         # If we reach here, the method exists and was called successfully
 
     @pytest.mark.asyncio
     async def test_subscribe_to_trades_public_method(self, hl_api: HyperliquidAPI) -> None:
         """Test that subscribe_to_trades public method exists."""
         # If AttributeError is raised, it means the public method doesn't exist
-        await hl_api.subscribe_to_trades("BTC")
+        await hl_api.subscribe_to_trades(exchanges.hyperliquid("BTC"))
         # If we reach here, the method exists and was called successfully
 
     @pytest.mark.asyncio

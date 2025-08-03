@@ -26,7 +26,6 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models import BackpackOrderDetails, Order
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
@@ -74,7 +73,7 @@ class TestBackpackOrdersPositive:
                 # Required fields
                 assert isinstance(order.exchange_order_id, str)
                 assert len(order.exchange_order_id) > 0
-                assert isinstance(order.symbol, str)
+                assert order.symbol is not None
                 assert isinstance(order.side, OrderSide)
                 assert isinstance(order.order_type, OrderType)
                 assert isinstance(order.quantity_requested, Decimal)
@@ -101,8 +100,7 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test retrieving open orders for a specific symbol."""
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
         orders = await bp_api_for_test_env.get_all_open_orders(GetAllOpenOrdersArgs(symbol=symbol))
 
         assert isinstance(orders, list)
@@ -120,8 +118,7 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing a limit buy order with dynamic pricing."""
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
         # Get dynamic test price and minimal order size
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
@@ -165,8 +162,7 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing a limit sell order with dynamic pricing."""
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
         # Get dynamic test price and minimal order size
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.SELL)
@@ -205,8 +201,7 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test placing an order with a custom client order ID and dynamic pricing."""
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
         # Generate deterministic client_order_id for VCR testing
         # Backpack requires client_order_id to be convertible to integer
@@ -264,8 +259,7 @@ class TestBackpackOrdersPositive:
     ) -> None:
         """Test cancelling a specific order by ID."""
         # First create an order to cancel
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
         test_quantity = await get_minimal_order_size(
             bp_api_for_test_env,
@@ -304,8 +298,7 @@ class TestBackpackOrdersPositive:
     ) -> None:
         """Test cancelling all open orders."""
         # Create multiple orders
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
         # Buy order
         buy_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
@@ -364,8 +357,7 @@ class TestBackpackOrdersPositive:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test cancelling all orders for a specific symbol."""
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
         # Create orders for the symbol using dynamic pricing
         test_price = await get_dynamic_test_price(bp_api_for_test_env, symbol, OrderSide.BUY)
@@ -437,8 +429,7 @@ class TestBackpackOrdersPositive:
         Raises:
             AssertionError: If order has unexpected status or authentication fails.
         """
-        symbol_str = DEFAULT_TEST_SYMBOL_SPOT
-        symbol = exchanges.backpack(symbol_str)
+        symbol = DEFAULT_TEST_SYMBOL_SPOT
 
         # Get dynamic test price and minimal order size
         # For post-only orders, we want a price that won't immediately fill

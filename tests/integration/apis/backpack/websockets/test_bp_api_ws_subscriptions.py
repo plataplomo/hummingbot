@@ -21,6 +21,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.timing]
@@ -28,7 +29,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 logger = get_logger(__name__)
 
 
-async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
+async def get_dynamic_trading_symbols(api: BackpackAPI) -> dict[str, list[Symbol]]:
     """Get dynamic trading symbols for different market types.
 
     Args:
@@ -107,7 +108,7 @@ class TestBackpackAPIWebSocketSubscriptions:
             )
 
         test_symbol = symbols["spot"][0]
-        topic = f"ticker.{test_symbol}"
+        topic = f"ticker.{test_symbol.value}"
 
         received_messages: list[dict[str, Any]] = []
 
@@ -149,7 +150,7 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         except (APIError, ValueError, TypeError, KeyError) as e:
             pytest.fail(
-                f"Dynamic symbol subscription failed for {test_symbol}: {e}. "
+                f"Dynamic symbol subscription failed for {test_symbol.value}: {e}. "
                 "WebSocket subscriptions are critical for real-time trading data.",
             )
 
@@ -254,11 +255,11 @@ class TestBackpackAPIWebSocketSubscriptions:
 
         try:
             # First subscription
-            await bp_api_for_test_env.subscribe(f"ticker.{test_symbol}", consistency_handler)
+            await bp_api_for_test_env.subscribe(f"ticker.{test_symbol.value}", consistency_handler)
             after_first = bp_api_for_test_env.is_connected
 
             # Second subscription
-            await bp_api_for_test_env.subscribe(f"depth.{test_symbol}", consistency_handler)
+            await bp_api_for_test_env.subscribe(f"depth.{test_symbol.value}", consistency_handler)
             after_second = bp_api_for_test_env.is_connected
 
             # Validate state consistency and types
@@ -390,7 +391,7 @@ class TestBackpackAPIWebSocketSubscriptions:
         """Test WebSocket connection lifecycle with real operations."""
         symbols = await get_dynamic_trading_symbols(bp_api_for_test_env)
         test_symbol = symbols["spot"][0]
-        topic = f"ticker.{test_symbol}"
+        topic = f"ticker.{test_symbol.value}"
 
         async def lifecycle_handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)  # Satisfy RUF029

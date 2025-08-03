@@ -23,6 +23,7 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.models.margin_account import MarginAccountSummary
 
@@ -105,7 +106,7 @@ class HyperliquidTestHelpers:
     # Market Data Utilities
 
     @staticmethod
-    async def get_market_constraints(api: HyperliquidAPI, symbol: str) -> dict[str, Decimal]:
+    async def get_market_constraints(api: HyperliquidAPI, symbol: Symbol) -> dict[str, Decimal]:
         """Get dynamic market constraints for a symbol.
 
         Args:
@@ -119,11 +120,7 @@ class HyperliquidTestHelpers:
             RuntimeError: If market data retrieval fails or required fields are missing.
         """
         try:
-            if isinstance(symbol, str):
-                symbol_obj = exchanges.hyperliquid(symbol)
-            else:
-                symbol_obj = symbol
-            market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
+            market = await api.get_market(GetMarketArgs(symbol=symbol))
             if not market:
                 raise RuntimeError(
                     f"Failed to get market data for {symbol}. "
@@ -159,7 +156,7 @@ class HyperliquidTestHelpers:
     # Fallback constraints with hardcoded values are forbidden in trading tests
 
     @staticmethod
-    async def get_current_market_price(api: HyperliquidAPI, symbol: str) -> Decimal:
+    async def get_current_market_price(api: HyperliquidAPI, symbol: Symbol) -> Decimal:
         """Get current market price with fallback hierarchy.
 
         Args:
@@ -174,16 +171,12 @@ class HyperliquidTestHelpers:
         """
         try:
             # Try ticker first (most current)
-            if isinstance(symbol, str):
-                symbol_obj = exchanges.hyperliquid(symbol)
-            else:
-                symbol_obj = symbol
-            ticker = await api.get_ticker(symbol_obj)
+            ticker = await api.get_ticker(symbol)
             if ticker and ticker.price:
                 return ticker.price
 
             # Fallback to market details with mark price
-            market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
+            market = await api.get_market(GetMarketArgs(symbol=symbol))
             if market and market.hl_details and market.hl_details.mark_price:
                 return market.hl_details.mark_price
 
@@ -205,7 +198,7 @@ class HyperliquidTestHelpers:
     # Funding Rate Utilities
 
     @staticmethod
-    async def get_funding_rate_bounds(api: HyperliquidAPI, symbol: str) -> dict[str, Decimal]:
+    async def get_funding_rate_bounds(api: HyperliquidAPI, symbol: Symbol) -> dict[str, Decimal]:
         """Get exchange-specific funding rate bounds for a symbol.
 
         Args:
@@ -220,11 +213,7 @@ class HyperliquidTestHelpers:
         """
         try:
             # Get market information to understand funding rate constraints
-            if isinstance(symbol, str):
-                symbol_obj = exchanges.hyperliquid(symbol)
-            else:
-                symbol_obj = symbol
-            market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
+            market = await api.get_market(GetMarketArgs(symbol=symbol))
             if not market:
                 raise RuntimeError(
                     f"Failed to get market data for {symbol}. "
@@ -242,7 +231,7 @@ class HyperliquidTestHelpers:
 
             try:
                 args = GetHistoricalFundingRatesArgs(
-                    symbol=symbol_obj,
+                    symbol=symbol,
                     start_time=start_time,
                     end_time=end_time,
                 )
@@ -297,7 +286,7 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def get_dynamic_test_price(
         api: HyperliquidAPI,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         tolerance_percent: Decimal | None = None,
     ) -> Decimal:
@@ -426,7 +415,7 @@ class HyperliquidTestHelpers:
         return quantized_price
 
     @staticmethod
-    async def get_unreasonably_large_price(api: HyperliquidAPI, symbol: str) -> Decimal:
+    async def get_unreasonably_large_price(api: HyperliquidAPI, symbol: Symbol) -> Decimal:
         """Get an unreasonably large price for negative testing.
 
         Returns:
@@ -439,7 +428,7 @@ class HyperliquidTestHelpers:
         return market_price * max_reasonable_multiplier
 
     @staticmethod
-    async def get_unreasonably_large_quantity(api: HyperliquidAPI, symbol: str) -> Decimal:
+    async def get_unreasonably_large_quantity(api: HyperliquidAPI, symbol: Symbol) -> Decimal:
         """Get an unreasonably large quantity for negative testing.
 
         Returns:
@@ -459,7 +448,7 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def get_minimal_order_size(
         api: HyperliquidAPI,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         price: Decimal | None = None,
     ) -> Decimal:
@@ -505,7 +494,7 @@ class HyperliquidTestHelpers:
 
     @staticmethod
     async def _validate_account_for_trading(
-        api: HyperliquidAPI, symbol: str
+        api: HyperliquidAPI, symbol: Symbol
     ) -> MarginAccountSummary:
         """Validate that account has sufficient equity for trading.
 
@@ -660,7 +649,7 @@ class HyperliquidTestHelpers:
             )
 
     @staticmethod
-    def _log_calculation_result(symbol: str, quantity: Decimal, price: Decimal) -> None:
+    def _log_calculation_result(symbol: Symbol, quantity: Decimal, price: Decimal) -> None:
         """Log the calculation result for debugging purposes."""
         MIN_NOTIONAL_USD = Decimal("10.00")
         notional_value = quantity * price
@@ -680,7 +669,7 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def get_minimal_order_size_for_zero_balance(
         api: HyperliquidAPI,
-        symbol: str,
+        symbol: Symbol,
         side: OrderSide,
         price: Decimal | None = None,
     ) -> Decimal:
@@ -735,7 +724,7 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def validate_order_constraints(
         api: HyperliquidAPI,
-        symbol: str,
+        symbol: Symbol,
         quantity: Decimal,
         price: Decimal,
     ) -> bool:
@@ -820,7 +809,7 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def _check_orders_cancelled(
         api: HyperliquidAPI,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
     ) -> bool:
         """Check if orders are cancelled.
 
@@ -847,7 +836,7 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def wait_for_order_cancellation(
         api: HyperliquidAPI,
-        symbol: str | None = None,
+        symbol: Symbol | None = None,
         timeout_seconds: int = 30,
     ) -> None:
         """Wait for order cancellation to complete with proper verification and adaptive polling.
@@ -1002,7 +991,7 @@ class HyperliquidTestHelpers:
     @staticmethod
     async def calculate_maximum_position_size(
         api: HyperliquidAPI,
-        symbol: str,
+        symbol: Symbol,
     ) -> dict[str, Decimal]:
         """Calculate maximum position size based on account parameters.
 
@@ -1046,7 +1035,7 @@ class HyperliquidTestHelpers:
     # Test Cleanup Utilities
 
     @staticmethod
-    async def cleanup_test_orders(api: HyperliquidAPI, symbol: str | None = None) -> None:
+    async def cleanup_test_orders(api: HyperliquidAPI, symbol: Symbol | None = None) -> None:
         """Clean up any test orders that might be open.
 
         Args:
@@ -1071,7 +1060,7 @@ class HyperliquidTestHelpers:
             ) from e
 
     @staticmethod
-    async def cleanup_test_positions(api: HyperliquidAPI, symbol: str | None = None) -> None:
+    async def cleanup_test_positions(api: HyperliquidAPI, symbol: Symbol | None = None) -> None:
         """Clean up any test positions that might be open.
 
         Args:
@@ -1107,7 +1096,7 @@ class HyperliquidTestHelpers:
 # Convenience functions for common operations
 
 
-async def get_symbol_tick_size(api: HyperliquidAPI, symbol: str) -> Decimal:
+async def get_symbol_tick_size(api: HyperliquidAPI, symbol: Symbol) -> Decimal:
     """Get tick size for a symbol.
 
     Returns:
@@ -1117,7 +1106,7 @@ async def get_symbol_tick_size(api: HyperliquidAPI, symbol: str) -> Decimal:
     return constraints["tick_size"]
 
 
-async def get_symbol_step_size(api: HyperliquidAPI, symbol: str) -> Decimal:
+async def get_symbol_step_size(api: HyperliquidAPI, symbol: Symbol) -> Decimal:
     """Get step size for a symbol.
 
     Returns:
@@ -1129,7 +1118,7 @@ async def get_symbol_step_size(api: HyperliquidAPI, symbol: str) -> Decimal:
 
 async def get_minimal_test_quantity(
     api: HyperliquidAPI,
-    symbol: str,
+    symbol: Symbol,
     side: OrderSide,
 ) -> Decimal:
     """Get minimal test quantity for an order.
@@ -1142,7 +1131,7 @@ async def get_minimal_test_quantity(
 
 async def get_minimal_test_quantity_for_zero_balance(
     api: HyperliquidAPI,
-    symbol: str,
+    symbol: Symbol,
     side: OrderSide,
 ) -> Decimal:
     """Get minimal test quantity for zero balance accounts.
@@ -1158,7 +1147,7 @@ async def get_minimal_test_quantity_for_zero_balance(
 
 async def get_safe_test_price(
     api: HyperliquidAPI,
-    symbol: str,
+    symbol: Symbol,
     side: OrderSide,
     tolerance: Decimal,
 ) -> Decimal:

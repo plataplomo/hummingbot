@@ -146,7 +146,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
+        symbol = SOL_USDC_PERP_BP
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -261,7 +261,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
+        symbol = SOL_USDC_PERP_BP
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -387,7 +387,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
+        symbol = SOL_USDC_PERP_BP
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -512,7 +512,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         Exchange execution behavior is their responsibility - we test PLACEMENT.
         """
         _ = custom_vcr_config
-        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
+        symbol = SOL_USDC_PERP_BP
 
         # Get current market price and constraints
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)
@@ -640,7 +640,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         2. Immediately sets stop loss protection
         """
         _ = custom_vcr_config
-        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
+        symbol = SOL_USDC_PERP_BP
         entry_side = OrderSide.BUY
 
         # Step 1: Place perp market order to enter position
@@ -773,7 +773,7 @@ class TestBackpackPerpOrdersPositiveBalance:
         5. All with different TimeInForce values
         """
         _ = custom_vcr_config
-        symbol = exchanges.backpack(TEST_SYMBOL_SOL_PERP)
+        symbol = SOL_USDC_PERP_BP
 
         # Get market data once for all tests
         current_price = await get_current_market_price(bp_api_for_test_env, symbol)

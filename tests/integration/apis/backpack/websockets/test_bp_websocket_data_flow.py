@@ -25,6 +25,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import OrderSide
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.trade import Trade
 
 
@@ -320,11 +321,11 @@ class TestBackpackWebSocketDataFlow:
 
         return trades_handler
 
-    def _validate_trade_data(self, received_trades: list[Trade], test_symbol: str) -> None:
+    def _validate_trade_data(self, received_trades: list[Trade], test_symbol: Symbol) -> None:
         """Validate trade data to reduce complexity."""
         for trade in received_trades[:5]:  # Check first 5 trades
             assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
-            assert trade.symbol == test_symbol, f"Expected symbol {test_symbol}, got {trade.symbol}"
+            assert trade.symbol == test_symbol, f"Expected symbol {test_symbol.value}, got {trade.symbol}"
             assert isinstance(trade.price, Decimal), "Price should be Decimal"
             assert isinstance(trade.quantity, Decimal), "Quantity should be Decimal"
             assert trade.price > 0, "Price should be positive"
@@ -429,17 +430,17 @@ class TestBackpackWebSocketDataFlow:
         return handler
 
     async def _subscribe_to_concurrent_streams(
-        self, bp_api: BackpackAPI, test_symbol: str, received_models: dict[str, list[Any]]
+        self, bp_api: BackpackAPI, test_symbol: Symbol, received_models: dict[str, list[Any]]
     ) -> None:
         """Subscribe to multiple streams concurrently."""
         await bp_api.subscribe(
-            f"ticker.{test_symbol}", self._create_universal_handler("ticker", received_models)
+            f"ticker.{test_symbol.value}", self._create_universal_handler("ticker", received_models)
         )
         await bp_api.subscribe(
-            f"depth.{test_symbol}", self._create_universal_handler("orderbook", received_models)
+            f"depth.{test_symbol.value}", self._create_universal_handler("orderbook", received_models)
         )
         await bp_api.subscribe(
-            f"trade.{test_symbol}", self._create_universal_handler("trades", received_models)
+            f"trade.{test_symbol.value}", self._create_universal_handler("trades", received_models)
         )
 
     async def _wait_for_concurrent_stream_data(

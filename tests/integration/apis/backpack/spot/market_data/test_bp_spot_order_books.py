@@ -19,7 +19,9 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.models import OrderBook
-from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
+from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP, ETH_USDC_BP
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 
 
 # Mark all tests in this file
@@ -45,8 +47,8 @@ class TestBackpackSpotOrderBooks:
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
 
-        assert order_book.symbol == SOL_USDC_BP.value, (
-            f"Expected symbol 'SOL_USDC', got '{order_book.symbol}'"
+        assert order_book.symbol == SOL_USDC_BP, (
+            f"Expected symbol SOL_USDC_BP, got '{order_book.symbol}'"
         )
 
         assert isinstance(order_book.bids, list), (
@@ -98,8 +100,8 @@ class TestBackpackSpotOrderBooks:
         order_book = await bp_api_for_test_env.get_order_book(BTC_USDC_BP)
 
         assert isinstance(order_book, OrderBook), f"Expected OrderBook, got {type(order_book)}"
-        assert order_book.symbol == BTC_USDC_BP.value, (
-            f"Expected symbol 'BTC_USDC', got '{order_book.symbol}'"
+        assert order_book.symbol == BTC_USDC_BP, (
+            f"Expected symbol BTC_USDC_BP, got '{order_book.symbol}'"
         )
 
         # BTC should have reasonable price levels
@@ -122,7 +124,7 @@ class TestBackpackSpotOrderBooks:
         self,
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
-        symbol: str,
+        symbol: Symbol,
     ) -> None:
         """Test spot order book structure consistency across symbols."""
         order_book = await bp_api_for_test_env.get_order_book(symbol)
@@ -182,7 +184,7 @@ class TestBackpackSpotOrderBooks:
     ) -> None:
         """Test BackpackAPI.get_order_book() with invalid spot symbol raises appropriate error."""
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.get_order_book("INVALID_SPOT_SYMBOL")
+            await bp_api_for_test_env.get_order_book(exchanges.backpack("INVALID_SPOT_SYMBOL"))
 
         error = exc_info.value
         assert "INVALID_SPOT_SYMBOL" in str(error) or "symbol" in str(error).lower()
