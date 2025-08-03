@@ -12,6 +12,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
+from cyberdelta.core.symbols.api import symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.models.market.ticker import (
     BackpackTickerDetails,
@@ -39,7 +41,7 @@ class TestTicker:
     def test_minimal_creation_required_fields(self) -> None:
         """Test creating a Ticker with only required fields (symbol, exchange, timestamp)."""
         btc_symbol = BTC_HL
-        ticker = Ticker(symbol=btc_symbol, exchange="test_exchange", timestamp=NOW)
+        ticker = Ticker(symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID, timestamp=NOW)
         assert ticker.symbol == btc_symbol
         assert ticker.timestamp == NOW
         assert ticker.price is None
@@ -52,7 +54,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             price=Decimal("50000.5"),
             bid=Decimal("50000.0"),
@@ -75,7 +77,7 @@ class TestTicker:
 
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=expected_dt_from_ms,  # Use the already calculated datetime
             price=Decimal("50000.5"),  # Use Decimal
             bid=Decimal("50000.0"),  # Use Decimal
@@ -95,42 +97,40 @@ class TestTicker:
         """Test that required fields (symbol, timestamp) raise errors if missing."""
         btc_symbol = BTC_HL
         with pytest.raises(ValidationError, match="Field required"):
-            Ticker(exchange="test_exchange", timestamp=NOW)  # type: ignore[call-arg] # Missing symbol
+            Ticker(exchange=ExchangeName.HYPERLIQUID, timestamp=NOW)  # type: ignore[call-arg] # Missing symbol
         with pytest.raises(ValidationError, match="Field required"):
-            Ticker(symbol=btc_symbol, exchange="test_exchange")  # type: ignore[call-arg] # Missing timestamp
+            Ticker(symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID)  # type: ignore[call-arg] # Missing timestamp
         with pytest.raises(ValidationError, match="Field required"):
             Ticker(symbol=btc_symbol, timestamp=NOW)  # type: ignore[call-arg] # Missing exchange
 
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field (Symbol objects and string validation)."""
-        from cyberdelta.core.symbols.api import symbol
-
         # Test that empty strings are rejected at Symbol creation level
         with pytest.raises(ValidationError, match="String should have at least 1 character"):
-            symbol("", "hyperliquid")
+            symbol("", ExchangeName.HYPERLIQUID)
 
         # Test that very long strings are rejected at Symbol creation level
         with pytest.raises(ValidationError, match="String should have at most 30 characters"):
-            symbol("A" * 31, "hyperliquid")
+            symbol("A" * 31, ExchangeName.HYPERLIQUID)
 
         # Test that string symbols are rejected for Ticker (only Symbol objects accepted)
         with pytest.raises(ValidationError):
-            Ticker(symbol="BTC-PERP", exchange="test_exchange", timestamp=NOW)  # type: ignore[arg-type]
+            Ticker(symbol="BTC-PERP", exchange=ExchangeName.HYPERLIQUID, timestamp=NOW)  # type: ignore[arg-type]
 
         # Valid symbol should pass
-        valid_symbol = symbol("VALID-SYM_123", "hyperliquid")
+        valid_symbol = symbol("VALID-SYM_123", ExchangeName.HYPERLIQUID)
         ticker = Ticker(
             symbol=valid_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
         )
         assert ticker.symbol == valid_symbol
 
         # Whitespace-only symbols are allowed (edge case)
-        whitespace_symbol = symbol("   ", "hyperliquid")
+        whitespace_symbol = symbol("   ", ExchangeName.HYPERLIQUID)
         whitespace_ticker = Ticker(
             symbol=whitespace_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
         )
         assert whitespace_ticker.symbol == whitespace_symbol
@@ -143,7 +143,7 @@ class TestTicker:
             # Use Any to test validator behavior
             kwargs: dict[str, Any] = {
                 "symbol": btc_symbol,
-                "exchange": "test_exchange",
+                "exchange": ExchangeName.HYPERLIQUID,
                 "timestamp": None,
             }
             Ticker(**kwargs)
@@ -155,7 +155,7 @@ class TestTicker:
             # Use Any to test validator behavior
             kwargs_invalid: dict[str, Any] = {
                 "symbol": btc_symbol,
-                "exchange": "test_exchange",
+                "exchange": ExchangeName.HYPERLIQUID,
                 "timestamp": "invalid-date-string",
             }
             Ticker(**kwargs_invalid)
@@ -179,7 +179,10 @@ class TestTicker:
             "timestamp": iso_timestamp,
         }
         assert Ticker(**kwargs_str).timestamp == NOW
-        assert Ticker(symbol=btc_symbol, exchange="test_exchange", timestamp=NOW).timestamp == NOW
+        assert (
+            Ticker(symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID, timestamp=NOW).timestamp
+            == NOW
+        )
 
     @pytest.mark.parametrize("field_name", ["price", "bid", "ask", "volume"])
     def test_decimal_fields_parsing_and_validation(self, field_name: str) -> None:
@@ -250,7 +253,7 @@ class TestTicker:
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
             Ticker(
                 symbol=btc_symbol,
-                exchange="test_exchange",
+                exchange=ExchangeName.HYPERLIQUID,
                 timestamp=NOW,
                 extra_field="invalid",  # type: ignore[call-arg]
             )
@@ -258,7 +261,9 @@ class TestTicker:
     def test_immutability(self) -> None:
         """Test that the Ticker model is immutable (frozen=True)."""
         btc_symbol = BTC_HL
-        ticker = Ticker(symbol=btc_symbol, exchange="test_exchange", timestamp=NOW, price=DEC_ONE)
+        ticker = Ticker(
+            symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID, timestamp=NOW, price=DEC_ONE
+        )
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
             ticker.symbol = ETH_HL
@@ -279,7 +284,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             bid=Decimal("100.0"),
             ask=Decimal("102.0"),
@@ -291,7 +296,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             bid=Decimal("100.123"),
             ask=Decimal("100.567"),
@@ -305,7 +310,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             bid=None,
             ask=Decimal("102.0"),
@@ -317,7 +322,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             bid=Decimal("100.0"),
             ask=None,
@@ -329,7 +334,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             bid=None,
             ask=None,
@@ -369,7 +374,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             bid=DEC_ZERO,
             ask=DEC_ZERO,
@@ -384,7 +389,7 @@ class TestTicker:
         hl_details = HyperliquidTickerDetails(mid_price_source="allMids")
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
             price=Decimal(30000),
             hl_details=hl_details,
@@ -407,7 +412,7 @@ class TestTicker:
         )
         ticker = Ticker(
             symbol=btc_backpack_symbol,
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             timestamp=NOW,
             price=Decimal(30000),
             bp_details=bp_details,
@@ -427,7 +432,7 @@ class TestTicker:
         btc_symbol = BTC_HL
         ticker = Ticker(
             symbol=btc_symbol,
-            exchange="generic_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=NOW,
         )
         assert ticker.hl_details is None

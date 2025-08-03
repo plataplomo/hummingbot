@@ -48,6 +48,8 @@ from cyberdelta.apis.exceptions.data_transformation import (
     TickerTransformationError,
     TradeTransformationError,
 )
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import DecimalFieldError
 from cyberdelta.models import OrderBook, Ticker, Trade
@@ -97,12 +99,12 @@ class CompositeMarketDataMapper:
         return self.market_mapper.transform_raw_market_to_internal(raw_market)
 
     def transform_raw_order_book_to_internal(
-        self, symbol: str, raw_order_book: BackpackRawOrderBook
+        self, symbol: Symbol, raw_order_book: BackpackRawOrderBook
     ) -> OrderBook:
         """Transform raw order book to internal format.
 
         Args:
-            symbol: Trading symbol for the order book.
+            symbol: Trading symbol object for the order book.
             raw_order_book: Raw order book from Backpack API.
 
         Returns:
@@ -135,13 +137,13 @@ class CompositeMarketDataMapper:
         return self.funding_rate_mapper.transform_raw_funding_rate_to_internal(raw_funding_rate)
 
     def transform_raw_funding_interval_rate_to_internal(
-        self, raw_funding_rate: BackpackRawFundingIntervalRate, symbol: str
+        self, raw_funding_rate: BackpackRawFundingIntervalRate, symbol: Symbol
     ) -> FundingRate:
         """Transform raw funding interval rate to internal format.
 
         Args:
             raw_funding_rate: Raw funding interval rate from Backpack API.
-            symbol: Trading symbol for the funding rate.
+            symbol: Trading symbol object for the funding rate.
 
         Returns:
             FundingRate: Transformed funding rate for the interval.
@@ -151,12 +153,12 @@ class CompositeMarketDataMapper:
         )
 
     def transform_raw_kline_to_internal(
-        self, symbol: str, interval: str, raw_kline: BackpackRawKlineResponse
+        self, symbol: Symbol, interval: str, raw_kline: BackpackRawKlineResponse
     ) -> Candle:
         """Transform raw kline to internal format.
 
         Args:
-            symbol: Trading symbol for the kline.
+            symbol: Trading symbol object for the kline.
             interval: Time interval for the kline.
             raw_kline: Raw kline data from Backpack API.
 
@@ -407,9 +409,7 @@ class TestMarketTransformation:
         result = mapper.transform_raw_market_to_internal(raw_market)
 
         assert isinstance(result, Market)
-        assert result.symbol == SOL_USDC_BP.value
-        assert result.base_symbol == "SOL"
-        assert result.quote_symbol == "USDC"
+        assert result.symbol == SOL_USDC_BP
         assert result.market_type == "Spot"
         assert result.tick_size == Decimal("0.01")
         assert result.step_size == Decimal("0.01")
@@ -526,7 +526,7 @@ class TestMarketTransformation:
 
         result = mapper.transform_raw_market_to_internal(raw_market)
 
-        assert result.symbol == SOL_USDC_PERP_BP.value
+        assert result.symbol == SOL_USDC_PERP_BP
         assert result.market_type == "Perpetual"
 
     def test_transform_raw_market_transformation_error(
@@ -583,10 +583,8 @@ class TestMarketTransformation:
 
         result = mapper.transform_raw_market_to_internal(raw_market)
 
-        # Symbol should match the combination of base_quote
-        assert result.symbol == BTC_USDC_BP.value
-        assert result.base_symbol == "BTC"
-        assert result.quote_symbol == "USDC"
+        # Symbol should match the specific symbol
+        assert result.symbol == BTC_USDC_BP
 
 
 class TestTickerTransformation:
@@ -607,7 +605,7 @@ class TestTickerTransformation:
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
         assert isinstance(result, Ticker)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL_USDC")
         assert result.price == Decimal("100.50")
         assert result.bid is None  # Not available from Backpack ticker endpoint
         assert result.ask is None  # Not available from Backpack ticker endpoint
@@ -623,9 +621,9 @@ class TestTickerTransformation:
         """Test ticker transformation with symbol override."""
         raw_ticker = create_raw_ticker(symbol="SOL-USDC")
 
-        result = mapper.transform_raw_ticker_to_internal(raw_ticker, symbol_override="BTC-USDC")
+        result = mapper.transform_raw_ticker_to_internal(raw_ticker, symbol_override="BTC_USDC")
 
-        assert result.symbol == "BTC-USDC"
+        assert result.symbol == exchanges.backpack("BTC_USDC")
 
     def test_transform_raw_ticker_with_none_values(
         self,
@@ -756,10 +754,10 @@ class TestOrderBookTransformation:
             timestamp=test_timestamp,
         )
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
         assert isinstance(result, OrderBook)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
         assert len(result.bids) == 2
         assert len(result.asks) == 2
         assert result.bids[0] == (Decimal("100.25"), Decimal("10.0"))
@@ -778,7 +776,7 @@ class TestOrderBookTransformation:
             timestamp=test_timestamp,
         )
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
         assert len(result.bids) == 0
         assert len(result.asks) == 0
@@ -799,7 +797,7 @@ class TestOrderBookTransformation:
             timestamp=test_timestamp,
         )
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
         assert len(result.bids) == 100
         assert len(result.asks) == 100
@@ -827,7 +825,7 @@ class TestOrderBookTransformation:
         ) as mock_parse:
             mock_parse.return_value = None
 
-            result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+            result = mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
             # The mapper should handle invalid timestamp gracefully by using current time
             assert result.timestamp == mock_now
@@ -853,7 +851,7 @@ class TestOrderBookTransformation:
                 OrderBookTransformationError,
                 match="Failed to transform BackpackRawOrderBook to OrderBook",
             ):
-                mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+                mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
     def test_transform_raw_order_book_with_extreme_values(
         self,
@@ -867,7 +865,7 @@ class TestOrderBookTransformation:
             timestamp=test_timestamp,
         )
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
         # Bids should be sorted by price descending (highest price first)
         assert result.bids[0] == (Decimal("99999.999999"), Decimal("0.000001"))
@@ -884,9 +882,10 @@ class TestOrderBookTransformation:
         """Test order book transformation with unicode symbol."""
         raw_book = create_raw_order_book(timestamp=test_timestamp)
 
-        result = mapper.transform_raw_order_book_to_internal("SOL-USDC-测试", raw_book)
+        test_symbol = exchanges.backpack("SOL_USDC_测试")
+        result = mapper.transform_raw_order_book_to_internal(test_symbol, raw_book)
 
-        assert result.symbol == "SOL-USDC-测试"
+        assert result.symbol == test_symbol
 
 
 class TestTradeTransformation:
@@ -911,7 +910,7 @@ class TestTradeTransformation:
 
         assert isinstance(result, Trade)
         assert result.id == "trade123"
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL_USDC")
         assert result.price == Decimal("100.50")
         assert result.quantity == Decimal("10.0")
         assert result.order_id == "order123"
@@ -1075,7 +1074,7 @@ class TestFundingRateTransformation:
         result = mapper.transform_raw_funding_rate_to_internal(raw_funding)
 
         assert isinstance(result, FundingRate)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL_USDC")
         assert result.funding_rate == Decimal("0.0001")
         assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         assert result.bp_details is not None
@@ -1092,10 +1091,10 @@ class TestFundingRateTransformation:
             interval_end_timestamp="2024-01-15T10:30:00",
         )
 
-        result = mapper.transform_raw_funding_interval_rate_to_internal(raw_funding, "SOL-USDC")
+        result = mapper.transform_raw_funding_interval_rate_to_internal(raw_funding, SOL_USDC_BP)
 
         assert isinstance(result, FundingRate)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
         assert result.funding_rate == Decimal("0.0001")
         assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         assert result.bp_details is not None
@@ -1163,10 +1162,10 @@ class TestKlineTransformation:
             volume="1000.0",
         )
 
-        result = mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
+        result = mapper.transform_raw_kline_to_internal(SOL_USDC_BP, "1h", raw_kline)
 
         assert isinstance(result, Candle)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
         assert result.interval == "1h"
         assert result.open == Decimal("100.00")
         assert result.high == Decimal("101.00")
@@ -1196,7 +1195,7 @@ class TestKlineTransformation:
                 CandleTransformationError,
                 match="Failed to transform BackpackRawKlineResponse to Candle",
             ):
-                mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
+                mapper.transform_raw_kline_to_internal(SOL_USDC_BP, "1h", raw_kline)
 
     def test_transform_raw_kline_with_extreme_values(
         self,
@@ -1213,7 +1212,7 @@ class TestKlineTransformation:
             volume="1000000000.999999",  # Very large volume
         )
 
-        result = mapper.transform_raw_kline_to_internal("SOL-USDC", "1h", raw_kline)
+        result = mapper.transform_raw_kline_to_internal(SOL_USDC_BP, "1h", raw_kline)
 
         assert result.open == Decimal("0.000001")
         assert result.high == Decimal("999999.999999")
@@ -1231,5 +1230,5 @@ class TestKlineTransformation:
 
         intervals = ["1m", "5m", "15m", "1h", "4h", "1d", "1w", "1M"]
         for interval in intervals:
-            result = mapper.transform_raw_kline_to_internal("SOL-USDC", interval, raw_kline)
+            result = mapper.transform_raw_kline_to_internal(SOL_USDC_BP, interval, raw_kline)
             assert result.interval == interval

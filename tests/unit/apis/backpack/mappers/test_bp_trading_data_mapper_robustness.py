@@ -143,7 +143,7 @@ class TestBoundaryValueHandling:
         result = trading_data_mapper.transform_raw_order_to_internal(minimal_order)
 
         assert result.exchange_order_id == "1"
-        assert result.symbol == BTC_USDC_BP.value
+        assert result.symbol == BTC_USDC_BP
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.status == OrderStatus.OPEN
@@ -171,7 +171,7 @@ class TestBoundaryValueHandling:
 
         assert result.exchange_order_id == "999999999"
         assert result.client_order_id == "x" * 64
-        assert result.symbol == "A" * 32
+        assert result.symbol.value == "A" * 32
         assert result.side == OrderSide.SELL
         assert result.quantity_requested == Decimal("0.000001")
         assert result.quantity_filled == Decimal("0.000001")
@@ -271,7 +271,7 @@ class TestUnicodeAndEncodingSupport:
             result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
             # Symbol should be preserved exactly
-            assert result.symbol == symbol
+            assert result.symbol.value == symbol
             assert result.exchange_order_id == f"order_{len(symbol)}"
 
     def test_unicode_in_client_order_id(
@@ -303,7 +303,7 @@ class TestUnicodeAndEncodingSupport:
 
         result = trading_data_mapper.transform_raw_order_to_internal(mixed_order)
 
-        assert result.symbol == "BTC-USDC🚀"
+        assert result.symbol.value == "BTC-USDC🚀"
         assert result.client_order_id == "test_测试_🎯"
         assert result.exchange_order_id == "order_символ_123"
 
@@ -312,7 +312,7 @@ class TestUnicodeAndEncodingSupport:
         # Test via order data method since raw model validation might prevent empty strings
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="123",
-            symbol=SOL_USDC_BP.value,  # Cannot be empty
+            symbol=SOL_USDC_BP,  # Cannot be empty
             side="Buy",
             order_type="LIMIT",
             status="NEW",
@@ -459,7 +459,7 @@ class TestPerformanceAndMemoryConsiderations:
         assert len(results) == 100
         for i, result in enumerate(results):
             assert result.exchange_order_id == f"order_{i:03d}"
-            assert result.symbol == f"SYMBOL{i % 10}_USDC"
+            assert result.symbol.value == f"SYMBOL{i % 10}_USDC"
 
     def test_memory_efficiency_with_large_objects(
         self,
@@ -478,7 +478,7 @@ class TestPerformanceAndMemoryConsiderations:
         # Should handle large strings without issues
         assert result.exchange_order_id == "a" * 60
         assert result.client_order_id == "b" * 60
-        assert result.symbol == "c" * 60
+        assert result.symbol.value == "c" * 60
 
     def test_concurrent_transformation_safety(
         self,
@@ -534,7 +534,7 @@ class TestDataConsistencyAndValidation:
         # Test via order data method for case sensitivity
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="123",
-            symbol=SOL_USDC_BP.value,
+            symbol=SOL_USDC_BP,
             side="Buy",
             order_type="LIMIT",
             status=status_input,
@@ -551,7 +551,7 @@ class TestDataConsistencyAndValidation:
         """Test that all enum mappings are case insensitive."""
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="123",
-            symbol=SOL_USDC_BP.value,
+            symbol=SOL_USDC_BP,
             side="buy",  # lowercase
             order_type="market",  # lowercase
             status="filled",  # lowercase

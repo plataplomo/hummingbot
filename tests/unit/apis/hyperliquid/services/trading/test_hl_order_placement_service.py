@@ -46,8 +46,11 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_placement_service imp
 )
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.core.enums import OrderStatus
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Order
+from tests.common_symbols import BTC_USD_HL, ETH_USD_HL
 
 
 HyperliquidResponseHandler = HyperliquidTradingResponseHandler
@@ -161,7 +164,7 @@ def valid_place_order_args() -> PlaceOrderArgs:
         PlaceOrderArgs: Valid arguments for placing a BTC-USD buy order.
     """
     return PlaceOrderArgs(
-        symbol="BTC-USD",
+        symbol=BTC_USD_HL,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity=Decimal("0.1"),
@@ -181,7 +184,7 @@ def mock_order_response() -> Order:
     return Order(
         exchange_order_id="12345",
         client_order_id="client_123",
-        symbol="BTC-USD",
+        symbol=BTC_USD_HL,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity_requested=Decimal("0.1"),
@@ -190,7 +193,7 @@ def mock_order_response() -> Order:
         quantity_filled=Decimal("0.1"),
         average_fill_price=Decimal(50000),  # Required when quantity_filled > 0
         created_at=datetime.now(UTC),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         time_in_force=TimeInForce.GTC,
         updated_at=datetime.now(UTC),
         triggered_at=None,
@@ -285,7 +288,7 @@ class TestOrderPlacementService:
         # Act & Assert - Test that invalid PlaceOrderArgs cannot be created
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="",  # Invalid empty symbol
+                symbol=exchanges.hyperliquid(""),  # Invalid empty symbol
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -372,7 +375,7 @@ class TestOrderPlacementService:
         # Arrange - Create two different orders
         order1_args = valid_place_order_args
         order2_args = PlaceOrderArgs(
-            symbol="ETH-USD",
+            symbol=ETH_USD_HL,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
@@ -461,7 +464,7 @@ class TestOrderPlacementService:
         order1_response = Order(
             exchange_order_id="12345",
             client_order_id="client_123",
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("0.1"),
@@ -470,7 +473,7 @@ class TestOrderPlacementService:
             quantity_filled=Decimal("0.1"),
             average_fill_price=Decimal(50000),  # Required when quantity_filled > 0
             created_at=datetime.now(UTC),
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             time_in_force=TimeInForce.GTC,
             updated_at=datetime.now(UTC),
             triggered_at=None,
@@ -482,7 +485,7 @@ class TestOrderPlacementService:
         order2_response = Order(
             exchange_order_id="12346",
             client_order_id="client_456",
-            symbol="ETH-USD",
+            symbol=ETH_USD_HL,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal("1.0"),
@@ -491,7 +494,7 @@ class TestOrderPlacementService:
             quantity_filled=Decimal("1.0"),
             average_fill_price=Decimal(3000),  # Required when quantity_filled > 0
             created_at=datetime.now(UTC),
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             time_in_force=TimeInForce.GTC,
             updated_at=datetime.now(UTC),
             triggered_at=None,
@@ -530,7 +533,7 @@ class TestOrderPlacementService:
         """Test market order placement with price calculation."""
         # Arrange
         market_order_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
@@ -699,7 +702,7 @@ class TestOrderPlacementService:
         # Act & Assert - Test that invalid PlaceOrderArgs cannot be created
         with pytest.raises(ValidationError) as exc_info:
             PlaceOrderArgs(
-                symbol="",  # Empty symbol should trigger validation error
+                symbol=exchanges.hyperliquid(""),  # Empty symbol should trigger validation error
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -718,7 +721,7 @@ class TestOrderPlacementService:
         """Test validation through public API with invalid quantity."""
         # Arrange - Create order with negative quantity
         invalid_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal(-1),  # Negative quantity
@@ -740,7 +743,7 @@ class TestOrderPlacementService:
         """Test validation through public API for limit order without price."""
         # Arrange - Create limit order without price
         invalid_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
@@ -762,7 +765,7 @@ class TestOrderPlacementService:
         """Test validation through public API with unsupported time in force."""
         # Arrange - Create order with unsupported time in force
         invalid_args = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
@@ -790,7 +793,7 @@ class TestOrderPlacementService:
         """Test order placement with client order ID."""
         # Arrange
         args_with_client_id = PlaceOrderArgs(
-            symbol="BTC-USD",
+            symbol=BTC_USD_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),

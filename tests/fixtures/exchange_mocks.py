@@ -12,6 +12,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
@@ -24,7 +26,6 @@ from cyberdelta.models import (
     TimeInForce,
 )
 
-# from cyberdelta.validation.funding_data import ArbitrageOpportunity  # Module deleted
 from tests.common_symbols import BTC_HL, ETH_HL
 
 
@@ -46,15 +47,15 @@ def mock_exchange_api() -> AsyncMock:
     # Configure common methods
     mock_api.get_balances.return_value = {
         "USDC": SpotBalance(
-            asset="USDC",
-            exchange="hyperliquid",
+            asset=exchanges.hyperliquid("USD"),
+            exchange=ExchangeName.HYPERLIQUID,
             total_quantity=Decimal(10000),
             available_quantity=Decimal(10000),
             timestamp=datetime.now(UTC),
         ),
         BTC_HL.value: SpotBalance(
-            asset=BTC_HL.value,
-            exchange="hyperliquid",
+            asset=BTC_HL,
+            exchange=ExchangeName.HYPERLIQUID,
             total_quantity=Decimal(1),
             available_quantity=Decimal(1),
             timestamp=datetime.now(UTC),
@@ -63,9 +64,9 @@ def mock_exchange_api() -> AsyncMock:
 
     mock_api.get_positions.return_value = {
         BTC_HL.value: DerivativePosition(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=datetime.now(UTC),
-            symbol=BTC_HL.value,
+            symbol=BTC_HL,
             size=Decimal("0.5"),
             entry_price=Decimal(60000),
             mark_price=Decimal(61000),
@@ -73,9 +74,9 @@ def mock_exchange_api() -> AsyncMock:
             unrealized_pnl=Decimal(500),
         ),
         ETH_HL.value: DerivativePosition(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=datetime.now(UTC),
-            symbol=ETH_HL.value,
+            symbol=ETH_HL,
             size=Decimal(-10),
             entry_price=Decimal(3000),
             mark_price=Decimal(2950),
@@ -85,8 +86,8 @@ def mock_exchange_api() -> AsyncMock:
     }
 
     mock_api.get_ticker.return_value = Ticker(
-        symbol="BTC",
-        exchange="test_exchange",
+        symbol=exchanges.hyperliquid("BTC-PERP"),
+        exchange=ExchangeName.HYPERLIQUID,
         bid=Decimal("40000.0"),
         ask=Decimal("40002.0"),
         price=Decimal("40001.0"),
@@ -94,7 +95,7 @@ def mock_exchange_api() -> AsyncMock:
     )
 
     mock_api.get_funding_rate.return_value = FundingRate(
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC-PERP"),
         funding_rate=Decimal("0.0001"),
         mark_price=Decimal("41500.0"),
         index_price=Decimal("41450.0"),
@@ -103,9 +104,9 @@ def mock_exchange_api() -> AsyncMock:
     )
 
     mock_api.place_order.return_value = Order(
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         exchange_order_id="order123",
-        symbol="BTC",
+        symbol=exchanges.hyperliquid("BTC-PERP"),
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         status=OrderStatus.NEW,
@@ -168,8 +169,8 @@ def mock_data_handler() -> MagicMock:
 
     # Configure mock methods
     mock_handler.get_ticker.return_value = Ticker(
-        symbol="BTC",
-        exchange="test_exchange",
+        symbol=exchanges.hyperliquid("BTC-PERP"),
+        exchange=ExchangeName.HYPERLIQUID,
         bid=Decimal("40000.0"),
         ask=Decimal("40002.0"),
         price=Decimal("40001.0"),
@@ -183,27 +184,3 @@ def mock_data_handler() -> MagicMock:
 
 
 # --- Mock Trading Opportunities ---
-
-
-# @pytest.fixture
-# def mock_arbitrage_opportunity() -> MagicMock:
-#     """Create a mock ArbitrageOpportunity for testing.
-# 
-#     Returns:
-#         MagicMock: A mock arbitrage opportunity with test trading data.
-#     """
-#     opportunity = MagicMock(spec=ArbitrageOpportunity)
-#     opportunity.symbol = "BTC"
-#     opportunity.long_exchange = "hyperliquid"
-#     opportunity.short_exchange = "backpack"
-#     opportunity.net_funding_differential = 0.05  # 5 basis points
-#     opportunity.basis_volatility = 0.01
-#     opportunity.expected_profit = 10.0
-#     opportunity.confidence = 0.8
-#     opportunity.timestamp = datetime.now(UTC)
-#     opportunity.long_price = Decimal(30000)
-#     opportunity.short_price = Decimal(29999)
-#     opportunity.long_size = Decimal("0.1")
-#     opportunity.short_size = Decimal("0.1")
-# 
-#     return opportunity

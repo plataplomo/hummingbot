@@ -26,6 +26,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
@@ -183,7 +184,7 @@ class TestFillTransformation:
 
         assert isinstance(result, Trade)
         assert result.id == "123456"
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
         assert result.quantity == Decimal("10.0")
         assert result.side == OrderSide.BUY
@@ -451,7 +452,7 @@ class TestWebSocketFillTransformation:
 
         assert isinstance(result, Trade)
         assert result.id == "123456"
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
         assert result.quantity == Decimal("10.0")
         assert result.side == OrderSide.BUY
@@ -502,7 +503,7 @@ class TestWebSocketPositionUpdateTransformation:
         )
 
         assert isinstance(result, DerivativePosition)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.side == OrderSide.BUY  # Long -> BUY
         assert result.size == Decimal("10.0")
         assert result.entry_price == Decimal("100.00")
@@ -595,7 +596,7 @@ class TestErrorHandling:
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
         assert result is not None, "Expected Trade object but got None"
-        assert result.symbol == "SOL-USDC🚀"
+        assert result.symbol == exchanges.backpack("SOL-USDC🚀")
 
     def test_very_long_trade_ids(
         self,

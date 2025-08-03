@@ -22,6 +22,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
     LiquidityRequirement,
     OrderExecution,
 )
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.common_symbols import ETH_BP
 
@@ -31,7 +32,7 @@ class TestBuildPlaceOrderPayload:
 
     def test_build_place_order_payload_limit_gtc(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
         buy_order_side: OrderSide,
         limit_order_type: OrderType,
         standard_quantity: Decimal,
@@ -59,7 +60,7 @@ class TestBuildPlaceOrderPayload:
         # Convert to dict for comparison using aliases
         payload_dict = payload.model_dump(by_alias=True)
         expected_payload = {
-            "symbol": symbol_spot,
+            "symbol": symbol_spot.value,
             "side": "Bid",
             "orderType": "Limit",
             "quantity": "10.5",
@@ -138,7 +139,7 @@ class TestBuildPlaceOrderPayload:
 
     def test_build_place_order_payload_stop_market(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
         sell_order_side: OrderSide,
         stop_market_order_type: OrderType,
         gtc_time_in_force: TimeInForce,
@@ -159,7 +160,7 @@ class TestBuildPlaceOrderPayload:
 
         # For STOP_MARKET, we expect orderType to be "Market" with triggerPrice
         expected_fields = {
-            "symbol": symbol_spot,
+            "symbol": symbol_spot.value,
             "side": "Ask",
             "orderType": "Market",
             "triggerQuantity": "5",
@@ -215,7 +216,7 @@ class TestBuildPlaceOrderPayload:
     )
     def test_build_place_order_payload_side_mapping(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
         side: OrderSide,
         expected_side_str: str,
     ) -> None:
@@ -241,13 +242,13 @@ class TestBuildPlaceOrderPayload:
     )
     def test_build_place_order_payload_type_mapping(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
         order_type: OrderType,
         expected_type_str: str,
     ) -> None:
         """Test build_place_order_payload correctly maps order types."""
         kwargs: dict[str, Any] = {
-            "symbol": symbol_spot,
+            "symbol": symbol_spot.value,
             "order_side": OrderSide.BUY,
             "order_type": order_type,
             "quantity": Decimal(1),
@@ -275,7 +276,7 @@ class TestBuildCancelOrderPayload:
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {"symbol": symbol_spot, "orderId": order_id}
+        expected_payload = {"symbol": symbol_spot.value, "orderId": order_id}
         assert payload_dict == expected_payload
 
     def test_build_cancel_order_payload_client_id(self, symbol_spot: str) -> None:
@@ -288,7 +289,7 @@ class TestBuildCancelOrderPayload:
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {"symbol": symbol_spot, "clientId": client_order_id}
+        expected_payload = {"symbol": symbol_spot.value, "clientId": client_order_id}
         assert payload_dict == expected_payload
 
     def test_build_cancel_order_payload_formats_symbol(self, order_id: str) -> None:
@@ -348,7 +349,7 @@ class TestBuildGetOpenOrdersParams:
 
         assert isinstance(params, BackpackRawGetOpenOrdersParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": symbol_spot}
+        assert params_dict == {"symbol": symbol_spot.value}
 
     def test_build_get_open_orders_params_formats_symbol(self) -> None:
         """Test build_get_open_orders_params passes symbol as-is (no formatting)."""
@@ -389,7 +390,7 @@ class TestBuildGetOrderParams:
 
         assert isinstance(params, BackpackRawGetOrderParams)
         params_dict = params.model_dump(by_alias=True)
-        assert params_dict == {"symbol": symbol_spot}
+        assert params_dict == {"symbol": symbol_spot.value}
 
     def test_build_get_order_params_formats_symbol(self) -> None:
         """Test build_get_order_params passes symbol as-is (no formatting)."""
@@ -425,7 +426,7 @@ class TestBuildGetOrderHistoryParams:
 
     def test_build_get_order_history_params_all_fields(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
         current_timestamp_ms: int,
         past_timestamp_ms: int,
         order_id: str,
@@ -442,7 +443,7 @@ class TestBuildGetOrderHistoryParams:
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {
-            "symbol": symbol_spot,
+            "symbol": symbol_spot.value,
             "from": past_timestamp_ms,
             "to": current_timestamp_ms,
             "limit": 50,
@@ -522,7 +523,7 @@ class TestBuildCancelAllOrdersPayload:
 
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        assert payload_dict == {"symbol": symbol_spot}
+        assert payload_dict == {"symbol": symbol_spot.value}
 
     def test_build_cancel_all_orders_payload_formats_symbol(self) -> None:
         """Test build_cancel_all_orders_payload passes symbol as-is (no formatting)."""

@@ -23,6 +23,8 @@ from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackB
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawImfFunction,
     BackpackRawMmfFunction,
@@ -50,7 +52,7 @@ class CompositeAccountMapper:
 
     # Delegate balance methods
     def transform_balance_data_to_spot_balance(
-        self, asset: str, total_balance: str, available_balance: str
+        self, asset: Symbol, total_balance: str, available_balance: str
     ) -> SpotBalance:
         """Transform balance data to spot balance.
 
@@ -58,11 +60,11 @@ class CompositeAccountMapper:
             SpotBalance instance created from the provided balance data.
         """
         return self.balance_mapper.transform_balance_data_to_spot_balance(
-            asset, total_balance, available_balance
+            asset.value, total_balance, available_balance
         )
 
     def transform_raw_balance_to_internal(
-        self, asset: str, raw_balance: BackpackRawBalanceResponse
+        self, asset: Symbol, raw_balance: BackpackRawBalanceResponse
     ) -> SpotBalance:
         """Transform raw balance to internal format.
 
@@ -234,13 +236,13 @@ class TestBalanceTransformation:
     ) -> None:
         """Test successful transformation of balance data to SpotBalance."""
         result = mapper.transform_balance_data_to_spot_balance(
-            asset="USDC",
+            asset=exchanges.backpack("USDC"),
             total_balance="1000.0",
             available_balance="900.0",
         )
 
         assert isinstance(result, SpotBalance)
-        assert result.asset == "USDC"
+        assert result.asset.value == "USDC"
         assert result.total_quantity == Decimal("1000.0")
         assert result.available_quantity == Decimal("900.0")
         assert result.exchange == ExchangeName.BACKPACK.value
@@ -250,14 +252,14 @@ class TestBalanceTransformation:
     def test_transform_balance_data_zero_values(self, mapper: CompositeAccountMapper) -> None:
         """Test balance transformation with zero values."""
         result = mapper.transform_balance_data_to_spot_balance(
-            asset="BTC",
+            asset=exchanges.backpack("BTC"),
             total_balance="0.0",
             available_balance="0.0",
         )
 
         assert result.total_quantity == Decimal("0.0")
         assert result.available_quantity == Decimal("0.0")
-        assert result.asset == "BTC"
+        assert result.asset.value == "BTC"
 
     def test_transform_balance_data_transformation_error(
         self,
@@ -272,7 +274,7 @@ class TestBalanceTransformation:
 
             with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_balance_data_to_spot_balance(
-                    asset="USDC",
+                    asset=exchanges.backpack("USDC"),
                     total_balance="invalid",
                     available_balance="900.0",
                 )
@@ -289,10 +291,10 @@ class TestBalanceTransformation:
         """Test successful transformation of BackpackRawBalanceResponse to SpotBalance."""
         raw_balance = create_raw_balance(available="900.0", locked="100.0", staked="100.0")
 
-        result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
 
         assert isinstance(result, SpotBalance)
-        assert result.asset == "USDC"
+        assert result.asset.value == "USDC"
         assert result.available_quantity == Decimal("900.0")
         assert result.total_quantity == Decimal("1100.0")  # 900 + 100 + 100
         assert result.exchange == ExchangeName.BACKPACK
@@ -307,9 +309,9 @@ class TestBalanceTransformation:
 
         for asset in assets:
             raw_balance = create_raw_balance(available="500.0", locked="50.0", staked="50.0")
-            result = mapper.transform_raw_balance_to_internal(asset, raw_balance)
+            result = mapper.transform_raw_balance_to_internal(exchanges.backpack(asset), raw_balance)
 
-            assert result.asset == asset.upper()
+            assert result.asset.value == asset.upper()
             assert result.available_quantity == Decimal("500.0")
             assert result.total_quantity == Decimal("600.0")  # 500 + 50 + 50
 
@@ -339,7 +341,7 @@ class TestBalanceTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+                mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
 
             # Verify the error details
             assert "BackpackRawBalanceResponse" in str(exc_info.value)
@@ -372,7 +374,7 @@ class TestBalanceTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+                mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
 
             # Verify the error details
             assert "BackpackRawBalanceResponse" in str(exc_info.value)
@@ -405,7 +407,7 @@ class TestBalanceTransformation:
             mock_parse.side_effect = side_effect
 
             with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+                mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
 
             # Verify the error details
             assert "BackpackRawBalanceResponse" in str(exc_info.value)
@@ -420,7 +422,7 @@ class TestBalanceTransformation:
             staked="499999999.999998",  # Large staked (total will be 999999999.999999)
         )
 
-        result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
 
         assert result.available_quantity == Decimal("0.000001")
         assert result.total_quantity == Decimal("999999999.999999")
@@ -436,7 +438,7 @@ class TestBalanceTransformation:
             staked="133.864197532086420",  # Total will be 456.987654321098765
         )
 
-        result = mapper.transform_raw_balance_to_internal("USDC", raw_balance)
+        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
 
         assert result.available_quantity == Decimal("123.123456789012345")
         assert result.total_quantity == Decimal("456.987654321098765")
@@ -473,7 +475,7 @@ class TestPositionTransformation:
         result = mapper.transform_raw_position_to_internal(raw_position)
 
         assert isinstance(result, DerivativePosition)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol.value == "SOL-USDC"
         assert result.side == OrderSide.BUY  # Long -> BUY
         assert result.size == Decimal("10.0")
         assert result.entry_price == Decimal("100.00")
@@ -686,7 +688,7 @@ class TestPositionTransformation:
         result = mapper.transform_raw_position_to_internal(raw_position)
 
         # Position ID is not directly exposed but should not cause errors
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol.value == "SOL-USDC"
 
 
 class TestAccountSummaryTransformation:
@@ -756,7 +758,7 @@ class TestAccountSummaryTransformation:
         spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
         positions = [
             create_raw_position(
-                symbol="SOL-USDC",
+                symbol=exchanges.backpack("SOL-USDC").value,
                 net_quantity="10.0",
                 entry_price="100.0",
                 pnl_unrealized="50.0",
@@ -798,7 +800,7 @@ class TestAccountSummaryTransformation:
         with patch.object(mapper, "transform_raw_position_to_internal") as mock_transform:
             mock_position = DerivativePosition(
                 exchange=ExchangeName.BACKPACK,
-                symbol="SOL-USDC",
+                symbol=exchanges.backpack("SOL-USDC"),
                 timestamp=datetime.now(UTC),
                 side=OrderSide.BUY,
                 size=Decimal("10.0"),
@@ -849,9 +851,9 @@ class TestErrorHandling:
         """Test transformation with Unicode asset names."""
         raw_balance = create_raw_balance()
 
-        result = mapper.transform_raw_balance_to_internal("USDC🚀", raw_balance)
+        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC🚀"), raw_balance)
 
-        assert result.asset == "USDC🚀"
+        assert result.asset.value == "USDC🚀"
 
     def test_edge_case_high_user_ids(self, mapper: CompositeAccountMapper) -> None:
         """Test transformation with very high user IDs."""
@@ -861,7 +863,7 @@ class TestErrorHandling:
         result = mapper.transform_raw_position_to_internal(raw_position)
 
         # User ID is not directly exposed but should not cause errors
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol.value == "SOL-USDC"
 
     def test_balance_data_none_total_raises_error(self, mapper: CompositeAccountMapper) -> None:
         """Test that None total balance raises TransformationError."""
@@ -884,7 +886,7 @@ class TestErrorHandling:
 
             with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_balance_data_to_spot_balance(
-                    asset="USDC",
+                    asset=exchanges.backpack("USDC"),
                     total_balance="invalid",
                     available_balance="900.0",
                 )
@@ -918,7 +920,7 @@ class TestErrorHandling:
 
             with pytest.raises(DataTransformationError) as exc_info:
                 mapper.transform_balance_data_to_spot_balance(
-                    asset="USDC",
+                    asset=exchanges.backpack("USDC"),
                     total_balance="1000.0",
                     available_balance="invalid",
                 )

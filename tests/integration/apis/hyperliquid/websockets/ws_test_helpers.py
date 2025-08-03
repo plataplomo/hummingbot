@@ -14,6 +14,7 @@ from cyberdelta.apis.common import APIError, TransformationError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 
 
 logger = get_logger(__name__)
@@ -106,7 +107,7 @@ async def wait_for_condition(
         await asyncio.sleep(polling_interval)
 
 
-async def get_real_ticker_data(api: HyperliquidAPI, symbol: str) -> dict[str, Any]:
+async def get_real_ticker_data(api: HyperliquidAPI, symbol: Symbol) -> dict[str, Any]:
     """Get real ticker data from the exchange.
 
     Args:
@@ -136,7 +137,7 @@ async def get_real_ticker_data(api: HyperliquidAPI, symbol: str) -> dict[str, An
     }
 
 
-async def get_real_market_symbols(api: HyperliquidAPI, limit: int = 5) -> list[str]:
+async def get_real_market_symbols(api: HyperliquidAPI, limit: int = 5) -> list[Symbol]:
     """Get real trading symbols from the exchange.
 
     Args:
@@ -170,7 +171,7 @@ async def get_real_market_symbols(api: HyperliquidAPI, limit: int = 5) -> list[s
     return symbols
 
 
-async def get_most_active_symbol(api: HyperliquidAPI) -> str:
+async def get_most_active_symbol(api: HyperliquidAPI) -> Symbol:
     """Get the most active trading symbol from the exchange (typically BTC).
 
     This method dynamically identifies the most liquid symbol from real market data,
@@ -199,7 +200,7 @@ async def get_most_active_symbol(api: HyperliquidAPI) -> str:
     most_active_symbol = None
     for market in markets:
         # BTC is typically the most active on crypto exchanges
-        if market.symbol.upper().startswith("BTC"):
+        if market.symbol.value.upper().startswith("BTC"):
             most_active_symbol = market.symbol
             break
 

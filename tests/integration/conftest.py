@@ -67,8 +67,9 @@ from cyberdelta.config import AppSettings
 
 # PortfolioTrackerConfig removed - using AppSettings portfolio_tracker section instead
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import get_symbol_service
+from cyberdelta.core.symbols import exchanges, get_symbol_service
 from cyberdelta.core.symbols.service import SymbolService
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Ticker
 
 
@@ -91,8 +92,10 @@ def create_mock_ticker(
         Ticker: A Ticker object with converted Decimal values.
     """
     return Ticker(
-        symbol=symbol,
-        exchange=exchange,
+        symbol=exchanges.hyperliquid(symbol)
+        if symbol not in ["BTC", "ETH", "SOL"]
+        else exchanges.hyperliquid(f"{symbol}-PERP"),
+        exchange=ExchangeName.HYPERLIQUID if exchange == "test_exchange" else ExchangeName.BACKPACK,
         bid=Decimal(str(bid)),
         ask=Decimal(str(ask)),
         price=Decimal(str(price)),

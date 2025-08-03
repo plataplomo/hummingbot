@@ -12,8 +12,11 @@ from cyberdelta.core.execution.orders.market_order import MarketOrder
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
+from tests.common_symbols import BTC_HL
 
 
 pytestmark = pytest.mark.timing
@@ -87,8 +90,8 @@ class TestMarketOrder:
         """
         return Order(
             exchange_order_id="12345",
-            exchange="test_exchange",
-            symbol="BTC",
+            exchange=ExchangeName.HYPERLIQUID,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal(1),
@@ -112,8 +115,8 @@ class TestMarketOrder:
         """
         return Order(
             exchange_order_id="12346",
-            exchange="test_exchange",
-            symbol="BTC",
+            exchange=ExchangeName.HYPERLIQUID,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal(10),
@@ -137,8 +140,8 @@ class TestMarketOrder:
         """
         return Order(
             exchange_order_id="12347",
-            exchange="test_exchange",
-            symbol="BTC",
+            exchange=ExchangeName.HYPERLIQUID,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal(10),
@@ -164,15 +167,17 @@ class TestMarketOrder:
         mock_exchange_api.place_order.return_value = filled_order
 
         result = await market_order.execute_market_order(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(1),
         )
 
         # Verify service called correctly
-        mock_market_order_service.round_to_step_size.assert_called_once_with(Decimal(1), "BTC")
+        mock_market_order_service.round_to_step_size.assert_called_once_with(
+            Decimal(1), BTC_HL.value
+        )
         mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
-            symbol="BTC",
+            symbol=BTC_HL.value,
             side=OrderSide.BUY,
             quantity=Decimal(1),  # rounded quantity from round_to_step_size
             max_slippage=None,
@@ -182,7 +187,7 @@ class TestMarketOrder:
         mock_exchange_api.place_order.assert_called_once()
         args = mock_exchange_api.place_order.call_args[0][0]
         assert isinstance(args, PlaceOrderArgs)
-        assert args.symbol.value == "BTC"
+        assert args.symbol == BTC_HL
         assert args.side == OrderSide.BUY
         assert args.order_type == OrderType.LIMIT
         assert args.quantity == Decimal(1)
@@ -205,7 +210,7 @@ class TestMarketOrder:
         mock_exchange_api.place_order.return_value = partial_fill_order
 
         result = await market_order.execute_market_order(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(10),
         )
@@ -225,7 +230,7 @@ class TestMarketOrder:
         mock_exchange_api.place_order.return_value = cancelled_order
 
         result = await market_order.execute_market_order(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(10),
         )
@@ -250,7 +255,7 @@ class TestMarketOrder:
 
         with pytest.raises(MarketOrderError, match="Market orders are disabled"):
             await disabled_market_order.execute_market_order(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 quantity=Decimal(1),
             )
@@ -267,7 +272,7 @@ class TestMarketOrder:
         mock_exchange_api.place_order.return_value = filled_order
 
         await market_order.execute_market_order(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(1),
             max_slippage=Decimal("0.01"),  # 1% max slippage
@@ -275,7 +280,7 @@ class TestMarketOrder:
 
         # Verify slippage passed to service
         mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
-            symbol="BTC",
+            symbol=BTC_HL.value,
             side=OrderSide.BUY,
             quantity=Decimal(1),
             max_slippage=Decimal("0.01"),
@@ -292,7 +297,7 @@ class TestMarketOrder:
         mock_exchange_api.place_order.return_value = filled_order
 
         await market_order.execute_market_order(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(1),
             client_order_id="MY_ORDER_123",
@@ -319,7 +324,7 @@ class TestMarketOrder:
 
         with pytest.raises(MarketOrderError, match="timed out"):
             await market_order.execute_market_order(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 quantity=Decimal(1),
             )
@@ -339,8 +344,8 @@ class TestMarketOrder:
         order1 = Order(
             client_order_id="test_order_1",
             exchange_order_id="1",
-            exchange="test_exchange",
-            symbol="BTC",
+            exchange=ExchangeName.HYPERLIQUID,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal(10),
@@ -361,8 +366,8 @@ class TestMarketOrder:
         order2 = Order(
             client_order_id="test_order_2",
             exchange_order_id="2",
-            exchange="test_exchange",
-            symbol="BTC",
+            exchange=ExchangeName.HYPERLIQUID,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal(4),
@@ -384,7 +389,7 @@ class TestMarketOrder:
         # Test the public behavior: does retry logic attempt to fill remaining quantity?
         try:
             result = await market_order.execute_market_order_with_retry(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 quantity=Decimal(10),
                 max_retries=1,
@@ -424,7 +429,7 @@ class TestMarketOrder:
         mock_exchange_api.place_order.return_value = cancelled_order
 
         result = await market_order.execute_market_order_with_retry(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(10),
             max_retries=2,
@@ -440,19 +445,20 @@ class TestMarketOrder:
     def test_validate_order_parameters(self, market_order: MarketOrder) -> None:
         """Test order parameter validation."""
         # Valid parameters
-        market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal(1))
+        market_order.validate_order_parameters(BTC_HL, OrderSide.BUY, Decimal(1))
 
-        # Invalid symbol
+        # Invalid symbol - need to create invalid symbol for test
+        invalid_symbol = exchanges.hyperliquid("")
         with pytest.raises(ValueError, match="Symbol must be"):
-            market_order.validate_order_parameters("", OrderSide.BUY, Decimal(1))
+            market_order.validate_order_parameters(invalid_symbol, OrderSide.BUY, Decimal(1))
 
         # Invalid quantity
         with pytest.raises(ValueError, match="Quantity must be"):
-            market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal(0))
+            market_order.validate_order_parameters(BTC_HL, OrderSide.BUY, Decimal(0))
 
         # Non-finite quantity
         with pytest.raises(ValueError, match="Quantity must be finite"):
-            market_order.validate_order_parameters("BTC", OrderSide.BUY, Decimal("Infinity"))
+            market_order.validate_order_parameters(BTC_HL, OrderSide.BUY, Decimal("Infinity"))
 
     @pytest.mark.asyncio
     async def test_service_error_propagation(
@@ -465,7 +471,7 @@ class TestMarketOrder:
 
         with pytest.raises(ValueError, match="Test error"):
             await market_order.execute_market_order(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 quantity=Decimal(1),
             )
@@ -480,8 +486,8 @@ class TestMarketOrder:
         """Test sell order execution."""
         sell_order = Order(
             exchange_order_id="12348",
-            exchange="test_exchange",
-            symbol="BTC",
+            exchange=ExchangeName.HYPERLIQUID,
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
             quantity_requested=Decimal(1),
@@ -500,7 +506,7 @@ class TestMarketOrder:
         mock_market_order_service.calculate_aggressive_price.return_value = Decimal(49900)
 
         result = await market_order.execute_market_order(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             quantity=Decimal(1),
         )

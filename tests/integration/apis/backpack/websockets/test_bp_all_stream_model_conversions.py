@@ -30,6 +30,7 @@ from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
 from cyberdelta.models.market.trade import Trade
@@ -158,11 +159,11 @@ class TestBackpackAllStreamModelConversions:
         if not api.is_connected:
             pytest.fail("WebSocket connection failed - cannot test stream conversion")
 
-    async def _get_test_symbol(self, api: BackpackAPI) -> str:
+    async def _get_test_symbol(self, api: BackpackAPI) -> Symbol:
         """Get a test symbol from available markets, preferring perpetual markets for liquidity.
 
         Returns:
-            str: Symbol string for testing, preferring SOL-PERP or first available perpetual.
+            Symbol: Symbol object for testing, preferring SOL-PERP or first available perpetual.
         """
         markets = await api.get_markets(GetMarketsArgs())
         if not markets:
@@ -187,7 +188,7 @@ class TestBackpackAllStreamModelConversions:
                 total_perp_markets=len(perp_markets),
                 message=f"Using perpetual market: {test_market.symbol}",
             )
-            return test_market.symbol.value
+            return test_market.symbol
 
         # Fallback to spot markets
         spot_markets = [m for m in markets if m.market_type == "SPOT"]
@@ -209,7 +210,7 @@ class TestBackpackAllStreamModelConversions:
             first_few_symbols=[m.symbol.value for m in markets[:5]],
             message=f"No PERP markets found, using: {test_market.symbol}",
         )
-        return test_market.symbol.value
+        return test_market.symbol
 
     async def _create_ticker_handler(self, received_tickers: list[Ticker]) -> MessageHandler:
         """Create handler for ticker stream messages.
@@ -248,7 +249,7 @@ class TestBackpackAllStreamModelConversions:
 
         return ticker_handler
 
-    def _validate_received_tickers(self, received_tickers: list[Ticker], test_symbol: str) -> None:
+    def _validate_received_tickers(self, received_tickers: list[Ticker], test_symbol: Symbol) -> None:
         """Validate received ticker models and log results."""
         if received_tickers:
             for ticker in received_tickers[:3]:
@@ -299,11 +300,11 @@ class TestBackpackAllStreamModelConversions:
                 "Test requires stable WebSocket connection for real-time data."
             )
 
-    def _validate_ticker_model(self, ticker: Ticker, expected_symbol: str) -> None:
+    def _validate_ticker_model(self, ticker: Ticker, expected_symbol: Symbol) -> None:
         """Validate Ticker model structure and data."""
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
-        assert ticker.symbol.value == expected_symbol, (
-            f"Expected symbol {expected_symbol}, got {ticker.symbol.value}"
+        assert ticker.symbol.value == expected_symbol.value, (
+            f"Expected symbol {expected_symbol.value}, got {ticker.symbol.value}"
         )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
@@ -408,7 +409,7 @@ class TestBackpackAllStreamModelConversions:
             message="Trades stream context (no Trade models found)",
         )
 
-    def _validate_received_trades(self, received_trades: list[Trade], test_symbol: str) -> None:
+    def _validate_received_trades(self, received_trades: list[Trade], test_symbol: Symbol) -> None:
         """Validate received trade models and log results."""
         if received_trades:
             for trade in received_trades[:3]:
@@ -458,11 +459,11 @@ class TestBackpackAllStreamModelConversions:
                 "Test requires stable WebSocket connection for real-time data."
             )
 
-    def _validate_trade_model(self, trade: Trade, expected_symbol: str) -> None:
+    def _validate_trade_model(self, trade: Trade, expected_symbol: Symbol) -> None:
         """Validate Trade model structure and data."""
         assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
-        assert trade.symbol.value == expected_symbol, (
-            f"Expected symbol {expected_symbol}, got {trade.symbol.value}"
+        assert trade.symbol.value == expected_symbol.value, (
+            f"Expected symbol {expected_symbol.value}, got {trade.symbol.value}"
         )
         assert isinstance(trade.price, Decimal), f"Price should be Decimal, got {type(trade.price)}"
         assert isinstance(trade.quantity, Decimal), (
@@ -712,24 +713,14 @@ class TestBackpackAllStreamModelConversions:
 
         # Test depth transformation with REAL DATA
         try:
-            # Ensure we use string version for helper function
-            test_symbol_for_api = (
-                test_symbol.value if hasattr(test_symbol, "value") else test_symbol
-            )
-            raw_depth = await get_real_depth_data(bp_api_for_test_env, test_symbol_for_api)
+            # test_symbol should always be a Symbol object at this point
+            test_symbol_obj = test_symbol
+            test_symbol_str = test_symbol.value
+            
+            # Get real depth data using Symbol object
+            raw_depth = await get_real_depth_data(bp_api_for_test_env, test_symbol_obj)
 
-            # Use ACTUAL transformation logic
-            # Convert string to Symbol object as expected by the mapper
-            # Handle case where test_symbol might already be a Symbol object
-            if hasattr(test_symbol, "value"):
-                # test_symbol is already a Symbol object
-                test_symbol_obj = test_symbol
-                test_symbol_str = test_symbol.value
-            else:
-                # test_symbol is a string
-                test_symbol_obj = exchanges.backpack(test_symbol)
-                test_symbol_str = test_symbol
-
+            # Use ACTUAL transformation logic with Symbol object
             domain_orderbook = order_book_mapper.transform_ws_depth_event_to_internal(
                 test_symbol_obj, raw_depth
             )
@@ -769,11 +760,11 @@ class TestBackpackAllStreamModelConversions:
 
     async def _setup_stream_integration(
         self, bp_api_for_test_env: BackpackAPI
-    ) -> tuple[str, dict[str, list[Any]]]:
+    ) -> tuple[Symbol, dict[str, list[Any]]]:
         """Set up WebSocket connection and get test symbol for stream integration.
 
         Returns:
-            tuple[str, dict[str, list[Any]]]: Test symbol and initialized stream results dictionary.
+            tuple[Symbol, dict[str, list[Any]]]: Test symbol and initialized stream results dictionary.
         """
         await bp_api_for_test_env.connect_websocket()
 
@@ -830,14 +821,14 @@ class TestBackpackAllStreamModelConversions:
     async def _subscribe_to_all_streams(
         self,
         bp_api_for_test_env: BackpackAPI,
-        test_symbol: str,
+        test_symbol: Symbol,
         stream_results: dict[str, list[Any]],
     ) -> None:
         """Subscribe to multiple stream types."""
         stream_subscriptions = [
-            (f"ticker.{test_symbol}", "ticker"),
-            (f"depth.{test_symbol}", "depth"),
-            (f"trade.{test_symbol}", "trades"),  # Note: stream name is "trade"
+            (f"ticker.{test_symbol.value}", "ticker"),
+            (f"depth.{test_symbol.value}", "depth"),
+            (f"trade.{test_symbol.value}", "trades"),  # Note: stream name is "trade"
             ("fills", "fills"),  # Authenticated stream
         ]
 
@@ -1008,12 +999,12 @@ class TestBackpackAllStreamModelConversions:
     async def _subscribe_to_consistency_streams(
         self,
         bp_api_for_test_env: BackpackAPI,
-        test_symbol: str,
+        test_symbol: Symbol,
         model_data: dict[str, dict[str, Any]],
     ) -> None:
         """Subscribe to multiple streams for consistency testing."""
-        # test_symbol is now guaranteed to be a string from _get_test_symbol
-        symbol_str = test_symbol
+        # Convert Symbol to string for WebSocket subscription
+        symbol_str = test_symbol.value.replace("/", "_").replace("-", "_")
 
         consistency_streams = [
             (f"ticker.{symbol_str}", "ticker"),

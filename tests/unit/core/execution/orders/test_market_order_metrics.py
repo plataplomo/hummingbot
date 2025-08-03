@@ -14,6 +14,7 @@ from cyberdelta.core.execution.orders.market_order_metrics import (
     MarketOrderExecutionMetric,
     MarketOrderMetrics,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from tests.common_symbols import BTC_HL, ETH_HL
 
@@ -31,7 +32,7 @@ class TestMarketOrderExecutionMetric:
         btc_symbol = BTC_HL
         return MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_quantity=Decimal("1.0"),
             filled_quantity=Decimal("1.0"),
@@ -51,7 +52,7 @@ class TestMarketOrderExecutionMetric:
         # Act
         metric = MarketOrderExecutionMetric(
             timestamp=timestamp,
-            symbol=eth_symbol.value,
+            symbol=eth_symbol,
             side=OrderSide.SELL,
             requested_quantity=Decimal("2.5"),
             filled_quantity=Decimal("2.0"),
@@ -64,7 +65,7 @@ class TestMarketOrderExecutionMetric:
 
         # Assert
         assert metric.timestamp == timestamp
-        assert metric.symbol == eth_symbol.value.value
+        assert metric.symbol == eth_symbol
         assert metric.side == OrderSide.SELL
         assert metric.requested_quantity == Decimal("2.5")
         assert metric.filled_quantity == Decimal("2.0")
@@ -90,7 +91,7 @@ class TestMarketOrderExecutionMetric:
         btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_quantity=Decimal("4.0"),
             filled_quantity=Decimal("3.0"),
@@ -113,7 +114,7 @@ class TestMarketOrderExecutionMetric:
         btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_quantity=Decimal("0.0"),
             filled_quantity=Decimal("0.0"),
@@ -136,7 +137,7 @@ class TestMarketOrderExecutionMetric:
         btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_quantity=Decimal("1.0"),
             filled_quantity=Decimal("1.0"),
@@ -159,7 +160,7 @@ class TestMarketOrderExecutionMetric:
         eth_symbol = ETH_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=eth_symbol.value,
+            symbol=eth_symbol,
             side=OrderSide.SELL,
             requested_quantity=Decimal("2.0"),
             filled_quantity=Decimal("2.0"),
@@ -182,7 +183,7 @@ class TestMarketOrderExecutionMetric:
         btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_quantity=Decimal("1.0"),
             filled_quantity=Decimal("0.0"),
@@ -205,7 +206,7 @@ class TestMarketOrderExecutionMetric:
         btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_quantity=Decimal("1.0"),
             filled_quantity=Decimal("1.0"),
@@ -229,7 +230,7 @@ class TestMarketOrderExecutionMetric:
         btc_symbol = BTC_HL
         metric = MarketOrderExecutionMetric(
             timestamp=datetime.now(UTC),
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_quantity=Decimal("1.0"),
             filled_quantity=Decimal("0.0"),
@@ -278,7 +279,7 @@ class TestMarketOrderMetrics:
 
         # Act
         metrics_tracker.record_execution(
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_qty=Decimal("1.0"),
             filled_qty=Decimal("1.0"),
@@ -294,7 +295,7 @@ class TestMarketOrderMetrics:
         assert len(recent_metrics) == 1
 
         metric = recent_metrics[0]
-        assert metric.symbol == btc_symbol.value.value
+        assert metric.symbol == btc_symbol
         assert metric.side == OrderSide.BUY
         assert metric.status == OrderStatus.FILLED
 
@@ -302,12 +303,11 @@ class TestMarketOrderMetrics:
         """Test that metrics tracker respects max history constraint."""
         # Arrange
         metrics_tracker = MarketOrderMetrics(max_history=2)
-        btc_symbol = BTC_HL
 
         # Act - record 3 metrics
         for i in range(3):
             metrics_tracker.record_execution(
-                symbol=f"{btc_symbol.value}-{i}",
+                symbol=exchanges.hyperliquid(f"BTC-PERP-{i}"),
                 side=OrderSide.BUY,
                 requested_qty=Decimal("1.0"),
                 filled_qty=Decimal("1.0"),
@@ -321,8 +321,8 @@ class TestMarketOrderMetrics:
         # Assert
         recent_metrics = metrics_tracker.get_recent_metrics()
         assert len(recent_metrics) == 2  # Only last 2 kept
-        assert recent_metrics[0].symbol.value == f"{btc_symbol.value}-1"  # Oldest of the kept
-        assert recent_metrics[1].symbol.value == f"{btc_symbol.value}-2"  # Newest
+        assert recent_metrics[0].symbol.value == "BTC-PERP-1"  # Oldest of the kept
+        assert recent_metrics[1].symbol.value == "BTC-PERP-2"  # Newest
 
     def test_get_symbol_stats_returns_statistics_for_symbol(
         self, metrics_tracker: MarketOrderMetrics
@@ -331,7 +331,7 @@ class TestMarketOrderMetrics:
         # Arrange - record metrics for symbol
         btc_symbol = BTC_HL
         metrics_tracker.record_execution(
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_qty=Decimal("1.0"),
             filled_qty=Decimal("1.0"),
@@ -343,7 +343,7 @@ class TestMarketOrderMetrics:
         )
 
         # Act
-        stats = metrics_tracker.get_symbol_stats(btc_symbol.value)
+        stats = metrics_tracker.get_symbol_stats(btc_symbol)
 
         # Assert
         assert "count" in stats
@@ -360,7 +360,7 @@ class TestMarketOrderMetrics:
         eth_symbol = ETH_HL
 
         metrics_tracker.record_execution(
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_qty=Decimal("1.0"),
             filled_qty=Decimal("1.0"),
@@ -371,7 +371,7 @@ class TestMarketOrderMetrics:
             execution_time_ms=200.0,
         )
         metrics_tracker.record_execution(
-            symbol=eth_symbol.value,
+            symbol=eth_symbol,
             side=OrderSide.SELL,
             requested_qty=Decimal("2.0"),
             filled_qty=Decimal("2.0"),
@@ -398,7 +398,7 @@ class TestMarketOrderMetrics:
         # Arrange - record metric with slippage
         btc_symbol = BTC_HL
         metrics_tracker.record_execution(
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_qty=Decimal("1.0"),
             filled_qty=Decimal("1.0"),
@@ -424,7 +424,7 @@ class TestMarketOrderMetrics:
         # Arrange
         btc_symbol = BTC_HL
         metrics_tracker.record_execution(
-            symbol=btc_symbol.value,
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             requested_qty=Decimal("1.0"),
             filled_qty=Decimal("1.0"),
@@ -447,10 +447,9 @@ class TestMarketOrderMetrics:
     ) -> None:
         """Test get_recent_metrics respects the count parameter."""
         # Arrange - record 5 metrics
-        btc_symbol = BTC_HL
         for i in range(5):
             metrics_tracker.record_execution(
-                symbol=f"{btc_symbol.value}-{i}",
+                symbol=exchanges.hyperliquid(f"BTC-PERP-{i}"),
                 side=OrderSide.BUY,
                 requested_qty=Decimal("1.0"),
                 filled_qty=Decimal("1.0"),
@@ -467,6 +466,6 @@ class TestMarketOrderMetrics:
         # Assert
         assert len(recent_metrics) == 3
         # Should return the 3 most recent
-        assert recent_metrics[0].symbol.value == f"{btc_symbol.value}-2"
-        assert recent_metrics[1].symbol.value == f"{btc_symbol.value}-3"
-        assert recent_metrics[2].symbol.value == f"{btc_symbol.value}-4"
+        assert recent_metrics[0].symbol.value == "BTC-PERP-2"
+        assert recent_metrics[1].symbol.value == "BTC-PERP-3"
+        assert recent_metrics[2].symbol.value == "BTC-PERP-4"

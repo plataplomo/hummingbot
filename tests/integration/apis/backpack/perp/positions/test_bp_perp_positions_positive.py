@@ -17,6 +17,7 @@ from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.derivative_position import DerivativePosition
 from tests.common_symbols import SOL_USDC_PERP_BP
@@ -55,7 +56,7 @@ pytestmark = [
 
 async def create_test_perp_position(
     api: BackpackAPI,
-    symbol=None,
+    symbol: Symbol | None = None,
 ) -> tuple[str, Decimal]:
     """Create a small test position and return order ID and quantity.
 
@@ -143,13 +144,13 @@ class TestBackpackPerpPositionsPrivate:
         assert isinstance(position, DerivativePosition)
         assert position.exchange == "backpack"
 
-        assert isinstance(position.symbol, str)
-        assert len(position.symbol) > 0
-        assert len(position.symbol) <= 20
+        assert isinstance(position.symbol, BaseSymbol)
+        assert len(position.symbol.value) > 0
+        assert len(position.symbol.value) <= 20
 
-        if "PERP" in position.symbol.upper():
+        if "PERP" in position.symbol.value.upper():
             # Backpack perp symbols use underscores (e.g., SOL_USDC_PERP)
-            assert "_" in position.symbol
+            assert "_" in position.symbol.value
 
         assert position.timestamp is not None
         time_diff = datetime.now(position.timestamp.tzinfo) - position.timestamp

@@ -23,6 +23,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models.market import OrderBook, Trade
 
@@ -47,7 +48,7 @@ async def get_active_trading_symbols(api: HyperliquidAPI) -> list[str]:
         markets = await api.get_markets(GetMarketsArgs())
 
         # Filter for active markets only
-        active_symbols: list[str] = []
+        active_symbols: list[Symbol] = []
         for market in markets:
             if hasattr(market, "is_active") and getattr(market, "is_active", True):
                 active_symbols.append(market.symbol)
@@ -89,7 +90,7 @@ class TestHyperliquidWebSocketMarketData:
         return test_symbol, received_orderbooks, data_received
 
     def _create_l2book_handler(
-        self, test_symbol: str, received_orderbooks: list[OrderBook], data_received: asyncio.Event
+        self, test_symbol: Symbol, received_orderbooks: list[OrderBook], data_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create L2 book handler with validation.
 
@@ -214,7 +215,7 @@ class TestHyperliquidWebSocketMarketData:
             )
 
     def _create_trades_handler(
-        self, test_symbol: str, received_trades: list[Trade], trade_received: asyncio.Event
+        self, test_symbol: Symbol, received_trades: list[Trade], trade_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create trades handler with validation.
 

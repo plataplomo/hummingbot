@@ -10,6 +10,7 @@ from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler 
     BackpackMarketDataResponseHandler,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -25,7 +26,7 @@ type RawJsonResponse = RawJson
 class TestHandleGetFundingRateResponse:
     """Tests for BackpackMarketDataResponseHandler.handle_get_funding_rate_response."""
 
-    def test_valid(self, valid_raw_funding_rate: dict[str, Any], symbol_perp: str) -> None:
+    def test_valid(self, valid_raw_funding_rate: dict[str, Any], symbol_perp: Symbol) -> None:
         """Test handling a valid raw funding rate response."""
         funding_rate: BackpackRawFundingRateResponse = (
             BackpackMarketDataResponseHandler.handle_get_funding_rate_response(
@@ -36,16 +37,16 @@ class TestHandleGetFundingRateResponse:
             )
         )
         assert isinstance(funding_rate, BackpackRawFundingRateResponse)
-        assert funding_rate.symbol == symbol_perp
+        assert funding_rate.symbol == symbol_perp.value
         assert funding_rate.funding_rate == "0.000123"
         assert funding_rate.mark_price == "140.00"
         assert funding_rate.index_price == "139.90"
         assert funding_rate.time == 1678887000000
 
-    def test_validation_error_missing_field(self, symbol_perp: str) -> None:
+    def test_validation_error_missing_field(self, symbol_perp: Symbol) -> None:
         """Test funding rate response missing required field."""
         raw_data = {
-            "symbol": symbol_perp,
+            "symbol": symbol_perp.value,
             # Missing 'rate' field
             "markPrice": "140.00",
             "indexPrice": "139.90",
@@ -62,10 +63,10 @@ class TestHandleGetFundingRateResponse:
         assert f"funding rate ({symbol_perp})" in exc_info.value.message
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
-    def test_validation_error_invalid_rate_format(self, symbol_perp: str) -> None:
+    def test_validation_error_invalid_rate_format(self, symbol_perp: Symbol) -> None:
         """Test funding rate response with invalid rate format."""
         raw_data = {
-            "symbol": symbol_perp,
+            "symbol": symbol_perp.value,
             "rate": "invalid_rate",
             "markPrice": "140.00",
             "indexPrice": "139.90",
@@ -81,7 +82,7 @@ class TestHandleGetFundingRateResponse:
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert isinstance(exc_info.value.original_exception, ValidationError)
 
-    def test_invalid_top_level_type(self, symbol_perp: str) -> None:
+    def test_invalid_top_level_type(self, symbol_perp: Symbol) -> None:
         """Test funding rate response with wrong top-level type."""
         raw_data = ["invalid"]
         with pytest.raises(APIError) as exc_info:
@@ -95,13 +96,13 @@ class TestHandleGetFundingRateResponse:
         assert "expected dict" in exc_info.value.message
         assert "got str" in exc_info.value.message
 
-    def test_extra_fields_ignored(self, symbol_perp: str) -> None:
+    def test_extra_fields_ignored(self, symbol_perp: Symbol) -> None:
         """Test that extra fields in funding rate response cause ValidationError.
 
         This is due to extra='forbid' in the validation model.
         """
         raw_data = {
-            "symbol": symbol_perp,
+            "symbol": symbol_perp.value,
             "rate": "0.000123",
             "markPrice": "140.00",
             "indexPrice": "139.90",
@@ -122,10 +123,10 @@ class TestHandleGetFundingRateResponse:
 class TestFundingRateEdgeCases:
     """Tests for additional edge cases in funding rate response handling."""
 
-    def test_funding_rate_with_zero_rate(self, symbol_perp: str) -> None:
+    def test_funding_rate_with_zero_rate(self, symbol_perp: Symbol) -> None:
         """Test funding rate response with zero rate."""
         raw_data = {
-            "symbol": symbol_perp,
+            "symbol": symbol_perp.value,
             "rate": "0.0",
             "markPrice": "140.00",
             "indexPrice": "139.90",
@@ -139,10 +140,10 @@ class TestFundingRateEdgeCases:
         )
         assert funding_rate.funding_rate == "0.0"
 
-    def test_funding_rate_with_negative_rate(self, symbol_perp: str) -> None:
+    def test_funding_rate_with_negative_rate(self, symbol_perp: Symbol) -> None:
         """Test funding rate response with negative rate."""
         raw_data = {
-            "symbol": symbol_perp,
+            "symbol": symbol_perp.value,
             "rate": "-0.000456",
             "markPrice": "140.00",
             "indexPrice": "139.90",
@@ -156,10 +157,10 @@ class TestFundingRateEdgeCases:
         )
         assert funding_rate.funding_rate == "-0.000456"
 
-    def test_funding_rate_with_high_precision(self, symbol_perp: str) -> None:
+    def test_funding_rate_with_high_precision(self, symbol_perp: Symbol) -> None:
         """Test funding rate response with high precision decimal values."""
         raw_data = {
-            "symbol": symbol_perp,
+            "symbol": symbol_perp.value,
             "rate": "0.000123456789",
             "markPrice": "140.123456789",
             "indexPrice": "139.987654321",

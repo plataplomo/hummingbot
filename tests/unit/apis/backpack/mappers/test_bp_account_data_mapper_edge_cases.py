@@ -19,6 +19,7 @@ import pytest
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.core.symbols import exchanges
 
 
 pytestmark = pytest.mark.timing
@@ -173,7 +174,7 @@ class TestEdgeCasesAndRobustness:
             # DEFENSIVE CHECK: result could be None if price/quantity is zero.
             # Mypy=[union-attr] Ruff=[N/A]
             assert result is not None, f"Expected Trade object but got None for symbol {symbol}"
-            assert result.symbol == symbol
+            assert result.symbol == exchanges.backpack(symbol)
 
     def test_unicode_fee_symbol_handling(
         self,
@@ -350,7 +351,7 @@ class TestEdgeCasesAndRobustness:
             # DEFENSIVE CHECK: result could be None if price/quantity is zero.
             # Mypy=[union-attr] Ruff=[N/A]
             assert result is not None, f"Expected Trade object but got None for symbol {symbol}"
-            assert result.symbol == symbol
+            assert result.symbol == exchanges.backpack(symbol)
 
     def test_transformation_error_context_preservation(
         self,

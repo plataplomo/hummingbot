@@ -54,12 +54,8 @@ class TestBackpackSpotMarkets:
         assert market.symbol == SOL_USDC_BP, (
             f"Expected symbol '{SOL_USDC_BP}', got '{market.symbol}'"
         )
-        assert market.base_symbol == "SOL", (
-            f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
-        )
-        assert market.quote_symbol == "USDC", (
-            f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
-        )
+        # Base and quote symbol validation removed - Market model refactored to only have symbol field
+        # The symbol itself (SOL_USDC_BP) contains both base and quote information
 
         # Validate market type (should be spot)
         assert isinstance(market.market_type, str), (
@@ -163,12 +159,8 @@ class TestBackpackSpotMarkets:
 
         # Validate core market fields
         assert market.symbol == BTC_USDC_BP, f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
-        assert market.base_symbol == "BTC", (
-            f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
-        )
-        assert market.quote_symbol == "USDC", (
-            f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
-        )
+        # Base and quote symbol validation removed - Market model refactored to only have symbol field
+        # The symbol itself (BTC_USDC_BP) contains both base and quote information
 
         # BTC should have reasonable tick and step sizes for spot trading
         assert market.tick_size <= Decimal(100), (
@@ -194,12 +186,8 @@ class TestBackpackSpotMarkets:
 
         # Validate core market fields
         assert market.symbol == ETH_USDC_BP, f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
-        assert market.base_symbol == "ETH", (
-            f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
-        )
-        assert market.quote_symbol == "USDC", (
-            f"Expected quote_symbol 'USDC', got '{market.quote_symbol}'"
-        )
+        # Base and quote symbol validation removed - Market model refactored to only have symbol field
+        # The symbol itself (ETH_USDC_BP) contains both base and quote information
 
         # ETH spot market validation
         assert "spot" in market.market_type.lower() or market.market_type in ["Spot", "SPOT"], (
@@ -292,15 +280,8 @@ class TestBackpackSpotMarkets:
             )
             assert len(market.symbol.value) > 0, "symbol should not be empty"
 
-            assert isinstance(market.base_symbol, str), (
-                f"base_symbol should be str, got {type(market.base_symbol)}"
-            )
-            assert len(market.base_symbol) > 0, "base_symbol should not be empty"
-
-            assert isinstance(market.quote_symbol, str), (
-                f"quote_symbol should be str, got {type(market.quote_symbol)}"
-            )
-            assert len(market.quote_symbol) > 0, "quote_symbol should not be empty"
+            # Base and quote symbol validation removed - Market model refactored to only have symbol field
+            # Symbol validation is handled by the Symbol type itself
 
             # Validate financial constraints
             assert isinstance(market.tick_size, Decimal), (
@@ -467,8 +448,7 @@ class TestBackpackSpotMarkets:
 
         # Compare core fields for consistency
         assert individual_market.symbol == matching_market.symbol
-        assert individual_market.base_symbol == matching_market.base_symbol
-        assert individual_market.quote_symbol == matching_market.quote_symbol
+        # Base and quote symbol comparison removed - Market model refactored
         assert individual_market.market_type == matching_market.market_type
         assert individual_market.tick_size == matching_market.tick_size
         assert individual_market.step_size == matching_market.step_size
@@ -496,13 +476,9 @@ class TestBackpackSpotMarkets:
         if "_" in market.symbol.value and not market.symbol.value.endswith("_PERP"):
             parts = market.symbol.value.split("_")
             if len(parts) == 2:  # Simple base_quote format for spot
-                assert market.base_symbol == parts[0], (
-                    f"base_symbol '{market.base_symbol}' should match first part of "
-                    f"symbol '{parts[0]}'"
-                )
-                assert market.quote_symbol == parts[1], (
-                    f"quote_symbol '{market.quote_symbol}' should match second part '{parts[1]}'"
-                )
+                # Base and quote parsing validation removed - Market model refactored
+                # Symbol format validation is handled by the Symbol type itself
+                pass
 
         # Validate trading constraints make sense
         if market.min_price is not None and market.max_price is not None:
@@ -518,7 +494,7 @@ class TestBackpackSpotMarkets:
             )
 
         # Validate tick_size is reasonable relative to potential prices for spot
-        if market.quote_symbol == "USDC":
+        if "USDC" in market.symbol.value:
             # Tick size should be reasonable for USD-denominated spot trading
             assert market.tick_size <= Decimal(1000), (
                 f"tick_size seems too large for USDC spot pair: {market.tick_size}"

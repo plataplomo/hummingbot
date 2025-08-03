@@ -30,7 +30,8 @@ from cyberdelta.apis.common import TransformationError
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderBook, Ticker, Trade
-from tests.common_symbols import SOL_USDC_BP
+from tests.common_symbols import BTC_USDC_BP, DOGE_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
+from cyberdelta.core.symbols import exchanges
 
 
 @pytest.fixture
@@ -235,14 +236,14 @@ class TestSideMapping:
         test_timestamp_ms: int,
     ) -> None:
         """Test that side mapping works correctly with different trading symbols."""
-        symbols = ["SOL-USDC", "BTC-USDC", "ETH-USDC", "DOGE-USDC"]
+        symbols = [SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, DOGE_USDC_BP]
 
         for symbol in symbols:
             # Test both sides for each symbol
             for is_maker, expected_side in [(True, OrderSide.BUY), (False, OrderSide.SELL)]:
                 raw_trade_event = create_raw_trade_event(
-                    s=symbol,
-                    t=f"trade_{symbol}_{is_maker}",
+                    s=symbol.value,
+                    t=f"trade_{symbol.value}_{is_maker}",
                     m=is_maker,
                     event_time=test_timestamp_ms,
                 )
@@ -276,7 +277,7 @@ class TestWebSocketTickerEventTransformation:
         result = ticker_mapper.transform_ws_ticker_event_to_internal(raw_ticker)
 
         assert isinstance(result, Ticker)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
         assert result.price == Decimal("100.50")
         assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
 
@@ -286,11 +287,11 @@ class TestWebSocketTickerEventTransformation:
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket ticker event transformation with various symbols."""
-        symbols = ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"]
+        symbols = [BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP, DOGE_USDC_BP]
 
         for symbol in symbols:
             raw_ticker = create_raw_ticker_event(
-                s=symbol,
+                s=symbol.value,
                 event_time=test_timestamp_ms,
             )
 
@@ -366,7 +367,7 @@ class TestWebSocketTickerEventTransformation:
 
         result = ticker_mapper.transform_ws_ticker_event_to_internal(raw_ticker)
 
-        assert result.symbol == "SOL-USDC-测试"
+        assert result.symbol == exchanges.backpack("SOL-USDC-测试")
 
 
 class TestWebSocketDepthEventTransformation:
@@ -385,10 +386,10 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal("SOL-USDC", raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
 
         assert isinstance(result, OrderBook)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
         assert len(result.bids) == 2
         assert len(result.asks) == 2
         assert result.bids[0] == (Decimal("100.25"), Decimal("10.0"))
@@ -406,7 +407,7 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal("SOL-USDC", raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
 
         assert len(result.bids) == 0
         assert len(result.asks) == 0
@@ -423,7 +424,7 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal("SOL-USDC", raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
 
         assert len(result.bids) == 1
         assert len(result.asks) == 1
@@ -446,7 +447,7 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal("SOL-USDC", raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
 
         assert len(result.bids) == 10
         assert len(result.asks) == 10
@@ -465,7 +466,7 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal("SOL-USDC", raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
 
         assert result.bids[0] == (Decimal("0.000001"), Decimal("999999999.999999"))
         assert result.asks[0] == (Decimal("1000000.000001"), Decimal("0.000000001"))
@@ -487,7 +488,7 @@ class TestWebSocketDepthEventTransformation:
                 TransformationError,
                 match="Failed to transform BackpackRawDepthUpdateEvent",
             ):
-                order_book_mapper.transform_ws_depth_event_to_internal("SOL-USDC", raw_depth)
+                order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
 
     def test_transform_ws_depth_event_with_different_symbols(
         self,
@@ -495,7 +496,7 @@ class TestWebSocketDepthEventTransformation:
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket depth event transformation with different symbols."""
-        symbols = ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"]
+        symbols = [BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP, DOGE_USDC_BP]
         raw_depth, _ = create_raw_depth_event(event_time=test_timestamp_ms)
 
         for symbol in symbols:
@@ -527,7 +528,7 @@ class TestWebSocketTradeEventTransformation:
         result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
 
         assert isinstance(result, Trade)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
         assert result.price == Decimal("100.50")
         assert result.quantity == Decimal("10.0")
         assert result.exchange == ExchangeName.BACKPACK.value
@@ -660,7 +661,7 @@ class TestWebSocketTradeEventTransformation:
             )
 
             result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
-            assert result.symbol == symbol
+            assert result.symbol.value == symbol
 
     def test_transform_ws_trade_event_missing_required_fields(
         self,

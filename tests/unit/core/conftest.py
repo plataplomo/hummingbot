@@ -14,14 +14,11 @@ from pydantic import AnyUrl, HttpUrl
 from cyberdelta.config.models.config_models import (
     AddressActionSafetyNetConfig,
     ExchangeSpecificConfig,
-    PortfolioStateSettings,
-    # PortfolioTrackerConfig removed - replaced by modular portfolio system
-    PortfolioValidationSettings,
 )
 from cyberdelta.core.enums import SignalType
 
-# from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager - removed legacy import
-from cyberdelta.core.symbols import Symbol
+# PortfolioStateManager import removed - replaced by modular portfolio system
+from cyberdelta.core.symbols import Symbol, exchanges
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
@@ -91,24 +88,24 @@ def mock_config() -> MagicMock:
     config.get.return_value = {}
     return config
 
+    # @pytest.fixture
+    # def pt_config() -> PortfolioTrackerConfig:
+    # """Standard portfolio tracker configuration.
 
-@pytest.fixture
-def pt_config() -> PortfolioTrackerConfig:
-    """Standard portfolio tracker configuration.
-
-    Returns:
-        PortfolioTrackerConfig: Standard portfolio tracker configuration.
-    """
-    return PortfolioTrackerConfig(
-        data_freshness_seconds=60,
-        # Ensure validation timeout <= state update timeout to satisfy business logic
-        validation=PortfolioValidationSettings(
-            validation_timeout=5.0,  # Set to 5.0 to be <= state.update_timeout default (5.0)
-        ),
-        state=PortfolioStateSettings(
-            update_timeout=10.0,  # Increase to 10.0 to provide buffer above validation_timeout
-        ),
-    )
+    # Returns:
+    #     PortfolioTrackerConfig: Standard portfolio tracker configuration.
+    # """
+    # return PortfolioTrackerConfig(
+    #     data_freshness_seconds=60,
+    #     # Ensure validation timeout <= state update timeout to satisfy business logic
+    #     validation=PortfolioValidationSettings(
+    #         validation_timeout=5.0,  # Set to 5.0 to be <= state.update_timeout default (5.0)
+    #     ),
+    #     state=PortfolioStateSettings(
+    #         update_timeout=10.0,  # Increase to 10.0 to provide buffer above validation_timeout
+    #     ),
+    # )
+    # Disabled - replaced by modular portfolio system
 
 
 # Symbol mapper fixtures
@@ -220,23 +217,23 @@ def symbol_mapper_config() -> dict[str, ExchangeSpecificConfig]:
         "backpack": create_test_exchange_config(ExchangeName.BACKPACK),
     }
 
+    # Portfolio tracker fixtures
+    # @pytest.fixture
+    # def mock_portfolio_state_manager() -> Mock:
+    # """Mock portfolio tracker with standard methods.
 
-# Portfolio tracker fixtures
-@pytest.fixture
-def mock_portfolio_state_manager() -> Mock:
-    """Mock portfolio tracker with standard methods.
-
-    Returns:
-        Mock: Mock portfolio tracker with configured method return values.
-    """
-    tracker = Mock(spec=PortfolioStateManager)
-    tracker.get_open_orders.return_value = []
-    tracker.get_order_history.return_value = []
-    tracker.get_all_positions.return_value = []
-    tracker.get_exchange_balance.return_value = None
-    tracker.get_position.return_value = None
-    tracker.get_order_by_id.return_value = None
-    return tracker
+    # Returns:
+    #     Mock: Mock portfolio tracker with configured method return values.
+    # """
+    # tracker = Mock(spec=PortfolioStateManager)
+    # tracker.get_open_orders.return_value = []
+    # tracker.get_order_history.return_value = []
+    # tracker.get_all_positions.return_value = []
+    # tracker.get_exchange_balance.return_value = None
+    # tracker.get_position.return_value = None
+    # tracker.get_order_by_id.return_value = None
+    # return tracker
+    # Disabled - replaced by modular portfolio system
 
 
 # Sample data fixtures
@@ -250,7 +247,7 @@ def sample_order(btc_symbols: SymbolSet) -> Order:
     btc_symbol = btc_symbols.perp_hl
     return Order(
         client_order_id=str(uuid4()),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         symbol=btc_symbol,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
@@ -274,10 +271,10 @@ def sample_spot_balance() -> SpotBalance:
         SpotBalance: Test USDC balance with 10k total, 8k available.
     """
     return SpotBalance(
-        asset="USDC",
+        asset=exchanges.hyperliquid("USD"),
         total_quantity=Decimal("10000.0"),
         available_quantity=Decimal("8000.0"),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         timestamp=datetime.now(UTC),
     )
 
@@ -298,7 +295,7 @@ def sample_derivative_position(btc_symbols: SymbolSet) -> DerivativePosition:
         mark_price=Decimal("51000.0"),
         unrealized_pnl=Decimal("1000.0"),
         realized_pnl=Decimal("0.0"),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         timestamp=datetime.now(UTC),
     )
 
@@ -333,7 +330,7 @@ def sample_ticker(btc_symbols: SymbolSet) -> Ticker:
     btc_symbol = btc_symbols.perp_hl
     return Ticker(
         symbol=btc_symbol,
-        exchange="test_exchange",
+        exchange=ExchangeName.HYPERLIQUID,
         bid=Decimal("49950.0"),
         ask=Decimal("50050.0"),
         price=Decimal("50000.0"),
@@ -408,7 +405,7 @@ def sample_trade_signal(btc_symbols: SymbolSet) -> TradeSignal:
         signal_type=SignalType.ENTER_LONG,
         side=OrderSide.BUY,
         price=Decimal("50000.0"),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         confidence=0.8,
         metadata={"strategy": "test_strategy"},
     )
@@ -422,7 +419,7 @@ def sample_margin_summary() -> MarginAccountSummary:
         MarginAccountSummary: Test margin account with $100k total, $90k available equity.
     """
     return MarginAccountSummary(
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         timestamp=datetime.now(UTC),
         total_equity=Decimal("100000.0"),
         available_equity=Decimal("90000.0"),
@@ -597,7 +594,7 @@ def create_test_order(
         symbol = BTC_HL
     return Order(
         client_order_id=str(uuid4()),
-        exchange=exchange,
+        exchange=ExchangeName.HYPERLIQUID if exchange == "hyperliquid" else ExchangeName.BACKPACK,
         symbol=symbol,
         side=side,
         order_type=OrderType.LIMIT,
@@ -628,10 +625,10 @@ def create_test_balance(
         available_quantity = total_quantity * Decimal("0.8")
 
     return SpotBalance(
-        asset=asset,
+        asset=exchanges.hyperliquid(asset) if asset != "USDC" else exchanges.hyperliquid("USD"),
         total_quantity=total_quantity,
         available_quantity=available_quantity,
-        exchange=exchange,
+        exchange=ExchangeName.HYPERLIQUID if exchange == "hyperliquid" else ExchangeName.BACKPACK,
         timestamp=datetime.now(UTC),
     )
 
@@ -660,7 +657,7 @@ def create_test_signal(
         signal_type=signal_type,
         side=side,
         price=price,
-        exchange=exchange,
+        exchange=ExchangeName.HYPERLIQUID if exchange == "hyperliquid" else ExchangeName.BACKPACK,
         confidence=confidence,
         metadata=metadata,
     )
@@ -724,10 +721,16 @@ def create_sample_balances(scenario: str = "default") -> dict[str, dict[str, Spo
         result[exchange_id] = {}
         for asset, (total_qty, available_qty) in assets.items():
             result[exchange_id][asset] = SpotBalance(
-                asset=asset,
+                asset=exchanges.hyperliquid("USD")
+                if asset == "USDC"
+                else exchanges.hyperliquid(asset)
+                if exchange_id == "hyperliquid"
+                else exchanges.backpack(asset),
                 total_quantity=total_qty,
                 available_quantity=available_qty,
-                exchange=exchange_id,
+                exchange=ExchangeName.HYPERLIQUID
+                if exchange_id == "hyperliquid"
+                else ExchangeName.BACKPACK,
                 timestamp=datetime.now(UTC),
             )
 
@@ -842,8 +845,12 @@ def create_sample_orders(scenario: str = "default") -> dict[str, dict[str, Order
         for order_id, symbol, side, qty, price, status in orders_data:
             result[exchange_id][order_id] = Order(
                 client_order_id=order_id,
-                exchange=exchange_id,
-                symbol=symbol,
+                exchange=ExchangeName.HYPERLIQUID
+                if exchange_id == "hyperliquid"
+                else ExchangeName.BACKPACK,
+                symbol=exchanges.hyperliquid(symbol)
+                if exchange_id == "hyperliquid"
+                else exchanges.backpack(symbol),
                 side=side,
                 order_type=OrderType.LIMIT,
                 quantity_requested=qty,
@@ -967,14 +974,18 @@ def create_sample_positions(scenario: str = "default") -> dict[str, dict[str, De
         result[exchange_id] = {}
         for symbol, side, size, entry_price, mark_price, unrealized_pnl in positions_data:
             result[exchange_id][symbol] = DerivativePosition(
-                symbol=symbol,
+                symbol=exchanges.hyperliquid(symbol)
+                if exchange_id == "hyperliquid"
+                else exchanges.backpack(symbol),
                 side=side,
                 size=size,
                 entry_price=entry_price,
                 mark_price=mark_price,
                 unrealized_pnl=unrealized_pnl,
                 realized_pnl=Decimal("0.0"),
-                exchange=exchange_id,
+                exchange=ExchangeName.HYPERLIQUID
+                if exchange_id == "hyperliquid"
+                else ExchangeName.BACKPACK,
                 timestamp=base_time,
             )
 

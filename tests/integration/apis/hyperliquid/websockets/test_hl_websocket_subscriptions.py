@@ -25,6 +25,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market import Candle
 
 
@@ -67,7 +68,7 @@ async def get_liquid_trading_symbols(api: HyperliquidAPI, min_count: int = 3) ->
         markets = await api.get_markets(GetMarketsArgs())
 
         # Sort by volume if available, otherwise use all symbols
-        liquid_symbols: list[tuple[str, Decimal]] = []
+        liquid_symbols: list[tuple[Symbol, Decimal]] = []
         for market in markets:
             # Check if market has volume data
             if hasattr(market, "volume_24h"):
@@ -84,7 +85,7 @@ async def get_liquid_trading_symbols(api: HyperliquidAPI, min_count: int = 3) ->
         liquid_symbols.sort(key=itemgetter(1), reverse=True)
 
         # Extract just the symbols
-        symbols: list[str] = [sym for sym, _ in liquid_symbols]
+        symbols: list[Symbol] = [sym for sym, _ in liquid_symbols]
 
         if len(symbols) < min_count:
             raise RuntimeError(

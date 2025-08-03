@@ -28,6 +28,7 @@ from cyberdelta.apis.websocket.ws_context import (
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
@@ -193,14 +194,14 @@ class TestBackpackErrorHandlingArchitecture:
 
     async def _setup_error_propagation_test(
         self, bp_api_for_test_env: BackpackAPI
-    ) -> tuple[str, list[tuple[str, Exception]]]:
+    ) -> tuple[Symbol, list[tuple[str, Exception]]]:
         """Set up WebSocket connection and get test data for error propagation test.
 
         Args:
             bp_api_for_test_env: BackpackAPI instance for testing
 
         Returns:
-            tuple[str, list[tuple[str, Exception]]]: Test symbol and list of error scenarios
+            tuple[Symbol, list[tuple[str, Exception]]]: Test symbol and list of error scenarios
         """
         # Rule #10: Add proper network error handling
         try:
@@ -266,7 +267,7 @@ class TestBackpackErrorHandlingArchitecture:
     async def _test_single_error_scenario(
         self,
         bp_api_for_test_env: BackpackAPI,
-        test_symbol: str,
+        test_symbol: Symbol,
         error_name: str,
         error_to_raise: Exception,
     ) -> None:
@@ -279,8 +280,9 @@ class TestBackpackErrorHandlingArchitecture:
                 error_name, error_to_raise, handler_errors
             )
 
-            # Use the error tracking handler
-            await bp_api_for_test_env.subscribe(f"ticker.{test_symbol}", error_tracking_handler)
+            # Use the error tracking handler - convert Symbol to WebSocket format
+            ws_symbol = test_symbol.value.replace("/", "_").replace("-", "_")
+            await bp_api_for_test_env.subscribe(f"ticker.{ws_symbol}", error_tracking_handler)
 
             # Wait for at least one message to be processed
             await self._wait_for_handler_errors(handler_errors)

@@ -30,8 +30,16 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
     HyperliquidRawMetaResponse,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market.market import HyperliquidMarketDetails, Market
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
+from tests.common_symbols import (
+    ADA_HL,
+    AVAX_HL,
+    BTC_HL,
+    DOT_HL,
+    ETH_HL,
+    SOL_HL,
+)
 
 
 # Alias for shorter method calls
@@ -148,9 +156,8 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         # Check first market (ETH-PERP)
         eth_market = markets[0]
         assert isinstance(eth_market, Market)
-        assert eth_market.symbol == ETH_HL.value
-        assert eth_market.base_symbol == ETH_HL.value
-        assert eth_market.quote_symbol == "USD"
+        assert eth_market.symbol == ETH_HL
+        # Note: Market model doesn't have base_symbol/quote_symbol attributes
         assert eth_market.market_type == "Perpetual"
         assert eth_market.tick_size == Decimal("0.1")  # Business logic calculates differently
         assert eth_market.step_size == Decimal("0.0001")  # 1e-4
@@ -169,7 +176,7 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
         # Check second market (BTC-PERP)
         btc_market = markets[1]
-        assert btc_market.symbol == BTC_HL.value
+        assert btc_market.symbol == BTC_HL
         assert btc_market.hl_details is not None
         assert btc_market.hl_details.max_leverage == 100
         assert btc_market.hl_details.sz_decimals == 5
@@ -199,8 +206,9 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
         # Should still create markets, but missing context asset will have None values
         assert len(markets) == 2
 
-        eth_market = next(m for m in markets if m.symbol == ETH_HL.value)
-        missing_market = next(m for m in markets if m.symbol == "MISSING-PERP")
+        eth_market = next(m for m in markets if m.symbol == ETH_HL)
+        missing_perp_symbol = exchanges.hyperliquid("MISSING-PERP")
+        missing_market = next(m for m in markets if m.symbol == missing_perp_symbol)
 
         # ETH market should have context data
         assert eth_market.hl_details is not None
@@ -302,8 +310,10 @@ class TestTransformRawMetaAndAssetCtxsToMarkets:
 
         assert len(markets) == 2
 
-        extreme_market = next(m for m in markets if m.symbol == "EXTREME-PERP")
-        minimal_market = next(m for m in markets if m.symbol == "MINIMAL-PERP")
+        extreme_perp_symbol = exchanges.hyperliquid("EXTREME-PERP")
+        minimal_perp_symbol = exchanges.hyperliquid("MINIMAL-PERP")
+        extreme_market = next(m for m in markets if m.symbol == extreme_perp_symbol)
+        minimal_market = next(m for m in markets if m.symbol == minimal_perp_symbol)
 
         # Check extreme values are preserved
         assert extreme_market.hl_details is not None
@@ -335,9 +345,8 @@ class TestCreateMarketFromAssetDefinition:
         market = mapper.transform_single_asset_to_market(asset_def, asset_ctx)
 
         assert isinstance(market, Market)
-        assert market.symbol == "SOL-PERP"
-        assert market.base_symbol == "SOL-PERP"
-        assert market.quote_symbol == "USD"
+        assert market.symbol == SOL_HL
+        # Note: Market model doesn't have base_symbol/quote_symbol attributes
         assert market.market_type == "Perpetual"
         assert market.tick_size == Decimal("0.1")  # Business logic may calculate differently
         assert market.step_size == Decimal("0.001")
@@ -365,7 +374,7 @@ class TestCreateMarketFromAssetDefinition:
         market = mapper.transform_single_asset_to_market(asset_def, None)
 
         assert isinstance(market, Market)
-        assert market.symbol == "AVAX-PERP"
+        assert market.symbol == AVAX_HL
         assert market.tick_size == Decimal("0.01")  # 1e-2
         assert market.step_size == Decimal("0.01")
 
@@ -474,7 +483,7 @@ class TestTransformSingleAssetToMarket:
         market = mapper.transform_single_asset_to_market(asset_def, asset_ctx)
 
         assert isinstance(market, Market)
-        assert market.symbol == "DOT-PERP"
+        assert market.symbol == DOT_HL
         assert market.hl_details is not None
         assert market.hl_details.mark_price is not None
 
@@ -488,7 +497,7 @@ class TestTransformSingleAssetToMarket:
         market = mapper.transform_single_asset_to_market(asset_def)
 
         assert isinstance(market, Market)
-        assert market.symbol == "ADA-PERP"
+        assert market.symbol == ADA_HL
         assert market.hl_details is not None
         assert market.hl_details.mark_price is None
 
@@ -505,10 +514,9 @@ class TestTransformSingleAssetToMarket:
             "HyperliquidMarketMetadataMapper._create_market_from_asset_definition",
         ) as mock_internal:
             # Create a minimal valid market for the mock
+            link_perp_symbol = exchanges.hyperliquid("LINK-PERP")
             mock_market = Market(
-                symbol="LINK-PERP",
-                base_symbol="LINK-PERP",
-                quote_symbol="USD",
+                symbol=link_perp_symbol,
                 market_type="Perpetual",
                 tick_size=Decimal("0.0001"),
                 step_size=Decimal("0.0001"),
@@ -520,7 +528,7 @@ class TestTransformSingleAssetToMarket:
 
             # Should call internal method once with correct args
             mock_internal.assert_called_once_with(asset_def, None)
-            assert result.symbol == "LINK-PERP"
+            assert result.symbol == link_perp_symbol
 
 
 class TestMarketTransformationErrorHandling:
@@ -583,7 +591,8 @@ class TestMarketTransformationErrorHandling:
 
         # Should still work, just without context data
         assert len(markets) == 1
-        assert markets[0].symbol == "TEST-PERP"
+        test_perp_symbol = exchanges.hyperliquid("TEST-PERP")
+        assert markets[0].symbol == test_perp_symbol
         assert markets[0].hl_details is not None
         assert markets[0].hl_details.mark_price is None
 
@@ -654,7 +663,8 @@ class TestMarketTransformationErrorHandling:
 
         # All results should be identical
         for result in results:
-            assert result.symbol == "THREAD-TEST-PERP"
+            thread_test_symbol = exchanges.hyperliquid("THREAD-TEST-PERP")
+            assert result.symbol == thread_test_symbol
             assert result.hl_details is not None
             assert result.hl_details.mark_price == Decimal("3000.50")
             assert result.hl_details.funding_rate == Decimal("0.0001")

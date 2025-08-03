@@ -25,6 +25,7 @@ from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models.market.order_book import OrderBook
+from cyberdelta.core.symbols.models import Symbol
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (
@@ -42,11 +43,11 @@ logger = get_logger(__name__)
 class TestBackpackOrderBookModelCreation:
     """Test OrderBook model creation from WebSocket depth streams."""
 
-    async def _setup_orderbook_connection(self, api: BackpackAPI) -> str:
+    async def _setup_orderbook_connection(self, api: BackpackAPI) -> Symbol:
         """Set up connection and get test symbol for orderbook testing.
 
         Returns:
-            The WebSocket-formatted symbol (with underscores instead of slashes).
+            The Symbol for orderbook testing.
         """
         await api.connect_websocket()
         if not api.is_connected:
@@ -57,17 +58,17 @@ class TestBackpackOrderBookModelCreation:
             pytest.fail("No markets available for OrderBook testing")
 
         # Prefer SOL/USDC spot market for better liquidity
-        preferred_symbol = next(
+        preferred_market = next(
             (
-                m.symbol
+                m
                 for m in markets
-                if m.base_symbol == "SOL" and m.quote_symbol == "USDC" and m.market_type == "Spot"
+                if m.market_type == "Spot" and "SOL" in m.symbol.value and "USDC" in m.symbol.value
             ),
-            markets[0].symbol,
+            markets[0],
         )
 
-        # Convert symbol format from slash to underscore for WebSocket
-        return preferred_symbol.replace("/", "_") if "/" in preferred_symbol else preferred_symbol
+        # Return the Symbol object directly
+        return preferred_market.symbol
 
     async def _create_orderbook_handler(
         self, received_orderbooks: list[OrderBook]
@@ -186,11 +187,11 @@ class TestBackpackOrderBookModelCreation:
                 "Test requires stable WebSocket connection for depth data."
             )
 
-    def _validate_orderbook_structure(self, orderbook: OrderBook, expected_symbol: str) -> None:
+    def _validate_orderbook_structure(self, orderbook: OrderBook, expected_symbol: Symbol) -> None:
         """Validate OrderBook model structure."""
         assert isinstance(orderbook, OrderBook), f"Expected OrderBook, got {type(orderbook)}"
-        assert orderbook.symbol == expected_symbol, (
-            f"Expected symbol {expected_symbol}, got {orderbook.symbol}"
+        assert orderbook.symbol == expected_symbol.value, (
+            f"Expected symbol {expected_symbol.value}, got {orderbook.symbol}"
         )
         assert hasattr(orderbook, "bids"), "OrderBook missing bids attribute"
         assert hasattr(orderbook, "asks"), "OrderBook missing asks attribute"

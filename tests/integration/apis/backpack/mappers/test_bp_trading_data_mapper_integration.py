@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from tests.common_symbols import ADA_BTC_BP, BTC_USDC_BP, DOGE_USDT_BP, ETH_USDC_BP, SOL_USDC_BP
+from cyberdelta.core.symbols import exchanges
 
 
 # Third-party imports for type checking only
@@ -62,7 +63,7 @@ def create_raw_order(
     executed_quantity: str | None = "0.0",
     order_id: str = "12345",
     client_id: str | None = "test_order_001",
-    symbol: str = SOL_USDC_BP.value,
+    symbol: str = "SOL_USDC",  # Default symbol string for raw response
     time_in_force: str | None = "GTC",
     created_at: str | None = None,
     updated_at: str | None = None,
@@ -134,7 +135,7 @@ class TestTradingDataMapperIntegration:
         # Transform via order data method
         result_data = trading_data_mapper.transform_order_data_to_internal(
             order_id=raw_order.id,
-            symbol=raw_order.symbol,
+            symbol=exchanges.backpack(raw_order.symbol),
             side=raw_order.side,
             order_type=raw_order.orderType,
             status=raw_order.status,
@@ -177,7 +178,7 @@ class TestTradingDataMapperIntegration:
         with pytest.raises(TransformationError):
             trading_data_mapper.transform_order_data_to_internal(
                 order_id="123",
-                symbol=SOL_USDC_BP.value,
+                symbol=SOL_USDC_BP,
                 side="Buy",
                 order_type="LIMIT",
                 status="NEW",
@@ -235,7 +236,7 @@ class TestTradingDataMapperIntegration:
             avg_fill_price="45050.25",
             order_id="complex_order_123",
             client_id="complex_client_456",
-            symbol=BTC_USDC_BP.value,
+            symbol="BTC_USDC",  # Raw symbol string
             time_in_force="IOC",
             created_at=created_at,
             updated_at=updated_at,

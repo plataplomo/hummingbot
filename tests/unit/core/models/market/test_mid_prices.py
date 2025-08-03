@@ -35,12 +35,12 @@ class TestMidPricesInitialization:
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
         assert mid_prices.prices == prices
-        assert mid_prices.exchange == "hyperliquid"
+        assert mid_prices.exchange == ExchangeName.HYPERLIQUID
         assert mid_prices.timestamp is None  # Default value
 
     def test_mid_prices_init_success_with_timestamp(self) -> None:
@@ -53,13 +53,13 @@ class TestMidPricesInitialization:
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             timestamp=timestamp,
         )
 
         # Assert
         assert mid_prices.prices == prices
-        assert mid_prices.exchange == "backpack"
+        assert mid_prices.exchange == ExchangeName.BACKPACK
         assert mid_prices.timestamp == timestamp
 
     def test_mid_prices_init_success_empty_prices(self) -> None:
@@ -67,12 +67,12 @@ class TestMidPricesInitialization:
         # Act
         mid_prices = MidPrices(
             prices={},
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
         assert mid_prices.prices == {}
-        assert mid_prices.exchange == "test_exchange"
+        assert mid_prices.exchange == ExchangeName.HYPERLIQUID
         assert len(mid_prices) == 0
 
     # ==================== EDGE CASES ====================
@@ -90,7 +90,7 @@ class TestMidPricesInitialization:
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange="precision_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
@@ -110,7 +110,7 @@ class TestMidPricesInitialization:
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
@@ -123,7 +123,7 @@ class TestMidPricesInitialization:
         """Test initialization fails without prices field."""
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
-            MidPrices(exchange="test_exchange")  # type: ignore
+            MidPrices(exchange=ExchangeName.HYPERLIQUID)  # type: ignore
 
         # Verify the validation error is about missing prices
         error_msg = str(exc_info.value)
@@ -165,7 +165,7 @@ class TestMidPricesSymbolLookup:
                 eth_symbol: Decimal("3000.0"),
                 sol_symbol: Decimal("100.0"),
             },
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=datetime.now(UTC),
         )
 
@@ -283,7 +283,7 @@ class TestMidPricesSymbolLookup:
     def test_symbols_edge_empty_prices_returns_empty_list(self) -> None:
         """Test symbols() method with empty prices."""
         # Arrange
-        empty_mid_prices = MidPrices(prices={}, exchange="test_exchange")
+        empty_mid_prices = MidPrices(prices={}, exchange=ExchangeName.HYPERLIQUID)
 
         # Act
         symbols = empty_mid_prices.symbols()
@@ -294,7 +294,7 @@ class TestMidPricesSymbolLookup:
     def test_len_edge_empty_prices_returns_zero(self) -> None:
         """Test len() with empty prices."""
         # Arrange
-        empty_mid_prices = MidPrices(prices={}, exchange="test_exchange")
+        empty_mid_prices = MidPrices(prices={}, exchange=ExchangeName.HYPERLIQUID)
 
         # Act
         count = len(empty_mid_prices)
@@ -317,7 +317,7 @@ class TestMidPricesUtilityMethods:
         }
         mid_prices = MidPrices(
             prices=original_prices.copy(),
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Act - Modify the original dict (should not affect MidPrices)
@@ -334,14 +334,14 @@ class TestMidPricesUtilityMethods:
         btc_symbol = BTC_HL
         mid_prices = MidPrices(
             prices={btc_symbol: Decimal("50000.0")},
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Act
         str_repr = str(mid_prices)
 
         # Assert
-        assert "test_exchange" in str_repr
+        assert "hyperliquid" in str_repr
         assert "BTC-PERP" in str_repr  # Should contain the symbol's string value
 
     def test_mid_prices_equality_comparison(self) -> None:
@@ -354,17 +354,17 @@ class TestMidPricesUtilityMethods:
 
         mid_prices1 = MidPrices(
             prices=prices,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=timestamp,
         )
         mid_prices2 = MidPrices(
             prices=prices,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=timestamp,
         )
         mid_prices3 = MidPrices(
             prices={eth_symbol: Decimal("3000.0")},
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=timestamp,
         )
 
@@ -379,7 +379,7 @@ class TestMidPricesUtilityMethods:
         timestamp = datetime.now(UTC)
         mid_prices = MidPrices(
             prices={btc_symbol: Decimal("50000.0")},
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=timestamp,
         )
 
@@ -418,7 +418,7 @@ class TestMidPricesEdgeCasesAndValidation:
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange="special_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
@@ -438,7 +438,7 @@ class TestMidPricesEdgeCasesAndValidation:
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange="test_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
@@ -460,7 +460,7 @@ class TestMidPricesEdgeCasesAndValidation:
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange="commodities_exchange",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
@@ -473,14 +473,12 @@ class TestMidPricesEdgeCasesAndValidation:
         # Arrange
         btc_symbol = BTC_HL
         prices = {btc_symbol: Decimal("50000.0")}
-        unicode_exchange = "测试交易所"  # Chinese characters
-
         # Act
         mid_prices = MidPrices(
             prices=prices,
-            exchange=unicode_exchange,
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Assert
-        assert mid_prices.exchange == unicode_exchange
+        assert mid_prices.exchange == ExchangeName.HYPERLIQUID
         assert mid_prices.get(btc_symbol) == Decimal("50000.0")

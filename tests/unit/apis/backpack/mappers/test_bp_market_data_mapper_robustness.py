@@ -30,6 +30,8 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.models import Ticker
 from tests.fixtures.time_fixtures import FreezerProtocol
+from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, DOGE_USDC_BP
+from cyberdelta.core.symbols import exchanges
 
 
 @pytest.fixture
@@ -73,7 +75,7 @@ def test_timestamp() -> str:
 
 
 def create_raw_ticker(
-    symbol: str = "SOL-USDC",
+    symbol: str = "SOL_USDC",
     first_price: str = "100.00",
     last_price: str = "100.50",
     high: str = "101.00",
@@ -145,7 +147,7 @@ def create_raw_order_book(
 
 def create_raw_trade(
     trade_id: str = "trade123",
-    symbol: str = "SOL-USDC",
+    symbol: str = "SOL_USDC",
     price: str = "100.50",
     qty: str = "10.0",
     time: str = "2024-01-15T10:30:00Z",
@@ -267,7 +269,7 @@ class TestBoundaryValueHandling:
             timestamp=test_timestamp,
         )
 
-        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
         assert len(result.bids) == 1000
         assert len(result.asks) == 1000
@@ -293,13 +295,13 @@ class TestBoundaryValueHandling:
         assert result.id == max_trade_id
 
         # Test with maximum symbol length
-        max_symbol = "A" * 32  # Reasonable maximum symbol length
+        max_symbol = "A" * 30  # Maximum allowed symbol length
         raw_ticker = create_raw_ticker(
             symbol=max_symbol,
         )
 
         result_ticker = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
-        assert result_ticker.symbol == max_symbol
+        assert result_ticker.symbol == exchanges.backpack(max_symbol)
 
 
 class TestUnicodeAndEncodingSupport:
@@ -326,7 +328,7 @@ class TestUnicodeAndEncodingSupport:
             )
 
             result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
-            assert result.symbol == symbol
+            assert result.symbol == exchanges.backpack(symbol)
 
     def test_unicode_in_trade_ids(
         self,
@@ -360,7 +362,7 @@ class TestUnicodeAndEncodingSupport:
         )
 
         result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
-        assert result.symbol == mixed_symbol
+        assert result.symbol == exchanges.backpack(mixed_symbol)
 
     def test_special_characters_in_values(
         self,
@@ -382,7 +384,7 @@ class TestUnicodeAndEncodingSupport:
             )
 
             result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
-            assert result.symbol == symbol
+            assert result.symbol == exchanges.backpack(symbol)
 
 
 class TestErrorHandlingAndRecovery:
@@ -396,10 +398,8 @@ class TestErrorHandlingAndRecovery:
         """Test recovery from malformed decimal values."""
         raw_ticker = create_raw_ticker()
 
-        # Mock parse_decimal_value to simulate malformed data
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_decimal_value",
-        ) as mock_parse:
+        # Mock parse_decimal_safely to simulate malformed data
+        with patch.object(ticker_mapper, "parse_decimal_safely") as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal format")
 
             with pytest.raises(TransformationError, match="Failed to transform"):
@@ -418,9 +418,7 @@ class TestErrorHandlingAndRecovery:
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
         frozen_time.move_to(mock_now)
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_datetime_utc",
-        ) as mock_parse_datetime:
+        with patch.object(ticker_mapper, "parse_timestamp") as mock_parse_datetime:
             mock_parse_datetime.return_value = None
 
             result = ticker_mapper.transform_raw_ticker_to_internal(raw_ticker)
@@ -436,7 +434,7 @@ class TestErrorHandlingAndRecovery:
         """Test handling of ticker with minimal/zero data."""
         # Test ticker with minimal data
         minimal_ticker = BackpackRawTickerResponse(
-            symbol="SOL-USDC",
+            symbol="SOL_USDC",
             firstPrice="0.0",
             lastPrice="0.0",
             high="0.0",
@@ -451,7 +449,7 @@ class TestErrorHandlingAndRecovery:
         result = ticker_mapper.transform_raw_ticker_to_internal(minimal_ticker)
 
         # Should handle zero values correctly
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
         assert result.price == Decimal("0.0")  # Zero values become Decimal("0.0")
         assert result.bid is None  # Not available from Backpack ticker endpoint
         assert result.ask is None  # Not available from Backpack ticker endpoint
@@ -469,11 +467,11 @@ class TestErrorHandlingAndRecovery:
             timestamp=test_timestamp,
         )
 
-        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", empty_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, empty_book)
 
         assert len(result.bids) == 0
         assert len(result.asks) == 0
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == SOL_USDC_BP
 
     def test_transformation_error_context_preservation(
         self,
@@ -486,9 +484,7 @@ class TestErrorHandlingAndRecovery:
         # Create a specific error with context
         original_error = ValueError("Specific parsing error with context")
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_decimal_value",
-        ) as mock_parse:
+        with patch.object(ticker_mapper, "parse_decimal_safely") as mock_parse:
             mock_parse.side_effect = original_error
 
             with pytest.raises(TransformationError) as exc_info:
@@ -526,7 +522,7 @@ class TestPerformanceAndMemoryConsiderations:
         # Verify all transformations completed correctly
         assert len(results) == 100
         for i, result in enumerate(results):
-            assert result.symbol == f"SYMBOL{i:03d}-USDC"
+            assert result.symbol == exchanges.backpack(f"SYMBOL{i:03d}-USDC")
             assert result.price == Decimal(f"{100 + i * 0.01:.2f}")
 
     def test_memory_efficient_order_book_processing(
@@ -546,7 +542,7 @@ class TestPerformanceAndMemoryConsiderations:
         )
 
         # Should process without memory issues
-        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", raw_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, raw_book)
 
         assert len(result.bids) == 500
         assert len(result.asks) == 500
@@ -566,16 +562,16 @@ class TestPerformanceAndMemoryConsiderations:
         # that could cause issues in concurrent scenarios
 
         # Create multiple different data objects
-        ticker1 = create_raw_ticker(symbol="BTC-USDC", last_price="50000.00")
-        ticker2 = create_raw_ticker(symbol="ETH-USDC", last_price="3000.00")
+        ticker1 = create_raw_ticker(symbol="BTC_USDC", last_price="50000.00")
+        ticker2 = create_raw_ticker(symbol="ETH_USDC", last_price="3000.00")
         trade1 = create_raw_trade(
             trade_id="trade1",
-            symbol="SOL-USDC",
+            symbol="SOL_USDC",
             price="100.00",
         )
         trade2 = create_raw_trade(
             trade_id="trade2",
-            symbol="DOGE-USDC",
+            symbol="DOGE_USDC",
             price="0.50",
         )
 
@@ -586,13 +582,13 @@ class TestPerformanceAndMemoryConsiderations:
         result_trade2 = trade_mapper.transform_raw_trade_to_internal(trade2)
 
         # Verify no cross-contamination
-        assert result_ticker1.symbol == "BTC-USDC"
+        assert result_ticker1.symbol == BTC_USDC_BP
         assert result_ticker1.price == Decimal("50000.00")
-        assert result_ticker2.symbol == "ETH-USDC"
+        assert result_ticker2.symbol == ETH_USDC_BP
         assert result_ticker2.price == Decimal("3000.00")
-        assert result_trade1.symbol == "SOL-USDC"
+        assert result_trade1.symbol == SOL_USDC_BP
         assert result_trade1.price == Decimal("100.00")
-        assert result_trade2.symbol == "DOGE-USDC"
+        assert result_trade2.symbol == DOGE_USDC_BP
         assert result_trade2.price == Decimal("0.50")
 
 
@@ -613,7 +609,7 @@ class TestDataConsistencyAndValidation:
         )
 
         # Mapper should still process but preserve the raw data
-        result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", invalid_book)
+        result = order_book_mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, invalid_book)
 
         assert result.bids[0] == (Decimal("102.00"), Decimal("10.0"))
         assert result.asks[0] == (Decimal("101.00"), Decimal("8.0"))
@@ -638,7 +634,7 @@ class TestDataConsistencyAndValidation:
 
         ticker_result = ticker_mapper.transform_raw_ticker_to_internal(ticker)
         trade_result = trade_mapper.transform_raw_trade_to_internal(trade)
-        book_result = order_book_mapper.transform_raw_order_book_to_internal("SOL-USDC", order_book)
+        book_result = order_book_mapper.transform_raw_order_book_to_internal(SOL_USDC_BP, order_book)
 
         # Record time after transformations
         end_time = datetime.now(UTC)

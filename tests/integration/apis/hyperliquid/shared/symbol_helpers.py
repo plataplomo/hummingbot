@@ -9,9 +9,10 @@ from typing import Any
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
+from cyberdelta.core.symbols.models import Symbol
 
 
-async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") -> list[str]:
+async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") -> list[Symbol]:
     """Get available trading symbols from exchange.
 
     Args:
@@ -19,7 +20,7 @@ async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") 
         market_type: Type of market ("perp" or "spot")
 
     Returns:
-        List of available symbols from exchange
+        List of available Symbol objects from exchange
 
     Raises:
         RuntimeError: If unable to get symbols from exchange
@@ -57,7 +58,7 @@ async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") 
         return symbols
 
 
-async def get_test_symbol(api: HyperliquidAPI, market_type: str = "perp", index: int = 0) -> str:
+async def get_test_symbol(api: HyperliquidAPI, market_type: str = "perp", index: int = 0) -> Symbol:
     """Get a specific test symbol by index.
 
     Args:
@@ -66,7 +67,7 @@ async def get_test_symbol(api: HyperliquidAPI, market_type: str = "perp", index:
         index: Index of symbol to return (0 = first available)
 
     Returns:
-        Symbol string from exchange
+        Symbol object from exchange
 
     Raises:
         RuntimeError: If unable to get symbol or index out of range
@@ -82,7 +83,7 @@ async def get_test_symbol(api: HyperliquidAPI, market_type: str = "perp", index:
     return symbols[index]
 
 
-async def get_major_crypto_symbol(api: HyperliquidAPI, crypto: str = "BTC") -> str:
+async def get_major_crypto_symbol(api: HyperliquidAPI, crypto: str = "BTC") -> Symbol:
     """Get symbol for a major cryptocurrency if available.
 
     Args:
@@ -90,7 +91,7 @@ async def get_major_crypto_symbol(api: HyperliquidAPI, crypto: str = "BTC") -> s
         crypto: Cryptocurrency to find (e.g., "BTC", "ETH")
 
     Returns:
-        Symbol string that matches the crypto
+        Symbol object that matches the crypto
 
     Raises:
         RuntimeError: If crypto not available on exchange
@@ -98,7 +99,7 @@ async def get_major_crypto_symbol(api: HyperliquidAPI, crypto: str = "BTC") -> s
     symbols = await get_available_symbols(api, "perp")
 
     # Look for symbols containing the crypto name
-    matching_symbols = [s for s in symbols if crypto in s.upper()]
+    matching_symbols = [s for s in symbols if crypto in s.value.upper()]
 
     if not matching_symbols:
         raise RuntimeError(

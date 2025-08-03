@@ -56,7 +56,7 @@ class TestBackpackSpotCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=SOL_USDC_BP.value,
+            symbol=SOL_USDC_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,
@@ -155,7 +155,7 @@ class TestBackpackSpotCandles:
         start_time = int(start_time_dt.timestamp())
 
         args = GetMarketDataArgs(
-            symbol=BTC_USDC_BP.value,
+            symbol=BTC_USDC_BP,
             timeframe="1h",
             start_time_ms=start_time * 1000,
             end_time_ms=end_time * 1000,

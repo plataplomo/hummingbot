@@ -35,6 +35,7 @@ from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStat
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, Trade
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.operations import (
     Transfer,
     Withdrawal,
@@ -707,7 +708,7 @@ class TestWebSocketFillTransformation:
         assert result is not None
         assert isinstance(result, Trade)
         assert result.id == "12345"
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.side == OrderSide.BUY  # Bid -> BUY
         assert result.quantity == Decimal("10.0")
         assert result.price == Decimal("100.0")
@@ -829,7 +830,7 @@ class TestWebSocketPositionUpdateTransformation:
         )
 
         assert isinstance(result, DerivativePosition)
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.side == OrderSide.BUY  # Positive quantity -> BUY
         assert result.size == Decimal("10.0")
         assert result.entry_price == Decimal("100.00")

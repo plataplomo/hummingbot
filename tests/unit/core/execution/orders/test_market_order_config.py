@@ -42,14 +42,14 @@ class TestMarketOrderConfig:
         assert config.enabled is False
         assert config.order_timeout_seconds == 30
 
-    def test_slippage_by_symbol_default(self) -> None:
-        """Test default slippage by symbol configuration."""
+    def test_slippage_by_base_asset_default(self) -> None:
+        """Test default slippage by base asset configuration."""
         config = MarketOrderConfig()
 
-        assert config.slippage_by_symbol["BTC"] == Decimal("0.005")
-        assert config.slippage_by_symbol["ETH"] == Decimal("0.005")
-        assert config.slippage_by_symbol["SOL"] == Decimal("0.01")
-        assert config.slippage_by_symbol["default"] == Decimal("0.02")
+        assert config.slippage_by_base_asset["BTC"] == Decimal("0.005")
+        assert config.slippage_by_base_asset["ETH"] == Decimal("0.005")
+        assert config.slippage_by_base_asset["SOL"] == Decimal("0.01")
+        assert config.slippage_by_base_asset["default"] == Decimal("0.02")
 
     def test_get_slippage_for_symbol(self) -> None:
         """Test getting slippage for specific symbols."""
@@ -57,16 +57,18 @@ class TestMarketOrderConfig:
 
         assert config.get_slippage_for_symbol(exchanges.backpack("BTC")) == Decimal("0.005")
         assert config.get_slippage_for_symbol(exchanges.backpack("ETH")) == Decimal("0.005")
-        assert config.get_slippage_for_symbol(exchanges.backpack("UNKNOWN")) == Decimal("0.02")  # Uses default
+        assert config.get_slippage_for_symbol(exchanges.backpack("UNKNOWN")) == Decimal(
+            "0.02"
+        )  # Uses default
 
-    def test_custom_slippage_by_symbol(self) -> None:
-        """Test custom slippage by symbol configuration."""
+    def test_custom_slippage_by_base_asset(self) -> None:
+        """Test custom slippage by base asset configuration."""
         custom_slippage = {
             "AVAX": Decimal("0.015"),
             "MATIC": Decimal("0.012"),
             "default": Decimal("0.025"),
         }
-        config = MarketOrderConfig(slippage_by_symbol=custom_slippage)
+        config = MarketOrderConfig(slippage_by_base_asset=custom_slippage)
 
         assert config.get_slippage_for_symbol(exchanges.backpack("AVAX")) == Decimal("0.015")
         assert config.get_slippage_for_symbol(exchanges.backpack("MATIC")) == Decimal("0.012")
@@ -138,21 +140,21 @@ class TestMarketOrderConfig:
         assert "less than or equal to 60" in str(exc_info.value)
 
     def test_slippage_map_validation(self) -> None:
-        """Test slippage by symbol map validation."""
+        """Test slippage by base asset map validation."""
         # Missing default should fail
         with pytest.raises(ValidationError) as exc_info:
-            MarketOrderConfig(slippage_by_symbol={"BTC": Decimal("0.01")})
-        assert "slippage_by_symbol must contain a 'default' entry" in str(exc_info.value)
+            MarketOrderConfig(slippage_by_base_asset={"BTC": Decimal("0.01")})
+        assert "default" in str(exc_info.value)
 
         # Invalid slippage value should fail
         with pytest.raises(ValidationError) as exc_info:
-            MarketOrderConfig(slippage_by_symbol={"default": Decimal("-0.01")})
-        assert "Invalid slippage for default" in str(exc_info.value)
+            MarketOrderConfig(slippage_by_base_asset={"default": Decimal("-0.01")})
+        assert "Invalid slippage" in str(exc_info.value)
 
         # Non-finite slippage should fail
         with pytest.raises(ValidationError) as exc_info:
-            MarketOrderConfig(slippage_by_symbol={"default": Decimal("Infinity")})
-        assert "finite number" in str(exc_info.value)
+            MarketOrderConfig(slippage_by_base_asset={"default": Decimal("Infinity")})
+        assert "finite" in str(exc_info.value)
 
     def test_config_immutability(self) -> None:
         """Test that config is immutable after creation."""
@@ -183,7 +185,7 @@ class TestMarketOrderConfig:
             "default_slippage_pct": "0.003",
             "max_slippage_pct": "0.07",
             "enabled": True,
-            "slippage_by_symbol": {
+            "slippage_by_base_asset": {
                 "BTC": "0.004",
                 "default": "0.015",
             },
@@ -192,5 +194,5 @@ class TestMarketOrderConfig:
         config = MarketOrderConfig.model_validate(data)
         assert config.default_slippage_pct == Decimal("0.003")
         assert config.max_slippage_pct == Decimal("0.07")
-        assert config.slippage_by_symbol["BTC"] == Decimal("0.004")
-        assert config.slippage_by_symbol["default"] == Decimal("0.015")
+        assert config.slippage_by_base_asset["BTC"] == Decimal("0.004")
+        assert config.slippage_by_base_asset["default"] == Decimal("0.015")

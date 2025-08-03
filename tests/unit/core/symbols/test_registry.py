@@ -3,7 +3,7 @@
 import pytest
 
 from cyberdelta.core.symbols import exchanges, get_registry, symbol, symbols
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.core.symbols.models import Symbol, BaseSymbol, BackpackMetadata
 from cyberdelta.enums.exchange_names import ExchangeName
 from tests.common_symbols import AVAX_HL
 
@@ -11,36 +11,37 @@ from tests.common_symbols import AVAX_HL
 class TestSymbolRegistry:
     """Test scalable registry pattern."""
 
-    def test_direct_symbol_creation(self):
+    def test_direct_symbol_creation(self) -> None:
         """Test direct symbol creation function."""
         # Create symbols using direct function
         btc_hl = symbol("BTC-PERP", ExchangeName.HYPERLIQUID)
         btc_bp = symbol("BTC_USD_PERP", ExchangeName.BACKPACK, symbol_id=12345)
 
-        assert isinstance(btc_hl, Symbol)
+        assert isinstance(btc_hl, BaseSymbol)
         assert btc_hl.value == "BTC-PERP"
         assert btc_hl.exchange == ExchangeName.HYPERLIQUID
 
-        assert isinstance(btc_bp, Symbol)
+        assert isinstance(btc_bp, BaseSymbol)
         assert btc_bp.value == "BTC_USD_PERP"
         assert btc_bp.exchange == ExchangeName.BACKPACK
+        assert isinstance(btc_bp.metadata, BackpackMetadata)
         assert btc_bp.metadata.symbol_id == 12345
 
-    def test_exchange_namespace(self):
+    def test_exchange_namespace(self) -> None:
         """Test exchange namespace for cleaner API."""
         # Create symbols using exchange namespace
         btc_hl = exchanges.hyperliquid("BTC-PERP")
         btc_bp = exchanges.backpack("BTC_USD_PERP", symbol_id=12345)
 
-        assert isinstance(btc_hl, Symbol)
+        assert isinstance(btc_hl, BaseSymbol)
         assert btc_hl.value == "BTC-PERP"
         assert btc_hl.exchange == ExchangeName.HYPERLIQUID
 
-        assert isinstance(btc_bp, Symbol)
+        assert isinstance(btc_bp, BaseSymbol)
         assert btc_bp.value == "BTC_USD_PERP"
         assert btc_bp.exchange == ExchangeName.BACKPACK
 
-    def test_common_symbols(self):
+    def test_common_symbols(self) -> None:
         """Test common symbol constants."""
         # Get BTC symbols
         btc_hl = symbols.BTC.hyperliquid()
@@ -51,28 +52,30 @@ class TestSymbolRegistry:
 
         assert btc_bp.value == "BTC_USD_PERP"
         assert btc_bp.exchange == ExchangeName.BACKPACK
+        assert isinstance(btc_bp.metadata, BackpackMetadata)
         assert btc_bp.metadata.symbol_id == 12345
 
         # Get all BTC symbols
         all_btc = symbols.BTC.all()
         assert len(all_btc) == 2
-        assert all(isinstance(s, Symbol) for s in all_btc)
+        assert all(isinstance(s, BaseSymbol) for s in all_btc)
 
-    def test_eth_symbols(self):
+    def test_eth_symbols(self) -> None:
         """Test ETH symbols."""
         eth_hl = symbols.ETH.hyperliquid()
         eth_bp = symbols.ETH.backpack()
 
         assert eth_hl.value == "ETH-PERP"
         assert eth_bp.value == "ETH_USD_PERP"
+        assert isinstance(eth_bp.metadata, BackpackMetadata)
         assert eth_bp.metadata.symbol_id == 67890
 
-    def test_invalid_exchange(self):
+    def test_invalid_exchange(self) -> None:
         """Test error handling for invalid exchange."""
         with pytest.raises(AttributeError, match="No factory for exchange"):
             exchanges.invalid_exchange("BTC")
 
-    def test_registry_caching(self):
+    def test_registry_caching(self) -> None:
         """Test that symbol creation is cached."""
         # Create same symbol twice
         btc1 = exchanges.hyperliquid("BTC-PERP")

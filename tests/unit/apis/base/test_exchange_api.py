@@ -40,6 +40,7 @@ from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus
+from cyberdelta.core.symbols.models import BackpackMetadata, BaseSymbol, HyperliquidMetadata
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.models import (
     AccountSettings,
@@ -59,6 +60,7 @@ from cyberdelta.models.market import Candle
 from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.models.operations import Transfer, Withdrawal
+from tests.common_symbols import BTC_HL
 
 
 # Match the definition in cyberdelta.apis.base.exchange_api.py
@@ -155,7 +157,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """Mock implementation of WebSocket message handling."""
 
     # Implement all abstract methods with simple mocks
-    async def get_ticker(self, symbol: str) -> Ticker:
+    async def get_ticker(
+        self, symbol: BaseSymbol[HyperliquidMetadata] | BaseSymbol[BackpackMetadata]
+    ) -> Ticker:
         """Get ticker data for the specified symbol.
 
         Returns:
@@ -163,7 +167,11 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """
         return MagicMock(spec=Ticker)
 
-    async def get_order_book(self, symbol: str, depth: int | None = None) -> OrderBook:
+    async def get_order_book(
+        self,
+        symbol: BaseSymbol[HyperliquidMetadata] | BaseSymbol[BackpackMetadata],
+        depth: int | None = None,
+    ) -> OrderBook:
         """Get order book data for the specified symbol.
 
         Returns:
@@ -230,7 +238,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """
         return MagicMock(spec=MarginAccountSummary)
 
-    async def get_positions(self, symbol: str | None = None) -> list[DerivativePosition]:
+    async def get_positions(
+        self, symbol: BaseSymbol[HyperliquidMetadata] | BaseSymbol[BackpackMetadata] | None = None
+    ) -> list[DerivativePosition]:
         """Get derivative positions for the specified symbol or all positions.
 
         Returns:
@@ -278,7 +288,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
             raw_response=None,
         )
 
-    async def cancel_all_orders(self, symbol: str | None = None) -> list[CancelOrderResult]:
+    async def cancel_all_orders(
+        self, symbol: BaseSymbol[HyperliquidMetadata] | BaseSymbol[BackpackMetadata] | None = None
+    ) -> list[CancelOrderResult]:
         """Cancel all orders for the specified symbol or all symbols.
 
         Returns:
@@ -286,7 +298,9 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """
         return []
 
-    async def get_open_orders(self, symbol: str | None = None) -> list[Order]:
+    async def get_open_orders(
+        self, symbol: BaseSymbol[HyperliquidMetadata] | BaseSymbol[BackpackMetadata] | None = None
+    ) -> list[Order]:
         """Get open orders for the specified symbol or all symbols.
 
         Returns:
@@ -988,15 +1002,15 @@ class TestExchangeAPIPublicInterface:
         api = exchange_api_with_di()
 
         # Test that all abstract methods can be called without errors
-        await api.get_ticker("BTC")
-        await api.get_order_book("BTC")
-        await api.get_funding_rates(GetFundingRatesArgs(symbols=["BTC"]))
-        await api.get_market_data(GetMarketDataArgs(symbol="BTC", timeframe="1h"))
+        await api.get_ticker(BTC_HL)
+        await api.get_order_book(BTC_HL)
+        await api.get_funding_rates(GetFundingRatesArgs(symbols=[BTC_HL]))
+        await api.get_market_data(GetMarketDataArgs(symbol=BTC_HL, timeframe="1h"))
         await api.get_balances()
         await api.get_account_summary()
         await api.get_positions()
         place_order_args = PlaceOrderArgs(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=Decimal(1),

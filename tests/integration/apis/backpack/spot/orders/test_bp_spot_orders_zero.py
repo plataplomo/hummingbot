@@ -36,7 +36,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
-from tests.common_symbols import SOL_USDC_BP
+from tests.common_symbols import SOL_USDC_BP, SOL_USDC_BP as TEST_SYMBOL_SOL_USDC, BTC_USDC_BP as TEST_SYMBOL_BTC_USDC
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_current_market_price,
     get_dynamic_test_price,
@@ -94,7 +94,7 @@ class TestBackpackOrdersZeroBalance:
         Tests edge cases like extremely small quantities, extreme prices, and boundary conditions.
         With zero balance, these should fail with appropriate error codes.
         """
-        symbol = SOL_USDC_BP.value
+        symbol = SOL_USDC_BP
         current_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -204,7 +204,7 @@ class TestBackpackOrdersZeroBalance:
         """
         current_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
-            "SOL_USDC",
+            SOL_USDC_BP,
             OrderSide.BUY,
         )
 
@@ -225,8 +225,11 @@ class TestBackpackOrdersZeroBalance:
         # Test normalizable symbols - should result in insufficient funds after normalization
         for malformed_symbol in normalizable_symbols:
             try:
+                from cyberdelta.core.symbols import exchanges
+                # Try to create symbol from string - this will normalize it
+                symbol = exchanges.backpack(malformed_symbol)
                 place_args = PlaceOrderArgs(
-                    symbol=malformed_symbol,
+                    symbol=symbol,
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=Decimal("0.1"),
@@ -270,22 +273,30 @@ class TestBackpackOrdersZeroBalance:
 
         # Test truly malformed symbols - should result in symbol validation errors
         for malformed_symbol in truly_malformed_symbols:
+            from cyberdelta.core.symbols import exchanges
             if not malformed_symbol:
-                # Empty string is validated at Pydantic level
-                with pytest.raises(ValidationError):
+                # Empty string will fail during symbol creation
+                with pytest.raises((ValidationError, ValueError)):
+                    symbol = exchanges.backpack(malformed_symbol)
                     PlaceOrderArgs(
-                        symbol=malformed_symbol,
+                        symbol=symbol,
                         side=OrderSide.BUY,
                         order_type=OrderType.LIMIT,
                         quantity=Decimal("0.1"),
                         price=current_price,
                         time_in_force=TimeInForce.GTC,
                     )
-                # ValidationError is expected for empty string validation (wrapped by Pydantic)
+                # ValidationError or ValueError is expected for empty string validation
             else:
-                # Other malformed symbols might pass Pydantic but fail at API level
+                # Other malformed symbols might fail at symbol creation or API level
+                try:
+                    symbol = exchanges.backpack(malformed_symbol)
+                except (ValueError, ValidationError):
+                    # Symbol creation failed, which is expected for malformed symbols
+                    continue
+                    
                 place_args = PlaceOrderArgs(
-                    symbol=malformed_symbol,
+                    symbol=symbol,
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=Decimal("0.1"),
@@ -318,7 +329,7 @@ class TestBackpackOrdersZeroBalance:
 
         Tests very high precision numbers, scientific notation edge cases, and rounding behaviors.
         """
-        symbol = SOL_USDC_BP.value
+        symbol = SOL_USDC_BP
         base_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -396,7 +407,7 @@ class TestBackpackOrdersZeroBalance:
         Tests multiple simultaneous order placement attempts with zero balance.
         Should handle concurrent requests gracefully.
         """
-        symbol = SOL_USDC_BP.value
+        symbol = SOL_USDC_BP
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -479,7 +490,7 @@ class TestBackpackOrdersZeroBalance:
         Simulates realistic order workflow: place -> query status -> cancel -> history
         All operations should fail appropriately with zero balance.
         """
-        symbol = SOL_USDC_BP.value
+        symbol = SOL_USDC_BP
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -1587,7 +1598,7 @@ class TestBackpackOrdersZeroBalance:
 
         Validates that error responses contain useful information for debugging and logging.
         """
-        symbol = SOL_USDC_BP.value
+        symbol = SOL_USDC_BP
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,
@@ -1661,7 +1672,7 @@ class TestBackpackOrdersZeroBalance:
             ValueError: If invalid values are encountered
             APIError: If API errors occur during order operations
         """
-        symbol = SOL_USDC_BP.value
+        symbol = SOL_USDC_BP
         test_price = await get_dynamic_test_price(
             bp_api_for_zero_balance_test,
             symbol,

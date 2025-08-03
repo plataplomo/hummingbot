@@ -68,7 +68,7 @@ class TestHyperliquidTradingRequestBuilder:
     ) -> None:
         """Test building place order payload for limit buy order."""
         args = PlaceOrderArgs(
-            symbol=symbol,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.01"),
@@ -89,7 +89,7 @@ class TestHyperliquidTradingRequestBuilder:
     ) -> None:
         """Test building cancel order payload."""
         args = CancelOrderArgs(
-            symbol=symbol,
+            symbol=BTC_HL,
             order_id="123456",
         )
 
@@ -139,7 +139,7 @@ class TestHyperliquidTradingRequestBuilder:
     ) -> None:
         """Test building place order payload for market sell order."""
         args = PlaceOrderArgs(
-            symbol=symbol,
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
@@ -159,7 +159,7 @@ class TestHyperliquidTradingRequestBuilder:
     ) -> None:
         """Test building place order payload with post-only flag."""
         args = PlaceOrderArgs(
-            symbol=symbol,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),

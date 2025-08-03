@@ -29,6 +29,8 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
 from cyberdelta.models.market.trade import Trade
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market.market import Market
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (
@@ -64,17 +66,18 @@ def is_any_list(obj: object) -> TypeGuard[list[Any]]:
 class TestBackpackWebSocketIntegration:
     """Test real WebSocket message processing through the entire pipeline."""
 
-    def _get_test_symbol(self, markets: list[Any]) -> str:
+    def _get_test_symbol(self, markets: list[Market]) -> Symbol:
         """Get a test symbol, preferring SOL_USDC.
 
         Returns:
-            str: The symbol of the preferred or first available market.
+            Symbol: The Symbol object of the preferred or first available market.
         """
-        test_symbol: str = next(
-            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
-            markets[0].symbol.value,
+        # Find market with SOL base asset or use first market
+        preferred_market = next(
+            (m for m in markets if "SOL" in m.symbol.value),
+            markets[0],
         )
-        return self._convert_symbol_format(test_symbol)
+        return preferred_market.symbol
 
     def _extract_context_data(self, context: WebSocketContextProtocol) -> dict[str, Any]:
         """Extract data from context for testing.
@@ -92,28 +95,30 @@ class TestBackpackWebSocketIntegration:
             context_data = data if isinstance(data, dict) else {"data": data}
         return context_data
 
-    def _get_depth_test_symbol(self, markets: list[Any]) -> str:
+    def _get_depth_test_symbol(self, markets: list[Market]) -> Symbol:
         """Get a test symbol for depth testing, preferring SOL/USDC spot.
 
         Returns:
-            str: The symbol for depth testing, preferring SOL/USDC.
+            Symbol: The Symbol object for depth testing, preferring SOL/USDC.
         """
-        test_symbol: str = next(
+        # First try to find SOL/USDC spot market
+        preferred_market = next(
             (
-                m.symbol.value
+                m
                 for m in markets
-                if m.symbol.base_asset == "SOL"
-                and m.symbol.quote_asset == "USDC"
+                if "SOL" in m.symbol.value
+                and "USDC" in m.symbol.value
                 and m.market_type == "Spot"
             ),
+            # Fallback to any spot market
             next(
-                (m.symbol.value for m in markets if m.market_type == "Spot"),
-                markets[0].symbol.value,
+                (m for m in markets if m.market_type == "Spot"),
+                markets[0],
             ),
         )
-        return self._convert_symbol_format(test_symbol)
+        return preferred_market.symbol
 
-    def _convert_symbol_format(self, symbol: str) -> str:
+    def _convert_symbol_format(self, symbol: Symbol) -> str:
         """Convert internal symbol format to Backpack format.
 
         Converts slash-separated symbols (SOL/USDC) and hyphen-separated
@@ -121,13 +126,13 @@ class TestBackpackWebSocketIntegration:
         Backpack WebSocket API (SOL_USDC, SOL_PERP).
 
         Args:
-            symbol: Symbol in any format
+            symbol: Symbol object
 
         Returns:
             Symbol in Backpack format (underscore-separated)
         """
-        # Convert both slashes and hyphens to underscores
-        return symbol.replace("/", "_").replace("-", "_")
+        # Convert both slashes and hyphens to underscores in the symbol's value
+        return symbol.value.replace("/", "_").replace("-", "_")
 
     def _create_universal_handler(
         self, received_messages: dict[str, list[Any]], pipeline_stats: dict[str, Any]
@@ -170,6 +175,8 @@ class TestBackpackWebSocketIntegration:
             pytest.fail("No markets available for testing")
 
         test_symbol = self._get_test_symbol(markets)
+        # Convert Symbol to WebSocket format
+        ws_symbol = self._convert_symbol_format(test_symbol)
         received_tickers: list[Any] = []
         received_contexts: list[dict[str, Any]] = []
 
@@ -223,7 +230,7 @@ class TestBackpackWebSocketIntegration:
                         )
 
         # Subscribe to real ticker stream
-        await bp_api_for_test_env.subscribe(f"ticker.{test_symbol}", ticker_handler)
+        await bp_api_for_test_env.subscribe(f"ticker.{ws_symbol}", ticker_handler)
 
         # Wait for real ticker data
         await wait_for_websocket_data(received_tickers, min_count=3, timeout_seconds=10.0)
@@ -247,7 +254,7 @@ class TestBackpackWebSocketIntegration:
             # Verify it's a proper Ticker object with expected fields
             assert hasattr(ticker, "symbol"), "Ticker should have symbol attribute"
             assert hasattr(ticker, "price"), "Ticker should have price attribute"
-            assert ticker.symbol.value == test_symbol, f"Symbol should be {test_symbol}"
+            assert ticker.symbol.value == test_symbol.value, f"Symbol should be {test_symbol.value}"
             assert ticker.price > 0, "Price should be positive"
 
         # Check what the handler actually received
@@ -320,7 +327,7 @@ class TestBackpackWebSocketIntegration:
         return depth_handler
 
     def _validate_received_orderbooks(
-        self, received_order_books: list[OrderBook], test_symbol: str
+        self, received_order_books: list[OrderBook], test_symbol: Symbol
     ) -> None:
         """Validate the quality of received order book data."""
         # Verify the order book quality - handle incremental updates from Backpack
@@ -330,7 +337,7 @@ class TestBackpackWebSocketIntegration:
             assert hasattr(order_book, "symbol"), "OrderBook should have symbol"
             assert hasattr(order_book, "bids"), "OrderBook should have bids"
             assert hasattr(order_book, "asks"), "OrderBook should have asks"
-            assert order_book.symbol == test_symbol
+            assert order_book.symbol.value == test_symbol.value
 
             # Only validate orderbooks that have actual bid/ask data (non-empty)
             if len(order_book.bids) > 0 and len(order_book.asks) > 0:
@@ -390,10 +397,12 @@ class TestBackpackWebSocketIntegration:
             pytest.fail("No markets available for testing")
 
         test_symbol = self._get_depth_test_symbol(markets)
+        # Convert Symbol to WebSocket format
+        ws_symbol = self._convert_symbol_format(test_symbol)
         logger.info(
             "depth_test_symbol_selected",
-            symbol=test_symbol,
-            message=f"Selected symbol for depth test: {test_symbol}",
+            symbol=test_symbol.value,
+            message=f"Selected symbol for depth test: {test_symbol.value}",
         )
 
         received_order_books: list[OrderBook] = []
@@ -402,11 +411,11 @@ class TestBackpackWebSocketIntegration:
         depth_handler = self._setup_depth_test_handler(received_order_books, pipeline_errors)
 
         # Subscribe to real depth stream
-        depth_topic = f"depth.{test_symbol}"
+        depth_topic = f"depth.{ws_symbol}"
         logger.info(
             "subscribing_to_depth",
             topic=depth_topic,
-            symbol=test_symbol,
+            symbol=ws_symbol,
             message=f"Subscribing to depth topic: {depth_topic}",
         )
         await bp_api_for_test_env.subscribe(depth_topic, depth_handler)
@@ -506,7 +515,7 @@ class TestBackpackWebSocketIntegration:
             except ValidationError:
                 logger.exception("trade_reconstruction_failed")
 
-    def _validate_trade_data(self, received_trades: list[Any], test_symbol: str) -> None:
+    def _validate_trade_data(self, received_trades: list[Any], test_symbol: Symbol) -> None:
         """Validate the received trade data."""
         # Check trade quality and computed fields
         for i, trade in enumerate(received_trades[:5]):
@@ -514,7 +523,7 @@ class TestBackpackWebSocketIntegration:
             assert hasattr(trade, "price"), "Trade should have price"
             assert hasattr(trade, "quantity"), "Trade should have quantity"
             assert hasattr(trade, "side"), "Trade should have side"
-            assert getattr(trade, "symbol", "") == test_symbol
+            assert getattr(trade, "symbol", "") == test_symbol.value
             assert getattr(trade, "price", 0) > 0
             assert getattr(trade, "quantity", 0) > 0
 
@@ -546,8 +555,8 @@ class TestBackpackWebSocketIntegration:
 
         # Get the most actively traded symbol to ensure we receive trades
         test_symbol = await get_most_active_symbol(bp_api_for_test_env)
-        # Convert internal format to Backpack format
-        test_symbol = self._convert_symbol_format(test_symbol)
+        # Convert internal format to Backpack format for WebSocket subscription
+        ws_symbol = self._convert_symbol_format(test_symbol)
 
         received_trades: list[Any] = []
         computed_field_checks: list[bool] = []
@@ -558,11 +567,11 @@ class TestBackpackWebSocketIntegration:
         )
 
         # Subscribe to trades stream (note: Backpack uses "trade" not "trades")
-        subscription_topic = f"trade.{test_symbol}"
+        subscription_topic = f"trade.{ws_symbol}"
         logger.info(
             "subscribing_to_trade_stream",
             topic=subscription_topic,
-            symbol=test_symbol,
+            symbol=ws_symbol,
             message=f"Subscribing to trade stream: {subscription_topic}",
         )
         await bp_api_for_test_env.subscribe(subscription_topic, trades_handler)
@@ -572,7 +581,7 @@ class TestBackpackWebSocketIntegration:
         await wait_for_websocket_data(received_trades, min_count=1, timeout_seconds=20.0)
 
         # Verify we received trade data - critical for pipeline validation
-        assert len(received_trades) > 0, f"No trades received for {test_symbol}"
+        assert len(received_trades) > 0, f"No trades received for {ws_symbol}"
         assert len(pipeline_errors) == 0, f"Pipeline errors: {pipeline_errors}"
 
         # Validate trade data
@@ -694,11 +703,11 @@ class TestBackpackWebSocketIntegration:
             pytest.fail("No markets available for testing")
 
         test_symbol = next(
-            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
-            markets[0].symbol.value,
+            (m.symbol for m in markets if "SOL" in m.symbol.value),
+            markets[0].symbol,
         )
         # Convert internal format to Backpack format
-        test_symbol = self._convert_symbol_format(test_symbol)
+        ws_symbol = self._convert_symbol_format(test_symbol)
 
         handler_receives_dict = False
         handler_receives_object = False
@@ -762,7 +771,7 @@ class TestBackpackWebSocketIntegration:
                     )
 
         # Test with trade stream to check computed fields issue
-        await bp_api_for_test_env.subscribe(f"trade.{test_symbol}", diagnostic_handler)
+        await bp_api_for_test_env.subscribe(f"trade.{ws_symbol}", diagnostic_handler)
 
         # Wait for messages
         await asyncio.sleep(5.0)
@@ -851,11 +860,11 @@ class TestBackpackWebSocketIntegration:
 
         # Use most liquid market
         test_symbol = next(
-            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
-            markets[0].symbol.value,
+            (m.symbol for m in markets if "SOL" in m.symbol.value),
+            markets[0].symbol,
         )
         # Convert internal format to Backpack format
-        test_symbol = self._convert_symbol_format(test_symbol)
+        ws_symbol = self._convert_symbol_format(test_symbol)
 
         message_latencies: list[float] = []
         processing_times: list[float] = []
@@ -968,28 +977,29 @@ class TestBackpackWebSocketIntegration:
         # Test 2: Subscribe to valid but less liquid market
         markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
         less_liquid_symbol = next(
-            (m.symbol for m in markets if "BTC" not in m.symbol and "SOL" not in m.symbol),
+            (m.symbol for m in markets if "BTC" not in m.symbol.value and "SOL" not in m.symbol.value),
             markets[-1].symbol if markets else None,
         )
         # Convert internal format to Backpack format if needed
+        less_liquid_ws_symbol = None
         if less_liquid_symbol:
-            less_liquid_symbol = self._convert_symbol_format(less_liquid_symbol)
+            less_liquid_ws_symbol = self._convert_symbol_format(less_liquid_symbol)
 
-        if less_liquid_symbol:
+        if less_liquid_ws_symbol:
             await bp_api_for_test_env.subscribe(
-                f"trade.{less_liquid_symbol}", error_tracking_handler
+                f"trade.{less_liquid_ws_symbol}", error_tracking_handler
             )
             await asyncio.sleep(5.0)
 
         # Test 3: High-frequency subscription/unsubscription
         liquid_symbol = next(
-            (m.symbol.value for m in markets if m.symbol.base_asset == "SOL"),
-            markets[0].symbol.value,
+            (m.symbol for m in markets if "SOL" in m.symbol.value),
+            markets[0].symbol,
         )
         # Convert internal format to Backpack format
-        liquid_symbol = self._convert_symbol_format(liquid_symbol)
+        liquid_ws_symbol = self._convert_symbol_format(liquid_symbol)
         for _ in range(3):
-            await bp_api_for_test_env.subscribe(f"ticker.{liquid_symbol}", error_tracking_handler)
+            await bp_api_for_test_env.subscribe(f"ticker.{liquid_ws_symbol}", error_tracking_handler)
             await asyncio.sleep(0.5)
             # Note: Backpack API doesn't have unsubscribe in the interface
             # This tests subscription replacement/override behavior

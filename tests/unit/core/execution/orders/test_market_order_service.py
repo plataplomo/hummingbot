@@ -14,9 +14,12 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     PriceDeviationError,
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderBook
 from cyberdelta.models.market.mid_prices import MidPrices
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
 pytestmark = pytest.mark.timing
@@ -82,7 +85,7 @@ class TestMarketOrderService:
             OrderBook: Order book with good bid/ask liquidity for testing.
         """
         return OrderBook(
-            symbol="BTC",
+            symbol=BTC_HL,
             bids=[
                 (Decimal(50000), Decimal(10)),
                 (Decimal(49995), Decimal(20)),
@@ -103,8 +106,9 @@ class TestMarketOrderService:
         Returns:
             OrderBook: Order book with limited liquidity for testing.
         """
+        illiquid_symbol = exchanges.hyperliquid("ILLIQUID-PERP")
         return OrderBook(
-            symbol="ILLIQUID",
+            symbol=illiquid_symbol,
             bids=[(Decimal(100), Decimal("0.1"))],
             asks=[(Decimal(101), Decimal("0.1"))],
             timestamp=datetime.now(UTC),
@@ -123,7 +127,7 @@ class TestMarketOrderService:
         mock_exchange_api.get_market.return_value = None
 
         price = await service.calculate_aggressive_price(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(5),
         )
@@ -145,7 +149,7 @@ class TestMarketOrderService:
         mock_exchange_api.get_market.return_value = None
 
         price = await service.calculate_aggressive_price(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.SELL,
             quantity=Decimal(5),
         )
@@ -166,13 +170,13 @@ class TestMarketOrderService:
 
         with pytest.raises(InsufficientLiquidityError) as exc_info:
             await service.calculate_aggressive_price(
-                symbol="ILLIQUID",
+                symbol=exchanges.hyperliquid("ILLIQUID-PERP"),
                 side=OrderSide.BUY,
                 quantity=Decimal(10),  # Requesting 10, only 0.1 available
             )
 
         error = exc_info.value
-        assert error.symbol.value == "ILLIQUID"
+        assert error.symbol.value == "ILLIQUID-PERP"
         assert error.requested_quantity == Decimal(10)
         assert error.available_quantity == Decimal("0.1")
 
@@ -187,12 +191,12 @@ class TestMarketOrderService:
 
         with pytest.raises(MarketOrderError) as exc_info:
             await service.calculate_aggressive_price(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 quantity=Decimal(1),
             )
 
-        assert "no order book for BTC" in str(exc_info.value)
+        assert "no order book for BTC-PERP" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_max_slippage_override(
@@ -210,7 +214,7 @@ class TestMarketOrderService:
 
         # Override max slippage to 0.5%
         price = await service.calculate_aggressive_price(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(5),
             max_slippage=Decimal("0.005"),
@@ -228,8 +232,9 @@ class TestMarketOrderService:
     ) -> None:
         """Test error when price deviation exceeds limits."""
         # Create order book with extreme spread
+        extreme_symbol = exchanges.hyperliquid("EXTREME-PERP")
         extreme_book = OrderBook(
-            symbol="EXTREME",
+            symbol=extreme_symbol,
             bids=[(Decimal(100), Decimal(10))],
             asks=[(Decimal(200), Decimal(10))],  # 100% spread
             timestamp=datetime.now(UTC),
@@ -241,7 +246,7 @@ class TestMarketOrderService:
         custom_config = MarketOrderConfig(
             max_slippage_pct=Decimal("0.2"),  # Allow 20% slippage
             max_price_deviation_pct=Decimal("0.05"),  # But only 5% price deviation
-            slippage_by_symbol={
+            slippage_by_base_asset={
                 "EXTREME": Decimal("0.2"),  # Allow 20% for EXTREME symbol
                 "default": Decimal("0.02"),
             },
@@ -258,19 +263,20 @@ class TestMarketOrderService:
 
         with pytest.raises(PriceDeviationError) as exc_info:
             await service_with_custom_config.calculate_aggressive_price(
-                symbol="EXTREME",
+                symbol=extreme_symbol,
                 side=OrderSide.BUY,
                 quantity=Decimal(1),
             )
 
         error = exc_info.value
-        assert error.symbol.value == "EXTREME"
+        assert error.symbol.value == "EXTREME-PERP"
         assert error.deviation_pct > error.max_deviation_pct
 
     def test_calculate_liquidity_ratio(self, service: MarketOrderService) -> None:
         """Test liquidity ratio calculation."""
+        test_symbol = exchanges.hyperliquid("TEST-PERP")
         order_book = OrderBook(
-            symbol="TEST",
+            symbol=test_symbol,
             bids=[(Decimal(100), Decimal(5))],
             asks=[(Decimal(101), Decimal(10))],
             timestamp=datetime.now(UTC),
@@ -305,7 +311,7 @@ class TestMarketOrderService:
         # Test the slippage estimation indirectly through calculate_aggressive_price
         # which internally calls _estimate_slippage and handles the fallback
         mock_exchange_api.get_order_book.return_value = OrderBook(
-            symbol="BTC",
+            symbol=BTC_HL,
             bids=[(Decimal(50000), Decimal(100))],
             asks=[(Decimal(50010), Decimal(100))],
             timestamp=datetime.now(UTC),
@@ -315,7 +321,7 @@ class TestMarketOrderService:
         # When signal generator fails, it should fall back to config default
         # This is indirectly tested through the price calculation
         price = await service_with_failing_generator.calculate_aggressive_price(
-            symbol="BTC",
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(10),
         )
@@ -340,7 +346,7 @@ class TestMarketOrderService:
 
         # Test the slippage estimation indirectly through calculate_aggressive_price
         mock_exchange_api.get_order_book.return_value = OrderBook(
-            symbol="SOL",
+            symbol=SOL_HL,
             bids=[(Decimal(100), Decimal(100))],
             asks=[(Decimal(101), Decimal(100))],
             timestamp=datetime.now(UTC),
@@ -350,7 +356,7 @@ class TestMarketOrderService:
         # When no signal generator and insufficient liquidity, should raise error
         with pytest.raises(InsufficientLiquidityError):
             await service.calculate_aggressive_price(
-                symbol="SOL",
+                symbol=SOL_HL,
                 side=OrderSide.BUY,
                 quantity=Decimal(100),
             )
@@ -372,15 +378,16 @@ class TestMarketOrderService:
         # Mock get_all_mids method to return MidPrices instance
         mock_exchange_api.get_all_mids = AsyncMock(
             return_value=MidPrices(
-                prices={"BTC": Decimal(50000), "ETH": Decimal(3000)},
-                exchange="test_exchange",
+                prices={BTC_HL: Decimal(50000), ETH_HL: Decimal(3000)},
+                exchange=ExchangeName.HYPERLIQUID,
             ),
         )
 
-        price = await service_with_all_mids.get_reference_price_all_mids("BTC")
+        price = await service_with_all_mids.get_reference_price_all_mids(BTC_HL)
         assert price == Decimal(50000)
 
-        price = await service_with_all_mids.get_reference_price_all_mids("UNKNOWN")
+        unknown_symbol = exchanges.hyperliquid("UNKNOWN-PERP")
+        price = await service_with_all_mids.get_reference_price_all_mids(unknown_symbol)
         assert price is None
 
     @pytest.mark.asyncio
@@ -396,7 +403,7 @@ class TestMarketOrderService:
             config=MarketOrderConfig(),  # Default has use_all_mids_for_reference=False
         )
 
-        price = await service_with_disabled_all_mids.get_reference_price_all_mids("BTC")
+        price = await service_with_disabled_all_mids.get_reference_price_all_mids(BTC_HL)
         assert price is None  # Should return None when disabled
 
     @pytest.mark.asyncio
@@ -415,7 +422,7 @@ class TestMarketOrderService:
 
         mock_exchange_api.get_all_mids = AsyncMock(side_effect=ValueError("API Error"))
 
-        price = await service_with_all_mids.get_reference_price_all_mids("BTC")
+        price = await service_with_all_mids.get_reference_price_all_mids(BTC_HL)
         assert price is None  # Should return None on error
 
     def test_validate_config(
@@ -458,7 +465,7 @@ class TestMarketOrderService:
         # Mock get_market to return None so it returns the original price
         mock_exchange_api.get_market.return_value = None
 
-        price = await service.round_to_tick_size(Decimal("50123.456789"), "BTC")
+        price = await service.round_to_tick_size(Decimal("50123.456789"), BTC_HL)
         assert price == Decimal("50123.456789")
 
     @pytest.mark.asyncio
@@ -468,8 +475,9 @@ class TestMarketOrderService:
         mock_exchange_api: AsyncMock,
     ) -> None:
         """Test handling of order book with empty bid/ask levels."""
+        empty_symbol = exchanges.hyperliquid("EMPTY-PERP")
         empty_book = OrderBook(
-            symbol="EMPTY",
+            symbol=empty_symbol,
             bids=[],  # Empty bids
             asks=[],  # Empty asks
             timestamp=datetime.now(UTC),
@@ -478,9 +486,9 @@ class TestMarketOrderService:
 
         with pytest.raises(MarketOrderError) as exc_info:
             await service.calculate_aggressive_price(
-                symbol="EMPTY",
+                symbol=empty_symbol,
                 side=OrderSide.BUY,
                 quantity=Decimal(1),
             )
 
-        assert "no order book for EMPTY" in str(exc_info.value)
+        assert "no order book for EMPTY-PERP" in str(exc_info.value)

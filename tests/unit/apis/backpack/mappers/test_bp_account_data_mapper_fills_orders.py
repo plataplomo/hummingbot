@@ -25,6 +25,7 @@ from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
 from cyberdelta.core.enums import OrderStatus
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Order, Trade
@@ -182,7 +183,7 @@ class TestFillTransformation:
 
         assert isinstance(result, Trade)
         assert result.id == "123456"
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
         assert result.quantity == Decimal("10.0")
         assert result.side == OrderSide.BUY
@@ -315,7 +316,7 @@ class TestOrderTransformation:
 
         assert isinstance(result, Order)
         assert result.exchange_order_id == "order123"
-        assert result.symbol == "SOL-USDC"
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.quantity_requested == Decimal("10.0")

@@ -146,7 +146,7 @@ class TestHandleInfoL2BookResponse:
         raw_data = valid_raw_l2_book
         response: HyperliquidRawL2Book = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
-            symbol,
+            ETH_HL,
             status_code=200,
             headers={},
         )
@@ -161,7 +161,7 @@ class TestHandleInfoL2BookResponse:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_l2_book_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL,
                 status_code=200,
                 headers={},
             )
@@ -177,7 +177,7 @@ class TestHandleInfoL2BookResponse:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_l2_book_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL,
                 status_code=200,
                 headers={},
             )
@@ -193,7 +193,7 @@ class TestHandleInfoL2BookResponse:
         }
         response = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
-            symbol,
+            ETH_HL,
             status_code=200,
             headers={},
         )
@@ -212,7 +212,7 @@ class TestHandleInfoRecentTradesResponse:
         response_list: list[HyperliquidRawPublicTrade] = (
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL.value,
                 status_code=200,
                 headers={},
             )
@@ -230,12 +230,15 @@ class TestHandleInfoRecentTradesResponse:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL.value,
                 status_code=200,
                 headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        assert f"Invalid recent trades ({symbol}) response from exchange:" in exc_info.value.message
+        assert (
+            f"Invalid recent trades ({ETH_HL.value}) response from exchange:"
+            in exc_info.value.message
+        )
         assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
 
     def test_invalid_item_type_in_list(self, symbol: str) -> None:
@@ -245,7 +248,7 @@ class TestHandleInfoRecentTradesResponse:
         with pytest.raises(ListFieldError) as exc_info:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL.value,
                 status_code=200,
                 headers={},
             )
@@ -257,7 +260,7 @@ class TestHandleInfoRecentTradesResponse:
         with pytest.raises(ListFieldError) as exc_info:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL.value,
                 status_code=200,
                 headers={},
             )
@@ -273,7 +276,7 @@ class TestHandleInfoCandleSnapshotResponse:
         response: HyperliquidRawCandleSnapshot = (
             HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL,
                 "1m",
                 status_code=200,
                 headers={},
@@ -289,14 +292,14 @@ class TestHandleInfoCandleSnapshotResponse:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL,
                 "1m",
                 status_code=200,
                 headers={},
             )
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert (
-            f"Invalid candle snapshot ({symbol}, 1m) response from exchange:"
+            f"Invalid candle snapshot ({ETH_HL.value}, 1m) response from exchange:"
             in exc_info.value.message
         )
         assert isinstance(exc_info.value.original_exception, (ValidationError, TypeError))
@@ -308,7 +311,7 @@ class TestHandleInfoCandleSnapshotResponse:
         with pytest.raises(StructureTypeError) as exc_info:
             HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL,
                 "1m",
                 status_code=200,
                 headers={},
@@ -329,7 +332,7 @@ class TestHandleInfoCandleSnapshotResponse:
         with pytest.raises(ParsingError) as exc_info:
             HyperliquidResponseHandler().handle_info_candle_snapshot_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL,
                 "1m",
                 status_code=200,
                 headers={},
@@ -438,7 +441,7 @@ class TestMarketDataEdgeCases:
         }
         response = HyperliquidResponseHandler().handle_info_l2_book_response(
             cast("RawJsonResponse", raw_data),
-            symbol,
+            ETH_HL,
             status_code=200,
             headers={},
         )
@@ -462,7 +465,7 @@ class TestMarketDataEdgeCases:
         with pytest.raises(APIError) as exc_info:
             HyperliquidResponseHandler().handle_info_recent_trades_response(
                 cast("RawJsonResponse", raw_data),
-                symbol,
+                ETH_HL.value,
                 status_code=200,
                 headers={},
             )

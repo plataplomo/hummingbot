@@ -15,6 +15,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market.market import BackpackMarketDetails, Market
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
@@ -176,7 +177,9 @@ class TestBackpackSpotMarketPrivate:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test error handling for authenticated spot market requests."""
-        invalid_args = GetMarketArgs(symbol="INVALID_SPOT_SYMBOL_AUTH")
+        # Create an invalid symbol for testing error handling
+        invalid_symbol = exchanges.backpack("INVALID_SPOT_SYMBOL_AUTH")
+        invalid_args = GetMarketArgs(symbol=invalid_symbol)
 
         with pytest.raises(APIError) as exc_info:
             await bp_api_for_test_env.get_market(invalid_args)

@@ -33,6 +33,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.models.derivative_position import BackpackPositionDetails, DerivativePosition
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
@@ -83,8 +84,8 @@ class TestBackpackPerpPositionsZero:
                     f"Position {i} must be DerivativePosition"
                 )
                 assert position.exchange == "backpack", f"Position {i} exchange must be 'backpack'"
-                assert isinstance(position.symbol, str), f"Position {i} symbol must be string"
-                assert len(position.symbol) > 0, f"Position {i} symbol cannot be empty"
+                assert isinstance(position.symbol, BaseSymbol), f"Position {i} symbol must be Symbol"
+                assert len(position.symbol.value) > 0, f"Position {i} symbol cannot be empty"
 
                 # For zero balance accounts, positions should be dust amounts
                 assert abs(position.size) <= Decimal(1), (
@@ -429,13 +430,13 @@ class TestBackpackPerpPositionsZero:
         assert position.exchange == "backpack", f"Position {index} exchange must be 'backpack'"
 
         # Symbol validation
-        assert isinstance(position.symbol, str), f"Position {index} symbol must be string"
-        assert len(position.symbol) > 0, f"Position {index} symbol cannot be empty"
-        assert len(position.symbol) <= 50, f"Position {index} symbol too long: {position.symbol}"
+        assert isinstance(position.symbol, BaseSymbol), f"Position {index} symbol must be Symbol"
+        assert len(position.symbol.value) > 0, f"Position {index} symbol cannot be empty"
+        assert len(position.symbol.value) <= 50, f"Position {index} symbol too long: {position.symbol.value}"
 
         # For perp symbols, should contain _PERP suffix
-        if "PERP" in position.symbol.upper():
-            assert "_" in position.symbol, (
+        if "PERP" in position.symbol.value.upper():
+            assert "_" in position.symbol.value, (
                 f"Position {index} perp symbol should use underscores: {position.symbol}"
             )
 
