@@ -4,17 +4,8 @@ This module provides convenient factory functions to create valid symbol domain 
 with realistic test data, supporting both simple and complex test scenarios.
 """
 
-from datetime import UTC, datetime
-from decimal import Decimal
-
 from cyberdelta.core.enums.enums import MarketType
 from cyberdelta.core.symbols import Symbol, get_symbol_service
-from cyberdelta.core.symbols.models import (
-    BackpackMetadata,
-    BaseSymbol,
-    HyperliquidMetadata,
-    SymbolComponents,
-)
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
@@ -360,8 +351,7 @@ class ExchangeSymbolFactory:
         """Create custom exchange symbol."""
         if exchange_id == ExchangeName.HYPERLIQUID:
             return SymbolFactory.create_custom_hyperliquid(value)
-        else:
-            return SymbolFactory.create_custom_backpack(value)
+        return SymbolFactory.create_custom_backpack(value)
 
 
 # Export the unified symbol factory for convenience
@@ -379,8 +369,7 @@ class UnifiedSymbolFactory:
 
         if exchanges[0] == ExchangeName.HYPERLIQUID:
             return SymbolFactory.create_btc_perp_hyperliquid()
-        else:
-            return SymbolFactory.create_btc_perp_backpack()
+        return SymbolFactory.create_btc_perp_backpack()
 
     @staticmethod
     def create_eth_perp(exchanges: list[ExchangeName] | None = None) -> Symbol:
@@ -393,8 +382,7 @@ class UnifiedSymbolFactory:
 
         if exchanges[0] == ExchangeName.HYPERLIQUID:
             return SymbolFactory.create_eth_perp_hyperliquid()
-        else:
-            return SymbolFactory.create_eth_perp_backpack()
+        return SymbolFactory.create_eth_perp_backpack()
 
     @staticmethod
     def create_btc_usdc_spot(exchanges: list[ExchangeName] | None = None) -> Symbol:
@@ -407,8 +395,7 @@ class UnifiedSymbolFactory:
 
         if exchanges[0] == ExchangeName.HYPERLIQUID:
             return SymbolFactory.create_btc_usdc_spot_hyperliquid()
-        else:
-            return SymbolFactory.create_btc_usdc_spot_backpack()
+        return SymbolFactory.create_btc_usdc_spot_backpack()
 
     @staticmethod
     def create_sol_perp(exchanges: list[ExchangeName] | None = None) -> Symbol:
@@ -421,8 +408,7 @@ class UnifiedSymbolFactory:
 
         if exchanges[0] == ExchangeName.HYPERLIQUID:
             return SymbolFactory.create_sol_perp_hyperliquid()
-        else:
-            return SymbolFactory.create_sol_perp_backpack()
+        return SymbolFactory.create_sol_perp_backpack()
 
     @staticmethod
     def create_custom(
@@ -444,9 +430,8 @@ class UnifiedSymbolFactory:
             else:
                 value = f"{base_asset}-{quote_asset or 'USDC'}"
             return SymbolFactory.create_custom_hyperliquid(value)
+        if market_type == MarketType.PERP:
+            value = f"{base_asset}_PERP"
         else:
-            if market_type == MarketType.PERP:
-                value = f"{base_asset}_PERP"
-            else:
-                value = f"{base_asset}_{quote_asset or 'USDC'}"
-            return SymbolFactory.create_custom_backpack(value)
+            value = f"{base_asset}_{quote_asset or 'USDC'}"
+        return SymbolFactory.create_custom_backpack(value)

@@ -203,9 +203,7 @@ class BackpackPositionMapper(
             )
 
             # Parse and validate position size
-            size_dec = self.parse_decimal_safely(
-                raw_position_update.net_quantity, default=None
-            )
+            size_dec = self.parse_decimal_safely(raw_position_update.net_quantity, default=None)
             if size_dec is None:
                 size_dec = Decimal(0)
             size_typed = self.ensure_decimal_not_none(size_dec, "size", "position_validation")
@@ -318,4 +316,3 @@ class BackpackPositionMapper(
             ) from e
         else:
             return position
-

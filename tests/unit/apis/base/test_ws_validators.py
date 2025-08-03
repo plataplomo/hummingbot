@@ -5,11 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from tests.common_symbols import SOL_BP
 
 from cyberdelta.apis.backpack.bp_validators import BackpackValidators
 from cyberdelta.apis.hyperliquid.hl_validators import HyperliquidValidators
 from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
+from tests.common_symbols import SOL_BP
 
 
 class TestWebSocketPayloadValidators:

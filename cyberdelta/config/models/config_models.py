@@ -1028,8 +1028,12 @@ class AppSettings(BaseModel):
     execution: ExecutionSettings
     safety_systems: SafetySystemsSettings
     monitoring: MonitoringSettings
-    calculation: PortfolioCalculationSettings = Field(default_factory=lambda: PortfolioCalculationSettings())
-    validation: PortfolioValidationSettings = Field(default_factory=lambda: PortfolioValidationSettings())
+    calculation: PortfolioCalculationSettings = Field(
+        default_factory=lambda: PortfolioCalculationSettings()
+    )
+    validation: PortfolioValidationSettings = Field(
+        default_factory=lambda: PortfolioValidationSettings()
+    )
     state: PortfolioStateSettings = Field(default_factory=lambda: PortfolioStateSettings())
     # portfolio_tracker field removed - replaced by modular portfolio system
     # CLEAN BREAK: Smart symbol configuration replaces verbose unified_symbols

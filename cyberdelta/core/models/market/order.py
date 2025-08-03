@@ -33,7 +33,7 @@ from cyberdelta.core.enums import (
     TriggerType,
 )
 from cyberdelta.core.models.market.trade import Trade
-from cyberdelta.core.symbols.models import Symbol, BaseSymbol
+from cyberdelta.core.symbols.models import BaseSymbol, Symbol
 from cyberdelta.enums import (
     OrderSide,
     OrderType,

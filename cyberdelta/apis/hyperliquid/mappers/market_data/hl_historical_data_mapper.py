@@ -117,7 +117,7 @@ class HyperliquidHistoricalDataMapper(
             open_price = self.parse_decimal_safely(raw_ws_candle.o)
             if open_price is None:
                 self._raise_missing_candle_field_error("open", raw_ws_candle)
-            high_price = self.parse_decimal_safely(raw_ws_candle.h) 
+            high_price = self.parse_decimal_safely(raw_ws_candle.h)
             if high_price is None:
                 self._raise_missing_candle_field_error("high", raw_ws_candle)
             low_price = self.parse_decimal_safely(raw_ws_candle.l)
@@ -284,18 +284,14 @@ class HyperliquidHistoricalDataMapper(
             )
 
             # Parse mark price first
-            mark_price = self.parse_decimal_safely(
-                raw_asset_ctx.mark_px, default=None
-            )
+            mark_price = self.parse_decimal_safely(raw_asset_ctx.mark_px, default=None)
 
             # Parse hourly funding rate
             hourly_funding_rate = None
             funding_rate_8hr = None
 
             try:
-                hourly_funding_rate = self.parse_decimal_safely(
-                    raw_asset_ctx.funding, default=None
-                )
+                hourly_funding_rate = self.parse_decimal_safely(raw_asset_ctx.funding, default=None)
 
                 if hourly_funding_rate is not None and hourly_funding_rate.is_finite():
                     # Convert hourly rate to 8-hour rate
@@ -316,9 +312,7 @@ class HyperliquidHistoricalDataMapper(
             )
 
             # Parse additional HL-specific details
-            impact_px = self.parse_decimal_safely(
-                raw_asset_ctx.impact_px, default=None
-            )
+            impact_px = self.parse_decimal_safely(raw_asset_ctx.impact_px, default=None)
 
             # Create HL-specific details
             details = HyperliquidFundingDetails(
@@ -637,10 +631,10 @@ class HyperliquidHistoricalDataMapper(
 
         # Explicit type narrowing without cast
         if (
-            open_price is None 
-            or high_price is None 
-            or low_price is None 
-            or close_price is None 
+            open_price is None
+            or high_price is None
+            or low_price is None
+            or close_price is None
             or volume is None
         ):
             logger.warning(

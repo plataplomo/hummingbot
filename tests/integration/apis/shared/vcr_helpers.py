@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
+
 from tests.common_symbols import (
     BTC_USDC_BP,
     BTC_USDC_PERP_BP,

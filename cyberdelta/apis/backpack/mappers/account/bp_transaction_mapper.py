@@ -299,8 +299,9 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
         # Calculate average fill price if not provided but order has fills
         avg_fill_price = self.parse_decimal_safely(raw.avgFillPrice, default=None)
         if (
-            avg_fill_price is None 
-            and quantity_filled and quantity_filled > 0 
+            avg_fill_price is None
+            and quantity_filled
+            and quantity_filled > 0
             and raw.executedQuoteQuantity
         ):
             executed_quote = self.parse_decimal_safely(raw.executedQuoteQuantity, default=None)
@@ -468,9 +469,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             )
 
             # Parse required fields
-            parsed_quantity, parsed_created_at = (
-            self._parse_required_order_fields(raw)
-        )
+            parsed_quantity, parsed_created_at = self._parse_required_order_fields(raw)
 
             # Parse optional fields
             optional_fields = self._parse_optional_order_fields(raw)
@@ -601,9 +600,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             timestamp = self.parse_timestamp(raw.time)
 
             # Ensure required fields are not None
-            price_dec = self.ensure_decimal_not_none(
-                price_dec, "price", "BackpackRawPublicTrade"
-            )
+            price_dec = self.ensure_decimal_not_none(price_dec, "price", "BackpackRawPublicTrade")
             quantity_dec = self.ensure_decimal_not_none(
                 quantity_dec, "quantity", "BackpackRawPublicTrade"
             )
@@ -643,7 +640,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
 
     def _raise_missing_timestamp_error(self) -> None:
         """Raise MissingRequiredFieldError for missing timestamp.
-        
+
         Raises:
             MissingRequiredFieldError: Always raised for missing timestamp
         """
@@ -668,4 +665,3 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                          price or quantity is zero
         """
         return self.transform_raw_fill_to_internal(raw_fill)
-

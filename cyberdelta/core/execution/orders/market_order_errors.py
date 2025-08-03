@@ -198,7 +198,9 @@ class MarketOrderParameterError(ValueError):
         return cls("slippage_by_symbol must contain a 'default' entry")
 
     @classmethod
-    def slippage_invalid_error(cls, base_asset: str, slippage: object) -> "MarketOrderParameterError":
+    def slippage_invalid_error(
+        cls, base_asset: str, slippage: object
+    ) -> "MarketOrderParameterError":
         """Create error for invalid slippage value.
 
         Returns:

@@ -15,13 +15,13 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.core.models import Trade
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 
 # Mark all tests in this file
@@ -43,9 +43,7 @@ class TestBackpackPerpTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_recent_trades() with SOL_USDC_PERP returns valid Trade models."""
-        trades = await bp_api_for_test_env.get_recent_trades(
-            SOL_USDC_PERP_BP, limit=5
-        )
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_PERP_BP, limit=5)
 
         assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
 
@@ -90,9 +88,7 @@ class TestBackpackPerpTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test BackpackAPI.get_recent_trades() with BTC_USDC_PERP returns valid Trade models."""
-        trades = await bp_api_for_test_env.get_recent_trades(
-            BTC_USDC_PERP_BP, limit=5
-        )
+        trades = await bp_api_for_test_env.get_recent_trades(BTC_USDC_PERP_BP, limit=5)
 
         assert isinstance(trades, list), f"Expected list of trades, got {type(trades)}"
 
@@ -113,7 +109,9 @@ class TestBackpackPerpTrades:
                     f"BTC perp trade price must be finite: {trade.price}"
                 )
 
-    @pytest.mark.parametrize("symbol", [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value])
+    @pytest.mark.parametrize(
+        "symbol", [SOL_USDC_PERP_BP.value, BTC_USDC_PERP_BP.value, ETH_USDC_PERP_BP.value]
+    )
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/perp/trades"],
@@ -156,9 +154,7 @@ class TestBackpackPerpTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp trade characteristics related to leverage trading."""
-        trades = await bp_api_for_test_env.get_recent_trades(
-            SOL_USDC_PERP_BP, limit=30
-        )
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_PERP_BP, limit=30)
 
         if len(trades) > 0:
             total_notional = Decimal(0)
@@ -191,9 +187,7 @@ class TestBackpackPerpTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp trade side distribution and balance."""
-        trades = await bp_api_for_test_env.get_recent_trades(
-            SOL_USDC_PERP_BP, limit=50
-        )
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_PERP_BP, limit=50)
 
         if len(trades) > 0:
             buy_trades = 0
@@ -237,9 +231,7 @@ class TestBackpackPerpTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp trade size patterns and distribution."""
-        trades = await bp_api_for_test_env.get_recent_trades(
-            SOL_USDC_PERP_BP, limit=30
-        )
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_PERP_BP, limit=30)
 
         if len(trades) > 5:
             quantities = [trade.quantity for trade in trades]
@@ -299,9 +291,7 @@ class TestBackpackPerpTrades:
         custom_vcr_config: dict[str, Any],
     ) -> None:
         """Test perp trade precision handling for margin calculations."""
-        trades = await bp_api_for_test_env.get_recent_trades(
-            SOL_USDC_PERP_BP, limit=10
-        )
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_PERP_BP, limit=10)
 
         if len(trades) > 0:
             for trade in trades:
@@ -341,9 +331,7 @@ class TestBackpackPerpTrades:
         limit: int,
     ) -> None:
         """Test perp trade limit parameter functionality."""
-        trades = await bp_api_for_test_env.get_recent_trades(
-            SOL_USDC_PERP_BP, limit=limit
-        )
+        trades = await bp_api_for_test_env.get_recent_trades(SOL_USDC_PERP_BP, limit=limit)
 
         assert isinstance(trades, list), "Should return list"
         assert len(trades) <= limit, f"Should not exceed requested limit of {limit}"

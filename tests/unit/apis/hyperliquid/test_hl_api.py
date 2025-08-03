@@ -58,7 +58,6 @@ from cyberdelta.core.models.market.order import (
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
-
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
@@ -645,7 +644,8 @@ class TestHyperliquidAPIAccountMethods:
     ) -> None:
         """Test successful get_balances call delegates to account service."""
         # Create test data
-        from tests.common_symbols import USD_HL, BTC_ASSET_HL
+        from tests.common_symbols import BTC_ASSET_HL, USD_HL
+
         expected_balances = {
             "USDC": SpotBalance(
                 exchange="hyperliquid",

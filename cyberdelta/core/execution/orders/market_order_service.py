@@ -6,12 +6,11 @@ manages the business logic for converting market orders into IoC limit orders.
 
 from collections.abc import Awaitable, Callable
 from decimal import ROUND_DOWN, Decimal
-from typing import cast
+from typing import Any, cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import Symbol
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import (
     InsufficientLiquidityError,
@@ -21,7 +20,7 @@ from cyberdelta.core.execution.orders.market_order_errors import (
 )
 from cyberdelta.core.models import OrderBook
 from cyberdelta.core.models.market.mid_prices import MidPrices
-from cyberdelta.core.signal_generator import SignalGenerator
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide
 
 
@@ -34,7 +33,7 @@ class MarketOrderService:
     def __init__(
         self,
         exchange_api: ExchangeAPI,
-        signal_generator: SignalGenerator | None = None,
+        signal_generator: Any | None = None,
         config: MarketOrderConfig | None = None,
     ) -> None:
         """Initialize MarketOrderService.
@@ -217,7 +216,6 @@ class MarketOrderService:
         try:
             # Get market metadata from exchange
             from cyberdelta.core.symbols import exchanges
-            from cyberdelta.core.symbols import symbol as create_symbol
             from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_name = (
@@ -286,7 +284,6 @@ class MarketOrderService:
         try:
             # Get market metadata from exchange
             from cyberdelta.core.symbols import exchanges
-            from cyberdelta.core.symbols import symbol as create_symbol
             from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_name = (

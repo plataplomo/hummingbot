@@ -55,7 +55,7 @@ class BackpackTradeMapper(CommonDataParserMixin, ValidationMixin, TradeMapperPro
 
         Returns:
             tuple[object, object]: Validated price and quantity
-            
+
         Raises:
             TradeTransformationError: If price or quantity validation fails
         """
@@ -66,8 +66,7 @@ class BackpackTradeMapper(CommonDataParserMixin, ValidationMixin, TradeMapperPro
         parsed_price = self.parse_decimal_safely(price)
         if parsed_price is None:
             raise TradeTransformationError(
-                trade_source=context,
-                reason=f"Invalid price value: {price}"
+                trade_source=context, reason=f"Invalid price value: {price}"
             )
 
         # Type assertion: ensure quantity is compatible with parse_decimal_value
@@ -77,8 +76,7 @@ class BackpackTradeMapper(CommonDataParserMixin, ValidationMixin, TradeMapperPro
         parsed_quantity = self.parse_decimal_safely(quantity)
         if parsed_quantity is None:
             raise TradeTransformationError(
-                trade_source=context,
-                reason=f"Invalid quantity value: {quantity}"
+                trade_source=context, reason=f"Invalid quantity value: {quantity}"
             )
 
         return parsed_price, parsed_quantity
@@ -287,4 +285,3 @@ class BackpackTradeMapper(CommonDataParserMixin, ValidationMixin, TradeMapperPro
                 trade_id=raw_trade.trade_id,
                 original_error=e,
             ) from e
-

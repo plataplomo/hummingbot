@@ -11,10 +11,10 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import SOL_USDC_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.core.models.spot_balance import SpotBalance
+from tests.common_symbols import SOL_USDC_BP
 
 
 # Mark all tests in this file

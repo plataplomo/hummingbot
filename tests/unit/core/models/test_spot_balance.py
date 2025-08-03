@@ -17,7 +17,7 @@ from cyberdelta.core.models.spot_balance import (
     HyperliquidSpotBalanceDetails,
     SpotBalance,
 )
-from cyberdelta.core.symbols.models import ExchangeSymbol
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 
 
@@ -44,7 +44,7 @@ def valid_bp_spot_details_data() -> dict[str, Any]:
 
 
 @pytest.fixture
-def base_spot_balance_data(backpack_symbol: Callable[[str], ExchangeSymbol]) -> dict[str, Any]:
+def base_spot_balance_data(backpack_symbol: Callable[[str], Symbol]) -> dict[str, Any]:
     """Provide a dictionary with valid core data for SpotBalance creation.
 
     Args:
@@ -221,7 +221,7 @@ def test_spot_balance_extra_fields(base_spot_balance_data: dict[str, Any]) -> No
 
 
 def test_spot_balance_immutability(
-    base_spot_balance_data: dict[str, Any], backpack_symbol: Callable[[str], ExchangeSymbol]
+    base_spot_balance_data: dict[str, Any], backpack_symbol: Callable[[str], Symbol]
 ) -> None:
     """Test that the core SpotBalance model is immutable (frozen=True)."""
     balance = SpotBalance(**base_spot_balance_data)

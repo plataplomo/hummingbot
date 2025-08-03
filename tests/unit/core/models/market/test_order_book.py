@@ -11,9 +11,8 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.order_book import OrderBook
-from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
-from cyberdelta.exceptions.parsing import EmptyStringError
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 pytestmark = pytest.mark.timing
@@ -85,7 +84,12 @@ class TestOrderBook:
         """Test that providing timestamp=None raises a ValueError from the validator."""
         # Using Any to bypass static checks for testing runtime validation of None input.
         btc_symbol = BTC_HL
-        invalid_data: dict[str, Any] = {"symbol": btc_symbol, "timestamp": None, "bids": [], "asks": []}
+        invalid_data: dict[str, Any] = {
+            "symbol": btc_symbol,
+            "timestamp": None,
+            "bids": [],
+            "asks": [],
+        }
         with pytest.raises(
             ValidationError, match=r"timestamp.*Required value parsed as None or was invalid"
         ):
@@ -159,7 +163,12 @@ class TestOrderBook:
             OrderBook(**kwargs_bids)
         with pytest.raises(ListFieldError, match="Expected list, got"):
             # Test invalid asks type using Any
-            kwargs_asks: dict[str, Any] = {"symbol": BTC_HL, "timestamp": now, "bids": [], "asks": {}}
+            kwargs_asks: dict[str, Any] = {
+                "symbol": BTC_HL,
+                "timestamp": now,
+                "bids": [],
+                "asks": {},
+            }
             OrderBook(**kwargs_asks)
 
         # --- Test Level Item Structure ---

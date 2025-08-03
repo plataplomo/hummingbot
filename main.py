@@ -55,7 +55,7 @@ async def _stop_components(app_state: dict[str, Any]) -> None:
     logger.info("Stopping Strategy Manager...")
     if "strategy_manager" in app_state:
         app_state["strategy_manager"].stop_all()
-    
+
     logger.info("Stopping Engine...")
     if "engine" in app_state:
         app_state["engine"].stop()
@@ -234,7 +234,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         risk_factory = RiskServiceFactory(config=config)
         app_state["portfolio_factory"] = portfolio_factory
         app_state["risk_factory"] = risk_factory
-        
+
         # Create portfolio state manager through factory
         portfolio_state_manager = portfolio_factory.create_portfolio_state_manager()
         app_state["portfolio_state_manager"] = portfolio_state_manager
@@ -275,7 +275,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         reconciliation_service = portfolio_factory.create_reconciliation_service()
         app_state["reconciliation_service"] = reconciliation_service
 
-        # Create exchange data service 
+        # Create exchange data service
         exchange_data_service = portfolio_factory.create_exchange_service()
         app_state["exchange_data_service"] = exchange_data_service
 
@@ -301,11 +301,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         app_state["execution_handler"] = execution_handler
 
         # RiskManager with clean API - risk_factory is REQUIRED
-        risk_manager = RiskManager(
-            config,
-            portfolio_state_manager,
-            risk_factory
-        )
+        risk_manager = RiskManager(config, portfolio_state_manager, risk_factory)
         app_state["risk_manager"] = risk_manager
 
         # PrioritySignalQueue
@@ -319,7 +315,7 @@ def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
         engine = Engine(
             portfolio_factory=portfolio_factory,
             risk_factory=risk_factory,
-            name="CyberDeltaEngine_Core"
+            name="CyberDeltaEngine_Core",
         )
         app_state["engine"] = engine
 
@@ -566,7 +562,7 @@ async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Tas
     # Initialize portfolio services
     logger.info("Initializing portfolio services...")
     await app_state["portfolio_factory"].initialize_all()
-    
+
     # Perform initial portfolio reconciliation using new service
     logger.info("Performing initial portfolio reconciliation...")
     await app_state["reconciliation_service"].reconcile_all_exchanges()
@@ -591,10 +587,10 @@ def _start_engine(app_state: dict[str, Any]) -> None:
     """Start the trading engine and strategy manager."""
     logger.info("Starting Trading Engine...")
     app_state["engine"].start()  # Start the engine orchestration
-    
+
     logger.info("Starting Strategy Manager...")
     app_state["strategy_manager"].start_all()  # Start all enabled strategies
-    
+
     logger.info("Engine and strategies started. Entering main monitoring loop.")
 
 

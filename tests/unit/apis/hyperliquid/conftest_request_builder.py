@@ -1,6 +1,7 @@
 """Shared fixtures for HyperliquidRequestBuilder unit tests."""
 
 import pytest
+
 from tests.common_symbols import ETH_HL
 
 

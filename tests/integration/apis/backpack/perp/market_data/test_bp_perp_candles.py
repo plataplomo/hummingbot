@@ -17,13 +17,13 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 from tests.fixtures.time_fixtures import FreezerProtocol
 
 

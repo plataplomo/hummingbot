@@ -13,9 +13,9 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.candle import Candle
-from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 pytestmark = pytest.mark.timing

@@ -21,7 +21,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.core.models import Order
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
+from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     generate_invalid_order_id,
     get_dynamic_test_price,

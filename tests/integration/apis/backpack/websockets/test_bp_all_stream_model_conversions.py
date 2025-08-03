@@ -115,7 +115,7 @@ class TestBackpackAllStreamModelConversions:
             if isinstance(symbol_value, str):
                 return symbol_value
             # Handle Symbol objects that were serialized to dict
-            elif isinstance(symbol_value, dict) and "value" in symbol_value:
+            if isinstance(symbol_value, dict) and "value" in symbol_value:
                 return str(symbol_value["value"])
         return None
 

@@ -15,10 +15,10 @@ from cyberdelta.core.models.derivative_position import (
     DerivativePosition,
     HyperliquidPositionDetails,
 )
-from tests.common_symbols import BTC_HL
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import FieldNameMissingError
 from cyberdelta.exceptions.parsing import ParsingError
+from tests.common_symbols import BTC_HL
 
 
 pytestmark = pytest.mark.timing

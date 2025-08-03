@@ -634,7 +634,9 @@ class TestBackpackAPIPublicBehavior:
 
         with patch.object(backpack_api.trading_service, "get_order", return_value=mock_order):
             result = await backpack_api.get_order(
-                GetOrderArgs(order_id="order123", symbol=SOL_USDC_BP.value, client_order_id="client123"),
+                GetOrderArgs(
+                    order_id="order123", symbol=SOL_USDC_BP.value, client_order_id="client123"
+                ),
             )
 
             result_order: Order | None = result
@@ -675,7 +677,9 @@ class TestBackpackAPIPublicBehavior:
             return_value=mock_order,
         ):
             result = await backpack_api.get_order_status(
-                GetOrderArgs(order_id="order123", symbol=SOL_USDC_BP.value, client_order_id="client123"),
+                GetOrderArgs(
+                    order_id="order123", symbol=SOL_USDC_BP.value, client_order_id="client123"
+                ),
             )
 
             assert result == mock_order

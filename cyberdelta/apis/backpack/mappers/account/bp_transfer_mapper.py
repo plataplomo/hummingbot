@@ -440,4 +440,3 @@ class BackpackTransferMapper(CommonDataParserMixin, ValidationMixin, TransferMap
             ) from e
         else:
             return withdrawal
-

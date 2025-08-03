@@ -5,26 +5,12 @@ core component instances, and test data helpers. These fixtures support
 end-to-end testing of the trading engine components working together.
 """
 
-import asyncio
 import os
 import re
-from collections.abc import AsyncGenerator
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
-from unittest.mock import create_autospec, patch
-
-from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.config.models.config_models import (
-    AddressActionSafetyNetConfig,
-    ExchangeSpecificConfig,
-)
-from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.risk_manager import RiskManager
-from cyberdelta.enums.environment import EnvironmentType
-from cyberdelta.enums.exchange_names import ExchangeName
-
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from typing import Protocol
@@ -75,34 +61,17 @@ else:
     VCRResponse = Any
 
 import pytest
-import pytest_asyncio
-from pydantic import AnyUrl, HttpUrl
 
 from cyberdelta.config import AppSettings
+
 # PortfolioTrackerConfig removed - using AppSettings portfolio_tracker section instead
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.models import SpotBalance, Ticker
-from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager
-from cyberdelta.core.risk_manager import (
-    FundingRateValidatorProtocol,
-    # PortfolioTrackerProtocol removed - no longer exists
-)
-from cyberdelta.core.signal_generator import SignalGenerator
+from cyberdelta.core.models import Ticker
 from cyberdelta.core.symbols import get_symbol_service
 from cyberdelta.core.symbols.service import SymbolService
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
-from cyberdelta.validation.funding_data import ArbitrageOpportunity
-from cyberdelta.validation.position_reconciliation import PositionReconciliationSystem
-from tests.common_symbols import BTC_HL
-from tests.integration.mocks.mock_exchange import MockExchangeAPI
-
-
 logger = get_logger(__name__)
 
 # --- Integration Test Specific Helpers & Fixtures ---
-
-
 # Moved from test_core_workflow.py
 def create_mock_ticker(
     symbol: str,
@@ -125,66 +94,7 @@ def create_mock_ticker(
         price=Decimal(str(price)),
         timestamp=timestamp,  # Pass datetime directly
     )
-
-
-@pytest.fixture
-def basic_opportunity() -> ArbitrageOpportunity:
-    """Provide a basic ArbitrageOpportunity instance for integration tests.
-
-    Returns:
-        ArbitrageOpportunity: A basic arbitrage opportunity for testing.
-    """
-    # Note: basis_volatility is set after creation currently, which is fine.
-    # Ensure all required fields are present.
-    return ArbitrageOpportunity(
-        symbol=BTC_HL,
-        long_exchange="backpack",  # Use real exchange name
-        short_exchange="hyperliquid",  # Use real exchange name
-        long_price=Decimal(30001),  # Already correct
-        short_price=Decimal(30010),  # Already correct
-        long_funding_rate=Decimal("0.0001"),  # Already correct
-        short_funding_rate=Decimal("-0.00005"),  # Already correct
-        net_funding_differential=Decimal("0.00015"),  # Already correct
-        timestamp=datetime.now(UTC),  # Already correct
-        # Add missing optional args if needed, or ensure they are None
-        basis_volatility=0.01,  # Increased for conservative, safe sizing
-        utility_score=None,  # Add optional float
-        expected_profit=Decimal("0.01"),  # Set via constructor, not as attribute
-    )
-
-
-# mock_pt_config fixture removed - PortfolioTrackerConfig no longer exists
-# Use mock_config fixture which provides AppSettings with portfolio_tracker section
-
-
-@pytest_asyncio.fixture(scope="function")
-async def real_portfolio_tracker(
-    mock_config: AppSettings,
-) -> AsyncGenerator[PortfolioStateManager]:
-    """Provide a real PortfolioStateManager instance initialized with mock config.
-
-    Yields:
-        PortfolioStateManager: Real portfolio tracker instance.
-    """
-    await asyncio.sleep(0)  # Satisfy RUF029
-    # Create a basic state container for testing
-    from cyberdelta.core.portfolio.state.async_state_container import AsyncStateContainer
-    state_container = AsyncStateContainer(state_id="integration_test_state")
-    tracker = PortfolioStateManager(
-        app_settings=mock_config,
-        state_container=state_container
-    )
-    # DO NOT call await tracker.initialize() here.
-    # Initialization should happen in the test or a more specific fixture
-    # after API clients are registered.
-    yield tracker
-    # No specific teardown needed for PortfolioStateManager itself unless it holds resources
-    # that need explicit async closing beyond what its components (like api_clients) handle.
-
-
 # Add other integration-specific fixtures here if needed
-
-
 # Define needed secrets locally for integration tests
 @pytest.fixture
 def mock_secrets() -> dict[str, dict[str, str | None]]:
@@ -197,136 +107,7 @@ def mock_secrets() -> dict[str, dict[str, str | None]]:
         "mock_hl": {"api_key": "integ_hl_key", "api_secret": "integ_hl_secret"},
         "mock_bp": {"api_key": "integ_bp_key", "api_secret": "integ_bp_secret"},
     }
-
-
-@pytest_asyncio.fixture(scope="function")
-async def mock_hl_api(
-    mock_config: AppSettings,
-    mock_secrets: dict[str, dict[str, str | None]],
-) -> AsyncGenerator[MockExchangeAPI]:
-    """Function-scoped mock HyperLiquid API with patched clients.
-
-    Yields:
-        MockExchangeAPI: Mock HyperLiquid API instance.
-    """
-    exchange_name = "mock_hl"
-    # Create a proper ExchangeSpecificConfig object for the mock
-
-    exchange_config = ExchangeSpecificConfig(
-        exchange_name=ExchangeName.HYPERLIQUID,
-        enabled=True,
-        api_base_url_mainnet=HttpUrl("http://fixedmock.exchange"),
-        ws_url_mainnet=AnyUrl("ws://fixedmock.exchange"),
-        environment_type=EnvironmentType.MAINNET,
-        rate_limit_per_minute=120,
-        symbols={"BTC": "BTC", "ETH": "ETH"},
-        # Hyperliquid-specific required fields
-        ip_weight_limit_per_minute=1200,
-        info_request_type_ip_weights={"meta": 1, "allMids": 2},
-        default_info_weight=1,
-        exchange_action_base_ip_weight=1,
-        address_action_safety_net=AddressActionSafetyNetConfig(rate_per_minute=600),
-    )
-
-    exchange_secrets = mock_secrets[exchange_name]
-
-    with (
-        patch("cyberdelta.apis.connectivity.http_client.HttpClient.__init__", return_value=None),
-        patch(
-            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager.__init__",
-            return_value=None,
-        ),
-    ):
-        api = MockExchangeAPI(
-            exchange_name=exchange_name,
-            config=exchange_config,
-            secrets=exchange_secrets,
-            config_obj=mock_config,
-        )
-        try:
-            yield api
-        finally:
-            await api.close()
-
-
-@pytest_asyncio.fixture(scope="function")
-async def mock_bp_api(
-    mock_config: AppSettings,
-    mock_secrets: dict[str, dict[str, str | None]],
-) -> AsyncGenerator[MockExchangeAPI]:
-    """Function-scoped mock Backpack API with patched clients.
-
-    Yields:
-        MockExchangeAPI: Mock Backpack API instance.
-    """
-    exchange_name = "mock_bp"
-    # Create a proper ExchangeSpecificConfig object for the mock
-
-    exchange_config = ExchangeSpecificConfig(
-        exchange_name=ExchangeName.BACKPACK,
-        enabled=True,
-        api_base_url_mainnet=HttpUrl("http://fixedmock.exchange"),
-        ws_url_mainnet=AnyUrl("ws://fixedmock.exchange"),
-        environment_type=EnvironmentType.MAINNET,
-        rate_limit_per_minute=120,
-        symbols={"BTC": "BTC_USDC", "ETH": "ETH_USDC"},
-    )
-
-    exchange_secrets = mock_secrets[exchange_name]
-
-    with (
-        patch(
-            "cyberdelta.apis.connectivity.http_client.HttpClient.__init__",
-            return_value=None,
-        ),
-        patch(
-            "cyberdelta.apis.connectivity.ws_manager.WebSocketManager.__init__",
-            return_value=None,
-        ),
-    ):
-        api = MockExchangeAPI(
-            exchange_name=exchange_name,
-            config=exchange_config,
-            secrets=exchange_secrets,
-            config_obj=mock_config,
-        )
-        try:
-            yield api
-        finally:
-            await api.close()
-
-
 # --- Core Component Fixtures ---
-
-
-@pytest.fixture
-def data_handler(
-    mock_config: AppSettings,
-    mock_hl_api: MockExchangeAPI,
-    mock_bp_api: MockExchangeAPI,
-    symbol_mapper: SymbolService,
-    real_portfolio_tracker: PortfolioStateManager,
-) -> DataHandler:
-    """Create Data Handler instance with mock APIs registered.
-
-    Returns:
-        DataHandler: Data handler instance with mocked dependencies.
-    """
-    api_clients: dict[str, ExchangeAPI] = cast(
-        "dict[str, ExchangeAPI]",
-        {
-            "hyperliquid": mock_hl_api,
-            "backpack": mock_bp_api,
-        },
-    )
-    return DataHandler(
-        app_settings=mock_config,
-        api_clients=api_clients,
-        portfolio_tracker=real_portfolio_tracker,
-        symbol_mapper=symbol_mapper,
-    )
-
-
 # Define symbol_mapper fixture
 @pytest.fixture
 def symbol_mapper(mock_config: AppSettings) -> SymbolService:
@@ -338,164 +119,8 @@ def symbol_mapper(mock_config: AppSettings) -> SymbolService:
     # Get the global symbol service
     # In real usage, the service is initialized with the global registry
     return get_symbol_service()
-
-
-@pytest.fixture
-def signal_generator(
-    mock_config: AppSettings,
-    data_handler: DataHandler,
-    symbol_mapper: SymbolService,
-) -> SignalGenerator:
-    """Fixture for a SignalGenerator instance with mock data handler.
-
-    Returns:
-        SignalGenerator: Signal generator instance for testing.
-    """
-    return SignalGenerator(mock_config, data_handler, symbol_mapper)
-
-
-@pytest.fixture
-def risk_manager(
-    mock_config: AppSettings,
-) -> object:  # Keep as object to avoid circular dependency if RiskManager imports protocols
-    """Create Risk Manager instance using protocol-compliant mocks.
-
-    Uses mocks for portfolio tracker and funding rate validator.
-
-    Returns:
-        object: RiskManager instance with mocked dependencies.
-    """
-    mock_portfolio_state_manager = create_autospec(PortfolioTrackerProtocol, instance=True)
-    mock_portfolio_state_manager.get_total_capital.return_value = Decimal("100000.0")
-    mock_portfolio_state_manager.get_total_exposure_usd.return_value = Decimal(0)
-    mock_portfolio_state_manager.get_current_drawdown.return_value = Decimal(0)
-    mock_spot_balance = SpotBalance(
-        exchange="mock_generic",
-        asset="USDC",
-        total_quantity=Decimal("1000.0"),
-        available_quantity=Decimal("1000.0"),
-        timestamp=datetime.now(UTC),
-    )
-    mock_portfolio_state_manager.get_exchange_balance.return_value = mock_spot_balance
-    mock_funding_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
-    mock_funding_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
-    return RiskManager(
-        app_settings=mock_config,
-        portfolio_tracker=mock_portfolio_state_manager,
-        funding_rate_validator=mock_funding_validator,
-    )
-
-
-@pytest.fixture
-def execution_handler(
-    mock_config: AppSettings,
-    real_portfolio_tracker: PortfolioStateManager,  # Will use the async real_portfolio_tracker
-    mock_hl_api: MockExchangeAPI,
-    mock_bp_api: MockExchangeAPI,
-    circuit_breaker_system: CircuitBreakerSystem,
-) -> ExecutionHandler:
-    """Create Execution Handler instance with real tracker, mock APIs, and CB system.
-
-    Returns:
-        ExecutionHandler: Execution handler with registered mock API clients.
-    """
-    # Get the global symbol service for testing
-    symbol_mapper_instance = get_symbol_service()
-    eh = ExecutionHandler(
-        app_settings=mock_config,
-        portfolio_tracker=real_portfolio_tracker,
-        symbol_service=symbol_mapper_instance,
-        circuit_breaker_system=circuit_breaker_system,
-    )
-    eh.register_api_client("hyperliquid", mock_hl_api)
-    eh.register_api_client("backpack", mock_bp_api)
-    return eh
-
-
 # --- Safety System Specific Fixtures ---
-
-
-@pytest.fixture
-def funding_rate_validator() -> FundingRateValidatorProtocol:
-    """Provide a protocol-compliant mock for the FundingRateValidator.
-
-    Returns:
-        FundingRateValidatorProtocol: Mock funding rate validator.
-    """
-    mock_validator = create_autospec(FundingRateValidatorProtocol, instance=True)
-    mock_validator.get_symbol_metrics.return_value = {"rmse": 0.0, "bias": 0.0}
-    return cast("FundingRateValidatorProtocol", mock_validator)
-
-
-@pytest_asyncio.fixture(scope="function")  # Changed to async fixture
-async def position_reconciler(
-    mock_config: AppSettings,
-    # mock_pt_config removed - PortfolioTrackerConfig no longer exists
-    # real_portfolio_tracker: PortfolioStateManager, # No longer directly used, will create its own
-    mock_hl_api: MockExchangeAPI,
-    mock_bp_api: MockExchangeAPI,
-) -> AsyncGenerator[PositionReconciliationSystem]:
-    """Provide a PositionReconciliationSystem instance with mock APIs.
-
-    Yields:
-        PositionReconciliationSystem: Position reconciliation system with mock APIs.
-    """
-    # Create a fresh PortfolioStateManager for this fixture
-    from cyberdelta.core.portfolio.state.async_state_container import AsyncStateContainer
-    state_container = AsyncStateContainer(state_id="reconciler_test_state")
-    portfolio_tracker = PortfolioStateManager(
-        app_settings=mock_config,
-        state_container=state_container
-    )
-    # Note: removed await portfolio_state_manager.initialize() - variable name was wrong anyway
-    # NOTE: API client registration has moved to PortfolioReconciliationService
-
-    reconciler = PositionReconciliationSystem(
-        app_settings=mock_config,
-        portfolio_tracker=portfolio_tracker,
-    )
-    try:
-        yield reconciler
-    finally:
-        # Clean up if needed
-        pass  # PortfolioStateManager doesn't have a shutdown method
-
-
-@pytest.fixture
-def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
-    """Provide a CircuitBreakerSystem instance initialized with mock config.
-
-    Returns:
-        CircuitBreakerSystem: Circuit breaker system with mock configuration.
-    """
-    # The mock_config already has safety_systems configured, use it directly
-    return CircuitBreakerSystem(mock_config)
-
-
-# Find opportunity creation/mocking
-@pytest.fixture
-def mock_opportunity() -> ArbitrageOpportunity:
-    """Return mock opportunity for testing."""
-    return ArbitrageOpportunity(
-        symbol=BTC_HL,
-        long_exchange="mock_hl",
-        short_exchange="mock_bp",
-        long_price=Decimal(30000),  # Already correct
-        short_price=Decimal(30050),  # Already correct
-        long_funding_rate=Decimal("0.0001"),  # Already correct
-        short_funding_rate=Decimal("-0.0001"),  # Already correct
-        net_funding_differential=Decimal("0.0002"),  # Already correct
-        timestamp=datetime.now(UTC),  # Already correct
-        expected_profit=Decimal("5.0"),  # Already correct
-        # Add missing optional args
-        basis_volatility=0.002,  # Example float value
-        utility_score=0.6,  # Example float value
-    )
-
-
 # --- VCR Configuration Override for Integration Tests ---
-
-
 @pytest.fixture
 def vcr_config() -> dict[str, Any]:
     """VCR configuration for integration tests without calling base fixture directly.
@@ -663,8 +288,6 @@ def vcr_config() -> dict[str, Any]:
 
     # NOTE: cassette_library_dir is now managed by the vcr_cassette_dir fixture
     # which handles organized directory structure based on test parametrization
-
-
 @pytest.fixture
 def custom_vcr_cassette_dir(request: PytestRequest) -> str:
     """Fixture to specify custom VCR cassette directory for integration tests.
@@ -686,8 +309,6 @@ def custom_vcr_cassette_dir(request: PytestRequest) -> str:
         custom_dir.mkdir(parents=True, exist_ok=True)
         return str(custom_dir)
     return "tests/cassettes"  # Default
-
-
 @pytest.fixture
 def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) -> dict[str, Any]:
     """VCR configuration with custom cassette path for integration tests.
@@ -704,8 +325,6 @@ def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) 
     config["cassette_library_dir"] = custom_vcr_cassette_dir
 
     return config
-
-
 def _get_custom_cassette_dir(request: PytestRequest) -> str | None:
     """Extract custom VCR cassette directory from test parametrization.
 
@@ -727,8 +346,6 @@ def _get_custom_cassette_dir(request: PytestRequest) -> str | None:
     custom_dir = base_dir / str(param_value)
     custom_dir.mkdir(parents=True, exist_ok=True)
     return str(custom_dir)
-
-
 def _get_module_based_cassette_dir(request: PytestRequest) -> str:
     """Get module-based cassette directory from test file path.
 
@@ -757,8 +374,6 @@ def _get_module_based_cassette_dir(request: PytestRequest) -> str:
     except ValueError:
         # If path is not relative to tests/, fall back to default
         return "tests/cassettes"
-
-
 @pytest.fixture
 def vcr_cassette_dir(request: PytestRequest) -> str:
     """Override pytest-recording's default cassette directory logic.

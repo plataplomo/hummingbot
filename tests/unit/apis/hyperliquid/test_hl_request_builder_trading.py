@@ -6,7 +6,6 @@ from decimal import Decimal
 
 import pytest
 
-from tests.common_symbols import BTC_HL
 from cyberdelta.apis.base.trading_execution_domain import (
     LiquidityRequirement,
     OrderExecution,
@@ -29,6 +28,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import BTC_HL
 
 
 class TestHyperliquidTradingRequestBuilder:

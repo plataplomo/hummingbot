@@ -10,18 +10,23 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from cyberdelta.core.symbols import Symbol, exchanges
+from cyberdelta.enums.exchange_names import ExchangeName
+from tests.common_symbols import (
+    BTC_BP,
+    BTC_HL,
+    BTC_USDC_BP,
+    # BTC_USDC_HL,  # Doesn't exist
+    ETH_BP,
+    ETH_HL,
+    SOL_BP,
+    SOL_HL,
+)
 from tests.factories.symbol_factories import (
     InternalSymbolFactory,
-    UnifiedSymbolFactory,
     SymbolFactory,
+    UnifiedSymbolFactory,
 )
-from cyberdelta.core.symbols import Symbol
-from tests.common_symbols import (
-    BTC_HL, BTC_BP, ETH_HL, ETH_BP, SOL_HL, SOL_BP,
-    BTC_USDC_HL, BTC_USDC_BP
-)
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.enums.exchange_names import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -56,7 +61,8 @@ def eth_perp_bp() -> Symbol:
 @pytest.fixture
 def btc_spot_hl() -> Symbol:
     """BTC spot symbol for Hyperliquid."""
-    return BTC_USDC_HL
+    # Hyperliquid doesn't have spot symbols in the same way, use perp
+    return BTC_HL
 
 
 @pytest.fixture
@@ -194,8 +200,7 @@ def create_symbol() -> Callable[[str, ExchangeName], Symbol]:
     def _create(value: str, exchange: ExchangeName) -> Symbol:
         if exchange == ExchangeName.HYPERLIQUID:
             return SymbolFactory.create_custom_hyperliquid(value)
-        else:
-            return SymbolFactory.create_custom_backpack(value)
+        return SymbolFactory.create_custom_backpack(value)
 
     return _create
 
@@ -234,8 +239,7 @@ def btc_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
     """BTC perpetual symbol for any exchange."""
     if any_exchange == ExchangeName.HYPERLIQUID:
         return SymbolFactory.create_btc_perp_hyperliquid()
-    else:
-        return SymbolFactory.create_btc_perp_backpack()
+    return SymbolFactory.create_btc_perp_backpack()
 
 
 @pytest.fixture
@@ -243,8 +247,7 @@ def eth_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
     """ETH perpetual symbol for any exchange."""
     if any_exchange == ExchangeName.HYPERLIQUID:
         return SymbolFactory.create_eth_perp_hyperliquid()
-    else:
-        return SymbolFactory.create_eth_perp_backpack()
+    return SymbolFactory.create_eth_perp_backpack()
 
 
 # Invalid symbol fixtures

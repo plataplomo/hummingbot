@@ -12,7 +12,6 @@ from typing import Any
 import orjson
 import pytest
 
-from tests.common_symbols import BTC_USDC_BP
 from cyberdelta.apis.backpack.bp_ws_router import BackpackWebSocketRouter
 from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
@@ -45,6 +44,7 @@ from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from tests.common_symbols import BTC_USDC_BP
 
 
 # Sample messages for testing

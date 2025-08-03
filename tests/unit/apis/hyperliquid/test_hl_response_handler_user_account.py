@@ -17,9 +17,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState,
 )
-from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions import ListFieldError
 from cyberdelta.utils.typing import ParsedJsonResponse
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Import fixtures from the shared conftest

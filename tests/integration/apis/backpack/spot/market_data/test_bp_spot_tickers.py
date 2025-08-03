@@ -14,11 +14,11 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP, COMMON_SPOT_SYMBOLS_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.core.models import Ticker
+from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
 
 
 # Mark all tests in this file
@@ -44,7 +44,9 @@ class TestBackpackSpotTickers:
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == SOL_USDC_BP.value, f"Expected symbol 'SOL_USDC', got '{ticker.symbol}'"
+        assert ticker.symbol == SOL_USDC_BP.value, (
+            f"Expected symbol 'SOL_USDC', got '{ticker.symbol}'"
+        )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
         )
@@ -77,7 +79,9 @@ class TestBackpackSpotTickers:
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == BTC_USDC_BP.value, f"Expected symbol 'BTC_USDC', got '{ticker.symbol}'"
+        assert ticker.symbol == BTC_USDC_BP.value, (
+            f"Expected symbol 'BTC_USDC', got '{ticker.symbol}'"
+        )
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
         )

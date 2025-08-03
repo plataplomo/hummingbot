@@ -458,4 +458,3 @@ class BackpackAccountSummaryMapper(CommonDataParserMixin, AccountSummaryMapperPr
             ) from e
         else:
             return settings
-

@@ -12,11 +12,11 @@ from typing import Any
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.spot]
@@ -43,7 +43,9 @@ class TestBackpackSpotMarketPrivate:
         market = await bp_api_for_test_env.get_market(args)
 
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
-        assert market.symbol == SOL_USDC_BP.value, f"Expected symbol '{SOL_USDC_BP.value}', got '{market.symbol}'"
+        assert market.symbol == SOL_USDC_BP.value, (
+            f"Expected symbol '{SOL_USDC_BP.value}', got '{market.symbol}'"
+        )
 
         assert isinstance(market.tick_size, Decimal), (
             f"tick_size should be Decimal, got {type(market.tick_size)}"

@@ -19,7 +19,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, DOGE_USDT_BP, ADA_BTC_BP
+from tests.common_symbols import ADA_BTC_BP, BTC_USDC_BP, DOGE_USDT_BP, ETH_USDC_BP, SOL_USDC_BP
+
 
 # Third-party imports for type checking only
 if TYPE_CHECKING:
@@ -365,7 +366,13 @@ class TestTradingDataMapperIntegration:
         trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Test transformation consistency across different trading symbols."""
-        symbols = [BTC_USDC_BP.value, ETH_USDC_BP.value, SOL_USDC_BP.value, DOGE_USDT_BP.value, ADA_BTC_BP.value]
+        symbols = [
+            BTC_USDC_BP.value,
+            ETH_USDC_BP.value,
+            SOL_USDC_BP.value,
+            DOGE_USDT_BP.value,
+            ADA_BTC_BP.value,
+        ]
 
         for symbol in symbols:
             raw_order = create_raw_order(

@@ -50,12 +50,8 @@ class BackpackMarketMapper(CommonDataParserMixin, MarketMapperProtocol):
             step_size = self.parse_decimal_safely(raw_market.filters.quantity.step_size)
 
             # Parse optional price limits
-            min_price = self.parse_decimal_safely(
-                raw_market.filters.price.min_price, default=None
-            )
-            max_price = self.parse_decimal_safely(
-                raw_market.filters.price.max_price, default=None
-            )
+            min_price = self.parse_decimal_safely(raw_market.filters.price.min_price, default=None)
+            max_price = self.parse_decimal_safely(raw_market.filters.price.max_price, default=None)
 
             # Parse optional quantity limits
             min_quantity = self.parse_decimal_safely(
@@ -109,4 +105,3 @@ class BackpackMarketMapper(CommonDataParserMixin, MarketMapperProtocol):
                 symbol=raw_market.symbol,
                 original_error=e,
             ) from e
-

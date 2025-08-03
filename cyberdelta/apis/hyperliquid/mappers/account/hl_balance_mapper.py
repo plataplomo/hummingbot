@@ -67,7 +67,7 @@ class HyperliquidBalanceMapper(CommonDataParserMixin, BalanceMapperMixin, Balanc
             # Return zero balance for missing assets using mixin utility
             return self.create_zero_balance(
                 asset=exchanges.hyperliquid(value=asset_symbol_str),
-                exchange=ExchangeName.HYPERLIQUID.value
+                exchange=ExchangeName.HYPERLIQUID.value,
             )
 
         return balances[asset_symbol_str]
@@ -170,15 +170,11 @@ class HyperliquidBalanceMapper(CommonDataParserMixin, BalanceMapperMixin, Balanc
             message="Processing USDC balance from margin summary",
         )
 
-        total_usdc = self.parse_decimal_safely(
-            raw_state.margin_summary.account_value
-        )
+        total_usdc = self.parse_decimal_safely(raw_state.margin_summary.account_value)
         if total_usdc is None:
             total_usdc = Decimal(0)
 
-        available_usdc = self.parse_decimal_safely(
-            raw_state.withdrawable, default=None
-        )
+        available_usdc = self.parse_decimal_safely(raw_state.withdrawable, default=None)
 
         if total_usdc >= Decimal(0):
             # Create HL-specific details
@@ -305,9 +301,7 @@ class HyperliquidBalanceMapper(CommonDataParserMixin, BalanceMapperMixin, Balanc
 
         pos = asset_pos.position
         size_str = getattr(pos, "szi", "0")
-        size = self.parse_decimal_safely(
-            size_str, default=None
-        )
+        size = self.parse_decimal_safely(size_str, default=None)
 
         if size is not None and size >= Decimal(0):
             # Create HL-specific details

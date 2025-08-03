@@ -179,4 +179,3 @@ class BackpackOrderBookMapper(CommonDataParserMixin, OrderBookMapperProtocol):
                 symbol=symbol.value,  # Convert Symbol to string for error
                 original_error=e,
             ) from e
-

@@ -23,9 +23,6 @@ from cyberdelta.config.models.config_models import (
     GeneralSettings,
     GlobalRiskSettings,
     MonitoringSettings,
-    PortfolioStateSettings,
-    # PortfolioTrackerConfig removed - replaced by modular portfolio system
-    PortfolioValidationSettings,
     PositionReconciliationSettings,
     SafetySystemsSettings,
 )

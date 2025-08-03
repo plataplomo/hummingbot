@@ -182,4 +182,3 @@ class BackpackTickerMapper(CommonDataParserMixin, TickerMapperProtocol):
                 symbol=raw_ticker.symbol,
                 original_error=e,
             ) from e
-

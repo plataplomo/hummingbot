@@ -15,7 +15,7 @@ from typing import Any, TypeGuard
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.core.enums import SignalType
-from cyberdelta.core.symbols.models import Symbol, BaseSymbol
+from cyberdelta.core.symbols.models import BaseSymbol, Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,

@@ -25,7 +25,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -39,6 +38,7 @@ from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import SOL_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_current_market_price,
     get_dynamic_test_price,

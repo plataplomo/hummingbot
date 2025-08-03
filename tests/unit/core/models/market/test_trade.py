@@ -38,10 +38,10 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.trade import BackpackTradeDetails, HyperliquidTradeDetails, Trade
-from tests.common_symbols import BTC_HL
 from cyberdelta.enums import OrderSide
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
+from tests.common_symbols import BTC_HL
 
 
 def test_trade_minimal_valid() -> None:

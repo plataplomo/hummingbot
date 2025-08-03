@@ -11,7 +11,6 @@ from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 from cyberdelta.core.models import (
     DerivativePosition,
@@ -24,7 +23,8 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
 )
-from cyberdelta.validation.funding_data import ArbitrageOpportunity
+# from cyberdelta.validation.funding_data import ArbitrageOpportunity  # Module deleted
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Import path setup to ensure cyberdelta can be imported
@@ -145,7 +145,7 @@ def mock_portfolio_state_manager() -> MagicMock:
     mock_manager.get_exchange_balance.return_value = 10000.0
     mock_manager.get_exchange_exposure.return_value = 5000.0
     mock_manager.get_total_exposure.return_value = 10000.0
-    
+
     # Additional methods for PortfolioStateManager
     mock_manager.get_current_state.return_value = MagicMock()
     mock_manager.get_positions.return_value = {}
@@ -184,25 +184,25 @@ def mock_data_handler() -> MagicMock:
 # --- Mock Trading Opportunities ---
 
 
-@pytest.fixture
-def mock_arbitrage_opportunity() -> MagicMock:
-    """Create a mock ArbitrageOpportunity for testing.
-
-    Returns:
-        MagicMock: A mock arbitrage opportunity with test trading data.
-    """
-    opportunity = MagicMock(spec=ArbitrageOpportunity)
-    opportunity.symbol = "BTC"
-    opportunity.long_exchange = "hyperliquid"
-    opportunity.short_exchange = "backpack"
-    opportunity.net_funding_differential = 0.05  # 5 basis points
-    opportunity.basis_volatility = 0.01
-    opportunity.expected_profit = 10.0
-    opportunity.confidence = 0.8
-    opportunity.timestamp = datetime.now(UTC)
-    opportunity.long_price = Decimal(30000)
-    opportunity.short_price = Decimal(29999)
-    opportunity.long_size = Decimal("0.1")
-    opportunity.short_size = Decimal("0.1")
-
-    return opportunity
+# @pytest.fixture
+# def mock_arbitrage_opportunity() -> MagicMock:
+#     """Create a mock ArbitrageOpportunity for testing.
+# 
+#     Returns:
+#         MagicMock: A mock arbitrage opportunity with test trading data.
+#     """
+#     opportunity = MagicMock(spec=ArbitrageOpportunity)
+#     opportunity.symbol = "BTC"
+#     opportunity.long_exchange = "hyperliquid"
+#     opportunity.short_exchange = "backpack"
+#     opportunity.net_funding_differential = 0.05  # 5 basis points
+#     opportunity.basis_volatility = 0.01
+#     opportunity.expected_profit = 10.0
+#     opportunity.confidence = 0.8
+#     opportunity.timestamp = datetime.now(UTC)
+#     opportunity.long_price = Decimal(30000)
+#     opportunity.short_price = Decimal(29999)
+#     opportunity.long_size = Decimal("0.1")
+#     opportunity.short_size = Decimal("0.1")
+# 
+#     return opportunity

@@ -16,12 +16,17 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP, COMMON_PERP_SYMBOLS_BP, INVALID_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.core.models import OrderBook
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import (
+    BTC_USDC_PERP_BP,
+    COMMON_PERP_SYMBOLS_BP,
+    INVALID_PERP_BP,
+    SOL_USDC_PERP_BP,
+)
 
 
 # Mark all tests in this file

@@ -1,10 +1,11 @@
 """Test scalable registry pattern."""
 
 import pytest
-from tests.common_symbols import AVAX_HL
-from cyberdelta.core.symbols import symbol, exchanges, symbols, get_registry
+
+from cyberdelta.core.symbols import exchanges, get_registry, symbol, symbols
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from tests.common_symbols import AVAX_HL
 
 
 class TestSymbolRegistry:

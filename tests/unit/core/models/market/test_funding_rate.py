@@ -5,7 +5,7 @@ Tests validation, parsing, immutability, and the Core+Details pattern.
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -15,9 +15,7 @@ from cyberdelta.core.models.market.funding_rate import (
     FundingRate,
     HyperliquidFundingDetails,
 )
-from cyberdelta.core.symbols.models import ExchangeSymbol
-from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import EmptyStringError
+from cyberdelta.core.symbols import Symbol
 from tests.common_symbols import BTC_HL, ETH_HL
 
 
@@ -28,16 +26,16 @@ class TestFundingRate:
     """Test cases for the core FundingRate model."""
 
     @pytest.fixture
-    def btc_symbol(self) -> ExchangeSymbol:
+    def btc_symbol(self) -> Symbol:
         """Fixture providing a BTC exchange symbol."""
         return BTC_HL
 
     @pytest.fixture
-    def eth_symbol(self) -> ExchangeSymbol:
+    def eth_symbol(self) -> Symbol:
         """Fixture providing an ETH exchange symbol."""
         return ETH_HL
 
-    def test_core_required_fields(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_core_required_fields(self, btc_symbol: Symbol) -> None:
         """Test that required fields are actually required."""
         # Symbol and timestamp are required
         with pytest.raises(ValidationError, match="1 validation error"):
@@ -55,7 +53,7 @@ class TestFundingRate:
         assert fr.symbol == btc_symbol
         assert isinstance(fr.timestamp, datetime)
 
-    def test_core_minimal_creation(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_core_minimal_creation(self, btc_symbol: Symbol) -> None:
         """Test creating a minimal FundingRate with only required fields."""
         now = datetime.now(UTC)
         fr = FundingRate(symbol=btc_symbol, timestamp=now)
@@ -70,7 +68,7 @@ class TestFundingRate:
         assert fr.hl_details is None
         assert fr.bp_details is None
 
-    def test_core_complete_creation(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_core_complete_creation(self, btc_symbol: Symbol) -> None:
         """Test creating a FundingRate with all core fields."""
         now = datetime.now(UTC)
         next_time = now + timedelta(hours=8)
@@ -93,7 +91,7 @@ class TestFundingRate:
         assert fr.index_price == Decimal("49950.00")
         assert fr.next_funding_time == next_time
 
-    def test_decimal_parsing(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_decimal_parsing(self, btc_symbol: Symbol) -> None:
         """Test that numeric fields are parsed to Decimal correctly."""
         now = datetime.now(UTC)
 
@@ -115,10 +113,10 @@ class TestFundingRate:
 
         assert fr.funding_rate == Decimal("0.0001")
         assert fr.predicted_rate == Decimal("0.00015")
-        assert fr.mark_price == Decimal("50000")
+        assert fr.mark_price == Decimal(50000)
         assert fr.index_price == Decimal("49950.00")
 
-    def test_symbol_validation(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_symbol_validation(self, btc_symbol: Symbol) -> None:
         """Test validation rules for the symbol field."""
         now = datetime.now(UTC)
 
@@ -129,7 +127,7 @@ class TestFundingRate:
         with pytest.raises(ValidationError):
             FundingRate(symbol="BTC-PERP", timestamp=now)  # type: ignore[arg-type]
 
-    def test_timestamp_parsing(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_timestamp_parsing(self, btc_symbol: Symbol) -> None:
         """Test timestamp parsing from various formats."""
         ms_timestamp = 1678881600000  # 2023-03-15 12:00:00 UTC
         iso_timestamp = "2023-03-15T12:00:00Z"
@@ -161,7 +159,7 @@ class TestFundingRate:
         fr_aware = FundingRate(symbol=btc_symbol, timestamp=aware_dt)
         assert fr_aware.timestamp == expected_dt
 
-    def test_hyperliquid_details_creation(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_hyperliquid_details_creation(self, btc_symbol: Symbol) -> None:
         """Test creating FundingRate with Hyperliquid-specific details."""
         now = datetime.now(UTC)
 
@@ -184,7 +182,7 @@ class TestFundingRate:
         assert fr.hl_details.open_interest is None
         assert fr.bp_details is None  # Should be exclusive
 
-    def test_backpack_details_creation(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_backpack_details_creation(self, btc_symbol: Symbol) -> None:
         """Test creating FundingRate with Backpack-specific details."""
         now = datetime.now(UTC)
 
@@ -207,7 +205,7 @@ class TestFundingRate:
         assert fr.bp_details.apr_7d is None
         assert fr.hl_details is None  # Should be exclusive
 
-    def test_both_details_exclusive(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_both_details_exclusive(self, btc_symbol: Symbol) -> None:
         """Test that hl_details and bp_details are mutually exclusive."""
         now = datetime.now(UTC)
 
@@ -229,7 +227,7 @@ class TestFundingRate:
                 bp_details=bp_details,
             )
 
-    def test_immutability(self, btc_symbol: ExchangeSymbol, eth_symbol: ExchangeSymbol) -> None:
+    def test_immutability(self, btc_symbol: Symbol, eth_symbol: Symbol) -> None:
         """Test that FundingRate instances are immutable."""
         now = datetime.now(UTC)
         fr = FundingRate(
@@ -248,7 +246,7 @@ class TestFundingRate:
         with pytest.raises(ValidationError, match="Instance is frozen"):
             fr.timestamp = datetime.now(UTC)
 
-    def test_extra_fields_forbidden(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_extra_fields_forbidden(self, btc_symbol: Symbol) -> None:
         """Test that extra fields are forbidden."""
         now = datetime.now(UTC)
 
@@ -260,7 +258,7 @@ class TestFundingRate:
                 extra_field="not_allowed",  # type: ignore[call-arg]
             )
 
-    def test_serialization(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_serialization(self, btc_symbol: Symbol) -> None:
         """Test that FundingRate can be serialized properly."""
         now = datetime.now(UTC)
         next_time = now + timedelta(hours=8)
@@ -284,7 +282,7 @@ class TestFundingRate:
         assert isinstance(json_str, str)
         assert "0.0001" in json_str
 
-    def test_funding_rate_with_all_prices(self, btc_symbol: ExchangeSymbol) -> None:
+    def test_funding_rate_with_all_prices(self, btc_symbol: Symbol) -> None:
         """Test FundingRate with complete price information."""
         now = datetime.now(UTC)
 
@@ -328,14 +326,14 @@ class TestHyperliquidFundingDetails:
         details = HyperliquidFundingDetails(
             vault_apr=Decimal("0.05"),
             premium=Decimal("0.0001"),
-            open_interest=Decimal("1000000"),
-            day_ntl_vlm=Decimal("5000000"),
+            open_interest=Decimal(1000000),
+            day_ntl_vlm=Decimal(5000000),
         )
 
         assert details.vault_apr == Decimal("0.05")
         assert details.premium == Decimal("0.0001")
-        assert details.open_interest == Decimal("1000000")
-        assert details.day_ntl_vlm == Decimal("5000000")
+        assert details.open_interest == Decimal(1000000)
+        assert details.day_ntl_vlm == Decimal(5000000)
 
     def test_decimal_parsing(self) -> None:
         """Test decimal parsing for all numeric fields."""

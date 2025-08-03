@@ -1,9 +1,9 @@
 """Unit tests for BackpackRequestBuilder utility functions."""
 
 import pytest
-from tests.common_symbols import BTC_BP, ETH_BP
 
 from cyberdelta.apis.backpack.mappers.utils.common_mappers import BackpackCommonMappers
+from tests.common_symbols import BTC_BP, ETH_BP
 
 
 class TestFormatSymbol:
@@ -19,7 +19,9 @@ class TestFormatSymbol:
 
     def test_format_symbol_perp_suffix_preserved(self) -> None:
         """Test _format_symbol preserves PERP suffix correctly."""
-        assert BackpackCommonMappers.normalize_symbol(ETH_BP.value.replace("-", "_")) == ETH_BP.value.replace("-", "_")
+        assert BackpackCommonMappers.normalize_symbol(
+            ETH_BP.value.replace("-", "_")
+        ) == ETH_BP.value.replace("-", "_")
 
     def test_format_symbol_mixed_case_and_separators(self) -> None:
         """Test _format_symbol handles mixed case and separators."""

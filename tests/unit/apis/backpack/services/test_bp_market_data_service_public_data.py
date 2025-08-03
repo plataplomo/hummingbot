@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.core.models.market import OrderBook, Ticker, Trade
-from tests.common_symbols import SOL_USDC_BP, ETH_USDC_BP
+from tests.common_symbols import ETH_USDC_BP, SOL_USDC_BP
 
 
 # Import fixtures from the shared conftest

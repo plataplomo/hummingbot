@@ -16,7 +16,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -24,6 +23,7 @@ from cyberdelta.apis.exceptions.market_data_service import EmptySymbolListError
 from cyberdelta.apis.models.service_args.market_data import GetFundingRatesArgs
 from cyberdelta.core.models import FundingRate
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 
 # Mark all tests in this file
@@ -201,7 +201,7 @@ async def test_bp_get_funding_rates_sol_perp_success(
 
             # Validate symbol
             assert str(funding_rate.symbol) == SOL_USDC_PERP_BP.value, (
-                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{str(funding_rate.symbol)}'"
+                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{funding_rate.symbol!s}'"
             )
 
             # Validate rate is reasonable
@@ -509,7 +509,7 @@ async def test_bp_get_funding_rates_large_limit_handling(
                 f"Funding rate {i} should be FundingRate model, got {type(funding_rate)}"
             )
             assert str(funding_rate.symbol) == SOL_USDC_PERP_BP.value, (
-                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{str(funding_rate.symbol)}'"
+                f"Funding rate {i} symbol should be 'SOL_USDC_PERP', got '{funding_rate.symbol!s}'"
             )
 
     except (APIError, ValueError):
@@ -560,5 +560,5 @@ async def test_bp_get_funding_rates_multiple_symbols_consistency(
             # All funding rates in the list should have same symbol
             for i, funding_rate in enumerate(funding_rates):
                 assert str(funding_rate.symbol) == symbol, (
-                    f"Funding rate {i} for {symbol} has wrong symbol: {str(funding_rate.symbol)}"
+                    f"Funding rate {i} for {symbol} has wrong symbol: {funding_rate.symbol!s}"
                 )

@@ -14,6 +14,11 @@ from typing import Any, cast
 import pytest
 from pydantic import AnyUrl, HttpUrl, SecretStr
 
+from cyberdelta.apis.base.protocols.base_protocols import (
+    MapperProtocol,
+    RequestBuilderProtocol,
+    ResponseHandlerProtocol,
+)
 from cyberdelta.apis.hyperliquid.hl_api_components_factory import (
     HyperliquidAPIComponentsFactory,
 )
@@ -52,11 +57,6 @@ from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawClearinghouseState,
-)
-from cyberdelta.apis.base.protocols.base_protocols import (
-    MapperProtocol,
-    RequestBuilderProtocol,
-    ResponseHandlerProtocol,
 )
 from cyberdelta.apis.hyperliquid.protocols.builder_protocols import (
     AccountRequestBuilderProtocol,
@@ -195,8 +195,11 @@ MARKET_DATA_HANDLER_REQUIRED_METHODS = [
 MARKET_DATA_BUILDER_TEST_METHODS: list[tuple[str, list[str | int]]] = [
     ("build_get_all_mids_params", []),
     ("build_get_l2_book_params", ["BTC"]),  # Note: actual method expects Symbol type
-    ("build_get_recent_trades_params", ["BTC"]),  # Note: actual method expects Symbol type  
-    ("build_get_candles_params", ["BTC", "1m", 1000000000, 2000000000]),  # Note: expects Symbol + other types
+    ("build_get_recent_trades_params", ["BTC"]),  # Note: actual method expects Symbol type
+    (
+        "build_get_candles_params",
+        ["BTC", "1m", 1000000000, 2000000000],
+    ),  # Note: expects Symbol + other types
     ("build_get_funding_history_params", ["BTC"]),  # Note: actual method expects Symbol type
     ("build_get_meta_params", []),
 ]
@@ -307,7 +310,6 @@ def structural_balance_mapper() -> BalanceMapperProtocol:
             value: str | float | Decimal | None, default: Decimal = Decimal(0)
         ) -> Decimal:
             return Decimal(str(value) if value else 0)
-
 
         @staticmethod
         def timestamp_ms_to_datetime(timestamp_ms: float | None) -> datetime | None:
@@ -481,7 +483,6 @@ class TestProtocolMethodSignatures:
         result = balance_mapper.parse_decimal_safely("10.5")
         assert isinstance(result, Decimal)
         assert result == Decimal("10.5")
-
 
     @pytest.mark.parametrize("method_name", MARKET_DATA_BUILDER_REQUIRED_METHODS)
     def test_market_data_builder_has_required_methods(

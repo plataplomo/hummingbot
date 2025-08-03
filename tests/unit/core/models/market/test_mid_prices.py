@@ -12,9 +12,9 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.models.market.mid_prices import MidPrices
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 from cyberdelta.core.symbols.api import symbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
 class TestMidPricesInitialization:
@@ -134,7 +134,7 @@ class TestMidPricesInitialization:
         """Test initialization fails without exchange field."""
         # Arrange
         btc_symbol = BTC_HL
-        
+
         # Act & Assert
         with pytest.raises(ValidationError) as exc_info:
             MidPrices(prices={btc_symbol: Decimal("50000.0")})  # type: ignore
@@ -158,7 +158,7 @@ class TestMidPricesSymbolLookup:
         btc_symbol = BTC_HL
         eth_symbol = ETH_HL
         sol_symbol = SOL_HL
-        
+
         return MidPrices(
             prices={
                 btc_symbol: Decimal("50000.0"),
@@ -176,7 +176,7 @@ class TestMidPricesSymbolLookup:
         # Arrange
         btc_symbol = BTC_HL
         eth_symbol = ETH_HL
-        
+
         # Act
         btc_price = sample_mid_prices.get(btc_symbol)
         eth_price = sample_mid_prices.get(eth_symbol)
@@ -191,7 +191,7 @@ class TestMidPricesSymbolLookup:
         btc_symbol = BTC_HL
         eth_symbol = ETH_HL
         sol_symbol = SOL_HL
-        
+
         # Act & Assert
         assert sample_mid_prices.has_symbol(btc_symbol) is True
         assert sample_mid_prices.has_symbol(eth_symbol) is True
@@ -203,7 +203,7 @@ class TestMidPricesSymbolLookup:
         btc_symbol = BTC_HL
         eth_symbol = ETH_HL
         sol_symbol = SOL_HL
-        
+
         # Act
         symbol_list = sample_mid_prices.symbols()
 
@@ -228,7 +228,7 @@ class TestMidPricesSymbolLookup:
         """Test getting price for non-existent symbol returns None."""
         # Arrange
         nonexistent_symbol = symbol("NONEXISTENT-PERP", ExchangeName.HYPERLIQUID)
-        
+
         # Act
         result = sample_mid_prices.get(nonexistent_symbol)
 
@@ -241,7 +241,7 @@ class TestMidPricesSymbolLookup:
         """Test checking non-existent symbol returns False."""
         # Arrange
         nonexistent_symbol = symbol("NONEXISTENT-PERP", ExchangeName.HYPERLIQUID)
-        
+
         # Act
         result = sample_mid_prices.has_symbol(nonexistent_symbol)
 
@@ -253,7 +253,7 @@ class TestMidPricesSymbolLookup:
         # Arrange
         lowercase_symbol = symbol("btc-perp", ExchangeName.HYPERLIQUID)
         mixed_case_symbol = symbol("BTC-perp", ExchangeName.HYPERLIQUID)
-        
+
         # Act
         lowercase_result = sample_mid_prices.get(lowercase_symbol)
         uppercase_result = sample_mid_prices.get(mixed_case_symbol)
@@ -264,10 +264,10 @@ class TestMidPricesSymbolLookup:
 
     def test_has_symbol_edge_empty_string_symbol(self, sample_mid_prices: MidPrices) -> None:
         """Test checking empty string symbol."""
-        # Arrange  
+        # Arrange
         # Note: This should fail validation due to min_length=1 in Symbol model
         # but we'll test the behavior for completeness
-        result = False  # Default to False 
+        result = False  # Default to False
         try:
             empty_symbol = symbol("", ExchangeName.HYPERLIQUID)
             # Act
@@ -276,7 +276,7 @@ class TestMidPricesSymbolLookup:
             # If symbol creation fails due to validation, that's expected
             # We can't test the has_symbol behavior with an invalid symbol
             result = False  # This represents the expected behavior
-            
+
         # Assert
         assert result is False
 
@@ -404,11 +404,11 @@ class TestMidPricesEdgeCasesAndValidation:
     def test_mid_prices_with_special_character_symbols(self) -> None:
         """Test MidPrices with symbols containing special characters."""
         # Arrange
-        
+
         btc_slash_symbol = symbol("BTC/USD", ExchangeName.HYPERLIQUID)
         eth_underscore_symbol = symbol("ETH_USDC", ExchangeName.HYPERLIQUID)
         sol_quarterly_symbol = symbol("SOL-PERP-Q24", ExchangeName.HYPERLIQUID)
-        
+
         prices = {
             btc_slash_symbol: Decimal("50000.0"),
             eth_underscore_symbol: Decimal("3000.0"),
@@ -430,7 +430,7 @@ class TestMidPricesEdgeCasesAndValidation:
     def test_mid_prices_with_very_long_symbol_names(self) -> None:
         """Test MidPrices with very long symbol names."""
         # Arrange
-        
+
         long_symbol_name = "VERY_LONG_SYMBOL_NAME_PERP"  # Shortened to respect 30 char limit
         long_symbol = symbol(long_symbol_name, ExchangeName.HYPERLIQUID)
         prices = {long_symbol: Decimal("123.456")}
@@ -449,7 +449,7 @@ class TestMidPricesEdgeCasesAndValidation:
     def test_mid_prices_with_negative_prices(self) -> None:
         """Test MidPrices with negative prices (edge case for some markets)."""
         # Arrange
-        
+
         oil_symbol = symbol("OIL-FUT", ExchangeName.HYPERLIQUID)
         normal_symbol = symbol("NORMAL-PERP", ExchangeName.HYPERLIQUID)
         prices = {

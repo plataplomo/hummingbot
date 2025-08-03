@@ -26,7 +26,7 @@ from pydantic import (
     model_validator,
 )
 
-from cyberdelta.core.symbols.models import Symbol, BaseSymbol
+from cyberdelta.core.symbols.models import BaseSymbol, Symbol
 from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
     DecimalFiniteError,

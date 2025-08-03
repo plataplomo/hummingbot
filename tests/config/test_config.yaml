@@ -113,9 +113,6 @@ risk:
   # Modern sizing configuration using explicit method selection
   sizing:
     method: "simple"  # or "kelly" or "production_kelly"
-    parameters:
-      mode: "fixed_fraction"  # Default method for simple sizing
-      fraction: 0.01          # Default fraction (1%)
     max_position_size: 10000.0  # Explicitly set to default (must be <= global max_position_usd)
 
 # Execution parameters

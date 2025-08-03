@@ -1,1 +1,0 @@
-"""Engine components for the CleanTradingEngine."""

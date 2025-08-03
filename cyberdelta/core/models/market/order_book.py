@@ -20,7 +20,7 @@ from typing import TypeGuard, cast
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
-from cyberdelta.core.symbols.models import Symbol, BaseSymbol
+from cyberdelta.core.symbols.models import BaseSymbol, Symbol
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     DecimalFiniteError,

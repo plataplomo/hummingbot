@@ -23,7 +23,7 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
+from tests.common_symbols import SOL_USDC_BP
 
 
 # Import fixtures from the shared conftest

@@ -1,7 +1,6 @@
 """Unit tests for BackpackRequestBuilder account and position methods."""
 
 import pytest
-from tests.common_symbols import BTC_BP, ETH_BP, SOL_BP
 
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetAccountInfoParams,
@@ -15,6 +14,7 @@ from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
 )
+from tests.common_symbols import BTC_BP, ETH_BP, SOL_BP
 
 
 class TestBuildGetBalancesParams:
@@ -98,13 +98,17 @@ class TestBuildGetFundingRateParams:
         """Test build_get_funding_rate_params formats symbol correctly."""
         params = BackpackMarketDataRequestBuilder.build_get_funding_rate_params(SOL_BP.value)
         assert isinstance(params, BackpackRawGetFundingRateParams)
-        assert params.model_dump(by_alias=True, exclude_none=True) == {"symbol": SOL_BP.value.replace("-", "_")}
+        assert params.model_dump(by_alias=True, exclude_none=True) == {
+            "symbol": SOL_BP.value.replace("-", "_")
+        }
 
     def test_build_get_funding_rate_params_btc_perp(self) -> None:
         """Test build_get_funding_rate_params with BTC perp."""
         params = BackpackMarketDataRequestBuilder.build_get_funding_rate_params(BTC_BP.value)
         assert isinstance(params, BackpackRawGetFundingRateParams)
-        assert params.model_dump(by_alias=True, exclude_none=True) == {"symbol": BTC_BP.value.replace("-", "_")}
+        assert params.model_dump(by_alias=True, exclude_none=True) == {
+            "symbol": BTC_BP.value.replace("-", "_")
+        }
 
     @pytest.mark.parametrize(
         ("input_symbol", "expected_symbol"),

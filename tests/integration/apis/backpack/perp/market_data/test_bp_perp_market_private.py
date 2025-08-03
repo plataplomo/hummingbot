@@ -17,7 +17,12 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
 from cyberdelta.core.symbols import exchanges
-from tests.common_symbols import SOL_USDC_PERP_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, INVALID_PERP_BP
+from tests.common_symbols import (
+    BTC_USDC_PERP_BP,
+    ETH_USDC_PERP_BP,
+    INVALID_PERP_BP,
+    SOL_USDC_PERP_BP,
+)
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp]

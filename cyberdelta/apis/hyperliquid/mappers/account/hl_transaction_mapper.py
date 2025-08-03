@@ -86,9 +86,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 executed_at = datetime.now(UTC)
 
             # Parse fee
-            fee = self.parse_decimal_safely(
-                getattr(raw_fill, "fee", "0"), default=Decimal(0)
-            )
+            fee = self.parse_decimal_safely(getattr(raw_fill, "fee", "0"), default=Decimal(0))
 
             # Create HL-specific details
             trade_hash = getattr(raw_fill, "hash", None)
@@ -207,9 +205,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 executed_at = datetime.now(UTC)
 
             # Parse fee
-            fee = self.parse_decimal_safely(
-                getattr(raw_fill, "fee", "0"), default=Decimal(0)
-            )
+            fee = self.parse_decimal_safely(getattr(raw_fill, "fee", "0"), default=Decimal(0))
 
             # Create HL-specific details
             details = HyperliquidTradeDetails(

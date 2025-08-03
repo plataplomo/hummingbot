@@ -32,8 +32,15 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
-
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL, DOGE_HL, ETH_USDT_BP, DOGE_USDT_BP, BTC_USDC_BP, ETH_USDC_BP
+from tests.common_symbols import (
+    BTC_HL,
+    BTC_USDC_BP,
+    DOGE_HL,
+    DOGE_USDT_BP,
+    ETH_USDC_BP,
+    ETH_USDT_BP,
+    SOL_HL,
+)
 
 
 class TestPlaceOrderArgs:

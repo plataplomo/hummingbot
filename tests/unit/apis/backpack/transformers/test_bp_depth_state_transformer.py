@@ -10,7 +10,6 @@ from unittest.mock import Mock
 
 import pytest
 
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP
 from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
@@ -22,6 +21,7 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.core.models import OrderBook
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP
 
 
 class TestOrderBookState:

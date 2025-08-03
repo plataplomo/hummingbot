@@ -43,20 +43,8 @@ from .field_validation import (
     TypeFieldError,
 )
 
-# Funding exceptions
-from .funding import (
-    AllSourcesFailedError,
-    ArbitrageFieldError,
-    FundingError,
-    FundingRateSourceError,
-    NegativeLongPriceError,
-    NegativeShortPriceError,
-    NegativeSizeError,
-    NoFallbackSourceError,
-    NoFundingDataError,
-    NoValidWeightedDataError,
-    NullTimestampError,
-)
+# Funding exceptions - removed as they're not used anymore
+# The APIs have their own funding exceptions
 
 # Market data exceptions moved to cyberdelta.apis.exceptions
 # Parsing exceptions (core utilities only)
@@ -67,13 +55,7 @@ from .parsing import (
     TimestampFormatError,
 )
 
-# Reconciliation exceptions
-from .reconciliation import (
-    NonFinitePositionValueError,
-    PositionDiscrepancyError,
-    PositionFieldError,
-    ReconciliationError,
-)
+# Reconciliation exceptions - removed as they're not used anymore
 
 # Request validation exceptions moved to cyberdelta.apis.exceptions
 # Response validation exceptions moved to cyberdelta.apis.exceptions
@@ -119,8 +101,6 @@ from .symbol_mapping import (
 __all__ = [
     # Note: APIError, APIErrorCode, TransformationError are not exported here
     # Import them directly from cyberdelta.apis.common when needed
-    "AllSourcesFailedError",
-    "ArbitrageFieldError",
     "BooleanFieldError",
     "DateTimeParsingError",
     "DecimalFieldError",
@@ -131,8 +111,6 @@ __all__ = [
     "ExchangeNotSupportedError",
     "FieldError",
     "FieldNameMissingError",
-    "FundingError",
-    "FundingRateSourceError",
     "IntegerConversionError",
     "InvalidAccountTypeError",
     "InvalidFormatError",
@@ -140,27 +118,16 @@ __all__ = [
     "ListFieldError",
     "MissingPriceError",
     "MissingStopPriceError",
-    "NegativeLongPriceError",
-    "NegativeShortPriceError",
-    "NegativeSizeError",
     "NegativeValueError",
     "NetworkRequiredError",
-    "NoFallbackSourceError",
-    "NoFundingDataError",
-    "NoValidWeightedDataError",
-    "NonFinitePositionValueError",
-    "NullTimestampError",
     "OrderFieldError",
     "OrderLogicError",
     "OrderParameterError",
     "ParsingError",
     "PassphraseFieldError",
-    "PositionDiscrepancyError",
-    "PositionFieldError",
     "PositionLogicError",
     "PostOnlyLimitError",
     "RangeFieldError",
-    "ReconciliationError",
     "RequiredFieldError",
     "RequiredFieldNoneError",
     "ServiceValidationError",

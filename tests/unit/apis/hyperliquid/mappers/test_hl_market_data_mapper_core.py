@@ -35,7 +35,7 @@ from cyberdelta.core.models.market.funding_rate import (
     FundingRate,
     HyperliquidFundingDetails,
 )
-from tests.common_symbols import ETH_HL, BTC_HL, SOL_HL, AVAX_HL
+from tests.common_symbols import AVAX_HL, BTC_HL, ETH_HL, SOL_HL
 
 
 # Aliases for shorter method calls

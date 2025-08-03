@@ -222,8 +222,7 @@ class HyperliquidMarketMetadataMapper(
                     # Count decimal places in the actual market price
                     decimal_places = len(mark_price_str.split(".")[1].rstrip("0"))
                     tick_size = self.parse_decimal_safely(
-                        f"1e-{decimal_places}", 
-                        default=Decimal("1.0")
+                        f"1e-{decimal_places}", default=Decimal("1.0")
                     )
                 else:
                     # Whole number pricing
@@ -238,12 +237,12 @@ class HyperliquidMarketMetadataMapper(
                 max_leverage=asset_def.max_leverage,
                 only_isolated=asset_def.only_isolated,
                 sz_decimals=asset_def.sz_decimals,
-                mark_price=self.parse_decimal_safely(
-                    asset_ctx.mark_px, default=None
-                ) if asset_ctx else None,
-                funding_rate=self.parse_decimal_safely(
-                    asset_ctx.funding, default=None
-                ) if asset_ctx else None,
+                mark_price=self.parse_decimal_safely(asset_ctx.mark_px, default=None)
+                if asset_ctx
+                else None,
+                funding_rate=self.parse_decimal_safely(asset_ctx.funding, default=None)
+                if asset_ctx
+                else None,
             )
 
             # Parse symbol to domain object at entry point

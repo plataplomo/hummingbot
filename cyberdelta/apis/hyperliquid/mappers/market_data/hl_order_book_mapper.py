@@ -500,7 +500,7 @@ class HyperliquidOrderBookMapper(
                 for level in raw.levels[0]:
                     price = self.parse_decimal_safely(level.px)
                     size = self.parse_decimal_safely(level.sz)
-                    
+
                     if price is not None and size is not None:
                         bids.append((price, size))
 
@@ -510,7 +510,7 @@ class HyperliquidOrderBookMapper(
                 for level in raw.levels[1]:
                     price = self.parse_decimal_safely(level.px)
                     size = self.parse_decimal_safely(level.sz)
-                    
+
                     if price is not None and size is not None:
                         asks.append((price, size))
 

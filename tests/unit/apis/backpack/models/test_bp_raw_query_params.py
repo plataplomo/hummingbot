@@ -29,7 +29,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP
 
 
 class TestBackpackRawGetTickerParams:

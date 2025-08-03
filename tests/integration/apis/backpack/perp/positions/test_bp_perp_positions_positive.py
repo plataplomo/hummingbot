@@ -18,7 +18,6 @@ from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.derivative_position import DerivativePosition
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.common_symbols import SOL_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (

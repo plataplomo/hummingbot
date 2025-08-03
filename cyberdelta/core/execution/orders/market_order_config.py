@@ -53,7 +53,7 @@ class MarketOrderConfig(BaseModel):
         description="Minimum liquidity ratio (2.0 = 2x order size required)",
     )
 
-    # Base asset slippage overrides  
+    # Base asset slippage overrides
     slippage_by_base_asset: dict[str, Decimal] = Field(
         default_factory=lambda: {
             "BTC": Decimal("0.005"),  # 0.5% for high liquidity
@@ -138,7 +138,11 @@ class MarketOrderConfig(BaseModel):
             Decimal: Configured slippage for the symbol, or default if not found
         """
         # Extract base asset from symbol for configuration lookup
-        symbol_key = symbol.base_asset if hasattr(symbol, 'base_asset') and symbol.base_asset else symbol.value
+        symbol_key = (
+            symbol.base_asset
+            if hasattr(symbol, "base_asset") and symbol.base_asset
+            else symbol.value
+        )
         return self.slippage_by_base_asset.get(symbol_key, self.slippage_by_base_asset["default"])
 
     def validate_slippage(self, slippage: Decimal) -> Decimal:

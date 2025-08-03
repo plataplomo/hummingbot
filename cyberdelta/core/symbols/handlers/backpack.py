@@ -3,7 +3,6 @@
 from cyberdelta.core.enums.enums import MarketType
 from cyberdelta.core.symbols.models import BackpackMetadata, BaseSymbol, Symbol, SymbolComponents
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.symbol_mapping import SymbolMappingErrorMessages, SymbolMappingFieldError
 
 
 class BackpackHandler:

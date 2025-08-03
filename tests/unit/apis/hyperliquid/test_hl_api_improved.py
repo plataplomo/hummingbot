@@ -8,7 +8,6 @@ from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL, BTC_USD_HL, ETH_USD_HL, SOL_USD_HL
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
@@ -22,6 +21,7 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
+from tests.common_symbols import BTC_HL, BTC_USD_HL, ETH_HL, ETH_USD_HL, SOL_HL, SOL_USD_HL
 
 
 class TestHyperliquidAPIImproved:

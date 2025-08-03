@@ -334,17 +334,13 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
         Raises:
             InvalidQuantityError: If quantity requirements are not met
         """
-        quantity_requested = self.parse_decimal_safely(
-            raw_order.quantity, default=None
-        )
+        quantity_requested = self.parse_decimal_safely(raw_order.quantity, default=None)
 
         # For stop orders, quantity might be 0 and the actual quantity is in triggerQuantity
         if (quantity_requested is None or quantity_requested == Decimal(0)) and (
             raw_order.triggerQuantity
         ):
-            quantity_requested = self.parse_decimal_safely(
-                raw_order.triggerQuantity
-            )
+            quantity_requested = self.parse_decimal_safely(raw_order.triggerQuantity)
 
         if quantity_requested is None or quantity_requested <= Decimal(0):
             raise InvalidQuantityError(
@@ -371,9 +367,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
         if not price_value or price_value == "0":
             return None
 
-        parsed_price = self.parse_decimal_safely(
-            price_value, default=None
-        )
+        parsed_price = self.parse_decimal_safely(price_value, default=None)
         return parsed_price if parsed_price is not None and parsed_price > 0 else None
 
     def _calculate_average_fill_price(
@@ -523,9 +517,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
                 )
                 if raw_order.stopLossTriggerPrice
                 else None,
-                sl_limit_price=self.parse_decimal_safely(
-                    raw_order.stopLossLimitPrice, default=None
-                )
+                sl_limit_price=self.parse_decimal_safely(raw_order.stopLossLimitPrice, default=None)
                 if raw_order.stopLossLimitPrice
                 else None,
                 sl_trigger_by=None,  # Can be mapped from stopLossTriggerBy if needed
@@ -540,9 +532,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
                 if raw_order.takeProfitLimitPrice
                 else None,
                 tp_trigger_by=None,  # Can be mapped from takeProfitTriggerBy if needed
-                trigger_quantity=self.parse_decimal_safely(
-                    raw_order.triggerQuantity, default=None
-                )
+                trigger_quantity=self.parse_decimal_safely(raw_order.triggerQuantity, default=None)
                 if raw_order.triggerQuantity
                 else None,
             )
@@ -641,9 +631,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
 
             # Parse quantities
             if raw_order_update.quantity:
-                quantity_requested = self.parse_decimal_safely(
-                    raw_order_update.quantity
-                )
+                quantity_requested = self.parse_decimal_safely(raw_order_update.quantity)
                 if quantity_requested is None:
                     raise MissingQuantityError
                 # parse_decimal_value with allow_none=False guarantees non-None result
@@ -656,9 +644,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
             # Parse price
             order_price = None
             if raw_order_update.price:
-                order_price = self.parse_decimal_safely(
-                    raw_order_update.price, default=None
-                )
+                order_price = self.parse_decimal_safely(raw_order_update.price, default=None)
 
             # Parse timestamps
             event_timestamp = self.parse_timestamp(raw_order_update.event_time)
@@ -725,4 +711,3 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
         """
         if quantity_requested is None:
             raise MissingQuantityError
-

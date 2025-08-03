@@ -18,7 +18,6 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
@@ -33,6 +32,7 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.utils.parsing import parse_decimal_value
+from tests.common_symbols import SOL_USDC_BP
 
 
 @pytest.fixture

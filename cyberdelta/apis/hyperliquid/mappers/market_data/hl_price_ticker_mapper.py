@@ -165,9 +165,7 @@ class HyperliquidPriceTickerMapper(
             # Extract volume data from day_ntl_vlm (daily notional volume)
             volume_24h = None
             if raw_asset_ctx.day_ntl_vlm:
-                volume_24h = self.parse_decimal_safely(
-                    raw_asset_ctx.day_ntl_vlm, default=None
-                )
+                volume_24h = self.parse_decimal_safely(raw_asset_ctx.day_ntl_vlm, default=None)
 
             # Get current timestamp for ticker timestamp
             timestamp = datetime.now(UTC)

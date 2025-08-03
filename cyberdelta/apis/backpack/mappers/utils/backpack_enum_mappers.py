@@ -15,32 +15,32 @@ logger = get_logger(__name__)
 
 class BackpackEnumMappers:
     """Common enum mapping utilities for Backpack exchange."""
-    
+
     @staticmethod
     def map_side_to_internal(bp_side: str, error_type: str = "standard") -> OrderSide:
         """Map a Backpack order side string to internal OrderSide enum.
-        
+
         Args:
             bp_side: Raw side string from Backpack ("Buy", "Sell", "Bid", "Ask")
             error_type: Type of error to raise ("standard", "order", "position")
-            
+
         Returns:
             OrderSide: Mapped internal enum value
-            
+
         Raises:
             UnknownEnumError: If side cannot be mapped (error_type="standard")
             UnknownOrderSideError: If side cannot be mapped (error_type="order")
             Returns OrderSide.BUY with warning (error_type="position")
         """
         side_lower = bp_side.lower() if bp_side else ""
-        
+
         # Position mapper supports additional values
         if error_type == "position":
             if side_lower in {"buy", "bid", "long"}:
                 return OrderSide.BUY
             if side_lower in {"sell", "ask", "short"}:
                 return OrderSide.SELL
-                
+
             logger.warning(
                 "unknown_position_side",
                 bp_side=bp_side,
@@ -48,17 +48,17 @@ class BackpackEnumMappers:
                 message="Unknown Backpack position side encountered, defaulting to BUY",
             )
             return OrderSide.BUY
-        
+
         # Standard mapping for orders and transactions
         if side_lower in {"buy", "bid"}:
             return OrderSide.BUY
         if side_lower in {"sell", "ask"}:
             return OrderSide.SELL
-            
+
         # Different error types based on context
         if error_type == "order":
             raise UnknownOrderSideError(bp_side, exchange="Backpack")
-        
+
         raise UnknownEnumError(
             enum_type="Backpack order side",
             value=bp_side,

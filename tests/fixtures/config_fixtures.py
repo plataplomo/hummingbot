@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 
 import pytest
 from pydantic import AnyUrl, HttpUrl
-from tests.common_symbols import BTC_HL, ETH_HL, BTC_USDC_BP, ETH_USDC_BP
 
 from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.models.config_models import (
@@ -33,8 +32,6 @@ from cyberdelta.config.models.config_models import (
     GeneralSettings,
     GlobalRiskSettings,
     MonitoringSettings,
-    PortfolioStateSettings,
-    PortfolioValidationSettings,
     PositionReconciliationSettings,
     SafetySystemsSettings,
 )
@@ -48,7 +45,8 @@ from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets, SecretsConfig
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+# from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Module deleted
+from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL, ETH_USDC_BP
 
 
 # Import path setup to ensure cyberdelta can be imported
@@ -589,11 +587,11 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 # --- System Component Fixtures ---
 
 
-@pytest.fixture
-def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
-    """Create a CircuitBreakerSystem instance using mock config.
-
-    Returns:
-        CircuitBreakerSystem: Configured circuit breaker system for testing.
-    """
-    return CircuitBreakerSystem(mock_config)
+# @pytest.fixture
+# def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
+#     """Create a CircuitBreakerSystem instance using mock config.
+# 
+#     Returns:
+#         CircuitBreakerSystem: Configured circuit breaker system for testing.
+#     """
+#     return CircuitBreakerSystem(mock_config)

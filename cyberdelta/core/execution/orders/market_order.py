@@ -121,7 +121,6 @@ class MarketOrder:
             )
 
             # 4. Prepare IoC limit order
-            from cyberdelta.core.symbols import exchanges
 
             # Use Symbol object directly (now passed as parameter)
             symbol_obj = symbol

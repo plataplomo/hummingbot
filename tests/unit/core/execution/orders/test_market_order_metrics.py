@@ -14,8 +14,8 @@ from cyberdelta.core.execution.orders.market_order_metrics import (
     MarketOrderExecutionMetric,
     MarketOrderMetrics,
 )
-from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.enums import OrderSide
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 class TestMarketOrderExecutionMetric:
@@ -275,7 +275,7 @@ class TestMarketOrderMetrics:
         """Test that recording execution creates and stores a metric."""
         # Arrange
         btc_symbol = BTC_HL
-        
+
         # Act
         metrics_tracker.record_execution(
             symbol=btc_symbol.value,
@@ -358,7 +358,7 @@ class TestMarketOrderMetrics:
         # Arrange - record metrics for different symbols
         btc_symbol = BTC_HL
         eth_symbol = ETH_HL
-        
+
         metrics_tracker.record_execution(
             symbol=btc_symbol.value,
             side=OrderSide.BUY,

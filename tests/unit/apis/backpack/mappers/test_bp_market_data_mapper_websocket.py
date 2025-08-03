@@ -16,7 +16,6 @@ from unittest.mock import patch
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP
 from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
@@ -31,6 +30,7 @@ from cyberdelta.apis.common import TransformationError
 from cyberdelta.core.models import OrderBook, Ticker, Trade
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
+from tests.common_symbols import SOL_USDC_BP
 
 
 @pytest.fixture

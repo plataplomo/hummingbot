@@ -5,23 +5,32 @@ and improve maintainability across all test files.
 
 Usage:
     from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL, BTC_BP, ETH_BP
-    
+
     # Use in tests
     symbol = BTC_HL
     symbol_value = BTC_HL.value
 """
 
-from cyberdelta.core.symbols import symbols, exchanges
+from cyberdelta.core.symbols import exchanges, symbols
+
 
 # Hyperliquid symbols
 BTC_HL = symbols.BTC.hyperliquid()
 ETH_HL = symbols.ETH.hyperliquid()
 SOL_HL = symbols.SOL.hyperliquid()
-DOGE_HL = symbols.DOGE.hyperliquid()
-AVAX_HL = symbols.AVAX.hyperliquid()
-MATIC_HL = symbols.MATIC.hyperliquid()
-ADA_HL = symbols.ADA.hyperliquid()
-DOT_HL = symbols.DOT.hyperliquid()
+# These symbols are not defined in CommonSymbols yet:
+# DOGE_HL = symbols.DOGE.hyperliquid()
+# AVAX_HL = symbols.AVAX.hyperliquid()
+# MATIC_HL = symbols.MATIC.hyperliquid()
+# ADA_HL = symbols.ADA.hyperliquid()
+# DOT_HL = symbols.DOT.hyperliquid()
+
+# Use exchanges API directly for these:
+DOGE_HL = exchanges.hyperliquid("DOGE-PERP")
+AVAX_HL = exchanges.hyperliquid("AVAX-PERP")
+MATIC_HL = exchanges.hyperliquid("MATIC-PERP")
+ADA_HL = exchanges.hyperliquid("ADA-PERP")
+DOT_HL = exchanges.hyperliquid("DOT-PERP")
 
 # Hyperliquid USD symbols (for tests that use -USD format)
 BTC_USD_HL = exchanges.hyperliquid("BTC-USD")
@@ -32,11 +41,12 @@ SOL_USD_HL = exchanges.hyperliquid("SOL-USD")
 BTC_BP = symbols.BTC.backpack()
 ETH_BP = symbols.ETH.backpack()
 SOL_BP = symbols.SOL.backpack()
-DOGE_BP = symbols.DOGE.backpack()
+# DOGE_BP = symbols.DOGE.backpack()  # Not defined in CommonSymbols
+DOGE_BP = exchanges.backpack("DOGE_USD_PERP")
 
 # Backpack spot symbols
 BTC_USDC_BP = exchanges.backpack("BTC_USDC")
-ETH_USDC_BP = exchanges.backpack("ETH_USDC") 
+ETH_USDC_BP = exchanges.backpack("ETH_USDC")
 SOL_USDC_BP = exchanges.backpack("SOL_USDC")
 DOGE_USDC_BP = exchanges.backpack("DOGE_USDC")
 ETH_USDT_BP = exchanges.backpack("ETH_USDT")
@@ -59,6 +69,9 @@ USDC_BP = exchanges.backpack("USDC")
 BTC_ASSET_BP = exchanges.backpack("BTC")
 USD_HL = exchanges.hyperliquid("USD")
 BTC_ASSET_HL = exchanges.hyperliquid("BTC")
+
+# Cross-asset pair  
+USDT_USDC_BP = exchanges.backpack("USDT_USDC")
 
 # Cross-currency conversion symbols
 USD_USDC_HL = exchanges.hyperliquid("USD-USDC")

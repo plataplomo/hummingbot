@@ -6,19 +6,19 @@ needed by all Symbol-aware tests.
 
 import pytest
 
-from cyberdelta.core.symbols import get_symbol_service, get_registry, exchanges
-from cyberdelta.core.symbols.service import SymbolService
-from cyberdelta.core.symbols.registry import SymbolRegistry
-from cyberdelta.core.symbols.protocols import ExchangeHandler
-from cyberdelta.core.symbols.handlers.hyperliquid import HyperliquidHandler
+from cyberdelta.core.symbols import exchanges, get_registry, get_symbol_service
 from cyberdelta.core.symbols.handlers.backpack import BackpackHandler
+from cyberdelta.core.symbols.handlers.hyperliquid import HyperliquidHandler
+from cyberdelta.core.symbols.protocols import ExchangeHandler
+from cyberdelta.core.symbols.registry import SymbolRegistry
+from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @pytest.fixture
 def symbol_service() -> SymbolService:
     """Provide configured SymbolService for tests.
-    
+
     Returns:
         SymbolService: Production symbol service instance
     """
@@ -28,7 +28,7 @@ def symbol_service() -> SymbolService:
 @pytest.fixture
 def symbol_registry() -> SymbolRegistry:
     """Provide symbol registry for tests.
-    
+
     Returns:
         SymbolRegistry: Production registry instance
     """
@@ -38,7 +38,7 @@ def symbol_registry() -> SymbolRegistry:
 @pytest.fixture
 def exchange_handlers() -> dict[ExchangeName, ExchangeHandler]:
     """Provide exchange handlers for tests.
-    
+
     Returns:
         dict: Mapping of exchange names to handlers
     """
@@ -49,7 +49,7 @@ def exchange_handlers() -> dict[ExchangeName, ExchangeHandler]:
 @pytest.fixture
 def hyperliquid_handler() -> ExchangeHandler:
     """Provide Hyperliquid handler.
-    
+
     Returns:
         ExchangeHandler: Hyperliquid-specific handler
     """
@@ -59,7 +59,7 @@ def hyperliquid_handler() -> ExchangeHandler:
 @pytest.fixture
 def backpack_handler() -> ExchangeHandler:
     """Provide Backpack handler.
-    
+
     Returns:
         ExchangeHandler: Backpack-specific handler
     """
@@ -69,7 +69,7 @@ def backpack_handler() -> ExchangeHandler:
 @pytest.fixture
 def exchanges_api():
     """Provide exchanges namespace for symbol creation.
-    
+
     Returns:
         Exchanges: Exchange namespace API
     """
@@ -79,7 +79,7 @@ def exchanges_api():
 @pytest.fixture
 def supported_exchanges() -> list[ExchangeName]:
     """Provide list of supported exchanges.
-    
+
     Returns:
         list: List of supported exchange names
     """
@@ -89,7 +89,7 @@ def supported_exchanges() -> list[ExchangeName]:
 @pytest.fixture
 def exchange_symbol_formats() -> dict[ExchangeName, dict[str, str]]:
     """Provide exchange-specific symbol format examples.
-    
+
     Returns:
         dict: Exchange to format type to example mapping
     """
@@ -110,7 +110,7 @@ def exchange_symbol_formats() -> dict[ExchangeName, dict[str, str]]:
 @pytest.fixture
 def canonical_formats() -> dict[str, str]:
     """Provide canonical format examples.
-    
+
     Returns:
         dict: Market type to canonical format mapping
     """
@@ -124,7 +124,7 @@ def canonical_formats() -> dict[str, str]:
 @pytest.fixture
 def test_assets() -> list[str]:
     """Provide common test assets.
-    
+
     Returns:
         list: List of asset symbols for testing
     """
@@ -134,7 +134,7 @@ def test_assets() -> list[str]:
 @pytest.fixture
 def test_quote_assets() -> list[str]:
     """Provide common quote assets.
-    
+
     Returns:
         list: List of quote assets for testing
     """

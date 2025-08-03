@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from tests.common_symbols import BTC_HL
 from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
+from tests.common_symbols import BTC_HL
 
 
 # Placeholder valid data for the fixture

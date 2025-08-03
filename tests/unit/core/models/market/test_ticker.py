@@ -17,9 +17,8 @@ from cyberdelta.core.models.market.ticker import (
     HyperliquidTickerDetails,
     Ticker,
 )
-from tests.common_symbols import BTC_HL, ETH_HL, BTC_BP
-from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+from cyberdelta.exceptions.parsing import DateTimeParsingError
+from tests.common_symbols import BTC_BP, BTC_HL, ETH_HL
 
 
 pytestmark = pytest.mark.timing
@@ -105,19 +104,19 @@ class TestTicker:
     def test_symbol_validation(self) -> None:
         """Test validation rules for the symbol field (Symbol objects and string validation)."""
         from cyberdelta.core.symbols.api import symbol
-        
+
         # Test that empty strings are rejected at Symbol creation level
         with pytest.raises(ValidationError, match="String should have at least 1 character"):
             symbol("", "hyperliquid")
-        
-        # Test that very long strings are rejected at Symbol creation level  
+
+        # Test that very long strings are rejected at Symbol creation level
         with pytest.raises(ValidationError, match="String should have at most 30 characters"):
             symbol("A" * 31, "hyperliquid")
-        
+
         # Test that string symbols are rejected for Ticker (only Symbol objects accepted)
         with pytest.raises(ValidationError):
             Ticker(symbol="BTC-PERP", exchange="test_exchange", timestamp=NOW)  # type: ignore[arg-type]
-            
+
         # Valid symbol should pass
         valid_symbol = symbol("VALID-SYM_123", "hyperliquid")
         ticker = Ticker(
@@ -126,12 +125,12 @@ class TestTicker:
             timestamp=NOW,
         )
         assert ticker.symbol == valid_symbol
-        
+
         # Whitespace-only symbols are allowed (edge case)
         whitespace_symbol = symbol("   ", "hyperliquid")
         whitespace_ticker = Ticker(
             symbol=whitespace_symbol,
-            exchange="test_exchange", 
+            exchange="test_exchange",
             timestamp=NOW,
         )
         assert whitespace_ticker.symbol == whitespace_symbol

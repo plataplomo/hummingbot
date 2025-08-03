@@ -35,11 +35,12 @@ from cyberdelta.core.models import (
     TradeSignal,
 )
 from cyberdelta.core.models.market.candle import Candle
+
 # from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager - removed legacy import
 from cyberdelta.core.symbols import Symbol
-from tests.common_symbols import BTC_HL, BTC_BP, ETH_HL, ETH_BP, SOL_HL, SOL_BP
 from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
+from tests.common_symbols import BTC_BP, BTC_HL, ETH_BP, ETH_HL, SOL_BP, SOL_HL
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
 
 

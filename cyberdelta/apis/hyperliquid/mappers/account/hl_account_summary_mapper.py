@@ -201,18 +201,12 @@ class HyperliquidAccountSummaryMapper(
             )
 
             # Parse core margin fields
-            account_value = self.parse_decimal_safely(
-                margin_summary.account_value
-            )
+            account_value = self.parse_decimal_safely(margin_summary.account_value)
 
-            total_margin_used = self.parse_decimal_safely(
-                margin_summary.total_margin_used
-            )
+            total_margin_used = self.parse_decimal_safely(margin_summary.total_margin_used)
 
             # Parse additional fields for completeness
-            total_ntl_pos = self.parse_decimal_safely(
-                margin_summary.total_ntl_pos
-            )
+            total_ntl_pos = self.parse_decimal_safely(margin_summary.total_ntl_pos)
 
             # Validate required margin fields
             self._validate_required_margin_fields(
@@ -222,9 +216,7 @@ class HyperliquidAccountSummaryMapper(
             )
 
             # Parse maintenance margin fields from the clearinghouse state
-            cross_mmr = self.parse_decimal_safely(
-                clearinghouse_data.cross_maintenance_margin_used
-            )
+            cross_mmr = self.parse_decimal_safely(clearinghouse_data.cross_maintenance_margin_used)
             # Parse isolated maintenance margin (optional field)
             isolated_mmr = self.parse_decimal_safely(
                 clearinghouse_data.isolated_maintenance_margin_used
@@ -244,9 +236,7 @@ class HyperliquidAccountSummaryMapper(
             )
 
             # Calculate available margin (withdrawable from raw state)
-            withdrawable = self.parse_decimal_safely(
-                clearinghouse_data.withdrawable
-            )
+            withdrawable = self.parse_decimal_safely(clearinghouse_data.withdrawable)
 
             # Validate maintenance margin fields
             self._validate_maintenance_margin_fields(

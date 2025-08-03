@@ -546,9 +546,7 @@ class HyperliquidPositionMapper(
             # Create HL-specific details
             leverage_obj = getattr(position_info, "leverage", None)
             max_leverage = getattr(position_info, "max_leverage", 1)
-            margin_used = self.parse_decimal_safely(
-                getattr(position_info, "margin_used", "0")
-            )
+            margin_used = self.parse_decimal_safely(getattr(position_info, "margin_used", "0"))
 
             # Extract leverage value from HyperliquidRawLeverage object
             leverage_value = 1  # Default
@@ -566,7 +564,8 @@ class HyperliquidPositionMapper(
 
             # Parse liquidation price
             liquidation_price = self.parse_decimal_safely(
-                getattr(position_info, "liquidation_px", None), default=None)
+                getattr(position_info, "liquidation_px", None), default=None
+            )
 
             # Determine side based on position size
             # Ensure position size is not None after parsing and get validated value

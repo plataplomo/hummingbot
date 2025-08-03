@@ -16,12 +16,12 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, COMMON_SPOT_SYMBOLS_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.core.models import Trade
 from cyberdelta.enums import OrderSide
+from tests.common_symbols import COMMON_SPOT_SYMBOLS_BP
 
 
 # Mark all tests in this file

@@ -47,7 +47,7 @@ def _is_dict_str_any(value: object) -> bool:
 
 class HyperliquidTradingEnumMapper(
     CommonDataParserMixin,
-    ValidationMixin, 
+    ValidationMixin,
     TradingEnumMapperProtocol,
 ):
     """Focused mapper for Hyperliquid trading enum transformations.

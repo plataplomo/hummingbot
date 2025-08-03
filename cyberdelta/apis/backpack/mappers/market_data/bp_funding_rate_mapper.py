@@ -174,7 +174,7 @@ class BackpackFundingRateMapper(CommonDataParserMixin, ValidationMixin, FundingR
 
     def _raise_timestamp_validation_error(self) -> None:
         """Raise DataTransformationError for timestamp validation failure.
-        
+
         Raises:
             DataTransformationError: Always raised for timestamp validation failure
         """
@@ -183,4 +183,3 @@ class BackpackFundingRateMapper(CommonDataParserMixin, ValidationMixin, FundingR
             target_model="FundingRate",
             reason="Timestamp is not a datetime object after validation",
         )
-

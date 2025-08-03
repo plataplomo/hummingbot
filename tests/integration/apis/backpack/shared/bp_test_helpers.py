@@ -18,10 +18,16 @@ from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMa
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.models.spot_balance import SpotBalance
-from cyberdelta.core.symbols.models import BaseSymbol, BackpackMetadata, Symbol
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
-from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP, BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
+from tests.common_symbols import (
+    BTC_USDC_BP,
+    BTC_USDC_PERP_BP,
+    ETH_USDC_BP,
+    ETH_USDC_PERP_BP,
+    SOL_USDC_BP,
+    SOL_USDC_PERP_BP,
+)
 
 
 if TYPE_CHECKING:
@@ -974,8 +980,8 @@ def generate_deterministic_client_order_id(test_name: str, symbol: str, side: st
 # =============================================================================
 
 
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP, USDT_USDC_BP
-from tests.common_symbols import SOL_USDC_PERP_BP, BTC_USDC_PERP_BP, ETH_USDC_PERP_BP
+from tests.common_symbols import USDT_USDC_BP
+
 
 COMMON_SPOT_SYMBOLS = [
     SOL_USDC_BP.value,

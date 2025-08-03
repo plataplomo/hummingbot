@@ -3,7 +3,6 @@
 from typing import Any, Literal
 
 import pytest
-from tests.common_symbols import BTC_BP, ETH_BP, SOL_BP
 
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetHistoricalTradesParams,
@@ -17,6 +16,7 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
 )
+from tests.common_symbols import BTC_BP, ETH_BP
 
 
 class TestBuildGetTickerParams:
@@ -294,7 +294,12 @@ class TestBuildGetHistoricalTradesParams:
         [
             ("SOL_USDC", 25, None, {"symbol": "SOL_USDC", "limit": 25}),
             ("BTC_USDT", 50, "id123", {"symbol": "BTC_USDT", "limit": 50, "fromId": "id123"}),
-            (ETH_BP.value.lower(), 100, "id456", {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100, "fromId": "id456"}),
+            (
+                ETH_BP.value.lower(),
+                100,
+                "id456",
+                {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100, "fromId": "id456"},
+            ),
         ],
     )
     def test_build_get_historical_trades_params_parametrized(

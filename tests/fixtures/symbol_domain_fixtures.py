@@ -12,8 +12,9 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cyberdelta.core.symbols import Symbol, symbols, exchanges
+from cyberdelta.core.symbols import Symbol, exchanges, symbols
 from cyberdelta.enums.exchange_names import ExchangeName
+
 
 if TYPE_CHECKING:
     from cyberdelta.core.symbols.service import SymbolService
@@ -22,7 +23,7 @@ if TYPE_CHECKING:
 @dataclass
 class SymbolSet:
     """Complete symbol set for an asset."""
-    
+
     perp_hl: Symbol
     perp_bp: Symbol
     spot_hl: Symbol | None = None
@@ -34,7 +35,7 @@ class SymbolSet:
 @dataclass
 class ArbitragePair:
     """Symbol pair for arbitrage testing."""
-    
+
     long: Symbol
     short: Symbol
     spread_threshold: Decimal = Decimal("0.001")
@@ -43,7 +44,7 @@ class ArbitragePair:
 @dataclass
 class MarketDataSet:
     """Symbols with associated market data."""
-    
+
     symbol: Symbol
     bid: Decimal
     ask: Decimal
@@ -55,10 +56,10 @@ class MarketDataSet:
 @pytest.fixture
 def btc_symbols(symbol_service: SymbolService) -> SymbolSet:
     """Complete BTC symbol set for testing.
-    
+
     Args:
         symbol_service: Symbol service instance
-        
+
     Returns:
         SymbolSet: BTC symbols across exchanges and markets
     """
@@ -66,7 +67,7 @@ def btc_symbols(symbol_service: SymbolService) -> SymbolSet:
     perp_bp = symbols.BTC.backpack()
     spot_hl = exchanges.hyperliquid("BTC-USDC")
     spot_bp = exchanges.backpack("BTC_USDC")
-    
+
     return SymbolSet(
         perp_hl=perp_hl,
         perp_bp=perp_bp,
@@ -80,10 +81,10 @@ def btc_symbols(symbol_service: SymbolService) -> SymbolSet:
 @pytest.fixture
 def eth_symbols(symbol_service: SymbolService) -> SymbolSet:
     """Complete ETH symbol set for testing.
-    
+
     Args:
         symbol_service: Symbol service instance
-        
+
     Returns:
         SymbolSet: ETH symbols across exchanges and markets
     """
@@ -91,7 +92,7 @@ def eth_symbols(symbol_service: SymbolService) -> SymbolSet:
     perp_bp = symbols.ETH.backpack()
     spot_hl = exchanges.hyperliquid("ETH-USDC")
     spot_bp = exchanges.backpack("ETH_USDC")
-    
+
     return SymbolSet(
         perp_hl=perp_hl,
         perp_bp=perp_bp,
@@ -105,10 +106,10 @@ def eth_symbols(symbol_service: SymbolService) -> SymbolSet:
 @pytest.fixture
 def sol_symbols(symbol_service: SymbolService) -> SymbolSet:
     """Complete SOL symbol set for testing.
-    
+
     Args:
         symbol_service: Symbol service instance
-        
+
     Returns:
         SymbolSet: SOL symbols across exchanges and markets
     """
@@ -116,7 +117,7 @@ def sol_symbols(symbol_service: SymbolService) -> SymbolSet:
     perp_bp = symbols.SOL.backpack()
     spot_hl = exchanges.hyperliquid("SOL-USDC")
     spot_bp = exchanges.backpack("SOL_USDC")
-    
+
     return SymbolSet(
         perp_hl=perp_hl,
         perp_bp=perp_bp,
@@ -134,12 +135,12 @@ def all_symbol_sets(
     sol_symbols: SymbolSet,
 ) -> dict[str, SymbolSet]:
     """All standard symbol sets.
-    
+
     Args:
         btc_symbols: BTC symbol set
         eth_symbols: ETH symbol set
         sol_symbols: SOL symbol set
-        
+
     Returns:
         dict: Asset name to symbol set mapping
     """
@@ -153,7 +154,7 @@ def all_symbol_sets(
 @pytest.fixture
 def arbitrage_pairs() -> dict[str, ArbitragePair]:
     """Common arbitrage pairs for testing.
-    
+
     Returns:
         dict: Asset to arbitrage pair mapping
     """
@@ -179,10 +180,10 @@ def arbitrage_pairs() -> dict[str, ArbitragePair]:
 @pytest.fixture
 def btc_arbitrage_pair(arbitrage_pairs: dict[str, ArbitragePair]) -> ArbitragePair:
     """BTC arbitrage pair.
-    
+
     Args:
         arbitrage_pairs: All arbitrage pairs
-        
+
     Returns:
         ArbitragePair: BTC arbitrage pair
     """
@@ -192,10 +193,10 @@ def btc_arbitrage_pair(arbitrage_pairs: dict[str, ArbitragePair]) -> ArbitragePa
 @pytest.fixture
 def eth_arbitrage_pair(arbitrage_pairs: dict[str, ArbitragePair]) -> ArbitragePair:
     """ETH arbitrage pair.
-    
+
     Args:
         arbitrage_pairs: All arbitrage pairs
-        
+
     Returns:
         ArbitragePair: ETH arbitrage pair
     """
@@ -205,7 +206,7 @@ def eth_arbitrage_pair(arbitrage_pairs: dict[str, ArbitragePair]) -> ArbitragePa
 @pytest.fixture
 def market_data_symbols() -> list[MarketDataSet]:
     """Symbols with sample market data.
-    
+
     Returns:
         list: Market data sets for testing
     """
@@ -248,7 +249,7 @@ def market_data_symbols() -> list[MarketDataSet]:
 @pytest.fixture
 def spot_asset_symbols() -> dict[str, dict[ExchangeName, Symbol]]:
     """Single asset symbols for spot trading.
-    
+
     Returns:
         dict: Asset to exchange to symbol mapping
     """
@@ -271,7 +272,7 @@ def spot_asset_symbols() -> dict[str, dict[ExchangeName, Symbol]]:
 @pytest.fixture
 def trading_symbols() -> dict[str, Symbol]:
     """Common symbols for trading tests.
-    
+
     Returns:
         dict: Key to symbol mapping for trading tests
     """
@@ -281,13 +282,11 @@ def trading_symbols() -> dict[str, Symbol]:
         "btc_perp_bp": symbols.BTC.backpack(),
         "eth_perp_hl": symbols.ETH.hyperliquid(),
         "eth_perp_bp": symbols.ETH.backpack(),
-        
         # Spot
         "btc_spot_hl": exchanges.hyperliquid("BTC-USDC"),
         "btc_spot_bp": exchanges.backpack("BTC_USDC"),
         "eth_spot_hl": exchanges.hyperliquid("ETH-USDC"),
         "eth_spot_bp": exchanges.backpack("ETH_USDC"),
-        
         # Assets
         "usdc_hl": exchanges.hyperliquid("USDC"),
         "usdc_bp": exchanges.backpack("USDC"),
@@ -297,7 +296,7 @@ def trading_symbols() -> dict[str, Symbol]:
 @pytest.fixture
 def symbol_pairs_by_market() -> dict[str, list[tuple[Symbol, Symbol]]]:
     """Symbol pairs grouped by market type.
-    
+
     Returns:
         dict: Market type to list of symbol pairs
     """

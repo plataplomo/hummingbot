@@ -10,16 +10,14 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Self
 
-from cyberdelta.core.symbols import Symbol, symbol, get_symbol_service
-from cyberdelta.core.symbols.service import SymbolService
-from cyberdelta.core.enums.enums import MarketType
+from cyberdelta.core.symbols import Symbol, symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
 @dataclass
 class ArbitragePair:
     """Represents a symbol pair for arbitrage testing."""
-    
+
     long: Symbol
     short: Symbol
     spread_threshold: Decimal = Decimal("0.001")
@@ -29,7 +27,7 @@ class ArbitragePair:
 @dataclass
 class ArbitrageTestData:
     """Complete arbitrage test scenario data."""
-    
+
     pairs: dict[str, ArbitragePair]
     prices: dict[Symbol, Decimal]
     funding_rates: dict[Symbol, Decimal]
@@ -38,14 +36,14 @@ class ArbitrageTestData:
 
 class ArbitrageSymbolBuilder:
     """Builder for arbitrage test scenarios with Symbol support."""
-    
+
     def __init__(self):
         """Initialize the builder."""
         self._pairs: dict[str, ArbitragePair] = {}
         self._prices: dict[Symbol, Decimal] = {}
         self._funding_rates: dict[Symbol, Decimal] = {}
         self._metadata: dict[str, Any] = {}
-        
+
     def add_perpetual_pair(
         self,
         base_asset: str,
@@ -54,13 +52,13 @@ class ArbitrageSymbolBuilder:
         spread_threshold: Decimal = Decimal("0.001"),
     ) -> Self:
         """Add perpetual pair with custom metadata.
-        
+
         Args:
             base_asset: Base asset (e.g., "BTC")
             hl_metadata: Hyperliquid-specific metadata
             bp_metadata: Backpack-specific metadata
             spread_threshold: Threshold for arbitrage signals
-            
+
         Returns:
             Self for chaining
         """
@@ -72,7 +70,7 @@ class ArbitrageSymbolBuilder:
             ExchangeName.HYPERLIQUID,
             asset_index=hl_kwargs.get("asset_index"),
         )
-        
+
         # Create Backpack symbol
         bp_value = f"{base_asset}_PERP"
         bp_kwargs = bp_metadata or {}
@@ -81,16 +79,16 @@ class ArbitrageSymbolBuilder:
             ExchangeName.BACKPACK,
             symbol_id=bp_kwargs.get("symbol_id"),
         )
-        
+
         # Create pair
         self._pairs[base_asset] = ArbitragePair(
             long=hl_symbol,
             short=bp_symbol,
             spread_threshold=spread_threshold,
         )
-        
+
         return self
-        
+
     def add_spot_pair(
         self,
         base_asset: str,
@@ -99,13 +97,13 @@ class ArbitrageSymbolBuilder:
         bp_metadata: dict[str, Any] | None = None,
     ) -> Self:
         """Add spot pair for both exchanges.
-        
+
         Args:
             base_asset: Base asset
             quote_asset: Quote asset
             hl_metadata: Hyperliquid-specific metadata
             bp_metadata: Backpack-specific metadata
-            
+
         Returns:
             Self for chaining
         """
@@ -117,7 +115,7 @@ class ArbitrageSymbolBuilder:
             ExchangeName.HYPERLIQUID,
             asset_index=hl_kwargs.get("asset_index"),
         )
-        
+
         # Create Backpack spot symbol
         bp_value = f"{base_asset}_{quote_asset}"
         bp_kwargs = bp_metadata or {}
@@ -126,16 +124,16 @@ class ArbitrageSymbolBuilder:
             ExchangeName.BACKPACK,
             symbol_id=bp_kwargs.get("symbol_id"),
         )
-        
+
         # Create pair with spot key
         self._pairs[f"{base_asset}_spot"] = ArbitragePair(
             long=hl_symbol,
             short=bp_symbol,
             spread_threshold=Decimal("0.0005"),  # Tighter spread for spot
         )
-        
+
         return self
-        
+
     def with_price_discrepancy(
         self,
         base_asset: str,
@@ -143,24 +141,24 @@ class ArbitrageSymbolBuilder:
         bp_price: Decimal,
     ) -> Self:
         """Add price data for testing arbitrage signals.
-        
+
         Args:
             base_asset: Base asset
             hl_price: Hyperliquid price
             bp_price: Backpack price
-            
+
         Returns:
             Self for chaining
         """
         if base_asset not in self._pairs:
             raise ValueError(f"Must add {base_asset} pair before setting prices")
-            
+
         pair = self._pairs[base_asset]
         self._prices[pair.long] = hl_price
         self._prices[pair.short] = bp_price
-        
+
         return self
-        
+
     def with_funding_rates(
         self,
         base_asset: str,
@@ -168,40 +166,40 @@ class ArbitrageSymbolBuilder:
         bp_rate: Decimal,
     ) -> Self:
         """Add funding rate data.
-        
+
         Args:
             base_asset: Base asset
             hl_rate: Hyperliquid funding rate
             bp_rate: Backpack funding rate
-            
+
         Returns:
             Self for chaining
         """
         if base_asset not in self._pairs:
             raise ValueError(f"Must add {base_asset} pair before setting funding rates")
-            
+
         pair = self._pairs[base_asset]
         self._funding_rates[pair.long] = hl_rate
         self._funding_rates[pair.short] = bp_rate
-        
+
         return self
-        
+
     def with_metadata(self, key: str, value: Any) -> Self:
         """Add metadata to the test scenario.
-        
+
         Args:
             key: Metadata key
             value: Metadata value
-            
+
         Returns:
             Self for chaining
         """
         self._metadata[key] = value
         return self
-        
+
     def build(self) -> ArbitrageTestData:
         """Build complete test scenario.
-        
+
         Returns:
             ArbitrageTestData with all configured data
         """
@@ -216,7 +214,7 @@ class ArbitrageSymbolBuilder:
 @dataclass
 class MarketDataTestScenario:
     """Market data test scenario."""
-    
+
     symbols: list[Symbol]
     tickers: dict[Symbol, dict[str, Any]]
     order_books: dict[Symbol, dict[str, Any]]
@@ -226,7 +224,7 @@ class MarketDataTestScenario:
 
 class MarketDataSymbolBuilder:
     """Builder for market data test scenarios."""
-    
+
     def __init__(self):
         """Initialize the builder."""
         self._symbols: list[Symbol] = []
@@ -234,7 +232,7 @@ class MarketDataSymbolBuilder:
         self._order_books: dict[Symbol, dict[str, Any]] = {}
         self._candles: dict[Symbol, list[dict[str, Any]]] = {}
         self._metadata: dict[str, Any] = {}
-        
+
     def add_symbol(
         self,
         value: str,
@@ -242,19 +240,19 @@ class MarketDataSymbolBuilder:
         **metadata_kwargs: Any,
     ) -> Self:
         """Add a symbol to the scenario.
-        
+
         Args:
             value: Symbol value
             exchange: Exchange name
             **metadata_kwargs: Exchange-specific metadata
-            
+
         Returns:
             Self for chaining
         """
         sym = symbol(value, exchange, **metadata_kwargs)
         self._symbols.append(sym)
         return self
-        
+
     def with_ticker(
         self,
         symbol_value: str,
@@ -265,7 +263,7 @@ class MarketDataSymbolBuilder:
         volume: Decimal,
     ) -> Self:
         """Add ticker data for a symbol.
-        
+
         Args:
             symbol_value: Symbol value
             exchange: Exchange name
@@ -273,7 +271,7 @@ class MarketDataSymbolBuilder:
             ask: Ask price
             last: Last price
             volume: 24h volume
-            
+
         Returns:
             Self for chaining
         """
@@ -284,7 +282,7 @@ class MarketDataSymbolBuilder:
         )
         if not sym:
             raise ValueError(f"Symbol {symbol_value} on {exchange} not found in scenario")
-            
+
         self._tickers[sym] = {
             "bid": bid,
             "ask": ask,
@@ -293,9 +291,9 @@ class MarketDataSymbolBuilder:
             "spread": ask - bid,
             "mid": (bid + ask) / 2,
         }
-        
+
         return self
-        
+
     def with_order_book(
         self,
         symbol_value: str,
@@ -304,13 +302,13 @@ class MarketDataSymbolBuilder:
         asks: list[tuple[Decimal, Decimal]],
     ) -> Self:
         """Add order book data.
-        
+
         Args:
             symbol_value: Symbol value
             exchange: Exchange name
             bids: List of (price, quantity) tuples
             asks: List of (price, quantity) tuples
-            
+
         Returns:
             Self for chaining
         """
@@ -320,7 +318,7 @@ class MarketDataSymbolBuilder:
         )
         if not sym:
             raise ValueError(f"Symbol {symbol_value} on {exchange} not found in scenario")
-            
+
         self._order_books[sym] = {
             "bids": bids,
             "asks": asks,
@@ -328,12 +326,12 @@ class MarketDataSymbolBuilder:
             "best_ask": asks[0][0] if asks else None,
             "spread": asks[0][0] - bids[0][0] if bids and asks else None,
         }
-        
+
         return self
-        
+
     def build(self) -> MarketDataTestScenario:
         """Build the market data scenario.
-        
+
         Returns:
             Complete market data test scenario
         """
@@ -349,7 +347,7 @@ class MarketDataSymbolBuilder:
 @dataclass
 class TradingTestScenario:
     """Trading test scenario with orders and positions."""
-    
+
     symbols: dict[str, Symbol]
     positions: dict[Symbol, Decimal]
     orders: dict[Symbol, list[dict[str, Any]]]
@@ -359,7 +357,7 @@ class TradingTestScenario:
 
 class TradingSymbolBuilder:
     """Builder for trading test scenarios."""
-    
+
     def __init__(self):
         """Initialize the builder."""
         self._symbols: dict[str, Symbol] = {}
@@ -367,7 +365,7 @@ class TradingSymbolBuilder:
         self._orders: dict[Symbol, list[dict[str, Any]]] = {}
         self._balances: dict[str, Decimal] = {}
         self._metadata: dict[str, Any] = {}
-        
+
     def add_trading_symbol(
         self,
         key: str,
@@ -376,19 +374,19 @@ class TradingSymbolBuilder:
         **metadata_kwargs: Any,
     ) -> Self:
         """Add a symbol for trading.
-        
+
         Args:
             key: Identifier for the symbol
             value: Symbol value
             exchange: Exchange name
             **metadata_kwargs: Exchange-specific metadata
-            
+
         Returns:
             Self for chaining
         """
         self._symbols[key] = symbol(value, exchange, **metadata_kwargs)
         return self
-        
+
     def with_position(
         self,
         symbol_key: str,
@@ -396,64 +394,64 @@ class TradingSymbolBuilder:
         entry_price: Decimal | None = None,
     ) -> Self:
         """Add position for a symbol.
-        
+
         Args:
             symbol_key: Symbol identifier
             size: Position size (positive for long, negative for short)
             entry_price: Optional entry price
-            
+
         Returns:
             Self for chaining
         """
         if symbol_key not in self._symbols:
             raise ValueError(f"Symbol {symbol_key} not found")
-            
+
         sym = self._symbols[symbol_key]
         self._positions[sym] = size
-        
+
         if entry_price:
             self._metadata[f"{symbol_key}_entry_price"] = entry_price
-            
+
         return self
-        
+
     def with_orders(
         self,
         symbol_key: str,
         orders: list[dict[str, Any]],
     ) -> Self:
         """Add orders for a symbol.
-        
+
         Args:
             symbol_key: Symbol identifier
             orders: List of order data
-            
+
         Returns:
             Self for chaining
         """
         if symbol_key not in self._symbols:
             raise ValueError(f"Symbol {symbol_key} not found")
-            
+
         sym = self._symbols[symbol_key]
         self._orders[sym] = orders
-        
+
         return self
-        
+
     def with_balance(self, asset: str, amount: Decimal) -> Self:
         """Add balance for an asset.
-        
+
         Args:
             asset: Asset name
             amount: Balance amount
-            
+
         Returns:
             Self for chaining
         """
         self._balances[asset] = amount
         return self
-        
+
     def build(self) -> TradingTestScenario:
         """Build the trading scenario.
-        
+
         Returns:
             Complete trading test scenario
         """

@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.common_symbols import SOL_USDC_BP, BTC_USDC_BP
 from cyberdelta.config.structlog_config import get_logger
+from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP
 
 
 # Third-party imports for type checking only

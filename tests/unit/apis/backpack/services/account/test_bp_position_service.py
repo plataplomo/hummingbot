@@ -35,8 +35,8 @@ from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.models.derivative_position import (
     BackpackPositionDetails as BackpackDerivativePositionDetails,
 )
-from tests.common_symbols import BTC_BP, ETH_BP
 from cyberdelta.enums import OrderSide
+from tests.common_symbols import BTC_BP, ETH_BP
 
 
 @pytest.fixture

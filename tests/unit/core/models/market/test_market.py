@@ -17,9 +17,9 @@ from cyberdelta.core.models.market.market import (
     HyperliquidMarketDetails,
     Market,
 )
-from tests.common_symbols import BTC_HL, ETH_HL
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 pytestmark = pytest.mark.timing

@@ -19,7 +19,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
@@ -30,6 +29,7 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_current_market_price
 
 
@@ -563,9 +563,7 @@ class TestBackpackPerpMarkets:
             # Test notional calculations with REAL market data
             # Get actual current market price - no hardcoded values allowed
 
-            actual_price = await get_current_market_price(
-                bp_api_for_test_env, SOL_USDC_PERP_BP
-            )
+            actual_price = await get_current_market_price(bp_api_for_test_env, SOL_USDC_PERP_BP)
 
             # Use minimum quantity from market constraints - no hardcoded quantities
             test_quantity = market.step_size  # Use actual step size
@@ -624,9 +622,7 @@ class TestBackpackPerpMarkets:
 
         # Get real current price - no hardcoded prices
 
-        actual_price = await get_current_market_price(
-            bp_api_for_test_env, SOL_USDC_PERP_BP
-        )
+        actual_price = await get_current_market_price(bp_api_for_test_env, SOL_USDC_PERP_BP)
         funding_payment = actual_price * actual_funding_rate
 
         # The funding payment should be a valid tradeable amount based on tick size

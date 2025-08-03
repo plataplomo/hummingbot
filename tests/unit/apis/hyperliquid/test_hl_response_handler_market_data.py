@@ -21,9 +21,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import HyperliquidR
 from cyberdelta.apis.hyperliquid.response_handlers.hl_market_data_response_handler import (
     HyperliquidMarketDataResponseHandler,
 )
-from tests.common_symbols import ETH_HL
 from cyberdelta.exceptions import ListFieldError
 from cyberdelta.utils.typing import ParsedJsonResponse as RawJsonResponse
+from tests.common_symbols import ETH_HL
 
 
 # Create an alias for backward compatibility

@@ -339,4 +339,3 @@ class BackpackBalanceMapper(
             ) from e
         else:
             return spot_balance
-

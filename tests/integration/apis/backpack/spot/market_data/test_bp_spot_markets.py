@@ -18,13 +18,13 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 # Mark all tests in this file
@@ -50,7 +50,9 @@ class TestBackpackSpotMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == SOL_USDC_BP.value, f"Expected symbol 'SOL_USDC', got '{market.symbol}'"
+        assert market.symbol == SOL_USDC_BP.value, (
+            f"Expected symbol 'SOL_USDC', got '{market.symbol}'"
+        )
         assert market.base_symbol == "SOL", (
             f"Expected base_symbol 'SOL', got '{market.base_symbol}'"
         )
@@ -159,7 +161,9 @@ class TestBackpackSpotMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == BTC_USDC_BP.value, f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
+        assert market.symbol == BTC_USDC_BP.value, (
+            f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
+        )
         assert market.base_symbol == "BTC", (
             f"Expected base_symbol 'BTC', got '{market.base_symbol}'"
         )
@@ -190,7 +194,9 @@ class TestBackpackSpotMarkets:
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
 
         # Validate core market fields
-        assert market.symbol == ETH_USDC_BP.value, f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
+        assert market.symbol == ETH_USDC_BP.value, (
+            f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
+        )
         assert market.base_symbol == "ETH", (
             f"Expected base_symbol 'ETH', got '{market.base_symbol}'"
         )

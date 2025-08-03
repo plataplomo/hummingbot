@@ -39,8 +39,8 @@ from cyberdelta.core.models import (
     MarginAccountSummary,
     SpotBalance,
 )
-from tests.common_symbols import ETH_HL
 from cyberdelta.enums.exchange_names import ExchangeName
+from tests.common_symbols import ETH_HL
 
 
 # --- Fixtures ---

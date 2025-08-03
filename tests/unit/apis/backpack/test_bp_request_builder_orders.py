@@ -4,7 +4,6 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from tests.common_symbols import ETH_BP
 
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawOrderCancelAllRequest,
@@ -24,6 +23,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
     OrderExecution,
 )
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from tests.common_symbols import ETH_BP
 
 
 class TestBuildPlaceOrderPayload:

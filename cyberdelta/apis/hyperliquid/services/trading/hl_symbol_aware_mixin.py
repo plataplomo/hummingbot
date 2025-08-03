@@ -57,6 +57,7 @@ class SymbolAwareMixin:
         Note:
             May raise ValueError if symbol is incompatible with order type
         """
+
         def _raise_invalid_order_type() -> None:
             msg = f"Order type {order_type} not valid for spot market symbol {symbol.value}"
             raise ValueError(msg)

@@ -25,13 +25,13 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.apis.models.service_args.trading import (
     GetOrderArgs,
     GetOrderHistoryArgs,
 )
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.models.market.order import Order
+from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.enums import OrderSide
 
 

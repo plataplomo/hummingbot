@@ -423,8 +423,8 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
         )
 
         # Parse quantities and price
-        quantity_requested, quantity_filled, price = (
-            self._parse_order_quantities_and_price(raw_order)
+        quantity_requested, quantity_filled, price = self._parse_order_quantities_and_price(
+            raw_order
         )
 
         # Parse timestamps
@@ -759,10 +759,8 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
         )
 
         # Parse quantities and price
-        quantity_requested, quantity_filled, price = (
-            self._parse_historical_quantities_and_price(
-                raw_historical_order,
-            )
+        quantity_requested, quantity_filled, price = self._parse_historical_quantities_and_price(
+            raw_historical_order,
         )
 
         # Parse timestamps
