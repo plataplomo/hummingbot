@@ -46,9 +46,9 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.market import FundingRate, Market
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market import FundingRate, Market
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

@@ -22,7 +22,7 @@ from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_state_service
     HyperliquidClearinghouseStateService,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import MarginAccountSummary
+from cyberdelta.models import MarginAccountSummary
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

@@ -26,8 +26,8 @@ from cyberdelta.apis.utils.response_validation import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import CancelOrderResultStatus
-from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

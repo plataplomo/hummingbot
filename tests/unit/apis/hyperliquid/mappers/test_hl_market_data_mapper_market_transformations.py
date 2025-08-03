@@ -30,7 +30,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
     HyperliquidRawMetaResponse,
 )
-from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
+from cyberdelta.models.market.market import HyperliquidMarketDetails, Market
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 

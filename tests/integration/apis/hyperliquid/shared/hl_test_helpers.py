@@ -22,9 +22,9 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketsArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.margin_account import MarginAccountSummary
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.margin_account import MarginAccountSummary
 
 
 logger = get_logger(__name__)

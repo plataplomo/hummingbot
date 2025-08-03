@@ -67,7 +67,9 @@ from cyberdelta.apis.models.service_args.trading import (
     GetTradeHistoryArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import (
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
     MarginAccountSummary,
@@ -75,9 +77,7 @@ from cyberdelta.core.models import (
     SpotBalance,
     Trade,
 )
-from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.operations import Transfer, Withdrawal
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -89,15 +89,15 @@ if TYPE_CHECKING:
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-    from cyberdelta.core.models import (
+    from cyberdelta.models import (
         DerivativePosition,
         MarginAccountSummary,
         Order,  # For order history
         SpotBalance,
         Trade,  # For trade history
     )
-    from cyberdelta.core.models.account_settings import AccountSettings
-    from cyberdelta.core.models.operations import Transfer, Withdrawal
+    from cyberdelta.models.account_settings import AccountSettings
+    from cyberdelta.models.operations import Transfer, Withdrawal
 
 logger = get_logger(__name__)
 

@@ -31,10 +31,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.market.mid_prices import MidPrices
-from cyberdelta.core.models.market.order_book import OrderBook
-from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.market.mid_prices import MidPrices
+from cyberdelta.models.market.order_book import OrderBook
+from cyberdelta.models.market.trade import Trade
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (

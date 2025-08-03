@@ -12,13 +12,13 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.market import (
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import EmptyStringError
+from cyberdelta.models.market.market import (
     BackpackMarketDetails,
     HyperliquidMarketDetails,
     Market,
 )
-from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import EmptyStringError
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

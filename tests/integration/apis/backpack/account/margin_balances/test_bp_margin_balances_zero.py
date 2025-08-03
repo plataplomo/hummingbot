@@ -15,8 +15,8 @@ from decimal import Decimal
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.core.models.margin_account import MarginAccountSummary
-from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.models.margin_account import MarginAccountSummary
+from cyberdelta.models.spot_balance import SpotBalance
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     BALANCE_PRECISION_TOLERANCE,
     DUST_THRESHOLD,

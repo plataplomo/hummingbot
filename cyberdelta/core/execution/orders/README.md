@@ -35,7 +35,7 @@ from cyberdelta.core.execution.orders import (
 ```python
 from decimal import Decimal
 from cyberdelta.core.execution.orders import MarketOrder, MarketOrderService, MarketOrderConfig
-from cyberdelta.core.models import OrderSide
+from cyberdelta.models import OrderSide
 from cyberdelta.core.signal_generator import SignalGenerator
 
 # Initialize components

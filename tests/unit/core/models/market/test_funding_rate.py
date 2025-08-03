@@ -10,12 +10,12 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.funding_rate import (
+from cyberdelta.core.symbols import Symbol
+from cyberdelta.models.market.funding_rate import (
     BackpackFundingDetails,
     FundingRate,
     HyperliquidFundingDetails,
 )
-from cyberdelta.core.symbols import Symbol
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

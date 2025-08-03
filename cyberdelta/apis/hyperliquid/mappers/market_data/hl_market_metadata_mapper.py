@@ -29,9 +29,9 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     MarketMetadataMapperProtocol,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.market import Market
-from cyberdelta.core.models.market.market import HyperliquidMarketDetails
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.models.market import Market
+from cyberdelta.models.market.market import HyperliquidMarketDetails
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

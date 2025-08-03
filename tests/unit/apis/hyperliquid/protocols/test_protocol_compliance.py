@@ -104,8 +104,8 @@ from cyberdelta.config.models.config_models import (
     ExchangeSpecificConfig,
 )
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-from cyberdelta.core.models.spot_balance import SpotBalance
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models.spot_balance import SpotBalance
 
 
 # Test data for parametrization

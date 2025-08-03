@@ -52,8 +52,8 @@ from cyberdelta.apis.websocket.ws_transformer import (
     MapperTransformer,
 )
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
-from cyberdelta.core.models import DerivativePosition, Order, Ticker, Trade
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
+from cyberdelta.models import DerivativePosition, Order, Ticker, Trade
 
 
 if TYPE_CHECKING:

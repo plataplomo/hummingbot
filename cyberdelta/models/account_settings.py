@@ -17,6 +17,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import DecimalFiniteError, FieldNameMissingError
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
@@ -52,7 +53,7 @@ class AccountSettings(BaseModel):
     """
 
     # --- Core Required Fields ---
-    exchange: str
+    exchange: ExchangeName
     timestamp: datetime
 
     # --- Core Optional Fields ---

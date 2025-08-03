@@ -32,9 +32,9 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.derivative_position import BackpackPositionDetails, DerivativePosition
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.derivative_position import BackpackPositionDetails, DerivativePosition
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
 

@@ -42,7 +42,9 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
-from cyberdelta.core.models import (
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions.base import RequiredParameterError
+from cyberdelta.models import (
     DerivativePosition,
     MarginAccountSummary,
     Order,
@@ -52,10 +54,8 @@ from cyberdelta.core.models import (
     Transfer,
     Withdrawal,
 )
-from cyberdelta.core.models.market import Candle, FundingRate, Market, OrderBook
-from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.exceptions.base import RequiredParameterError
+from cyberdelta.models.market import Candle, FundingRate, Market, OrderBook
+from cyberdelta.models.market.order import CancelOrderResult
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 

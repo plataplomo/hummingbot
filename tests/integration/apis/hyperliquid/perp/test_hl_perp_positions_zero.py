@@ -22,7 +22,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.models.derivative_position import DerivativePosition
+from cyberdelta.models.derivative_position import DerivativePosition
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]

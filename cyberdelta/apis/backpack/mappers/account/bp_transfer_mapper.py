@@ -24,9 +24,9 @@ from cyberdelta.apis.exceptions.data_transformation import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
-from cyberdelta.core.models import BackpackTransferDetails, BackpackWithdrawalDetails
-from cyberdelta.core.models.operations import Transfer, Withdrawal
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import BackpackTransferDetails, BackpackWithdrawalDetails
+from cyberdelta.models.operations import Transfer, Withdrawal
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse
 

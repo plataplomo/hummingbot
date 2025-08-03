@@ -21,8 +21,8 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderBookMapperP
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import OrderBook
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import OrderBook
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

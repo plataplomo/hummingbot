@@ -67,7 +67,8 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
-from cyberdelta.core.models import (
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
     FundingRate,
@@ -78,11 +79,10 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.market import Market
-from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market import Market
+from cyberdelta.models.market.candle import Candle
+from cyberdelta.models.market.order import CancelOrderResult
+from cyberdelta.models.operations import Transfer, Withdrawal
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

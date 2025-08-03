@@ -33,13 +33,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
-from cyberdelta.core.models import (
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import (
     HyperliquidMarginDetails,
     HyperliquidSpotBalanceDetails,
     MarginAccountSummary,
     SpotBalance,
 )
-from cyberdelta.enums.exchange_names import ExchangeName
 from tests.common_symbols import ETH_HL
 
 

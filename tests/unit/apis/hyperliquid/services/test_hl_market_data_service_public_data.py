@@ -18,7 +18,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
-from cyberdelta.core.models.market import Market, OrderBook, Ticker, Trade
+from cyberdelta.models.market import Market, OrderBook, Ticker, Trade
 
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)

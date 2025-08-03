@@ -35,7 +35,7 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import 
 from cyberdelta.apis.models.service_args.trading import GetOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models import Order
+from cyberdelta.models import Order
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse
 

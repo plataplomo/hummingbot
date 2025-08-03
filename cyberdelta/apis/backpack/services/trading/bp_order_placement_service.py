@@ -36,11 +36,11 @@ from cyberdelta.apis.exceptions import (
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Order
 from cyberdelta.enums import (
     OrderType,
     TimeInForce,
 )
+from cyberdelta.models import Order
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

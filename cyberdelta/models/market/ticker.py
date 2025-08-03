@@ -19,9 +19,10 @@ from decimal import Decimal, InvalidOperation
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import BaseSymbol, Symbol
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
 # Instantiate logger for this module
@@ -54,7 +55,7 @@ class Ticker(BaseModel):
     """
 
     symbol: Symbol
-    exchange: str
+    exchange: ExchangeName
     timestamp: datetime
     # Using Field for default=None and validation (ge=0)
     price: Decimal | None = Field(default=None, ge=Decimal(0))
@@ -66,31 +67,21 @@ class Ticker(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_domain(cls, v: Symbol, info: ValidationInfo) -> Symbol:
-        """Validate symbol field is Symbol domain object.
-
-        Args:
-            v: The Symbol value to validate
-            info: Pydantic validation context
-
-        Returns:
-            Validated Symbol
-
-        Raises:
-            ValueError: If not an Symbol
-        """
-        if not isinstance(v, BaseSymbol):
-            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
-        return v
+    # Symbol validation is handled by Pydantic's type system
+    # No need for a custom validator since Symbol is always valid
 
     @field_validator("exchange", mode="before")
     @classmethod
-    def validate_exchange(cls, v: object, info: ValidationInfo) -> str:
+    def validate_exchange(cls, v: object, info: ValidationInfo) -> ExchangeName:
         """Validate the 'exchange' field."""
-        field_name = info.field_name if info.field_name is not None else "field"
-        return validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
+        if isinstance(v, ExchangeName):
+            return v
+        if isinstance(v, str):
+            try:
+                return ExchangeName(v.lower())
+            except ValueError as e:
+                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
 
     @field_validator("timestamp", mode="before")
     @classmethod

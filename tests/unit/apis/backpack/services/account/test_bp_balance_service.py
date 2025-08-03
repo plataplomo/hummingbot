@@ -32,8 +32,8 @@ from cyberdelta.apis.backpack.services.account.bp_balance_service import (
     BackpackBalanceService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.models import SpotBalance
-from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
+from cyberdelta.models import SpotBalance
+from cyberdelta.models.spot_balance import BackpackSpotBalanceDetails
 
 
 @pytest.fixture

@@ -17,8 +17,8 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
-from cyberdelta.core.models import Ticker
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.models import Ticker
 from tests.common_symbols import (
     BTC_USDC_PERP_BP,
     COMMON_PERP_SYMBOLS_BP,

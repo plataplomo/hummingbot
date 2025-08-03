@@ -180,7 +180,7 @@ from cyberdelta.apis.hyperliquid.models import SomeHyperliquidModel  # ❌ VIOLA
 
 # ALLOWED: Exchange models importing core models
 # File: apis/hyperliquid/mappers/hl_market_data_mapper.py
-from cyberdelta.core.models.market import Market  # ✅ CORRECT
+from cyberdelta.models.market import Market  # ✅ CORRECT
 ```
 
 **3. Type System Enforcement**

@@ -19,10 +19,10 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import TickerMapperProt
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import TickerTransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Ticker
-from cyberdelta.core.models.market.ticker import BackpackTickerDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName
+from cyberdelta.models import Ticker
+from cyberdelta.models.market.ticker import BackpackTickerDetails
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

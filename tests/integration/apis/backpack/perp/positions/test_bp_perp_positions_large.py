@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.models import MarginAccountSummary
+    from cyberdelta.models import MarginAccountSummary
 
 import pytest
 

@@ -19,8 +19,8 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
-from cyberdelta.core.models import Trade
 from cyberdelta.enums import OrderSide
+from cyberdelta.models import Trade
 from tests.common_symbols import COMMON_SPOT_SYMBOLS_BP
 
 

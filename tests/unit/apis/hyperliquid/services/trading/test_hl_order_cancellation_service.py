@@ -46,9 +46,9 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
-from cyberdelta.core.models import CancelOrderResult, Order
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models import CancelOrderResult, Order
 from tests.common_symbols import BTC_USD_HL, ETH_USD_HL, SOL_USD_HL
 
 

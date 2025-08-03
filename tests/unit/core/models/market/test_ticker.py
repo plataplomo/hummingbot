@@ -12,12 +12,12 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.ticker import (
+from cyberdelta.exceptions.parsing import DateTimeParsingError
+from cyberdelta.models.market.ticker import (
     BackpackTickerDetails,
     HyperliquidTickerDetails,
     Ticker,
 )
-from cyberdelta.exceptions.parsing import DateTimeParsingError
 from tests.common_symbols import BTC_BP, BTC_HL, ETH_HL
 
 

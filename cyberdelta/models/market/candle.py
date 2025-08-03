@@ -26,7 +26,7 @@ from pydantic import (
     model_validator,
 )
 
-from cyberdelta.core.symbols.models import BaseSymbol, Symbol
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
     DecimalFiniteError,
@@ -74,20 +74,8 @@ class Candle(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol(cls, v: Symbol) -> Symbol:
-        """Validate the 'symbol' field is a Symbol domain object.
-
-        Returns:
-            Symbol: The validated Symbol object.
-
-        Raises:
-            ValueError: If not a Symbol object.
-        """
-        if not isinstance(v, BaseSymbol):
-            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
-        return v
+    # Symbol validation is handled by Pydantic's type system
+    # No need for a custom validator since Symbol is always valid
 
     @field_validator("interval", mode="before")
     @classmethod

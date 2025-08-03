@@ -27,8 +27,8 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketArgs,
     GetMarketsArgs,
 )
-from cyberdelta.core.models.market.market import BackpackMarketDetails, Market
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.models.market.market import BackpackMarketDetails, Market
 from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_current_market_price
 

@@ -34,10 +34,10 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     TradeMapperProtocol,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import OrderBook, Trade
-from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import OrderBook, Trade
+from cyberdelta.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

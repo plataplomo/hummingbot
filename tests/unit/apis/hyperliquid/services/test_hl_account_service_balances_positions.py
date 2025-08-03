@@ -15,7 +15,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
-from cyberdelta.core.models import (
+from cyberdelta.models import (
     MarginAccountSummary,
 )
 

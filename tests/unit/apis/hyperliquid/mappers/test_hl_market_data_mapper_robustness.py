@@ -53,7 +53,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
-from cyberdelta.core.models import Trade
+from cyberdelta.models import Trade
 
 
 # Aliases for shorter method calls

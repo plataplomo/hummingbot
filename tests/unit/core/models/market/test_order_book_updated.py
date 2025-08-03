@@ -9,9 +9,9 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.order_book import OrderBook
-from cyberdelta.exceptions.field_validation import ListFieldError
 from cyberdelta.core.symbols import Symbol
+from cyberdelta.exceptions.field_validation import ListFieldError
+from cyberdelta.models.market.order_book import OrderBook
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

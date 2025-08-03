@@ -6,6 +6,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 class MidPrices(BaseModel):
@@ -18,7 +19,7 @@ class MidPrices(BaseModel):
 
     prices: dict[Symbol, Decimal] = Field(description="Symbol to mid price mapping")
     timestamp: datetime | None = Field(default=None, description="When prices were captured")
-    exchange: str = Field(description="Source exchange name")
+    exchange: ExchangeName = Field(description="Source exchange name")
 
     def get(self, symbol: Symbol) -> Decimal | None:
         """Get mid price for symbol.

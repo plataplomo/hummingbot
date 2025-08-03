@@ -62,15 +62,6 @@ from cyberdelta.utils.parsing import (
 )
 
 
-# Typed factory functions to avoid Unknown type inference
-def _initial_positions_factory() -> list[dict[str, Any]]:
-    """Factory function for initial_positions list.
-
-    Returns:
-        Empty list for initial positions configuration
-    """
-    return []
-
 
 class AddressActionSafetyNetConfig(BaseModel):
     """Configuration for address-based action safety net rate limiting."""

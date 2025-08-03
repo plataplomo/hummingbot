@@ -12,13 +12,13 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.spot_balance import (
+from cyberdelta.core.symbols import Symbol
+from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
+from cyberdelta.models.spot_balance import (
     BackpackSpotBalanceDetails,
     HyperliquidSpotBalanceDetails,
     SpotBalance,
 )
-from cyberdelta.core.symbols import Symbol
-from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 
 
 pytestmark = pytest.mark.timing

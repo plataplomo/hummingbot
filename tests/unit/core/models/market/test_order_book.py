@@ -10,8 +10,8 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.order_book import OrderBook
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
+from cyberdelta.models.market.order_book import OrderBook
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

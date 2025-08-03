@@ -30,8 +30,8 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
 )
-from cyberdelta.core.models import Ticker
-from cyberdelta.core.models.market.funding_rate import (
+from cyberdelta.models import Ticker
+from cyberdelta.models.market.funding_rate import (
     FundingRate,
     HyperliquidFundingDetails,
 )

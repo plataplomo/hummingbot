@@ -25,7 +25,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.models.spot_balance import SpotBalance
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]

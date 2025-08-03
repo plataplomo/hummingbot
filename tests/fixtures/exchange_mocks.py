@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.core.models import (
+from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     Order,
@@ -23,6 +23,7 @@ from cyberdelta.core.models import (
     Ticker,
     TimeInForce,
 )
+
 # from cyberdelta.validation.funding_data import ArbitrageOpportunity  # Module deleted
 from tests.common_symbols import BTC_HL, ETH_HL
 

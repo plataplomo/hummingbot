@@ -22,6 +22,7 @@ from pydantic import (
 
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
     RequiredFieldNoneError,
@@ -88,10 +89,16 @@ class Trade(BaseModel):
 
     @field_validator("exchange", mode="before")
     @classmethod
-    def validate_exchange(cls, v: str, info: object) -> str:
-        """Validate exchange field with shorter length limits."""
-        field_name = getattr(info, "field_name", None)
-        return validate_str_field(v, field_name=str(field_name), max_length=64)
+    def validate_exchange(cls, v: object, info: object) -> ExchangeName:
+        """Validate exchange field is a valid ExchangeName."""
+        if isinstance(v, ExchangeName):
+            return v
+        if isinstance(v, str):
+            try:
+                return ExchangeName(v.lower())
+            except ValueError as e:
+                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
 
     @field_validator("executed_at", mode="before")
     @classmethod

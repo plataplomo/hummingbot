@@ -35,8 +35,8 @@ from cyberdelta.apis.exceptions.trading import OrderNotFoundError
 from cyberdelta.apis.models.service_args.trading import GetOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Order
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import Order
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

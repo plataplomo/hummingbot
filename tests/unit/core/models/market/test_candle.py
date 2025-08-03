@@ -12,9 +12,9 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.candle import Candle
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+from cyberdelta.models.market.candle import Candle
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

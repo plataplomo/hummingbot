@@ -15,8 +15,8 @@ from cyberdelta.apis.backpack.models.bp_raw_funding import (
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args.market_data import GetHistoricalFundingRatesArgs
-from cyberdelta.core.models.market import FundingRate
-from cyberdelta.core.models.market.funding_rate import BackpackFundingDetails
+from cyberdelta.models.market import FundingRate
+from cyberdelta.models.market.funding_rate import BackpackFundingDetails
 from tests.common_symbols import SOL_BP
 
 

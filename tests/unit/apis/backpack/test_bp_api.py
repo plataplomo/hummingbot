@@ -30,7 +30,8 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
-from cyberdelta.core.models import (
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
@@ -38,8 +39,7 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.market.order import CancelOrderResult, Order
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models.market.order import CancelOrderResult, Order
 
 
 # Removed hardcoded test constants - now using active fixtures from conftest.py

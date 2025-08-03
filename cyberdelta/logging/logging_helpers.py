@@ -5,11 +5,11 @@ from __future__ import annotations
 import structlog
 from pydantic import BaseModel
 
-from cyberdelta.core.models.derivative_position import DerivativePosition
-from cyberdelta.core.models.margin_account import MarginAccountSummary
-from cyberdelta.core.models.market.order import Order
-from cyberdelta.core.models.market.trade import Trade
-from cyberdelta.core.models.trade_signal import TradeSignal
+from cyberdelta.models.derivative_position import DerivativePosition
+from cyberdelta.models.margin_account import MarginAccountSummary
+from cyberdelta.models.market.order import Order
+from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.trade_signal import TradeSignal
 
 
 # Define sensitive fields to exclude per model type

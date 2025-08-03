@@ -36,8 +36,8 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder
 from cyberdelta.apis.hyperliquid.services.market_data.hl_price_ticker_service import (
     HyperliquidPriceTickerService,
 )
-from cyberdelta.core.models import FundingRate, Ticker
-from cyberdelta.core.models.market.mid_prices import MidPrices
+from cyberdelta.models import FundingRate, Ticker
+from cyberdelta.models.market.mid_prices import MidPrices
 
 
 @pytest.fixture

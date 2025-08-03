@@ -30,9 +30,9 @@ from cyberdelta.apis.models.service_args.trading import (
     GetOrderHistoryArgs,
 )
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.market.order import Order
 
 
 # Mark all tests in this file as integration tests

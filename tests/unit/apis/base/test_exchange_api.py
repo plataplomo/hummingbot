@@ -40,7 +40,8 @@ from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus
-from cyberdelta.core.models import (
+from cyberdelta.enums.environment import EnvironmentType
+from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
     FundingRate,
@@ -53,12 +54,11 @@ from cyberdelta.core.models import (
     TimeInForce,
     Trade,
 )
-from cyberdelta.core.models.margin_account import MarginAccountSummary
-from cyberdelta.core.models.market import Candle
-from cyberdelta.core.models.market.market import Market
-from cyberdelta.core.models.market.order import CancelOrderResult
-from cyberdelta.core.models.operations import Transfer, Withdrawal
-from cyberdelta.enums.environment import EnvironmentType
+from cyberdelta.models.margin_account import MarginAccountSummary
+from cyberdelta.models.market import Candle
+from cyberdelta.models.market.market import Market
+from cyberdelta.models.market.order import CancelOrderResult
+from cyberdelta.models.operations import Transfer, Withdrawal
 
 
 # Match the definition in cyberdelta.apis.base.exchange_api.py

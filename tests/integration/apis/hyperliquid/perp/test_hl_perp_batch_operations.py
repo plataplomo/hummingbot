@@ -30,10 +30,10 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
-from cyberdelta.core.models import Order
-from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models import Order
+from cyberdelta.models.market.order import CancelOrderResult
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
     generate_test_cloid,

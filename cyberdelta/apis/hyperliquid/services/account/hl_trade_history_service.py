@@ -30,7 +30,7 @@ from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetUserFi
 from cyberdelta.apis.models.service_args.trading import GetTradeHistoryArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Trade
+from cyberdelta.models import Trade
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

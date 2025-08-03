@@ -44,7 +44,8 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketsArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import (
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import (
     FundingRate,
     Market,
     Market as MarketInfo,
@@ -52,8 +53,7 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market.candle import Candle
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

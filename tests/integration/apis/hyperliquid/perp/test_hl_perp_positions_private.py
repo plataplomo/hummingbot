@@ -26,10 +26,10 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
-from cyberdelta.core.models.derivative_position import DerivativePosition
-from cyberdelta.core.models.market.order import Order
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models.derivative_position import DerivativePosition
+from cyberdelta.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
     get_minimal_test_quantity,

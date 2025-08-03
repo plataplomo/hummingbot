@@ -16,10 +16,10 @@ from typing import TYPE_CHECKING, Any, TypeVar
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.margin_account import MarginAccountSummary
-from cyberdelta.core.models.spot_balance import SpotBalance
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.margin_account import MarginAccountSummary
+from cyberdelta.models.spot_balance import SpotBalance
 from tests.common_symbols import (
     BTC_USDC_BP,
     BTC_USDC_PERP_BP,
@@ -32,7 +32,7 @@ from tests.common_symbols import (
 
 if TYPE_CHECKING:
     from cyberdelta.apis.backpack.bp_api import BackpackAPI
-    from cyberdelta.core.models.market.ticker import Ticker
+    from cyberdelta.models.market.ticker import Ticker
 
 logger = get_logger(__name__)
 

@@ -38,8 +38,8 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import 
 )
 from cyberdelta.apis.models.service_args.trading import GetOrderArgs
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models import Order, Trade
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models import Order, Trade
 
 
 HyperliquidResponseHandler = HyperliquidTradingResponseHandler

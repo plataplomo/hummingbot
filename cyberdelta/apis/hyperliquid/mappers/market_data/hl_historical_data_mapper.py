@@ -35,10 +35,10 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     HistoricalDataMapperProtocol,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.market import Candle
-from cyberdelta.core.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market import Candle
+from cyberdelta.models.market.funding_rate import FundingRate, HyperliquidFundingDetails
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

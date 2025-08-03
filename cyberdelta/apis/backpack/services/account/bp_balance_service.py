@@ -35,9 +35,9 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import SpotBalance
-from cyberdelta.core.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.models import SpotBalance
+from cyberdelta.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.utils.parsing import parse_decimal_value
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse

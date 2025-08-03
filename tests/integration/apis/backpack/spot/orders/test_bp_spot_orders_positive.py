@@ -32,8 +32,8 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models.market.order import Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models.market.order import Order
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_current_market_price,
     get_market_constraints,

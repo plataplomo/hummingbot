@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from cyberdelta.core.models.derivative_position import DerivativePosition
-from cyberdelta.core.models.market.order import Order
-from cyberdelta.core.models.spot_balance import SpotBalance
+from cyberdelta.models.derivative_position import DerivativePosition
+from cyberdelta.models.market.order import Order
+from cyberdelta.models.spot_balance import SpotBalance
 
 
 def assert_valid_spot_balance(balance: SpotBalance) -> None:

@@ -25,7 +25,7 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import OrderBook
+from cyberdelta.models import OrderBook
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_current_market_price,
     get_major_crypto_symbol,

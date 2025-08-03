@@ -30,8 +30,8 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_withdrawal import BackpackRawWithdrawalResponse
 from cyberdelta.apis.base.protocols.base_protocols import ResponseHandlerProtocol
-from cyberdelta.core.models import CancelOrderResult
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import CancelOrderResult
 
 
 # Type alias for raw JSON responses

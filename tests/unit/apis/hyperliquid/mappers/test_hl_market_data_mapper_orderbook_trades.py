@@ -37,9 +37,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
-from cyberdelta.core.models import OrderBook, Trade
-from cyberdelta.core.models.market.trade import HyperliquidTradeDetails
 from cyberdelta.enums import OrderSide
+from cyberdelta.models import OrderBook, Trade
+from cyberdelta.models.market.trade import HyperliquidTradeDetails
 
 
 # Alias for shorter method calls

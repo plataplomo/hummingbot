@@ -7,8 +7,8 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.models import OrderBook
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.models import OrderBook
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]

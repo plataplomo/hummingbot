@@ -32,9 +32,9 @@ from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderRespons
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models import Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import Order
 
 
 logger = get_logger(__name__)

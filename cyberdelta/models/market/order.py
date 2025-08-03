@@ -32,19 +32,20 @@ from cyberdelta.core.enums import (
     SelfTradePrevention,
     TriggerType,
 )
-from cyberdelta.core.models.market.trade import Trade
-from cyberdelta.core.symbols.models import BaseSymbol, Symbol
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import (
     OrderSide,
     OrderType,
     TimeInForce,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
     DecimalFiniteError,
     FieldNameMissingError,
     OrderLogicError,
     RequiredFieldNoneError,
 )
+from cyberdelta.models.market.trade import Trade
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
@@ -69,7 +70,7 @@ class Order(BaseModel):
         default=None,
         description="ID of related order (e.g., parent, trigger target).",
     )
-    exchange: str = Field(..., description="Name of the exchange.")
+    exchange: ExchangeName = Field(..., description="Name of the exchange.")
     symbol: Symbol = Field(..., description="Exchange-specific trading symbol")
     side: OrderSide
     order_type: OrderType
@@ -186,41 +187,30 @@ class Order(BaseModel):
 
     @field_validator("exchange", mode="before")
     @classmethod
-    def validate_required_str_short(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields with shorter length limits.
+    def validate_exchange(cls, v: object, info: ValidationInfo) -> ExchangeName:
+        """Validate the 'exchange' field is a valid ExchangeName.
 
         Args:
-            v: The value to validate (required string)
+            v: The value to validate
             info: Validation context containing field name
 
         Returns:
-            Validated string value
+            Validated ExchangeName value
 
         Raises:
-            FieldNameMissingError: If field name is None
+            ValueError: If not a valid exchange name
         """
-        field_name = info.field_name
-        if field_name is None:
-            raise FieldNameMissingError
-        return validate_str_field(v, field_name=field_name, max_length=64)
+        if isinstance(v, ExchangeName):
+            return v
+        if isinstance(v, str):
+            try:
+                return ExchangeName(v.lower())
+            except ValueError as e:
+                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
 
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_domain(cls, v: Symbol, info: ValidationInfo) -> Symbol:
-        """Validate symbol field is Symbol domain object.
-
-        Args:
-            v: The Symbol value to validate
-
-        Returns:
-            Validated Symbol
-
-        Raises:
-            ValueError: If not an Symbol
-        """
-        if not isinstance(v, BaseSymbol):
-            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
-        return v
+    # Symbol validation is handled by Pydantic's type system
+    # No need for a custom validator since Symbol is always valid
 
     @field_validator("average_fill_price", mode="before")
     @classmethod
@@ -469,13 +459,13 @@ class Order(BaseModel):
             )
 
         # Check Extension Slot Consistency (Placeholder - can be more specific if needed)
-        if self.exchange == "hyperliquid" and self.bp_details is not None:
+        if self.exchange == ExchangeName.HYPERLIQUID and self.bp_details is not None:
             raise OrderLogicError(
                 "exchange_details_consistency",
                 "Backpack details (bp_details) must be None for a Hyperliquid order",
                 fields={"exchange": self.exchange, "bp_details": self.bp_details},
             )
-        if self.exchange == "backpack" and self.hl_details is not None:
+        if self.exchange == ExchangeName.BACKPACK and self.hl_details is not None:
             raise OrderLogicError(
                 "exchange_details_consistency",
                 "Hyperliquid details (hl_details) must be None for a Backpack order",

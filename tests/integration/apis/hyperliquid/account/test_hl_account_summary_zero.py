@@ -26,7 +26,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.models.margin_account import MarginAccountSummary
+from cyberdelta.models.margin_account import MarginAccountSummary
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.zero_balance]

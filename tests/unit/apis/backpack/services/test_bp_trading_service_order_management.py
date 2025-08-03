@@ -21,8 +21,8 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.enums import CancelOrderResultStatus
-from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models.market.order import CancelOrderResult
 from tests.common_symbols import SOL_USDC_BP
 
 

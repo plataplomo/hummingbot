@@ -44,8 +44,8 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
 )
-from cyberdelta.core.models import FundingRate
-from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.models import FundingRate
+from cyberdelta.models.market.candle import Candle
 
 
 @pytest.fixture

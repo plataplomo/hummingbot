@@ -30,8 +30,8 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models import Order
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import Order
 
 
 logger = get_logger(__name__)
@@ -139,7 +139,7 @@ class HyperliquidOrderResponseMapper(
         # Create order from args with resting order specifics
         if client_order_id:
             return Order(
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
                 symbol=order_args.symbol,
                 side=order_args.side,
                 order_type=order_args.order_type,
@@ -160,7 +160,7 @@ class HyperliquidOrderResponseMapper(
 
         # Let Order model handle client_order_id with default_factory
         return Order(
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             symbol=order_args.symbol,
             side=order_args.side,
             order_type=order_args.order_type,
@@ -228,7 +228,7 @@ class HyperliquidOrderResponseMapper(
         # Create order from args with filled order specifics
         if client_order_id:
             return Order(
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
                 symbol=order_args.symbol,
                 side=order_args.side,
                 order_type=order_args.order_type,
@@ -251,7 +251,7 @@ class HyperliquidOrderResponseMapper(
 
         # Let Order model handle client_order_id with default_factory
         return Order(
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             symbol=order_args.symbol,
             side=order_args.side,
             order_type=order_args.order_type,
@@ -315,7 +315,7 @@ class HyperliquidOrderResponseMapper(
         # Create order with conditional client_order_id
         if client_order_id:
             return Order(
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
                 symbol=order_args.symbol,
                 side=order_args.side,
                 order_type=order_args.order_type,
@@ -336,7 +336,7 @@ class HyperliquidOrderResponseMapper(
 
         # Let Order model handle client_order_id with default_factory
         return Order(
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             symbol=order_args.symbol,
             side=order_args.side,
             order_type=order_args.order_type,

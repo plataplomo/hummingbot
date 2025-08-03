@@ -12,7 +12,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_candles import HyperliquidRawCand
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
-from cyberdelta.core.models.market.candle import Candle
+from cyberdelta.models.market.candle import Candle
 
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)

@@ -18,9 +18,9 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     MarketOrderParameterError,
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
-from cyberdelta.core.models import Order
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models import Order
 
 
 logger = get_logger(__name__)

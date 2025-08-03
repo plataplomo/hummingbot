@@ -34,14 +34,14 @@ from cyberdelta.core.enums import (
     SelfTradePrevention,
     TriggerType,
 )
-from cyberdelta.core.models import BackpackOrderDetails, Order, Trade
-from cyberdelta.core.models.market.trade import BackpackTradeDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import (
     OrderType,
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import BackpackOrderDetails, Order, Trade
+from cyberdelta.models.market.trade import BackpackTradeDetails
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

@@ -20,7 +20,7 @@ from typing import TypeGuard, cast
 from pydantic import BaseModel, ConfigDict, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
-from cyberdelta.core.symbols.models import BaseSymbol, Symbol
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     DecimalFiniteError,
@@ -71,23 +71,8 @@ class OrderBook(BaseModel):
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_domain(cls, v: Symbol) -> Symbol:
-        """Validate symbol field is Symbol domain object.
-
-        Args:
-            v: The Symbol value to validate
-
-        Returns:
-            Validated Symbol
-
-        Raises:
-            ValueError: If not an Symbol
-        """
-        if not isinstance(v, BaseSymbol):
-            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
-        return v
+    # Symbol validation is handled by Pydantic's type system
+    # No need for a custom validator since Symbol is always valid
 
     @field_validator("timestamp", mode="before")
     @classmethod

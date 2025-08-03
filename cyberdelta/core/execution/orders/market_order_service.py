@@ -18,10 +18,9 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     MarketOrderParameterError,
     PriceDeviationError,
 )
-from cyberdelta.core.models import OrderBook
-from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.models import OrderBook, MidPrices
 
 
 logger = get_logger(__name__)
@@ -148,11 +147,11 @@ class MarketOrderService:
         # Use signal generator if available
         if self._signal_generator:
             try:
-                return self._signal_generator.estimate_slippage(
+                return Decimal(str(self._signal_generator.estimate_slippage(
                     exchange=self._exchange.exchange_name,
                     symbol=symbol,
                     size=quantity,
-                )
+                )))
             except (ValueError, TypeError, AttributeError) as e:
                 logger.warning(
                     "slippage_estimation_fallback",

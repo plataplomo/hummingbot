@@ -42,7 +42,10 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus, OrderStatus
-from cyberdelta.core.models import (
+from cyberdelta.enums.environment import EnvironmentType
+from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions.base import RequiredParameterError
+from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
@@ -50,14 +53,11 @@ from cyberdelta.core.models import (
     Ticker,
     Trade,
 )
-from cyberdelta.core.models.market import Candle, Market, OrderBook
-from cyberdelta.core.models.market.order import (
+from cyberdelta.models.market import Candle, Market, OrderBook
+from cyberdelta.models.market.order import (
     CancelOrderResult,
     Order,
 )
-from cyberdelta.enums.environment import EnvironmentType
-from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
-from cyberdelta.exceptions.base import RequiredParameterError
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 

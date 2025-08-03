@@ -21,8 +21,8 @@ import pytest
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
-from cyberdelta.core.models.market.market import HyperliquidMarketDetails, Market
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.models.market.market import HyperliquidMarketDetails, Market
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]

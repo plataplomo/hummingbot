@@ -22,7 +22,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
-from cyberdelta.core.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce, Trade
+from cyberdelta.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce, Trade
 
 
 class TestHyperliquidAccountServiceOrderTradeHistory:

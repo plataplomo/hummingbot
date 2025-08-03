@@ -22,15 +22,15 @@ from cyberdelta.core.enums import (
     SelfTradePrevention,
     TriggerType,
 )
-from cyberdelta.core.models.market.order import (
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+from cyberdelta.models.market.order import (
     BackpackOrderDetails,
     HyperliquidOrderDetails,
     Order,
 )
-from cyberdelta.core.models.market.trade import Trade  # Needed for Order.trades
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+from cyberdelta.models.market.trade import Trade  # Needed for Order.trades
 from tests.common_symbols import BTC_HL
 
 

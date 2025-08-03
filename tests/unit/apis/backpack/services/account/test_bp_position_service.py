@@ -31,11 +31,11 @@ from cyberdelta.apis.backpack.services.account.bp_position_service import (
     BackpackPositionService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.models import DerivativePosition
-from cyberdelta.core.models.derivative_position import (
+from cyberdelta.enums import OrderSide
+from cyberdelta.models import DerivativePosition
+from cyberdelta.models.derivative_position import (
     BackpackPositionDetails as BackpackDerivativePositionDetails,
 )
-from cyberdelta.enums import OrderSide
 from tests.common_symbols import BTC_BP, ETH_BP
 
 

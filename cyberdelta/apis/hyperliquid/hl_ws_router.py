@@ -53,10 +53,10 @@ from cyberdelta.apis.websocket.ws_transformer import (
     MapperTransformer,
 )
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
-from cyberdelta.core.models import DerivativePosition, Order, OrderBook, Trade
-from cyberdelta.core.models.market import Candle
-from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
+from cyberdelta.models import DerivativePosition, Order, OrderBook, Trade
+from cyberdelta.models.market import Candle
+from cyberdelta.models.market.mid_prices import MidPrices
 
 
 if TYPE_CHECKING:

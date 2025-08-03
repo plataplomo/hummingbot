@@ -15,13 +15,13 @@ from typing import Any, TypeGuard
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from cyberdelta.core.enums import SignalType
-from cyberdelta.core.symbols.models import BaseSymbol, Symbol
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     DecimalFiniteError,
     FieldNameMissingError,
-    ListFieldError,
     RequiredFieldError,
     TypeFieldError,
 )
@@ -76,7 +76,7 @@ class TradeSignal(BaseModel):
     side: OrderSide
     price: Decimal = Field(..., gt=Decimal(0))  # Required, Positive
     quantity: Decimal | None = Field(default=None, gt=Decimal(0))  # Optional, Positive if set
-    exchange: str | list[str]  # Required
+    exchange: ExchangeName | list[ExchangeName]  # Required
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     confidence: float | None = None  # Optional, Float
     source_strategy: str | None = None  # Optional
@@ -89,20 +89,8 @@ class TradeSignal(BaseModel):
 
     # --- Field Validators --- Field Validators --- Field Validators ---
 
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol(cls, v: Symbol) -> Symbol:
-        """Validate symbol field is Symbol domain object.
-
-        Returns:
-            Symbol: The validated Symbol object.
-
-        Raises:
-            ValueError: If not a Symbol object.
-        """
-        if not isinstance(v, BaseSymbol):
-            raise ValueError(f"Symbol must be Symbol, got {type(v).__name__}")
-        return v
+    # Symbol validation is handled by Pydantic's type system
+    # No need for a custom validator since Symbol is always valid
 
     @field_validator("source_strategy", mode="before")
     @classmethod
@@ -134,54 +122,57 @@ class TradeSignal(BaseModel):
     @classmethod
     def validate_exchange(
         cls,
-        v: str | list[str] | object,
+        v: str | list[str] | ExchangeName | list[ExchangeName] | object,
         info: ValidationInfo,
-    ) -> str | list[str]:
-        """Validate exchange is a non-empty str or a list of non-empty strs.
+    ) -> ExchangeName | list[ExchangeName]:
+        """Validate exchange is a valid ExchangeName or list of ExchangeNames.
 
         Args:
-            v: Exchange value - either a string or list of strings
+            v: Exchange value - string, ExchangeName, or list thereof
             info: Validation context
 
         Returns:
-            Validated string or list of strings
+            Validated ExchangeName or list of ExchangeNames
 
         Raises:
-            TypeFieldError: If v is not a string or list of strings
+            TypeFieldError: If v is not a valid type
             RequiredFieldError: If list is empty
-            ListFieldError: If list item is not a string
+            ValueError: If invalid exchange name
         """
         field_name = "exchange"
-        # DEFENSIVE CHECK: Pydantic "before" mode receives raw input, type annotation is target type
+        
+        # Handle single exchange
+        if isinstance(v, ExchangeName):
+            return v
         if isinstance(v, str):
-            return validate_str_field(v, field_name=field_name, max_length=64)
+            try:
+                return ExchangeName(v.lower())
+            except ValueError as e:
+                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+        
+        # Handle list of exchanges
         if _is_list_of_any(v):
             if not v:
                 raise RequiredFieldError(
                     field_name=field_name,
                     context="list cannot be empty",
                 )
-            validated_list: list[str] = []
-            # After type guard, v is known to be list[Any]
+            validated_list: list[ExchangeName] = []
             for idx, item in enumerate(v):
-                # DEFENSIVE CHECK: List items could be any type in raw input
-                if type(item) is not str:
-                    raise ListFieldError(
-                        field_name=field_name,
-                        actual_type=type(item).__name__,
-                        item_index=idx,
-                        expected_item_type="string",
-                    )
-                validated_item = validate_str_field(
-                    item,
-                    field_name=f"{field_name}[{idx}]",
-                    max_length=64,
-                )
-                validated_list.append(validated_item)
+                if isinstance(item, ExchangeName):
+                    validated_list.append(item)
+                elif isinstance(item, str):
+                    try:
+                        validated_list.append(ExchangeName(item.lower()))
+                    except ValueError as e:
+                        raise ValueError(f"Invalid exchange name at index {idx}: {item}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+                else:
+                    raise ValueError(f"Invalid type at index {idx}: expected string or ExchangeName, got {type(item).__name__}")
             return validated_list
+        
         raise TypeFieldError(
             field_name=field_name,
-            expected_type="string or list of strings",
+            expected_type="ExchangeName, string, or list thereof",
             actual_type=type(v).__name__,
         )
 

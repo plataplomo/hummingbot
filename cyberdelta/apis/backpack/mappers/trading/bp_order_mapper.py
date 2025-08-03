@@ -31,8 +31,6 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import (
     OrderStatus,
 )
-from cyberdelta.core.models import Order
-from cyberdelta.core.models.market.order import BackpackOrderDetails
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import (
@@ -40,6 +38,8 @@ from cyberdelta.enums import (
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import Order
+from cyberdelta.models.market.order import BackpackOrderDetails
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

@@ -14,7 +14,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
+from cyberdelta.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 
 
 # Mark all tests in this file

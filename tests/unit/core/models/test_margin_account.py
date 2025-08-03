@@ -8,12 +8,12 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.margin_account import (
+from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
+from cyberdelta.models.margin_account import (
     BackpackMarginDetails,
     HyperliquidMarginDetails,
     MarginAccountSummary,
 )
-from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 
 
 pytestmark = pytest.mark.timing

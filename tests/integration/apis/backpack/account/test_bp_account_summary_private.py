@@ -13,7 +13,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
+from cyberdelta.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 from tests.integration.apis.backpack.shared.bp_test_helpers import SMALL_VALUE_TOLERANCE
 
 

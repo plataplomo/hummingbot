@@ -12,7 +12,7 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineRespons
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
-from cyberdelta.core.models.market import Candle
+from cyberdelta.models.market import Candle
 
 
 # Import fixtures from the shared conftest

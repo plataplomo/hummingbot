@@ -28,7 +28,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.core.models import Ticker
+from cyberdelta.models import Ticker
 from tests.fixtures.time_fixtures import FreezerProtocol
 
 

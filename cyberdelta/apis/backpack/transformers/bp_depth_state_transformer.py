@@ -20,9 +20,9 @@ from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawDepthUpdate
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import OrderBook
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import OrderBook
 
 
 if TYPE_CHECKING:

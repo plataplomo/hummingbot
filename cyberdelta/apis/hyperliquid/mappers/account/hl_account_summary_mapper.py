@@ -31,13 +31,13 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
 )
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import (
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import (
     AccountSettings,
     HyperliquidMarginDetails,
     MarginAccountSummary,
 )
-from cyberdelta.core.models.account_settings import HyperliquidAccountSettingsDetails
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models.account_settings import HyperliquidAccountSettingsDetails
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

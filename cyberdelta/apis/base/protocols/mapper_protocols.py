@@ -11,10 +11,10 @@ from decimal import Decimal, InvalidOperation
 from typing import NoReturn, Protocol, cast, runtime_checkable
 
 from cyberdelta.apis.exceptions import MissingRequiredFieldError
-from cyberdelta.core.models import (
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import (
     SpotBalance,
 )
-from cyberdelta.core.symbols.models import Symbol
 
 
 # Constants for timestamp parsing

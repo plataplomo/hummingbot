@@ -10,14 +10,14 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.derivative_position import (
+from cyberdelta.enums import OrderSide
+from cyberdelta.exceptions.field_validation import FieldNameMissingError
+from cyberdelta.exceptions.parsing import ParsingError
+from cyberdelta.models.derivative_position import (
     BackpackPositionDetails,
     DerivativePosition,
     HyperliquidPositionDetails,
 )
-from cyberdelta.enums import OrderSide
-from cyberdelta.exceptions.field_validation import FieldNameMissingError
-from cyberdelta.exceptions.parsing import ParsingError
 from tests.common_symbols import BTC_HL
 
 

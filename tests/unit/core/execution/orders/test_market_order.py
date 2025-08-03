@@ -12,8 +12,8 @@ from cyberdelta.core.execution.orders.market_order import MarketOrder
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
 from cyberdelta.core.execution.orders.market_order_errors import MarketOrderError
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
-from cyberdelta.core.models import OrderSide, OrderStatus, OrderType, TimeInForce
-from cyberdelta.core.models.market.order import Order
+from cyberdelta.models import OrderSide, OrderStatus, OrderType, TimeInForce
+from cyberdelta.models.market.order import Order
 
 
 pytestmark = pytest.mark.timing

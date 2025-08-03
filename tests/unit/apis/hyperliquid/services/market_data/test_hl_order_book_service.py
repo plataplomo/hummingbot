@@ -34,8 +34,8 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
     HyperliquidOrderBookService,
 )
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
-from cyberdelta.core.models import OrderBook, Trade
 from cyberdelta.enums import OrderSide
+from cyberdelta.models import OrderBook, Trade
 
 
 @pytest.fixture

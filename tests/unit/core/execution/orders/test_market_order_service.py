@@ -14,9 +14,9 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     PriceDeviationError,
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
-from cyberdelta.core.models import OrderBook
-from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.enums import OrderSide
+from cyberdelta.models import OrderBook
+from cyberdelta.models.market.mid_prices import MidPrices
 
 
 pytestmark = pytest.mark.timing

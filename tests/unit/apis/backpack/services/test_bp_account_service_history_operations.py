@@ -15,8 +15,8 @@ from cyberdelta.apis.models.service_args.trading import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
 )
-from cyberdelta.core.models.operations import Withdrawal
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.operations import Withdrawal
 
 
 class TestBackpackAccountServiceHistoryOperations:

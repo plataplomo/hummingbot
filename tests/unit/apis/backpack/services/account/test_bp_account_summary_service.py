@@ -41,8 +41,8 @@ from cyberdelta.apis.base.trading_execution_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
-from cyberdelta.core.models import AccountSettings
-from cyberdelta.core.models.margin_account import BackpackMarginDetails, MarginAccountSummary
+from cyberdelta.models import AccountSettings
+from cyberdelta.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 from tests.common_symbols import BTC_BP
 
 

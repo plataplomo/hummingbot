@@ -52,7 +52,8 @@ from cyberdelta.apis.base.protocols.mapper_protocols import (
     AbstractTradeMapperProtocol,
 )
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
-from cyberdelta.core.models import (
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
     FundingRate,
@@ -66,8 +67,7 @@ from cyberdelta.core.models import (
     Transfer,
     Withdrawal,
 )
-from cyberdelta.core.models.market.candle import Candle
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market.candle import Candle
 
 
 # Type alias for raw JSON responses

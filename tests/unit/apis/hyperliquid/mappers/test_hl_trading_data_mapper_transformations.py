@@ -37,9 +37,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 from cyberdelta.core.enums import (
     OrderStatus,
 )
-from cyberdelta.core.models import Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import Order
 
 
 logger = get_logger(__name__)

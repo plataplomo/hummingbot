@@ -20,8 +20,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
-from cyberdelta.core.models.market.order import CancelOrderResult
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models.market.order import CancelOrderResult
 
 
 # Import fixtures from the shared conftest

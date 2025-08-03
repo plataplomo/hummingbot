@@ -19,7 +19,12 @@ from cyberdelta.config.models.config_models import (
     PortfolioValidationSettings,
 )
 from cyberdelta.core.enums import SignalType
-from cyberdelta.core.models import (
+
+# from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager - removed legacy import
+from cyberdelta.core.symbols import Symbol
+from cyberdelta.core.symbols.service import SymbolService
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
@@ -34,12 +39,7 @@ from cyberdelta.core.models import (
     Trade,
     TradeSignal,
 )
-from cyberdelta.core.models.market.candle import Candle
-
-# from cyberdelta.core.portfolio.managers.portfolio_state_manager import PortfolioStateManager - removed legacy import
-from cyberdelta.core.symbols import Symbol
-from cyberdelta.core.symbols.service import SymbolService
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models.market.candle import Candle
 from tests.common_symbols import BTC_BP, BTC_HL, ETH_BP, ETH_HL, SOL_BP, SOL_HL
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
 

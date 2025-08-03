@@ -14,6 +14,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
     FieldNameMissingError,
@@ -55,7 +56,7 @@ class MarginAccountSummary(BaseModel):
     """
 
     # --- Core Required Fields ---
-    exchange: str
+    exchange: ExchangeName
     timestamp: datetime
     total_equity: Decimal = Field(ge=Decimal(0))
     available_equity: Decimal = Field(ge=Decimal(0))
@@ -74,19 +75,23 @@ class MarginAccountSummary(BaseModel):
     # --- Field Validators ---
     @field_validator("exchange", mode="before")
     @classmethod
-    def validate_required_strings(cls, v: str, info: ValidationInfo) -> str:
-        """Validate required string fields are non-empty, reasonable length.
+    def validate_exchange(cls, v: object, info: ValidationInfo) -> ExchangeName:
+        """Validate exchange field is a valid ExchangeName.
 
         Returns:
-            The validated string value.
+            The validated ExchangeName value.
 
         Raises:
-            FieldNameMissingError: If field name is missing from validation info.
+            ValueError: If not a valid exchange name.
         """
-        field_name = info.field_name
-        if field_name is None:
-            raise FieldNameMissingError("validation")
-        return validate_str_field(v, field_name=field_name, max_length=64)
+        if isinstance(v, ExchangeName):
+            return v
+        if isinstance(v, str):
+            try:
+                return ExchangeName(v.lower())
+            except ValueError as e:
+                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
 
     @field_validator("timestamp", mode="before")
     @classmethod

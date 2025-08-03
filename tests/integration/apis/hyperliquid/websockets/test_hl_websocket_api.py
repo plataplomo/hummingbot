@@ -24,7 +24,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.market import OrderBook, Trade
+from cyberdelta.models.market import OrderBook, Trade
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.timing]

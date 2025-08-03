@@ -37,9 +37,9 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.utils import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import DerivativePosition
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
+from cyberdelta.models import DerivativePosition
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

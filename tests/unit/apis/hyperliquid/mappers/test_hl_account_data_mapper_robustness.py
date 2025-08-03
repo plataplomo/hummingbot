@@ -42,10 +42,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
-from cyberdelta.core.models import (
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import (
     MarginAccountSummary,
 )
-from cyberdelta.enums.exchange_names import ExchangeName
 
 
 # Aliases for shorter method calls

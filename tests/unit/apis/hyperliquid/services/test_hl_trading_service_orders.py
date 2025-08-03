@@ -22,9 +22,9 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models.market.order import CancelOrderResult, Order
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.parsing import EmptyStringError
+from cyberdelta.models.market.order import CancelOrderResult, Order
 
 
 # Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)

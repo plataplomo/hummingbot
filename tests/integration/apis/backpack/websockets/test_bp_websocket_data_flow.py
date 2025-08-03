@@ -22,10 +22,10 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.market.order_book import OrderBook
-from cyberdelta.core.models.market.ticker import Ticker
-from cyberdelta.core.models.market.trade import Trade
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.market.order_book import OrderBook
+from cyberdelta.models.market.ticker import Ticker
+from cyberdelta.models.market.trade import Trade
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.timing]

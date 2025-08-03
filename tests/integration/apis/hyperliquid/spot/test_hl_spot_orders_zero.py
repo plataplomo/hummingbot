@@ -28,7 +28,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetOrderArgs,
     GetOrderHistoryArgs,
 )
-from cyberdelta.core.models.market.order import Order
+from cyberdelta.models.market.order import Order
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.spot, pytest.mark.zero_balance]

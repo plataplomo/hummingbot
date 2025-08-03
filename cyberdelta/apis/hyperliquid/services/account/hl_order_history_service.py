@@ -32,8 +32,8 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderMapperPr
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Order
 from cyberdelta.exceptions.base import RequiredParameterError
+from cyberdelta.models import Order
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

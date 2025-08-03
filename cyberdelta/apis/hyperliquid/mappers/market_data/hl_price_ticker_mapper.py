@@ -30,11 +30,11 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     TickerMapperProtocol,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Ticker
-from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models import Ticker
+from cyberdelta.models.market.mid_prices import MidPrices
 from cyberdelta.utils.secure_transformation import secure_transform
 
 
@@ -278,7 +278,7 @@ class HyperliquidPriceTickerMapper(
             mid_prices = MidPrices(
                 prices=prices,  # dict[Symbol, Decimal]
                 timestamp=datetime.now(UTC),
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
             )
 
             logger.debug(

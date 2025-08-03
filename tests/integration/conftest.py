@@ -12,6 +12,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+
 if TYPE_CHECKING:
     from typing import Protocol
 
@@ -66,10 +67,13 @@ from cyberdelta.config import AppSettings
 
 # PortfolioTrackerConfig removed - using AppSettings portfolio_tracker section instead
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models import Ticker
 from cyberdelta.core.symbols import get_symbol_service
 from cyberdelta.core.symbols.service import SymbolService
+from cyberdelta.models import Ticker
+
+
 logger = get_logger(__name__)
+
 
 # --- Integration Test Specific Helpers & Fixtures ---
 # Moved from test_core_workflow.py
@@ -94,6 +98,8 @@ def create_mock_ticker(
         price=Decimal(str(price)),
         timestamp=timestamp,  # Pass datetime directly
     )
+
+
 # Add other integration-specific fixtures here if needed
 # Define needed secrets locally for integration tests
 @pytest.fixture
@@ -107,6 +113,8 @@ def mock_secrets() -> dict[str, dict[str, str | None]]:
         "mock_hl": {"api_key": "integ_hl_key", "api_secret": "integ_hl_secret"},
         "mock_bp": {"api_key": "integ_bp_key", "api_secret": "integ_bp_secret"},
     }
+
+
 # --- Core Component Fixtures ---
 # Define symbol_mapper fixture
 @pytest.fixture
@@ -119,6 +127,8 @@ def symbol_mapper(mock_config: AppSettings) -> SymbolService:
     # Get the global symbol service
     # In real usage, the service is initialized with the global registry
     return get_symbol_service()
+
+
 # --- Safety System Specific Fixtures ---
 # --- VCR Configuration Override for Integration Tests ---
 @pytest.fixture
@@ -288,6 +298,8 @@ def vcr_config() -> dict[str, Any]:
 
     # NOTE: cassette_library_dir is now managed by the vcr_cassette_dir fixture
     # which handles organized directory structure based on test parametrization
+
+
 @pytest.fixture
 def custom_vcr_cassette_dir(request: PytestRequest) -> str:
     """Fixture to specify custom VCR cassette directory for integration tests.
@@ -309,6 +321,8 @@ def custom_vcr_cassette_dir(request: PytestRequest) -> str:
         custom_dir.mkdir(parents=True, exist_ok=True)
         return str(custom_dir)
     return "tests/cassettes"  # Default
+
+
 @pytest.fixture
 def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) -> dict[str, Any]:
     """VCR configuration with custom cassette path for integration tests.
@@ -325,6 +339,8 @@ def custom_vcr_config(vcr_config: dict[str, Any], custom_vcr_cassette_dir: str) 
     config["cassette_library_dir"] = custom_vcr_cassette_dir
 
     return config
+
+
 def _get_custom_cassette_dir(request: PytestRequest) -> str | None:
     """Extract custom VCR cassette directory from test parametrization.
 
@@ -346,6 +362,8 @@ def _get_custom_cassette_dir(request: PytestRequest) -> str | None:
     custom_dir = base_dir / str(param_value)
     custom_dir.mkdir(parents=True, exist_ok=True)
     return str(custom_dir)
+
+
 def _get_module_based_cassette_dir(request: PytestRequest) -> str:
     """Get module-based cassette directory from test file path.
 
@@ -374,6 +392,8 @@ def _get_module_based_cassette_dir(request: PytestRequest) -> str:
     except ValueError:
         # If path is not relative to tests/, fall back to default
         return "tests/cassettes"
+
+
 @pytest.fixture
 def vcr_cassette_dir(request: PytestRequest) -> str:
     """Override pytest-recording's default cassette directory logic.

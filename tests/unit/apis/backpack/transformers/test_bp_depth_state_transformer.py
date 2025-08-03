@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
 )
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.core.models import OrderBook
+from cyberdelta.models import OrderBook
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP
 
 

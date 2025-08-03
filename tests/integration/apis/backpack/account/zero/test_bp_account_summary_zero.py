@@ -10,7 +10,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.models.margin_account import MarginAccountSummary
+from cyberdelta.models.margin_account import MarginAccountSummary
 
 
 logger = get_logger(__name__)

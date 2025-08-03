@@ -21,8 +21,9 @@ from pydantic_core.core_schema import ValidationInfo
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
-from cyberdelta.core.symbols.models import BaseSymbol, Symbol
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
     DecimalFiniteError,
     FieldNameMissingError,
@@ -77,7 +78,7 @@ class DerivativePosition(BaseModel):
 
     """
 
-    exchange: str
+    exchange: ExchangeName
     symbol: Symbol
     side: OrderSide
     size: Decimal  # Can be positive, negative, or zero
@@ -101,46 +102,30 @@ class DerivativePosition(BaseModel):
 
     @field_validator("exchange", mode="before")
     @classmethod
-    def validate_exchange_string(cls, v: object, info: ValidationInfo) -> str:
-        """Validate exchange field is non-empty, reasonable length.
+    def validate_exchange_string(cls, v: object, info: ValidationInfo) -> ExchangeName:
+        """Validate exchange field is a valid ExchangeName.
 
         Args:
             v: The value to validate
             info: Validation context containing field information
 
         Returns:
-            Validated string value
+            Validated ExchangeName value
 
         Raises:
-            FieldNameMissingError: If field name is None
+            ValueError: If not a valid exchange name
         """
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
-        field_name = info.field_name
-        if field_name is None:
-            # This should be practically unreachable due to Pydantic's validation flow
-            raise FieldNameMissingError
-        # Assuming validate_str_field internally handles None check if required
-        return validate_str_field(v, field_name=field_name, max_length=64)
+        if isinstance(v, ExchangeName):
+            return v
+        if isinstance(v, str):
+            try:
+                return ExchangeName(v.lower())
+            except ValueError:
+                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}")
+        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
 
-    @field_validator("symbol", mode="before")
-    @classmethod
-    def validate_symbol_domain(cls, v: object) -> Symbol:
-        """Validate symbol field is Symbol domain object.
-
-        Args:
-            v: The value to validate
-
-        Returns:
-            Validated Symbol
-
-        Raises:
-            TypeError: If not a Symbol
-        """
-        if not isinstance(v, BaseSymbol):
-            raise TypeFieldError(
-                field_name="symbol", expected_type="Symbol", actual_type=type(v).__name__
-            )
-        return v
+    # Symbol validation is handled by Pydantic's type system
+    # No need for a custom validator since Symbol is always valid
 
     @field_validator("strategy_name", "signal_id", mode="before")
     @classmethod
@@ -351,16 +336,16 @@ class DerivativePosition(BaseModel):
         Raises:
             PositionLogicError: If exchange-specific details are inconsistent
         """
-        known_exchanges_with_details = {"hyperliquid", "backpack"}
+        known_exchanges_with_details = {ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK}
 
-        if self.exchange == "hyperliquid" and self.bp_details is not None:
+        if self.exchange == ExchangeName.HYPERLIQUID and self.bp_details is not None:
             raise PositionLogicError(
                 "exchange_details_consistency",
                 "Backpack details (bp_details) must be None for a Hyperliquid position",
                 exchange=self.exchange,
                 fields={"exchange": self.exchange, "bp_details": self.bp_details},
             )
-        if self.exchange == "backpack" and self.hl_details is not None:
+        if self.exchange == ExchangeName.BACKPACK and self.hl_details is not None:
             raise PositionLogicError(
                 "exchange_details_consistency",
                 "Hyperliquid details (hl_details) must be None for a Backpack position",

@@ -11,9 +11,9 @@ from decimal import Decimal
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.models.market.mid_prices import MidPrices
 from cyberdelta.core.symbols.api import symbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models.market.mid_prices import MidPrices
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 

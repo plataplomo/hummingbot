@@ -12,15 +12,15 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models import (
+from cyberdelta.core.symbols import Symbol, symbols
+from cyberdelta.enums import OrderSide, OrderType
+from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     Order,
     SpotBalance,
     Ticker,
 )
-from cyberdelta.core.symbols import Symbol, symbols
-from cyberdelta.enums import OrderSide, OrderType
 
 
 @dataclass

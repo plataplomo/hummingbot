@@ -27,9 +27,9 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.models.market.order import Order
-from cyberdelta.core.models.market.ticker import Ticker
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.models.market.order import Order
+from cyberdelta.models.market.ticker import Ticker
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
     get_test_symbol,
