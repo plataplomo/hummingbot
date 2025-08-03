@@ -21,7 +21,11 @@ class HyperliquidHandler:
         return ExchangeName.HYPERLIQUID
 
     def parse_components(self, value: str) -> SymbolComponents:
-        """Parse Hyperliquid symbol format."""
+        """Parse Hyperliquid symbol format.
+        
+        Returns:
+            SymbolComponents: Parsed symbol components.
+        """
         # Handle @N format
         if value.startswith(self.INDEX_PREFIX):
             return SymbolComponents(base_asset=value, market_type=self.DEFAULT_MARKET_TYPE)
@@ -43,7 +47,11 @@ class HyperliquidHandler:
         return SymbolComponents(base_asset=value, market_type=MarketType.SPOT)
 
     def format_symbol(self, components: SymbolComponents) -> str:
-        """Format components into Hyperliquid symbol."""
+        """Format components into Hyperliquid symbol.
+        
+        Returns:
+            str: Formatted Hyperliquid symbol.
+        """
         if components.market_type == MarketType.PERP:
             return f"{components.base_asset}{self.PERP_SUFFIX}"
         if components.quote_asset:
@@ -51,7 +59,11 @@ class HyperliquidHandler:
         return components.base_asset
 
     def to_canonical(self, value: str) -> tuple[str, SymbolComponents]:
-        """Convert to canonical format."""
+        """Convert to canonical format.
+        
+        Returns:
+            tuple[str, SymbolComponents]: Canonical format and parsed components.
+        """
         components = self.parse_components(value)
         if components.quote_asset:
             canonical = f"{components.base_asset}_{components.quote_asset}"
@@ -60,19 +72,31 @@ class HyperliquidHandler:
         return canonical, components
 
     def from_canonical(self, canonical: str, components: SymbolComponents) -> str:
-        """Convert from canonical to Hyperliquid format."""
+        """Convert from canonical to Hyperliquid format.
+        
+        Returns:
+            str: Hyperliquid formatted symbol.
+        """
         return self.format_symbol(components)
 
     def create_metadata(
         self, asset_index: int | None = None, symbol_id: int | None = None
     ) -> HyperliquidMetadata:
-        """Create Hyperliquid metadata."""
+        """Create Hyperliquid metadata.
+        
+        Returns:
+            HyperliquidMetadata: Metadata instance for Hyperliquid.
+        """
         return HyperliquidMetadata(asset_index=asset_index)
 
     def create_symbol(
         self, value: str, asset_index: int | None = None, symbol_id: int | None = None
     ) -> Symbol:
-        """Create Hyperliquid symbol."""
+        """Create Hyperliquid symbol.
+        
+        Returns:
+            Symbol: Created Hyperliquid symbol.
+        """
         metadata = self.create_metadata(asset_index=asset_index)
         symbol = BaseSymbol[HyperliquidMetadata](
             value=value, exchange=self.exchange, metadata=metadata

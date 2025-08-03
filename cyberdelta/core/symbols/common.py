@@ -21,6 +21,12 @@ class AssetSymbols:
         """Get symbol creator for an exchange.
 
         Usage: btc.hyperliquid() or btc.backpack()
+        
+        Returns:
+            Callable[[], Symbol]: Function that creates a symbol for the exchange.
+            
+        Raises:
+            AttributeError: If exchange is not found or invalid.
         """
         try:
             exchange = ExchangeName(exchange_name)
@@ -30,11 +36,19 @@ class AssetSymbols:
             raise AttributeError(msg) from e
 
     def all(self) -> list[Symbol]:
-        """Get symbols for all configured exchanges."""
+        """Get symbols for all configured exchanges.
+        
+        Returns:
+            list[Symbol]: List of symbols for all exchanges.
+        """
         return [creator() for creator in self._creators.values()]
 
     def for_exchanges(self, exchanges: list[ExchangeName]) -> list[Symbol]:
-        """Get symbols for specific exchanges."""
+        """Get symbols for specific exchanges.
+        
+        Returns:
+            list[Symbol]: List of symbols for the specified exchanges.
+        """
         return [self._creators[ex]() for ex in exchanges if ex in self._creators]
 
 

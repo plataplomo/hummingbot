@@ -62,7 +62,6 @@ from cyberdelta.utils.parsing import (
 )
 
 
-
 class AddressActionSafetyNetConfig(BaseModel):
     """Configuration for address-based action safety net rate limiting."""
 
@@ -833,6 +832,20 @@ def _default_alert_methods() -> list[Literal["log", "telegram"]]:
     return ["log"]
 
 
+class PortfolioCacheSettings(BaseModel):
+    """Portfolio cache configuration settings."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    enabled: bool = True
+    max_size: int = Field(default=10000, gt=0, le=100000)
+    default_ttl: float = Field(default=300.0, gt=0, le=3600)
+    stale_while_revalidate: float = Field(default=60.0, gt=0, le=600)
+    cleanup_interval: float = Field(default=600.0, gt=0, le=3600)
+    enable_memory_optimization: bool = True
+    cache_statistics_enabled: bool = True
+
+
 class MonitoringSettings(BaseModel):
     """Monitoring and notifications configuration."""
 
@@ -840,7 +853,7 @@ class MonitoringSettings(BaseModel):
 
     notifications_enabled: bool = True
     alert_methods: list[Literal["log", "telegram"]] = Field(default_factory=_default_alert_methods)
-    cache: PortfolioCacheSettings = Field(default_factory=lambda: PortfolioCacheSettings())
+    cache: PortfolioCacheSettings = Field(default_factory=PortfolioCacheSettings)
 
     @field_validator("alert_methods", mode="before")
     @classmethod
@@ -871,20 +884,6 @@ DEFAULT_DATA_FRESHNESS_SECONDS = 60
 
 # Type aliases for portfolio tracker config
 type ExchangeId = str
-
-
-class PortfolioCacheSettings(BaseModel):
-    """Portfolio cache configuration settings."""
-
-    model_config = ConfigDict(extra="forbid", frozen=True)
-
-    enabled: bool = True
-    max_size: int = Field(default=10000, gt=0, le=100000)
-    default_ttl: float = Field(default=300.0, gt=0, le=3600)
-    stale_while_revalidate: float = Field(default=60.0, gt=0, le=600)
-    cleanup_interval: float = Field(default=600.0, gt=0, le=3600)
-    enable_memory_optimization: bool = True
-    cache_statistics_enabled: bool = True
 
 
 class PortfolioStateSettings(BaseModel):
@@ -1020,12 +1019,12 @@ class AppSettings(BaseModel):
     safety_systems: SafetySystemsSettings
     monitoring: MonitoringSettings
     calculation: PortfolioCalculationSettings = Field(
-        default_factory=lambda: PortfolioCalculationSettings()
+        default_factory=PortfolioCalculationSettings
     )
     validation: PortfolioValidationSettings = Field(
-        default_factory=lambda: PortfolioValidationSettings()
+        default_factory=PortfolioValidationSettings
     )
-    state: PortfolioStateSettings = Field(default_factory=lambda: PortfolioStateSettings())
+    state: PortfolioStateSettings = Field(default_factory=PortfolioStateSettings)
     # portfolio_tracker field removed - replaced by modular portfolio system
     # CLEAN BREAK: Smart symbol configuration replaces verbose unified_symbols
     symbols: "SmartSymbolsConfig" = Field(..., description="Smart symbol configuration")

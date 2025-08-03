@@ -135,6 +135,9 @@ class ConfigSymbolLoader:
 
         Returns:
             Kwargs for symbol metadata
+            
+        Raises:
+            SymbolMappingFieldError: If metadata configuration is invalid.
         """
         kwargs: dict[str, Any] = {}
 

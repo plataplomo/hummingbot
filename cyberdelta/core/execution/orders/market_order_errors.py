@@ -56,6 +56,15 @@ class MarketOrderError(Exception):
         """
         return cls(f"Cannot calculate market order price: no order book for {symbol.value}")
 
+    @classmethod
+    def exchange_method_not_found(cls, exchange_name: str) -> "MarketOrderError":
+        """Create error when exchange method is not found.
+
+        Returns:
+            MarketOrderError: Error instance for missing exchange method
+        """
+        return cls(f"Exchange method for {exchange_name} not found")
+
 
 class InsufficientLiquidityError(MarketOrderError):
     """Raised when there's not enough liquidity in the order book.

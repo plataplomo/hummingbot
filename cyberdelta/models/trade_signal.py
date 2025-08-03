@@ -22,6 +22,7 @@ from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     DecimalFiniteError,
     FieldNameMissingError,
+    InvalidExchangeNameError,
     RequiredFieldError,
     TypeFieldError,
 )
@@ -106,7 +107,6 @@ class TradeSignal(BaseModel):
 
         Raises:
             FieldNameMissingError: If field name is None in validation info
-            RequiredFieldError: If symbol field is None (symbol is required)
         """
         field_name = info.field_name
         if field_name is None:
@@ -137,7 +137,7 @@ class TradeSignal(BaseModel):
         Raises:
             TypeFieldError: If v is not a valid type
             RequiredFieldError: If list is empty
-            ValueError: If invalid exchange name
+            InvalidExchangeNameError: If invalid exchange name
         """
         field_name = "exchange"
         
@@ -148,7 +148,10 @@ class TradeSignal(BaseModel):
             try:
                 return ExchangeName(v.lower())
             except ValueError as e:
-                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+                raise InvalidExchangeNameError(
+                    value=v,
+                    valid_exchanges=[ex.value for ex in ExchangeName],
+                ) from e
         
         # Handle list of exchanges
         if _is_list_of_any(v):
@@ -165,9 +168,18 @@ class TradeSignal(BaseModel):
                     try:
                         validated_list.append(ExchangeName(item.lower()))
                     except ValueError as e:
-                        raise ValueError(f"Invalid exchange name at index {idx}: {item}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
+                        raise InvalidExchangeNameError(
+                            value=item,
+                            valid_exchanges=[ex.value for ex in ExchangeName],
+                            context=f"index {idx}",
+                        ) from e
                 else:
-                    raise ValueError(f"Invalid type at index {idx}: expected string or ExchangeName, got {type(item).__name__}")
+                    raise TypeFieldError(
+                        field_name=f"{field_name}[{idx}]",
+                        expected_type="string or ExchangeName",
+                        actual_type=type(item).__name__,
+                        actual_value=item,
+                    )
             return validated_list
         
         raise TypeFieldError(

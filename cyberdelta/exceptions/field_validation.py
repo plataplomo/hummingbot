@@ -745,6 +745,49 @@ class DateTimeFieldError(ValueError, FieldError):
         self.reason = reason
 
 
+class InvalidExchangeNameError(ValueError, FieldError):
+    """Invalid exchange name errors - inherits ValueError semantics + our metadata."""
+
+    def __init__(
+        self,
+        value: object,
+        valid_exchanges: list[str],
+        context: str | None = None,
+    ) -> None:
+        """Initialize invalid exchange name error.
+
+        Args:
+            value: The invalid exchange value
+            valid_exchanges: List of valid exchange names
+            context: Optional context where the exchange was provided
+        """
+        message = f"Invalid exchange name: {value}. Must be one of: {', '.join(valid_exchanges)}"
+        if context:
+            message = f"{message} (context: {context})"
+
+        # Initialize ValueError with the message
+        ValueError.__init__(self, message)
+
+        # Initialize FieldError with full metadata
+        FieldError.__init__(
+            self,
+            message=message,
+            field_name="exchange",
+            source_value=value,
+            code="INVALID_EXCHANGE_NAME",
+            source_data={
+                "value": str(value),
+                "valid_exchanges": valid_exchanges,
+                "context": context,
+            },
+        )
+
+        # Store attributes for direct access
+        self.value = value
+        self.valid_exchanges = valid_exchanges
+        self.context = context
+
+
 class OHLCConsistencyError(ValueError, FieldError):
     """OHLC data consistency validation errors - inherits ValueError semantics + our metadata."""
 

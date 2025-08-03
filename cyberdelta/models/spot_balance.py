@@ -24,6 +24,8 @@ from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
     DecimalFiniteError,
     FieldNameMissingError,
+    InvalidExchangeNameError,
+    TypeFieldError,
 )
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
@@ -130,15 +132,31 @@ class SpotBalance(BaseModel):
     @field_validator("exchange", mode="before")
     @classmethod
     def validate_exchange_string(cls, v: object, info: ValidationInfo) -> ExchangeName:
-        """Validate exchange field is a valid ExchangeName."""
+        """Validate exchange field is a valid ExchangeName.
+        
+        Returns:
+            ExchangeName: Validated exchange name.
+            
+        Raises:
+            InvalidExchangeNameError: If exchange name is invalid.
+            TypeFieldError: If value is not a string or ExchangeName.
+        """
         if isinstance(v, ExchangeName):
             return v
         if isinstance(v, str):
             try:
                 return ExchangeName(v.lower())
             except ValueError as e:
-                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
-        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
+                raise InvalidExchangeNameError(
+                    value=v,
+                    valid_exchanges=[ex.value for ex in ExchangeName],
+                ) from e
+        raise TypeFieldError(
+            field_name="exchange",
+            expected_type="string or ExchangeName",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     # Symbol validation is handled by Pydantic's type system
     # No need for a custom validator since Symbol is always valid

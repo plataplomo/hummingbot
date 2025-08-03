@@ -21,7 +21,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
+from cyberdelta.exceptions.field_validation import (
+    DecimalFiniteError,
+    InvalidExchangeNameError,
+    RequiredFieldNoneError,
+    TypeFieldError,
+)
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
@@ -73,15 +78,31 @@ class Ticker(BaseModel):
     @field_validator("exchange", mode="before")
     @classmethod
     def validate_exchange(cls, v: object, info: ValidationInfo) -> ExchangeName:
-        """Validate the 'exchange' field."""
+        """Validate the 'exchange' field.
+        
+        Returns:
+            ExchangeName: Validated exchange name.
+            
+        Raises:
+            InvalidExchangeNameError: If exchange name is invalid.
+            TypeFieldError: If value is not a string or ExchangeName.
+        """
         if isinstance(v, ExchangeName):
             return v
         if isinstance(v, str):
             try:
                 return ExchangeName(v.lower())
             except ValueError as e:
-                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
-        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
+                raise InvalidExchangeNameError(
+                    value=v,
+                    valid_exchanges=[ex.value for ex in ExchangeName],
+                ) from e
+        raise TypeFieldError(
+            field_name="exchange",
+            expected_type="string or ExchangeName",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     @field_validator("timestamp", mode="before")
     @classmethod

@@ -62,7 +62,14 @@ class SymbolGroupConfig(BaseModel):
     def validate_unique_exchanges(
         cls, mappings: list[SymbolMappingConfig]
     ) -> list[SymbolMappingConfig]:
-        """Ensure each exchange appears only once."""
+        """Ensure each exchange appears only once.
+        
+        Returns:
+            Validated list of SymbolMappingConfig objects.
+            
+        Raises:
+            ValueError: If duplicate exchanges are found in mappings.
+        """
         exchanges = [m.exchange for m in mappings]
         if len(exchanges) != len(set(exchanges)):
             msg = "Duplicate exchange in mappings"

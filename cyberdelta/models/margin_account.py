@@ -18,7 +18,9 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
     FieldNameMissingError,
+    InvalidExchangeNameError,
     RequiredFieldNoneError,
+    TypeFieldError,
 )
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
@@ -82,7 +84,8 @@ class MarginAccountSummary(BaseModel):
             The validated ExchangeName value.
 
         Raises:
-            ValueError: If not a valid exchange name.
+            InvalidExchangeNameError: If not a valid exchange name.
+            TypeFieldError: If value is not a string or ExchangeName enum.
         """
         if isinstance(v, ExchangeName):
             return v
@@ -90,8 +93,16 @@ class MarginAccountSummary(BaseModel):
             try:
                 return ExchangeName(v.lower())
             except ValueError as e:
-                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
-        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
+                raise InvalidExchangeNameError(
+                    value=v,
+                    valid_exchanges=[ex.value for ex in ExchangeName],
+                ) from e
+        raise TypeFieldError(
+            field_name="exchange",
+            expected_type="string or ExchangeName",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     @field_validator("timestamp", mode="before")
     @classmethod

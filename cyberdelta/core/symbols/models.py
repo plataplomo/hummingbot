@@ -71,7 +71,14 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
 
     @property
     def base_asset(self) -> str:
-        """Get the base asset of the symbol."""
+        """Get the base asset of the symbol.
+        
+        Returns:
+            str: The base asset name.
+            
+        Raises:
+            ValueError: If components are not set.
+        """
         if not self._components:
             msg = "Components not set. Call service.parse_components() first."
             raise ValueError(msg)
@@ -79,7 +86,14 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
 
     @property
     def quote_asset(self) -> str | None:
-        """Get the quote asset of the symbol."""
+        """Get the quote asset of the symbol.
+        
+        Returns:
+            str | None: The quote asset name, or None if not applicable.
+            
+        Raises:
+            ValueError: If components are not set.
+        """
         if not self._components:
             msg = "Components not set. Call service.parse_components() first."
             raise ValueError(msg)
@@ -87,18 +101,33 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
 
     @property
     def market_type(self) -> MarketType:
-        """Get the market type of the symbol."""
+        """Get the market type of the symbol.
+        
+        Returns:
+            MarketType: The market type (SPOT, PERP, etc.).
+            
+        Raises:
+            ValueError: If components are not set.
+        """
         if not self._components:
             msg = "Components not set. Call service.parse_components() first."
             raise ValueError(msg)
         return self._components.market_type
 
     def __str__(self) -> str:
-        """String representation of the symbol."""
+        """String representation of the symbol.
+        
+        Returns:
+            str: String representation of the symbol.
+        """
         return self.value
 
     def __hash__(self) -> int:
-        """Hash based on value and exchange."""
+        """Hash based on value and exchange.
+        
+        Returns:
+            int: Hash value based on symbol value and exchange.
+        """
         return hash((self.value, self.exchange))
 
 

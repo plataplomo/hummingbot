@@ -16,27 +16,43 @@ class _GlobalSymbolService:
 
     @classmethod
     def get(cls) -> SymbolService:
-        """Get or create the global symbol service."""
+        """Get or create the global symbol service.
+        
+        Returns:
+            SymbolService: The global symbol service instance.
+        """
         if cls._instance is None:
             cls._instance = create_symbol_service()
         return cls._instance
 
 
 def get_symbol_service() -> SymbolService:
-    """Get or create the global symbol service."""
+    """Get or create the global symbol service.
+    
+    Returns:
+        SymbolService: The global symbol service instance.
+    """
     return _GlobalSymbolService.get()
 
 
 # Convenience factory functions
 @lru_cache(maxsize=1000)
 def bp_symbol(value: str, symbol_id: int | None = None) -> Symbol:
-    """Create a Backpack symbol (cached)."""
+    """Create a Backpack symbol (cached).
+    
+    Returns:
+        Symbol: Backpack symbol instance.
+    """
     return get_symbol_service().create_symbol(value, ExchangeName.BACKPACK, symbol_id=symbol_id)
 
 
 @lru_cache(maxsize=1000)
 def hl_symbol(value: str, asset_index: int | None = None) -> Symbol:
-    """Create a Hyperliquid symbol (cached)."""
+    """Create a Hyperliquid symbol (cached).
+    
+    Returns:
+        Symbol: Hyperliquid symbol instance.
+    """
     return get_symbol_service().create_symbol(
         value, ExchangeName.HYPERLIQUID, asset_index=asset_index
     )

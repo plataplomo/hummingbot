@@ -163,7 +163,9 @@ class Withdrawal(BaseModel):
     """
 
     id: str = Field(description="Unique identifier for the withdrawal.")
-    exchange: ExchangeName = Field(description="Name of the exchange from which the withdrawal was made.")
+    exchange: ExchangeName = Field(
+        description="Name of the exchange from which the withdrawal was made."
+    )
     status: InternalWithdrawalStatus = Field(description="Internal status of the withdrawal.")
     asset: str = Field(description="The asset symbol that was withdrawn (e.g., 'USDC', 'BTC').")
     quantity: Decimal = Field(description="The amount of the asset withdrawn.")

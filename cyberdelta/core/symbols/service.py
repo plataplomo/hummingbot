@@ -28,7 +28,14 @@ class SymbolService:
         asset_index: int | None = None,
         symbol_id: int | None = None,
     ) -> Symbol:
-        """Create symbol using appropriate handler."""
+        """Create symbol using appropriate handler.
+        
+        Returns:
+            Symbol: Created symbol instance.
+            
+        Raises:
+            ValueError: If no handler is registered for the exchange.
+        """
         handler = self.handlers.get(exchange)
         if not handler:
             msg = f"No handler registered for exchange {exchange}"
@@ -43,7 +50,14 @@ class SymbolService:
         return symbol
 
     def parse_components(self, symbol: Symbol) -> SymbolComponents:
-        """Parse symbol components using exchange handler."""
+        """Parse symbol components using exchange handler.
+        
+        Returns:
+            SymbolComponents: Parsed symbol components.
+            
+        Raises:
+            ValueError: If no handler is registered for the exchange.
+        """
         handler = self.handlers.get(symbol.exchange)
         if not handler:
             msg = f"No handler registered for exchange {symbol.exchange}"
@@ -55,7 +69,14 @@ class SymbolService:
         symbol: Symbol,
         target_exchange: ExchangeName,
     ) -> Symbol:
-        """Convert symbol to another exchange."""
+        """Convert symbol to another exchange.
+        
+        Returns:
+            Symbol: Converted symbol for the target exchange.
+            
+        Raises:
+            ValueError: If no handler is registered for either exchange.
+        """
         if symbol.exchange == target_exchange:
             return symbol
 
@@ -72,12 +93,23 @@ class SymbolService:
         return target_handler.create_symbol(target_value)
 
     def get_canonical(self, symbol: Symbol) -> str:
-        """Get canonical representation."""
+        """Get canonical representation.
+        
+        Returns:
+            str: Canonical representation of the symbol.
+        """
         canonical, _ = self._get_canonical_with_components(symbol)
         return canonical
 
     def _get_canonical_with_components(self, symbol: Symbol) -> tuple[str, SymbolComponents]:
-        """Get canonical representation with components (cached)."""
+        """Get canonical representation with components (cached).
+        
+        Returns:
+            tuple[str, SymbolComponents]: Canonical format and components.
+            
+        Raises:
+            ValueError: If no handler is registered for the exchange.
+        """
         cache_key = (symbol.value, symbol.exchange)
         if cache_key in self._canonical_cache:
             return self._canonical_cache[cache_key]
@@ -105,12 +137,20 @@ class SymbolService:
         self._equivalence_map[canonical].append(symbol)
 
     def get_equivalent_symbols(self, symbol: Symbol) -> list[Symbol]:
-        """Get all symbols equivalent to the given symbol."""
+        """Get all symbols equivalent to the given symbol.
+        
+        Returns:
+            list[Symbol]: List of equivalent symbols.
+        """
         canonical = self.get_canonical(symbol)
         return self._equivalence_map.get(canonical, [])
 
     def find_symbol(self, value: str, exchange: ExchangeName) -> Symbol | None:
-        """Find a registered symbol by value and exchange."""
+        """Find a registered symbol by value and exchange.
+        
+        Returns:
+            Symbol | None: Found symbol or None if not found.
+        """
         for symbols in self._equivalence_map.values():
             for symbol in symbols:
                 if symbol.value == value and symbol.exchange == exchange:
@@ -118,5 +158,9 @@ class SymbolService:
         return None
 
     def are_equivalent(self, symbol1: Symbol, symbol2: Symbol) -> bool:
-        """Check if two symbols represent the same instrument."""
+        """Check if two symbols represent the same instrument.
+        
+        Returns:
+            bool: True if symbols are equivalent, False otherwise.
+        """
         return self.get_canonical(symbol1) == self.get_canonical(symbol2)

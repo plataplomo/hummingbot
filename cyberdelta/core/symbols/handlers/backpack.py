@@ -20,7 +20,11 @@ class BackpackHandler:
         return ExchangeName.BACKPACK
 
     def parse_components(self, value: str) -> SymbolComponents:
-        """Parse Backpack symbol format."""
+        """Parse Backpack symbol format.
+        
+        Returns:
+            SymbolComponents: Parsed symbol components.
+        """
         # Handle PERP format
         if value.endswith(self.PERP_SUFFIX):
             base_part = value[: -len(self.PERP_SUFFIX)]
@@ -45,7 +49,11 @@ class BackpackHandler:
         return SymbolComponents(base_asset=value, market_type=MarketType.SPOT)
 
     def format_symbol(self, components: SymbolComponents) -> str:
-        """Format components into Backpack symbol."""
+        """Format components into Backpack symbol.
+        
+        Returns:
+            str: Formatted Backpack symbol.
+        """
         if components.market_type == MarketType.PERP:
             if components.quote_asset and components.quote_asset != self.DEFAULT_PERP_QUOTE:
                 base = components.base_asset
@@ -57,7 +65,11 @@ class BackpackHandler:
         return components.base_asset
 
     def to_canonical(self, value: str) -> tuple[str, SymbolComponents]:
-        """Convert to canonical format."""
+        """Convert to canonical format.
+        
+        Returns:
+            tuple[str, SymbolComponents]: Canonical format and parsed components.
+        """
         components = self.parse_components(value)
         if components.quote_asset:
             canonical = f"{components.base_asset}_{components.quote_asset}"
@@ -66,19 +78,31 @@ class BackpackHandler:
         return canonical, components
 
     def from_canonical(self, canonical: str, components: SymbolComponents) -> str:
-        """Convert from canonical to Backpack format."""
+        """Convert from canonical to Backpack format.
+        
+        Returns:
+            str: Backpack formatted symbol.
+        """
         return self.format_symbol(components)
 
     def create_metadata(
         self, asset_index: int | None = None, symbol_id: int | None = None
     ) -> BackpackMetadata:
-        """Create Backpack metadata."""
+        """Create Backpack metadata.
+        
+        Returns:
+            BackpackMetadata: Metadata instance for Backpack.
+        """
         return BackpackMetadata(symbol_id=symbol_id)
 
     def create_symbol(
         self, value: str, asset_index: int | None = None, symbol_id: int | None = None
     ) -> Symbol:
-        """Create Backpack symbol."""
+        """Create Backpack symbol.
+        
+        Returns:
+            Symbol: Created Backpack symbol.
+        """
         metadata = self.create_metadata(asset_index=asset_index, symbol_id=symbol_id)
         symbol = BaseSymbol[BackpackMetadata](
             value=value, exchange=self.exchange, metadata=metadata

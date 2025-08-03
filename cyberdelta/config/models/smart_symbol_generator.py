@@ -46,7 +46,11 @@ class SmartSymbolGenerator:
         )
 
     def generate_symbol_groups(self) -> list[SymbolGroupConfig]:
-        """Generate list of SymbolGroupConfig from smart configuration."""
+        """Generate list of SymbolGroupConfig from smart configuration.
+        
+        Returns:
+            List of SymbolGroupConfig objects generated from smart configuration.
+        """
         symbol_groups: list[SymbolGroupConfig] = []
 
         for symbol in self.smart_config.list:
@@ -70,6 +74,12 @@ class SmartSymbolGenerator:
         """Generate single SymbolGroupConfig from symbol string.
 
         Uses the new unified symbol architecture.
+        
+        Returns:
+            SymbolGroupConfig object for the given symbol.
+            
+        Raises:
+            ValueError: If symbol or market type configuration is invalid.
         """
         # Get market type from defaults
         market_type_str = self.defaults.get("market_type", "PERP")

@@ -38,7 +38,11 @@ class SymbolRegistry:
     def _create_factory(
         self, exchange: ExchangeName, handler: ExchangeHandler[Any]
     ) -> SymbolFactory:
-        """Create a factory function for an exchange."""
+        """Create a factory function for an exchange.
+        
+        Returns:
+            SymbolFactory: Factory function for creating symbols.
+        """
 
         def _factory(
             value: str, asset_index: int | None = None, symbol_id: int | None = None
@@ -60,7 +64,14 @@ class SymbolRegistry:
         return lru_cache(maxsize=1000)(_factory)
 
     def get_factory(self, exchange: ExchangeName) -> SymbolFactory:
-        """Get factory for an exchange."""
+        """Get factory for an exchange.
+        
+        Returns:
+            SymbolFactory: Factory for the specified exchange.
+            
+        Raises:
+            ValueError: If exchange is not registered.
+        """
         if exchange not in self._factories:
             msg = f"No factory registered for {exchange}"
             raise ValueError(msg)
@@ -73,7 +84,11 @@ class SymbolRegistry:
         asset_index: int | None = None,
         symbol_id: int | None = None,
     ) -> Symbol:
-        """Create symbol for any registered exchange."""
+        """Create symbol for any registered exchange.
+        
+        Returns:
+            Symbol: Created symbol instance.
+        """
         factory = self.get_factory(exchange)
         return factory(value, asset_index=asset_index, symbol_id=symbol_id)
 
@@ -81,6 +96,12 @@ class SymbolRegistry:
         """Dynamic attribute access for exchange factories.
 
         Allows: registry.hyperliquid("BTC-PERP")
+        
+        Returns:
+            SymbolFactory: Factory for the requested exchange.
+            
+        Raises:
+            AttributeError: If exchange is not found.
         """
         # Convert attribute name to exchange enum
         try:
@@ -98,7 +119,11 @@ class SymbolRegistry:
             self._initialized = True
 
     def get_handlers(self) -> dict[ExchangeName, ExchangeHandler[Any]]:
-        """Get the registered handlers."""
+        """Get the registered handlers.
+        
+        Returns:
+            dict[ExchangeName, ExchangeHandler[Any]]: Registered exchange handlers.
+        """
         return self._handlers
 
 
@@ -107,5 +132,9 @@ _registry = SymbolRegistry()
 
 
 def get_registry() -> SymbolRegistry:
-    """Get the global symbol registry."""
+    """Get the global symbol registry.
+    
+    Returns:
+        SymbolRegistry: The global symbol registry instance.
+    """
     return _registry

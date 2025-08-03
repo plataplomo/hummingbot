@@ -45,6 +45,7 @@ from cyberdelta.exceptions import (
     OrderLogicError,
     RequiredFieldNoneError,
 )
+from cyberdelta.exceptions.field_validation import InvalidExchangeNameError, TypeFieldError
 from cyberdelta.models.market.trade import Trade
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
@@ -198,7 +199,8 @@ class Order(BaseModel):
             Validated ExchangeName value
 
         Raises:
-            ValueError: If not a valid exchange name
+            InvalidExchangeNameError: If not a valid exchange name
+            TypeFieldError: If value is not a string or ExchangeName enum
         """
         if isinstance(v, ExchangeName):
             return v
@@ -206,8 +208,16 @@ class Order(BaseModel):
             try:
                 return ExchangeName(v.lower())
             except ValueError as e:
-                raise ValueError(f"Invalid exchange name: {v}. Must be one of: {', '.join(e.value for e in ExchangeName)}") from e
-        raise ValueError(f"Exchange must be a string or ExchangeName, got {type(v).__name__}")
+                raise InvalidExchangeNameError(
+                    value=v,
+                    valid_exchanges=[ex.value for ex in ExchangeName],
+                ) from e
+        raise TypeFieldError(
+            field_name="exchange",
+            expected_type="string or ExchangeName",
+            actual_type=type(v).__name__,
+            actual_value=v,
+        )
 
     # Symbol validation is handled by Pydantic's type system
     # No need for a custom validator since Symbol is always valid

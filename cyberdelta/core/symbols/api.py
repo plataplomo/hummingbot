@@ -19,6 +19,9 @@ def symbol(
     Examples:
         >>> symbol("BTC-PERP", ExchangeName.HYPERLIQUID)
         >>> symbol("BTC_USD_PERP", ExchangeName.BACKPACK, symbol_id=12345)
+        
+    Returns:
+        Symbol: Created symbol instance.
     """
     return get_registry().create_symbol(
         value, exchange, asset_index=asset_index, symbol_id=symbol_id
@@ -35,7 +38,11 @@ class Exchanges:
     """
 
     def __getattr__(self, name: str) -> SymbolFactory:
-        """Get factory for the given exchange name."""
+        """Get factory for the given exchange name.
+        
+        Returns:
+            SymbolFactory: Factory for creating symbols on the specified exchange.
+        """
         registry = get_registry()
         return registry.__getattr__(name)
 
@@ -47,6 +54,10 @@ exchanges = Exchanges()
 # Get symbol service for advanced operations
 @lru_cache(maxsize=1)
 def get_symbol_service() -> SymbolService:
-    """Get symbol service for advanced operations like equivalence."""
+    """Get symbol service for advanced operations like equivalence.
+    
+    Returns:
+        SymbolService: Service instance for symbol operations.
+    """
     registry = get_registry()
     return create_symbol_service(handlers=registry.get_handlers())
