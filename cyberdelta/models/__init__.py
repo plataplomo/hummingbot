@@ -56,6 +56,7 @@ from .spot_balance import BackpackSpotBalanceDetails, HyperliquidSpotBalanceDeta
 from .trade_signal import (
     TradeSignal,
 )
+from .trading.execution_request import ExecutionRequest
 
 
 __all__ = [
@@ -70,6 +71,7 @@ __all__ = [
     "BackpackWithdrawalDetails",
     "CancelOrderResult",
     "DerivativePosition",
+    "ExecutionRequest",
     "FundingRate",
     "HyperliquidAccountSettingsDetails",  # Account Settings Detail
     "HyperliquidMarginDetails",  # Margin Account Detail

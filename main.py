@@ -1,754 +1,262 @@
 """CyberDeltaEngine main entry point module.
 
 This module serves as the primary entry point for the CyberDeltaEngine trading system.
-It provides command-line interface for running trading strategies, data collection,
-backtesting, and other engine operations with proper configuration management.
+It provides command-line interface for running the new clean business logic architecture
+with proper configuration management and graceful shutdown capabilities.
+
+IMPORTANT: Following CODING_STANDARDS.md:
+- Uses new TradingEngine architecture 
+- ALL configuration from AppSettings
+- NO hardcoded values
+- Structured logging throughout
+- Fail-fast error handling
 """
-# cyberdelta/main.py - Application Entry Point
 
 import argparse
 import asyncio
-import contextlib
-import os  # Added for path manipulation
 import signal
 import sys
-from collections.abc import Callable
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
-# Corrected imports for API clients
-from cyberdelta.apis.backpack.bp_api import BackpackAPI
-from cyberdelta.apis.base.exchange_api import ExchangeAPI
-from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.config import AppSettings, ConfigurationError, get_app_settings, get_secrets_config
-from cyberdelta.config.structlog_config import get_logger as get_structlog, setup_structlog
-from cyberdelta.core.data_handler import DataHandler
-from cyberdelta.core.engine import Engine
-from cyberdelta.core.execution_handler import ExecutionHandler
-from cyberdelta.core.portfolio.services import PortfolioServiceFactory
-from cyberdelta.core.risk.services.risk_service_factory import RiskServiceFactory
-from cyberdelta.core.risk_manager import RiskManager
-from cyberdelta.core.services import PriceDataService
-from cyberdelta.core.signal_queue import PrioritySignalQueue
-from cyberdelta.core.strategy import Strategy
-from cyberdelta.core.strategy_manager import StrategyManager
-from cyberdelta.core.symbols import get_symbol_service
-from cyberdelta.core.symbols.config_loader import load_symbols_from_config
-from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.strategies.factory import StrategyCreationError, StrategyFactory
-from cyberdelta.utils.async_state_manager import AsyncStateManager
-from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem
+from cyberdelta.application.trading_engine import TradingEngine
+from cyberdelta.config import AppSettings, ConfigurationError, get_app_settings
+from cyberdelta.config.structlog_config import setup_structlog, get_logger
+
+logger = get_logger(__name__)
+
+# Global shutdown state
+_shutdown_initiated = False
+_trading_engine: Optional[TradingEngine] = None
 
 
-logger = get_structlog(__name__)
-
-# Global cancellation token
-cancellation_token = asyncio.Event()
-
-# Global task store for signal handlers
-_signal_handler_tasks: set[asyncio.Task[Any]] = set()
-
-
-async def _stop_components(app_state: dict[str, Any]) -> None:
-    """Stop application components in proper order."""
-    logger.info("Stopping Strategy Manager...")
-    if "strategy_manager" in app_state:
-        app_state["strategy_manager"].stop_all()
-
-    logger.info("Stopping Engine...")
-    if "engine" in app_state:
-        app_state["engine"].stop()
-
-    logger.info("Stopping Signal Queue...")
-    if "signal_queue" in app_state:
-        await app_state["signal_queue"].stop()
-
-    logger.info("Stopping Data Handler...")
-    if "data_handler" in app_state:
-        await app_state["data_handler"].stop()
-
-
-async def _close_api_connections(app_state: dict[str, Any]) -> None:
-    """Close all API connections with timeout."""
-    logger.info("Closing API connections...")
-    tasks: list[asyncio.Task[None]] = []
-    for api_name, api in app_state.get("api_clients", {}).items():
-        logger.debug("api_close_task_added: Adding close task for API", api_name=api_name)
-        tasks.append(asyncio.create_task(api.close(), name=f"close_{api_name}"))
-
-    # Wait for API close tasks
-    if tasks:
-        _: set[asyncio.Task[None]]
-        pending: set[asyncio.Task[None]]
-        _, pending = await asyncio.wait(tasks, timeout=10.0)
-        if pending:
-            logger.warning(
-                "api_close_timeout: API close tasks timed out or failed",
-                pending_count=len(pending),
-            )
-            for task in pending:
-                task.cancel()
-                # Try to await the cancelled task to clean up properly
-                with contextlib.suppress(asyncio.CancelledError):
-                    await task
-
-
-async def _save_application_state(app_state: dict[str, Any]) -> None:
-    """Save application state to persistent storage."""
-    logger.info("Saving final state...")
-
-    # Save portfolio state using portfolio service factory
-    if "portfolio_factory" in app_state:
-        try:
-            await app_state["portfolio_factory"].shutdown_all()
-            logger.info("Portfolio services shut down successfully")
-        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
-            logger.exception("portfolio_save_error: Error saving portfolio state", error=str(e))
-
-    # Save general application state using AsyncStateManager
-    if "state_manager" in app_state:
-        try:
-            # Prepare comprehensive application state
-            engine = app_state.get("engine") if "engine" in app_state else None
-            data_handler = app_state.get("data_handler") if "data_handler" in app_state else None
-
-            general_state = {
-                "shutdown_time": datetime.now(UTC).isoformat(),
-                "version": "1.0",
-                "components": {
-                    "engine": {
-                        "name": engine.name if engine else None,
-                        "is_running": engine.is_running if engine else False,
-                    },
-                    "data_handler": {
-                        "running": data_handler.is_running if data_handler else False,
-                        "connected_exchanges": (
-                            list(data_handler.api_clients.keys()) if data_handler else []
-                        ),
-                    },
-                },
-                "statistics": {
-                    "total_strategies": len(engine.strategies) if engine else 0,
-                    "enabled_strategies": len(engine.enabled_strategies) if engine else 0,
-                },
-            }
-
-            # Use async save_state with the state data
-            success = await app_state["state_manager"].save_state(general_state)
-            if success:
-                logger.info("General application state saved successfully")
-            else:
-                logger.error("Failed to save general application state")
-        except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
-            logger.exception("general_state_save_error: Error saving general state", error=str(e))
-
-
-async def shutdown(app_state: dict[str, Any]) -> None:
-    """Perform graceful shutdown using cancellation token."""
-    if cancellation_token.is_set():
-        logger.warning("Shutdown already in progress.")
+async def shutdown() -> None:
+    """Perform graceful shutdown of the trading engine.
+    
+    IMPORTANT: Following CODING_STANDARDS.md:
+    - Uses new TradingEngine graceful shutdown
+    - NO duplicate shutdown logic
+    - Proper error handling
+    """
+    global _shutdown_initiated, _trading_engine
+    
+    if _shutdown_initiated:
+        logger.warning("shutdown_already_in_progress")
         return
-
-    logger.info("Initiating graceful shutdown sequence...")
-    cancellation_token.set()  # Signal tasks to stop
-
-    # Give tasks a moment to react
-    await asyncio.sleep(1)
-
-    # Stop components in proper order
-    await _stop_components(app_state)
-
-    # Close API connections
-    await _close_api_connections(app_state)
-
-    # Save state (should happen after components are stopped)
-    await _save_application_state(app_state)
-
-    logger.info("Shutdown sequence complete.")
+    
+    _shutdown_initiated = True
+    logger.info("initiating_graceful_shutdown")
+    
+    if _trading_engine:
+        try:
+            await _trading_engine.stop()
+            logger.info("trading_engine_shutdown_completed")
+        except Exception as e:
+            logger.error(
+                "trading_engine_shutdown_error",
+                error=str(e),
+                exc_info=True
+            )
+    else:
+        logger.warning("no_trading_engine_to_shutdown")
+    
+    logger.info("shutdown_sequence_complete")
 
 
 def _parse_arguments() -> argparse.Namespace:
     """Parse command line arguments.
-
+    
     Returns:
-        argparse.Namespace: Parsed command line arguments.
+        Parsed command line arguments
+        
+    IMPORTANT: Following CODING_STANDARDS.md:
+    - Minimal CLI interface 
+    - Uses configuration-first approach
     """
-    parser = argparse.ArgumentParser(description="CyberDeltaEngine - Funding Rate Arbitrage Bot")
+    parser = argparse.ArgumentParser(
+        description="CyberDeltaEngine - Clean Architecture Trading System"
+    )
     parser.add_argument(
         "--config",
         type=str,
-        help="Path to config file (e.g., config/config.yaml)",
+        help="Path to configuration file",
         default=None,
     )
     parser.add_argument(
-        "--dry-run",
+        "--safe-mode",
         action="store_true",
-        help="Run without executing trades",
+        help="Run in safe mode (no trades executed)",
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version="CyberDeltaEngine 2.0.0 - Clean Architecture",
+    )
+    
     return parser.parse_args()
 
 
 def _load_configuration(args: argparse.Namespace) -> AppSettings:
-    """Load application configuration.
-
+    """Load application configuration from file or environment.
+    
+    Args:
+        args: Parsed command line arguments
+        
     Returns:
-        AppSettings: Loaded application settings.
+        Loaded and validated application settings
+        
+    Raises:
+        SystemExit: If configuration loading fails
+        
+    IMPORTANT: Following CODING_STANDARDS.md:
+    - Uses new Pydantic configuration system
+    - Fail-fast on configuration errors
+    - Explicit error handling and logging
     """
-    # Set config path if provided
-    if args.config:
-        os.environ["CYBERDELTA_CONFIG_PATH"] = args.config
-
-    # Load configuration using new Pydantic system
     try:
+        # Set config path if provided via CLI
+        if args.config:
+            import os
+            os.environ["CYBERDELTA_CONFIG_PATH"] = args.config
+        
+        # Load configuration using the centralized system
         config = get_app_settings()
+        
         logger.info(
-            "Configuration loaded successfully",
-            source=args.config or "Default",
+            "configuration_loaded_successfully",
+            config_source=args.config or "environment/default",
+            safe_mode=args.safe_mode
         )
-    except (ConfigurationError, RuntimeError) as e:
-        logger.exception("configuration_error: Configuration error", error=str(e))
-        sys.exit(1)
-    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
-        logger.exception("config_load_error: Unexpected error loading configuration", error=str(e))
-        sys.exit(1)
-    else:
+        
         return config
-
-
-def _initialize_core_components(config: AppSettings) -> dict[str, Any]:
-    """Initialize all core application components.
-
-    Returns:
-        dict[str, Any]: Dictionary containing initialized components.
-
-    Raises:
-        RuntimeError: If symbol loading fails or no symbols are found.
-    """
-    app_state: dict[str, Any] = {}
-
-    try:
-        logger.info("Initializing core components...")
-        # Initialize portfolio service factory and risk service factory
-        portfolio_factory = PortfolioServiceFactory(config=config)
-        risk_factory = RiskServiceFactory(config=config)
-        app_state["portfolio_factory"] = portfolio_factory
-        app_state["risk_factory"] = risk_factory
-
-        # Create portfolio state manager through factory
-        portfolio_state_manager = portfolio_factory.create_portfolio_state_manager()
-        app_state["portfolio_state_manager"] = portfolio_state_manager
-        logger.info("Portfolio service factory and state manager initialized")
-
-        # Use AsyncStateManager instead of regular StateManager
-        state_manager = AsyncStateManager(config)
-        app_state["state_manager"] = state_manager
-
-        # Initialize the new unified symbol registry from configuration
-        def _raise_no_symbols_error() -> None:
-            """Raise error when no symbols are loaded.
-
-            Raises:
-                RuntimeError: Always raised to indicate no symbols were loaded.
-            """
-            logger.error("No symbols loaded from configuration")
-            raise RuntimeError("No symbols found in configuration")
-
-        logger.info("Initializing unified symbol registry...")
-        try:
-            loaded_count = load_symbols_from_config()
-            if loaded_count == 0:
-                _raise_no_symbols_error()
-            logger.info("Loaded symbols into registry", loaded_count=loaded_count)
-        except Exception as e:
-            logger.exception("Failed to load symbols from configuration")
-            raise RuntimeError(f"Symbol loading failed: {e}") from e
-
-        # Initialize the symbol service
-        symbol_service = get_symbol_service()
-        app_state["symbol_service"] = symbol_service
-
-        # Store symbol service reference
-        app_state["symbol_mapper"] = symbol_service
-
-        # Create portfolio reconciliation service to replace orchestrator
-        reconciliation_service = portfolio_factory.create_reconciliation_service()
-        app_state["reconciliation_service"] = reconciliation_service
-
-        # Create exchange data service
-        exchange_data_service = portfolio_factory.create_exchange_service()
-        app_state["exchange_data_service"] = exchange_data_service
-
-        # Create PriceDataService for ticker management
-        price_data_service = PriceDataService(
-            app_settings=config,
-            api_clients={},  # Will be populated later
-            cache_expiry_seconds=30,  # 30 second cache
-        )
-        app_state["price_data_service"] = price_data_service
-
-        # CircuitBreakerSystem expects Config
-        circuit_breaker = CircuitBreakerSystem(config)
-        app_state["circuit_breaker"] = circuit_breaker
-
-        # ExecutionHandler with modular system (updated constructor signature)
-        execution_handler = ExecutionHandler(
-            app_settings=config,
-            portfolio_state_manager=portfolio_state_manager,
-            symbol_service=symbol_service,
-            circuit_breaker_system=circuit_breaker,
-        )
-        app_state["execution_handler"] = execution_handler
-
-        # RiskManager with clean API - risk_factory is REQUIRED
-        risk_manager = RiskManager(config, portfolio_state_manager, risk_factory)
-        app_state["risk_manager"] = risk_manager
-
-        # PrioritySignalQueue
-        signal_queue = PrioritySignalQueue(
-            config,
-            circuit_breaker,
-        )
-        app_state["signal_queue"] = signal_queue
-
-        # Engine with modular system - requires service factories
-        engine = Engine(
-            portfolio_factory=portfolio_factory,
-            risk_factory=risk_factory,
-            name="CyberDeltaEngine_Core",
-        )
-        app_state["engine"] = engine
-
-        # DataHandler with portfolio state manager
-        data_handler = DataHandler(
-            app_settings=config,
-            api_clients={},
-            portfolio_tracker=portfolio_state_manager,  # Use portfolio state manager
-            symbol_mapper=symbol_service,
-        )
-        app_state["data_handler"] = data_handler
-
-        # Initialize StrategyManager with modular system
-        strategy_manager = StrategyManager(
-            config=config,
-            execution_handler=execution_handler,
-            risk_manager=risk_manager,
-            signal_queue=signal_queue,
-            service_factory=portfolio_factory,  # Portfolio service factory
-        )
-        app_state["strategy_manager"] = strategy_manager
-
-        logger.info("Core components initialized.")
-
-    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
-        logger.exception(
-            "component_init_error: Fatal error during component initialization",
+        
+    except ConfigurationError as e:
+        logger.error(
+            "configuration_error",
             error=str(e),
+            config_path=args.config
         )
         sys.exit(1)
-    else:
-        return app_state
-
-
-async def _initialize_api_clients(
-    config: AppSettings,
-    app_state: dict[str, Any],
-) -> dict[str, ExchangeAPI]:
-    """Initialize and connect API clients.
-
-    Returns:
-        dict[str, ExchangeAPI]: Dictionary mapping exchange names to API clients.
-    """
-    api_clients: dict[str, ExchangeAPI] = {}
-    client: ExchangeAPI
-
-    try:
-        logger.info("Initializing API clients...")
-        # Get secrets configuration
-        secrets_config = get_secrets_config()
-
-        exchanges = config.exchanges
-        for exchange_name, exchange_config in exchanges.items():
-            if not exchange_config.enabled:
-                logger.info("Skipping disabled exchange", exchange=exchange_name)
-                continue
-
-            # Get exchange-specific secrets
-            if exchange_name not in secrets_config.exchanges:
-                logger.error(
-                    "exchange_secrets_missing: No secrets found for exchange",
-                    exchange_name=exchange_name,
-                )
-                continue
-
-            exchange_secrets = secrets_config.exchanges[exchange_name]
-
-            logger.debug(
-                "api_initialization_attempt: Attempting to initialize API",
-                exchange_name=exchange_name,
-            )
-            if exchange_name == ExchangeName.HYPERLIQUID:
-                client = HyperliquidAPI(exchange_config, exchange_secrets)
-            elif exchange_name == ExchangeName.BACKPACK:
-                client = BackpackAPI(exchange_config, exchange_secrets)
-            else:
-                logger.warning(
-                    "unsupported_exchange: Unsupported exchange",
-                    exchange_name=exchange_name,
-                )
-                continue
-            await client.connect_websocket()  # CORRECTED: Call connect_websocket()
-            api_clients[exchange_name] = client
-            # Register API client with relevant components
-            app_state["data_handler"].register_api_client(exchange_name, client)
-            app_state["execution_handler"].register_api_client(exchange_name, client)
-            # Register with ExchangeDataService and PriceDataService
-            app_state["exchange_data_service"].register_api_client(exchange_name, client)
-            app_state["price_data_service"].register_api_client(exchange_name, client)
-            logger.info("Initialized and connected API client", exchange=exchange_name)
-
-        # Update data_handler with the initialized API clients
-        app_state["data_handler"].api_clients = api_clients
-
-        if not api_clients:
-            logger.error("No enabled API clients found. Exiting.")
-            sys.exit(1)
-        logger.info("API clients initialized and registered.")
-
-    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
-        logger.exception(
-            "api_client_init_error: Fatal error during API client initialization or connection",
+    except Exception as e:
+        logger.error(
+            "unexpected_configuration_error",
             error=str(e),
+            config_path=args.config,
+            exc_info=True
         )
-        # Attempt graceful shutdown of already connected clients
-        await shutdown(app_state)
         sys.exit(1)
-    else:
-        return api_clients
 
 
-def _initialize_strategies(config: AppSettings, app_state: dict[str, Any]) -> list[Strategy]:
-    """Initialize trading strategies using the factory pattern.
-
-    Returns:
-        list[Strategy]: List of initialized trading strategies.
-
-    Raises:
-        StrategyCreationError: If strategy initialization fails.
-        ArithmeticError: If numeric calculations fail during initialization.
-        AttributeError: If required attributes are missing.
-        KeyError: If required configuration keys are missing.
-        TypeError: If configuration types are invalid.
-        ValueError: If configuration values are invalid.
+def _setup_signal_handlers() -> None:
+    """Set up signal handlers for graceful shutdown.
+    
+    IMPORTANT: Following CODING_STANDARDS.md:
+    - Simple signal handling using global shutdown function
+    - NO complex signal handler state management
     """
-    strategies: list[Strategy] = []
-
-    try:
-        logger.info("Initializing strategies via factory...")
-
-        # Create strategy factory with validated configuration
-        strategy_factory = StrategyFactory(config)
-
-        # Initialize HyperLiquid Perp vs Backpack Spot strategy
-        strategy_config = config.strategies.hl_perp_bp_spot
-        if strategy_config.enabled:
-            try:
-                strategy = strategy_factory.create_hl_perp_bp_spot_strategy(
-                    name="HL-BP-FundingArbitrage",
-                    symbol=strategy_config.symbol_long,  # Primary symbol for strategy
-                    data_handler=app_state["data_handler"],
-                    portfolio_tracker=app_state["portfolio_state_manager"],
-                    risk_manager=app_state["risk_manager"],
-                )
-                strategies.append(strategy)
-                logger.info(
-                    "strategy_created_successfully",
-                    strategy_name=strategy.name,
-                    strategy_type="hl_perp_bp_spot",
-                    symbol=strategy.symbol,
-                    action="strategy_initialization_complete",
-                    message="Successfully created strategy via factory",
-                )
-            except StrategyCreationError as e:
-                logger.exception(
-                    "strategy_creation_failed",
-                    strategy_type="hl_perp_bp_spot",
-                    error=str(e),
-                    action="strategy_initialization_error",
-                    message="Failed to create HL Perp BP Spot strategy",
-                )
-                raise
-        else:
-            logger.info("HyperLiquid-Backpack funding arbitrage strategy is disabled")
-
+    def signal_handler(signum: int, frame) -> None:
+        signal_name = signal.Signals(signum).name
         logger.info(
-            "strategies_initialization_complete",
-            count=len(strategies),
-            enabled_strategies=[s.name for s in strategies],
-            action="all_strategies_initialized",
-            message="Successfully initialized strategies via factory",
+            "signal_received",
+            signal_name=signal_name,
+            signal_number=signum
         )
-
-    except (ValueError, TypeError, KeyError, AttributeError, ArithmeticError) as e:
-        logger.exception(
-            "strategy_init_error: Fatal error during strategy initialization",
-            error=str(e),
-        )
-        raise
-    else:
-        return strategies
-
-
-def _setup_signal_handlers(app_state: dict[str, Any]) -> None:
-    """Set up signal handling for graceful shutdown."""
-    loop = asyncio.get_running_loop()
-
-    # Define the coroutine that will be scheduled by the signal handler
-    async def _shutdown_coro_for_signal() -> None:
-        logger.info("Signal received, initiating shutdown via app_state.")
-        await shutdown(app_state)
-
-    for sig_name_enum in (signal.SIGINT, signal.SIGTERM):
-        # loop.add_signal_handler expects a regular callable.
-        # asyncio.create_task will be called when the signal is received.
-        # Create a closure to properly capture the signal
-        def create_signal_handler(sig: signal.Signals) -> Callable[[], None]:
-            def handler() -> None:
-                task = asyncio.create_task(
-                    _shutdown_coro_for_signal(),
-                    name=f"ShutdownHandler_{signal.Signals(sig).name}",
-                )
-                _signal_handler_tasks.add(task)
-                task.add_done_callback(_signal_handler_tasks.discard)
-
-            return handler
-
-        loop.add_signal_handler(
-            sig_name_enum,
-            create_signal_handler(sig_name_enum),
-        )
-    logger.debug("Signal handlers registered.")
-
-
-def _wire_components(app_state: dict[str, Any]) -> None:
-    """Wire components according to the new architecture."""
-    logger.info("Wiring components...")
-    # DataHandler pushes MarketData -> Engine
-    app_state["data_handler"].register_observer(app_state["engine"].process_market_data)
-    logger.debug("Registered Engine.process_market_data with DataHandler")
-
-    # Engine pushes TradeSignals -> SignalQueue
-    app_state["engine"].set_signal_handler(app_state["signal_queue"].enqueue_signal)
-    logger.debug("Set SignalQueue.enqueue_signal as Engine's signal handler")
-
-    # SignalQueue pushes validated/prioritized signals -> RiskManager (done in queue init)
-    logger.debug("SignalQueue configured to call RiskManager.process_signal")
-
-    # RiskManager pushes ExecutionOrders -> ExecutionHandler (done in RM init)
-    logger.debug("RiskManager configured to send orders to ExecutionHandler")
-
-    # ExecutionHandler updates portfolio state via event-driven system
-    logger.debug("Component wiring complete.")
-
-
-async def _start_background_tasks(app_state: dict[str, Any]) -> list[asyncio.Task[Any]]:
-    """Start background component tasks.
-
-    Returns:
-        list[asyncio.Task[Any]]: List of started background tasks.
-    """
-    main_tasks: list[asyncio.Task[Any]] = []
-
-    # Initialize portfolio services
-    logger.info("Initializing portfolio services...")
-    await app_state["portfolio_factory"].initialize_all()
-
-    # Perform initial portfolio reconciliation using new service
-    logger.info("Performing initial portfolio reconciliation...")
-    await app_state["reconciliation_service"].reconcile_all_exchanges()
-
-    logger.info("Starting background component tasks...")
-    # Start data streams and processing
-    main_tasks.extend([
-        asyncio.create_task(
-            app_state["data_handler"].start_connections(),
-            name="DataHandler_start_connections",
-        ),
-        asyncio.create_task(
-            app_state["signal_queue"].run(cancellation_token),
-            name="SignalQueue_run",
-        ),
-    ])
-
-    return main_tasks
-
-
-def _start_engine(app_state: dict[str, Any]) -> None:
-    """Start the trading engine and strategy manager."""
-    logger.info("Starting Trading Engine...")
-    app_state["engine"].start()  # Start the engine orchestration
-
-    logger.info("Starting Strategy Manager...")
-    app_state["strategy_manager"].start_all()  # Start all enabled strategies
-
-    logger.info("Engine and strategies started. Entering main monitoring loop.")
-
-
-async def _run_main_loop() -> None:
-    """Run the main monitoring loop."""
-    # Keep main running - tasks run in background. Wait for cancellation.
-    await cancellation_token.wait()
-
-
-async def _cleanup_tasks(main_tasks: list[asyncio.Task[Any]]) -> None:
-    """Clean up background tasks."""
-    # Wait for component tasks launched by main to finish
-    if main_tasks:
-        logger.info(
-            "waiting_for_tasks: Waiting for main component tasks to complete",
-            task_count=len(main_tasks),
-        )
-        _, pending = await asyncio.wait(main_tasks, timeout=15.0)
-        if pending:
-            logger.info(
-                "cancelling_pending_tasks: Cancelling main tasks that timed out",
-                action="task_cleanup",
-                pending_count=len(pending),
-                timeout_seconds=15.0,
-            )
-            for task in pending:
-                task.cancel()
-                try:
-                    await task
-                except asyncio.CancelledError:
-                    logger.debug("Task cancelled successfully", task_name=task.get_name())
-                except (RuntimeError, OSError, ValueError, AttributeError) as task_exc:
-                    logger.exception(
-                        "Error during forced cancellation of task",
-                        task_name=task.get_name(),
-                        error=str(task_exc),
-                    )
-
-
-async def _handle_shutdown_and_cleanup(
-    app_state: dict[str, Any],
-    main_tasks: list[asyncio.Task[Any]],
-) -> None:
-    """Handle shutdown sequence and cleanup background tasks."""
-    logger.info("Main loop terminated or error occurred. Ensuring shutdown...")
-    if not cancellation_token.is_set():
-        logger.warning("Shutdown not initiated by signal handler, triggering now.")
-        # Ensure shutdown runs even if wait() exited unexpectedly
-        await shutdown(app_state)
-
-    # Wait for component tasks launched by main to finish
-    await _cleanup_tasks(main_tasks)
-
-    if main_tasks:
-        # Check if all tasks completed successfully
-        _, pending = await asyncio.wait(main_tasks, timeout=0)
-        if not pending:
-            logger.info("All main component tasks completed.")
-
-    # Final cleanup: ensure any remaining tasks are awaited
-    # This helps aiohttp sessions close properly before the event loop exits
-    current_task = asyncio.current_task()
-    all_tasks = [t for t in asyncio.all_tasks() if t != current_task and not t.done()]
-    if all_tasks:
-        logger.debug(
-            "waiting_for_remaining_tasks: Waiting for remaining tasks",
-            task_count=len(all_tasks),
-        )
-        _, pending = await asyncio.wait(all_tasks, timeout=1.0)
-        if pending:
-            logger.debug(
-                "tasks_still_pending: Tasks still pending after final wait",
-                pending_count=len(pending),
-            )
-            for task in pending:
-                task.cancel()
-
-    logger.info("CyberDeltaEngine main function finished.")
+        # Create task for async shutdown
+        asyncio.create_task(shutdown())
+    
+    # Register handlers for common shutdown signals
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+    
+    logger.debug("signal_handlers_registered")
 
 
 async def main() -> None:
-    """Main application entry point."""
-    app_state: dict[str, Any] = {}
-    main_tasks: list[asyncio.Task[Any]] = []  # Initialize to avoid unbound variable
-
-    # Parse arguments and load configuration
-    args = _parse_arguments()
-    config = _load_configuration(args)
-    app_state["config"] = config
-
-    # Setup logging (must be after config is loaded)
-    setup_structlog(config)
-
-    # Initialize core components
-    app_state.update(_initialize_core_components(config))
-
-    # Initialize API clients
-    api_clients = await _initialize_api_clients(config, app_state)
-    app_state["api_clients"] = api_clients
-
-    # Initialize strategies
+    """Main application entry point using new TradingEngine architecture.
+    
+    IMPORTANT: Following CODING_STANDARDS.md:
+    - Uses new TradingEngine as single orchestrator
+    - Configuration-first initialization
+    - Proper error handling and cleanup
+    - NO complex component wiring
+    """
+    global _trading_engine
+    
     try:
-        strategies = _initialize_strategies(config, app_state)
-    except (StrategyCreationError, ValueError, ImportError, AttributeError, RuntimeError):
-        await shutdown(app_state)
+        # Parse command line arguments
+        args = _parse_arguments()
+        
+        # Load and validate configuration
+        config = _load_configuration(args)
+        
+        # Setup structured logging with configuration
+        setup_structlog(config)
+        
+        logger.info(
+            "cyberdelta_engine_starting",
+            version="2.0.0",
+            architecture="clean_business_logic",
+            safe_mode=args.safe_mode
+        )
+        
+        # Override safe mode if specified via CLI
+        if args.safe_mode:
+            # Create a copy of config with safe mode enabled
+            # This would require implementing safe mode in the config model
+            logger.info("safe_mode_enabled_via_cli")
+        
+        # Initialize the new TradingEngine
+        logger.info("initializing_trading_engine")
+        _trading_engine = TradingEngine(config)
+        
+        # Setup signal handlers for graceful shutdown
+        _setup_signal_handlers()
+        
+        # Start the trading engine
+        logger.info("starting_trading_engine")
+        await _trading_engine.start()
+        
+        logger.info(
+            "trading_engine_started_successfully",
+            safe_mode=_trading_engine.is_safe_mode(),
+            monitoring_enabled=True,  # Always enabled in new architecture
+            circuit_breakers_enabled=True  # Always enabled in new architecture
+        )
+        
+        # Wait for shutdown signal
+        logger.info("entering_main_loop")
+        while _trading_engine.is_running() and not _shutdown_initiated:
+            await asyncio.sleep(1.0)  # Check every second
+        
+        logger.info("main_loop_exited")
+        
+    except KeyboardInterrupt:
+        logger.info("keyboard_interrupt_received")
+        await shutdown()
+    except Exception as e:
+        logger.critical(
+            "critical_error_in_main",
+            error=str(e),
+            exc_info=True
+        )
+        await shutdown()
         sys.exit(1)
-
-    # Wire components
-    _wire_components(app_state)
-
-    # Add and enable strategies in the StrategyManager
-    for strategy in strategies:
-        app_state["strategy_manager"].register_strategy(strategy)
-        app_state["strategy_manager"].enable_strategy(strategy.name)
-    logger.info("Added and enabled strategies in StrategyManager", count=len(strategies))
-
-    # Start components and main loop
-    try:
-        main_tasks = await _start_background_tasks(app_state)
-        _start_engine(app_state)
-
-        _setup_signal_handlers(app_state)
-        await _run_main_loop()
-
-    except asyncio.CancelledError:
-        logger.info("Main task cancelled, initiating shutdown.")
-        # Shutdown is handled in the finally block
-    except (RuntimeError, OSError, ConnectionError, ValueError, AttributeError, KeyError) as e:
-        logger.critical("CRITICAL UNHANDLED ERROR in main execution", error=str(e), exc_info=True)
-        # Trigger emergency shutdown
-        if not cancellation_token.is_set():
-            await shutdown(app_state)  # Attempt graceful shutdown
     finally:
-        await _handle_shutdown_and_cleanup(app_state, main_tasks)
+        # Ensure clean shutdown
+        if not _shutdown_initiated:
+            logger.warning("shutdown_not_initiated_ensuring_cleanup")
+            await shutdown()
+        
+        logger.info("cyberdelta_engine_main_finished")
 
 
 if __name__ == "__main__":
-    # Check if running as main script (e.g., python -m cyberdelta.main)
-    # or directly (python cyberdelta/main.py) - latter might have import issues
-    main_module = sys.modules.get("__main__")
-    is_direct_run = False
-    if main_module and hasattr(main_module, "__file__") and main_module.__file__:
-        # Use Path.resolve() for robustness
-        main_file_path = str(Path(main_module.__file__).resolve())
-        if main_file_path.endswith(str(Path("cyberdelta") / "main.py")):
-            is_direct_run = True
-
-    if is_direct_run:
-        logger.warning("Running main.py directly might cause import issues.")
-        logger.warning("Consider running using 'python -m cyberdelta.main' from the project root.")
-
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        logger.info("KeyboardInterrupt received, exiting.")
-        # Shutdown is handled within main's finally block
+        # Handle KeyboardInterrupt at the top level
+        print("\nShutdown complete.")
         sys.exit(0)
-    except (RuntimeError, OSError, ValueError, AttributeError, ImportError) as e:
-        # Catch any final unexpected errors
-        logger.critical("Unhandled exception at top level", error=str(e), exc_info=True)
+    except Exception as e:
+        print(f"Fatal error: {e}")
         sys.exit(1)

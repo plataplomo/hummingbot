@@ -1,0 +1,49 @@
+# Example configuration for performance metrics in CyberDeltaEngine
+# This shows the structure of the performance_metrics configuration section
+
+calculation:
+  # PnL calculation settings
+  pnl_calculation_method: "comprehensive"  # Options: mark_to_market, realized_only, comprehensive
+  include_fees_in_pnl: true
+  base_currency: "USD"
+  
+  # Performance metrics configuration
+  performance_metrics:
+    # List of metrics to calculate - only enabled metrics will be computed
+    enabled_metrics:
+      - "realized_pnl"
+      - "unrealized_pnl"
+      - "daily_return"
+      - "weekly_return"
+      - "monthly_return"
+      - "yearly_return"
+      - "sharpe_ratio"
+      - "sortino_ratio"
+      - "max_drawdown"
+      - "win_rate"
+      - "profit_factor"
+      - "volatility"
+      # - "beta"  # Requires benchmark data
+      # - "alpha"  # Requires benchmark data
+    
+    # Default calculation period in days
+    calculation_period_days: 30
+    
+    # Risk-free rate for Sharpe/Sortino calculations (annual percentage as decimal)
+    risk_free_rate: 0.05  # 5% annual risk-free rate
+    
+    # Method for Sharpe ratio calculation
+    sharpe_calculation_method: "daily"  # Options: daily, annualized
+    
+    # Method for drawdown calculation
+    drawdown_calculation_method: "peak_to_trough"  # Options: peak_to_trough, underwater
+    
+    # Whether to include trading fees in performance metrics
+    include_fees_in_metrics: true
+    
+    # Maximum history to retain for calculations (days)
+    max_history_days: 365
+    
+    # Performance calculation for multi-period returns
+    performance_period_days: 90
+    calculate_time_weighted_returns: false  # Requires portfolio value history
