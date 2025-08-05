@@ -32,7 +32,7 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import (
     HyperliquidMarketDataService,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets, SecretsConfig
 

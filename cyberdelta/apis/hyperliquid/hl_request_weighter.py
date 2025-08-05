@@ -17,7 +17,7 @@ from cyberdelta.config.structlog_config import get_logger
 
 
 if TYPE_CHECKING:
-    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+    from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 
 
 logger = get_logger(__name__)

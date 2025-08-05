@@ -10,7 +10,7 @@ from unittest.mock import patch
 from cyberdelta.apis.hyperliquid.hl_api_components_factory import (
     HyperliquidAPIComponentsFactory,
 )
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName

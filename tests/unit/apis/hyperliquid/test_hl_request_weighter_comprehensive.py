@@ -12,7 +12,7 @@ import pytest
 
 from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
 from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWeighter
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 
 
 class TestHyperliquidRequestWeighter:

@@ -15,7 +15,7 @@ import pytest
 import yaml
 
 from cyberdelta.config import ConfigManager, ConfigurationError
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models.app_config import AppSettings
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 

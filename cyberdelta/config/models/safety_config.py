@@ -128,3 +128,12 @@ class SafetySystemsSettings(BaseModel):
     circuit_breakers: CircuitBreakerSettings
     position_reconciliation: PositionReconciliationSettings
     balance_monitoring: BalanceMonitoringSettings
+
+    def should_halt_trading(self) -> bool:
+        """Check if trading should be halted based on safety systems.
+        
+        Returns:
+            True if any safety system indicates trading should halt
+        """
+        # For now, return False - actual implementation would check circuit breaker states
+        return False

@@ -23,7 +23,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     RegistrationConfiguration,
     RegistrationMode,
 )
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.enums.exchange_names import ExchangeName
 

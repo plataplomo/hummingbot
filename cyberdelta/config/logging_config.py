@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from types import TracebackType
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models.app_config import AppSettings
 
 
 # Standard time formatting for all logs

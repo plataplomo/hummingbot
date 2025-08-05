@@ -22,7 +22,7 @@ from cyberdelta.exceptions.base import RequiredParameterError
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
-    from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+    from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 
 
 logger = get_logger(__name__)

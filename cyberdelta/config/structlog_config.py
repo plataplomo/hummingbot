@@ -16,7 +16,7 @@ from structlog.typing import EventDict, Processor
 
 
 if TYPE_CHECKING:
-    from cyberdelta.config.models.config_models import AppSettings
+    from cyberdelta.config.models.app_config import AppSettings
 
 
 # Add TRACE level below DEBUG

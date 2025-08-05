@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -156,6 +156,7 @@ class AuditLogger:
         self._log_sensitive_data = self._general_config.log_sensitive_data
 
         # Audit log file configuration
+        self._audit_log_file: Path | None
         if hasattr(self._monitoring_config, "audit_log_file"):
             self._audit_log_file = Path(self._monitoring_config.audit_log_file)
             self._audit_log_file.parent.mkdir(parents=True, exist_ok=True)
@@ -181,7 +182,7 @@ class AuditLogger:
         self._event_buffer: list[AuditEvent] = []
         self._buffer_size = getattr(self._monitoring_config, "audit_buffer_size", 100)
         self._flush_interval = getattr(self._monitoring_config, "audit_flush_interval_seconds", 60)
-        self._flush_task: asyncio.Task | None = None
+        self._flush_task: asyncio.Task[None] | None = None
 
         logger.info(
             "audit_logger_initialized",
@@ -333,13 +334,13 @@ class AuditLogger:
             severity=AuditSeverity.INFO,
             description=description,
             entity_type="Order",
-            entity_id=order.order_id or order.client_order_id,
+            entity_id=order.exchange_order_id or order.client_order_id,
             exchange=order.exchange,
             symbol=order.symbol,
             metadata={
                 "order_data": order_data,
                 "side": order.side.value if order.side else None,
-                "quantity": float(order.quantity) if order.quantity else None,
+                "quantity": float(order.quantity_requested) if order.quantity_requested else None,
                 "price": float(order.price) if order.price else None,
                 **metadata,
             },
@@ -409,7 +410,7 @@ class AuditLogger:
             description=description,
             entity_type="TradeSignal",
             entity_id=signal.signal_id,
-            exchange=signal.exchange,
+            exchange=ExchangeName(signal.exchange) if isinstance(signal.exchange, str) else None,
             symbol=signal.symbol,
             metadata={
                 "signal_data": signal_data,
@@ -625,6 +626,8 @@ class AuditLogger:
         Args:
             events: Events to write
         """
+        if self._audit_log_file is None:
+            return
         with open(self._audit_log_file, "a") as f:
             for event in events:
                 json_line = event.model_dump_json() + "\n"
@@ -636,6 +639,8 @@ class AuditLogger:
         Args:
             events: Events to write
         """
+        if self._audit_log_file is None:
+            return
         with open(self._audit_log_file, "a") as f:
             for event in events:
                 text_line = (

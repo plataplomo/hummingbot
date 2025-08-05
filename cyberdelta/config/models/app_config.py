@@ -6,14 +6,19 @@ used throughout the application.
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 # Import all configuration components
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
-from cyberdelta.config.models.execution_config import ExecutionSettings
-from cyberdelta.config.models.funding_strategy_models import StrategiesSettings
+from cyberdelta.config.models.execution_config import ExecutionSettings, ExecutionCompensationSettings
+from cyberdelta.config.models.funding_strategy_models import (
+    StrategiesSettings,
+    StrategyConfigHLPerpBPSpot,
+    StrategyParamsHLPerpBPSpot,
+)
 from cyberdelta.config.models.general_config import GeneralSettings
 from cyberdelta.config.models.monitoring_config import MonitoringSettings
 from cyberdelta.config.models.portfolio_config import (
@@ -21,10 +26,21 @@ from cyberdelta.config.models.portfolio_config import (
     PortfolioStateSettings,
     PortfolioValidationSettings,
 )
-from cyberdelta.config.models.risk_config import EnhancedRiskSettings
-from cyberdelta.config.models.safety_config import SafetySystemsSettings
+from cyberdelta.config.models.risk_config import (
+    CheckerSettings,
+    EnhancedRiskSettings,
+    GlobalRiskSettings,  
+    RiskLimitsSettings,
+    SizingSettings,
+)
+from cyberdelta.config.models.safety_config import (
+    BalanceMonitoringSettings,
+    CircuitBreakerSettings,
+    PositionReconciliationSettings,
+    SafetySystemsSettings,
+)
 from cyberdelta.config.models.simulation_config import SimulationSettings
-from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig
+from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 
 
 if TYPE_CHECKING:
@@ -52,18 +68,57 @@ class AppSettings(BaseModel):
 
     # Trading and execution
     strategies: StrategiesSettings = Field(
-        default_factory=StrategiesSettings, description="Trading strategy settings"
+        default_factory=lambda: StrategiesSettings(
+            hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
+                long_exchange="hyperliquid",
+                short_exchange="backpack", 
+                symbol_long="BTC-PERP",
+                symbol_short="BTC_USDC",
+                params=StrategyParamsHLPerpBPSpot(
+                    funding_threshold=Decimal("0.0001"),
+                    max_price_spread_pct=Decimal("0.01"),
+                    min_profit_usd=Decimal("10.0"),
+                    min_funding_differential=Decimal("0.0001"),
+                    check_interval=300,
+                    risk_aversion=Decimal("0.5"),
+                    rebalance_threshold=Decimal("0.05"),
+                    perp_exchange="hyperliquid",
+                    spot_exchange="backpack"
+                )
+            )
+        ), 
+        description="Trading strategy settings"
     )
     risk: EnhancedRiskSettings = Field(
-        default_factory=EnhancedRiskSettings, description="Risk management settings"
+        default_factory=lambda: EnhancedRiskSettings.model_validate({
+            "global": GlobalRiskSettings(
+                max_position_usd=Decimal("10000.0"),
+                max_total_exposure_usd=Decimal("50000.0")
+            ),
+            "checkers": CheckerSettings(),
+            "sizing": SizingSettings(),  
+            "limits": RiskLimitsSettings()
+        }), 
+        description="Risk management settings"
     )
     execution: ExecutionSettings = Field(
-        default_factory=ExecutionSettings, description="Order execution settings"
+        default_factory=lambda: ExecutionSettings(
+            max_slippage_pct=Decimal("0.01"),
+            compensation=ExecutionCompensationSettings()
+        ), 
+        description="Order execution settings"
     )
 
     # Safety and monitoring
     safety_systems: SafetySystemsSettings = Field(
-        default_factory=SafetySystemsSettings, description="Safety systems configuration"
+        default_factory=lambda: SafetySystemsSettings(
+            circuit_breakers=CircuitBreakerSettings(),
+            position_reconciliation=PositionReconciliationSettings(),
+            balance_monitoring=BalanceMonitoringSettings(
+                min_balance_thresholds_usd={"BTC": Decimal("0.001"), "ETH": Decimal("0.01")}
+            )
+        ), 
+        description="Safety systems configuration"
     )
     monitoring: MonitoringSettings = Field(
         default_factory=MonitoringSettings, description="Monitoring and alerting settings"
@@ -87,7 +142,14 @@ class AppSettings(BaseModel):
 
     # Symbol configuration
     symbols: SmartSymbolsConfig = Field(
-        default_factory=SmartSymbolsConfig, description="Smart symbol configuration"
+        default_factory=lambda: SmartSymbolsConfig(
+            list=["BTC", "ETH"],
+            patterns=SymbolPatterns(
+                hyperliquid={"perp": "{symbol}-PERP", "spot": "{symbol}"},
+                backpack={"perp": "{symbol}_PERP", "spot": "{symbol}_USDC"}
+            )
+        ), 
+        description="Smart symbol configuration"
     )
 
     @property

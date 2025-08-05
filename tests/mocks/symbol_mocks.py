@@ -8,8 +8,6 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any, Self
-from collections.abc import Callable
-from typing import Any, Self
 from unittest.mock import Mock
 
 from cyberdelta.core.enums.enums import MarketType
@@ -137,50 +135,52 @@ class MockSymbolService:
             Mock SymbolService with configured behavior
         """
         mock = Mock(spec=SymbolService)
-
-        # Configure create_symbol
-        def create_symbol(value: str, exchange: ExchangeName, **kwargs: Any) -> Symbol:
+        
+        self._configure_core_methods(mock)
+        self._configure_equivalence_methods(mock)
+        self._configure_component_methods(mock)
+        self._configure_registry_methods(mock)
+        
+        return mock
+    
+    def _configure_core_methods(self, mock: Mock) -> None:
+        """Configure core symbol methods."""
+        def create_symbol(value: str, exchange: ExchangeName, **kwargs: dict[str, Any]) -> Symbol:
             return symbol(value, exchange, **kwargs)
 
-        mock.create_symbol.side_effect = create_symbol
-
-        # Configure convert_symbol
-        def convert_symbol(symbol: Symbol, target_exchange: ExchangeName) -> Symbol:
-            key = (symbol.value, symbol.exchange, target_exchange)
+        def convert_symbol(from_symbol: Symbol, target_exchange: ExchangeName) -> Symbol:
+            key = (from_symbol.value, from_symbol.exchange, target_exchange)
             if key in self._conversions:
                 return self._conversions[key]
-            # Default: return same symbol with different exchange
-            return create_symbol(symbol.value, target_exchange)
+            return create_symbol(from_symbol.value, target_exchange)
 
+        mock.create_symbol.side_effect = create_symbol
         mock.convert_symbol.side_effect = convert_symbol
-
-        # Configure get_canonical
+    
+    def _configure_equivalence_methods(self, mock: Mock) -> None:
+        """Configure symbol equivalence methods."""
         def get_canonical(symbol: Symbol) -> str:
             key = (symbol.value, symbol.exchange)
             if key in self._canonical_mappings:
                 return self._canonical_mappings[key]
             return self._get_or_create_canonical(symbol)
 
-        mock.get_canonical.side_effect = get_canonical
-
-        # Configure get_equivalent_symbols
         def get_equivalent_symbols(symbol: Symbol) -> list[Symbol]:
             canonical = get_canonical(symbol)
             return self._equivalences.get(canonical, [symbol])
 
-        mock.get_equivalent_symbols.side_effect = get_equivalent_symbols
-
-        # Configure are_equivalent
         def are_equivalent(symbol1: Symbol, symbol2: Symbol) -> bool:
             return get_canonical(symbol1) == get_canonical(symbol2)
 
+        mock.get_canonical.side_effect = get_canonical
+        mock.get_equivalent_symbols.side_effect = get_equivalent_symbols
         mock.are_equivalent.side_effect = are_equivalent
-
-        # Configure parse_components
+    
+    def _configure_component_methods(self, mock: Mock) -> None:
+        """Configure symbol component parsing methods."""
         def parse_components(symbol: Symbol) -> SymbolComponents:
             if symbol in self._components:
                 return self._components[symbol]
-            # Default components
             return SymbolComponents(
                 base_asset=symbol.value.split("-")[0].split("_")[0],
                 quote_asset="USD" if "PERP" in symbol.value else "USDC",
@@ -188,22 +188,18 @@ class MockSymbolService:
             )
 
         mock.parse_components.side_effect = parse_components
-
-        # Configure find_symbol
+    
+    def _configure_registry_methods(self, mock: Mock) -> None:
+        """Configure symbol registry methods."""
         def find_symbol(value: str, exchange: ExchangeName) -> Symbol | None:
             key = (value, exchange)
             return self._find_mappings.get(key)
 
-        mock.find_symbol.side_effect = find_symbol
-
-        # Configure register_symbol
         def register_symbol(symbol: Symbol) -> None:
-            # Add to find mappings
             self._find_mappings[symbol.value, symbol.exchange] = symbol
 
+        mock.find_symbol.side_effect = find_symbol
         mock.register_symbol.side_effect = register_symbol
-
-        return mock
 
     def _get_or_create_canonical(self, symbol: Symbol) -> str:
         """Get or create canonical representation.
@@ -224,7 +220,7 @@ class MockSymbolService:
 class MockExchangeHandler:
     """Mock exchange handler with configurable behavior."""
 
-    def __init__(self, exchange: ExchangeName):
+    def __init__(self, exchange: ExchangeName) -> None:
         """Initialize mock handler.
 
         Args:
@@ -298,28 +294,24 @@ class MockExchangeHandler:
         mock = Mock(spec=ExchangeHandler)
         mock.exchange = self._exchange
 
-        # Configure parse_components
+        self._configure_parsing_methods(mock)
+        self._configure_formatting_methods(mock)
+        self._configure_canonical_methods(mock)
+        self._configure_metadata_methods(mock)
+
+        return mock
+    
+    def _configure_parsing_methods(self, mock: Mock) -> None:
+        """Configure component parsing methods."""
         def parse_components(value: str) -> SymbolComponents:
             if value in self._parse_rules:
                 return self._parse_rules[value]
-            # Default parsing
-            base = value.split("-")[0].split("_")[0]
-            if "PERP" in value:
-                return SymbolComponents(
-                    base_asset=base,
-                    quote_asset="USD",
-                    market_type=MarketType.PERP,
-                )
-            parts = value.split("-") if "-" in value else value.split("_")
-            return SymbolComponents(
-                base_asset=parts[0],
-                quote_asset=parts[1] if len(parts) > 1 else "USDC",
-                market_type=MarketType.SPOT,
-            )
+            return self._default_parse_components(value)
 
         mock.parse_components.side_effect = parse_components
-
-        # Configure format_symbol
+    
+    def _configure_formatting_methods(self, mock: Mock) -> None:
+        """Configure symbol formatting methods."""
         def format_symbol(components: SymbolComponents) -> str:
             key = (
                 components.base_asset,
@@ -328,48 +320,71 @@ class MockExchangeHandler:
             )
             if key in self._format_rules:
                 return self._format_rules[key]
-            # Default formatting
-            if self._exchange == ExchangeName.HYPERLIQUID:
-                if components.market_type.value == "PERP":
-                    return f"{components.base_asset}-PERP"
-                return f"{components.base_asset}-{components.quote_asset or 'USDC'}"
-            if components.market_type.value == "PERP":
-                return f"{components.base_asset}_PERP"
-            return f"{components.base_asset}_{components.quote_asset or 'USDC'}"
+            return self._default_format_symbol(components)
 
         mock.format_symbol.side_effect = format_symbol
-
-        # Configure to_canonical
+    
+    def _configure_canonical_methods(self, mock: Mock) -> None:
+        """Configure canonical representation methods."""
         def to_canonical(value: str) -> tuple[str, SymbolComponents]:
             if value in self._canonical_rules:
                 return self._canonical_rules[value]
-            components = parse_components(value)
+            components = mock.parse_components.side_effect(value)
             canonical = f"{components.base_asset}_{components.market_type.value.upper()}"
             return (canonical, components)
 
-        mock.to_canonical.side_effect = to_canonical
-
-        # Configure from_canonical
         def from_canonical(canonical: str, components: SymbolComponents) -> str:
-            return format_symbol(components)
+            return mock.format_symbol.side_effect(components)
 
+        mock.to_canonical.side_effect = to_canonical
         mock.from_canonical.side_effect = from_canonical
-
-        # Configure create_metadata
-        def create_metadata(**kwargs: Any) -> Any:
+    
+    def _configure_metadata_methods(self, mock: Mock) -> None:
+        """Configure metadata creation methods."""
+        def create_metadata(**kwargs: dict[str, Any]) -> HyperliquidMetadata | BackpackMetadata:
             if self._exchange == ExchangeName.HYPERLIQUID:
                 return HyperliquidMetadata(asset_index=kwargs.get("asset_index"))
             return BackpackMetadata(symbol_id=kwargs.get("symbol_id"))
 
-        mock.create_metadata.side_effect = create_metadata
-
-        # Configure create_symbol
-        def create_symbol(value: str, **kwargs: Any) -> Symbol:
+        def create_symbol(value: str, **kwargs: dict[str, Any]) -> Symbol:
             return symbol(value, self._exchange, **kwargs)
 
+        mock.create_metadata.side_effect = create_metadata
         mock.create_symbol.side_effect = create_symbol
-
-        return mock
+    
+    def _default_parse_components(self, value: str) -> SymbolComponents:
+        """Default component parsing logic.
+        
+        Returns:
+            SymbolComponents: Parsed components from the symbol value.
+        """
+        base = value.split("-", 1)[0].split("_", 1)[0]
+        if "PERP" in value:
+            return SymbolComponents(
+                base_asset=base,
+                quote_asset="USD",
+                market_type=MarketType.PERP,
+            )
+        parts = value.split("-", 1) if "-" in value else value.split("_", 1)
+        return SymbolComponents(
+            base_asset=parts[0],
+            quote_asset=parts[1] if len(parts) > 1 else "USDC",
+            market_type=MarketType.SPOT,
+        )
+    
+    def _default_format_symbol(self, components: SymbolComponents) -> str:
+        """Default symbol formatting logic.
+        
+        Returns:
+            str: Formatted symbol value.
+        """
+        if self._exchange == ExchangeName.HYPERLIQUID:
+            if components.market_type.value == "PERP":
+                return f"{components.base_asset}-PERP"
+            return f"{components.base_asset}-{components.quote_asset or 'USDC'}"
+        if components.market_type.value == "PERP":
+            return f"{components.base_asset}_PERP"
+        return f"{components.base_asset}_{components.quote_asset or 'USDC'}"
 
 
 class MockSymbolRegistry:
@@ -429,7 +444,7 @@ class MockSymbolRegistry:
         mock = Mock(spec=SymbolRegistry)
 
         # Configure create_symbol
-        def create_symbol(value: str, exchange: ExchangeName, **kwargs: Any) -> Symbol:
+        def create_symbol(value: str, exchange: ExchangeName, **kwargs: dict[str, Any]) -> Symbol:
             sym = symbol(value, exchange, **kwargs)
             self._symbols[value, exchange] = sym
             return sym
@@ -441,10 +456,8 @@ class MockSymbolRegistry:
             if exchange in self._handlers:
                 handler = self._handlers[exchange]
 
-
-                def factory(value: str, **kwargs: Any) -> Symbol:
+                def factory(value: str, **kwargs: dict[str, Any]) -> Symbol:
                     return handler.create_symbol(value, **kwargs)
-
 
                 return factory
             return None
@@ -458,7 +471,7 @@ class MockSymbolRegistry:
         mock.get_handlers.side_effect = get_handlers
 
         # Configure __getattr__ for exchange access
-        def getattr_handler(name: str) -> Any:
+        def getattr_handler(name: str) -> Callable[[str], Symbol] | None:
             exchange = ExchangeName[name.upper()]
             return get_factory(exchange)
 

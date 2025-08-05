@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName
 from cyberdelta.enums.trading import OrderSide

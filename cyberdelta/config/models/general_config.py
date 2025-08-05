@@ -41,6 +41,11 @@ class GeneralSettings(BaseModel):
     state_backup_directory: NonEmptyConfigString = "data/state_backups"
     state_save_interval: int = Field(default=300, gt=0)  # seconds
     state_backup_count: int = Field(default=5, gt=0)  # Number of previous state files to keep
+    
+    # Audit logging settings
+    audit_log_enabled: bool = True
+    log_sensitive_data: bool = False
+    shutdown_grace_period: int = Field(default=30, gt=0)  # seconds
 
     @field_validator("log_level", mode="before")
     @classmethod

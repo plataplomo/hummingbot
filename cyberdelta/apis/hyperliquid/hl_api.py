@@ -60,7 +60,7 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
 
 # Removed SymbolError import - no longer needed with new Symbol system

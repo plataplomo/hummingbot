@@ -19,7 +19,7 @@ from cyberdelta.apis.models.service_args.trading import (
     CancelOrderArgs,
     GetOrderArgs,
 )
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.symbols.models import Symbol
 from tests.common_symbols import BTC_HL, BTC_USD_HL, ETH_HL, ETH_USD_HL, SOL_HL, SOL_USD_HL

@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from cyberdelta.application.event_bus import EventBus
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.logic.market.market_service import MarketDataService
 from cyberdelta.logic.monitoring.alert_service import AlertLevel, AlertService

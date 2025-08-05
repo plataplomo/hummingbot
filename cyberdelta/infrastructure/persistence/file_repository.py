@@ -10,7 +10,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.protocols.domain.portfolio import (

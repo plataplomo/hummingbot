@@ -23,7 +23,8 @@ from cyberdelta.apis.backpack.services import (
     BackpackMarketDataService,
     BackpackTradingService,
 )
-from cyberdelta.config.models.config_models import AppSettings, ExchangeSpecificConfig
+from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 

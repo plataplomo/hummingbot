@@ -99,7 +99,7 @@ from cyberdelta.apis.hyperliquid.response_handlers.hl_market_data_response_handl
 from cyberdelta.apis.hyperliquid.response_handlers.hl_trading_response_handler import (
     HyperliquidTradingResponseHandler,
 )
-from cyberdelta.config.models.config_models import (
+from cyberdelta.config.models.exchange_config import (
     AddressActionSafetyNetConfig,
     ExchangeSpecificConfig,
 )

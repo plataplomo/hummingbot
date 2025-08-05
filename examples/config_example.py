@@ -32,7 +32,7 @@ from typing import cast
 import structlog
 
 from cyberdelta.config import ConfigurationError, get_app_settings, get_secrets_config
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, SecretsConfig
 from cyberdelta.config.structlog_config import get_logger, setup_structlog
 

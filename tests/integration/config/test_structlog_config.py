@@ -12,7 +12,7 @@ from typing import Any
 
 import structlog
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import (
     add_timestamp,
     censor_sensitive_data,

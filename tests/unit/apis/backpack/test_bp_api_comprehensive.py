@@ -36,7 +36,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetTradeHistoryArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.core.enums import (
     CancelOrderResultStatus,

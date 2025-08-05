@@ -13,7 +13,7 @@ import pytest
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigError
 from cyberdelta.apis.hyperliquid.hl_rate_limit_strategy import HyperliquidRateLimitStrategy
-from cyberdelta.config.models.config_models import (
+from cyberdelta.config.models.exchange_config import (
     AddressActionSafetyNetConfig,
     ExchangeSpecificConfig,
 )

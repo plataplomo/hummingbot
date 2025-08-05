@@ -11,7 +11,7 @@ from uuid import uuid4
 import pytest
 from pydantic import AnyUrl, HttpUrl
 
-from cyberdelta.config.models.config_models import (
+from cyberdelta.config.models.exchange_config import (
     AddressActionSafetyNetConfig,
     ExchangeSpecificConfig,
 )

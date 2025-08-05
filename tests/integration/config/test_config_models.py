@@ -10,22 +10,23 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.config.models.config_models import (
-    AppSettings,
-    BalanceMonitoringSettings,
-    CircuitBreakerSettings,
-    ExchangeSpecificConfig,
+from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
+from cyberdelta.config.models.execution_config import (
     ExecutionCompensationSettings,
     ExecutionSettings,
-    GeneralSettings,
-    GlobalRiskSettings,
-    MonitoringSettings,
-    RiskSettings,
-    SafetySystemsSettings,
 )
 from cyberdelta.config.models.funding_strategy_models import (
     StrategiesSettings,
     StrategyParamsHLPerpBPSpot,
+)
+from cyberdelta.config.models.general_config import GeneralSettings
+from cyberdelta.config.models.monitoring_config import MonitoringSettings
+from cyberdelta.config.models.risk_config import GlobalRiskSettings, RiskSettings
+from cyberdelta.config.models.safety_config import (
+    BalanceMonitoringSettings,
+    CircuitBreakerSettings,
+    SafetySystemsSettings,
 )
 
 

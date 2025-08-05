@@ -22,7 +22,8 @@ from cyberdelta.config.logging_config import (
     get_logger,
     setup_logging,
 )
-from cyberdelta.config.models.config_models import AppSettings, GeneralSettings
+from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.config.models.general_config import GeneralSettings
 
 
 @pytest.fixture

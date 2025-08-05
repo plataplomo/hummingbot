@@ -112,7 +112,7 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
     HyperliquidOrderBookService,
 )
 from cyberdelta.apis.hyperliquid.utils.component_registry import HyperliquidComponentRegistry
-from cyberdelta.config.models.config_models import ExchangeSpecificConfig
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, PrivateKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.utils.typing import ParsedJsonResponse

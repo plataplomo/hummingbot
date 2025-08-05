@@ -11,18 +11,14 @@ from decimal import Decimal
 
 from pydantic import HttpUrl
 
-from cyberdelta.config.models.config_models import (
-    AppSettings,
-    EnhancedRiskSettings,
-    ExchangeSpecificConfig,
-    ExecutionCompensationSettings,
-    ExecutionSettings,
-    GeneralSettings,
-    GlobalRiskSettings,
-    MonitoringSettings,
-    PortfolioTrackerConfig,
-    SafetySystemsSettings,
-)
+from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
+from cyberdelta.config.models.execution_config import ExecutionCompensationSettings, ExecutionSettings
+from cyberdelta.config.models.general_config import GeneralSettings
+from cyberdelta.config.models.risk_config import EnhancedRiskSettings, GlobalRiskSettings
+from cyberdelta.config.models.monitoring_config import MonitoringSettings
+from cyberdelta.config.models.portfolio_config import PortfolioTrackerConfig
+from cyberdelta.config.models.safety_config import SafetySystemsSettings
 from cyberdelta.config.models.funding_strategy_models import (
     StrategiesSettings,
     StrategyConfigHLPerpBPSpot,

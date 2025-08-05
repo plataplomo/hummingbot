@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 
-from cyberdelta.config.models.config_models import AppSettings, ExchangeSpecificConfig
+from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import SecretsConfig
 from cyberdelta.enums.environment import EnvironmentType
 
