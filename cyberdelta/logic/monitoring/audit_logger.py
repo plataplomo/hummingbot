@@ -13,26 +13,23 @@ IMPORTANT: Following CODING_STANDARDS.md:
 from __future__ import annotations
 
 import asyncio
+import uuid
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional
-from dataclasses import dataclass
-import uuid
-import json
+from typing import Any
 
-from cyberdelta.config.structlog_config import get_logger
 from pydantic import BaseModel, Field
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.enums import ExchangeName
+from cyberdelta.logging.logging_helpers import SENSITIVE_FIELDS
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.trade_signal import TradeSignal
-from cyberdelta.models.derivative_position import DerivativePosition
-from cyberdelta.models.spot_balance import SpotBalance
-from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.enums import ExchangeName, OrderSide
-from cyberdelta.logging.logging_helpers import SENSITIVE_FIELDS
+
 
 logger = get_logger(__name__)
 
@@ -102,29 +99,29 @@ class AuditEvent(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # Context fields
-    user_id: Optional[str] = None
-    session_id: Optional[str] = None
-    correlation_id: Optional[str] = None
+    user_id: str | None = None
+    session_id: str | None = None
+    correlation_id: str | None = None
 
     # Event details
     description: str
-    entity_type: Optional[str] = None  # Order, Position, Signal, etc.
-    entity_id: Optional[str] = None  # Specific ID of the entity
+    entity_type: str | None = None  # Order, Position, Signal, etc.
+    entity_id: str | None = None  # Specific ID of the entity
 
     # Exchange and symbol context
-    exchange: Optional[ExchangeName] = None
-    symbol: Optional[Symbol] = None
+    exchange: ExchangeName | None = None
+    symbol: Symbol | None = None
 
     # Additional structured data
-    metadata: Dict[str, Any] = Field(default_factory=dict)
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
     # Change tracking
-    old_value: Optional[Any] = None
-    new_value: Optional[Any] = None
+    old_value: Any | None = None
+    new_value: Any | None = None
 
     # Risk and compliance
-    risk_score: Optional[float] = None
-    compliance_flags: List[str] = Field(default_factory=list)
+    risk_score: float | None = None
+    compliance_flags: list[str] = Field(default_factory=list)
 
 
 class AuditLogger:
@@ -181,10 +178,10 @@ class AuditLogger:
         self._start_time = datetime.now(UTC)
 
         # Buffer for batch writing
-        self._event_buffer: List[AuditEvent] = []
+        self._event_buffer: list[AuditEvent] = []
         self._buffer_size = getattr(self._monitoring_config, "audit_buffer_size", 100)
         self._flush_interval = getattr(self._monitoring_config, "audit_flush_interval_seconds", 60)
-        self._flush_task: Optional[asyncio.Task] = None
+        self._flush_task: asyncio.Task | None = None
 
         logger.info(
             "audit_logger_initialized",
@@ -267,7 +264,7 @@ class AuditLogger:
                 await asyncio.wait_for(
                     self._flush_task, timeout=float(self.config.general.shutdown_grace_period)
                 )
-            except (asyncio.TimeoutError, asyncio.CancelledError):
+            except (TimeoutError, asyncio.CancelledError):
                 pass
 
         # Final flush
@@ -429,8 +426,8 @@ class AuditLogger:
         event_type: AuditEventType,
         description: str,
         severity: AuditSeverity = AuditSeverity.WARNING,
-        risk_score: Optional[float] = None,
-        violations: Optional[List[str]] = None,
+        risk_score: float | None = None,
+        violations: list[str] | None = None,
         **metadata: Any,
     ) -> None:
         """Log a risk-related audit event.
@@ -465,7 +462,7 @@ class AuditLogger:
         event = AuditEvent(
             event_type=AuditEventType.ERROR_OCCURRED,
             severity=AuditSeverity.ERROR,
-            description=f"Error in {context}: {str(error)}",
+            description=f"Error in {context}: {error!s}",
             metadata={
                 "error_type": type(error).__name__,
                 "error_message": str(error),
@@ -622,7 +619,7 @@ class AuditLogger:
             )
             # Don't raise - we don't want to crash the system due to audit logging
 
-    async def _write_json_format(self, events: List[AuditEvent]) -> None:
+    async def _write_json_format(self, events: list[AuditEvent]) -> None:
         """Write events in JSON format.
 
         Args:
@@ -633,7 +630,7 @@ class AuditLogger:
                 json_line = event.model_dump_json() + "\n"
                 f.write(json_line)
 
-    async def _write_text_format(self, events: List[AuditEvent]) -> None:
+    async def _write_text_format(self, events: list[AuditEvent]) -> None:
         """Write events in human-readable text format.
 
         Args:
@@ -704,7 +701,7 @@ class AuditLogger:
         except Exception as e:
             logger.error("audit_cleanup_failed", error=str(e), exc_info=True)
 
-    def get_session_stats(self) -> Dict[str, Any]:
+    def get_session_stats(self) -> dict[str, Any]:
         """Get statistics for the current audit session.
 
         Returns:

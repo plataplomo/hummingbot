@@ -7,7 +7,6 @@ aggregated view of market data across all exchanges at a point in time.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -31,17 +30,17 @@ class MarketSnapshot(BaseModel):
     """
 
     # Using Dict with string keys as we need "{exchange}:{symbol}" format
-    tickers: Dict[str, Ticker] = Field(
+    tickers: dict[str, Ticker] = Field(
         description='Tickers keyed by "{exchange}:{symbol}" e.g. "hyperliquid:BTC"'
     )
 
-    order_books: Dict[str, OrderBook] = Field(
+    order_books: dict[str, OrderBook] = Field(
         description='Order books keyed by "{exchange}:{symbol}" e.g. "backpack:ETH"'
     )
 
     timestamp: datetime = Field(description="UTC timestamp of this market snapshot")
 
-    def get_ticker(self, exchange: ExchangeName, symbol: Symbol) -> Optional[Ticker]:
+    def get_ticker(self, exchange: ExchangeName, symbol: Symbol) -> Ticker | None:
         """Get ticker for specific exchange and symbol.
 
         Args:
@@ -54,7 +53,7 @@ class MarketSnapshot(BaseModel):
         key = f"{exchange.value}:{symbol.value}"
         return self.tickers.get(key)
 
-    def get_order_book(self, exchange: ExchangeName, symbol: Symbol) -> Optional[OrderBook]:
+    def get_order_book(self, exchange: ExchangeName, symbol: Symbol) -> OrderBook | None:
         """Get order book for specific exchange and symbol.
 
         Args:
@@ -67,7 +66,7 @@ class MarketSnapshot(BaseModel):
         key = f"{exchange.value}:{symbol.value}"
         return self.order_books.get(key)
 
-    def get_all_tickers_for_symbol(self, symbol: Symbol) -> Dict[ExchangeName, Ticker]:
+    def get_all_tickers_for_symbol(self, symbol: Symbol) -> dict[ExchangeName, Ticker]:
         """Get all tickers for a symbol across all exchanges.
 
         Args:
@@ -76,7 +75,7 @@ class MarketSnapshot(BaseModel):
         Returns:
             Dictionary mapping exchange to ticker
         """
-        result: Dict[ExchangeName, Ticker] = {}
+        result: dict[ExchangeName, Ticker] = {}
         symbol_suffix = f":{symbol.value}"
 
         for key, ticker in self.tickers.items():

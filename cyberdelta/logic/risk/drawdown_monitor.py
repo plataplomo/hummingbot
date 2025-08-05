@@ -8,13 +8,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional
 
+from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-
-from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
-from cyberdelta.models.portfolio.state import PortfolioState
+
 
 logger = get_logger(__name__)
 
@@ -25,10 +23,12 @@ class DrawdownMonitor:
     This monitor tracks portfolio value over configured lookback periods
     and enforces maximum drawdown limits from configuration.
 
+
     Configuration Usage:
     - Uses config.risk.global_risk.max_drawdown_pct for maximum allowed drawdown
     - Uses config.risk.global_risk.drawdown_lookback_days for calculation period
     - Uses config.risk.global_risk.drawdown_check_interval_sec for monitoring frequency
+
 
     IMPORTANT: Following CODING_STANDARDS.md:
     - ALL parameters from config.risk.global_risk section
@@ -37,12 +37,13 @@ class DrawdownMonitor:
     - Explicit drawdown calculations with proper timestamps
     """
 
-    def __init__(self, config: AppSettings, portfolio_service: PortfolioService):
+    def __init__(self, config: AppSettings, portfolio_service: PortfolioService) -> None:
         """Initialize drawdown monitor with configuration.
 
         Args:
             config: Application settings containing drawdown configuration
             portfolio_service: Portfolio service for state access
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - ALL drawdown parameters from config
@@ -65,18 +66,18 @@ class DrawdownMonitor:
             self._check_interval = config.monitoring.health_check_interval_seconds
 
         # Portfolio value history for drawdown calculation
-        self._value_history: List[Dict[str, object]] = []
+        self._value_history: list[dict[str, Decimal | datetime]] = []
 
         # Drawdown state tracking
-        self._current_drawdown_pct = Decimal("0")
-        self._peak_value = Decimal("0")
-        self._peak_timestamp: Optional[datetime] = None
-        self._trough_value = Decimal("0")
-        self._trough_timestamp: Optional[datetime] = None
+        self._current_drawdown_pct = Decimal(0)
+        self._peak_value = Decimal(0)
+        self._peak_timestamp: datetime | None = None
+        self._trough_value = Decimal(0)
+        self._trough_timestamp: datetime | None = None
 
         # Drawdown violation state
         self._drawdown_violated = False
-        self._violation_timestamp: Optional[datetime] = None
+        self._violation_timestamp: datetime | None = None
 
         logger.info(
             "drawdown_monitor_initialized",
@@ -85,11 +86,12 @@ class DrawdownMonitor:
             check_interval_sec=float(self._check_interval),
         )
 
-    async def update_portfolio_value(self, current_value: Optional[Decimal] = None) -> None:
+    async def update_portfolio_value(self, current_value: Decimal | None = None) -> None:
         """Update portfolio value history and check drawdown.
 
         Args:
             current_value: Current portfolio value (if None, fetches from service)
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses current timestamp for all calculations
@@ -113,7 +115,9 @@ class DrawdownMonitor:
             # Clean up old history based on lookback period
             cutoff_time = current_time - timedelta(days=self._lookback_days)
             self._value_history = [
-                entry for entry in self._value_history if entry["timestamp"] > cutoff_time
+                entry
+                for entry in self._value_history
+                if isinstance(entry["timestamp"], datetime) and entry["timestamp"] > cutoff_time
             ]
 
             # Update drawdown calculation
@@ -127,7 +131,10 @@ class DrawdownMonitor:
             )
 
         except Exception as e:
-            logger.error("drawdown_update_error", error=str(e), exc_info=True)
+            logger.exception(
+                "drawdown_update_error",
+                error=str(e),
+            )
 
     async def _calculate_drawdown(self, current_value: Decimal, current_time: datetime) -> None:
         """Calculate current drawdown from peak value.
@@ -135,6 +142,7 @@ class DrawdownMonitor:
         Args:
             current_value: Current portfolio value
             current_time: Current timestamp
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses configured lookback period only
@@ -145,9 +153,16 @@ class DrawdownMonitor:
             return
 
         # Find peak value in lookback period
-        peak_entry = max(self._value_history, key=lambda x: x["value"])
-        peak_value = peak_entry["value"]
-        peak_time = peak_entry["timestamp"]
+        peak_entry = max(
+            self._value_history,
+            key=lambda x: x["value"] if isinstance(x["value"], Decimal) else Decimal(0),
+        )
+        peak_value = peak_entry["value"] if isinstance(peak_entry["value"], Decimal) else Decimal(0)
+        peak_time = (
+            peak_entry["timestamp"]
+            if isinstance(peak_entry["timestamp"], datetime)
+            else datetime.now(UTC)
+        )
 
         # Update peak tracking
         if peak_value > self._peak_value:
@@ -157,9 +172,9 @@ class DrawdownMonitor:
         # Calculate current drawdown from peak
         if peak_value > 0:
             drawdown_pct = ((peak_value - current_value) / peak_value) * 100
-            self._current_drawdown_pct = max(drawdown_pct, Decimal("0"))
+            self._current_drawdown_pct = max(drawdown_pct, Decimal(0))
         else:
-            self._current_drawdown_pct = Decimal("0")
+            self._current_drawdown_pct = Decimal(0)
 
         # Update trough tracking
         if current_value < self._trough_value or self._trough_value == 0:
@@ -199,28 +214,28 @@ class DrawdownMonitor:
                     current_value=float(self._trough_value),
                     violation_timestamp=self._violation_timestamp.isoformat(),
                 )
-        else:
-            if self._drawdown_violated:
-                # Drawdown has recovered
-                logger.info(
-                    "drawdown_limit_recovered",
-                    current_drawdown_pct=float(self._current_drawdown_pct),
-                    max_allowed_pct=float(self._max_drawdown_pct),
-                    violation_duration_sec=(
-                        datetime.now(UTC) - self._violation_timestamp
-                    ).total_seconds()
-                    if self._violation_timestamp
-                    else 0,
-                )
+        elif self._drawdown_violated:
+            # Drawdown has recovered
+            logger.info(
+                "drawdown_limit_recovered",
+                current_drawdown_pct=float(self._current_drawdown_pct),
+                max_allowed_pct=float(self._max_drawdown_pct),
+                violation_duration_sec=(
+                    datetime.now(UTC) - self._violation_timestamp
+                ).total_seconds()
+                if self._violation_timestamp
+                else 0,
+            )
 
-                self._drawdown_violated = False
-                self._violation_timestamp = None
+            self._drawdown_violated = False
+            self._violation_timestamp = None
 
     def is_drawdown_violated(self) -> bool:
         """Check if drawdown limits are currently violated.
 
         Returns:
             True if drawdown exceeds configured limits
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns current violation state
@@ -233,6 +248,7 @@ class DrawdownMonitor:
 
         Returns:
             Current drawdown as percentage
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns Decimal, NOT float
@@ -254,17 +270,19 @@ class DrawdownMonitor:
         Returns:
             True if new positions should be blocked
 
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses current violation state
         - NO hardcoded blocking logic
         """
         return self._drawdown_violated
 
-    def get_drawdown_status(self) -> Dict[str, object]:
+    def get_drawdown_status(self) -> dict[str, object]:
         """Get comprehensive drawdown monitoring status.
 
         Returns:
             Dictionary with drawdown status and configuration
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns structured status information
@@ -292,18 +310,19 @@ class DrawdownMonitor:
             },
         }
 
-    async def check_drawdown_limits(self) -> List[str]:
+    async def check_drawdown_limits(self) -> list[str]:
         """Check drawdown limits and return violations.
 
         Returns:
             List of drawdown violations (empty if no violations)
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns explicit violation messages
         - NO silent limit checking
         - Based on current drawdown state
         """
-        violations = []
+        violations: list[str] = []
 
         if self.is_drawdown_violated():
             violations.append(
@@ -335,10 +354,10 @@ class DrawdownMonitor:
             was_violated=self._drawdown_violated,
         )
 
-        self._current_drawdown_pct = Decimal("0")
-        self._peak_value = Decimal("0")
+        self._current_drawdown_pct = Decimal(0)
+        self._peak_value = Decimal(0)
         self._peak_timestamp = None
-        self._trough_value = Decimal("0")
+        self._trough_value = Decimal(0)
         self._trough_timestamp = None
         self._drawdown_violated = False
         self._violation_timestamp = None
@@ -346,35 +365,38 @@ class DrawdownMonitor:
 
         logger.info("drawdown_tracking_reset_completed")
 
-    async def get_historical_max_drawdown(self) -> Optional[Decimal]:
+    async def get_historical_max_drawdown(self) -> Decimal | None:
         """Calculate historical maximum drawdown over the lookback period.
 
         Returns:
             Maximum drawdown percentage over lookback period, None if insufficient data
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns Decimal, NOT float
         - Based on configured lookback period only
         - NO assumptions about data availability
         """
-        if len(self._value_history) < 2:
+        min_history_length = 2
+        if len(self._value_history) < min_history_length:
             return None
 
-        max_drawdown = Decimal("0")
+        max_drawdown = Decimal(0)
 
         # Calculate rolling maximum drawdown
         for i in range(len(self._value_history)):
-            peak_value = Decimal("0")
+            peak_value = Decimal(0)
 
             # Find peak up to this point
             for j in range(i + 1):
-                if self._value_history[j]["value"] > peak_value:
-                    peak_value = self._value_history[j]["value"]
+                history_value = self._value_history[j]["value"]
+                if isinstance(history_value, Decimal) and history_value > peak_value:
+                    peak_value = history_value
 
             # Calculate drawdown from peak
-            current_value = self._value_history[i]["value"]
-            if peak_value > 0:
-                drawdown = ((peak_value - current_value) / peak_value) * 100
+            current_entry_value = self._value_history[i]["value"]
+            if isinstance(current_entry_value, Decimal) and peak_value > 0:
+                drawdown = ((peak_value - current_entry_value) / peak_value) * 100
                 max_drawdown = max(max_drawdown, drawdown)
 
         return max_drawdown

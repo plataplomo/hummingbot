@@ -7,7 +7,7 @@ import tempfile
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -18,7 +18,6 @@ from cyberdelta.enums import ExchangeName, OrderSide, OrderType, SignalType, Tim
 from cyberdelta.logic.monitoring.audit_logger import (
     AuditEvent,
     AuditEventType,
-    AuditLogger,
     AuditSeverity,
 )
 from cyberdelta.models.market.order import Order
@@ -67,11 +66,7 @@ def sample_order() -> Order:
         quantity_requested=Decimal("0.1"),
         time_in_force=TimeInForce.GTC,
         status=OrderStatus.OPEN,
-        created_at=datetime.now(UTC),
-        updated_at=None,
-        triggered_at=None,
-        strategy_name=None,
-        signal_id=None,
+        timestamp=datetime.now(UTC),
     )
 
 
@@ -248,6 +243,8 @@ class TestAuditLogger:
 
         await audit_logger.log_error_event(error, "order_validation", order_id="order_123")
 
+        await audit_logger.log_error_event(error, "order_validation", order_id="order_123")
+
         assert len(audit_logger._event_buffer) == 1
         event = audit_logger._event_buffer[0]
 
@@ -306,52 +303,50 @@ class TestAuditLogger:
         audit_logger._buffer_size = 3
 
         # Mock the flush method
-        with patch.object(audit_logger, "_flush_buffer", new_callable=AsyncMock) as mock_flush:
-            # Add events up to buffer size
-            for i in range(4):
-                event = AuditEvent(event_type=AuditEventType.ORDER_PLACED, description=f"Order {i}")
-                await audit_logger.log_event(event)
+        audit_logger._flush_buffer = AsyncMock()
 
-            # Should have flushed once when buffer was full
-            mock_flush.assert_called_once()
-            # Buffer should have 1 event (the 4th one)
-            assert len(audit_logger._event_buffer) == 1
+        # Add events up to buffer size
+        for i in range(4):
+            event = AuditEvent(event_type=AuditEventType.ORDER_PLACED, description=f"Order {i}")
+            await audit_logger.log_event(event)
+
+        # Should have flushed once when buffer was full
+        audit_logger._flush_buffer.assert_called_once()
+        # Buffer should have 1 event (the 4th one)
+        assert len(audit_logger._event_buffer) == 1
 
     @pytest.mark.asyncio
     async def test_start_stop_lifecycle(self, audit_logger: AuditLogger) -> None:
         """Test audit logger start and stop lifecycle."""
         # Mock flush buffer
-        with patch.object(audit_logger, "_flush_buffer", new_callable=AsyncMock) as mock_flush:
-            # Start logger
-            await audit_logger.start()
+        audit_logger._flush_buffer = AsyncMock()
 
-            # Should have logged system start event
-            assert len(audit_logger._event_buffer) >= 1
-            start_event = next(
-                e
-                for e in audit_logger._event_buffer
-                if e.event_type == AuditEventType.SYSTEM_STARTED
-            )
-            assert start_event is not None
-            assert start_event.metadata["safe_mode"] is False
+        # Start logger
+        await audit_logger.start()
 
-            # Should have started flush task
-            assert audit_logger._flush_task is not None
-            assert not audit_logger._flush_task.done()
+        # Should have logged system start event
+        assert len(audit_logger._event_buffer) >= 1
+        start_event = next(
+            e for e in audit_logger._event_buffer if e.event_type == AuditEventType.SYSTEM_STARTED
+        )
+        assert start_event is not None
+        assert start_event.metadata["safe_mode"] is False
 
-            # Stop logger
-            await audit_logger.stop()
+        # Should have started flush task
+        assert audit_logger._flush_task is not None
+        assert not audit_logger._flush_task.done()
 
-            # Should have logged system stop event
-            stop_events = [
-                e
-                for e in audit_logger._event_buffer
-                if e.event_type == AuditEventType.SYSTEM_STOPPED
-            ]
-            assert len(stop_events) > 0 or mock_flush.called
+        # Stop logger
+        await audit_logger.stop()
 
-            # Flush task should be cancelled
-            assert audit_logger._flush_task.cancelled() or audit_logger._flush_task.done()
+        # Should have logged system stop event
+        stop_events = [
+            e for e in audit_logger._event_buffer if e.event_type == AuditEventType.SYSTEM_STOPPED
+        ]
+        assert len(stop_events) > 0 or audit_logger._flush_buffer.called
+
+        # Flush task should be cancelled
+        assert audit_logger._flush_task.cancelled() or audit_logger._flush_task.done()
 
     @pytest.mark.asyncio
     async def test_write_json_format(self, audit_logger: AuditLogger) -> None:
@@ -403,7 +398,7 @@ class TestAuditLogger:
                 entity_type="Order",
                 entity_id="123",
                 exchange=ExchangeName.HYPERLIQUID,
-                symbol=exchanges.hyperliquid("BTC"),
+                symbol=Symbol("BTC_USD"),
             )
         ]
 

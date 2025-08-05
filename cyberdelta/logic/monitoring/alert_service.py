@@ -7,15 +7,16 @@ alert channels, thresholds, and escalation policies.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Dict, List, Optional, Set, Any
-from dataclasses import dataclass
+from typing import Any
 
-from cyberdelta.config.structlog_config import get_logger
 from pydantic import BaseModel
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -69,10 +70,10 @@ class Alert(BaseModel):
     status: AlertStatus
     source: str
     timestamp: datetime
-    resolved_at: Optional[datetime] = None
-    acknowledged_at: Optional[datetime] = None
-    metadata: Dict[str, Any] = {}
-    channels_notified: List[str] = []
+    resolved_at: datetime | None = None
+    acknowledged_at: datetime | None = None
+    metadata: dict[str, Any] = {}
+    channels_notified: list[str] = []
     escalation_level: int = 0
 
 
@@ -83,12 +84,12 @@ class AlertRule(BaseModel):
     name: str
     description: str
     enabled: bool
-    thresholds: List[AlertThreshold]
-    channels: List[AlertChannel]
+    thresholds: list[AlertThreshold]
+    channels: list[AlertChannel]
     suppression_duration_seconds: float
     escalation_enabled: bool
     escalation_delay_seconds: float
-    tags: List[str] = []
+    tags: list[str] = []
 
 
 class AlertService:
@@ -116,11 +117,11 @@ class AlertService:
         """
         self.config = config
         self._monitoring_config = config.monitoring
-        self._active_alerts: Dict[str, Alert] = {}
-        self._alert_rules: Dict[str, AlertRule] = {}
-        self._suppressed_alerts: Set[str] = set()
+        self._active_alerts: dict[str, Alert] = {}
+        self._alert_rules: dict[str, AlertRule] = {}
+        self._suppressed_alerts: set[str] = set()
         self._running = False
-        self._alert_task: Optional[asyncio.Task] = None
+        self._alert_task: asyncio.Task | None = None
 
         # Extract configuration settings - NO hardcoded defaults
         self._enabled = self._monitoring_config.notifications_enabled
@@ -131,7 +132,7 @@ class AlertService:
         self._max_alerts_per_minute = self._monitoring_config.max_alerts_per_minute
 
         # Alert rate limiting
-        self._alert_timestamps: List[datetime] = []
+        self._alert_timestamps: list[datetime] = []
 
         logger.info(
             "alert_service_initialized",
@@ -187,7 +188,7 @@ class AlertService:
                 await asyncio.wait_for(
                     self._alert_task, timeout=float(self.config.general.shutdown_grace_period)
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "alert_service_shutdown_timeout",
                     grace_period_sec=float(self.config.general.shutdown_grace_period),
@@ -203,9 +204,9 @@ class AlertService:
         description: str,
         level: AlertLevel,
         source: str,
-        metadata: Optional[Dict[str, Any]] = None,
-        channels: Optional[List[AlertChannel]] = None,
-    ) -> Optional[Alert]:
+        metadata: dict[str, Any] | None = None,
+        channels: list[AlertChannel] | None = None,
+    ) -> Alert | None:
         """Create and process a new alert.
 
         Args:
@@ -408,7 +409,7 @@ class AlertService:
         suppression_key = f"{source}_{title}"
         return suppression_key in self._suppressed_alerts
 
-    def _get_default_channels_for_level(self, level: AlertLevel) -> List[AlertChannel]:
+    def _get_default_channels_for_level(self, level: AlertLevel) -> list[AlertChannel]:
         """Get default channels for alert level.
 
         Args:
@@ -441,7 +442,7 @@ class AlertService:
 
         return channels
 
-    async def _send_alert(self, alert: Alert, channels: List[AlertChannel]) -> None:
+    async def _send_alert(self, alert: Alert, channels: list[AlertChannel]) -> None:
         """Send alert through specified channels.
 
         Args:
@@ -490,19 +491,16 @@ class AlertService:
         """
         if channel == AlertChannel.LOG:
             return self._send_via_log(alert)
-        elif channel == AlertChannel.EMAIL:
+        if channel == AlertChannel.EMAIL:
             return await self._send_via_email(alert)
-        elif channel == AlertChannel.SLACK:
+        if channel == AlertChannel.SLACK:
             return await self._send_via_slack(alert)
-        elif channel == AlertChannel.WEBHOOK:
+        if channel == AlertChannel.WEBHOOK:
             return await self._send_via_webhook(alert)
-        elif channel == AlertChannel.SMS:
+        if channel == AlertChannel.SMS:
             return await self._send_via_sms(alert)
-        else:
-            logger.warning(
-                "unsupported_alert_channel", channel=channel.value, alert_id=alert.alert_id
-            )
-            return False
+        logger.warning("unsupported_alert_channel", channel=channel.value, alert_id=alert.alert_id)
+        return False
 
     def _send_via_log(self, alert: Alert) -> bool:
         """Send alert via structured logging.
@@ -711,7 +709,7 @@ class AlertService:
             "alert_cleanup_check", active_alerts=active_count, suppressed_alerts=suppressed_count
         )
 
-    def get_alert_stats(self) -> Dict[str, Any]:
+    def get_alert_stats(self) -> dict[str, Any]:
         """Get alert service statistics.
 
         Returns:
@@ -736,7 +734,7 @@ class AlertService:
             "recent_alert_rate": len(self._alert_timestamps),
         }
 
-    def get_active_alerts(self) -> List[Dict[str, Any]]:
+    def get_active_alerts(self) -> list[dict[str, Any]]:
         """Get list of currently active alerts.
 
         Returns:

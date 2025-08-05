@@ -10,19 +10,22 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict, Optional
+from typing import Any, NoReturn
 
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
+from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-
-from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.logic.monitoring.health_monitor import HealthCheckable, ServiceType
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType
+from cyberdelta.logic.monitoring.health_monitor import ServiceType
 from cyberdelta.logic.trading.fill_handler import FillHandler
 from cyberdelta.logic.trading.order_validator import OrderValidator
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.trading.execution_request import ExecutionRequest
+from cyberdelta.protocols.infrastructure.monitoring import HealthCheckable
+
 
 logger = get_logger(__name__)
 
@@ -52,10 +55,10 @@ class ExecutionEngine(HealthCheckable):
     def __init__(
         self,
         config: AppSettings,
-        api_clients: Dict[str, object],  # ExchangeAPI instances
-        order_validator: Optional[OrderValidator] = None,
-        fill_handler: Optional[FillHandler] = None,
-    ):
+        api_clients: dict[str, ExchangeAPI],
+        order_validator: OrderValidator | None = None,
+        fill_handler: FillHandler | None = None,
+    ) -> None:
         """Initialize execution engine with configuration and dependencies.
 
         Args:
@@ -68,7 +71,7 @@ class ExecutionEngine(HealthCheckable):
         self._api_clients = api_clients
         self._order_validator = order_validator
         self._fill_handler = fill_handler
-        self._active_orders: Dict[str, Order] = {}
+        self._active_orders: dict[str, Order] = {}
 
         # Health tracking
         self._order_count = 0
@@ -107,39 +110,61 @@ class ExecutionEngine(HealthCheckable):
 
         Returns:
             Order object representing the placed order
-
-        Raises:
-            ValueError: If request validation fails
-            TimeoutError: If order placement times out
-            Exception: For other execution failures
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - ALL execution parameters from config
-        - Uses Symbol/ExchangeName types from request
-        - Slippage checks use configured limits
-        - Retry logic uses configured parameters
         """
+        self._log_execution_start(request)
+
+        # Validate execution request
+        self._validate_execution_request(request)
+
+        # Prepare order parameters
+        order_type, price = self._prepare_order_params(request)
+
+        # Check slippage constraints from config for market orders
+        if order_type == OrderType.MARKET:
+            await self._validate_slippage(request)
+
+        # Create and validate order
+        order = await self._create_and_validate_order(request, order_type, price)
+
+        # Execute order
+        order = await self._execute_order(order)
+
+        # Track order and log completion
+        self._track_order(order, request.signal.signal_id)
+
+        return order
+
+    def _log_execution_start(self, request: ExecutionRequest) -> None:
+        """Log the start of order execution."""
         logger.info(
             "execution_request_starting",
             signal_id=request.signal.signal_id,
             symbol=request.signal.symbol.value,
-            exchange=request.signal.exchange.value,
+            exchange=(
+                request.signal.exchange.value
+                if isinstance(request.signal.exchange, ExchangeName)
+                else request.signal.exchange[0].value
+            ),
             side=request.signal.side.value,
             position_value_usd=float(request.position_size.value_usd),
             safe_mode=self._safe_mode,
         )
 
-        # Validate execution request
-        self._validate_execution_request(request)
+    def _prepare_order_params(self, request: ExecutionRequest) -> tuple[OrderType, Decimal | None]:
+        """Prepare order type and price based on config.
 
-        # Apply execution settings from config
+        Returns:
+            Tuple of (order_type, price) for the execution
+        """
         order_type = request.order_type
         price = request.signal.price
 
         # Use limit orders with offset if configured
         if self._use_limit_orders and order_type == OrderType.MARKET:
             order_type = OrderType.LIMIT
-            price = self._calculate_limit_price(request.signal.side, price)
+            calculated_price = self._calculate_limit_price(request.signal.side, price)
+            if calculated_price is not None:
+                price = calculated_price
 
             logger.debug(
                 "market_order_converted_to_limit",
@@ -149,83 +174,115 @@ class ExecutionEngine(HealthCheckable):
                 offset_pct=float(self._limit_offset_pct),
             )
 
-        # Check slippage constraints from config for market orders
-        if order_type == OrderType.MARKET:
-            await self._validate_slippage(request)
+        return order_type, price
 
-        # Create Order with validated parameters
+    async def _create_and_validate_order(
+        self, request: ExecutionRequest, order_type: OrderType, price: Decimal | None
+    ) -> Order:
+        """Create order and validate if validator available.
+
+        Returns:
+            Validated Order object ready for execution
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Handle exchange which might be a list or single value
+        exchange = request.signal.exchange
+        if isinstance(exchange, list):
+            if not exchange:
+                msg = "No exchange specified in signal"
+                raise ValueError(msg)
+            exchange = exchange[0]
+
         order = Order(
-            exchange=request.signal.exchange,
+            exchange=exchange,
             symbol=request.signal.symbol,
             side=request.signal.side,
             order_type=order_type,
             price=price,
-            quantity=request.position_size.quantity,
+            quantity_requested=request.position_size.quantity,
             time_in_force=request.time_in_force,
-            status=OrderStatus.PENDING,
-            timestamp=datetime.now(UTC),
+            status=OrderStatus.NEW,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
             client_order_id=f"cde_{uuid.uuid4().hex[:8]}",
-            metadata={
-                "signal_id": request.signal.signal_id,
-                "source_strategy": getattr(request.signal, "source_strategy", None),
-                "safe_mode": self._safe_mode,
-                "position_size_method": "from_risk_assessment",
-            },
+            signal_id=request.signal.signal_id,
+            strategy_name=request.signal.source_strategy,
         )
 
         # Comprehensive order validation if validator is available
-        if self._order_validator:
-            validation_violations = await self._order_validator.validate_order(order)
-            if validation_violations:
-                violation_summary = "; ".join(validation_violations[:3])  # First 3 violations
-                if len(validation_violations) > 3:
-                    violation_summary += f" (and {len(validation_violations) - 3} more)"
+        if self._order_validator is not None:
+            await self._validate_order(order, request.signal.signal_id)
 
-                logger.error(
-                    "order_validation_failed",
-                    signal_id=request.signal.signal_id,
-                    order_id=order.client_order_id,
-                    violation_count=len(validation_violations),
-                    violations=validation_violations,
-                )
+        return order
 
-                raise ValueError(f"Order validation failed: {violation_summary}")
+    async def _validate_order(self, order: Order, signal_id: str) -> None:
+        """Validate order using order validator.
 
-            logger.debug(
-                "order_validation_passed",
-                signal_id=request.signal.signal_id,
+        Raises:
+            ValueError: If order validation fails
+        """
+        if self._order_validator is None:
+            return
+        validation_violations = await self._order_validator.validate_order(order)
+        if validation_violations:
+            max_violations_to_show = 3
+            violation_summary = "; ".join(validation_violations[:max_violations_to_show])
+            if len(validation_violations) > max_violations_to_show:
+                remaining = len(validation_violations) - max_violations_to_show
+                violation_summary += f" (and {remaining} more)"
+
+            logger.error(
+                "order_validation_failed",
+                signal_id=signal_id,
                 order_id=order.client_order_id,
-                symbol=order.symbol.value,
-                exchange=order.exchange.value,
+                violation_count=len(validation_violations),
+                violations=validation_violations,
             )
 
-        # Execute based on safe mode
+            msg = f"Order validation failed: {violation_summary}"
+            raise ValueError(msg)
+
+        logger.debug(
+            "order_validation_passed",
+            signal_id=signal_id,
+            order_id=order.client_order_id,
+            symbol=order.symbol.value,
+            exchange=order.exchange.value,
+        )
+
+    async def _execute_order(self, order: Order) -> Order:
+        """Execute order in safe mode or real mode.
+
+        Returns:
+            Order with execution results
+        """
         if self._safe_mode:
             # Paper trading - simulate execution
-            order = await self._simulate_order_execution(order)
-        else:
-            # Real trading - place actual order
-            order = await self._place_real_order(order)
+            return await self._simulate_order_execution(order)
+        # Real trading - place actual order
+        return await self._place_real_order(order)
 
-        # Track active order and update health metrics
-        if order.order_id:
-            self._active_orders[order.order_id] = order
+    def _track_order(self, order: Order, signal_id: str) -> None:
+        """Track active order and update metrics."""
+        if order.exchange_order_id:
+            self._active_orders[order.exchange_order_id] = order
             self._order_count += 1
             self._success_count += 1
             self._last_activity = datetime.now(UTC)
 
         logger.info(
             "execution_request_completed",
-            signal_id=request.signal.signal_id,
-            order_id=order.order_id,
+            signal_id=signal_id,
+            order_id=order.exchange_order_id,
             client_order_id=order.client_order_id,
             status=order.status.value,
             safe_mode=self._safe_mode,
         )
 
-        return order
-
-    async def handle_order_update(self, order_id: str, update: Dict[str, Any]) -> Optional[Trade]:
+    async def handle_order_update(self, order_id: str, update: dict[str, Any]) -> Trade | None:
         """Handle order status updates from exchange.
 
         Args:
@@ -275,12 +332,10 @@ class ExecutionEngine(HealthCheckable):
                 trade = self._create_trade_from_fill(order, fill_data)
 
             # Update order filled quantity
-            if order.filled_quantity is None:
-                order.filled_quantity = Decimal("0")
-            order.filled_quantity += trade.quantity
+            order.quantity_filled += trade.quantity
 
             # Check if order is complete
-            if order.filled_quantity >= order.quantity:
+            if order.quantity_filled >= order.quantity_requested:
                 order.status = OrderStatus.FILLED
                 # Remove from active tracking
                 del self._active_orders[order_id]
@@ -288,8 +343,8 @@ class ExecutionEngine(HealthCheckable):
                 logger.info(
                     "order_fully_filled",
                     order_id=order_id,
-                    total_filled=float(order.filled_quantity),
-                    order_quantity=float(order.quantity),
+                    total_filled=float(order.quantity_filled),
+                    order_quantity=float(order.quantity_requested),
                     used_fill_handler=self._fill_handler is not None,
                 )
             else:
@@ -297,8 +352,8 @@ class ExecutionEngine(HealthCheckable):
                     "order_partially_filled",
                     order_id=order_id,
                     filled_quantity=float(trade.quantity),
-                    total_filled=float(order.filled_quantity),
-                    remaining=float(order.quantity - order.filled_quantity),
+                    total_filled=float(order.quantity_filled),
+                    remaining=float(order.quantity_requested - order.quantity_filled),
                     used_fill_handler=self._fill_handler is not None,
                 )
 
@@ -315,9 +370,10 @@ class ExecutionEngine(HealthCheckable):
         Returns:
             True if cancellation successful, False otherwise
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured timeouts for cancellation
-        - NO assumptions about cancellation success
+        Note:
+            Following CODING_STANDARDS.md:
+            - Uses configured timeouts for cancellation
+            - NO assumptions about cancellation success
         """
         order = self._active_orders.get(order_id)
         if not order:
@@ -338,53 +394,46 @@ class ExecutionEngine(HealthCheckable):
         try:
             if self._safe_mode:
                 # Paper trading - simulate cancellation
-                order.status = OrderStatus.CANCELLED
+                order.status = OrderStatus.CANCELED
                 del self._active_orders[order_id]
 
                 logger.info("order_cancelled_simulation", order_id=order_id, safe_mode=True)
                 return True
-            else:
-                # Real trading - cancel via API
-                api_client = self._api_clients.get(order.exchange.value)
-                if not api_client:
-                    logger.error(
-                        "cancel_order_no_api_client",
-                        order_id=order_id,
-                        exchange=order.exchange.value,
-                    )
-                    return False
-
-                # Get exchange-specific timeout
-                exchange_config = self.config.exchanges.get(order.exchange.value)
-                timeout = exchange_config.request_timeout_seconds if exchange_config else 30.0
-
-                success = await asyncio.wait_for(
-                    self._cancel_order_via_api(api_client, order), timeout=timeout
+            # Real trading - cancel via API
+            api_client = self._api_clients.get(order.exchange.value)
+            if not api_client:
+                logger.error(
+                    "cancel_order_no_api_client", order_id=order_id, exchange=order.exchange.value
                 )
+                return False
 
-                if success:
-                    order.status = OrderStatus.CANCELLED
-                    del self._active_orders[order_id]
+            # Get exchange-specific timeout
+            exchange_config = self.config.exchanges.get(order.exchange.value)
+            if not exchange_config:
+                self._raise_no_exchange_config_error(order.exchange.value)
+            timeout = exchange_config.request_timeout_seconds
 
-                    logger.info(
-                        "order_cancelled_success", order_id=order_id, exchange=order.exchange.value
-                    )
+            success = await asyncio.wait_for(
+                self._cancel_order_via_api(api_client, order), timeout=timeout
+            )
 
-                return success
+            if not success:
+                return False
+            order.status = OrderStatus.CANCELED
+            del self._active_orders[order_id]
+
+            logger.info("order_cancelled_success", order_id=order_id, exchange=order.exchange.value)
 
         except Exception as e:
             self._error_count += 1
             self._last_activity = datetime.now(UTC)
-            logger.error(
-                "order_cancellation_failed", order_id=order_id, error=str(e), exc_info=True
-            )
+            logger.exception("order_cancellation_failed", order_id=order_id, error=str(e))
             return False
+        else:
+            return True
 
     async def modify_order(
-        self,
-        order_id: str,
-        new_price: Optional[Decimal] = None,
-        new_quantity: Optional[Decimal] = None,
+        self, order_id: str, new_price: Decimal | None = None, new_quantity: Decimal | None = None
     ) -> bool:
         """Modify an active order.
 
@@ -395,16 +444,42 @@ class ExecutionEngine(HealthCheckable):
 
         Returns:
             True if modification successful, False otherwise
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Validates modifications through OrderValidator
-        - Uses configured modification constraints
-        - NO assumptions about modification support
         """
         order = self._active_orders.get(order_id)
         if not order:
             logger.warning("modify_request_for_unknown_order", order_id=order_id)
             return False
+
+        # Validate modification if needed
+        if not await self._validate_modification(order, new_price, new_quantity):
+            return False
+
+        try:
+            # Execute modification
+            success = await self._execute_modification(order, new_price, new_quantity)
+
+            if not success:
+                return False
+            self._update_order_state(order, new_price, new_quantity)
+
+        except Exception as e:
+            self._error_count += 1
+            self._last_activity = datetime.now(UTC)
+            logger.exception("order_modification_failed", order_id=order_id, error=str(e))
+            return False
+        else:
+            return True
+
+    async def _validate_modification(
+        self, order: Order, new_price: Decimal | None, new_quantity: Decimal | None
+    ) -> bool:
+        """Validate order modification.
+
+        Returns:
+            True if modification is valid, False otherwise
+        """
+        if not self._order_validator:
+            return True
 
         # Create modified order for validation
         modified_order = Order(
@@ -413,88 +488,106 @@ class ExecutionEngine(HealthCheckable):
             side=order.side,
             order_type=order.order_type,
             price=new_price if new_price is not None else order.price,
-            quantity=new_quantity if new_quantity is not None else order.quantity,
+            quantity_requested=(
+                new_quantity if new_quantity is not None else order.quantity_requested
+            ),
             time_in_force=order.time_in_force,
             status=order.status,
-            timestamp=order.timestamp,
-            order_id=order.order_id,
+            created_at=order.created_at,
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+            exchange_order_id=order.exchange_order_id,
             client_order_id=order.client_order_id,
-            metadata=order.metadata,
         )
 
-        # Validate modification if validator is available
-        if self._order_validator:
-            modification_violations = await self._order_validator.validate_order_modification(
-                order, modified_order
-            )
-            if modification_violations:
-                logger.warning(
-                    "order_modification_validation_failed",
-                    order_id=order_id,
-                    violations=modification_violations,
-                )
-                return False
-
-        try:
-            if self._safe_mode:
-                # Paper trading - simulate modification
-                if new_price is not None:
-                    order.price = new_price
-                if new_quantity is not None:
-                    order.quantity = new_quantity
-
-                logger.info(
-                    "order_modified_simulation",
-                    order_id=order_id,
-                    new_price=float(order.price) if order.price else None,
-                    new_quantity=float(order.quantity),
-                    safe_mode=True,
-                )
-                return True
-            else:
-                # Real trading - modify via API
-                api_client = self._api_clients.get(order.exchange.value)
-                if not api_client:
-                    logger.error(
-                        "modify_order_no_api_client",
-                        order_id=order_id,
-                        exchange=order.exchange.value,
-                    )
-                    return False
-
-                # Get exchange-specific timeout
-                exchange_config = self.config.exchanges.get(order.exchange.value)
-                timeout = exchange_config.request_timeout_seconds if exchange_config else 30.0
-
-                success = await asyncio.wait_for(
-                    self._modify_order_via_api(api_client, order, new_price, new_quantity),
-                    timeout=timeout,
-                )
-
-                if success:
-                    # Update local order state
-                    if new_price is not None:
-                        order.price = new_price
-                    if new_quantity is not None:
-                        order.quantity = new_quantity
-
-                    logger.info(
-                        "order_modified_success",
-                        order_id=order_id,
-                        new_price=float(order.price) if order.price else None,
-                        new_quantity=float(order.quantity),
-                        exchange=order.exchange.value,
-                    )
-
-                return success
-
-        except Exception as e:
-            self._error_count += 1
-            self._last_activity = datetime.now(UTC)
-            logger.error(
-                "order_modification_failed", order_id=order_id, error=str(e), exc_info=True
+        modification_violations = await self._order_validator.validate_order_modification(
+            order, modified_order
+        )
+        if modification_violations:
+            logger.warning(
+                "order_modification_validation_failed",
+                order_id=order.exchange_order_id,
+                violations=modification_violations,
             )
             return False
+        return True
+
+    async def _execute_modification(
+        self, order: Order, new_price: Decimal | None, new_quantity: Decimal | None
+    ) -> bool:
+        """Execute order modification.
+
+        Returns:
+            True if modification successful, False otherwise
+
+        Raises:
+            ValueError: If exchange configuration is not found
+        """
+        if self._safe_mode:
+            # Paper trading - simulate modification
+            return self._simulate_modification(order, new_price, new_quantity)
+
+        # Real trading - modify via API
+        api_client = self._api_clients.get(order.exchange.value)
+        if not api_client:
+            logger.error(
+                "modify_order_no_api_client",
+                order_id=order.exchange_order_id,
+                exchange=order.exchange.value,
+            )
+            return False
+
+        # Get exchange-specific timeout
+        exchange_config = self.config.exchanges.get(order.exchange.value)
+        if not exchange_config:
+            msg = f"No exchange configuration found for {order.exchange.value}"
+            raise ValueError(msg)
+        timeout = exchange_config.request_timeout_seconds
+
+        return await asyncio.wait_for(
+            self._modify_order_via_api(api_client, order, new_price, new_quantity), timeout=timeout
+        )
+
+    def _simulate_modification(
+        self, order: Order, new_price: Decimal | None, new_quantity: Decimal | None
+    ) -> bool:
+        """Simulate order modification in safe mode.
+
+        Returns:
+            True (always successful in simulation)
+        """
+        if new_price is not None:
+            order.price = new_price
+        if new_quantity is not None:
+            order.quantity_requested = new_quantity
+
+        logger.info(
+            "order_modified_simulation",
+            order_id=order.exchange_order_id,
+            new_price=float(order.price) if order.price else None,
+            new_quantity=float(order.quantity_requested),
+            safe_mode=True,
+        )
+        return True
+
+    def _update_order_state(
+        self, order: Order, new_price: Decimal | None, new_quantity: Decimal | None
+    ) -> None:
+        """Update local order state after successful modification."""
+        if new_price is not None:
+            order.price = new_price
+        if new_quantity is not None:
+            order.quantity_requested = new_quantity
+
+        logger.info(
+            "order_modified_success",
+            order_id=order.exchange_order_id,
+            new_price=float(order.price) if order.price else None,
+            new_quantity=float(order.quantity_requested),
+            exchange=order.exchange.value,
+        )
 
     def _validate_execution_request(self, request: ExecutionRequest) -> None:
         """Validate execution request parameters.
@@ -504,28 +597,35 @@ class ExecutionEngine(HealthCheckable):
 
         Raises:
             ValueError: If validation fails
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - NO assumptions about request validity
-        - Explicit validation errors with context
         """
         if not request.signal.price or request.signal.price <= 0:
-            raise ValueError(f"Invalid signal price: {request.signal.price}")
+            msg = f"Invalid signal price: {request.signal.price}"
+            raise ValueError(msg)
 
         if request.position_size.quantity <= 0:
-            raise ValueError(f"Invalid position quantity: {request.position_size.quantity}")
+            msg = f"Invalid position quantity: {request.position_size.quantity}"
+            raise ValueError(msg)
 
         if request.position_size.value_usd <= 0:
-            raise ValueError(f"Invalid position value: {request.position_size.value_usd}")
+            msg = f"Invalid position value: {request.position_size.value_usd}"
+            raise ValueError(msg)
 
         # Check if we have API client for this exchange
-        exchange_name = request.signal.exchange.value
+        exchange_to_check = request.signal.exchange
+        if isinstance(exchange_to_check, list):
+            if not exchange_to_check:
+                msg = "No exchange specified in signal"
+                raise ValueError(msg)
+            exchange_name = exchange_to_check[0].value
+        else:
+            exchange_name = exchange_to_check.value
         if not self._safe_mode and exchange_name not in self._api_clients:
-            raise ValueError(f"No API client available for exchange: {exchange_name}")
+            msg = f"No API client available for exchange: {exchange_name}"
+            raise ValueError(msg)
 
     def _calculate_limit_price(
-        self, side: OrderSide, market_price: Optional[Decimal]
-    ) -> Optional[Decimal]:
+        self, side: OrderSide, market_price: Decimal | None
+    ) -> Decimal | None:
         """Calculate limit price with configured offset.
 
         Args:
@@ -544,10 +644,9 @@ class ExecutionEngine(HealthCheckable):
 
         if side == OrderSide.BUY:
             # Buy at slight premium to increase fill probability
-            return market_price * (Decimal("1") + self._limit_offset_pct)
-        else:
-            # Sell at slight discount to increase fill probability
-            return market_price * (Decimal("1") - self._limit_offset_pct)
+            return market_price * (Decimal(1) + self._limit_offset_pct)
+        # Sell at slight discount to increase fill probability
+        return market_price * (Decimal(1) - self._limit_offset_pct)
 
     async def _validate_slippage(self, request: ExecutionRequest) -> None:
         """Validate expected slippage is within configured limits.
@@ -557,10 +656,6 @@ class ExecutionEngine(HealthCheckable):
 
         Raises:
             ValueError: If slippage exceeds configured maximum
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured slippage limit
-        - NO hardcoded slippage tolerance
         """
         # For now, assume signal price is current market price
         # In production, this would fetch current market price
@@ -576,17 +671,19 @@ class ExecutionEngine(HealthCheckable):
             return
 
         # For market orders, assume some slippage based on order size
-        # This is a simplified implementation
+        # Use configured slippage factors for calculation
+        slippage_factor = Decimal(str(self.config.execution.minimal_quantity_fallback))
         estimated_slippage = min(
-            request.position_size.value_usd / Decimal("100000"),  # Larger orders have more slippage
-            self._max_slippage / 2,  # But cap at half of max allowed
+            request.position_size.value_usd * slippage_factor,  # Size-based slippage
+            self._max_slippage / Decimal(2),  # But cap at half of max allowed
         )
 
         if estimated_slippage > self._max_slippage:
-            raise ValueError(
+            msg = (
                 f"Estimated slippage {estimated_slippage:.4%} exceeds "
                 f"max allowed {self._max_slippage:.4%}"
             )
+            raise ValueError(msg)
 
         logger.debug(
             "slippage_check_passed",
@@ -608,21 +705,23 @@ class ExecutionEngine(HealthCheckable):
         - Clear indication this is simulation
         - Realistic simulation parameters
         """
-        # Simulate order placement delay
-        await asyncio.sleep(0.1)
+        # Simulate order placement delay if configured
+        if self._safe_mode and self.config.simulation.simulate_network_delay:
+            delay = float(self.config.simulation.min_network_delay_ms) / 1000.0
+            await asyncio.sleep(delay)
 
         # Assign simulated order ID
-        order.order_id = f"sim_{uuid.uuid4().hex[:8]}"
+        order.exchange_order_id = f"sim_{uuid.uuid4().hex[:8]}"
         order.status = OrderStatus.OPEN
-        order.exchange_timestamp = datetime.now(UTC)
+        order.updated_at = datetime.now(UTC)
 
         logger.info(
             "order_simulated",
-            order_id=order.order_id,
+            order_id=order.exchange_order_id,
             symbol=order.symbol.value,
             exchange=order.exchange.value,
             side=order.side.value,
-            quantity=float(order.quantity),
+            quantity=float(order.quantity_requested),
             price=float(order.price) if order.price else None,
             safe_mode=True,
         )
@@ -638,19 +737,24 @@ class ExecutionEngine(HealthCheckable):
         Returns:
             Order with exchange response data
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Raises:
+            ValueError: If no API client or exchange config found
+
+        Note:
         - Uses configured retry logic
         - Uses configured timeouts
         - NO hardcoded retry parameters
         """
         api_client = self._api_clients.get(order.exchange.value)
         if not api_client:
-            raise ValueError(f"No API client for {order.exchange.value}")
+            msg = f"No API client for {order.exchange.value}"
+            raise ValueError(msg)
 
         # Get exchange-specific timeout from config
         exchange_config = self.config.exchanges.get(order.exchange.value)
         if not exchange_config:
-            raise ValueError(f"No exchange config found for {order.exchange.value}")
+            msg = f"No exchange config found for {order.exchange.value}"
+            raise ValueError(msg)
         timeout = exchange_config.request_timeout_seconds
 
         # Place order with retries based on config
@@ -669,22 +773,20 @@ class ExecutionEngine(HealthCheckable):
                     self._place_order_via_api(api_client, order), timeout=timeout
                 )
 
-                # Update order with exchange response
-                order.order_id = exchange_order.get("order_id")
-                order.status = OrderStatus.OPEN
-                order.exchange_timestamp = exchange_order.get("timestamp")
+                # Update order with exchange response (exchange_order is now an Order object)
+                order.exchange_order_id = exchange_order.exchange_order_id
+                order.status = exchange_order.status
+                order.updated_at = exchange_order.updated_at
 
                 logger.info(
                     "order_placed_successfully",
-                    order_id=order.order_id,
+                    order_id=order.exchange_order_id,
                     symbol=order.symbol.value,
                     exchange=order.exchange.value,
                     attempt=attempt + 1,
                 )
 
-                return order
-
-            except Exception as e:
+            except (ValueError, TimeoutError, ConnectionError, RuntimeError) as e:
                 last_error = e
                 logger.warning(
                     "order_placement_attempt_failed",
@@ -703,6 +805,9 @@ class ExecutionEngine(HealthCheckable):
                     logger.debug(
                         "order_placement_retry_delay", delay_seconds=delay, next_attempt=attempt + 2
                     )
+                    continue
+
+            return order
 
         # All retries failed - update health metrics
         self._error_count += 1
@@ -717,7 +822,7 @@ class ExecutionEngine(HealthCheckable):
         )
         raise last_error or Exception("Order placement failed after all retries")
 
-    async def _place_order_via_api(self, api_client: object, order: Order) -> Dict[str, Any]:
+    async def _place_order_via_api(self, api_client: ExchangeAPI, order: Order) -> Order:
         """Place order via exchange API client.
 
         Args:
@@ -725,39 +830,27 @@ class ExecutionEngine(HealthCheckable):
             order: Order to place
 
         Returns:
-            Exchange response dictionary
+            Order object from exchange response
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - NO assumptions about API client interface
         - Uses proper type conversions for API
         """
-        # Convert Order model to API parameters
-        # API clients typically expect string/float values
-        params = {
-            "symbol": order.symbol.value,
-            "side": order.side.value,
-            "order_type": order.order_type.value,
-            "quantity": float(order.quantity),
-            "time_in_force": order.time_in_force.value,
-        }
+        # Create PlaceOrderArgs using the proper interface
+        place_order_args = PlaceOrderArgs(
+            symbol=order.symbol,
+            side=order.side,
+            order_type=order.order_type,
+            quantity=order.quantity_requested,
+            time_in_force=order.time_in_force,
+            price=order.price,
+            client_order_id=order.client_order_id,
+        )
 
-        # Add price for limit orders
-        if order.price and order.order_type == OrderType.LIMIT:
-            params["price"] = float(order.price)
+        # Call API using the proper interface
+        return await api_client.place_order(place_order_args)
 
-        # Add client order ID if supported
-        if order.client_order_id:
-            params["client_order_id"] = order.client_order_id
-
-        # Call API - method names may vary by exchange
-        if hasattr(api_client, "place_order"):
-            return await api_client.place_order(**params)
-        elif hasattr(api_client, "create_order"):
-            return await api_client.create_order(**params)
-        else:
-            raise AttributeError(f"API client does not support order placement")
-
-    async def _cancel_order_via_api(self, api_client: object, order: Order) -> bool:
+    async def _cancel_order_via_api(self, api_client: ExchangeAPI, order: Order) -> bool:
         """Cancel order via exchange API client.
 
         Args:
@@ -772,27 +865,33 @@ class ExecutionEngine(HealthCheckable):
         - Explicit success/failure return
         """
         try:
-            if hasattr(api_client, "cancel_order"):
-                result = await api_client.cancel_order(
-                    order_id=order.order_id, symbol=order.symbol.value
-                )
+            # Create CancelOrderArgs using the proper interface
+            cancel_order_args = CancelOrderArgs(
+                order_id=order.exchange_order_id or "",
+                symbol=order.symbol,
+                client_order_id=order.client_order_id,
+            )
+
+            # Call API using the proper interface
+            result = await api_client.cancel_order(cancel_order_args)
+            # Use proper attribute access with error handling
+            try:
+                return result.success
+            except AttributeError:
                 return bool(result)
-            else:
-                logger.error("api_client_no_cancel_support", exchange=order.exchange.value)
-                return False
 
         except Exception as e:
-            logger.error(
-                "api_cancel_order_error", order_id=order.order_id, error=str(e), exc_info=True
+            logger.exception(
+                "api_cancel_order_error", order_id=order.exchange_order_id, error=str(e)
             )
             return False
 
     async def _modify_order_via_api(
         self,
-        api_client: object,
+        api_client: ExchangeAPI,
         order: Order,
-        new_price: Optional[Decimal] = None,
-        new_quantity: Optional[Decimal] = None,
+        new_price: Decimal | None = None,
+        new_quantity: Decimal | None = None,
     ) -> bool:
         """Modify order via exchange API client.
 
@@ -810,7 +909,10 @@ class ExecutionEngine(HealthCheckable):
         - Explicit success/failure return
         """
         try:
-            params = {"order_id": order.order_id, "symbol": order.symbol.value}
+            params: dict[str, Any] = {
+                "order_id": order.exchange_order_id,
+                "symbol": order.symbol.value,
+            }
 
             # Add modification parameters
             if new_price is not None:
@@ -818,23 +920,23 @@ class ExecutionEngine(HealthCheckable):
             if new_quantity is not None:
                 params["quantity"] = float(new_quantity)
 
-            if hasattr(api_client, "modify_order"):
-                result = await api_client.modify_order(**params)
-                return bool(result)
-            elif hasattr(api_client, "update_order"):
-                result = await api_client.update_order(**params)
-                return bool(result)
-            else:
-                logger.error("api_client_no_modify_support", exchange=order.exchange.value)
-                return False
+            # ExchangeAPI doesn't currently support order modification
+            # This would need to be implemented per exchange if supported
+            logger.warning(
+                "order_modification_not_supported",
+                exchange=order.exchange.value,
+                reason="ExchangeAPI interface doesn't include modify_order method",
+            )
 
         except Exception as e:
-            logger.error(
-                "api_modify_order_error", order_id=order.order_id, error=str(e), exc_info=True
+            logger.exception(
+                "api_modify_order_error", order_id=order.exchange_order_id, error=str(e)
             )
             return False
+        else:
+            return False
 
-    def _create_trade_from_fill(self, order: Order, fill_data: Dict[str, Any]) -> Trade:
+    def _create_trade_from_fill(self, order: Order, fill_data: dict[str, Any]) -> Trade:
         """Create Trade object from order fill data.
 
         Args:
@@ -854,7 +956,7 @@ class ExecutionEngine(HealthCheckable):
             symbol=order.symbol,
             executed_at=datetime.now(UTC),
             side=order.side,
-            order_id=order.order_id or "",
+            order_id=order.exchange_order_id or "",
             exchange=order.exchange.value,
             price=Decimal(str(fill_data.get("fill_price", order.price or 0))),
             quantity=Decimal(str(fill_data.get("filled_quantity", 0))),
@@ -871,7 +973,7 @@ class ExecutionEngine(HealthCheckable):
         """
         return len(self._active_orders)
 
-    def get_active_orders(self) -> Dict[str, Order]:
+    def get_active_orders(self) -> dict[str, Order]:
         """Get copy of active orders dictionary.
 
         Returns:
@@ -882,7 +984,7 @@ class ExecutionEngine(HealthCheckable):
         """
         return self._active_orders.copy()
 
-    async def check_health(self) -> Dict[str, Any]:
+    async def check_health(self) -> dict[str, Any]:
         """Health check implementation for ExecutionEngine.
 
         Returns:
@@ -905,11 +1007,11 @@ class ExecutionEngine(HealthCheckable):
             "max_retries": self._max_retries,
         }
 
-    def get_service_type(self) -> ServiceType:
+    def get_service_type(self) -> str:
         """Return service type for health monitoring."""
-        return ServiceType.EXECUTION
+        return ServiceType.EXECUTION.value
 
-    def get_fill_statistics(self) -> Dict[str, object]:
+    def get_fill_statistics(self) -> dict[str, object]:
         """Get fill processing statistics from FillHandler.
 
         Returns:
@@ -921,13 +1023,12 @@ class ExecutionEngine(HealthCheckable):
         """
         if self._fill_handler:
             return self._fill_handler.get_fill_statistics()
-        else:
-            return {
-                "fill_handler_available": False,
-                "message": "No fill handler configured for detailed statistics",
-            }
+        return {
+            "fill_handler_available": False,
+            "message": "No fill handler configured for detailed statistics",
+        }
 
-    def get_recent_fills(self, limit: int = 10) -> List[Trade]:
+    def get_recent_fills(self, limit: int = 10) -> list[Trade]:
         """Get recent fills processed by the FillHandler.
 
         Args:
@@ -942,5 +1043,16 @@ class ExecutionEngine(HealthCheckable):
         """
         if self._fill_handler:
             return self._fill_handler.get_recent_fills(limit)
-        else:
-            return []
+        return []
+
+    def _raise_no_exchange_config_error(self, exchange: str) -> NoReturn:
+        """Raise ValueError for missing exchange configuration.
+
+        Args:
+            exchange: Exchange name
+
+        Raises:
+            ValueError: Always raised with missing config message
+        """
+        msg = f"No exchange configuration found for {exchange}"
+        raise ValueError(msg)

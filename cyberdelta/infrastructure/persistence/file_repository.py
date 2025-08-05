@@ -7,19 +7,17 @@ protocol using JSON serialization.
 from __future__ import annotations
 
 import json
-import shutil
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Optional
-
-from cyberdelta.config.structlog_config import get_logger
 
 from cyberdelta.config.models.config_models import AppSettings
-from cyberdelta.infrastructure.persistence.protocols import (
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.models.portfolio.state import PortfolioState
+from cyberdelta.protocols.domain.portfolio import (
     PortfolioStorageProtocol,
     StorageError,
 )
-from cyberdelta.models.portfolio.state import PortfolioState
+
 
 logger = get_logger(__name__)
 
@@ -115,7 +113,7 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
                 f"Failed to save portfolio state: {e}", operation="save_state", original_error=e
             ) from e
 
-    async def load_state(self) -> Optional[PortfolioState]:
+    async def load_state(self) -> PortfolioState | None:
         """Load portfolio state from JSON file.
 
         Returns:
@@ -129,7 +127,7 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             return None
 
         try:
-            with open(self._state_file, "r", encoding="utf-8") as f:
+            with open(self._state_file, encoding="utf-8") as f:
                 state_data = json.load(f)
 
             # Validate and create PortfolioState

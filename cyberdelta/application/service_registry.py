@@ -6,9 +6,10 @@ with explicit registration and type-safe retrieval.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Type, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 from cyberdelta.config.structlog_config import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -29,9 +30,9 @@ class ServiceRegistry:
 
     def __init__(self) -> None:
         """Initialize empty service registry."""
-        self._services: Dict[Type[Any], Any] = {}
+        self._services: dict[type[Any], Any] = {}
 
-    def register(self, interface: Type[T], implementation: T) -> None:
+    def register(self, interface: type[T], implementation: T) -> None:
         """Register service implementation for an interface.
 
         Args:
@@ -58,7 +59,7 @@ class ServiceRegistry:
             total_services=len(self._services),
         )
 
-    def get(self, interface: Type[T]) -> T:
+    def get(self, interface: type[T]) -> T:
         """Get service implementation for an interface.
 
         Args:
@@ -86,7 +87,7 @@ class ServiceRegistry:
 
         return cast(T, implementation)
 
-    def is_registered(self, interface: Type[Any]) -> bool:
+    def is_registered(self, interface: type[Any]) -> bool:
         """Check if an interface has a registered implementation.
 
         Args:
@@ -97,7 +98,7 @@ class ServiceRegistry:
         """
         return interface in self._services
 
-    def unregister(self, interface: Type[Any]) -> None:
+    def unregister(self, interface: type[Any]) -> None:
         """Unregister a service interface.
 
         Args:
@@ -130,7 +131,7 @@ class ServiceRegistry:
 
         logger.info("service_registry_cleared", services_removed=service_count)
 
-    def get_registered_interfaces(self) -> list[Type[Any]]:
+    def get_registered_interfaces(self) -> list[type[Any]]:
         """Get list of all registered interface types.
 
         Returns:

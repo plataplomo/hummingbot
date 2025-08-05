@@ -200,7 +200,7 @@ class TestPerformanceTracker:
                 executed_at=now - timedelta(days=1),
                 side=OrderSide.BUY,
                 order_id="order_3",
-                exchange=ExchangeName.HYPERLIQUID,
+                exchange="hyperliquid",
                 price=Decimal(3000),
                 quantity=Decimal(1),
                 fee=Decimal(3),
@@ -228,6 +228,9 @@ class TestPerformanceTracker:
 
         # Create daily equity values with some volatility
         daily_returns = [
+            Decimal("0.01"),  # +1%
+            Decimal("-0.005"),  # -0.5%
+            Decimal("0.02"),  # +2%
             Decimal("0.01"),  # +1%
             Decimal("-0.005"),  # -0.5%
             Decimal("0.02"),  # +2%
@@ -294,14 +297,18 @@ class TestPerformanceTracker:
         if "daily_return" in performance_tracker._enabled_metrics:
             assert metrics.daily_return_pct is not None
             # (12000 - 11800) / 11800 * 100 ≈ 1.69%
-            expected_daily = (Decimal(12000) - Decimal(11800)) / Decimal(11800) * Decimal(100)
+            expected_daily = (
+                (Decimal(12000) - Decimal(11800)) / Decimal(11800) * Decimal(100)
+            )
             assert abs(metrics.daily_return_pct - expected_daily) < Decimal("0.1")
 
         # Check weekly return if enabled
         if "weekly_return" in performance_tracker._enabled_metrics:
             assert metrics.weekly_return_pct is not None
             # (12000 - 11500) / 11500 * 100 ≈ 4.35%
-            expected_weekly = (Decimal(12000) - Decimal(11500)) / Decimal(11500) * Decimal(100)
+            expected_weekly = (
+                (Decimal(12000) - Decimal(11500)) / Decimal(11500) * Decimal(100)
+            )
             assert abs(metrics.weekly_return_pct - expected_weekly) < Decimal("0.1")
 
     @pytest.mark.asyncio

@@ -47,6 +47,28 @@ exchanges:
     request_timeout_seconds: 20
     ws_ping_interval_seconds: 25
     chain_id: 1337
+    # Trading constraints
+    min_order_size: 1.0
+    max_order_size: 1000000.0
+    tick_size: 0.00001
+    lot_size: 0.001
+    min_quantity: 0.001
+    max_quantity: 1000000.0
+    max_price_deviation_pct: 0.05
+    min_order_book_depth: 10000.0
+    allow_order_modifications: true
+    max_price_change_pct: 0.10
+    max_quantity_change_pct: 0.50
+    allow_order_cancellations: true
+    cancellable_statuses: ["open", "partially_filled"]
+    # Fee structure configuration
+    fee_structure:
+      maker_fee_rate: 0.0002
+      taker_fee_rate: 0.0003
+      fee_calculation_method: percentage
+      fee_asset: null
+      minimum_fee: null
+      maximum_fee: null
   backpack:
     exchange_name: backpack
     enabled: true
@@ -55,7 +77,35 @@ exchanges:
     environment_type: mainnet
     rate_limit_per_minute: 120
     request_timeout_seconds: 15.0
+    # Trading constraints
+    min_order_size: 1.0
+    max_order_size: 1000000.0
+    tick_size: 0.00001
+    lot_size: 0.001
+    min_quantity: 0.001
+    max_quantity: 1000000.0
+    max_price_deviation_pct: 0.05
+    min_order_book_depth: 10000.0
+    allow_order_modifications: true
+    max_price_change_pct: 0.10
+    max_quantity_change_pct: 0.50
+    allow_order_cancellations: true
+    cancellable_statuses: ["open", "partially_filled"]
+    # Fee structure configuration
+    fee_structure:
+      maker_fee_rate: 0.0001
+      taker_fee_rate: 0.0001
+      fee_calculation_method: percentage
+      fee_asset: null
+      minimum_fee: null
+      maximum_fee: null
 strategies:
+  # List of enabled strategy names
+  enabled_strategies: []  # Empty list means no strategies enabled
+  # Strategy execution interval in seconds
+  execution_interval_seconds: 10.0
+  
+  # HyperLiquid Perp vs Backpack Spot arbitrage strategy
   hl_perp_bp_spot:
     enabled: true
     long_exchange: backpack
@@ -72,21 +122,59 @@ strategies:
       rebalance_threshold: 0.05
       perp_exchange: hyperliquid
       spot_exchange: backpack
+  
+  # Momentum strategy configuration (optional)
+  # Uncomment and configure to enable momentum strategy
+  # momentum:
+  #   price_change_threshold: 0.05  # 5% positive change to trigger buy
+  #   negative_threshold: -0.03     # -3% negative change to trigger sell
+  #   signal_confidence: 0.7         # 70% confidence in signals
+  #   target_symbol: "BTC_USD"       # Symbol to trade
+  #   target_exchange: "hyperliquid" # Exchange to trade on
+  #   lookback_hours: 24             # Look back 24 hours for price change
+  #   min_position_hold_hours: 4     # Hold position for at least 4 hours
 risk:
   global:
     max_position_usd: 200.0
     max_total_exposure_usd: 1000.0
+    max_drawdown_pct: 20.0
+    drawdown_lookback_days: 30
+    drawdown_warning_pct: 15.0
+    drawdown_check_interval_sec: 300.0
   sizing:
     method: "simple"
-    parameters:
-      mode: "fixed_fraction"
-      fraction: 0.01
+    simple_method: "fixed_fraction"
+    simple_fixed_fraction: 0.01
+    min_position_size: 50.0
     max_position_size: 200.0
+    kelly_multiplier: 0.25
+    kelly_max_allocation: 0.1
+  checkers:
+    enable_symbol_validation: true
+    enable_confidence_check: true
+    enable_profitability: true
+    enable_price_sanity: true
+    thresholds:
+      min_signal_confidence: 0.7
+      min_profitability: 0.001
+      min_price: 0.0000001
+      max_price: 1000000
+  limits:
+    max_positions_per_symbol: 5
+    max_positions_total: 20
+    max_positions_per_exchange: 10
+    max_concentration_per_symbol: 25.0
+    max_concentration_per_asset_class: 50.0
 execution:
   max_slippage_pct: 0.001
   max_retries: 3
   retry_delay_base_sec: 1.0
+  retry_backoff_multiplier: 2.0
   settlement_delay: 2.0
+  minimal_quantity_fallback: 0.001
+  timeout_seconds: 30.0
+  retry_enabled: true
+  max_retry_attempts: 3
   compensation:
     use_limit_orders: true
     limit_price_offset_pct: 0.05
@@ -97,6 +185,11 @@ safety_systems:
     global_reset_timeout_sec: 300
     exchange_consecutive_failures: 3
     exchange_reset_timeout_sec: 180
+    cooldown_period_seconds: 300
+    half_open_max_calls: 5
+    recovery_threshold: 0.6
+    failure_history_limit: 100
+    per_service_enabled: true
   position_reconciliation:
     enabled: true
     check_interval_sec: 600
@@ -109,16 +202,9 @@ safety_systems:
       backpack: 100.0
 monitoring:
   notifications_enabled: true
+  health_check_interval_seconds: 300.0
   alert_methods:
   - log
-portfolio_tracker:
-  data_freshness_seconds: 60
-  initial_balances: {}
-  initial_positions: []
-  validation:
-    validation_timeout: 4.0
-  state:
-    update_timeout: 5.0
 # Smart symbol configuration
 # Reduces configuration from 108 lines to 13 lines (88% reduction)
 symbols:
@@ -141,3 +227,82 @@ symbols:
   
   # Symbol-specific overrides
   overrides: {}
+
+# Simulation configuration (for safe mode / paper trading)
+simulation:
+  initial_balance_usd: 10000.0
+  fill_probability: 1.0
+  limit_fill_delay_seconds: 5.0
+  max_slippage_pct: 0.001
+  maker_fee_rate: 0.0002
+  taker_fee_rate: 0.0005
+  simulate_network_delay: true
+  min_network_delay_ms: 10
+  max_network_delay_ms: 100
+
+# Portfolio configuration
+calculation:
+  pnl_calculation_method: weighted_average
+  include_fees_in_pnl: true
+  include_funding_in_pnl: true
+  base_currency: USD
+  group_by_base_asset: true
+  exposure_update_interval: 5.0
+  calculate_sharpe_ratio: true
+  sharpe_lookback_days: 30
+  performance_period_days: 30
+  calculate_max_drawdown: true
+  performance_update_interval: 300.0
+  risk_free_rate: 0.02
+  default_volatility: 0.2
+  stress_scenario_move: 0.1
+  var_confidence_level: 0.95
+  leverage_warning_threshold: 3.0
+  realized_pnl_method: weighted_average
+  price_cache_ttl: 60
+  batch_size_limit: 100
+  price_staleness_threshold: 300
+
+state:
+  persist_interval: 60.0
+  backup_count: 5
+  backup_directory: data/portfolio_backups
+  atomic_updates: true
+  update_timeout: 5.0
+  max_concurrent_updates: 1
+  validate_on_load: true
+  validate_on_update: true
+  strict_validation: false
+  reconciliation_enabled: true
+  update_on_execution: true
+  persist_on_trade: true
+  max_state_history_size: 100
+  max_trade_history_size: 1000
+
+validation:
+  enable_balance_validation: true
+  balance_tolerance: 0.0001
+  require_non_negative_balances: true
+  enable_position_validation: true
+  position_size_tolerance: 0.0001
+  position_closure_threshold: 0.0000001
+  max_position_age_seconds: 300
+  enable_trade_validation: true
+  max_trade_age_seconds: 86400
+  require_valid_timestamps: true
+  enable_cross_validation: true
+  validation_timeout: 10.0
+  min_price: 0.0000001
+  max_price: 1000000.0
+  min_quantity: 0.00000001
+  max_quantity: 1000000.0
+  min_trade_value: 0.01
+  max_trade_value: 10000000.0
+  min_balance_threshold: 0.00001
+  allow_negative_balances: false
+  max_position_size: 100000.0
+  max_leverage: 10.0
+  max_position_value: 1000000.0
+  max_recent_issues: 100
+  enabled: true
+  strict_mode: false

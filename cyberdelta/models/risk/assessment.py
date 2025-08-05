@@ -7,7 +7,6 @@ calculations used in the trading decision process.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -62,20 +61,20 @@ class RiskAssessment(BaseModel):
 
     current_exposure: Decimal = Field(description="Current total exposure in USD before this trade")
 
-    limit_violations: List[str] = Field(
+    limit_violations: list[str] = Field(
         description="List of specific limit violations preventing approval"
     )
 
     # Optional risk metrics
-    max_loss_usd: Optional[Decimal] = Field(
+    max_loss_usd: Decimal | None = Field(
         default=None, description="Maximum potential loss in USD if stop loss is set"
     )
 
-    risk_reward_ratio: Optional[Decimal] = Field(
+    risk_reward_ratio: Decimal | None = Field(
         default=None, description="Risk/reward ratio if take profit and stop loss are set"
     )
 
-    def get_rejection_reason(self) -> Optional[str]:
+    def get_rejection_reason(self) -> str | None:
         """Get a formatted rejection reason if not approved.
 
         Returns:

@@ -7,17 +7,20 @@ the configuration-first principle with no auto-discovery.
 
 from __future__ import annotations
 
-from typing import Dict, List, Type, Optional
+from typing import TYPE_CHECKING
 
+from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.logic.strategy.momentum_strategy import MomentumStrategy
 from cyberdelta.logic.strategy.strategy_base import (
     BaseStrategy,
     StrategyConfigurationError,
-    StrategyError,
 )
-from cyberdelta.logic.strategy.momentum_strategy import MomentumStrategy
+
+
+if TYPE_CHECKING:
+    from cyberdelta.logic.market.market_service import MarketDataService
+
 
 logger = get_logger(__name__)
 
@@ -43,11 +46,14 @@ class StrategyRegistry:
     - NO assumptions about strategy availability
     """
 
-    def __init__(self, config: AppSettings):
+    def __init__(
+        self, config: AppSettings, market_service: MarketDataService | None = None
+    ) -> None:
         """Initialize strategy registry with configuration.
 
         Args:
             config: Application settings containing strategy configuration
+            market_service: Optional market data service for strategies that need historical data
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Loads ONLY explicitly enabled strategies from config
@@ -55,16 +61,17 @@ class StrategyRegistry:
         - Fail fast if enabled strategy is not available
         """
         self.config = config
+        self._market_service = market_service
         self._strategy_config = config.strategies
 
         # Get enabled strategies from config - NO defaults
         self._enabled_strategies = self._strategy_config.enabled_strategies
 
         # Registry of available strategy classes
-        self._available_strategies: Dict[str, Type[BaseStrategy]] = {}
+        self._available_strategies: dict[str, type[BaseStrategy]] = {}
 
         # Registry of active strategy instances
-        self._active_strategies: Dict[str, BaseStrategy] = {}
+        self._active_strategies: dict[str, BaseStrategy] = {}
 
         # Initialize with built-in strategies
         self._register_builtin_strategies()
@@ -90,7 +97,7 @@ class StrategyRegistry:
             "builtin_strategies_registered", strategies=list(self._available_strategies.keys())
         )
 
-    def register_strategy_class(self, name: str, strategy_class: Type[BaseStrategy]) -> None:
+    def register_strategy_class(self, name: str, strategy_class: type[BaseStrategy]) -> None:
         """Register a custom strategy class.
 
         Args:
@@ -105,11 +112,6 @@ class StrategyRegistry:
         - Strategy name must exactly match configuration key
         - Validates strategy class before registration
         """
-        if not issubclass(strategy_class, BaseStrategy):
-            raise StrategyError(
-                f"Strategy class {strategy_class.__name__} must extend BaseStrategy"
-            )
-
         if name in self._available_strategies:
             logger.warning(
                 "strategy_class_replaced",
@@ -124,7 +126,7 @@ class StrategyRegistry:
             "strategy_class_registered", strategy_name=name, strategy_class=strategy_class.__name__
         )
 
-    async def initialize_enabled_strategies(self) -> List[BaseStrategy]:
+    async def initialize_enabled_strategies(self) -> list[BaseStrategy]:
         """Initialize all enabled strategies from configuration.
 
         Returns:
@@ -138,7 +140,7 @@ class StrategyRegistry:
         - Fail fast if any enabled strategy is not available or fails to initialize
         - NO silent skipping of failed strategies
         """
-        initialized_strategies = []
+        initialized_strategies: list[BaseStrategy] = []
 
         for strategy_name in self._enabled_strategies:
             try:
@@ -148,9 +150,8 @@ class StrategyRegistry:
 
             except Exception as e:
                 # Fail fast - don't continue if any enabled strategy fails
-                raise StrategyConfigurationError(
-                    f"Failed to initialize enabled strategy '{strategy_name}': {e}"
-                ) from e
+                msg = f"Failed to initialize enabled strategy '{strategy_name}': {e}"
+                raise StrategyConfigurationError(msg) from e
 
         logger.info(
             "enabled_strategies_initialized",
@@ -179,9 +180,10 @@ class StrategyRegistry:
         """
         if strategy_name not in self._available_strategies:
             available_names = list(self._available_strategies.keys())
-            raise StrategyConfigurationError(
+            msg = (
                 f"Strategy '{strategy_name}' not available. Available strategies: {available_names}"
             )
+            raise StrategyConfigurationError(msg)
 
         strategy_class = self._available_strategies[strategy_name]
 
@@ -192,8 +194,32 @@ class StrategyRegistry:
         )
 
         try:
-            # Create strategy instance with full AppSettings
-            strategy_instance = strategy_class(self.config)
+            # Create strategy instance with full AppSettings and market service
+            # Check if strategy constructor accepts market_service parameter
+            import inspect
+
+            sig = inspect.signature(strategy_class.__init__)
+            params = sig.parameters
+
+            if "market_service" in params:
+                # Check if market_service is required (no default value)
+                param = params["market_service"]
+                if param.default == inspect.Parameter.empty:
+                    # market_service is required
+                    if not self._market_service:
+                        msg = f"Strategy '{strategy_name}' requires market_service but none provided to registry"
+                        raise StrategyConfigurationError(msg)
+                    strategy_instance = strategy_class(
+                        self.config, market_service=self._market_service
+                    )
+                else:
+                    # market_service is optional
+                    strategy_instance = strategy_class(
+                        self.config, market_service=self._market_service
+                    )
+            else:
+                # Legacy strategy without market service support
+                strategy_instance = strategy_class(self.config)
 
             # Initialize strategy-specific resources
             await strategy_instance.initialize()
@@ -205,21 +231,19 @@ class StrategyRegistry:
                 safe_mode=strategy_instance.is_safe_mode(),
             )
 
-            return strategy_instance
-
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "strategy_initialization_failed",
                 strategy_name=strategy_name,
                 strategy_class=strategy_class.__name__,
                 error=str(e),
-                exc_info=True,
             )
-            raise StrategyConfigurationError(
-                f"Strategy '{strategy_name}' initialization failed: {e}"
-            ) from e
+            msg = f"Strategy '{strategy_name}' initialization failed: {e}"
+            raise StrategyConfigurationError(msg) from e
+        else:
+            return strategy_instance
 
-    def get_active_strategies(self) -> List[BaseStrategy]:
+    def get_active_strategies(self) -> list[BaseStrategy]:
         """Get list of currently active strategy instances.
 
         Returns:
@@ -231,7 +255,7 @@ class StrategyRegistry:
         """
         return list(self._active_strategies.values())
 
-    def get_active_strategy_names(self) -> List[str]:
+    def get_active_strategy_names(self) -> list[str]:
         """Get list of currently active strategy names.
 
         Returns:
@@ -239,7 +263,7 @@ class StrategyRegistry:
         """
         return list(self._active_strategies.keys())
 
-    def get_strategy_by_name(self, strategy_name: str) -> Optional[BaseStrategy]:
+    def get_strategy_by_name(self, strategy_name: str) -> BaseStrategy | None:
         """Get active strategy instance by name.
 
         Args:
@@ -282,14 +306,12 @@ class StrategyRegistry:
 
             logger.info("strategy_disabled", strategy_name=strategy_name)
 
-            return True
-
         except Exception as e:
-            logger.error(
-                "strategy_disable_error", strategy_name=strategy_name, error=str(e), exc_info=True
-            )
+            logger.exception("strategy_disable_error", strategy_name=strategy_name, error=str(e))
             # Still remove from registry even if cleanup failed
             del self._active_strategies[strategy_name]
+            return True
+        else:
             return True
 
     async def shutdown_all_strategies(self) -> None:
@@ -312,17 +334,16 @@ class StrategyRegistry:
             try:
                 await self.disable_strategy(strategy_name)
             except Exception as e:
-                logger.error(
+                logger.exception(
                     "strategy_shutdown_error",
                     strategy_name=strategy_name,
                     error=str(e),
-                    exc_info=True,
                 )
                 # Continue with other strategies
 
         logger.info("all_strategies_shutdown_completed")
 
-    def get_registry_status(self) -> Dict[str, object]:
+    def get_registry_status(self) -> dict[str, object]:
         """Get current registry status and configuration.
 
         Returns:
@@ -341,7 +362,7 @@ class StrategyRegistry:
             "configuration": {"enabled_strategies": self._enabled_strategies},
         }
 
-    def validate_configuration(self) -> List[str]:
+    def validate_configuration(self) -> list[str]:
         """Validate strategy configuration without initializing strategies.
 
         Returns:
@@ -352,7 +373,7 @@ class StrategyRegistry:
         - Returns explicit error messages
         - NO silent validation failures
         """
-        validation_errors = []
+        validation_errors: list[str] = []
 
         # Check that all enabled strategies are available
         for strategy_name in self._enabled_strategies:
@@ -381,7 +402,7 @@ class StrategyRegistry:
                 try:
                     # Create temporary instance to validate config
                     # This will raise an exception if config is invalid
-                    temp_instance = strategy_class(self.config)
+                    _ = strategy_class(self.config)
                     logger.debug("strategy_config_validation_passed", strategy_name=strategy_name)
                 except Exception as e:
                     validation_errors.append(

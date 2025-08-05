@@ -570,7 +570,9 @@ class TestRuntimeProtocolChecking:
         # Using hasattr to avoid mypy's overly strict isinstance checking
         has_transform_method = hasattr(partial_mapper, "transform_raw_balance_to_internal")
         has_timestamp_method = hasattr(partial_mapper, "timestamp_ms_to_datetime")
-        assert not (has_transform_method and has_timestamp_method), "Partial mapper should be missing required methods"
+        assert not (has_transform_method and has_timestamp_method), (
+            "Partial mapper should be missing required methods"
+        )
 
     def test_structural_matching_works(
         self, structural_balance_mapper: BalanceMapperProtocol

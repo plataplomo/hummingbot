@@ -1,21 +1,17 @@
-"""Storage protocols for data persistence.
-
-This module defines the storage interfaces that implementations must follow
-for portfolio state and other persistent data.
-"""
+"""Storage protocols for portfolio persistence."""
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
-from typing import Optional
+from typing import Protocol
 
 from cyberdelta.models.portfolio.state import PortfolioState
 
 
-class PortfolioStorageProtocol(ABC):
+class PortfolioStorageProtocol(Protocol):
     """Protocol for portfolio state persistence.
 
-    Defines the contract that all portfolio storage implementations must follow.
+    Defines the interface for persisting and loading portfolio state
+    from various storage backends (files, databases, etc.).
 
     IMPORTANT: Following CODING_STANDARDS.md:
     - NO default implementations - pure interface
@@ -23,31 +19,28 @@ class PortfolioStorageProtocol(ABC):
     - NO assumptions about storage backend
     """
 
-    @abstractmethod
-    async def save_state(self, state: PortfolioState) -> None:
-        """Save portfolio state to persistent storage.
-
-        Args:
-            state: Portfolio state to persist
-
-        Raises:
-            StorageError: If save operation fails
-        """
-        pass
-
-    @abstractmethod
-    async def load_state(self) -> Optional[PortfolioState]:
-        """Load portfolio state from persistent storage.
+    async def load_state(self) -> PortfolioState | None:
+        """Load portfolio state from storage.
 
         Returns:
-            PortfolioState if found, None if no state exists
+            PortfolioState if found, None otherwise
 
         Raises:
             StorageError: If load operation fails
         """
-        pass
+        ...
 
-    @abstractmethod
+    async def save_state(self, state: PortfolioState) -> None:
+        """Save portfolio state to storage.
+
+        Args:
+            state: Portfolio state to save
+
+        Raises:
+            StorageError: If save operation fails
+        """
+        ...
+
     async def save_snapshot(self, state: PortfolioState, snapshot_name: str) -> None:
         """Save a named snapshot of portfolio state.
 
@@ -55,34 +48,35 @@ class PortfolioStorageProtocol(ABC):
             state: Portfolio state to snapshot
             snapshot_name: Name/identifier for the snapshot
 
+
         Raises:
             StorageError: If snapshot operation fails
         """
-        pass
+        ...
 
-    @abstractmethod
     async def list_snapshots(self) -> list[str]:
         """List all available snapshots.
 
         Returns:
             List of snapshot names/identifiers
 
+
         Raises:
             StorageError: If listing operation fails
         """
-        pass
+        ...
 
-    @abstractmethod
     async def delete_snapshot(self, snapshot_name: str) -> None:
         """Delete a named snapshot.
 
         Args:
             snapshot_name: Name/identifier of snapshot to delete
 
+
         Raises:
             StorageError: If delete operation fails
         """
-        pass
+        ...
 
 
 class StorageError(Exception):
@@ -93,7 +87,7 @@ class StorageError(Exception):
     - NO silent failures
     """
 
-    def __init__(self, message: str, operation: str, original_error: Optional[Exception] = None):
+    def __init__(self, message: str, operation: str, original_error: Exception | None = None):
         """Initialize storage error.
 
         Args:

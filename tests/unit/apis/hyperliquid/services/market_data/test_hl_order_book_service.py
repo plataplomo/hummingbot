@@ -372,8 +372,6 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades retrieval with invalid symbol."""
         # Act & Assert
-        from cyberdelta.core.symbols import exchanges
-
         # Test validation for invalid symbols
         with pytest.raises((ValueError, ValidationError)):
             empty_symbol = exchanges.hyperliquid("")

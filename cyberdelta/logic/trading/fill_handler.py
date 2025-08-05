@@ -9,16 +9,16 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Dict, List, Optional
 
+from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
+from cyberdelta.config.models.fee_config import FeeStructureConfig
 from cyberdelta.config.structlog_config import get_logger
-
-from cyberdelta.config.models.config_models import AppSettings
-from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums import ExchangeName
 from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.trade import Trade
+
 
 logger = get_logger(__name__)
 
@@ -52,7 +52,7 @@ class FillHandler:
         self,
         config: AppSettings,
         portfolio_service: PortfolioService,
-    ):
+    ) -> None:
         """Initialize fill handler with configuration and dependencies.
 
         Args:
@@ -63,17 +63,17 @@ class FillHandler:
         self._portfolio_service = portfolio_service
 
         # Fill tracking
-        self._processed_fills: List[Trade] = []
+        self._processed_fills: list[Trade] = []
         self._fill_count = 0
-        self._total_fees_usd = Decimal("0")
+        self._total_fees_usd = Decimal(0)
 
         logger.info(
             "fill_handler_initialized",
             exchanges_configured=len(config.exchanges),
-            portfolio_service_available=portfolio_service is not None,
+            portfolio_service_available=True,
         )
 
-    async def process_fill(self, order: Order, fill_data: Dict[str, object]) -> Trade:
+    async def process_fill(self, order: Order, fill_data: dict[str, object]) -> Trade:
         """Process an order fill with comprehensive fee calculation.
 
         Args:
@@ -83,10 +83,7 @@ class FillHandler:
         Returns:
             Trade object with calculated fees and metadata
 
-        Raises:
-            ValueError: If fill data is invalid or exchange config missing
-
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Fee calculation from config.exchanges[exchange].fee_structure
         - ALL calculations use Decimal, NOT float
         - NO hardcoded fee rates or assumptions
@@ -94,11 +91,9 @@ class FillHandler:
         """
         logger.debug(
             "fill_processing_starting",
-            order_id=order.order_id,
+            order_id=order.exchange_order_id,
             symbol=order.symbol.value,
-            exchange=order.exchange.value
-            if hasattr(order.exchange, "value")
-            else str(order.exchange),
+            exchange=order.exchange.value,
             fill_data_keys=list(fill_data.keys()),
         )
 
@@ -112,7 +107,7 @@ class FillHandler:
             fill_timestamp = fill_data.get("timestamp", datetime.now(UTC))
 
             if fill_price <= 0 or fill_quantity <= 0:
-                raise ValueError(f"Invalid fill data: price={fill_price}, quantity={fill_quantity}")
+                self._raise_invalid_fill_error(fill_price, fill_quantity)
 
             # Calculate fees using exchange configuration
             fee_amount, fee_asset = await self._calculate_fill_fee(
@@ -120,28 +115,25 @@ class FillHandler:
             )
 
             # Create Trade object with all calculated values
+            trade_id = fill_data.get("trade_id")
+            if not isinstance(trade_id, str):
+                trade_id = f"fill_{order.exchange_order_id}_{self._fill_count}"
+
             trade = Trade(
-                id=fill_data.get("trade_id", f"fill_{order.order_id}_{self._fill_count}"),
+                id=trade_id,
                 symbol=order.symbol,
-                executed_at=fill_timestamp
-                if isinstance(fill_timestamp, datetime)
-                else datetime.now(UTC),
+                executed_at=(
+                    fill_timestamp if isinstance(fill_timestamp, datetime) else datetime.now(UTC)
+                ),
                 side=order.side,
-                order_id=order.order_id or "",
-                exchange=order.exchange.value
-                if hasattr(order.exchange, "value")
-                else str(order.exchange),
+                order_id=order.exchange_order_id or "",
+                exchange=order.exchange.value,
                 price=fill_price,
                 quantity=fill_quantity,
                 fee=fee_amount,
                 fee_asset=fee_asset,
                 client_order_id=order.client_order_id,
-                metadata={
-                    "fill_type": fill_data.get("fill_type", "unknown"),
-                    "liquidity": fill_data.get("liquidity", "unknown"),  # maker/taker
-                    "order_type": order.order_type.value if order.order_type else "unknown",
-                    "processing_timestamp": datetime.now(UTC).isoformat(),
-                },
+                is_maker=fill_data.get("liquidity", "taker") == "maker",
             )
 
             # Update portfolio with trade
@@ -155,7 +147,7 @@ class FillHandler:
             logger.info(
                 "fill_processed_successfully",
                 trade_id=trade.id,
-                order_id=order.order_id,
+                order_id=order.exchange_order_id,
                 symbol=order.symbol.value,
                 exchange=trade.exchange,
                 side=order.side.value if order.side else "unknown",
@@ -165,15 +157,15 @@ class FillHandler:
                 fee_asset=fee_asset,
             )
 
-            return trade
-
         except Exception as e:
-            logger.error(
-                "fill_processing_failed", order_id=order.order_id, error=str(e), exc_info=True
+            logger.exception(
+                "fill_processing_failed", order_id=order.exchange_order_id, error=str(e)
             )
             raise
 
-    async def process_partial_fill(self, order: Order, fill_data: Dict[str, object]) -> Trade:
+        return trade
+
+    async def process_partial_fill(self, order: Order, fill_data: dict[str, object]) -> Trade:
         """Process a partial fill of an order.
 
         Args:
@@ -183,32 +175,41 @@ class FillHandler:
         Returns:
             Trade object representing the partial fill
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Same validation and fee calculation as full fills
         - Tracks partial fill sequence for audit
         - Updates order state appropriately
         """
+        fill_qty = fill_data.get("filled_quantity", 0)
+        new_fill_quantity = (
+            float(fill_qty) if isinstance(fill_qty, (int, float, Decimal, str)) else 0.0
+        )
+
         logger.debug(
             "partial_fill_processing",
-            order_id=order.order_id,
-            filled_so_far=float(order.filled_quantity or 0),
-            order_quantity=float(order.quantity),
-            new_fill_quantity=float(fill_data.get("filled_quantity", 0)),
+            order_id=order.exchange_order_id,
+            filled_so_far=float(order.quantity_filled or 0),
+            order_quantity=float(order.quantity_requested),
+            new_fill_quantity=new_fill_quantity,
         )
 
         # Process same as regular fill
         trade = await self.process_fill(order, fill_data)
 
         # Additional tracking for partial fills
-        trade.metadata.update({
-            "fill_sequence": self._get_fill_sequence_number(order),
-            "is_partial_fill": True,
-            "remaining_quantity": float(order.quantity - (order.filled_quantity or Decimal("0"))),
-        })
+        # Note: metadata removed from Trade model - would need to track separately
+        logger.debug(
+            "partial_fill_metadata",
+            fill_sequence=self._get_fill_sequence_number(order),
+            is_partial_fill=True,
+            remaining_quantity=float(
+                order.quantity_requested - (order.quantity_filled or Decimal(0))
+            ),
+        )
 
         return trade
 
-    def _validate_fill_data(self, fill_data: Dict[str, object]) -> None:
+    def _validate_fill_data(self, fill_data: dict[str, object]) -> None:
         """Validate fill data structure and required fields.
 
         Args:
@@ -217,7 +218,7 @@ class FillHandler:
         Raises:
             ValueError: If fill data is invalid
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - NO assumptions about fill data structure
         - Explicit validation with clear error messages
         """
@@ -225,11 +226,13 @@ class FillHandler:
 
         for field in required_fields:
             if field not in fill_data:
-                raise ValueError(f"Missing required fill data field: {field}")
+                msg = f"Missing required fill data field: {field}"
+                raise ValueError(msg)
 
             value = fill_data[field]
             if value is None:
-                raise ValueError(f"Fill data field {field} cannot be None")
+                msg = f"Fill data field {field} cannot be None"
+                raise ValueError(msg)
 
         # Validate numeric fields
         try:
@@ -237,20 +240,21 @@ class FillHandler:
             quantity = Decimal(str(fill_data["filled_quantity"]))
 
             if price <= 0:
-                raise ValueError(f"Fill price must be positive: {price}")
+                self._raise_price_error(price)
             if quantity <= 0:
-                raise ValueError(f"Fill quantity must be positive: {quantity}")
+                self._raise_quantity_error(quantity)
 
         except (ValueError, TypeError) as e:
-            raise ValueError(f"Invalid numeric values in fill data: {e}")
+            msg = f"Invalid numeric values in fill data: {e}"
+            raise ValueError(msg) from e
 
     async def _calculate_fill_fee(
         self,
         order: Order,
         fill_price: Decimal,
         fill_quantity: Decimal,
-        fill_data: Dict[str, object],
-    ) -> tuple[Decimal, Optional[str]]:
+        fill_data: dict[str, object],
+    ) -> tuple[Decimal, str]:
         """Calculate fee for order fill using exchange configuration.
 
         Args:
@@ -262,108 +266,37 @@ class FillHandler:
         Returns:
             Tuple of (fee_amount, fee_asset)
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Uses config.exchanges[exchange].fee_structure for all calculations
         - NO hardcoded fee rates or structures
         - Handles maker/taker differences from configuration
         - Returns Decimal fee amount, NOT float
         """
-        exchange_name = (
-            order.exchange.value if hasattr(order.exchange, "value") else str(order.exchange)
-        )
+        # Get exchange configuration and validate
+        exchange_config = self._get_exchange_config(order)
+        fee_structure = self._get_fee_structure(exchange_config, order.exchange)
 
-        # Get exchange configuration
-        exchange_config = self.config.exchanges.get(exchange_name)
-        if not exchange_config:
-            raise ValueError(f"No exchange configuration found for: {exchange_name}")
+        # Get fee rate based on liquidity
+        fee_rate = self._get_fee_rate(fee_structure, fill_data, order.exchange)
 
-        if not hasattr(exchange_config, "fee_structure"):
-            logger.warning(
-                "no_fee_structure_configured", exchange=exchange_name, using_zero_fees=True
-            )
-            return Decimal("0"), None
+        # Calculate base fee amount
+        fee_amount = self._calculate_base_fee(fee_structure, fill_price, fill_quantity, fee_rate)
 
-        fee_structure = exchange_config.fee_structure
-
-        # Determine if this is a maker or taker order
-        liquidity = fill_data.get("liquidity", "taker")  # Default to taker
-
-        # Get appropriate fee rate from configuration
-        if liquidity == "maker" and hasattr(fee_structure, "maker_fee_rate"):
-            fee_rate = fee_structure.maker_fee_rate
-        elif liquidity == "taker" and hasattr(fee_structure, "taker_fee_rate"):
-            fee_rate = fee_structure.taker_fee_rate
-        else:
-            # Fallback to general fee rate if available
-            if hasattr(fee_structure, "trading_fee_rate"):
-                fee_rate = fee_structure.trading_fee_rate
-            else:
-                logger.warning(
-                    "no_matching_fee_rate",
-                    exchange=exchange_name,
-                    liquidity=liquidity,
-                    using_zero_fee=True,
-                )
-                return Decimal("0"), None
-
-        # Calculate fee based on method
-        fee_method = getattr(fee_structure, "fee_calculation_method", "percentage")
-
-        if fee_method == "percentage":
-            # Standard percentage-based fee
-            trade_value = fill_price * fill_quantity
-            fee_amount = trade_value * fee_rate
-        elif fee_method == "fixed":
-            # Fixed fee per trade
-            fee_amount = fee_rate
-        else:
-            logger.warning(
-                "unknown_fee_calculation_method",
-                exchange=exchange_name,
-                method=fee_method,
-                using_percentage=True,
-            )
-            trade_value = fill_price * fill_quantity
-            fee_amount = trade_value * fee_rate
-
-        # Apply minimum fee if configured
-        if hasattr(fee_structure, "minimum_fee") and fee_amount < fee_structure.minimum_fee:
-            fee_amount = fee_structure.minimum_fee
-
-            logger.debug(
-                "minimum_fee_applied",
-                exchange=exchange_name,
-                calculated_fee=float(fee_amount),
-                minimum_fee=float(fee_structure.minimum_fee),
-            )
-
-        # Apply maximum fee if configured
-        if hasattr(fee_structure, "maximum_fee") and fee_amount > fee_structure.maximum_fee:
-            fee_amount = fee_structure.maximum_fee
-
-            logger.debug(
-                "maximum_fee_applied",
-                exchange=exchange_name,
-                calculated_fee=float(fee_amount),
-                maximum_fee=float(fee_structure.maximum_fee),
-            )
+        # Apply fee limits
+        fee_amount = self._apply_fee_limits(fee_structure, fee_amount, order.exchange)
 
         # Determine fee asset
-        fee_asset = getattr(fee_structure, "fee_asset", None)
-        if not fee_asset:
-            # Default to quote currency from symbol
-            symbol_parts = order.symbol.value.split("_")
-            fee_asset = symbol_parts[-1] if len(symbol_parts) > 1 else "USDC"
+        fee_asset = self._determine_fee_asset(fee_structure, order)
 
-        logger.debug(
-            "fee_calculated",
-            exchange=exchange_name,
-            liquidity=liquidity,
-            fee_rate=float(fee_rate),
-            fee_method=fee_method,
-            trade_value=float(fill_price * fill_quantity),
-            fee_amount=float(fee_amount),
-            fee_asset=fee_asset,
+        self._log_fee_calculation(
+            order.exchange,
+            fill_data,
+            fee_rate,
+            fee_structure,
+            fill_price,
+            fill_quantity,
+            fee_amount,
+            fee_asset,
         )
 
         return fee_amount, fee_asset
@@ -377,17 +310,19 @@ class FillHandler:
         Returns:
             Sequence number for this fill
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Tracks fill sequence for audit purposes
         - NO assumptions about fill ordering
         """
         # Count existing fills for this order
-        order_fills = [trade for trade in self._processed_fills if trade.order_id == order.order_id]
+        order_fills = [
+            trade for trade in self._processed_fills if trade.order_id == order.exchange_order_id
+        ]
         return len(order_fills) + 1
 
     async def process_fill_correction(
-        self, original_trade_id: str, correction_data: Dict[str, object]
-    ) -> Optional[Trade]:
+        self, original_trade_id: str, correction_data: dict[str, object]
+    ) -> Trade | None:
         """Process a fill correction or adjustment.
 
         Args:
@@ -397,7 +332,7 @@ class FillHandler:
         Returns:
             Corrected Trade object or None if original not found
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Maintains audit trail of corrections
         - Uses exchange-provided correction data
         - NO assumptions about correction format
@@ -422,8 +357,16 @@ class FillHandler:
         )
 
         # Create corrected trade
+        corrected_trade_id = correction_data.get("corrected_trade_id")
+        if not isinstance(corrected_trade_id, str):
+            corrected_trade_id = f"corr_{original_trade_id}"
+
+        corrected_fee_asset = correction_data.get("corrected_fee_asset")
+        if not isinstance(corrected_fee_asset, str) and corrected_fee_asset is not None:
+            corrected_fee_asset = original_trade.fee_asset
+
         corrected_trade = Trade(
-            id=correction_data.get("corrected_trade_id", f"corr_{original_trade_id}"),
+            id=corrected_trade_id,
             symbol=original_trade.symbol,
             executed_at=original_trade.executed_at,
             side=original_trade.side,
@@ -434,15 +377,18 @@ class FillHandler:
                 str(correction_data.get("corrected_quantity", original_trade.quantity))
             ),
             fee=Decimal(str(correction_data.get("corrected_fee", original_trade.fee))),
-            fee_asset=correction_data.get("corrected_fee_asset", original_trade.fee_asset),
+            fee_asset=corrected_fee_asset,
             client_order_id=original_trade.client_order_id,
-            metadata={
-                **original_trade.metadata,
-                "is_correction": True,
-                "original_trade_id": original_trade_id,
-                "correction_timestamp": datetime.now(UTC).isoformat(),
-                "correction_reason": correction_data.get("reason", "exchange_adjustment"),
-            },
+            is_maker=original_trade.is_maker,
+        )
+
+        # Log correction metadata separately
+        logger.info(
+            "fill_correction_metadata",
+            is_correction=True,
+            original_trade_id=original_trade_id,
+            correction_timestamp=datetime.now(UTC).isoformat(),
+            correction_reason=correction_data.get("reason", "exchange_adjustment"),
         )
 
         # Update portfolio with corrected trade
@@ -462,21 +408,21 @@ class FillHandler:
 
         return corrected_trade
 
-    def get_fill_statistics(self) -> Dict[str, object]:
+    def get_fill_statistics(self) -> dict[str, object]:
         """Get fill processing statistics.
 
         Returns:
             Dictionary with fill statistics and metrics
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Returns explicit statistics from actual processing
         - NO calculated/derived statistics
         """
         return {
             "total_fills_processed": self._fill_count,
             "total_fees_usd": float(self._total_fees_usd),
-            "unique_orders_filled": len(set(trade.order_id for trade in self._processed_fills)),
-            "exchanges_processed": len(set(trade.exchange for trade in self._processed_fills)),
+            "unique_orders_filled": len({trade.order_id for trade in self._processed_fills}),
+            "exchanges_processed": len({trade.exchange for trade in self._processed_fills}),
             "average_fill_size_usd": (
                 float(
                     sum(trade.price * trade.quantity for trade in self._processed_fills)
@@ -488,7 +434,7 @@ class FillHandler:
             "processing_started": len(self._processed_fills) > 0,
         }
 
-    def get_recent_fills(self, limit: int = 10) -> List[Trade]:
+    def get_recent_fills(self, limit: int = 10) -> list[Trade]:
         """Get most recent processed fills.
 
         Args:
@@ -497,15 +443,15 @@ class FillHandler:
         Returns:
             List of recent Trade objects
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Returns actual Trade objects, not summaries
         - Limit parameter explicit, no default assumptions
         """
         return self._processed_fills[-limit:] if self._processed_fills else []
 
     async def process_bulk_fills(
-        self, order: Order, fill_list: List[Dict[str, object]]
-    ) -> List[Trade]:
+        self, order: Order, fill_list: list[dict[str, object]]
+    ) -> list[Trade]:
         """Process multiple fills for an order efficiently.
 
         Args:
@@ -515,15 +461,17 @@ class FillHandler:
         Returns:
             List of processed Trade objects
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Processes each fill with same validation as single fills
         - Maintains fill sequence and audit trail
         - NO assumptions about fill order or timing
         """
-        trades = []
+        trades: list[Trade] = []
 
         logger.info(
-            "bulk_fill_processing_starting", order_id=order.order_id, fill_count=len(fill_list)
+            "bulk_fill_processing_starting",
+            order_id=order.exchange_order_id,
+            fill_count=len(fill_list),
         )
 
         for i, fill_data in enumerate(fill_list):
@@ -539,22 +487,184 @@ class FillHandler:
                 trades.append(trade)
 
             except Exception as e:
-                logger.error(
+                logger.exception(
                     "bulk_fill_item_failed",
-                    order_id=order.order_id,
+                    order_id=order.exchange_order_id,
                     fill_index=i,
                     error=str(e),
-                    exc_info=True,
                 )
                 # Continue processing remaining fills
                 continue
 
         logger.info(
             "bulk_fill_processing_completed",
-            order_id=order.order_id,
+            order_id=order.exchange_order_id,
             requested_fills=len(fill_list),
             successful_fills=len(trades),
             failed_fills=len(fill_list) - len(trades),
         )
 
         return trades
+
+    def _raise_invalid_fill_error(self, fill_price: Decimal, fill_quantity: Decimal) -> None:
+        """Raise ValueError for invalid fill data.
+
+        Raises:
+            ValueError: Always raised with invalid fill data message
+        """
+        msg = f"Invalid fill data: price={fill_price}, quantity={fill_quantity}"
+        raise ValueError(msg)
+
+    def _raise_price_error(self, price: Decimal) -> None:
+        """Raise ValueError for invalid price.
+
+        Raises:
+            ValueError: Always raised with invalid price message
+        """
+        msg = f"Fill price must be positive: {price}"
+        raise ValueError(msg)
+
+    def _raise_quantity_error(self, quantity: Decimal) -> None:
+        """Raise ValueError for invalid quantity.
+
+        Raises:
+            ValueError: Always raised with invalid quantity message
+        """
+        msg = f"Fill quantity must be positive: {quantity}"
+        raise ValueError(msg)
+
+    def _get_exchange_config(self, order: Order) -> ExchangeSpecificConfig:
+        """Get exchange configuration for order.
+
+        Returns:
+            ExchangeSpecificConfig: Exchange configuration for the order
+
+        Raises:
+            ValueError: If exchange configuration is not found
+        """
+        exchange_name = order.exchange.value
+        exchange_config = self.config.exchanges.get(exchange_name)
+        if not exchange_config:
+            msg = f"No exchange configuration found for: {exchange_name}"
+            raise ValueError(msg)
+        return exchange_config
+
+    def _get_fee_structure(
+        self, exchange_config: ExchangeSpecificConfig, exchange: ExchangeName
+    ) -> FeeStructureConfig:
+        """Get fee structure from exchange config.
+
+        Returns:
+            FeeStructureConfig: Fee structure settings
+
+        Raises:
+            ValueError: If fee structure is not configured
+        """
+        if not exchange_config.fee_structure:
+            msg = (
+                f"Fee structure not configured for exchange {exchange.value}. "
+                "Configure fee_structure in exchange config."
+            )
+            raise ValueError(msg)
+
+        return exchange_config.fee_structure
+
+    def _get_fee_rate(
+        self,
+        fee_structure: FeeStructureConfig,
+        fill_data: dict[str, object],
+        exchange: ExchangeName,
+    ) -> Decimal:
+        """Get appropriate fee rate based on liquidity.
+
+        Returns:
+            Decimal: Fee rate as Decimal
+        """
+        liquidity = fill_data.get("liquidity", "taker")
+
+        if liquidity == "maker":
+            return Decimal(str(fee_structure.maker_fee_rate))
+        if liquidity == "taker":
+            return Decimal(str(fee_structure.taker_fee_rate))
+
+        # Default to taker fee if no specific liquidity type
+        return Decimal(str(fee_structure.taker_fee_rate))
+
+    def _calculate_base_fee(
+        self,
+        fee_structure: FeeStructureConfig,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_rate: Decimal,
+    ) -> Decimal:
+        """Calculate base fee amount.
+
+        Returns:
+            Decimal: Calculated fee amount
+        """
+        fee_method = fee_structure.fee_calculation_method
+
+        if fee_method == "percentage":
+            trade_value = fill_price * fill_quantity
+            return trade_value * fee_rate
+
+        # Default case: fixed fee method
+        return fee_rate
+
+    def _apply_fee_limits(
+        self, fee_structure: FeeStructureConfig, fee_amount: Decimal, exchange: ExchangeName
+    ) -> Decimal:
+        """Apply minimum and maximum fee limits.
+
+        Returns:
+            Decimal: Fee amount after applying limits
+        """
+        # Apply minimum fee if configured
+        if fee_structure.minimum_fee is not None:
+            fee_amount = max(fee_amount, Decimal(str(fee_structure.minimum_fee)))
+
+        # Apply maximum fee if configured
+        if fee_structure.maximum_fee is not None:
+            fee_amount = min(fee_amount, Decimal(str(fee_structure.maximum_fee)))
+
+        return fee_amount
+
+    def _determine_fee_asset(self, fee_structure: FeeStructureConfig, order: Order) -> str:
+        """Determine fee asset from structure or symbol.
+
+        Returns:
+            str: Fee asset symbol
+        """
+        if fee_structure.fee_asset:
+            return fee_structure.fee_asset
+
+        # Default: use quote currency from symbol
+        symbol_parts = order.symbol.value.split("_")
+        return symbol_parts[-1] if len(symbol_parts) > 1 else "USDC"
+
+    def _log_fee_calculation(
+        self,
+        exchange: ExchangeName,
+        fill_data: dict[str, object],
+        fee_rate: Decimal,
+        fee_structure: FeeStructureConfig,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_amount: Decimal,
+        fee_asset: str,
+    ) -> None:
+        """Log fee calculation details."""
+        exchange_name = exchange.value
+        liquidity = fill_data.get("liquidity", "taker")
+        fee_method = fee_structure.fee_calculation_method
+
+        logger.debug(
+            "fee_calculated",
+            exchange=exchange_name,
+            liquidity=liquidity,
+            fee_rate=float(fee_rate),
+            fee_method=fee_method,
+            trade_value=float(fill_price * fill_quantity),
+            fee_amount=float(fee_amount),
+            fee_asset=fee_asset,
+        )

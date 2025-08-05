@@ -16,18 +16,17 @@ import argparse
 import asyncio
 import signal
 import sys
-from pathlib import Path
-from typing import Any, Dict, Optional
 
 from cyberdelta.application.trading_engine import TradingEngine
 from cyberdelta.config import AppSettings, ConfigurationError, get_app_settings
-from cyberdelta.config.structlog_config import setup_structlog, get_logger
+from cyberdelta.config.structlog_config import get_logger, setup_structlog
+
 
 logger = get_logger(__name__)
 
 # Global shutdown state
 _shutdown_initiated = False
-_trading_engine: Optional[TradingEngine] = None
+_trading_engine: TradingEngine | None = None
 
 
 async def shutdown() -> None:

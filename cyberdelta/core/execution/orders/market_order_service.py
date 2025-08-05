@@ -18,9 +18,9 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     MarketOrderParameterError,
     PriceDeviationError,
 )
-from cyberdelta.core.symbols import Symbol
-from cyberdelta.enums import OrderSide
-from cyberdelta.models import OrderBook, MidPrices
+from cyberdelta.core.symbols import Symbol, exchanges
+from cyberdelta.enums import ExchangeName, OrderSide
+from cyberdelta.models import MidPrices, OrderBook
 
 
 logger = get_logger(__name__)
@@ -218,8 +218,6 @@ class MarketOrderService:
         """
         try:
             # Get market metadata from exchange
-            from cyberdelta.core.symbols import exchanges
-            from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_name = (
                 ExchangeName.HYPERLIQUID
@@ -286,8 +284,6 @@ class MarketOrderService:
         """
         try:
             # Get market metadata from exchange
-            from cyberdelta.core.symbols import exchanges
-            from cyberdelta.enums.exchange_names import ExchangeName
 
             exchange_name = (
                 ExchangeName.HYPERLIQUID

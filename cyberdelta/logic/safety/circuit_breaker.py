@@ -1,71 +1,41 @@
-"""Circuit breaker implementation for trading safety systems.
+"""Circuit breaker implementation using modular components.
 
-This module provides circuit breaker functionality to protect against
-cascading failures in the trading system using validated AppSettings.
+This module provides the main CircuitBreaker and CircuitBreakerManager classes
+that orchestrate the modular components for safety system functionality.
 """
 
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
-from enum import Enum
-from typing import Dict, List, Optional, Set
+from collections.abc import Callable
+from datetime import UTC, datetime
 
+from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.logic.safety.failure_tracker import FailureTracker
+from cyberdelta.logic.safety.health_monitor import HealthMonitor
+from cyberdelta.logic.safety.models import CircuitBreakerState, CircuitBreakerViolationError
+from cyberdelta.logic.safety.state_manager import StateManager
 
-from cyberdelta.config.models.config_models import AppSettings
 
 logger = get_logger(__name__)
 
 
-class CircuitBreakerState(Enum):
-    """Circuit breaker states."""
-
-    CLOSED = "closed"  # Normal operation
-    OPEN = "open"  # Blocking all requests
-    HALF_OPEN = "half_open"  # Testing recovery
-
-
-class FailureType(Enum):
-    """Types of failures that can trigger circuit breakers."""
-
-    API_ERROR = "api_error"
-    TIMEOUT = "timeout"
-    VALIDATION_ERROR = "validation_error"
-    EXECUTION_ERROR = "execution_error"
-    NETWORK_ERROR = "network_error"
-    RATE_LIMIT = "rate_limit"
-    AUTHENTICATION_ERROR = "auth_error"
-
-
-class CircuitBreakerViolation(Exception):
-    """Exception raised when circuit breaker is open."""
-
-    def __init__(self, breaker_name: str, state: CircuitBreakerState, message: str):
-        self.breaker_name = breaker_name
-        self.state = state
-        self.message = message
-        super().__init__(f"Circuit breaker '{breaker_name}' is {state.value}: {message}")
-
-
 class CircuitBreaker:
-    """Individual circuit breaker with config-driven behavior.
+    """Circuit breaker using modular components for separation of concerns.
 
-    Configuration Usage:
-    - Uses config.safety_systems.circuit_breakers.global_consecutive_failures for failure threshold
-    - Uses config.safety_systems.circuit_breakers.cooldown_period_seconds for recovery time
-    - Uses config.safety_systems.circuit_breakers.half_open_max_calls for testing limit
-    - Uses config.safety_systems.circuit_breakers.recovery_threshold for success ratio
+    This class orchestrates:
+    - StateManager: Handles state transitions and recovery logic
+    - FailureTracker: Tracks failures, successes, and analytics
 
     IMPORTANT: Following CODING_STANDARDS.md:
-    - ALL thresholds from AppSettings, NO hardcoded values
-    - Uses structured logging only
-    - Fail-fast on configuration violations
-    - Thread-safe operation
+    - Uses composed components for single responsibility
+    - ALL configuration from AppSettings
+    - Structured logging throughout
     """
 
-    def __init__(self, name: str, config: AppSettings):
-        """Initialize circuit breaker with configuration.
+    def __init__(self, name: str, config: AppSettings) -> None:
+        """Initialize circuit breaker with modular components.
 
         Args:
             name: Unique name for this circuit breaker
@@ -73,85 +43,63 @@ class CircuitBreaker:
         """
         self.name = name
         self.config = config
-        self._cb_config = config.safety_systems.circuit_breakers
 
-        # Extract configuration - NO hardcoded defaults
-        self._failure_threshold = self._cb_config.global_consecutive_failures
-        self._cooldown_period = timedelta(seconds=self._cb_config.cooldown_period_seconds)
-        self._half_open_max_calls = self._cb_config.half_open_max_calls
-        self._recovery_threshold = self._cb_config.recovery_threshold
+        # Initialize modular components
+        self._state_manager = StateManager(name, config)
+        self._failure_tracker = FailureTracker(name, config)
 
-        # State tracking
-        self._state = CircuitBreakerState.CLOSED
-        self._failure_count = 0
-        self._consecutive_failures = 0
-        self._last_failure_time: Optional[datetime] = None
-        self._half_open_calls = 0
-        self._half_open_successes = 0
+        logger.info("circuit_breaker_initialized", name=self.name, components_initialized=2)
 
-        # Failure tracking for analytics
-        self._failure_history: List[Dict] = []
-        self._success_count = 0
-        self._total_calls = 0
-
-        logger.info(
-            "circuit_breaker_initialized",
-            name=self.name,
-            failure_threshold=self._failure_threshold,
-            cooldown_period_sec=self._cb_config.cooldown_period_seconds,
-            half_open_max_calls=self._half_open_max_calls,
-            recovery_threshold=float(self._recovery_threshold),
-        )
-
-    async def call(self, operation_name: str, func, *args, **kwargs):
+    async def call(
+        self,
+        operation_name: str,
+        func: Callable[..., object],
+        *args: object,
+        **kwargs: object,
+    ) -> object:
         """Execute function with circuit breaker protection.
 
         Args:
             operation_name: Name of the operation for logging
             func: Function to execute
-            *args, **kwargs: Arguments to pass to function
+            *args: Positional arguments to pass to function
+            **kwargs: Keyword arguments to pass to function
 
         Returns:
             Function result
 
         Raises:
-            CircuitBreakerViolation: If circuit breaker is open
-            Exception: Original exception from function
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured failure tracking
-        - All timing from configuration
-        - Explicit state transitions
+            CircuitBreakerViolationError: If circuit breaker is open
         """
         # Check current state and determine if we can proceed
-        await self._check_state_transition()
+        await self._state_manager.check_state_transition()
 
-        if self._state == CircuitBreakerState.OPEN:
+        if self._state_manager.is_open():
+            consecutive_failures = self._failure_tracker.get_consecutive_failures()
             logger.warning(
                 "circuit_breaker_blocking_call",
                 breaker_name=self.name,
                 operation=operation_name,
-                state=self._state.value,
-                consecutive_failures=self._consecutive_failures,
+                state=self._state_manager.get_state().value,
+                consecutive_failures=consecutive_failures,
             )
-            raise CircuitBreakerViolation(
+            raise CircuitBreakerViolationError(
                 self.name,
-                self._state,
-                f"Too many failures ({self._consecutive_failures}/{self._failure_threshold})",
+                self._state_manager.get_state(),
+                f"Too many failures ({consecutive_failures})",
             )
 
-        # Track the call
-        self._total_calls += 1
-        if self._state == CircuitBreakerState.HALF_OPEN:
-            self._half_open_calls += 1
+        # Track the call for half-open state
+        if self._state_manager.is_half_open():
+            self._state_manager.track_half_open_call()
 
         try:
             logger.debug(
                 "circuit_breaker_executing_call",
                 breaker_name=self.name,
                 operation=operation_name,
-                state=self._state.value,
-                attempt_number=self._total_calls,
+                state=self._state_manager.get_state().value,
+                attempt_number=self._failure_tracker.get_total_calls() + 1,
             )
 
             # Execute the protected function
@@ -161,291 +109,109 @@ class CircuitBreaker:
                 else func(*args, **kwargs)
             )
 
-            # Record success
-            await self._record_success(operation_name)
+        except Exception as e:
+            # Record failure and check if we should trip
+            should_trip_closed, should_trip_half_open = await self._failure_tracker.record_failure(
+                operation_name, e
+            )
+
+            current_state = self._state_manager.get_state()
+
+            # Handle state transitions based on failure
+            if current_state == CircuitBreakerState.CLOSED and should_trip_closed:
+                logger.exception(
+                    "circuit_breaker_tripped",
+                    breaker_name=self.name,
+                    operation=operation_name,
+                    consecutive_failures=self._failure_tracker.get_consecutive_failures(),
+                )
+                self._state_manager.set_state_open(datetime.now(UTC))
+
+            elif current_state == CircuitBreakerState.HALF_OPEN and should_trip_half_open:
+                logger.warning(
+                    "circuit_breaker_half_open_failed",
+                    breaker_name=self.name,
+                    operation=operation_name,
+                )
+                self._state_manager.set_state_open(datetime.now(UTC))
+
+            raise
+        else:
+            # Record success and handle state changes
+            await self._failure_tracker.record_success(
+                operation_name, self._state_manager.get_state()
+            )
+
+            # Track success for half-open recovery
+            if self._state_manager.is_half_open():
+                self._state_manager.track_half_open_success()
 
             return result
 
-        except Exception as e:
-            # Record failure
-            await self._record_failure(operation_name, e)
-            raise
-
-    async def _check_state_transition(self) -> None:
-        """Check if circuit breaker should transition states.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured cooldown period
-        - State transitions based on configuration
-        """
-        if self._state == CircuitBreakerState.OPEN:
-            # Check if cooldown period has passed
-            if (
-                self._last_failure_time
-                and datetime.now(UTC) - self._last_failure_time >= self._cooldown_period
-            ):
-                logger.info(
-                    "circuit_breaker_transitioning_to_half_open",
-                    breaker_name=self.name,
-                    cooldown_elapsed=True,
-                    last_failure_time=self._last_failure_time.isoformat(),
-                )
-
-                self._state = CircuitBreakerState.HALF_OPEN
-                self._half_open_calls = 0
-                self._half_open_successes = 0
-
-        elif self._state == CircuitBreakerState.HALF_OPEN:
-            # Check if we've exceeded half-open call limit
-            if self._half_open_calls >= self._half_open_max_calls:
-                success_ratio = self._half_open_successes / self._half_open_calls
-
-                if success_ratio >= self._recovery_threshold:
-                    logger.info(
-                        "circuit_breaker_recovered",
-                        breaker_name=self.name,
-                        success_ratio=success_ratio,
-                        required_ratio=float(self._recovery_threshold),
-                        test_calls=self._half_open_calls,
-                    )
-
-                    self._state = CircuitBreakerState.CLOSED
-                    self._consecutive_failures = 0
-                    self._failure_count = 0
-                else:
-                    logger.warning(
-                        "circuit_breaker_recovery_failed",
-                        breaker_name=self.name,
-                        success_ratio=success_ratio,
-                        required_ratio=float(self._recovery_threshold),
-                        test_calls=self._half_open_calls,
-                    )
-
-                    self._state = CircuitBreakerState.OPEN
-                    self._last_failure_time = datetime.now(UTC)
-
-    async def _record_success(self, operation_name: str) -> None:
-        """Record successful operation.
-
-        Args:
-            operation_name: Name of successful operation
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Updates state based on configured thresholds
-        - Structured logging for monitoring
-        """
-        self._success_count += 1
-
-        if self._state == CircuitBreakerState.HALF_OPEN:
-            self._half_open_successes += 1
-        elif self._state == CircuitBreakerState.CLOSED:
-            # Reset consecutive failures on success
-            if self._consecutive_failures > 0:
-                logger.debug(
-                    "circuit_breaker_failure_streak_reset",
-                    breaker_name=self.name,
-                    operation=operation_name,
-                    previous_consecutive_failures=self._consecutive_failures,
-                )
-                self._consecutive_failures = 0
-
-        logger.debug(
-            "circuit_breaker_success_recorded",
-            breaker_name=self.name,
-            operation=operation_name,
-            state=self._state.value,
-            total_successes=self._success_count,
-            consecutive_failures=self._consecutive_failures,
-        )
-
-    async def _record_failure(self, operation_name: str, error: Exception) -> None:
-        """Record failed operation.
-
-        Args:
-            operation_name: Name of failed operation
-            error: Exception that caused the failure
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Failure categorization for analytics
-        - State transitions based on configuration
-        """
-        self._failure_count += 1
-        self._consecutive_failures += 1
-        self._last_failure_time = datetime.now(UTC)
-
-        # Categorize failure type
-        failure_type = self._categorize_failure(error)
-
-        # Store failure for analytics
-        failure_record = {
-            "timestamp": self._last_failure_time.isoformat(),
-            "operation": operation_name,
-            "error_type": type(error).__name__,
-            "failure_type": failure_type.value,
-            "error_message": str(error),
-            "consecutive_count": self._consecutive_failures,
-        }
-        self._failure_history.append(failure_record)
-
-        # Keep only recent failures for memory management
-        max_history = self._cb_config.failure_history_limit
-        if len(self._failure_history) > max_history:
-            self._failure_history = self._failure_history[-max_history:]
-
-        logger.warning(
-            "circuit_breaker_failure_recorded",
-            breaker_name=self.name,
-            operation=operation_name,
-            error_type=type(error).__name__,
-            failure_type=failure_type.value,
-            consecutive_failures=self._consecutive_failures,
-            failure_threshold=self._failure_threshold,
-            state=self._state.value,
-        )
-
-        # Check if we should trip the circuit breaker
-        if (
-            self._state == CircuitBreakerState.CLOSED
-            and self._consecutive_failures >= self._failure_threshold
-        ):
-            logger.error(
-                "circuit_breaker_tripped",
-                breaker_name=self.name,
-                operation=operation_name,
-                consecutive_failures=self._consecutive_failures,
-                failure_threshold=self._failure_threshold,
-                cooldown_period_sec=self._cb_config.cooldown_period_seconds,
-            )
-
-            self._state = CircuitBreakerState.OPEN
-
-        elif (
-            self._state == CircuitBreakerState.HALF_OPEN
-            and self._half_open_calls >= self._half_open_max_calls
-        ):
-            logger.warning(
-                "circuit_breaker_half_open_failed",
-                breaker_name=self.name,
-                operation=operation_name,
-                test_calls=self._half_open_calls,
-                successes=self._half_open_successes,
-            )
-
-            self._state = CircuitBreakerState.OPEN
-
-    def _categorize_failure(self, error: Exception) -> FailureType:
-        """Categorize failure type for analytics.
-
-        Args:
-            error: Exception to categorize
+    def get_state(self) -> CircuitBreakerState:
+        """Get current circuit breaker state.
 
         Returns:
-            FailureType enum value
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Explicit failure categorization
-        - NO assumptions about error types
+            Current circuit breaker state
         """
-        error_name = type(error).__name__.lower()
-        error_message = str(error).lower()
+        return self._state_manager.get_state()
 
-        if "timeout" in error_name or "timeout" in error_message:
-            return FailureType.TIMEOUT
-        elif "network" in error_message or "connection" in error_message:
-            return FailureType.NETWORK_ERROR
-        elif "rate" in error_message and "limit" in error_message:
-            return FailureType.RATE_LIMIT
-        elif "auth" in error_message or "credential" in error_message:
-            return FailureType.AUTHENTICATION_ERROR
-        elif "validation" in error_name or "value" in error_name:
-            return FailureType.VALIDATION_ERROR
-        elif "execution" in error_message or "order" in error_message:
-            return FailureType.EXECUTION_ERROR
-        else:
-            return FailureType.API_ERROR
-
-    def get_state(self) -> CircuitBreakerState:
-        """Get current circuit breaker state."""
-        return self._state
-
-    def get_stats(self) -> Dict:
-        """Get circuit breaker statistics.
+    def get_stats(self) -> dict[str, object]:
+        """Get comprehensive circuit breaker statistics.
 
         Returns:
             Dictionary with current statistics
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns structured data for monitoring
-        - Includes configuration for context
         """
-        success_rate = self._success_count / self._total_calls if self._total_calls > 0 else 0.0
+        # Combine stats from both components
+        state_info = self._state_manager.get_state_info()
+        tracking_stats = self._failure_tracker.get_tracking_stats()
 
-        return {
-            "name": self.name,
-            "state": self._state.value,
-            "total_calls": self._total_calls,
-            "success_count": self._success_count,
-            "failure_count": self._failure_count,
-            "consecutive_failures": self._consecutive_failures,
-            "success_rate": success_rate,
-            "last_failure_time": self._last_failure_time.isoformat()
-            if self._last_failure_time
-            else None,
-            "configuration": {
-                "failure_threshold": self._failure_threshold,
-                "cooldown_period_sec": self._cb_config.cooldown_period_seconds,
-                "half_open_max_calls": self._half_open_max_calls,
-                "recovery_threshold": float(self._recovery_threshold),
-            },
-            "failure_history_count": len(self._failure_history),
-        }
+        return {"name": self.name, **state_info, **tracking_stats}
 
     def reset(self) -> None:
         """Reset circuit breaker to initial state.
 
         IMPORTANT: Following CODING_STANDARDS.md:
-        - Manual reset capability for operations
+        - Coordinates reset across all components
         - Logs reset action for audit trail
         """
         logger.info(
             "circuit_breaker_manual_reset",
             breaker_name=self.name,
-            previous_state=self._state.value,
-            consecutive_failures=self._consecutive_failures,
+            previous_state=self._state_manager.get_state().value,
+            consecutive_failures=self._failure_tracker.get_consecutive_failures(),
         )
 
-        self._state = CircuitBreakerState.CLOSED
-        self._failure_count = 0
-        self._consecutive_failures = 0
-        self._last_failure_time = None
-        self._half_open_calls = 0
-        self._half_open_successes = 0
+        self._state_manager.reset_state()
+        self._failure_tracker.reset_tracking()
 
 
 class CircuitBreakerManager:
-    """Manages multiple circuit breakers for different services.
+    """Manages multiple circuit breakers using health monitoring.
 
-    Configuration Usage:
-    - Uses config.safety_systems.circuit_breakers.enabled to control activation
-    - Uses config.safety_systems.circuit_breakers.per_service_enabled for service-specific breakers
-    - Individual breakers inherit from global configuration
+    This class orchestrates:
+    - CircuitBreaker instances: Individual breaker management
+    - HealthMonitor: System health calculations and monitoring
 
     IMPORTANT: Following CODING_STANDARDS.md:
     - Centralized management of all circuit breakers
-    - Service-specific and global protection
     - Configuration-driven behavior
+    - Uses health monitoring for system status
     """
 
-    def __init__(self, config: AppSettings):
-        """Initialize circuit breaker manager.
+    def __init__(self, config: AppSettings) -> None:
+        """Initialize circuit breaker manager with health monitoring.
 
         Args:
             config: Application settings containing circuit breaker configuration
         """
         self.config = config
         self._cb_config = config.safety_systems.circuit_breakers
-        self._breakers: Dict[str, CircuitBreaker] = {}
+        self._breakers: dict[str, CircuitBreaker] = {}
         self._enabled = self._cb_config.enabled
+
+        # Initialize health monitor
+        self._health_monitor = HealthMonitor(config)
 
         # Create service-specific circuit breakers if enabled
         if self._cb_config.per_service_enabled:
@@ -456,6 +222,7 @@ class CircuitBreakerManager:
             enabled=self._enabled,
             per_service_enabled=self._cb_config.per_service_enabled,
             breaker_count=len(self._breakers),
+            health_monitoring_enabled=True,
         )
 
     def _create_service_breakers(self) -> None:
@@ -492,10 +259,6 @@ class CircuitBreakerManager:
 
         Returns:
             CircuitBreaker instance
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Lazy creation of breakers
-        - Consistent configuration across breakers
         """
         if name not in self._breakers:
             self._breakers[name] = CircuitBreaker(name, self.config)
@@ -508,21 +271,25 @@ class CircuitBreakerManager:
 
         return self._breakers[name]
 
-    async def protect(self, service_name: str, operation_name: str, func, *args, **kwargs):
+    async def protect(
+        self,
+        service_name: str,
+        operation_name: str,
+        func: Callable[..., object],
+        *args: object,
+        **kwargs: object,
+    ) -> object:
         """Execute function with circuit breaker protection.
 
         Args:
             service_name: Name of the service
             operation_name: Name of the operation
             func: Function to execute
-            *args, **kwargs: Arguments to pass to function
+            *args: Positional arguments to pass to function
+            **kwargs: Keyword arguments to pass to function
 
         Returns:
             Function result
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Bypasses protection if disabled
-        - Uses service-specific breakers
         """
         if not self._enabled:
             # Circuit breakers disabled - execute directly
@@ -535,68 +302,21 @@ class CircuitBreakerManager:
         breaker = self.get_breaker(service_name)
         return await breaker.call(operation_name, func, *args, **kwargs)
 
-    def get_all_stats(self) -> Dict[str, Dict]:
+    def get_all_stats(self) -> dict[str, dict[str, object]]:
         """Get statistics for all circuit breakers.
 
         Returns:
             Dictionary mapping breaker names to their stats
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Comprehensive monitoring data
-        - Structured output for dashboards
         """
-        return {name: breaker.get_stats() for name, breaker in self._breakers.items()}
+        return self._health_monitor.aggregate_breaker_stats(self._breakers)
 
-    def get_system_health(self) -> Dict:
+    def get_system_health(self) -> dict[str, object]:
         """Get overall system health from circuit breaker perspective.
 
         Returns:
-            System health summary
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - High-level health indicators
-        - Uses configured thresholds
+            System health summary calculated by health monitor
         """
-        total_breakers = len(self._breakers)
-        open_breakers = sum(
-            1
-            for breaker in self._breakers.values()
-            if breaker.get_state() == CircuitBreakerState.OPEN
-        )
-        half_open_breakers = sum(
-            1
-            for breaker in self._breakers.values()
-            if breaker.get_state() == CircuitBreakerState.HALF_OPEN
-        )
-
-        # Calculate overall system health
-        healthy_breakers = total_breakers - open_breakers
-        health_ratio = healthy_breakers / total_breakers if total_breakers > 0 else 1.0
-
-        # Determine system status
-        if open_breakers == 0:
-            status = "healthy"
-        elif health_ratio >= 0.8:
-            status = "degraded"
-        elif health_ratio >= 0.5:
-            status = "impaired"
-        else:
-            status = "critical"
-
-        return {
-            "status": status,
-            "health_ratio": health_ratio,
-            "total_breakers": total_breakers,
-            "healthy_breakers": healthy_breakers,
-            "open_breakers": open_breakers,
-            "half_open_breakers": half_open_breakers,
-            "enabled": self._enabled,
-            "configuration": {
-                "global_failure_threshold": self._cb_config.global_consecutive_failures,
-                "cooldown_period_sec": self._cb_config.cooldown_period_seconds,
-                "per_service_enabled": self._cb_config.per_service_enabled,
-            },
-        }
+        return self._health_monitor.calculate_system_health(self._breakers)
 
     def reset_all(self) -> None:
         """Reset all circuit breakers.
@@ -624,21 +344,16 @@ class CircuitBreakerManager:
 
         Returns:
             True if breaker was reset, False if not found
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Selective reset capability
-        - Returns explicit success/failure
         """
         if name in self._breakers:
             self._breakers[name].reset()
 
             logger.info("circuit_breaker_reset_completed", breaker_name=name)
             return True
-        else:
-            logger.warning(
-                "circuit_breaker_reset_failed",
-                breaker_name=name,
-                reason="breaker_not_found",
-                available_breakers=list(self._breakers.keys()),
-            )
-            return False
+        logger.warning(
+            "circuit_breaker_reset_failed",
+            breaker_name=name,
+            reason="breaker_not_found",
+            available_breakers=list(self._breakers.keys()),
+        )
+        return False

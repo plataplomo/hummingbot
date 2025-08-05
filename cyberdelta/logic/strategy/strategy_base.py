@@ -7,14 +7,13 @@ must inherit from, ensuring consistent interfaces and configuration handling.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
+from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-
-from cyberdelta.config.models.config_models import AppSettings
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
 from cyberdelta.models.portfolio.state import PortfolioState
+
 
 logger = get_logger(__name__)
 
@@ -39,7 +38,7 @@ class BaseStrategy(ABC):
     - NO assumptions about market conditions
     """
 
-    def __init__(self, config: AppSettings):
+    def __init__(self, config: AppSettings) -> None:
         """Initialize strategy with configuration.
 
         Args:
@@ -83,7 +82,7 @@ class BaseStrategy(ABC):
     @abstractmethod
     async def analyze(
         self, market_data: MarketSnapshot, portfolio_state: PortfolioState
-    ) -> Optional[TradeSignal]:
+    ) -> TradeSignal | None:
         """Analyze market conditions and generate trading signal.
 
         Args:
@@ -116,7 +115,7 @@ class BaseStrategy(ABC):
                 ExchangeName.HYPERLIQUID, btc_symbol
             )
             if not ticker:
-                return None
+                return
 
             # Use configured threshold, not hardcoded
             if ticker.price_change_24h > momentum_config.price_change_threshold:
@@ -129,7 +128,6 @@ class BaseStrategy(ABC):
                 )
         ```
         """
-        pass
 
     async def cleanup(self) -> None:
         """Cleanup strategy resources.
@@ -154,7 +152,7 @@ class BaseStrategy(ABC):
         Subclasses can override this method to perform their own initialization
         without having to call super() in the main initialize method.
         """
-        pass
+        return
 
     async def _strategy_cleanup(self) -> None:
         """Template method for strategy-specific cleanup.
@@ -162,7 +160,7 @@ class BaseStrategy(ABC):
         Subclasses can override this method to perform their own cleanup
         without having to call super() in the main cleanup method.
         """
-        pass
+        return
 
     def get_strategy_name(self) -> str:
         """Get the strategy name.
@@ -196,10 +194,6 @@ class BaseStrategy(ABC):
         Raises:
             ValueError: If section not found
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - NO defaults if section missing
-        - Fail fast with clear error message
-
         Example:
         ```python
         # In a momentum strategy
@@ -208,10 +202,11 @@ class BaseStrategy(ABC):
         ```
         """
         if not hasattr(self._strategy_config, section_name):
-            raise ValueError(
+            msg = (
                 f"Strategy '{self.name}' requires config section "
                 f"'strategies.{section_name}' which is not configured"
             )
+            raise ValueError(msg)
 
         return getattr(self._strategy_config, section_name)
 
@@ -225,11 +220,6 @@ class BaseStrategy(ABC):
         Raises:
             ValueError: If any required field is missing
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Explicit validation of required config
-        - Fail fast with clear error messages
-        - NO silent defaults for critical fields
-
         Example:
         ```python
         # In strategy initialization
@@ -240,21 +230,22 @@ class BaseStrategy(ABC):
         """
         try:
             config_section = self._get_strategy_config_section(section_name)
-        except ValueError:
-            raise ValueError(
+        except ValueError as e:
+            msg = (
                 f"Strategy '{self.name}' requires configuration section 'strategies.{section_name}'"
             )
+            raise ValueError(msg) from e
 
-        missing_fields = []
-        for field in required_fields:
-            if not hasattr(config_section, field):
-                missing_fields.append(field)
+        missing_fields: list[str] = [
+            field for field in required_fields if not hasattr(config_section, field)
+        ]
 
         if missing_fields:
-            raise ValueError(
+            msg = (
                 f"Strategy '{self.name}' missing required config fields "
                 f"in 'strategies.{section_name}': {missing_fields}"
             )
+            raise ValueError(msg)
 
         logger.debug(
             "strategy_config_validated",
@@ -272,8 +263,6 @@ class StrategyError(Exception):
     - Clear error messages with context
     """
 
-    pass
-
 
 class StrategyConfigurationError(StrategyError):
     """Exception raised for strategy configuration errors.
@@ -281,8 +270,6 @@ class StrategyConfigurationError(StrategyError):
     This should be raised when a strategy cannot initialize due to
     missing or invalid configuration.
     """
-
-    pass
 
 
 class StrategyExecutionError(StrategyError):
@@ -292,8 +279,6 @@ class StrategyExecutionError(StrategyError):
     analysis that prevents signal generation.
     """
 
-    pass
-
 
 class StrategyValidationError(StrategyError):
     """Exception raised for strategy validation errors.
@@ -301,5 +286,3 @@ class StrategyValidationError(StrategyError):
     This should be raised when a strategy detects invalid market data
     or portfolio state that prevents analysis.
     """
-
-    pass

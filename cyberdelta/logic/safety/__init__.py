@@ -7,15 +7,18 @@ and other protective systems for the trading engine.
 from cyberdelta.logic.safety.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerManager,
+)
+from cyberdelta.logic.safety.models import (
     CircuitBreakerState,
-    CircuitBreakerViolation,
+    CircuitBreakerViolationError,
     FailureType,
 )
+
 
 __all__ = [
     "CircuitBreaker",
     "CircuitBreakerManager",
     "CircuitBreakerState",
-    "CircuitBreakerViolation",
+    "CircuitBreakerViolationError",
     "FailureType",
 ]

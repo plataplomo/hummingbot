@@ -227,7 +227,9 @@ class TestBackpackPerpPositionsZero:
                     APIErrorCode.SERVER_ERROR.value,  # VCR-related errors
                 ]
                 if e.code not in expected_codes:
-                    pytest.fail(f"Unexpected error code for invalid symbol {symbol or symbol_str}: {e.code}")
+                    pytest.fail(
+                        f"Unexpected error code for invalid symbol {symbol or symbol_str}: {e.code}"
+                    )
                 logger.info(
                     "invalid_symbol_rejected",
                     symbol=symbol or symbol_str,

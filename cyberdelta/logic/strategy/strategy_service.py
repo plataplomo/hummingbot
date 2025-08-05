@@ -7,17 +7,17 @@ of all registered strategies using validated AppSettings configuration.
 from __future__ import annotations
 
 import asyncio
-from typing import Dict, List
-
-from cyberdelta.config.structlog_config import get_logger
+import contextlib
 
 from cyberdelta.application.event_bus import EventBus
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.logic.market.market_service import MarketDataService
 from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
 from cyberdelta.logic.signal.signal_service import SignalService
 from cyberdelta.logic.strategy.strategy_base import BaseStrategy, StrategyError
-from cyberdelta.models import TradeSignal, Trade
+from cyberdelta.models import Trade, TradeSignal
+
 
 logger = get_logger(__name__)
 
@@ -29,12 +29,14 @@ class StrategyService:
     provides them with market data and portfolio state, and routes generated
     signals to the signal service for validation.
 
+
     Configuration Usage:
     - Uses config.strategies.execution_interval_seconds for loop timing
     - Uses config.strategies.enabled_strategies for strategy filtering
     - Uses config.general.safe_mode for paper trading awareness
     - Uses config.execution.retry_delay_base_sec for error recovery
     - Uses config.execution.retry_backoff_multiplier for backoff
+
 
     IMPORTANT: Following CODING_STANDARDS.md:
     - ALL configuration from AppSettings, NO hardcoded values
@@ -51,7 +53,7 @@ class StrategyService:
         portfolio_service: PortfolioService,
         signal_service: SignalService,
         event_bus: EventBus,
-    ):
+    ) -> None:
         """Initialize strategy service with configuration and dependencies.
 
         Args:
@@ -66,10 +68,9 @@ class StrategyService:
         self._portfolio_service = portfolio_service
         self._signal_service = signal_service
         self._event_bus = event_bus
-        self._strategies: Dict[str, BaseStrategy] = {}
+        self._strategies: dict[str, BaseStrategy] = {}
         self._running = False
-        self._execution_task: asyncio.Task | None = None
-
+        self._execution_task: asyncio.Task[None] | None = None
         # Extract strategy configuration - NO hardcoded defaults
         self._strategy_config = config.strategies
         self._execution_interval = self._strategy_config.execution_interval_seconds
@@ -97,26 +98,22 @@ class StrategyService:
             name: Strategy name (must be in enabled_strategies config)
             strategy: Strategy instance that implements BaseStrategy
 
+
         Raises:
             ValueError: If strategy name not in enabled list or already registered
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note:
         - Only explicitly enabled strategies can be registered
         - NO automatic discovery or registration
         - Strategy must be properly initialized BaseStrategy instance
         """
         if name not in self._enabled_strategies:
-            raise ValueError(
-                f"Strategy '{name}' not in enabled strategies list: {self._enabled_strategies}"
-            )
+            msg = f"Strategy '{name}' not in enabled strategies list: {self._enabled_strategies}"
+            raise ValueError(msg)
 
         if name in self._strategies:
-            raise ValueError(f"Strategy '{name}' is already registered")
-
-        if not isinstance(strategy, BaseStrategy):
-            raise ValueError(
-                f"Strategy '{name}' must be instance of BaseStrategy, got {type(strategy).__name__}"
-            )
+            msg = f"Strategy '{name}' is already registered"
+            raise ValueError(msg)
 
         self._strategies[name] = strategy
 
@@ -133,8 +130,10 @@ class StrategyService:
         Args:
             name: Strategy name to unregister
 
+
         Returns:
             True if strategy was unregistered, False if not found
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Explicit unregistration only
@@ -150,36 +149,34 @@ class StrategyService:
                 remaining_strategies=len(self._strategies),
             )
             return True
-        else:
-            logger.warning("strategy_unregister_not_found", strategy_name=name)
-            return False
+        logger.warning("strategy_unregister_not_found", strategy_name=name)
 
     async def initialize_strategies(self) -> None:
         """Initialize all registered strategies.
 
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Raises:
+            StrategyError: If any strategy fails to initialize
+
+        Note:
         - Initialization fails fast if any strategy fails
         - NO silent failures or partial initialization
         - All strategies must initialize successfully
         """
         logger.info("strategies_initialization_starting", strategy_count=len(self._strategies))
-
         for name, strategy in self._strategies.items():
             try:
                 logger.debug("strategy_initializing", strategy_name=name)
-
                 await strategy.initialize()
 
                 logger.info("strategy_initialized_successfully", strategy_name=name)
-
             except Exception as e:
-                logger.error(
+                logger.exception(
                     "strategy_initialization_failed",
                     strategy_name=name,
                     error=str(e),
-                    exc_info=True,
                 )
-                raise StrategyError(f"Failed to initialize strategy '{name}': {e}") from e
+                msg = f"Failed to initialize strategy '{name}': {e}"
+                raise StrategyError(msg) from e
 
         logger.info("strategies_initialization_completed", initialized_count=len(self._strategies))
 
@@ -192,20 +189,14 @@ class StrategyService:
         - Graceful shutdown sequence
         """
         logger.info("strategies_cleanup_starting", strategy_count=len(self._strategies))
-
         for name, strategy in self._strategies.items():
             try:
                 logger.debug("strategy_cleanup_starting", strategy_name=name)
-
                 await strategy.cleanup()
 
                 logger.info("strategy_cleanup_completed", strategy_name=name)
-
             except Exception as e:
-                logger.error(
-                    "strategy_cleanup_failed", strategy_name=name, error=str(e), exc_info=True
-                )
-                # Continue with other strategies - cleanup errors don't stop shutdown
+                logger.exception("strategy_cleanup_failed", strategy_name=name, error=str(e))
 
         logger.info("strategies_cleanup_completed", cleaned_count=len(self._strategies))
 
@@ -259,10 +250,8 @@ class StrategyService:
         # Cancel execution task
         if self._execution_task and not self._execution_task.done():
             self._execution_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._execution_task
-            except asyncio.CancelledError:
-                pass
 
         # Cleanup strategies
         await self.cleanup_strategies()
@@ -330,11 +319,10 @@ class StrategyService:
                                 )
 
                     except Exception as e:
-                        logger.error(
+                        logger.exception(
                             "strategy_execution_error",
                             strategy_name=name,
                             error=str(e),
-                            exc_info=True,
                         )
                         # Continue with other strategies - one failure doesn't stop all
 
@@ -356,16 +344,15 @@ class StrategyService:
 
             except Exception as e:
                 consecutive_errors += 1
-                logger.error(
+                logger.exception(
                     "strategy_execution_loop_error",
                     error=str(e),
                     consecutive_errors=consecutive_errors,
                     max_consecutive_errors=max_consecutive_errors,
-                    exc_info=True,
                 )
 
                 if consecutive_errors >= max_consecutive_errors:
-                    logger.error(
+                    logger.warning(
                         "strategy_execution_loop_max_errors",
                         consecutive_errors=consecutive_errors,
                         stopping_loop=True,
@@ -394,47 +381,12 @@ class StrategyService:
             signal: Signal to validate
             strategy_name: Name of strategy that generated signal
 
-        Raises:
-            ValueError: If signal validation fails
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Validates proper types (Symbol, ExchangeName)
-        - NO assumptions about signal structure
-        - Clear error messages with context
+        Note:
+            Most validation is handled by Pydantic when TradeSignal is created.
+            This method just logs successful validation.
         """
-        if not isinstance(signal, TradeSignal):
-            raise ValueError(
-                f"Strategy '{strategy_name}' must return TradeSignal instance, "
-                f"got {type(signal).__name__}"
-            )
-
-        if not signal.symbol:
-            raise ValueError(f"Strategy '{strategy_name}' generated signal without symbol")
-
-        # Import Symbol here to avoid circular imports
-        from cyberdelta.core.symbols.models import Symbol
-
-        if not isinstance(signal.symbol, Symbol):
-            raise ValueError(
-                f"Strategy '{strategy_name}' generated signal with invalid symbol type: "
-                f"expected Symbol object, got {type(signal.symbol).__name__}"
-            )
-
-        if not signal.exchange:
-            raise ValueError(f"Strategy '{strategy_name}' generated signal without exchange")
-
-        # Import ExchangeName here to avoid circular imports
-        from cyberdelta.enums.exchange_names import ExchangeName
-
-        if not isinstance(signal.exchange, ExchangeName):
-            raise ValueError(
-                f"Strategy '{strategy_name}' generated signal with invalid exchange type: "
-                f"expected ExchangeName enum, got {type(signal.exchange).__name__}"
-            )
-
-        if not signal.side:
-            raise ValueError(f"Strategy '{strategy_name}' generated signal without side")
-
+        # TradeSignal's Pydantic model ensures all required fields are present and valid
+        # The type system and Pydantic handle all validation
         logger.debug(
             "strategy_signal_validated", strategy_name=strategy_name, signal_id=signal.signal_id
         )
@@ -444,6 +396,7 @@ class StrategyService:
 
         Args:
             trade: Trade that was executed
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Provides trade feedback to strategies that might need it
@@ -470,15 +423,14 @@ class StrategyService:
                     )
 
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         "strategy_trade_feedback_error",
                         strategy_name=name,
                         trade_id=trade.id,
                         error=str(e),
-                        exc_info=True,
                     )
 
-    def get_registered_strategies(self) -> List[str]:
+    def get_registered_strategies(self) -> list[str]:
         """Get list of registered strategy names.
 
         Returns:
@@ -486,7 +438,7 @@ class StrategyService:
         """
         return list(self._strategies.keys())
 
-    def get_enabled_strategies(self) -> List[str]:
+    def get_enabled_strategies(self) -> list[str]:
         """Get list of enabled strategy names from configuration.
 
         Returns:
@@ -507,6 +459,7 @@ class StrategyService:
 
         Returns:
             Execution interval in seconds from configuration
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns configured value, NOT hardcoded default

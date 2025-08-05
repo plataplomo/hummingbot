@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, Optional
 
 from pydantic import BaseModel, Field
 
@@ -33,23 +32,23 @@ class PortfolioState(BaseModel):
     """
 
     # Using Dict with string keys as we need "{exchange}:{asset}" format
-    balances: Dict[str, SpotBalance] = Field(
+    balances: dict[str, SpotBalance] = Field(
         description='Spot balances keyed by "{exchange}:{asset}" e.g. "hyperliquid:USDC"'
     )
 
-    positions: Dict[str, DerivativePosition] = Field(
+    positions: dict[str, DerivativePosition] = Field(
         description='Derivative positions keyed by "{exchange}:{symbol}" e.g. "backpack:BTC_USD"'
     )
 
     timestamp: datetime = Field(description="UTC timestamp of this portfolio state snapshot")
 
     # Optional calculated field - must be explicitly set
-    total_equity_usd: Optional[Decimal] = Field(
+    total_equity_usd: Decimal | None = Field(
         default=None,
         description="Sum of all balances + position values in USD (must be calculated)",
     )
 
-    def get_exchange_balances(self, exchange: ExchangeName) -> Dict[str, SpotBalance]:
+    def get_exchange_balances(self, exchange: ExchangeName) -> dict[str, SpotBalance]:
         """Get all balances for a specific exchange.
 
         Args:
@@ -61,7 +60,7 @@ class PortfolioState(BaseModel):
         prefix = f"{exchange.value}:"
         return {key: balance for key, balance in self.balances.items() if key.startswith(prefix)}
 
-    def get_exchange_positions(self, exchange: ExchangeName) -> Dict[str, DerivativePosition]:
+    def get_exchange_positions(self, exchange: ExchangeName) -> dict[str, DerivativePosition]:
         """Get all positions for a specific exchange.
 
         Args:

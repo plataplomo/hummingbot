@@ -16,7 +16,7 @@ from cyberdelta.exceptions.base import (
 )
 
 from .config_manager import ConfigManager
-from .models.config_models import AppSettings
+from .models import AppSettings
 from .secrets_manager import SecretsManager
 from .secrets_models import SecretsConfig
 from .structlog_config import get_logger

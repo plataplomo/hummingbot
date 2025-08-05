@@ -6,7 +6,8 @@ symbol service behaviors in tests.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Self
+from collections.abc import Callable
+from typing import Any, Self
 from unittest.mock import Mock
 
 from cyberdelta.core.symbols import Symbol
@@ -299,8 +300,6 @@ class MockExchangeHandler:
             if value in self._parse_rules:
                 return self._parse_rules[value]
             # Default parsing
-            from cyberdelta.core.enums.enums import MarketType
-
             base = value.split("-")[0].split("_")[0]
             if "PERP" in value:
                 return SymbolComponents(
@@ -367,8 +366,6 @@ class MockExchangeHandler:
 
         # Configure create_symbol
         def create_symbol(value: str, **kwargs: Any) -> Symbol:
-            from cyberdelta.core.symbols import symbol
-
             return symbol(value, self._exchange, **kwargs)
 
         mock.create_symbol.side_effect = create_symbol
@@ -434,8 +431,6 @@ class MockSymbolRegistry:
 
         # Configure create_symbol
         def create_symbol(value: str, exchange: ExchangeName, **kwargs: Any) -> Symbol:
-            from cyberdelta.core.symbols import symbol
-
             sym = symbol(value, exchange, **kwargs)
             self._symbols[value, exchange] = sym
             return sym
@@ -446,10 +441,10 @@ class MockSymbolRegistry:
         def get_factory(exchange: ExchangeName) -> Callable[[str], Symbol] | None:
             if exchange in self._handlers:
                 handler = self._handlers[exchange]
-                
+
                 def factory(value: str, **kwargs: Any) -> Symbol:
                     return handler.create_symbol(value, **kwargs)
-                
+
                 return factory
             return None
 
@@ -466,7 +461,6 @@ class MockSymbolRegistry:
             exchange = ExchangeName[name.upper()]
             return get_factory(exchange)
 
-        # Use setattr to properly assign the method
-        setattr(mock, "__getattr__", getattr_handler)
+        mock.__getattr__ = getattr_handler
 
         return mock

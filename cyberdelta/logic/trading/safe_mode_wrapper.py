@@ -1,34 +1,69 @@
 """Safe mode wrapper for paper trading without real exchange interaction.
 
-This module provides a wrapper that intercepts all exchange operations
-when safe mode is enabled, simulating trades without real execution.
+This module provides a proper wrapper/decorator that intercepts ExchangeAPI calls
+when safe mode is enabled, simulating operations without real execution.
 
-IMPORTANT: Following CODING_STANDARDS.md:
-- Safe mode controlled by config.general.safe_mode
+IMPORTANT: Following clean_new_arch.md and CODING_STANDARDS.md:
+- Wraps the REAL ExchangeAPI using composition pattern
+- Uses exact same interface as ExchangeAPI (implements same methods)
+- Configuration-driven simulation parameters from AppSettings
+- Delegates to real API when safe mode disabled
 - NO hardcoded simulation parameters
-- All simulated behavior from configuration
-- Explicit logging of safe mode operations
 """
 
 from __future__ import annotations
 
 import asyncio
+import secrets
+import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Protocol
-import uuid
+from typing import Any
 
-from cyberdelta.config.structlog_config import get_logger
 from pydantic import BaseModel
 
-from cyberdelta.config.models.config_models import AppSettings
-from cyberdelta.models.market.order import Order, OrderStatus
-from cyberdelta.models.market.trade import Trade
-from cyberdelta.models.spot_balance import SpotBalance
-from cyberdelta.models.derivative_position import DerivativePosition
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.models.service_args.account import (
+    TransferArgs,
+    UpdateAccountSettingsArgs,
+    WithdrawArgs,
+)
+from cyberdelta.apis.models.service_args.market_data import (
+    GetFundingRatesArgs,
+    GetHistoricalFundingRatesArgs,
+    GetMarketArgs,
+    GetMarketDataArgs,
+    GetMarketsArgs,
+)
+
+# Import the actual service args models
+from cyberdelta.apis.models.service_args.trading import (
+    CancelOrderArgs,
+    GetAllOpenOrdersArgs,
+    GetOrderArgs,
+    GetOrderHistoryArgs,
+    GetTradeHistoryArgs,
+    PlaceOrderArgs,
+)
+from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.enums import CancelOrderResultStatus, OrderStatus
+from cyberdelta.core.symbols import bp_symbol, hl_symbol
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType
-from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.models.account_settings import AccountSettings
+from cyberdelta.models.derivative_position import DerivativePosition
+from cyberdelta.models.margin_account import MarginAccountSummary
+from cyberdelta.models.market.candle import Candle
+from cyberdelta.models.market.funding_rate import FundingRate
+from cyberdelta.models.market.market import Market
+from cyberdelta.models.market.order import CancelOrderResult, Order
+from cyberdelta.models.market.order_book import OrderBook
+from cyberdelta.models.market.ticker import Ticker
+from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.operations import Transfer, Withdrawal
+from cyberdelta.models.spot_balance import SpotBalance
+
 
 logger = get_logger(__name__)
 
@@ -45,144 +80,528 @@ class SimulatedFill(BaseModel):
     timestamp: datetime
 
 
-class SimulatedBalance(BaseModel):
-    """Simulated balance for paper trading."""
-
-    asset: Symbol
-    total: Decimal
-    available: Decimal
-    timestamp: datetime
-
-
-class SimulatedPosition(BaseModel):
-    """Simulated position for paper trading."""
-
-    symbol: Symbol
-    side: OrderSide
-    size: Decimal
-    entry_price: Decimal
-    unrealized_pnl: Decimal
-    timestamp: datetime
-
-
-class ExchangeAPIProtocol(Protocol):
-    """Protocol for exchange API operations."""
-
-    async def place_order(
-        self, symbol: str, side: str, order_type: str, price: float, quantity: float, **kwargs: Any
-    ) -> Dict[str, Any]:
-        """Place an order."""
-        ...
-
-    async def cancel_order(self, order_id: str) -> Dict[str, Any]:
-        """Cancel an order."""
-        ...
-
-    async def get_order(self, order_id: str) -> Dict[str, Any]:
-        """Get order status."""
-        ...
-
-    async def get_balances(self) -> List[Dict[str, Any]]:
-        """Get account balances."""
-        ...
-
-    async def get_positions(self) -> List[Dict[str, Any]]:
-        """Get open positions."""
-        ...
-
-
 class SafeModeWrapper:
-    """Wrapper that simulates exchange operations in safe mode.
+    """Proper wrapper for ExchangeAPI that simulates operations in safe mode.
 
-    When safe mode is enabled (config.general.safe_mode = true),
-    this wrapper intercepts all exchange API calls and simulates
-    them locally without touching the real exchange.
+    This follows composition pattern - it wraps an ExchangeAPI without inheriting.
+    When safe mode is enabled, it intercepts calls and simulates them.
+    When safe mode is disabled, it delegates to the real API.
 
     Configuration Usage:
     - Uses config.general.safe_mode to determine if active
-    - Uses config.testing.paper_trading.initial_balance for starting balance
-    - Uses config.testing.paper_trading.fill_probability for order fills
-    - Uses config.testing.paper_trading.slippage_range for price slippage
-    - Uses config.exchanges[exchange].maker_fee_rate for fee simulation
+    - Uses config.simulation.* for simulation parameters
+    - Uses config.exchanges[exchange].* for exchange-specific config
 
-    IMPORTANT: Following CODING_STANDARDS.md:
+    IMPORTANT: Following CODING_STANDARDS.md and clean_new_arch.md:
+    - Proper composition pattern wrapping real ExchangeAPI
     - ALL simulation parameters from configuration
     - NO hardcoded trading behavior
-    - Explicit safe mode indicators in all operations
-    - Structured logging for all simulated actions
+    - Uses real ExchangeAPI interface
+    - Delegates to real API when safe mode disabled
     """
 
-    def __init__(self, config: AppSettings, real_api: ExchangeAPI, exchange_name: ExchangeName):
-        """Initialize safe mode wrapper.
+    def __init__(
+        self, config: AppSettings, real_api: ExchangeAPI, exchange_name: ExchangeName
+    ) -> None:
+        """Initialize safe mode wrapper with real ExchangeAPI.
 
         Args:
             config: Application settings
-            real_api: The real exchange API (used for market data only)
+            real_api: The real exchange API to wrap
             exchange_name: Name of the exchange being wrapped
+
+        Raises:
+            ValueError: If paper trading configuration is missing
         """
-        self.config = config
+        self.app_config = config
         self._real_api = real_api
         self._exchange_name = exchange_name
         self._safe_mode = config.general.safe_mode
 
-        # Paper trading configuration
-        self._paper_config = getattr(config.testing, "paper_trading", None)
-        if self._paper_config:
-            self._initial_balance = getattr(self._paper_config, "initial_balance", Decimal("10000"))
-            self._fill_probability = getattr(self._paper_config, "fill_probability", 0.95)
-            self._slippage_range = getattr(
-                self._paper_config,
-                "slippage_range",
-                Decimal("0.001"),  # 0.1%
-            )
-        else:
-            # Fallback if paper trading config not present
-            self._initial_balance = Decimal("10000")
-            self._fill_probability = 0.95
-            self._slippage_range = Decimal("0.001")
+        # Simulation configuration from AppSettings
+        self._simulation_config = config.simulation
+        self._initial_balance = Decimal(str(self._simulation_config.initial_balance_usd))
+        self._fill_probability = self._simulation_config.fill_probability
+        # Use max slippage from config
+        max_slippage = self._simulation_config.max_slippage_pct
+        self._slippage_range = (0.0, max_slippage)
+        self._limit_fill_delay = Decimal(str(self._simulation_config.limit_fill_delay_seconds))
 
         # Exchange-specific configuration
         exchange_config = config.exchanges.get(exchange_name.value)
-        if exchange_config:
-            self._maker_fee_rate = getattr(exchange_config, "maker_fee_rate", Decimal("0.0002"))
-            self._taker_fee_rate = getattr(exchange_config, "taker_fee_rate", Decimal("0.0005"))
-        else:
-            self._maker_fee_rate = Decimal("0.0002")
-            self._taker_fee_rate = Decimal("0.0005")
+        if not exchange_config:
+            msg = f"Exchange configuration missing for {exchange_name.value}"
+            raise ValueError(msg)
+
+        # Use simulation fee rates
+        self._maker_fee_rate = Decimal(str(self._simulation_config.maker_fee_rate))
+        self._taker_fee_rate = Decimal(str(self._simulation_config.taker_fee_rate))
 
         # Simulated state
-        self._simulated_orders: Dict[str, Order] = {}
-        self._simulated_balances: Dict[str, SimulatedBalance] = {}
-        self._simulated_positions: Dict[str, SimulatedPosition] = {}
-        self._simulated_fills: List[SimulatedFill] = []
+        self._simulated_orders: dict[str, Order] = {}
+        self._simulated_balances: dict[str, SpotBalance] = {}
+        self._simulated_positions: dict[str, DerivativePosition] = {}
+        self._simulated_fills: list[SimulatedFill] = []
 
-        # Initialize with starting balance
+        # Initialize simulated balances with configured amounts
         self._initialize_balances()
+
+        # Store task references for cleanup
+        self._limit_fill_tasks: list[asyncio.Task[None]] = []
 
         if self._safe_mode:
             logger.warning(
                 "safe_mode_wrapper_active",
                 exchange=exchange_name.value,
                 initial_balance=float(self._initial_balance),
-                fill_probability=self._fill_probability,
-                slippage_range=float(self._slippage_range),
+                fill_probability=float(self._fill_probability),
+                slippage_range=self._slippage_range,
                 message="ALL TRADES WILL BE SIMULATED - NO REAL ORDERS",
             )
 
-    def _initialize_balances(self) -> None:
-        """Initialize simulated balances with configured starting amounts.
+    # ===========================================
+    # ExchangeAPI Methods Implementation
+    # ===========================================
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Initial balance from configuration
-        - NO hardcoded asset amounts
+    async def place_order(self, args: PlaceOrderArgs) -> Order:
+        """Place order - simulated in safe mode, real in normal mode.
+
+        Returns:
+            Order: The placed order (simulated or real)
         """
-        # Initialize with base currency (usually USDT or USD)
-        base_currency = self.config.calculation.base_currency
-        self._simulated_balances[base_currency] = SimulatedBalance(
-            asset=Symbol(base_currency),
-            total=self._initial_balance,
-            available=self._initial_balance,
+        if not self._safe_mode:
+            return await self._real_api.place_order(args)
+
+        # Simulate order placement with proper Order model
+        order_id = f"SIM_{uuid.uuid4().hex[:8]}"
+        client_order_id = args.client_order_id or f"CLIENT_{uuid.uuid4().hex[:8]}"
+
+        order = Order(
+            exchange_order_id=order_id,
+            client_order_id=client_order_id,
+            exchange=self._exchange_name,
+            symbol=args.symbol,
+            side=args.side,
+            order_type=args.order_type,
+            price=args.price,
+            quantity_requested=args.quantity,
+            time_in_force=args.time_in_force,
+            status=OrderStatus.OPEN,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
+            quantity_filled=Decimal(0),
+        )
+
+        self._simulated_orders[order_id] = order
+
+        logger.info(
+            "safe_mode_order_placed",
+            order_id=order_id,
+            symbol=args.symbol.value,
+            side=args.side.value,
+            order_type=args.order_type.value,
+            price=float(args.price) if args.price else None,
+            quantity=float(args.quantity),
+            safe_mode=True,
+            message="SIMULATED ORDER - NOT SENT TO EXCHANGE",
+        )
+
+        # Simulate fills based on order type and configuration
+        if args.order_type == OrderType.MARKET:
+            await self._simulate_fill(order, immediate=True)
+        else:
+            # Schedule potential fill for limit orders based on config delay
+            task = asyncio.create_task(self._simulate_limit_fill(order))
+            self._limit_fill_tasks.append(task)
+
+        return order
+
+    async def cancel_order(self, args: CancelOrderArgs) -> CancelOrderResult:
+        """Cancel order - simulated in safe mode, real in normal mode.
+
+        Returns:
+            CancelOrderResult: Result of the cancellation attempt
+        """
+        if not self._safe_mode:
+            return await self._real_api.cancel_order(args)
+
+        order_id = args.order_id
+        if order_id in self._simulated_orders:
+            order = self._simulated_orders[order_id]
+            if order.status == OrderStatus.OPEN:
+                order.status = OrderStatus.CANCELED
+
+                logger.info("safe_mode_order_cancelled", order_id=order_id, safe_mode=True)
+
+                return CancelOrderResult(
+                    order_id=order_id,
+                    success=True,
+                    message="Order cancelled in safe mode",
+                    status=CancelOrderResultStatus.SUCCESS,
+                )
+
+        return CancelOrderResult(
+            order_id=order_id,
+            success=False,
+            message="Order not found in safe mode",
+            status=CancelOrderResultStatus.NOT_FOUND,
+        )
+
+    async def get_balances(self) -> dict[str, SpotBalance]:
+        """Get balances - simulated in safe mode, real in normal mode.
+
+        Returns:
+            dict[str, SpotBalance]: Balance dictionary keyed by asset
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_balances()
+
+        return self._simulated_balances.copy()
+
+    async def get_positions(self, symbol: Symbol | None = None) -> list[DerivativePosition]:
+        """Get positions - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[DerivativePosition]: List of open positions
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_positions(symbol)
+
+        positions = list(self._simulated_positions.values())
+        if symbol:
+            positions = [p for p in positions if p.symbol == symbol]
+        return positions
+
+    async def get_account_summary(self) -> MarginAccountSummary:
+        """Get account summary - simulated in safe mode, real in normal mode.
+
+        Returns:
+            MarginAccountSummary: Account summary information
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_account_summary()
+
+        # Calculate simulated account summary from balances and positions
+        total_equity = sum(balance.total_quantity for balance in self._simulated_balances.values())
+        available_equity = sum(
+            balance.available_quantity for balance in self._simulated_balances.values()
+        )
+
+        # Create simulated account summary
+        return MarginAccountSummary(
+            exchange=self._exchange_name,
             timestamp=datetime.now(UTC),
+            total_equity=total_equity or Decimal(0),
+            available_equity=available_equity or Decimal(0),
+        )
+
+    async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:
+        """Get open orders - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[Order]: List of open orders
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_open_orders(symbol)
+
+        open_orders = [
+            order for order in self._simulated_orders.values() if order.status == OrderStatus.OPEN
+        ]
+
+        if symbol:
+            open_orders = [order for order in open_orders if order.symbol == symbol]
+
+        return open_orders
+
+    async def cancel_all_orders(self, symbol: Symbol | None = None) -> list[CancelOrderResult]:
+        """Cancel all orders - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[CancelOrderResult]: List of cancellation results
+        """
+        if not self._safe_mode:
+            return await self._real_api.cancel_all_orders(symbol)
+
+        results: list[CancelOrderResult] = []
+        open_orders = await self.get_open_orders(symbol)
+
+        for order in open_orders:
+            if order.exchange_order_id:
+                cancel_args = CancelOrderArgs(order_id=order.exchange_order_id)
+            else:
+                continue
+            result = await self.cancel_order(cancel_args)
+            results.append(result)
+
+        return results
+
+    # Market data methods - delegate to real API (safe to use real market data)
+    async def get_ticker(self, symbol: Symbol) -> Ticker | None:
+        """Get ticker - always use real market data.
+
+        Returns:
+            Ticker | None: Current ticker or None if not available
+        """
+        return await self._real_api.get_ticker(symbol)
+
+    async def get_order_book(self, symbol: Symbol, depth: int = 20) -> OrderBook | None:
+        """Get order book - always use real market data.
+
+        Returns:
+            OrderBook | None: Current order book or None if not available
+        """
+        return await self._real_api.get_order_book(symbol, depth)
+
+    async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
+        """Get funding rates - always use real market data.
+
+        Returns:
+            List of funding rates from real API.
+        """
+        return await self._real_api.get_funding_rates(args)
+
+    async def get_historical_funding_rates(
+        self, args: GetHistoricalFundingRatesArgs
+    ) -> list[FundingRate]:
+        """Get historical funding rates - always use real market data.
+
+        Returns:
+            List of historical funding rates from real API.
+        """
+        return await self._real_api.get_historical_funding_rates(args)
+
+    async def get_market_data(self, args: GetMarketDataArgs) -> list[Candle]:
+        """Get market data - always use real market data.
+
+        Returns:
+            List of candles from real API.
+        """
+        return await self._real_api.get_market_data(args)
+
+    async def get_market(self, args: GetMarketArgs) -> Market:
+        """Get market - always use real market data.
+
+        Returns:
+            Market information from real API.
+        """
+        return await self._real_api.get_market(args)
+
+    async def get_markets(self, args: GetMarketsArgs) -> list[Market]:
+        """Get markets - always use real market data.
+
+        Returns:
+            List of markets from real API.
+        """
+        return await self._real_api.get_markets(args)
+
+    # Order and trade history methods
+    async def get_order_history(self, args: GetOrderHistoryArgs) -> list[Order]:
+        """Get order history - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[Order]: List of historical orders
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_order_history(args)
+
+        # Return simulated order history
+        orders = list(self._simulated_orders.values())
+
+        # Apply symbol filter if specified
+        if args.symbol:
+            orders = [order for order in orders if order.symbol == args.symbol]
+
+        # Sort by timestamp descending
+        orders.sort(key=lambda x: x.created_at, reverse=True)
+
+        return orders
+
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+        """Get trade history - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[Trade]: List of historical trades
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_trade_history(args)
+
+        # Convert simulated fills to Trade objects
+        trades: list[Trade] = []
+        for fill in self._simulated_fills:
+            trade = Trade(
+                id=f"trade_{uuid.uuid4().hex[:8]}",
+                symbol=fill.symbol,
+                executed_at=fill.timestamp,
+                side=fill.side,
+                order_id=fill.order_id,
+                exchange=self._exchange_name,
+                price=fill.price,
+                quantity=fill.quantity,
+                fee=fill.fee,
+                fee_asset=self.app_config.calculation.base_currency,
+                client_order_id=None,
+            )
+            trades.append(trade)
+
+        # Apply symbol filter if specified
+        if args.symbol:
+            trades = [trade for trade in trades if trade.symbol == args.symbol]
+
+        # Sort by timestamp descending
+        trades.sort(key=lambda x: x.executed_at, reverse=True)
+
+        return trades
+
+    async def get_order_status(self, args: GetOrderArgs) -> Order | None:
+        """Get order status - simulated in safe mode, real in normal mode.
+
+        Returns:
+            Order | None: Order status or None if not found
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_order_status(args)
+
+        return self._simulated_orders.get(args.order_id)
+
+    async def get_order(self, args: GetOrderArgs) -> Order | None:
+        """Get order - simulated in safe mode, real in normal mode.
+
+        Returns:
+            Order | None: Order or None if not found
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_order(args)
+
+        return self._simulated_orders.get(args.order_id)
+
+    # Account management methods (most should be disabled in safe mode)
+    async def update_account_settings(self, args: UpdateAccountSettingsArgs) -> AccountSettings:
+        """Update account settings - disabled in safe mode.
+
+        Returns:
+            AccountSettings: Updated account settings
+
+        Raises:
+            ValueError: If called in safe mode
+        """
+        if not self._safe_mode:
+            return await self._real_api.update_account_settings(args)
+
+        logger.warning(
+            "account_settings_update_blocked_safe_mode",
+            safe_mode=True,
+            message="Account settings updates are disabled in safe mode",
+        )
+        msg = "Account settings updates are disabled in safe mode"
+        raise ValueError(msg)
+
+    async def transfer(self, args: TransferArgs) -> Transfer:
+        """Transfer - disabled in safe mode.
+
+        Returns:
+            Transfer: Transfer result
+
+        Raises:
+            ValueError: If called in safe mode
+        """
+        if not self._safe_mode:
+            return await self._real_api.transfer(args)
+
+        logger.warning(
+            "transfer_blocked_safe_mode",
+            safe_mode=True,
+            message="Transfers are disabled in safe mode",
+        )
+        msg = "Transfers are disabled in safe mode"
+        raise ValueError(msg)
+
+    async def withdraw(self, args: WithdrawArgs) -> Withdrawal:
+        """Withdraw - disabled in safe mode.
+
+        Returns:
+            Withdrawal: Withdrawal result
+
+        Raises:
+            ValueError: If called in safe mode
+        """
+        if not self._safe_mode:
+            return await self._real_api.withdraw(args)
+
+        logger.warning(
+            "withdrawal_blocked_safe_mode",
+            safe_mode=True,
+            message="Withdrawals are disabled in safe mode",
+        )
+        msg = "Withdrawals are disabled in safe mode"
+        raise ValueError(msg)
+
+    # Additional required methods
+    async def place_batch_orders(self, orders: list[PlaceOrderArgs]) -> list[Order]:
+        """Place batch orders - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[Order]: List of placed orders
+        """
+        if not self._safe_mode:
+            return await self._real_api.place_batch_orders(orders)
+
+        results: list[Order] = []
+        for order_args in orders:
+            order = await self.place_order(order_args)
+            results.append(order)
+
+        return results
+
+    async def cancel_batch_orders(
+        self, cancel_args: list[CancelOrderArgs]
+    ) -> list[CancelOrderResult]:
+        """Cancel batch orders - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[CancelOrderResult]: List of cancellation results
+        """
+        if not self._safe_mode:
+            return await self._real_api.cancel_batch_orders(cancel_args)
+
+        results: list[CancelOrderResult] = []
+        for cancel_arg in cancel_args:
+            result = await self.cancel_order(cancel_arg)
+            results.append(result)
+
+        return results
+
+    async def get_all_open_orders(self, args: GetAllOpenOrdersArgs) -> list[Order]:
+        """Get all open orders - simulated in safe mode, real in normal mode.
+
+        Returns:
+            list[Order]: List of all open orders
+        """
+        if not self._safe_mode:
+            return await self._real_api.get_all_open_orders(args)
+
+        return await self.get_open_orders()
+
+    # ===========================================
+    # Safe Mode Simulation Methods
+    # ===========================================
+
+    def _initialize_balances(self) -> None:
+        """Initialize simulated balances with configured starting amounts."""
+        base_currency = self.app_config.calculation.base_currency
+        if self._exchange_name == ExchangeName.HYPERLIQUID:
+            base_symbol = hl_symbol(base_currency)
+        else:
+            base_symbol = bp_symbol(base_currency)
+
+        self._simulated_balances[base_currency] = SpotBalance(
+            exchange=self._exchange_name,
+            asset=base_symbol,
+            timestamp=datetime.now(UTC),
+            total_quantity=self._initial_balance,
+            available_quantity=self._initial_balance,
         )
 
         logger.info(
@@ -192,241 +611,54 @@ class SafeModeWrapper:
             initial_balance=float(self._initial_balance),
         )
 
-    async def place_order(
-        self, symbol: str, side: str, order_type: str, price: float, quantity: float, **kwargs: Any
-    ) -> Dict[str, Any]:
-        """Place an order (simulated in safe mode).
-
-        Args:
-            symbol: Trading symbol
-            side: Order side (buy/sell)
-            order_type: Order type (market/limit)
-            price: Order price
-            quantity: Order quantity
-            **kwargs: Additional order parameters
-
-        Returns:
-            Order placement response
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns simulated response in safe mode
-        - Uses configured fill probability
-        - Logs all simulated operations
-        """
-        if not self._safe_mode:
-            # Pass through to real API
-            return await self._real_api.place_order(
-                symbol, side, order_type, price, quantity, **kwargs
-            )
-
-        # Simulate order placement
-        order_id = f"SIM_{uuid.uuid4().hex[:8]}"
-        client_order_id = kwargs.get("client_order_id", f"CLIENT_{uuid.uuid4().hex[:8]}")
-
-        # Create simulated order
-        order = Order(
-            order_id=order_id,
-            client_order_id=client_order_id,
-            exchange=self._exchange_name,
-            symbol=Symbol(symbol),
-            side=OrderSide(side.upper()),
-            order_type=OrderType(order_type.upper()),
-            price=Decimal(str(price)),
-            quantity=Decimal(str(quantity)),
-            time_in_force=kwargs.get("time_in_force", "GTC"),
-            status=OrderStatus.OPEN,
-            timestamp=datetime.now(UTC),
-            metadata={"safe_mode": True, "simulated": True},
-        )
-
-        self._simulated_orders[order_id] = order
-
-        logger.info(
-            "safe_mode_order_placed",
-            order_id=order_id,
-            symbol=symbol,
-            side=side,
-            order_type=order_type,
-            price=price,
-            quantity=quantity,
-            safe_mode=True,
-            message="SIMULATED ORDER - NOT SENT TO EXCHANGE",
-        )
-
-        # Simulate immediate fill for market orders
-        if order_type.upper() == "MARKET":
-            await self._simulate_fill(order, immediate=True)
-        else:
-            # Schedule potential fill for limit orders
-            asyncio.create_task(self._simulate_limit_fill(order))
-
-        return {
-            "order_id": order_id,
-            "client_order_id": client_order_id,
-            "status": "open",
-            "timestamp": datetime.now(UTC).isoformat(),
-            "safe_mode": True,
-        }
-
-    async def cancel_order(self, order_id: str) -> Dict[str, Any]:
-        """Cancel an order (simulated in safe mode).
-
-        Args:
-            order_id: Order ID to cancel
-
-        Returns:
-            Cancellation response
-        """
-        if not self._safe_mode:
-            return await self._real_api.cancel_order(order_id)
-
-        if order_id in self._simulated_orders:
-            order = self._simulated_orders[order_id]
-            if order.status == OrderStatus.OPEN:
-                order.status = OrderStatus.CANCELLED
-
-                logger.info("safe_mode_order_cancelled", order_id=order_id, safe_mode=True)
-
-                return {
-                    "order_id": order_id,
-                    "status": "cancelled",
-                    "timestamp": datetime.now(UTC).isoformat(),
-                    "safe_mode": True,
-                }
-
-        return {"error": "Order not found", "order_id": order_id, "safe_mode": True}
-
-    async def get_order(self, order_id: str) -> Dict[str, Any]:
-        """Get order status (simulated in safe mode).
-
-        Args:
-            order_id: Order ID to query
-
-        Returns:
-            Order status response
-        """
-        if not self._safe_mode:
-            return await self._real_api.get_order(order_id)
-
-        if order_id in self._simulated_orders:
-            order = self._simulated_orders[order_id]
-            return {
-                "order_id": order_id,
-                "status": order.status.value.lower(),
-                "symbol": order.symbol.value,
-                "side": order.side.value.lower(),
-                "price": float(order.price) if order.price else None,
-                "quantity": float(order.quantity) if order.quantity else None,
-                "filled_quantity": float(order.filled_quantity) if order.filled_quantity else 0,
-                "timestamp": order.timestamp.isoformat(),
-                "safe_mode": True,
-            }
-
-        return {"error": "Order not found", "order_id": order_id, "safe_mode": True}
-
-    async def get_balances(self) -> List[Dict[str, Any]]:
-        """Get account balances (simulated in safe mode).
-
-        Returns:
-            List of balance dictionaries
-        """
-        if not self._safe_mode:
-            return await self._real_api.get_balances()
-
-        balances = []
-        for asset, balance in self._simulated_balances.items():
-            balances.append({
-                "asset": asset,
-                "total": float(balance.total),
-                "available": float(balance.available),
-                "locked": float(balance.total - balance.available),
-                "timestamp": balance.timestamp.isoformat(),
-                "safe_mode": True,
-            })
-
-        return balances
-
-    async def get_positions(self) -> List[Dict[str, Any]]:
-        """Get open positions (simulated in safe mode).
-
-        Returns:
-            List of position dictionaries
-        """
-        if not self._safe_mode:
-            return await self._real_api.get_positions()
-
-        positions = []
-        for symbol, position in self._simulated_positions.items():
-            positions.append({
-                "symbol": symbol,
-                "side": position.side.value.lower(),
-                "size": float(position.size),
-                "entry_price": float(position.entry_price),
-                "unrealized_pnl": float(position.unrealized_pnl),
-                "timestamp": position.timestamp.isoformat(),
-                "safe_mode": True,
-            })
-
-        return positions
-
     async def _simulate_fill(self, order: Order, immediate: bool = False) -> None:
-        """Simulate order fill based on configuration.
+        """Simulate order fill based on configuration."""
+        # Check fill probability from config
+        # Always use secrets for secure randomness
+        fill_check = secrets.SystemRandom().random()
 
-        Args:
-            order: Order to potentially fill
-            immediate: Whether to fill immediately (market orders)
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Fill probability from configuration
-        - Slippage from configuration
-        - Fee rates from exchange configuration
-        """
-        import random
-
-        # Check fill probability
-        if not immediate and random.random() > self._fill_probability:
+        if not immediate and fill_check > float(self._fill_probability):
             logger.debug(
                 "safe_mode_order_not_filled",
-                order_id=order.order_id,
-                fill_probability=self._fill_probability,
+                order_id=order.exchange_order_id,
+                fill_probability=float(self._fill_probability),
             )
             return
 
-        # Calculate fill price with slippage
+        # Calculate fill price with configured slippage
         if order.price:
             base_price = order.price
         else:
-            # For market orders, use a reference price
-            # In real implementation, would get from market data
-            base_price = Decimal("50000")  # Placeholder
+            # For market orders, get price from market data if available
+            ticker = await self.get_ticker(order.symbol)
+            base_price = ticker.price if ticker and ticker.price else Decimal(50000)
 
-        # Apply slippage
+        # Apply slippage from config
+        # Always use secrets for secure randomness
         slippage_factor = Decimal(
-            str(random.uniform(float(-self._slippage_range), float(self._slippage_range)))
+            str(secrets.SystemRandom().uniform(-self._slippage_range[1], self._slippage_range[1]))
         )
 
         if order.side == OrderSide.BUY:
-            # Buyers pay slightly more
-            fill_price = base_price * (Decimal("1") + abs(slippage_factor))
+            # Buyers pay slightly more (unfavorable slippage)
+            fill_price = base_price * (Decimal(1) + abs(slippage_factor))
         else:
-            # Sellers receive slightly less
-            fill_price = base_price * (Decimal("1") - abs(slippage_factor))
+            # Sellers receive slightly less (unfavorable slippage)
+            fill_price = base_price * (Decimal(1) - abs(slippage_factor))
 
-        # Calculate fee
-        if order.order_type == OrderType.MARKET:
-            fee_rate = self._taker_fee_rate
-        else:
-            fee_rate = self._maker_fee_rate
-
-        fee = order.quantity * fill_price * fee_rate
+        # Calculate fee from exchange config
+        fee_rate = (
+            self._taker_fee_rate if order.order_type == OrderType.MARKET else self._maker_fee_rate
+        )
+        fee = order.quantity_requested * fill_price * fee_rate
 
         # Create simulated fill
         fill = SimulatedFill(
-            order_id=order.order_id,
+            order_id=order.exchange_order_id or "",
             symbol=order.symbol,
             side=order.side,
             price=fill_price,
-            quantity=order.quantity,
+            quantity=order.quantity_requested,
             fee=fee,
             timestamp=datetime.now(UTC),
         )
@@ -435,22 +667,20 @@ class SafeModeWrapper:
 
         # Update order status
         order.status = OrderStatus.FILLED
-        order.filled_quantity = order.quantity
+        order.quantity_filled = order.quantity_requested
         order.average_fill_price = fill_price
 
-        # Update simulated balance
+        # Update simulated state
         await self._update_balance_from_fill(fill)
-
-        # Update simulated position
         await self._update_position_from_fill(fill)
 
         logger.info(
             "safe_mode_order_filled",
-            order_id=order.order_id,
+            order_id=order.exchange_order_id,
             symbol=order.symbol.value,
             side=order.side.value,
             fill_price=float(fill_price),
-            quantity=float(order.quantity),
+            quantity=float(order.quantity_requested),
             fee=float(fee),
             slippage_factor=float(slippage_factor),
             safe_mode=True,
@@ -458,124 +688,139 @@ class SafeModeWrapper:
         )
 
     async def _simulate_limit_fill(self, order: Order) -> None:
-        """Simulate potential limit order fill with delay.
-
-        Args:
-            order: Limit order to potentially fill
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Delay based on configuration
-        - Respects order cancellation
-        """
-        # Wait for potential fill
-        fill_delay = (
-            getattr(self._paper_config, "limit_fill_delay_seconds", 5.0)
-            if self._paper_config
-            else 5.0
-        )
-
+        """Simulate potential limit order fill with configured delay."""
+        # Wait for potential fill based on config
+        fill_delay = float(self._limit_fill_delay)
         await asyncio.sleep(fill_delay)
 
-        # Check if order still open
+        # Check if order still open (might have been cancelled)
         if order.status == OrderStatus.OPEN:
             await self._simulate_fill(order)
 
     async def _update_balance_from_fill(self, fill: SimulatedFill) -> None:
-        """Update simulated balance after fill.
-
-        Args:
-            fill: The simulated fill
-        """
-        base_currency = self.config.calculation.base_currency
+        """Update simulated balance after fill."""
+        base_currency = self.app_config.calculation.base_currency
 
         if base_currency not in self._simulated_balances:
-            self._simulated_balances[base_currency] = SimulatedBalance(
-                asset=Symbol(base_currency),
-                total=Decimal("0"),
-                available=Decimal("0"),
+            if self._exchange_name == ExchangeName.HYPERLIQUID:
+                base_symbol = hl_symbol(base_currency)
+            else:
+                base_symbol = bp_symbol(base_currency)
+            self._simulated_balances[base_currency] = SpotBalance(
+                exchange=self._exchange_name,
+                asset=base_symbol,
                 timestamp=datetime.now(UTC),
+                total_quantity=Decimal(0),
+                available_quantity=Decimal(0),
             )
 
         balance = self._simulated_balances[base_currency]
 
         # Calculate balance change
+        cost: Decimal
+        proceeds: Decimal
         if fill.side == OrderSide.BUY:
             # Buying: decrease balance by cost + fee
             cost = fill.quantity * fill.price + fill.fee
-            balance.total -= cost
-            balance.available -= cost
+            proceeds = Decimal(0)  # Not used for buys
+            new_total = balance.total_quantity - cost
+            new_available = balance.available_quantity - cost
         else:
             # Selling: increase balance by proceeds - fee
             proceeds = fill.quantity * fill.price - fill.fee
-            balance.total += proceeds
-            balance.available += proceeds
+            cost = Decimal(0)  # Not used for sells
+            new_total = balance.total_quantity + proceeds
+            new_available = balance.available_quantity + proceeds
 
-        balance.timestamp = datetime.now(UTC)
+        # Create new balance (SpotBalance is immutable)
+        self._simulated_balances[base_currency] = SpotBalance(
+            exchange=balance.exchange,
+            asset=balance.asset,
+            timestamp=datetime.now(UTC),
+            total_quantity=new_total,
+            available_quantity=new_available,
+        )
 
         logger.debug(
             "safe_mode_balance_updated",
             asset=base_currency,
-            total=float(balance.total),
-            available=float(balance.available),
+            total=float(new_total),
+            available=float(new_available),
             change=float(-cost if fill.side == OrderSide.BUY else proceeds),
         )
 
     async def _update_position_from_fill(self, fill: SimulatedFill) -> None:
-        """Update simulated position after fill.
-
-        Args:
-            fill: The simulated fill
-        """
+        """Update simulated position after fill."""
         symbol_key = fill.symbol.value
 
         if symbol_key not in self._simulated_positions:
             # Create new position
-            self._simulated_positions[symbol_key] = SimulatedPosition(
+            self._simulated_positions[symbol_key] = DerivativePosition(
+                exchange=self._exchange_name,
                 symbol=fill.symbol,
                 side=fill.side,
                 size=fill.quantity,
                 entry_price=fill.price,
-                unrealized_pnl=Decimal("0"),
                 timestamp=datetime.now(UTC),
+                unrealized_pnl=Decimal(0),
             )
         else:
             position = self._simulated_positions[symbol_key]
 
-            # Update position
+            # Calculate new position
             if position.side == fill.side:
                 # Adding to position
                 new_size = position.size + fill.quantity
-                new_entry = (
-                    position.size * position.entry_price + fill.quantity * fill.price
-                ) / new_size
-                position.size = new_size
-                position.entry_price = new_entry
+                entry_price = (
+                    position.entry_price if position.entry_price is not None else Decimal(0)
+                )
+                new_entry = (position.size * entry_price + fill.quantity * fill.price) / new_size
+
+                # Create new position (DerivativePosition is immutable)
+                self._simulated_positions[symbol_key] = DerivativePosition(
+                    exchange=position.exchange,
+                    symbol=position.symbol,
+                    side=position.side,
+                    size=new_size,
+                    entry_price=new_entry,
+                    timestamp=datetime.now(UTC),
+                    unrealized_pnl=Decimal(0),
+                )
+            # Reducing position
+            elif fill.quantity >= position.size:
+                # Position closed
+                entry_price = (
+                    position.entry_price if position.entry_price is not None else Decimal(0)
+                )
+                realized_pnl = (fill.price - entry_price) * position.size
+                if position.side == OrderSide.SELL:
+                    realized_pnl = -realized_pnl
+
+                del self._simulated_positions[symbol_key]
+
+                logger.info(
+                    "safe_mode_position_closed", symbol=symbol_key, realized_pnl=float(realized_pnl)
+                )
             else:
-                # Reducing position
-                if fill.quantity >= position.size:
-                    # Position closed
-                    realized_pnl = (fill.price - position.entry_price) * position.size
-                    if position.side == OrderSide.SELL:
-                        realized_pnl = -realized_pnl
+                # Position reduced
+                new_size = position.size - fill.quantity
 
-                    del self._simulated_positions[symbol_key]
+                # Create new position with reduced size
+                self._simulated_positions[symbol_key] = DerivativePosition(
+                    exchange=position.exchange,
+                    symbol=position.symbol,
+                    side=position.side,
+                    size=new_size,
+                    entry_price=position.entry_price,
+                    timestamp=datetime.now(UTC),
+                    unrealized_pnl=Decimal(0),
+                )
 
-                    logger.info(
-                        "safe_mode_position_closed",
-                        symbol=symbol_key,
-                        realized_pnl=float(realized_pnl),
-                    )
-                else:
-                    # Position reduced
-                    position.size -= fill.quantity
-
-            position.timestamp = datetime.now(UTC)
-
-    def get_simulated_stats(self) -> Dict[str, Any]:
+    def get_simulated_stats(self) -> dict[str, Any]:
         """Get statistics about simulated trading.
 
         Returns:
-            Dictionary with simulation statistics
+            dict[str, Any]: Dictionary containing simulation statistics
         """
         total_orders = len(self._simulated_orders)
         filled_orders = sum(
@@ -595,7 +840,8 @@ class SafeModeWrapper:
             "total_fees": float(total_fees),
             "open_positions": len(self._simulated_positions),
             "current_balance": {
-                asset: float(balance.total) for asset, balance in self._simulated_balances.items()
+                asset: float(balance.total_quantity)
+                for asset, balance in self._simulated_balances.items()
             },
         }
 
@@ -603,6 +849,19 @@ class SafeModeWrapper:
         """Check if safe mode is active.
 
         Returns:
-            True if safe mode is enabled
+            bool: True if safe mode is active, False otherwise
         """
         return self._safe_mode
+
+    async def cleanup(self) -> None:
+        """Clean up any resources used by the wrapper."""
+        # Cancel any pending limit fill tasks
+        for task in self._limit_fill_tasks:
+            if not task.done():
+                task.cancel()
+
+        # Wait for all tasks to complete
+        if self._limit_fill_tasks:
+            await asyncio.gather(*self._limit_fill_tasks, return_exceptions=True)
+
+        self._limit_fill_tasks.clear()

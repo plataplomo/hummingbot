@@ -54,6 +54,15 @@ from .parsing import (
     TimestampFormatError,
 )
 
+# Portfolio exceptions
+from .portfolio import (
+    ExchangeNotSupportedError as PortfolioExchangeNotSupportedError,
+    PortfolioError,
+    PortfolioNotInitializedError,
+    PortfolioStateError,
+    ReconciliationError,
+)
+
 # Reconciliation exceptions - removed as they're not used anymore
 # Request validation exceptions moved to cyberdelta.apis.exceptions
 # Response validation exceptions moved to cyberdelta.apis.exceptions
@@ -123,9 +132,14 @@ __all__ = [
     "OrderParameterError",
     "ParsingError",
     "PassphraseFieldError",
+    "PortfolioError",
+    "PortfolioExchangeNotSupportedError",
+    "PortfolioNotInitializedError",
+    "PortfolioStateError",
     "PositionLogicError",
     "PostOnlyLimitError",
     "RangeFieldError",
+    "ReconciliationError",
     "RequiredFieldError",
     "RequiredFieldNoneError",
     "ServiceValidationError",

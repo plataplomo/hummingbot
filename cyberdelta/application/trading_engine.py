@@ -9,24 +9,23 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import List, Optional
-
-from cyberdelta.config.structlog_config import get_logger
 
 from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.logic.market.market_service import MarketDataService
-from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
-from cyberdelta.logic.risk.risk_service import RiskService
-from cyberdelta.logic.monitoring.alert_service import AlertService, AlertLevel
+from cyberdelta.logic.monitoring.alert_service import AlertLevel, AlertService
 from cyberdelta.logic.monitoring.health_monitor import HealthMonitor
 from cyberdelta.logic.monitoring.metrics_collector import MetricsCollector
+from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
+from cyberdelta.logic.risk.risk_service import RiskService
 from cyberdelta.logic.safety.circuit_breaker import CircuitBreakerManager
 from cyberdelta.logic.signal.signal_service import SignalService
 from cyberdelta.logic.strategy.strategy_service import StrategyService
 from cyberdelta.logic.trading.execution_engine import ExecutionEngine
 from cyberdelta.logic.trading.trading_service import TradingService
-from cyberdelta.models import TradeSignal, Trade
+from cyberdelta.models import Trade, TradeSignal
+
 
 logger = get_logger(__name__)
 
@@ -64,10 +63,10 @@ class TradingEngine:
         signal_service: SignalService,
         strategy_service: StrategyService,
         execution_engine: ExecutionEngine,
-        circuit_breaker_manager: Optional[CircuitBreakerManager] = None,
-        health_monitor: Optional[HealthMonitor] = None,
-        alert_service: Optional[AlertService] = None,
-        metrics_collector: Optional[MetricsCollector] = None,
+        circuit_breaker_manager: CircuitBreakerManager | None = None,
+        health_monitor: HealthMonitor | None = None,
+        alert_service: AlertService | None = None,
+        metrics_collector: MetricsCollector | None = None,
     ):
         """Initialize trading engine with configuration and all services.
 
@@ -100,7 +99,7 @@ class TradingEngine:
         self._alert_service = alert_service or AlertService(config)
         self._metrics_collector = metrics_collector or MetricsCollector(config)
         self._running = False
-        self._tasks: List[asyncio.Task] = []
+        self._tasks: list[asyncio.Task] = []
 
         # Extract operational settings from config - NO hardcoded defaults
         self._safe_mode = config.general.safe_mode
@@ -245,7 +244,7 @@ class TradingEngine:
                         asyncio.gather(*self._tasks, return_exceptions=True),
                         timeout=float(self.config.general.shutdown_grace_period),
                     )
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     logger.warning(
                         "shutdown_timeout",
                         grace_period=float(self.config.general.shutdown_grace_period),
@@ -1054,8 +1053,8 @@ class TradingEngine:
         description: str,
         level: str,
         source: str = "trading_engine",
-        metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Dict[str, Any]]:
+        metadata: Dict[str, Any] | None = None,
+    ) -> Dict[str, Any] | None:
         """Create an alert through the alert service.
 
         Args:
@@ -1126,7 +1125,7 @@ class TradingEngine:
         """
         return await self._alert_service.resolve_alert(alert_id, resolved_by)
 
-    def get_active_alerts(self) -> List[Dict[str, Any]]:
+    def get_active_alerts(self) -> list[Dict[str, Any]]:
         """Get list of currently active alerts.
 
         Returns:
@@ -1142,7 +1141,7 @@ class TradingEngine:
         """
         return self._alert_service.get_alert_stats()
 
-    async def create_manual_snapshot(self, snapshot_name: Optional[str] = None) -> str:
+    async def create_manual_snapshot(self, snapshot_name: str | None = None) -> str:
         """Create a manual portfolio snapshot.
 
         Args:
@@ -1179,7 +1178,7 @@ class TradingEngine:
             )
             raise
 
-    async def list_snapshots(self) -> List[str]:
+    async def list_snapshots(self) -> list[str]:
         """List all available portfolio snapshots.
 
         Returns:

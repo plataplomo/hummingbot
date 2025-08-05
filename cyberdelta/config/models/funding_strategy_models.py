@@ -216,9 +216,44 @@ class StrategyConfigHLPerpBPSpot(BaseModel):
     params: StrategyParamsHLPerpBPSpot
 
 
+class MomentumStrategyConfig(BaseModel):
+    """Configuration for momentum-based trading strategy."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    price_change_threshold: ConfigDecimal = Field(
+        ..., gt=Decimal(0), description="Minimum price change % to trigger buy"
+    )
+    negative_threshold: ConfigDecimal = Field(
+        ..., lt=Decimal(0), description="Maximum negative change % to trigger sell"
+    )
+    signal_confidence: ConfigDecimal = Field(
+        ..., ge=Decimal(0), le=Decimal(1), description="Signal confidence level"
+    )
+    target_symbol: NonEmptyConfigString = Field(
+        ..., description="Symbol to trade (e.g., 'BTC_USD')"
+    )
+    target_exchange: NonEmptyConfigString = Field(
+        ..., description="Exchange to trade on (e.g., 'hyperliquid')"
+    )
+    lookback_hours: int = Field(..., gt=0, description="Hours to look back for price change")
+    min_position_hold_hours: int = Field(..., ge=0, description="Minimum hours to hold position")
+
+
 class StrategiesSettings(BaseModel):
     """Strategies configuration."""
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     hl_perp_bp_spot: StrategyConfigHLPerpBPSpot
+
+    # Strategy execution settings
+    enabled_strategies: list[str] = Field(
+        default_factory=list, description="List of enabled strategy names"
+    )
+    execution_interval_seconds: float = Field(
+        default=10.0, gt=0, description="Strategy execution loop interval"
+    )
+
+    # Momentum strategy configuration (optional)
+    momentum: MomentumStrategyConfig | None = None

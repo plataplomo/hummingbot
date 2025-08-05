@@ -56,8 +56,6 @@ from cyberdelta.exceptions.field_validation import InvalidFormatError, Passphras
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-else:
-    from collections.abc import Mapping
 
 
 logger = get_logger(__name__)

@@ -77,8 +77,6 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_ticker raises ValueError for whitespace-only symbol after strip()."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValueError, ValidationError)):
             invalid_symbol = exchanges.hyperliquid("   ")
             await hyperliquid_market_data_service.get_ticker(invalid_symbol)
@@ -90,8 +88,6 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_order_book raises ValueError for empty symbol."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValueError, ValidationError)):
             invalid_symbol = exchanges.hyperliquid("")
             await hyperliquid_market_data_service.get_order_book(invalid_symbol)
@@ -109,8 +105,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        from cyberdelta.core.symbols.models import Symbol
-
         none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 
@@ -127,8 +121,6 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_recent_trades raises ValueError for empty symbol."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValueError, ValidationError)):
             invalid_symbol = exchanges.hyperliquid("")
             await hyperliquid_market_data_service.get_recent_trades(invalid_symbol)
@@ -147,8 +139,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        from cyberdelta.core.symbols.models import Symbol
-
         none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 
@@ -244,8 +234,6 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_ticker returns None when symbol is not found."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         try:
             symbol = exchanges.hyperliquid("UNKNOWN")
         except (ValueError, Exception):
@@ -451,8 +439,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        from cyberdelta.core.symbols.models import Symbol
-
         none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 
@@ -468,8 +454,6 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_ticker with empty string symbol raises ValueError."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValueError, ValidationError)):
             invalid_symbol = exchanges.hyperliquid("")
             await hyperliquid_market_data_service.get_ticker(invalid_symbol)

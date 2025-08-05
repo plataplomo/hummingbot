@@ -7,16 +7,17 @@ intervals and retention policies.
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass
 from enum import Enum
+from typing import Any
 
-from cyberdelta.config.structlog_config import get_logger
 from pydantic import BaseModel
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
+
 
 logger = get_logger(__name__)
 
@@ -38,15 +39,15 @@ class MetricValue:
     value: Decimal
     metric_type: MetricType
     timestamp: datetime
-    tags: Dict[str, str]
-    unit: Optional[str] = None
+    tags: dict[str, str]
+    unit: str | None = None
 
 
 class MetricsSnapshot(BaseModel):
     """Snapshot of metrics at a point in time."""
 
     timestamp: datetime
-    metrics: List[MetricValue]
+    metrics: list[MetricValue]
     collection_duration_ms: Decimal
 
     class Config:
@@ -78,7 +79,7 @@ class MetricsCollector:
         self.config = config
         self._monitoring_config = config.monitoring
         self._running = False
-        self._collection_task: Optional[asyncio.Task] = None
+        self._collection_task: asyncio.Task | None = None
 
         # Extract configuration settings - NO hardcoded defaults
         self._enabled = self._monitoring_config.metrics_enabled
@@ -87,16 +88,16 @@ class MetricsCollector:
         self._max_metrics_per_snapshot = self._monitoring_config.max_metrics_per_snapshot
 
         # Metric storage with retention
-        self._metric_history: List[MetricsSnapshot] = []
-        self._current_metrics: Dict[str, MetricValue] = {}
+        self._metric_history: list[MetricsSnapshot] = []
+        self._current_metrics: dict[str, MetricValue] = {}
 
         # Collection statistics
         self._collection_count = 0
         self._collection_errors = 0
-        self._last_collection: Optional[datetime] = None
+        self._last_collection: datetime | None = None
 
         # Registered metric providers
-        self._metric_providers: List[object] = []
+        self._metric_providers: list[object] = []
 
         logger.info(
             "metrics_collector_initialized",
@@ -151,7 +152,7 @@ class MetricsCollector:
                 await asyncio.wait_for(
                     self._collection_task, timeout=float(self.config.general.shutdown_grace_period)
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "metrics_collector_shutdown_timeout",
                     grace_period_sec=float(self.config.general.shutdown_grace_period),
@@ -190,8 +191,8 @@ class MetricsCollector:
         name: str,
         value: Decimal,
         metric_type: MetricType,
-        tags: Optional[Dict[str, str]] = None,
-        unit: Optional[str] = None,
+        tags: dict[str, str] | None = None,
+        unit: str | None = None,
     ) -> None:
         """Record a single metric value.
 
@@ -242,7 +243,7 @@ class MetricsCollector:
         - NO assumptions about provider availability
         """
         start_time = datetime.now(UTC)
-        collected_metrics: List[MetricValue] = []
+        collected_metrics: list[MetricValue] = []
 
         try:
             # Collect from registered providers
@@ -348,7 +349,7 @@ class MetricsCollector:
 
         logger.info("metrics_collection_loop_ended")
 
-    async def _collect_from_provider(self, provider: object) -> List[MetricValue]:
+    async def _collect_from_provider(self, provider: object) -> list[MetricValue]:
         """Collect metrics from a specific provider.
 
         Args:
@@ -384,7 +385,7 @@ class MetricsCollector:
 
             return metrics
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning(
                 "metrics_provider_timeout",
                 provider_type=type(provider).__name__,
@@ -430,7 +431,7 @@ class MetricsCollector:
                 retention_days=self._retention_days,
             )
 
-    def get_metrics_summary(self) -> Dict[str, Any]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of metrics collection status.
 
         Returns:
@@ -460,7 +461,7 @@ class MetricsCollector:
             },
         }
 
-    def get_recent_metrics(self, limit: int = 10) -> List[MetricsSnapshot]:
+    def get_recent_metrics(self, limit: int = 10) -> list[MetricsSnapshot]:
         """Get recent metrics snapshots.
 
         Args:
@@ -472,8 +473,8 @@ class MetricsCollector:
         return self._metric_history[-limit:] if self._metric_history else []
 
     def get_metric_history(
-        self, metric_name: str, since: Optional[datetime] = None
-    ) -> List[MetricValue]:
+        self, metric_name: str, since: datetime | None = None
+    ) -> list[MetricValue]:
         """Get history for a specific metric.
 
         Args:

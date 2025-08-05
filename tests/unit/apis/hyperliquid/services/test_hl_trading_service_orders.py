@@ -235,8 +235,6 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValidationError, ValueError)):
             invalid_symbol = exchanges.hyperliquid("")
             await hl_trading_service.get_order(
@@ -252,8 +250,6 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValueError, ValidationError)):
             invalid_symbol = exchanges.hyperliquid("")
             await hl_trading_service.get_open_orders(
@@ -286,8 +282,6 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValidationError, ValueError)):
             invalid_symbol = exchanges.hyperliquid("")
             args = CancelOrderArgs(

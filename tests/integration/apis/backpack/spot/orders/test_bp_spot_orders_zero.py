@@ -34,6 +34,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
 from tests.common_symbols import (
@@ -229,8 +230,6 @@ class TestBackpackOrdersZeroBalance:
         # Test normalizable symbols - should result in insufficient funds after normalization
         for malformed_symbol in normalizable_symbols:
             try:
-                from cyberdelta.core.symbols import exchanges
-
                 # Try to create symbol from string - this will normalize it
                 symbol = exchanges.backpack(malformed_symbol)
                 place_args = PlaceOrderArgs(
@@ -278,8 +277,6 @@ class TestBackpackOrdersZeroBalance:
 
         # Test truly malformed symbols - should result in symbol validation errors
         for malformed_symbol in truly_malformed_symbols:
-            from cyberdelta.core.symbols import exchanges
-
             if not malformed_symbol:
                 # Empty string will fail during symbol creation
                 with pytest.raises((ValidationError, ValueError)):

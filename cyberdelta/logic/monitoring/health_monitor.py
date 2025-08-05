@@ -7,15 +7,17 @@ configuration-driven thresholds and structured reporting.
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
-from enum import Enum
-from typing import Dict, List, Optional, Protocol, Any
 from dataclasses import dataclass
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 
-from cyberdelta.config.structlog_config import get_logger
 from pydantic import BaseModel
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.protocols import HealthCheckable
+
 
 logger = get_logger(__name__)
 
@@ -47,13 +49,13 @@ class ServiceType(Enum):
 class HealthMetrics:
     """Health metrics for a service."""
 
-    response_time_ms: Optional[float]
+    response_time_ms: float | None
     error_count: int
     success_count: int
-    last_activity: Optional[datetime]
-    uptime_seconds: Optional[float]
-    memory_usage_mb: Optional[float]
-    cpu_usage_percent: Optional[float]
+    last_activity: datetime | None
+    uptime_seconds: float | None
+    memory_usage_mb: float | None
+    cpu_usage_percent: float | None
 
 
 class HealthCheck(BaseModel):
@@ -63,10 +65,10 @@ class HealthCheck(BaseModel):
     service_type: ServiceType
     status: HealthStatus
     timestamp: datetime
-    response_time_ms: Optional[float] = None
-    error_message: Optional[str] = None
-    metrics: Optional[Dict[str, Any]] = None
-    thresholds_used: Dict[str, Any]
+    response_time_ms: float | None = None
+    error_message: str | None = None
+    metrics: dict[str, Any] | None = None
+    thresholds_used: dict[str, Any]
 
 
 class SystemHealthReport(BaseModel):
@@ -74,22 +76,10 @@ class SystemHealthReport(BaseModel):
 
     overall_status: HealthStatus
     timestamp: datetime
-    service_checks: List[HealthCheck]
-    system_metrics: Dict[str, Any]
-    alerts_triggered: List[str]
-    configuration: Dict[str, Any]
-
-
-class HealthCheckable(Protocol):
-    """Protocol for services that support health checking."""
-
-    async def check_health(self) -> Dict[str, Any]:
-        """Return health status and metrics."""
-        ...
-
-    def get_service_type(self) -> ServiceType:
-        """Return the service type for monitoring."""
-        ...
+    service_checks: list[HealthCheck]
+    system_metrics: dict[str, Any]
+    alerts_triggered: list[str]
+    configuration: dict[str, Any]
 
 
 class HealthMonitor:
@@ -101,6 +91,7 @@ class HealthMonitor:
     - Uses config.monitoring.stale_data_threshold_seconds for staleness checks
     - Uses config.monitoring.response_time_threshold_ms for performance checks
     - Uses config.monitoring.error_rate_threshold for error rate monitoring
+
 
     IMPORTANT: Following CODING_STANDARDS.md:
     - ALL thresholds from AppSettings, NO hardcoded values
@@ -117,10 +108,10 @@ class HealthMonitor:
         """
         self.config = config
         self._monitoring_config = config.monitoring
-        self._services: Dict[str, HealthCheckable] = {}
-        self._last_checks: Dict[str, HealthCheck] = {}
+        self._services: dict[str, HealthCheckable] = {}
+        self._last_checks: dict[str, HealthCheck] = {}
         self._running = False
-        self._monitor_task: Optional[asyncio.Task] = None
+        self._monitor_task: asyncio.Task | None = None
 
         # Extract configuration settings - NO hardcoded defaults
         self._check_interval = self._monitoring_config.health_check_interval_seconds
@@ -150,6 +141,7 @@ class HealthMonitor:
             name: Unique name for the service
             service: Service instance that implements HealthCheckable protocol
 
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Explicit service registration only
         - Type safety through protocol
@@ -178,8 +170,10 @@ class HealthMonitor:
         Args:
             name: Name of service to unregister
 
+
         Returns:
             True if service was unregistered, False if not found
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Explicit return value for success/failure
@@ -245,7 +239,7 @@ class HealthMonitor:
                 await asyncio.wait_for(
                     self._monitor_task, timeout=float(self.config.general.shutdown_grace_period)
                 )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 logger.warning(
                     "health_monitor_shutdown_timeout",
                     grace_period_sec=float(self.config.general.shutdown_grace_period),
@@ -261,11 +255,14 @@ class HealthMonitor:
         Args:
             service_name: Name of service to check
 
+
         Returns:
             HealthCheck result with current status
 
+
         Raises:
             ValueError: If service not registered
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses configured thresholds for status determination
@@ -322,7 +319,7 @@ class HealthMonitor:
 
             return health_check
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.error(
                 "service_health_check_timeout",
                 service_name=service_name,
@@ -360,6 +357,7 @@ class HealthMonitor:
         Returns:
             Complete system health report with all services
 
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Aggregates health from all registered services
         - Uses configured thresholds for overall status
@@ -384,7 +382,7 @@ class HealthMonitor:
                         service_type=ServiceType.UNKNOWN,
                         status=HealthStatus.CRITICAL,
                         timestamp=datetime.now(UTC),
-                        error_message=f"Health check failed: {str(e)}",
+                        error_message=f"Health check failed: {e!s}",
                         thresholds_used={},
                     )
                 )
@@ -429,7 +427,7 @@ class HealthMonitor:
         return report
 
     def _determine_health_status(
-        self, service_name: str, health_data: Dict[str, Any], response_time_ms: float
+        self, service_name: str, health_data: dict[str, Any], response_time_ms: float
     ) -> HealthStatus:
         """Determine health status based on configured thresholds.
 
@@ -438,8 +436,10 @@ class HealthMonitor:
             health_data: Health data from service
             response_time_ms: Response time in milliseconds
 
+
         Returns:
             Determined health status
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses only configured thresholds
@@ -515,14 +515,16 @@ class HealthMonitor:
         # If all checks pass, service is healthy
         return HealthStatus.HEALTHY
 
-    def _determine_overall_status(self, service_checks: List[HealthCheck]) -> HealthStatus:
+    def _determine_overall_status(self, service_checks: list[HealthCheck]) -> HealthStatus:
         """Determine overall system status from service checks.
 
         Args:
             service_checks: List of individual service health checks
 
+
         Returns:
             Overall system health status
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses explicit status aggregation logic
@@ -550,20 +552,20 @@ class HealthMonitor:
         # Determine overall status based on configured ratios
         if critical_count >= total_services * critical_threshold:
             return HealthStatus.CRITICAL
-        elif (critical_count + unhealthy_count) >= total_services * unhealthy_threshold:
+        if (critical_count + unhealthy_count) >= total_services * unhealthy_threshold:
             return HealthStatus.UNHEALTHY
-        elif (
+        if (
             critical_count + unhealthy_count + degraded_count
         ) >= total_services * degraded_threshold:
             return HealthStatus.DEGRADED
-        else:
-            return HealthStatus.HEALTHY
+        return HealthStatus.HEALTHY
 
-    async def _collect_system_metrics(self) -> Dict[str, Any]:
+    async def _collect_system_metrics(self) -> dict[str, Any]:
         """Collect system-level metrics.
 
         Returns:
             Dictionary of system metrics
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Collects only configured metrics
@@ -590,16 +592,18 @@ class HealthMonitor:
         return metrics
 
     def _check_alerts(
-        self, service_checks: List[HealthCheck], system_metrics: Dict[str, Any]
-    ) -> List[str]:
+        self, service_checks: list[HealthCheck], system_metrics: dict[str, Any]
+    ) -> list[str]:
         """Check for alert conditions based on health checks.
 
         Args:
             service_checks: List of service health checks
             system_metrics: System-level metrics
 
+
         Returns:
             List of alert messages
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses configured alert thresholds
@@ -693,18 +697,19 @@ class HealthMonitor:
 
         logger.info("health_monitoring_loop_ended")
 
-    def get_last_check(self, service_name: str) -> Optional[HealthCheck]:
+    def get_last_check(self, service_name: str) -> HealthCheck | None:
         """Get the last health check result for a service.
 
         Args:
             service_name: Name of service
+
 
         Returns:
             Last health check result or None if not found
         """
         return self._last_checks.get(service_name)
 
-    def get_all_last_checks(self) -> Dict[str, HealthCheck]:
+    def get_all_last_checks(self) -> dict[str, HealthCheck]:
         """Get all last health check results.
 
         Returns:
@@ -720,7 +725,7 @@ class HealthMonitor:
         """
         return self._running
 
-    def get_registered_services(self) -> List[str]:
+    def get_registered_services(self) -> list[str]:
         """Get list of registered service names.
 
         Returns:

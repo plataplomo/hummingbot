@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Dict, List, Optional
 
-from cyberdelta.config.structlog_config import get_logger
 from pydantic import BaseModel
 
-from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.config.models import AppSettings
+from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
 from cyberdelta.models.market.trade import Trade
+
 
 logger = get_logger(__name__)
 
@@ -29,36 +29,36 @@ class PerformanceMetrics(BaseModel):
 
     # Basic metrics
     total_pnl: Decimal
-    realized_pnl: Optional[Decimal] = None
-    unrealized_pnl: Optional[Decimal] = None
+    realized_pnl: Decimal | None = None
+    unrealized_pnl: Decimal | None = None
     total_return_pct: Decimal
 
     # Period metrics (if enabled)
-    daily_return_pct: Optional[Decimal] = None
-    weekly_return_pct: Optional[Decimal] = None
-    monthly_return_pct: Optional[Decimal] = None
-    yearly_return_pct: Optional[Decimal] = None
+    daily_return_pct: Decimal | None = None
+    weekly_return_pct: Decimal | None = None
+    monthly_return_pct: Decimal | None = None
+    yearly_return_pct: Decimal | None = None
 
     # Risk metrics (if enabled)
-    sharpe_ratio: Optional[Decimal] = None
-    sortino_ratio: Optional[Decimal] = None
-    max_drawdown_pct: Optional[Decimal] = None
-    max_drawdown_duration_days: Optional[int] = None
-    current_drawdown_pct: Optional[Decimal] = None
+    sharpe_ratio: Decimal | None = None
+    sortino_ratio: Decimal | None = None
+    max_drawdown_pct: Decimal | None = None
+    max_drawdown_duration_days: int | None = None
+    current_drawdown_pct: Decimal | None = None
 
     # Trading metrics (if enabled)
-    total_trades: Optional[int] = None
-    winning_trades: Optional[int] = None
-    losing_trades: Optional[int] = None
-    win_rate_pct: Optional[Decimal] = None
-    average_win: Optional[Decimal] = None
-    average_loss: Optional[Decimal] = None
-    profit_factor: Optional[Decimal] = None
+    total_trades: int | None = None
+    winning_trades: int | None = None
+    losing_trades: int | None = None
+    win_rate_pct: Decimal | None = None
+    average_win: Decimal | None = None
+    average_loss: Decimal | None = None
+    profit_factor: Decimal | None = None
 
     # Statistical metrics (if enabled)
-    volatility_pct: Optional[Decimal] = None
-    beta: Optional[Decimal] = None
-    alpha: Optional[Decimal] = None
+    volatility_pct: Decimal | None = None
+    beta: Decimal | None = None
+    alpha: Decimal | None = None
 
     # Metadata
     calculation_timestamp: datetime
@@ -115,8 +115,8 @@ class PerformanceTracker:
         self._drawdown_method = self._metrics_config.drawdown_calculation_method
 
         # Cache for historical data
-        self._equity_curve: List[tuple[datetime, Decimal]] = []
-        self._trade_history: List[Trade] = []
+        self._equity_curve: list[tuple[datetime, Decimal]] = []
+        self._trade_history: list[Trade] = []
 
         logger.info(
             "performance_tracker_initialized",
@@ -125,7 +125,7 @@ class PerformanceTracker:
             include_fees=self._include_fees,
         )
 
-    async def calculate_metrics(self, period_days: Optional[int] = None) -> PerformanceMetrics:
+    async def calculate_metrics(self, period_days: int | None = None) -> PerformanceMetrics:
         """Calculate performance metrics for specified period.
 
         Args:
@@ -258,7 +258,7 @@ class PerformanceTracker:
         trades = await self._get_trades_in_period(period_start, period_end)
 
         # Calculate realized PnL
-        realized_pnl = Decimal("0")
+        realized_pnl = Decimal(0)
         for trade in trades:
             trade_pnl = trade.quantity * (
                 trade.price if trade.side.value == "sell" else -trade.price
@@ -273,7 +273,7 @@ class PerformanceTracker:
         # Add unrealized PnL if available
         portfolio_state = await self._portfolio_service.get_state()
         if portfolio_state and hasattr(portfolio_state, "total_unrealized_pnl"):
-            unrealized_pnl = portfolio_state.total_unrealized_pnl or Decimal("0")
+            unrealized_pnl = portfolio_state.total_unrealized_pnl or Decimal(0)
             return realized_pnl + unrealized_pnl
 
         return realized_pnl
@@ -296,13 +296,13 @@ class PerformanceTracker:
         # Get starting equity
         starting_equity = await self._get_equity_at_time(period_start)
 
-        if not starting_equity or starting_equity == Decimal("0"):
+        if not starting_equity or starting_equity == Decimal(0):
             logger.warning(
                 "cannot_calculate_return_zero_equity", period_start=period_start.isoformat()
             )
-            return Decimal("0")
+            return Decimal(0)
 
-        return (total_pnl / starting_equity) * Decimal("100")
+        return (total_pnl / starting_equity) * Decimal(100)
 
     async def _calculate_sharpe_ratio(
         self, period_start: datetime, period_end: datetime
@@ -331,7 +331,7 @@ class PerformanceTracker:
                 period_start=period_start.isoformat(),
                 period_end=period_end.isoformat(),
             )
-            return Decimal("0")
+            return Decimal(0)
 
         # Calculate average return
         avg_return = sum(daily_returns) / len(daily_returns)
@@ -340,29 +340,29 @@ class PerformanceTracker:
         variance = sum((r - avg_return) ** 2 for r in daily_returns) / len(daily_returns)
         std_dev = variance.sqrt()
 
-        if std_dev == Decimal("0"):
-            return Decimal("0")
+        if std_dev == Decimal(0):
+            return Decimal(0)
 
         # Apply calculation method from config
         if self._sharpe_method == "daily":
             # Daily Sharpe
-            daily_risk_free = self._risk_free_rate / Decimal("365")
+            daily_risk_free = self._risk_free_rate / Decimal(365)
             sharpe = (avg_return - daily_risk_free) / std_dev
         elif self._sharpe_method == "annualized":
             # Annualized Sharpe
-            annualized_return = avg_return * Decimal("365")
-            annualized_std = std_dev * Decimal("365").sqrt()
+            annualized_return = avg_return * Decimal(365)
+            annualized_std = std_dev * Decimal(365).sqrt()
             sharpe = (annualized_return - self._risk_free_rate) / annualized_std
         else:
             # Default to daily if method unknown
-            daily_risk_free = self._risk_free_rate / Decimal("365")
+            daily_risk_free = self._risk_free_rate / Decimal(365)
             sharpe = (avg_return - daily_risk_free) / std_dev
 
         return sharpe
 
     async def _calculate_drawdown(
         self, period_start: datetime, period_end: datetime
-    ) -> Dict[str, object]:
+    ) -> dict[str, object]:
         """Calculate drawdown metrics using configured method.
 
         Args:
@@ -382,9 +382,9 @@ class PerformanceTracker:
 
         if not equity_curve:
             return {
-                "max_drawdown": Decimal("0"),
+                "max_drawdown": Decimal(0),
                 "max_duration_days": 0,
-                "current_drawdown": Decimal("0"),
+                "current_drawdown": Decimal(0),
             }
 
         # Calculate drawdowns based on configured method
@@ -400,7 +400,7 @@ class PerformanceTracker:
 
     async def _calculate_trading_statistics(
         self, period_start: datetime, period_end: datetime
-    ) -> Dict[str, object]:
+    ) -> dict[str, object]:
         """Calculate trading performance statistics.
 
         Args:
@@ -422,10 +422,10 @@ class PerformanceTracker:
                 "total_trades": 0,
                 "winning_trades": 0,
                 "losing_trades": 0,
-                "win_rate": Decimal("0"),
-                "average_win": Decimal("0"),
-                "average_loss": Decimal("0"),
-                "profit_factor": Decimal("0"),
+                "win_rate": Decimal(0),
+                "average_win": Decimal(0),
+                "average_loss": Decimal(0),
+                "profit_factor": Decimal(0),
             }
 
         # Group trades by position (simplified - would use position tracking in practice)
@@ -437,15 +437,15 @@ class PerformanceTracker:
             trade_pnl = (
                 trade.quantity
                 * trade.price
-                * (Decimal("1") if trade.side.value == "sell" else Decimal("-1"))
+                * (Decimal(1) if trade.side.value == "sell" else Decimal(-1))
             )
 
             if self._include_fees:
                 trade_pnl -= trade.fee
 
-            if trade_pnl > Decimal("0"):
+            if trade_pnl > Decimal(0):
                 winning_trades.append(trade_pnl)
-            elif trade_pnl < Decimal("0"):
+            elif trade_pnl < Decimal(0):
                 losing_trades.append(trade_pnl)
 
         # Calculate statistics
@@ -454,18 +454,18 @@ class PerformanceTracker:
         num_losers = len(losing_trades)
 
         win_rate = (
-            (Decimal(num_winners) / Decimal(total_trades) * Decimal("100"))
+            (Decimal(num_winners) / Decimal(total_trades) * Decimal(100))
             if total_trades > 0
-            else Decimal("0")
+            else Decimal(0)
         )
 
-        average_win = sum(winning_trades) / len(winning_trades) if winning_trades else Decimal("0")
-        average_loss = sum(losing_trades) / len(losing_trades) if losing_trades else Decimal("0")
+        average_win = sum(winning_trades) / len(winning_trades) if winning_trades else Decimal(0)
+        average_loss = sum(losing_trades) / len(losing_trades) if losing_trades else Decimal(0)
 
         # Profit factor
-        total_wins = sum(winning_trades) if winning_trades else Decimal("0")
-        total_losses = abs(sum(losing_trades)) if losing_trades else Decimal("0")
-        profit_factor = total_wins / total_losses if total_losses > Decimal("0") else Decimal("0")
+        total_wins = sum(winning_trades) if winning_trades else Decimal(0)
+        total_losses = abs(sum(losing_trades)) if losing_trades else Decimal(0)
+        profit_factor = total_wins / total_losses if total_losses > Decimal(0) else Decimal(0)
 
         return {
             "total_trades": total_trades,
@@ -526,11 +526,11 @@ class PerformanceTracker:
 
     async def _get_trades_in_period(
         self, period_start: datetime, period_end: datetime
-    ) -> List[Trade]:
+    ) -> list[Trade]:
         """Get trades within specified period."""
         return [t for t in self._trade_history if period_start <= t.executed_at <= period_end]
 
-    async def _get_equity_at_time(self, timestamp: datetime) -> Optional[Decimal]:
+    async def _get_equity_at_time(self, timestamp: datetime) -> Decimal | None:
         """Get equity value at specific time."""
         # Find closest equity value
         for ts, equity in reversed(self._equity_curve):
@@ -540,7 +540,7 @@ class PerformanceTracker:
 
     async def _get_daily_returns(
         self, period_start: datetime, period_end: datetime
-    ) -> List[Decimal]:
+    ) -> list[Decimal]:
         """Calculate daily returns for period."""
         daily_returns = []
 
@@ -554,7 +554,7 @@ class PerformanceTracker:
             prev_equity = period_data[i - 1][1]
             curr_equity = period_data[i][1]
 
-            if prev_equity > Decimal("0"):
+            if prev_equity > Decimal(0):
                 daily_return = (curr_equity - prev_equity) / prev_equity
                 daily_returns.append(daily_return)
 
@@ -562,26 +562,26 @@ class PerformanceTracker:
 
     async def _get_equity_curve(
         self, period_start: datetime, period_end: datetime
-    ) -> List[tuple[datetime, Decimal]]:
+    ) -> list[tuple[datetime, Decimal]]:
         """Get equity curve for period."""
         return [(ts, eq) for ts, eq in self._equity_curve if period_start <= ts <= period_end]
 
     def _calculate_peak_to_trough_drawdown(
-        self, equity_curve: List[tuple[datetime, Decimal]]
-    ) -> Dict[str, object]:
+        self, equity_curve: list[tuple[datetime, Decimal]]
+    ) -> dict[str, object]:
         """Calculate drawdown using peak-to-trough method."""
         if not equity_curve:
             return {
-                "max_drawdown": Decimal("0"),
+                "max_drawdown": Decimal(0),
                 "max_duration_days": 0,
-                "current_drawdown": Decimal("0"),
+                "current_drawdown": Decimal(0),
             }
 
         peak = equity_curve[0][1]
         peak_time = equity_curve[0][0]
-        max_drawdown = Decimal("0")
+        max_drawdown = Decimal(0)
         max_duration = 0
-        current_drawdown = Decimal("0")
+        current_drawdown = Decimal(0)
 
         for timestamp, equity in equity_curve:
             if equity > peak:
@@ -589,21 +589,18 @@ class PerformanceTracker:
                 peak_time = timestamp
             else:
                 drawdown = (
-                    (peak - equity) / peak * Decimal("100") if peak > Decimal("0") else Decimal("0")
+                    (peak - equity) / peak * Decimal(100) if peak > Decimal(0) else Decimal(0)
                 )
                 if drawdown > max_drawdown:
                     max_drawdown = drawdown
                     duration = (timestamp - peak_time).days
-                    if duration > max_duration:
-                        max_duration = duration
+                    max_duration = max(max_duration, duration)
 
         # Current drawdown
         if equity_curve:
             current_equity = equity_curve[-1][1]
             current_drawdown = (
-                (peak - current_equity) / peak * Decimal("100")
-                if peak > Decimal("0")
-                else Decimal("0")
+                (peak - current_equity) / peak * Decimal(100) if peak > Decimal(0) else Decimal(0)
             )
 
         return {
@@ -613,8 +610,8 @@ class PerformanceTracker:
         }
 
     def _calculate_underwater_drawdown(
-        self, equity_curve: List[tuple[datetime, Decimal]]
-    ) -> Dict[str, object]:
+        self, equity_curve: list[tuple[datetime, Decimal]]
+    ) -> dict[str, object]:
         """Calculate drawdown using underwater equity method."""
         # Similar to peak-to-trough but tracks time underwater
         return self._calculate_peak_to_trough_drawdown(equity_curve)
@@ -626,13 +623,13 @@ class PerformanceTracker:
         # Placeholder - would track closed positions
         trades = await self._get_trades_in_period(period_start, period_end)
 
-        realized_pnl = Decimal("0")
+        realized_pnl = Decimal(0)
         for trade in trades:
             # Simplified - would match buys/sells
             trade_pnl = (
                 trade.quantity
                 * trade.price
-                * (Decimal("1") if trade.side.value == "sell" else Decimal("-1"))
+                * (Decimal(1) if trade.side.value == "sell" else Decimal(-1))
             )
             if self._include_fees:
                 trade_pnl -= trade.fee
@@ -646,7 +643,7 @@ class PerformanceTracker:
         return (
             portfolio_state.total_unrealized_pnl
             if hasattr(portfolio_state, "total_unrealized_pnl")
-            else Decimal("0")
+            else Decimal(0)
         )
 
     async def _calculate_period_return(self, days: int) -> Decimal:
@@ -657,10 +654,10 @@ class PerformanceTracker:
         start_equity = await self._get_equity_at_time(period_start)
         end_equity = await self._get_equity_at_time(period_end)
 
-        if not start_equity or start_equity == Decimal("0"):
-            return Decimal("0")
+        if not start_equity or start_equity == Decimal(0):
+            return Decimal(0)
 
-        return ((end_equity - start_equity) / start_equity) * Decimal("100")
+        return ((end_equity - start_equity) / start_equity) * Decimal(100)
 
     async def _calculate_sortino_ratio(
         self, period_start: datetime, period_end: datetime
@@ -670,24 +667,24 @@ class PerformanceTracker:
         daily_returns = await self._get_daily_returns(period_start, period_end)
 
         if not daily_returns:
-            return Decimal("0")
+            return Decimal(0)
 
         # Calculate average return
         avg_return = sum(daily_returns) / len(daily_returns)
 
         # Calculate downside deviation (only negative returns)
-        downside_returns = [r for r in daily_returns if r < Decimal("0")]
+        downside_returns = [r for r in daily_returns if r < Decimal(0)]
         if not downside_returns:
-            return Decimal("0")
+            return Decimal(0)
 
         downside_variance = sum(r**2 for r in downside_returns) / len(downside_returns)
         downside_std = downside_variance.sqrt()
 
-        if downside_std == Decimal("0"):
-            return Decimal("0")
+        if downside_std == Decimal(0):
+            return Decimal(0)
 
         # Daily risk-free rate
-        daily_risk_free = self._risk_free_rate / Decimal("365")
+        daily_risk_free = self._risk_free_rate / Decimal(365)
 
         return (avg_return - daily_risk_free) / downside_std
 
@@ -696,25 +693,25 @@ class PerformanceTracker:
         daily_returns = await self._get_daily_returns(period_start, period_end)
 
         if len(daily_returns) < 2:
-            return Decimal("0")
+            return Decimal(0)
 
         avg_return = sum(daily_returns) / len(daily_returns)
         variance = sum((r - avg_return) ** 2 for r in daily_returns) / len(daily_returns)
 
         # Annualized volatility
-        return variance.sqrt() * Decimal("365").sqrt() * Decimal("100")
+        return variance.sqrt() * Decimal(365).sqrt() * Decimal(100)
 
     async def _calculate_beta(self, period_start: datetime, period_end: datetime) -> Decimal:
         """Calculate beta relative to benchmark."""
         # Placeholder - would need benchmark data
-        return Decimal("1")
+        return Decimal(1)
 
     async def _calculate_alpha(self, period_start: datetime, period_end: datetime) -> Decimal:
         """Calculate alpha (excess return)."""
         # Placeholder - would need benchmark data
-        return Decimal("0")
+        return Decimal(0)
 
-    def get_metrics_summary(self) -> Dict[str, object]:
+    def get_metrics_summary(self) -> dict[str, object]:
         """Get summary of current metrics configuration.
 
         Returns:

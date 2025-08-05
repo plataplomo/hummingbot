@@ -196,8 +196,6 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test cancel_order raises ValidationError for empty symbol."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValidationError, ValueError)):
             invalid_symbol = exchanges.backpack("")
             CancelOrderArgs(
@@ -234,8 +232,6 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test get_order raises ValidationError for empty symbol."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValidationError, ValueError)):
             invalid_symbol = exchanges.backpack("")
             GetOrderArgs(order_id="12345", symbol=invalid_symbol)

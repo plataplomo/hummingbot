@@ -72,7 +72,6 @@ from cyberdelta.utils.typing import ParsedJsonResponse
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
-    from cyberdelta.models.operations import Transfer, Withdrawal
 
 logger = get_logger(__name__)
 

@@ -55,8 +55,6 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_order_book raises EmptySymbolError for empty symbol."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((EmptySymbolError, ValueError, ValidationError)):
             invalid_symbol = exchanges.backpack("")
             await backpack_market_data_service.get_order_book(invalid_symbol)
@@ -90,8 +88,6 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_recent_trades raises EmptySymbolError for empty symbol."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((EmptySymbolError, ValueError, ValidationError)):
             invalid_symbol = exchanges.backpack("")
             await backpack_market_data_service.get_recent_trades(invalid_symbol)

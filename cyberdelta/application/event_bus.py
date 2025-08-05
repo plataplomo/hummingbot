@@ -7,47 +7,20 @@ across services in a decoupled manner.
 from __future__ import annotations
 
 import asyncio
-import uuid
-from datetime import UTC, datetime
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
 
 from cyberdelta.config.structlog_config import get_logger
-from pydantic import BaseModel, Field
+from cyberdelta.models.events.base_event import DomainEvent
+
 
 logger = get_logger(__name__)
-
-
-class DomainEvent(BaseModel):
-    """Base class for all domain events.
-
-    IMPORTANT: Following CODING_STANDARDS.md:
-    - NO hardcoded values for timing or IDs
-    - Proper UTC timestamp handling
-    - Type-safe event identification
-    """
-
-    event_id: str = Field(
-        default_factory=lambda: str(uuid.uuid4()), description="Unique identifier for this event"
-    )
-
-    timestamp: datetime = Field(
-        default_factory=lambda: datetime.now(UTC),
-        description="UTC timestamp when event was created",
-    )
-
-    version: int = Field(default=1, description="Event schema version for evolution tracking")
-
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable events
-        validate_assignment = True
 
 
 class EventBus:
     """Event distribution system for domain events.
 
     Provides async event publishing and subscription with proper error handling.
+
 
     IMPORTANT: Following CODING_STANDARDS.md:
     - NO hardcoded retry counts or delays
@@ -57,7 +30,7 @@ class EventBus:
 
     def __init__(self) -> None:
         """Initialize event bus with empty subscriber registry."""
-        self._subscribers: Dict[str, List[Callable[[DomainEvent], None]]] = {}
+        self._subscribers: dict[str, list[Callable[[DomainEvent], None]]] = {}
         self._running = True
 
     async def subscribe(self, event_type: str, handler: Callable[[DomainEvent], None]) -> None:
@@ -66,6 +39,7 @@ class EventBus:
         Args:
             event_type: Type of event to subscribe to
             handler: Async function to handle the event
+
 
         IMPORTANT: No assumptions about event delivery or ordering.
         Handlers must be idempotent and handle failures explicitly.
@@ -105,6 +79,7 @@ class EventBus:
 
         Args:
             event: Domain event to publish
+
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - NO silent failures - all handler errors are logged
@@ -192,6 +167,7 @@ class EventBus:
 
         Args:
             event_type: Event type to check
+
 
         Returns:
             Number of subscribers for the event type

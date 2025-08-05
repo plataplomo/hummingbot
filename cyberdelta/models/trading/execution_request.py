@@ -6,15 +6,14 @@ risk-approved request to execute a trade based on a signal.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+# Forward reference for PositionSize
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 from cyberdelta.enums import OrderType, TimeInForce
 from cyberdelta.models import TradeSignal
 
-# Forward reference for PositionSize
-from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from cyberdelta.models.risk.assessment import PositionSize
@@ -49,7 +48,7 @@ class ExecutionRequest(BaseModel):
     time_in_force: TimeInForce = Field(description="Time in force for the order (GTC, IOC, etc.)")
 
     # Optional metadata for tracking/audit
-    metadata: Optional[Dict[str, Any]] = Field(
+    metadata: dict[str, Any] | None = Field(
         default=None, description="Optional metadata for execution tracking"
     )
 

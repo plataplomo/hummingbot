@@ -14,7 +14,7 @@ from cyberdelta.exceptions.base import (
     ConfigValidationError,
 )
 
-from .models.config_models import AppSettings
+from .models import AppSettings
 from .structlog_config import get_logger
 
 
