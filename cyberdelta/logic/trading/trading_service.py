@@ -524,6 +524,6 @@ class TradingService(HealthCheckable):
             ),
         }
 
-    def get_service_type(self) -> str:
+    def get_service_type(self) -> ServiceType:
         """Return service type for health monitoring."""
-        return ServiceType.TRADING.value
+        return ServiceType.TRADING

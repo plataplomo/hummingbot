@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
+from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -18,6 +19,7 @@ from cyberdelta.logic.market.cache_manager import CacheManager
 from cyberdelta.logic.market.data_fetcher import DataFetcher
 from cyberdelta.logic.market.exchange_connector import ExchangeConnector
 from cyberdelta.logic.market.market_aggregator import MarketAggregator
+from cyberdelta.models.market.candle import Candle
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
 from cyberdelta.models.market.ticker import Ticker
 
@@ -201,7 +203,7 @@ class MarketDataService:
         timeframe: str,
         start_time_ms: int,
         end_time_ms: int,
-    ) -> list | None:
+    ) -> list[Candle] | None:
         """Fetch historical candle data for a symbol.
 
         Args:
@@ -237,9 +239,6 @@ class MarketDataService:
             )
             return None
 
-        # Import here to avoid circular dependency
-        from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
-
         try:
             # Create args for the API call
             args = GetMarketDataArgs(
@@ -249,8 +248,8 @@ class MarketDataService:
                 end_time_ms=end_time_ms,
             )
 
-            # Call the market data service method
-            candles = await api_client.market_data_service.get_market_data(args)
+            # Call the market data method directly on the API client
+            candles = await api_client.get_market_data(args)
 
             logger.info(
                 "historical_data_fetched",

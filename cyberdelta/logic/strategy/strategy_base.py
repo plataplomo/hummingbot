@@ -12,6 +12,7 @@ from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
+from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.portfolio.state import PortfolioState
 
 
@@ -201,14 +202,15 @@ class BaseStrategy(ABC):
         threshold = momentum_config.price_change_threshold
         ```
         """
-        if not hasattr(self._strategy_config, section_name):
+        try:
+            # Access config section directly - will raise AttributeError if not present
+            return getattr(self._strategy_config, section_name)
+        except AttributeError:
             msg = (
                 f"Strategy '{self.name}' requires config section "
                 f"'strategies.{section_name}' which is not configured"
             )
-            raise ValueError(msg)
-
-        return getattr(self._strategy_config, section_name)
+            raise ValueError(msg) from None
 
     def _validate_strategy_config(self, required_fields: list[str], section_name: str) -> None:
         """Validate that required configuration fields are present.
@@ -236,9 +238,12 @@ class BaseStrategy(ABC):
             )
             raise ValueError(msg) from e
 
-        missing_fields: list[str] = [
-            field for field in required_fields if not hasattr(config_section, field)
-        ]
+        missing_fields: list[str] = []
+        for field in required_fields:
+            try:
+                getattr(config_section, field)
+            except AttributeError:
+                missing_fields.append(field)
 
         if missing_fields:
             msg = (
@@ -253,6 +258,23 @@ class BaseStrategy(ABC):
             section=section_name,
             required_fields=required_fields,
         )
+
+    async def handle_trade(self, trade: Trade) -> None:
+        """Handle trade execution feedback.
+
+        This method is called when a trade is executed from this strategy's signals.
+        Subclasses can override to update their internal state based on trade results.
+
+        Args:
+            trade: Executed trade information
+
+        IMPORTANT: Following CODING_STANDARDS.md:
+        - Default implementation does nothing
+        - Strategies can optionally override for trade-based feedback
+        - NO assumptions about trade success/failure handling
+        """
+        # Default implementation: no-op
+        # Subclasses can override to handle trade feedback
 
 
 class StrategyError(Exception):

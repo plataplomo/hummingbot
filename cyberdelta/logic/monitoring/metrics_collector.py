@@ -17,6 +17,7 @@ from pydantic import BaseModel
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.protocols.infrastructure.monitoring import MetricsProvider
 
 
 logger = get_logger(__name__)
@@ -79,7 +80,7 @@ class MetricsCollector:
         self.config = config
         self._monitoring_config = config.monitoring
         self._running = False
-        self._collection_task: asyncio.Task | None = None
+        self._collection_task: asyncio.Task[None] | None = None
 
         # Extract configuration settings - NO hardcoded defaults
         self._enabled = self._monitoring_config.metrics_enabled
@@ -97,7 +98,7 @@ class MetricsCollector:
         self._last_collection: datetime | None = None
 
         # Registered metric providers
-        self._metric_providers: list[object] = []
+        self._metric_providers: list[MetricsProvider] = []
 
         logger.info(
             "metrics_collector_initialized",
@@ -162,7 +163,7 @@ class MetricsCollector:
 
         logger.info("metrics_collector_stopped")
 
-    def register_provider(self, provider: object) -> None:
+    def register_provider(self, provider: MetricsProvider) -> None:
         """Register a metrics provider.
 
         Args:
@@ -349,7 +350,7 @@ class MetricsCollector:
 
         logger.info("metrics_collection_loop_ended")
 
-    async def _collect_from_provider(self, provider: object) -> list[MetricValue]:
+    async def _collect_from_provider(self, provider: MetricsProvider) -> list[MetricValue]:
         """Collect metrics from a specific provider.
 
         Args:

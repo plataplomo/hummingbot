@@ -456,7 +456,7 @@ class MockSymbolRegistry:
             if exchange in self._handlers:
                 handler = self._handlers[exchange]
 
-                def factory(value: str, **kwargs: dict[str, Any]) -> Symbol:
+                def factory(value: str, **kwargs: Any) -> Symbol:
                     return handler.create_symbol(value, **kwargs)
 
                 return factory
@@ -475,7 +475,6 @@ class MockSymbolRegistry:
             exchange = ExchangeName[name.upper()]
             return get_factory(exchange)
 
-        # Use setattr to properly assign the method
         mock.__getattr__ = getattr_handler
 
         return mock

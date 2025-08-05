@@ -1007,9 +1007,9 @@ class ExecutionEngine(HealthCheckable):
             "max_retries": self._max_retries,
         }
 
-    def get_service_type(self) -> str:
+    def get_service_type(self) -> ServiceType:
         """Return service type for health monitoring."""
-        return ServiceType.EXECUTION.value
+        return ServiceType.EXECUTION
 
     def get_fill_statistics(self) -> dict[str, object]:
         """Get fill processing statistics from FillHandler.

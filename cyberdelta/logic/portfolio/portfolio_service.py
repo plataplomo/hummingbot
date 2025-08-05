@@ -24,9 +24,10 @@ from cyberdelta.exceptions.portfolio import (
     PortfolioNotInitializedError,
     ReconciliationError,
 )
-from cyberdelta.logic.monitoring.health_monitor import HealthCheckable, ServiceType
+from cyberdelta.logic.monitoring.health_monitor import ServiceType
 from cyberdelta.models import DerivativePosition, SpotBalance, Trade
 from cyberdelta.models.portfolio.state import PortfolioState
+from cyberdelta.protocols import HealthCheckable
 from cyberdelta.protocols.domain.portfolio import PortfolioStorageProtocol
 
 from .balance_manager import BalanceManager

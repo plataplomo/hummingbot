@@ -111,7 +111,7 @@ class HealthMonitor:
         self._services: dict[str, HealthCheckable] = {}
         self._last_checks: dict[str, HealthCheck] = {}
         self._running = False
-        self._monitor_task: asyncio.Task | None = None
+        self._monitor_task: asyncio.Task[None] | None = None
 
         # Extract configuration settings - NO hardcoded defaults
         self._check_interval = self._monitoring_config.health_check_interval_seconds
@@ -376,10 +376,17 @@ class HealthMonitor:
                     "system_health_check_service_failed", service_name=service_name, error=str(e)
                 )
                 # Create a failed health check
+                # Determine service type - try to get it from the service if possible
+                try:
+                    service_type = self._services[service_name].get_service_type()
+                except Exception:
+                    # If we can't get the service type, default to a known type
+                    service_type = ServiceType.PORTFOLIO  # Use a valid ServiceType
+
                 service_checks.append(
                     HealthCheck(
                         service_name=service_name,
-                        service_type=ServiceType.UNKNOWN,
+                        service_type=service_type,
                         status=HealthStatus.CRITICAL,
                         timestamp=datetime.now(UTC),
                         error_message=f"Health check failed: {e!s}",
@@ -534,7 +541,7 @@ class HealthMonitor:
             return HealthStatus.UNKNOWN
 
         # Count services by status
-        status_counts = {}
+        status_counts: dict[HealthStatus, int] = {}
         for check in service_checks:
             status_counts[check.status] = status_counts.get(check.status, 0) + 1
 
@@ -542,7 +549,7 @@ class HealthMonitor:
         critical_count = status_counts.get(HealthStatus.CRITICAL, 0)
         unhealthy_count = status_counts.get(HealthStatus.UNHEALTHY, 0)
         degraded_count = status_counts.get(HealthStatus.DEGRADED, 0)
-        healthy_count = status_counts.get(HealthStatus.HEALTHY, 0)
+        # healthy_count = status_counts.get(HealthStatus.HEALTHY, 0)  # Available if needed
 
         # Use configured thresholds for overall status determination
         critical_threshold = self._thresholds.critical_service_threshold
@@ -689,9 +696,8 @@ class HealthMonitor:
                 logger.error("health_monitoring_loop_error", error=str(e), exc_info=True)
 
                 # Use exponential backoff from config for errors
-                error_backoff = float(
-                    self.config.execution.retry_delay_base_sec
-                    * self.config.execution.retry_backoff_multiplier
+                error_backoff = float(self.config.execution.retry_delay_base_sec) * float(
+                    self.config.execution.retry_backoff_multiplier
                 )
                 await asyncio.sleep(error_backoff)
 

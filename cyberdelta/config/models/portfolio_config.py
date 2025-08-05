@@ -14,6 +14,29 @@ from pydantic import BaseModel, ConfigDict, Field
 from cyberdelta.config.models.config_types import ConfigDecimal, NonEmptyConfigString
 
 
+class PerformanceMetricsConfig(BaseModel):
+    """Performance metrics configuration."""
+    
+    model_config = ConfigDict(extra="forbid", frozen=True)
+    
+    enabled_metrics: dict[str, bool] = Field(
+        default_factory=lambda: {
+            "sharpe_ratio": True,
+            "max_drawdown": True,
+            "total_return": True,
+            "win_rate": True,
+            "profit_factor": True,
+            "volatility": True,
+        },
+        description="Enable/disable specific performance metrics calculations"
+    )
+    calculation_period_days: int = Field(default=30, gt=0, le=365, description="Performance calculation period in days")
+    risk_free_rate: float = Field(default=0.02, ge=0.0, le=1.0, description="Risk-free rate for Sharpe ratio calculation")
+    include_fees_in_metrics: bool = Field(default=True, description="Include trading fees in performance metrics")
+    sharpe_calculation_method: str = Field(default="daily", description="Sharpe ratio calculation method")
+    drawdown_calculation_method: str = Field(default="peak_to_trough", description="Drawdown calculation method")
+
+
 class PortfolioCacheSettings(BaseModel):
     """Portfolio cache configuration settings."""
 
@@ -134,6 +157,12 @@ class PortfolioCalculationSettings(BaseModel):
     performance_period_days: int = Field(default=30, gt=0, le=365)
     calculate_max_drawdown: bool = True
     performance_update_interval: float = Field(default=300.0, gt=0, le=3600)
+    
+    # Performance metrics configuration
+    performance_metrics: PerformanceMetricsConfig = Field(
+        default_factory=PerformanceMetricsConfig,
+        description="Performance metrics configuration"
+    )
     risk_free_rate: ConfigDecimal = Field(default=Decimal("0.02"), ge=Decimal(0), le=Decimal("0.1"))
 
     # Exposure calculation settings

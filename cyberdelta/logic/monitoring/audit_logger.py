@@ -13,7 +13,9 @@ IMPORTANT: Following CODING_STANDARDS.md:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import uuid
+from datetime import UTC, datetime, timedelta
 from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
@@ -141,7 +143,7 @@ class AuditLogger:
     - Type-safe event definitions
     """
 
-    def __init__(self, config: AppSettings):
+    def __init__(self, config: AppSettings) -> None:
         """Initialize audit logger with configuration.
 
         Args:
@@ -156,22 +158,16 @@ class AuditLogger:
         self._log_sensitive_data = self._general_config.log_sensitive_data
 
         # Audit log file configuration
-        self._audit_log_file: Path | None
-        if hasattr(self._monitoring_config, "audit_log_file"):
+        self._audit_log_file: Path | None = None
+        if self._monitoring_config.audit_log_file:
             self._audit_log_file = Path(self._monitoring_config.audit_log_file)
             self._audit_log_file.parent.mkdir(parents=True, exist_ok=True)
-        else:
-            self._audit_log_file = None
 
         # Retention configuration
-        self._retention_days = getattr(self._monitoring_config, "audit_retention_days", None)
+        self._retention_days = self._monitoring_config.audit_retention_days
 
         # Format configuration
-        self._log_format = getattr(
-            self._monitoring_config,
-            "audit_log_format",
-            "json",  # json or text
-        )
+        self._log_format = self._monitoring_config.audit_log_format
 
         # Session tracking
         self._session_id = str(uuid.uuid4())
@@ -180,8 +176,8 @@ class AuditLogger:
 
         # Buffer for batch writing
         self._event_buffer: list[AuditEvent] = []
-        self._buffer_size = getattr(self._monitoring_config, "audit_buffer_size", 100)
-        self._flush_interval = getattr(self._monitoring_config, "audit_flush_interval_seconds", 60)
+        self._buffer_size = self._monitoring_config.audit_buffer_size
+        self._flush_interval = self._monitoring_config.audit_flush_interval_seconds
         self._flush_task: asyncio.Task[None] | None = None
 
         logger.info(
@@ -261,12 +257,10 @@ class AuditLogger:
         # Cancel flush task
         if self._flush_task:
             self._flush_task.cancel()
-            try:
+            with contextlib.suppress(TimeoutError, asyncio.CancelledError):
                 await asyncio.wait_for(
                     self._flush_task, timeout=float(self.config.general.shutdown_grace_period)
                 )
-            except (TimeoutError, asyncio.CancelledError):
-                pass
 
         # Final flush
         await self._flush_buffer()
@@ -309,7 +303,11 @@ class AuditLogger:
             await self._flush_buffer()
 
     async def log_order_event(
-        self, order: Order, event_type: AuditEventType, description: str, **metadata: Any
+        self,
+        order: Order,
+        event_type: AuditEventType,
+        description: str,
+        **metadata: str | float | bool,
     ) -> None:
         """Log an order-related audit event.
 
@@ -335,11 +333,13 @@ class AuditLogger:
             description=description,
             entity_type="Order",
             entity_id=order.exchange_order_id or order.client_order_id,
+            entity_id=order.exchange_order_id or order.client_order_id,
             exchange=order.exchange,
             symbol=order.symbol,
             metadata={
                 "order_data": order_data,
                 "side": order.side.value if order.side else None,
+                "quantity": float(order.quantity_requested) if order.quantity_requested else None,
                 "quantity": float(order.quantity_requested) if order.quantity_requested else None,
                 "price": float(order.price) if order.price else None,
                 **metadata,
@@ -349,7 +349,11 @@ class AuditLogger:
         await self.log_event(event)
 
     async def log_trade_event(
-        self, trade: Trade, event_type: AuditEventType, description: str, **metadata: Any
+        self,
+        trade: Trade,
+        event_type: AuditEventType,
+        description: str,
+        **metadata: str | float | bool,
     ) -> None:
         """Log a trade-related audit event.
 
@@ -386,7 +390,11 @@ class AuditLogger:
         await self.log_event(event)
 
     async def log_signal_event(
-        self, signal: TradeSignal, event_type: AuditEventType, description: str, **metadata: Any
+        self,
+        signal: TradeSignal,
+        event_type: AuditEventType,
+        description: str,
+        **metadata: str | float | bool,
     ) -> None:
         """Log a signal-related audit event.
 
@@ -410,7 +418,7 @@ class AuditLogger:
             description=description,
             entity_type="TradeSignal",
             entity_id=signal.signal_id,
-            exchange=ExchangeName(signal.exchange) if isinstance(signal.exchange, str) else None,
+            exchange=signal.exchange[0] if isinstance(signal.exchange, list) else signal.exchange,
             symbol=signal.symbol,
             metadata={
                 "signal_data": signal_data,
@@ -429,7 +437,7 @@ class AuditLogger:
         severity: AuditSeverity = AuditSeverity.WARNING,
         risk_score: float | None = None,
         violations: list[str] | None = None,
-        **metadata: Any,
+        **metadata: str | float | bool,
     ) -> None:
         """Log a risk-related audit event.
 
@@ -452,7 +460,9 @@ class AuditLogger:
 
         await self.log_event(event)
 
-    async def log_error_event(self, error: Exception, context: str, **metadata: Any) -> None:
+    async def log_error_event(
+        self, error: Exception, context: str, **metadata: str | float | bool
+    ) -> None:
         """Log an error event for audit trail.
 
         Args:
@@ -494,43 +504,25 @@ class AuditLogger:
         filtered_event = event.model_copy()
 
         # Filter metadata
-        if filtered_event.metadata:
-            # Remove sensitive fields from nested data
-            for key in ["order_data", "trade_data", "signal_data", "position_data"]:
-                if key in filtered_event.metadata:
-                    # These are already filtered by the specific log methods
-                    pass
-
-            # Remove any fields that might contain sensitive data
-            sensitive_keys = [
-                "api_key",
-                "secret",
-                "password",
-                "token",
-                "private_key",
-                "seed",
-                "mnemonic",
-            ]
-            for key in list(filtered_event.metadata.keys()):
-                if any(sensitive in key.lower() for sensitive in sensitive_keys):
-                    filtered_event.metadata[key] = "[REDACTED]"
+        self._redact_sensitive_keys(filtered_event.metadata)
 
         # Filter old/new values if they contain sensitive data
-        if filtered_event.old_value and isinstance(filtered_event.old_value, dict):
-            for key in list(filtered_event.old_value.keys()):
-                if any(
-                    sensitive in key.lower() for sensitive in ["password", "secret", "key", "token"]
-                ):
-                    filtered_event.old_value[key] = "[REDACTED]"
-
-        if filtered_event.new_value and isinstance(filtered_event.new_value, dict):
-            for key in list(filtered_event.new_value.keys()):
-                if any(
-                    sensitive in key.lower() for sensitive in ["password", "secret", "key", "token"]
-                ):
-                    filtered_event.new_value[key] = "[REDACTED]"
+        self._redact_sensitive_keys(filtered_event.old_value)
+        self._redact_sensitive_keys(filtered_event.new_value)
 
         return filtered_event
+
+    def _redact_sensitive_keys(self, data: dict[str, Any] | None) -> None:
+        """Redact sensitive keys from dictionary data."""
+        if not data:
+            return
+
+        sensitive_keys = [
+            "api_key", "secret", "password", "token", "private_key", "seed", "mnemonic", "key"
+        ]
+        for key in list(data.keys()):
+            if any(sensitive in key.lower() for sensitive in sensitive_keys):
+                data[key] = "[REDACTED]"
 
     def _log_to_structlog(self, event: AuditEvent) -> None:
         """Log event to structured logger.
@@ -542,7 +534,16 @@ class AuditLogger:
         - Uses structlog exclusively
         - Includes all relevant context
         """
-        log_data = {
+        log_data = self._build_log_data(event)
+        self._log_at_severity_level(event.severity, log_data)
+
+    def _build_log_data(self, event: AuditEvent) -> dict[str, Any]:
+        """Build log data dictionary from audit event.
+
+        Returns:
+            Dictionary with structured log data
+        """
+        log_data: dict[str, Any] = {
             "audit_event": True,
             "event_id": event.event_id,
             "event_type": event.event_type.value,
@@ -554,30 +555,32 @@ class AuditLogger:
         }
 
         # Add optional fields if present
-        if event.entity_type:
-            log_data["entity_type"] = event.entity_type
-        if event.entity_id:
-            log_data["entity_id"] = event.entity_id
-        if event.exchange:
-            log_data["exchange"] = event.exchange.value
-        if event.symbol:
-            log_data["symbol"] = event.symbol.value
-        if event.risk_score is not None:
-            log_data["risk_score"] = event.risk_score
-        if event.compliance_flags:
-            log_data["compliance_flags"] = event.compliance_flags
-        if event.metadata:
-            log_data["metadata"] = event.metadata
+        optional_fields = [
+            ("entity_type", event.entity_type),
+            ("entity_id", event.entity_id),
+            ("exchange", event.exchange.value if event.exchange else None),
+            ("symbol", event.symbol.value if event.symbol else None),
+            ("risk_score", event.risk_score),
+            ("compliance_flags", event.compliance_flags),
+            ("metadata", event.metadata),
+        ]
 
-        # Log at appropriate level based on severity
-        if event.severity == AuditSeverity.ERROR:
-            logger.error("audit_event", **log_data)
-        elif event.severity == AuditSeverity.CRITICAL:
-            logger.critical("audit_event", **log_data)
-        elif event.severity == AuditSeverity.WARNING:
-            logger.warning("audit_event", **log_data)
-        else:
-            logger.info("audit_event", **log_data)
+        for field_name, field_value in optional_fields:
+            if field_value is not None:
+                log_data[field_name] = field_value
+
+        return log_data
+
+    def _log_at_severity_level(self, severity: AuditSeverity, log_data: dict[str, Any]) -> None:
+        """Log data at appropriate level based on severity."""
+        severity_loggers = {
+            AuditSeverity.ERROR: logger.error,
+            AuditSeverity.CRITICAL: logger.critical,
+            AuditSeverity.WARNING: logger.warning,
+        }
+
+        log_func = severity_loggers.get(severity, logger.info)
+        log_func("audit_event", **log_data)
 
     async def _flush_buffer(self) -> None:
         """Flush buffered events to persistent storage.
@@ -595,10 +598,11 @@ class AuditLogger:
             self._event_buffer.clear()
             return
 
+        # Prepare events for writing
+        events_to_write = self._event_buffer.copy()
+        self._event_buffer.clear()
+
         try:
-            # Prepare events for writing
-            events_to_write = self._event_buffer.copy()
-            self._event_buffer.clear()
 
             # Write based on configured format
             if self._log_format == "json":
@@ -615,8 +619,8 @@ class AuditLogger:
         except Exception as e:
             # Re-add events to buffer on failure
             self._event_buffer = events_to_write + self._event_buffer
-            logger.error(
-                "audit_flush_failed", error=str(e), event_count=len(events_to_write), exc_info=True
+            logger.exception(
+                "audit_flush_failed", error=str(e), event_count=len(events_to_write)
             )
             # Don't raise - we don't want to crash the system due to audit logging
 
@@ -626,12 +630,18 @@ class AuditLogger:
         Args:
             events: Events to write
         """
-        if self._audit_log_file is None:
+        if not self._audit_log_file:
             return
-        with open(self._audit_log_file, "a") as f:
-            for event in events:
-                json_line = event.model_dump_json() + "\n"
-                f.write(json_line)
+
+        def _write_events() -> None:
+            if not self._audit_log_file:
+                return
+            with Path(self._audit_log_file).open("a", encoding="utf-8") as f:
+                for event in events:
+                    json_line = event.model_dump_json() + "\n"
+                    f.write(json_line)
+
+        await asyncio.to_thread(_write_events)
 
     async def _write_text_format(self, events: list[AuditEvent]) -> None:
         """Write events in human-readable text format.
@@ -639,24 +649,30 @@ class AuditLogger:
         Args:
             events: Events to write
         """
-        if self._audit_log_file is None:
+        if not self._audit_log_file:
             return
-        with open(self._audit_log_file, "a") as f:
-            for event in events:
-                text_line = (
-                    f"[{event.timestamp.isoformat()}] "
-                    f"[{event.severity.value.upper()}] "
-                    f"[{event.event_type.value}] "
-                    f"{event.description}"
-                )
-                if event.entity_id:
-                    text_line += f" (Entity: {event.entity_type}:{event.entity_id})"
-                if event.exchange:
-                    text_line += f" (Exchange: {event.exchange.value})"
-                if event.symbol:
-                    text_line += f" (Symbol: {event.symbol.value})"
-                text_line += "\n"
-                f.write(text_line)
+
+        def _write_events() -> None:
+            if not self._audit_log_file:
+                return
+            with Path(self._audit_log_file).open("a", encoding="utf-8") as f:
+                for event in events:
+                    text_line = (
+                        f"[{event.timestamp.isoformat()}] "
+                        f"[{event.severity.value.upper()}] "
+                        f"[{event.event_type.value}] "
+                        f"{event.description}"
+                    )
+                    if event.entity_id:
+                        text_line += f" (Entity: {event.entity_type}:{event.entity_id})"
+                    if event.exchange:
+                        text_line += f" (Exchange: {event.exchange.value})"
+                    if event.symbol:
+                        text_line += f" (Symbol: {event.symbol.value})"
+                    text_line += "\n"
+                    f.write(text_line)
+
+        await asyncio.to_thread(_write_events)
 
     async def _flush_loop(self) -> None:
         """Periodic flush loop for buffered events.
@@ -673,7 +689,7 @@ class AuditLogger:
                 logger.debug("audit_flush_loop_cancelled")
                 break
             except Exception as e:
-                logger.error("audit_flush_loop_error", error=str(e), exc_info=True)
+                logger.exception("audit_flush_loop_error", error=str(e))
                 # Continue looping even on error
 
     async def cleanup_old_logs(self) -> None:
@@ -704,7 +720,7 @@ class AuditLogger:
                     )
 
         except Exception as e:
-            logger.error("audit_cleanup_failed", error=str(e), exc_info=True)
+            logger.exception("audit_cleanup_failed", error=str(e))
 
     def get_session_stats(self) -> dict[str, Any]:
         """Get statistics for the current audit session.

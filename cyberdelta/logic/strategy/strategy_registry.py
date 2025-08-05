@@ -207,16 +207,15 @@ class StrategyRegistry:
                 if param.default == inspect.Parameter.empty:
                     # market_service is required
                     if not self._market_service:
-                        msg = f"Strategy '{strategy_name}' requires market_service but none provided to registry"
+                        msg = (
+                            f"Strategy '{strategy_name}' requires market_service "
+                            f"but none provided to registry"
+                        )
                         raise StrategyConfigurationError(msg)
-                    strategy_instance = strategy_class(
-                        self.config, market_service=self._market_service
-                    )
+                    strategy_instance = strategy_class(self.config)
                 else:
                     # market_service is optional
-                    strategy_instance = strategy_class(
-                        self.config, market_service=self._market_service
-                    )
+                    strategy_instance = strategy_class(self.config)
             else:
                 # Legacy strategy without market service support
                 strategy_instance = strategy_class(self.config)

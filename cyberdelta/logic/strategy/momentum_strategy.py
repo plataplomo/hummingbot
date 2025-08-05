@@ -273,11 +273,9 @@ class MomentumStrategy(BaseStrategy):
                 raise StrategyConfigurationError(msg)
 
             # Get the price from the oldest candle in our range
-            # Candles should have 'close' price attribute
+            # Use close price from candle (Candle model has close, not price)
             oldest_candle = candles[0]
-            oldest_price = (
-                oldest_candle.close if hasattr(oldest_candle, "close") else oldest_candle.price
-            )
+            oldest_price = oldest_candle.close
 
             if not oldest_price or oldest_price == 0:
                 logger.error(
@@ -343,7 +341,6 @@ class MomentumStrategy(BaseStrategy):
         # Check if we have a current position
         has_position = (
             current_position is not None
-            and hasattr(current_position, "size")
             and current_position.size != 0
         )
 

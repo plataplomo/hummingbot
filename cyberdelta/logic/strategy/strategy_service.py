@@ -150,6 +150,7 @@ class StrategyService:
             )
             return True
         logger.warning("strategy_unregister_not_found", strategy_name=name)
+        return False
 
     async def initialize_strategies(self) -> None:
         """Initialize all registered strategies.
@@ -303,12 +304,12 @@ class StrategyService:
                                     strategy_name=name,
                                     signal_id=signal.signal_id,
                                     symbol=signal.symbol.value,
-                                    exchange=signal.exchange.value
-                                    if hasattr(signal.exchange, "value")
-                                    else str(signal.exchange),
-                                    side=signal.side.value
-                                    if hasattr(signal.side, "value")
-                                    else str(signal.side),
+                                    exchange=(
+                                        signal.exchange[0].value
+                                        if isinstance(signal.exchange, list)
+                                        else signal.exchange.value
+                                    ),
+                                    side=signal.side.value,
                                     price=float(signal.price) if signal.price else None,
                                 )
                             else:
@@ -412,23 +413,22 @@ class StrategyService:
         # Future enhancement: strategies could implement handle_trade() method
         # for trade-based learning or state updates
 
-        # For now, just log that trade feedback is available
+        # Send trade feedback to all strategies
         for name, strategy in self._strategies.items():
-            if hasattr(strategy, "handle_trade"):
-                try:
-                    await strategy.handle_trade(trade)
+            try:
+                await strategy.handle_trade(trade)
 
-                    logger.debug(
-                        "strategy_trade_feedback_delivered", strategy_name=name, trade_id=trade.id
-                    )
+                logger.debug(
+                    "strategy_trade_feedback_delivered", strategy_name=name, trade_id=trade.id
+                )
 
-                except Exception as e:
-                    logger.exception(
-                        "strategy_trade_feedback_error",
-                        strategy_name=name,
-                        trade_id=trade.id,
-                        error=str(e),
-                    )
+            except Exception as e:
+                logger.exception(
+                    "strategy_trade_feedback_error",
+                    strategy_name=name,
+                    trade_id=trade.id,
+                    error=str(e),
+                )
 
     def get_registered_strategies(self) -> list[str]:
         """Get list of registered strategy names.

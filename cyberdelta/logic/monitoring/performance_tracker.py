@@ -6,8 +6,10 @@ trading performance metrics using configuration-driven parameters from AppSettin
 
 from __future__ import annotations
 
+import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -107,7 +109,7 @@ class PerformanceTracker:
         self._metrics_config = config.calculation.performance_metrics
         self._enabled_metrics = set(self._metrics_config.enabled_metrics)
         self._calculation_period = self._metrics_config.calculation_period_days
-        self._risk_free_rate = self._metrics_config.risk_free_rate
+        self._risk_free_rate = Decimal(str(self._metrics_config.risk_free_rate))
         self._include_fees = self._metrics_config.include_fees_in_metrics
 
         # Calculation method settings
@@ -334,11 +336,11 @@ class PerformanceTracker:
             return Decimal(0)
 
         # Calculate average return
-        avg_return = sum(daily_returns) / len(daily_returns)
+        avg_return = sum(daily_returns) / Decimal(len(daily_returns))
 
         # Calculate standard deviation
-        variance = sum((r - avg_return) ** 2 for r in daily_returns) / len(daily_returns)
-        std_dev = variance.sqrt()
+        variance = sum((r - avg_return) ** 2 for r in daily_returns) / Decimal(len(daily_returns))
+        std_dev = Decimal(str(math.sqrt(float(variance))))
 
         if std_dev == Decimal(0):
             return Decimal(0)
@@ -351,18 +353,18 @@ class PerformanceTracker:
         elif self._sharpe_method == "annualized":
             # Annualized Sharpe
             annualized_return = avg_return * Decimal(365)
-            annualized_std = std_dev * Decimal(365).sqrt()
+            annualized_std = std_dev * Decimal(str(math.sqrt(365)))
             sharpe = (annualized_return - self._risk_free_rate) / annualized_std
         else:
             # Default to daily if method unknown
             daily_risk_free = self._risk_free_rate / Decimal(365)
             sharpe = (avg_return - daily_risk_free) / std_dev
 
-        return sharpe
+        return Decimal(str(sharpe))
 
     async def _calculate_drawdown(
         self, period_start: datetime, period_end: datetime
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Calculate drawdown metrics using configured method.
 
         Args:
@@ -400,7 +402,7 @@ class PerformanceTracker:
 
     async def _calculate_trading_statistics(
         self, period_start: datetime, period_end: datetime
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Calculate trading performance statistics.
 
         Args:
@@ -429,8 +431,8 @@ class PerformanceTracker:
             }
 
         # Group trades by position (simplified - would use position tracking in practice)
-        winning_trades = []
-        losing_trades = []
+        winning_trades: list[Decimal] = []
+        losing_trades: list[Decimal] = []
 
         for trade in trades:
             # Calculate trade PnL (simplified)
@@ -459,12 +461,17 @@ class PerformanceTracker:
             else Decimal(0)
         )
 
-        average_win = sum(winning_trades) / len(winning_trades) if winning_trades else Decimal(0)
-        average_loss = sum(losing_trades) / len(losing_trades) if losing_trades else Decimal(0)
+        average_win = (
+            sum(winning_trades) / Decimal(len(winning_trades)) if winning_trades else Decimal(0)
+        )
+        average_loss = (
+            sum(losing_trades) / Decimal(len(losing_trades)) if losing_trades else Decimal(0)
+        )
 
         # Profit factor
         total_wins = sum(winning_trades) if winning_trades else Decimal(0)
-        total_losses = abs(sum(losing_trades)) if losing_trades else Decimal(0)
+        total_loss_sum = sum(losing_trades) if losing_trades else Decimal(0)
+        total_losses = total_loss_sum if total_loss_sum >= Decimal(0) else -total_loss_sum
         profit_factor = total_wins / total_losses if total_losses > Decimal(0) else Decimal(0)
 
         return {
@@ -568,7 +575,7 @@ class PerformanceTracker:
 
     def _calculate_peak_to_trough_drawdown(
         self, equity_curve: list[tuple[datetime, Decimal]]
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Calculate drawdown using peak-to-trough method."""
         if not equity_curve:
             return {
@@ -611,7 +618,7 @@ class PerformanceTracker:
 
     def _calculate_underwater_drawdown(
         self, equity_curve: list[tuple[datetime, Decimal]]
-    ) -> dict[str, object]:
+    ) -> dict[str, Any]:
         """Calculate drawdown using underwater equity method."""
         # Similar to peak-to-trough but tracks time underwater
         return self._calculate_peak_to_trough_drawdown(equity_curve)
@@ -637,7 +644,7 @@ class PerformanceTracker:
 
         return realized_pnl
 
-    async def _calculate_unrealized_pnl(self, portfolio_state) -> Decimal:
+    async def _calculate_unrealized_pnl(self, portfolio_state: Any) -> Decimal:
         """Calculate unrealized PnL for open positions."""
         # Placeholder - would calculate from current positions and market prices
         return (
@@ -657,7 +664,7 @@ class PerformanceTracker:
         if not start_equity or start_equity == Decimal(0):
             return Decimal(0)
 
-        return ((end_equity - start_equity) / start_equity) * Decimal(100)
+        return ((end_equity or Decimal(0)) - start_equity) / start_equity * Decimal(100)
 
     async def _calculate_sortino_ratio(
         self, period_start: datetime, period_end: datetime
@@ -670,15 +677,15 @@ class PerformanceTracker:
             return Decimal(0)
 
         # Calculate average return
-        avg_return = sum(daily_returns) / len(daily_returns)
+        avg_return = sum(daily_returns) / Decimal(len(daily_returns))
 
         # Calculate downside deviation (only negative returns)
         downside_returns = [r for r in daily_returns if r < Decimal(0)]
         if not downside_returns:
             return Decimal(0)
 
-        downside_variance = sum(r**2 for r in downside_returns) / len(downside_returns)
-        downside_std = downside_variance.sqrt()
+        downside_variance = sum(r**2 for r in downside_returns) / Decimal(len(downside_returns))
+        downside_std = Decimal(str(math.sqrt(float(downside_variance))))
 
         if downside_std == Decimal(0):
             return Decimal(0)
@@ -695,11 +702,12 @@ class PerformanceTracker:
         if len(daily_returns) < 2:
             return Decimal(0)
 
-        avg_return = sum(daily_returns) / len(daily_returns)
-        variance = sum((r - avg_return) ** 2 for r in daily_returns) / len(daily_returns)
+        avg_return = sum(daily_returns) / Decimal(len(daily_returns))
+        variance = sum((r - avg_return) ** 2 for r in daily_returns) / Decimal(len(daily_returns))
 
         # Annualized volatility
-        return variance.sqrt() * Decimal(365).sqrt() * Decimal(100)
+        std_dev = Decimal(str(math.sqrt(float(variance))))
+        return std_dev * Decimal(str(math.sqrt(365))) * Decimal(100)
 
     async def _calculate_beta(self, period_start: datetime, period_end: datetime) -> Decimal:
         """Calculate beta relative to benchmark."""
@@ -711,7 +719,7 @@ class PerformanceTracker:
         # Placeholder - would need benchmark data
         return Decimal(0)
 
-    def get_metrics_summary(self) -> dict[str, object]:
+    def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of current metrics configuration.
 
         Returns:

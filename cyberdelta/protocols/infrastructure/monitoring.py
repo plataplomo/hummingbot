@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from cyberdelta.logic.monitoring.health_monitor import ServiceType
 
 
 class HealthCheckable(Protocol):
@@ -20,10 +23,26 @@ class HealthCheckable(Protocol):
         """
         ...
 
-    def get_service_type(self) -> str:
+    def get_service_type(self) -> ServiceType:
         """Return the service type for monitoring.
 
         Returns:
-            String identifier for the service type (e.g., "portfolio_service")
+            ServiceType enum value for the service type
+        """
+        ...
+
+
+class MetricsProvider(Protocol):
+    """Protocol for services that provide metrics data.
+
+    This protocol defines the interface that all services must implement
+    to provide metrics to the metrics collection system.
+    """
+
+    async def get_metrics(self) -> dict[str, Any]:
+        """Return metrics data.
+
+        Returns:
+            Dictionary containing metrics data for collection
         """
         ...

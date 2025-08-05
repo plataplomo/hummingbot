@@ -43,10 +43,7 @@ class AlertChannel(Enum):
     """Available alert channels."""
 
     LOG = "log"
-    EMAIL = "email"
-    SLACK = "slack"
-    WEBHOOK = "webhook"
-    SMS = "sms"
+    TELEGRAM = "telegram"
 
 
 @dataclass
@@ -109,7 +106,7 @@ class AlertService:
     - Type-safe alert handling
     """
 
-    def __init__(self, config: AppSettings):
+    def __init__(self, config: AppSettings) -> None:
         """Initialize alert service with configuration.
 
         Args:
@@ -121,7 +118,7 @@ class AlertService:
         self._alert_rules: dict[str, AlertRule] = {}
         self._suppressed_alerts: set[str] = set()
         self._running = False
-        self._alert_task: asyncio.Task | None = None
+        self._alert_task: asyncio.Task[None] | None = None
 
         # Extract configuration settings - NO hardcoded defaults
         self._enabled = self._monitoring_config.notifications_enabled
@@ -133,6 +130,9 @@ class AlertService:
 
         # Alert rate limiting
         self._alert_timestamps: list[datetime] = []
+
+        # Task tracking for suppression tasks
+        self._suppression_tasks: set[asyncio.Task[None]] = set()
 
         logger.info(
             "alert_service_initialized",
@@ -274,7 +274,13 @@ class AlertService:
         if self._default_suppression > 0:
             self._suppressed_alerts.add(f"{source}_{title}")
             # Schedule suppression removal
-            asyncio.create_task(self._remove_suppression_after_delay(f"{source}_{title}"))
+            suppression_key = f"{source}_{title}"
+            suppression_task = asyncio.create_task(
+                self._remove_suppression_after_delay(suppression_key)
+            )
+            # Store task reference to prevent garbage collection
+            self._suppression_tasks.add(suppression_task)
+            suppression_task.add_done_callback(self._suppression_tasks.discard)
 
         logger.info(
             "alert_created",
@@ -412,33 +418,14 @@ class AlertService:
     def _get_default_channels_for_level(self, level: AlertLevel) -> list[AlertChannel]:
         """Get default channels for alert level.
 
-        Args:
-            level: Alert severity level
-
         Returns:
-            List of channels to use for this level
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Channel selection based on configuration
-        - Level-appropriate escalation
+            List of alert channels for the given level
         """
-        # Always include logging
         channels = [AlertChannel.LOG]
 
-        # Add configured channels based on severity
-        if level in [AlertLevel.WARNING, AlertLevel.ERROR, AlertLevel.CRITICAL]:
-            if "email" in self._available_channels:
-                channels.append(AlertChannel.EMAIL)
-
-        if level in [AlertLevel.ERROR, AlertLevel.CRITICAL]:
-            if "slack" in self._available_channels:
-                channels.append(AlertChannel.SLACK)
-
-        if level == AlertLevel.CRITICAL:
-            if "sms" in self._available_channels:
-                channels.append(AlertChannel.SMS)
-            if "webhook" in self._available_channels:
-                channels.append(AlertChannel.WEBHOOK)
+        critical_levels = {AlertLevel.WARNING, AlertLevel.ERROR, AlertLevel.CRITICAL}
+        if level in critical_levels and "telegram" in self._available_channels:
+            channels.append(AlertChannel.TELEGRAM)
 
         return channels
 
@@ -467,12 +454,11 @@ class AlertService:
                 )
 
             except Exception as e:
-                logger.error(
+                logger.exception(
                     "alert_channel_send_failed",
                     alert_id=alert.alert_id,
                     channel=channel.value,
                     error=str(e),
-                    exc_info=True,
                 )
 
     async def _send_via_channel(self, alert: Alert, channel: AlertChannel) -> bool:
@@ -484,23 +470,11 @@ class AlertService:
 
         Returns:
             True if send successful
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Channel-specific implementations
-        - Configuration-driven channel setup
         """
         if channel == AlertChannel.LOG:
             return self._send_via_log(alert)
-        if channel == AlertChannel.EMAIL:
-            return await self._send_via_email(alert)
-        if channel == AlertChannel.SLACK:
-            return await self._send_via_slack(alert)
-        if channel == AlertChannel.WEBHOOK:
-            return await self._send_via_webhook(alert)
-        if channel == AlertChannel.SMS:
-            return await self._send_via_sms(alert)
-        logger.warning("unsupported_alert_channel", channel=channel.value, alert_id=alert.alert_id)
-        return False
+        # AlertChannel.TELEGRAM
+        return await self._send_via_telegram(alert)
 
     def _send_via_log(self, alert: Alert) -> bool:
         """Send alert via structured logging.
@@ -530,83 +504,18 @@ class AlertService:
 
         return True
 
-    async def _send_via_email(self, alert: Alert) -> bool:
-        """Send alert via email.
-
-        Args:
-            alert: Alert to send
+    async def _send_via_telegram(self, alert: Alert) -> bool:
+        """Send alert via Telegram.
 
         Returns:
-            True if email sent successfully
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured email settings
-        - Proper error handling
+            True if send successful
         """
-        # TODO: Implement email sending using config.monitoring.email settings
+        # Simple telegram implementation placeholder
         logger.info(
-            "email_alert_placeholder",
+            "telegram_alert",
             alert_id=alert.alert_id,
             title=alert.title,
             level=alert.level.value,
-            note="Email implementation needed with SMTP config",
-        )
-        return True
-
-    async def _send_via_slack(self, alert: Alert) -> bool:
-        """Send alert via Slack.
-
-        Args:
-            alert: Alert to send
-
-        Returns:
-            True if Slack message sent successfully
-        """
-        # TODO: Implement Slack sending using config.monitoring.slack settings
-        logger.info(
-            "slack_alert_placeholder",
-            alert_id=alert.alert_id,
-            title=alert.title,
-            level=alert.level.value,
-            note="Slack implementation needed with webhook URL",
-        )
-        return True
-
-    async def _send_via_webhook(self, alert: Alert) -> bool:
-        """Send alert via webhook.
-
-        Args:
-            alert: Alert to send
-
-        Returns:
-            True if webhook call successful
-        """
-        # TODO: Implement webhook sending using config.monitoring.webhook settings
-        logger.info(
-            "webhook_alert_placeholder",
-            alert_id=alert.alert_id,
-            title=alert.title,
-            level=alert.level.value,
-            note="Webhook implementation needed with URL config",
-        )
-        return True
-
-    async def _send_via_sms(self, alert: Alert) -> bool:
-        """Send alert via SMS.
-
-        Args:
-            alert: Alert to send
-
-        Returns:
-            True if SMS sent successfully
-        """
-        # TODO: Implement SMS sending using config.monitoring.sms settings
-        logger.info(
-            "sms_alert_placeholder",
-            alert_id=alert.alert_id,
-            title=alert.title,
-            level=alert.level.value,
-            note="SMS implementation needed with provider config",
         )
         return True
 
@@ -653,7 +562,7 @@ class AlertService:
                 logger.info("alert_processing_loop_cancelled")
                 break
             except Exception as e:
-                logger.error("alert_processing_loop_error", error=str(e), exc_info=True)
+                logger.exception("alert_processing_loop_error", error=str(e))
                 # Brief delay before retrying
                 await asyncio.sleep(10.0)  # Could be configurable
 

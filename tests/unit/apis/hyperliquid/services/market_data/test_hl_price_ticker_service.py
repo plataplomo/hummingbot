@@ -381,7 +381,6 @@ class TestHyperliquidPriceTickerService:
         """Test ticker retrieval with invalid symbol."""
         # Arrange & Act & Assert
         # Test validation logic that checks for invalid symbols
-
         # These should raise validation errors due to empty/whitespace values
         with pytest.raises((ValueError, ValidationError)):
             empty_symbol = exchanges.hyperliquid("")
@@ -520,7 +519,6 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test funding rate retrieval when symbol is not found."""
         # Arrange
-
         symbol = exchanges.hyperliquid("NONEXISTENT")
 
         with patch.object(
@@ -541,7 +539,6 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test funding rate retrieval with invalid symbol."""
         # Act & Assert
-
         with pytest.raises((ValueError, ValidationError)):
             empty_symbol = exchanges.hyperliquid("")
             await price_ticker_service.get_funding_rate(empty_symbol)
