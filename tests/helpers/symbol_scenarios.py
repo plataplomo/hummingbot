@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.core.symbols import Symbol, exchanges, symbols
@@ -31,7 +31,7 @@ class FundingArbScenario:
     symbols: dict[str, tuple[Symbol, Symbol]]
     funding_rates: dict[Symbol, Decimal]
     positions: dict[Symbol, Decimal]
-    prices: dict[Symbol, Decimal] = field(default_factory=dict)
+    prices: dict[Symbol, Decimal] = field(default_factory=lambda: cast(dict[Symbol, Decimal], {}))
     timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 

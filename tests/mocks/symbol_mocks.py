@@ -7,7 +7,7 @@ symbol service behaviors in tests.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Self
+from typing import Any, Self, cast
 from unittest.mock import Mock
 
 from cyberdelta.core.enums.enums import MarketType
@@ -146,7 +146,26 @@ class MockSymbolService:
     def _configure_core_methods(self, mock: Mock) -> None:
         """Configure core symbol methods."""
         def create_symbol(value: str, exchange: ExchangeName, **kwargs: dict[str, Any]) -> Symbol:
-            return symbol(value, exchange, **kwargs)
+            # Extract known parameters from kwargs
+            asset_index_raw = kwargs.get("asset_index") if kwargs else None
+            symbol_id_raw = kwargs.get("symbol_id") if kwargs else None
+            
+            # Type-check and cast
+            asset_index = cast(
+                int | None, asset_index_raw if isinstance(asset_index_raw, int) else None
+            )
+            symbol_id = cast(
+                int | None, symbol_id_raw if isinstance(symbol_id_raw, int) else None
+            )
+            
+            # Call symbol with appropriate parameters
+            if asset_index is not None and symbol_id is not None:
+                return symbol(value, exchange, asset_index=asset_index, symbol_id=symbol_id)
+            if asset_index is not None:
+                return symbol(value, exchange, asset_index=asset_index)
+            if symbol_id is not None:
+                return symbol(value, exchange, symbol_id=symbol_id)
+            return symbol(value, exchange)
 
         def convert_symbol(from_symbol: Symbol, target_exchange: ExchangeName) -> Symbol:
             key = (from_symbol.value, from_symbol.exchange, target_exchange)
@@ -334,7 +353,7 @@ class MockExchangeHandler:
             return (canonical, components)
 
         def from_canonical(canonical: str, components: SymbolComponents) -> str:
-            return mock.format_symbol.side_effect(components)
+            return str(mock.format_symbol.side_effect(components))
 
         mock.to_canonical.side_effect = to_canonical
         mock.from_canonical.side_effect = from_canonical
@@ -343,11 +362,34 @@ class MockExchangeHandler:
         """Configure metadata creation methods."""
         def create_metadata(**kwargs: dict[str, Any]) -> HyperliquidMetadata | BackpackMetadata:
             if self._exchange == ExchangeName.HYPERLIQUID:
-                return HyperliquidMetadata(asset_index=kwargs.get("asset_index"))
-            return BackpackMetadata(symbol_id=kwargs.get("symbol_id"))
+                asset_index = kwargs.get("asset_index")
+                return HyperliquidMetadata(
+                    asset_index=asset_index if isinstance(asset_index, int) else None
+                )
+            symbol_id = kwargs.get("symbol_id")
+            return BackpackMetadata(symbol_id=symbol_id if isinstance(symbol_id, int) else None)
 
         def create_symbol(value: str, **kwargs: dict[str, Any]) -> Symbol:
-            return symbol(value, self._exchange, **kwargs)
+            # Extract known parameters from kwargs
+            asset_index_raw = kwargs.get("asset_index") if kwargs else None
+            symbol_id_raw = kwargs.get("symbol_id") if kwargs else None
+            
+            # Type-check and cast
+            asset_index = cast(
+                int | None, asset_index_raw if isinstance(asset_index_raw, int) else None
+            )
+            symbol_id = cast(
+                int | None, symbol_id_raw if isinstance(symbol_id_raw, int) else None
+            )
+            
+            # Call symbol with appropriate parameters
+            if asset_index is not None and symbol_id is not None:
+                return symbol(value, self._exchange, asset_index=asset_index, symbol_id=symbol_id)
+            if asset_index is not None:
+                return symbol(value, self._exchange, asset_index=asset_index)
+            if symbol_id is not None:
+                return symbol(value, self._exchange, symbol_id=symbol_id)
+            return symbol(value, self._exchange)
 
         mock.create_metadata.side_effect = create_metadata
         mock.create_symbol.side_effect = create_symbol
@@ -442,39 +484,87 @@ class MockSymbolRegistry:
             Mock SymbolRegistry
         """
         mock = Mock(spec=SymbolRegistry)
-
-        # Configure create_symbol
+        
+        self._configure_create_symbol(mock)
+        self._configure_get_factory(mock)
+        self._configure_get_handlers(mock)
+        self._configure_getattr_handler(mock)
+        
+        return mock
+    
+    def _configure_create_symbol(self, mock: Mock) -> None:
+        """Configure create_symbol method."""
         def create_symbol(value: str, exchange: ExchangeName, **kwargs: dict[str, Any]) -> Symbol:
-            sym = symbol(value, exchange, **kwargs)
+            # Extract known parameters
+            asset_index_raw = kwargs.get("asset_index") if kwargs else None
+            symbol_id_raw = kwargs.get("symbol_id") if kwargs else None
+            
+            # Type-check and cast
+            asset_index = cast(
+                int | None, asset_index_raw if isinstance(asset_index_raw, int) else None
+            )
+            symbol_id = cast(
+                int | None, symbol_id_raw if isinstance(symbol_id_raw, int) else None
+            )
+            
+            # Create symbol with appropriate parameters
+            if asset_index is not None and symbol_id is not None:
+                sym = symbol(value, exchange, asset_index=asset_index, symbol_id=symbol_id)
+            elif asset_index is not None:
+                sym = symbol(value, exchange, asset_index=asset_index)
+            elif symbol_id is not None:
+                sym = symbol(value, exchange, symbol_id=symbol_id)
+            else:
+                sym = symbol(value, exchange)
+            
             self._symbols[value, exchange] = sym
             return sym
-
         mock.create_symbol.side_effect = create_symbol
-
-        # Configure get_factory
+    
+    def _configure_get_factory(self, mock: Mock) -> None:
+        """Configure get_factory method."""
         def get_factory(exchange: ExchangeName) -> Callable[[str], Symbol] | None:
             if exchange in self._handlers:
                 handler = self._handlers[exchange]
 
-                def factory(value: str, **kwargs: Any) -> Symbol:
-                    return handler.create_symbol(value, **kwargs)
-
+                def factory(value: str, **kwargs: dict[str, Any]) -> Symbol:
+                    # Extract known parameters
+                    asset_index_raw = kwargs.get("asset_index") if kwargs else None
+                    symbol_id_raw = kwargs.get("symbol_id") if kwargs else None
+                    
+                    # Type-check and cast
+                    asset_index = cast(
+                        int | None, asset_index_raw if isinstance(asset_index_raw, int) else None
+                    )
+                    symbol_id = cast(
+                        int | None, symbol_id_raw if isinstance(symbol_id_raw, int) else None
+                    )
+                    
+                    # Call handler with appropriate parameters
+                    if asset_index is not None and symbol_id is not None:
+                        return handler.create_symbol(
+                            value, asset_index=asset_index, symbol_id=symbol_id
+                        )
+                    if asset_index is not None:
+                        return handler.create_symbol(value, asset_index=asset_index)
+                    if symbol_id is not None:
+                        return handler.create_symbol(value, symbol_id=symbol_id)
+                    return handler.create_symbol(value)
                 return factory
             return None
-
         mock.get_factory.side_effect = get_factory
-
-        # Configure get_handlers
+    
+    def _configure_get_handlers(self, mock: Mock) -> None:
+        """Configure get_handlers method."""
         def get_handlers() -> dict[ExchangeName, ExchangeHandler[Any]]:
             return self._handlers.copy()
-
         mock.get_handlers.side_effect = get_handlers
-
-        # Configure __getattr__ for exchange access
+    
+    def _configure_getattr_handler(self, mock: Mock) -> None:
+        """Configure __getattr__ handler."""
         def getattr_handler(name: str) -> Callable[[str], Symbol] | None:
             exchange = ExchangeName[name.upper()]
-            return get_factory(exchange)
-
-        mock.__getattr__ = getattr_handler
-
-        return mock
+            result = mock.get_factory.side_effect(exchange)
+            return cast(Callable[[str], Symbol] | None, result)
+        mock.configure_mock(__getattr__=getattr_handler)
+    

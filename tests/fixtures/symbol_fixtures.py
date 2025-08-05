@@ -6,7 +6,7 @@ leveraging the existing symbol factories to avoid repetitive symbol creation.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 
@@ -152,8 +152,7 @@ def spot_asset(any_exchange: ExchangeName) -> Callable[[str], Symbol]:
         result = factory(f"{asset}_USDC")
         assert isinstance(result, BaseSymbol)
         # BaseSymbol is assignable to Symbol
-        symbol_result: Symbol = result
-        return symbol_result
+        return cast(Symbol, result)
 
     return _create
 
@@ -173,8 +172,7 @@ def exchange_symbol() -> Callable[[str, ExchangeName], Symbol]:
         result = factory(value)
         assert isinstance(result, BaseSymbol)
         # BaseSymbol is assignable to Symbol
-        symbol_result: Symbol = result
-        return symbol_result
+        return cast(Symbol, result)
 
     return _create
 

@@ -184,6 +184,7 @@ class TestFundingRate:
         )
 
         assert fr.hl_details == hl_details
+        assert fr.hl_details is not None
         assert fr.hl_details.premium == Decimal("0.0001")
         assert fr.hl_details.hl_day_ntl_vlm is None
         assert fr.bp_details is None  # Should be exclusive

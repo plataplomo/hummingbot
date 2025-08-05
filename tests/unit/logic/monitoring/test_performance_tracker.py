@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -105,9 +106,11 @@ class TestPerformanceTracker:
         
         # Use public API to verify configuration
         summary = tracker.get_metrics_summary()
-        enabled_metrics = summary["enabled_metrics"]
+        enabled_metrics = cast(list[str], summary["enabled_metrics"])
         assert isinstance(enabled_metrics, list)
-        assert len(enabled_metrics) == 6
+        # Type-aware length check for pyright
+        enabled_metrics_count = len(enabled_metrics)
+        assert enabled_metrics_count == 6
         assert summary["calculation_period_days"] == 30
         assert summary["risk_free_rate"] == 0.05
         assert summary["include_fees"] is True
@@ -299,9 +302,11 @@ class TestPerformanceTracker:
         summary = performance_tracker.get_metrics_summary()
 
         assert "enabled_metrics" in summary
-        enabled_metrics = summary["enabled_metrics"]
+        enabled_metrics = cast(list[str], summary["enabled_metrics"])
         assert isinstance(enabled_metrics, list)
-        assert len(enabled_metrics) == 6
+        # Type-aware length check for pyright
+        enabled_metrics_count = len(enabled_metrics)
+        assert enabled_metrics_count == 6
         assert summary["calculation_period_days"] == 30
         assert summary["include_fees"] is True
         assert summary["risk_free_rate"] == 0.05

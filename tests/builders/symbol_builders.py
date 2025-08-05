@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from decimal import Decimal
-from typing import Any, Self
+from typing import Any, Self, cast
 
 from cyberdelta.core.symbols import Symbol, symbol
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -21,7 +21,7 @@ class ArbitragePair:
     long: Symbol
     short: Symbol
     spread_threshold: Decimal = Decimal("0.001")
-    metadata: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=lambda: cast(dict[str, Any], {}))
 
 
 @dataclass

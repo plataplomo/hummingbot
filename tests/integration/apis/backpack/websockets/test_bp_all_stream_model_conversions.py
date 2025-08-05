@@ -14,7 +14,7 @@ import asyncio
 import contextlib
 from collections.abc import Iterator
 from decimal import Decimal
-from typing import Any, Protocol, TypeGuard
+from typing import Any, Protocol, TypeGuard, cast
 
 import pytest
 from pydantic import ValidationError
@@ -116,7 +116,8 @@ class TestBackpackAllStreamModelConversions:
                 return symbol_value
             # Handle Symbol objects that were serialized to dict
             if isinstance(symbol_value, dict) and "value" in symbol_value:
-                return str(symbol_value["value"])
+                value = cast(str, symbol_value["value"])
+                return str(value)
         return None
 
     def _get_model_dict_keys(self, model_dict: object) -> list[str] | str:
