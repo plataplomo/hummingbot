@@ -11,6 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import FieldNameMissingError
 from cyberdelta.exceptions.parsing import ParsingError
 from cyberdelta.models.derivative_position import (
@@ -206,7 +207,7 @@ def test_derivative_position_mutability(
     assert pos.entry_price is None
 
     # Test mutating details slot (should be allowed)
-    pos.exchange = "backpack"  # Change exchange first to pass model validation
+    pos.exchange = ExchangeName.BACKPACK  # Change exchange first to pass model validation
     pos.bp_details = BackpackPositionDetails(imf_base=Decimal("0.2"))
     assert pos.bp_details is not None
     assert pos.bp_details.imf_base == Decimal("0.2")

@@ -36,8 +36,10 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder
 from cyberdelta.apis.hyperliquid.services.market_data.hl_price_ticker_service import (
     HyperliquidPriceTickerService,
 )
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import FundingRate, Ticker
 from cyberdelta.models.market.mid_prices import MidPrices
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
 @pytest.fixture
@@ -182,8 +184,8 @@ def mock_ticker() -> Ticker:
         Ticker: A mock ticker for ETH with test data.
     """
     return Ticker(
-        symbol="ETH",
-        exchange="hyperliquid",
+        symbol=ETH_HL,
+        exchange=ExchangeName.HYPERLIQUID,
         timestamp=datetime.now(UTC),
         price=Decimal("3500.00"),
         bid=Decimal("3499.50"),
@@ -200,7 +202,7 @@ def mock_funding_rate() -> FundingRate:
         FundingRate: A mock funding rate for ETH.
     """
     return FundingRate(
-        symbol="ETH",
+        symbol=ETH_HL,
         timestamp=datetime.now(UTC),
         funding_rate=Decimal("0.0001"),
         mark_price=Decimal("3500.00"),
@@ -231,11 +233,11 @@ def mock_mid_prices() -> MidPrices:
     """
     return MidPrices(
         prices={
-            "ETH": Decimal("3500.00"),
-            "BTC": Decimal("65000.00"),
-            "SOL": Decimal("150.00"),
+            ETH_HL: Decimal("3500.00"),
+            BTC_HL: Decimal("65000.00"),
+            SOL_HL: Decimal("150.00"),
         },
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         timestamp=datetime.now(UTC),
     )
 
@@ -328,7 +330,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test successful ticker retrieval."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         # Mock get_all_asset_contexts_raw to return our mock response
         with patch.object(
@@ -356,7 +358,9 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test ticker retrieval when symbol is not found."""
         # Arrange
-        symbol = "NONEXISTENT"
+        from cyberdelta.core.symbols import exchanges
+
+        symbol = exchanges.hyperliquid("NONEXISTENT")
 
         with patch.object(
             price_ticker_service,
@@ -376,15 +380,17 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test ticker retrieval with invalid symbol."""
         # Arrange & Act & Assert
-        with pytest.raises(ValueError) as exc_info:
-            await price_ticker_service.get_ticker("")
+        # Test validation logic that checks for invalid symbols
+        from cyberdelta.core.symbols import exchanges
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        # These should raise validation errors due to empty/whitespace values
+        with pytest.raises((ValueError, ValidationError)):
+            empty_symbol = exchanges.hyperliquid("")
+            await price_ticker_service.get_ticker(empty_symbol)
 
-        with pytest.raises(ValueError) as exc_info:
-            await price_ticker_service.get_ticker("   ")
-
-        assert "'symbol' cannot be empty or whitespace only" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            whitespace_symbol = exchanges.hyperliquid("   ")
+            await price_ticker_service.get_ticker(whitespace_symbol)
 
     @pytest.mark.asyncio
     async def test_get_ticker_transformation_error(
@@ -395,7 +401,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test ticker retrieval with transformation error."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         with patch.object(
             price_ticker_service,
@@ -489,7 +495,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test successful funding rate retrieval."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         with patch.object(
             price_ticker_service,
@@ -515,7 +521,9 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test funding rate retrieval when symbol is not found."""
         # Arrange
-        symbol = "NONEXISTENT"
+        from cyberdelta.core.symbols import exchanges
+
+        symbol = exchanges.hyperliquid("NONEXISTENT")
 
         with patch.object(
             price_ticker_service,
@@ -535,10 +543,11 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test funding rate retrieval with invalid symbol."""
         # Act & Assert
-        with pytest.raises(ValueError) as exc_info:
-            await price_ticker_service.get_funding_rate("")
+        from cyberdelta.core.symbols import exchanges
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            empty_symbol = exchanges.hyperliquid("")
+            await price_ticker_service.get_funding_rate(empty_symbol)
 
     @pytest.mark.asyncio
     async def test_get_ticker_empty_contexts(
@@ -547,7 +556,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test ticker retrieval with empty contexts response."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
         # Use list format for empty response too
         empty_meta_dict: dict[str, list[object] | None] = {"universe": [], "marginTables": None}
         empty_response = HyperliquidRawMetaAndAssetCtxsResponse.model_validate([

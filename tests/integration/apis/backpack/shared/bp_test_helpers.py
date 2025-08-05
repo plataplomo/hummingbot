@@ -347,7 +347,7 @@ def validate_symbol_format(symbol: Symbol, exchange_name: str = "backpack") -> b
             return False
 
         symbol_str = symbol.value
-        
+
         # Check for valid characters (alphanumeric and underscores)
         if not all(c.isalnum() or c == "_" for c in symbol_str):
             return False

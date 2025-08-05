@@ -13,8 +13,9 @@ from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
 from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
     BackpackAccountRequestBuilder,
 )
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
+from tests.common_symbols import USDC_BP
 
 
 class TestBuildWithdrawPayload:
@@ -200,7 +201,7 @@ class TestBuildWithdrawPayload:
 class TestBuildInternalTransferPayload:
     """Tests for build_internal_transfer_payload method."""
 
-    def test_build_internal_transfer_payload_minimal(self, usdc_asset: str) -> None:
+    def test_build_internal_transfer_payload_minimal(self, usdc_asset: Symbol) -> None:
         """Test build_internal_transfer_payload with minimal required fields."""
         payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
@@ -218,7 +219,7 @@ class TestBuildInternalTransferPayload:
         }
         assert payload_dict == expected_payload
 
-    def test_build_internal_transfer_payload_with_client_id(self, sol_asset: str) -> None:
+    def test_build_internal_transfer_payload_with_client_id(self, sol_asset: Symbol) -> None:
         """Test build_internal_transfer_payload with sub_account_id."""
         payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=sol_asset,
@@ -255,7 +256,7 @@ class TestBuildInternalTransferPayload:
         }
         assert payload_dict == expected_payload
 
-    def test_build_internal_transfer_payload_spot_to_futures(self, usdc_asset: str) -> None:
+    def test_build_internal_transfer_payload_spot_to_futures(self, usdc_asset: Symbol) -> None:
         """Test build_internal_transfer_payload from SPOT to FUTURES."""
         payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=usdc_asset,
@@ -273,7 +274,7 @@ class TestBuildInternalTransferPayload:
         }
         assert payload_dict == expected_payload
 
-    def test_build_internal_transfer_payload_futures_to_spot(self, eth_asset: str) -> None:
+    def test_build_internal_transfer_payload_futures_to_spot(self, eth_asset: Symbol) -> None:
         """Test build_internal_transfer_payload from FUTURES to SPOT."""
         payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=eth_asset,
@@ -291,7 +292,7 @@ class TestBuildInternalTransferPayload:
         }
         assert payload_dict == expected_payload
 
-    def test_build_internal_transfer_payload_margin_to_futures(self, sol_asset: str) -> None:
+    def test_build_internal_transfer_payload_margin_to_futures(self, sol_asset: Symbol) -> None:
         """Test build_internal_transfer_payload from MARGIN to FUTURES."""
         payload = BackpackAccountRequestBuilder.build_internal_transfer_payload(
             asset_symbol=sol_asset,
@@ -314,15 +315,15 @@ class TestBuildInternalTransferPayload:
     @pytest.mark.parametrize(
         ("asset_symbol", "amount", "from_acc", "to_acc", "client_id", "expected_symbol"),
         [
-            ("USDC", "100", "SPOT", "FUTURES", None, "USDC"),
-            ("sol-perp", "50", "FUTURES", "SPOT", "transfer1", "sol-perp"),
-            ("BTC-USD", "0.1", "MARGIN", "SPOT", None, "BTC-USD"),
-            ("eth_usdc", "10", "SPOT", "MARGIN", "ethTransfer", "eth_usdc"),
+            (USDC_BP, "100", "SPOT", "FUTURES", None, USDC_BP.value),
+            (exchanges.backpack("SOL-PERP"), "50", "FUTURES", "SPOT", "transfer1", "SOL-PERP"),
+            (exchanges.backpack("BTC-USD"), "0.1", "MARGIN", "SPOT", None, "BTC-USD"),
+            (exchanges.backpack("ETH_USDC"), "10", "SPOT", "MARGIN", "ethTransfer", "ETH_USDC"),
         ],
     )
     def test_build_internal_transfer_payload_parametrized(
         self,
-        asset_symbol: str,
+        asset_symbol: Symbol,
         amount: str,
         from_acc: str,
         to_acc: str,

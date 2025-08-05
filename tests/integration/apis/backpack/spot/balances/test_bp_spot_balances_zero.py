@@ -144,7 +144,7 @@ class TestBackpackSpotBalancesZero:
             assert asset_symbol.isupper()
 
             assert isinstance(spot_balance, SpotBalance)
-            assert spot_balance.asset == asset_symbol
+            assert spot_balance.asset.value == asset_symbol
             assert spot_balance.exchange == "backpack"
 
             assert spot_balance.bp_details is not None
@@ -258,7 +258,7 @@ class TestBackpackSpotBalancesZero:
             assert len(asset_symbol) <= 10
             assert asset_symbol.isupper()
             assert asset_pattern.match(asset_symbol)
-            assert spot_balance.asset == asset_symbol
+            assert spot_balance.asset.value == asset_symbol
 
             known_assets = {"USDC", "SOL", "BTC", "ETH", "BONK", "JUP", "WIF"}
             if asset_symbol in known_assets:

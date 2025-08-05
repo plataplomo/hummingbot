@@ -22,6 +22,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 
 
 pytestmark = [
@@ -151,7 +152,7 @@ class TestHyperliquidPydanticRouter:
         return original_processors
 
     async def _setup_test_subscriptions(
-        self, hl_api_for_test_env: HyperliquidAPI, test_symbol: str
+        self, hl_api_for_test_env: HyperliquidAPI, test_symbol: Symbol
     ) -> None:
         """Set up test subscriptions to trigger processor delegation."""
         subscription_types = [

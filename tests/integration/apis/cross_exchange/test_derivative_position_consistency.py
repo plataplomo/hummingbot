@@ -32,8 +32,9 @@ class TestCrossExchangeDerivativePositionConsistency:
 
                 # Cross-exchange validation
                 assert position.exchange in ["backpack", "hyperliquid"]
-                assert isinstance(position.symbol, str)
-                assert len(position.symbol) > 0
+                # Symbol is now a Symbol object, not a string
+                assert hasattr(position.symbol, "value"), "Symbol should have a value attribute"
+                assert len(position.symbol.value) > 0
 
                 # Size validation
                 assert isinstance(position.size, Decimal)

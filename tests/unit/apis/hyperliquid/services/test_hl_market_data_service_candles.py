@@ -13,6 +13,7 @@ from cyberdelta.apis.hyperliquid.services.hl_market_data_service import Hyperliq
 from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetCandleSnapshotArgs
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.models.market.candle import Candle
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
@@ -35,7 +36,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data (candlesticks) successfully retrieves and processes data."""
-        symbol = "ETH"
+        symbol = ETH_HL
         interval = "1m"
         start_time_ms = 1672531200000  # Example: 2023-01-01 00:00:00 UTC
         end_time_ms = 1672534800000  # Example: 2023-01-01 01:00:00 UTC
@@ -72,7 +73,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_dict = {
             "type": "candleSnapshot",
             "req": {
-                "coin": symbol,
+                "coin": symbol.value,
                 "interval": interval,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms,
@@ -152,7 +153,7 @@ class TestHyperliquidMarketDataServiceCandles:
         # Verify response handler was called with correct parameters
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
             mock_raw_candle_data,
-            symbol,
+            symbol.value,
             interval,
             200,
             mock_headers,
@@ -174,7 +175,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_market_data when HTTP client returns None content."""
-        symbol = "ETH"
+        symbol = ETH_HL
         interval = "1h"
         start_time_ms = 1678886400000
         end_time_ms = 1678890000000
@@ -187,7 +188,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_dict = {
             "type": "candleSnapshot",
             "req": {
-                "coin": symbol,
+                "coin": symbol.value,
                 "interval": interval,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms,
@@ -219,7 +220,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_market_data propagates TIMEOUT error correctly."""
-        symbol = "BTC"
+        symbol = BTC_HL
         interval = "5m"
         start_time_ms = 1672531200000
         end_time_ms = 1672534800000
@@ -229,7 +230,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_dict = {
             "type": "candleSnapshot",
             "req": {
-                "coin": symbol,
+                "coin": symbol.value,
                 "interval": interval,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms,
@@ -277,7 +278,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_request_builder: MagicMock,
     ) -> None:
         """Test get_market_data handles KeyError from request builder."""
-        symbol = "ETH"
+        symbol = ETH_HL
         interval = "1d"
         start_time_ms = 1672531200000
         end_time_ms = 1672617600000
@@ -320,7 +321,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_request_builder: MagicMock,
     ) -> None:
         """Test get_market_data with invalid time range (end < start)."""
-        symbol = "BTC"
+        symbol = BTC_HL
         interval = "1m"
         start_time_ms = 1672534800000  # Later time
         end_time_ms = 1672531200000  # Earlier time
@@ -349,7 +350,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_market_data handles response handler validation errors."""
-        symbol = "ETH"
+        symbol = ETH_HL
         interval = "4h"
         start_time_ms = 1672531200000
         end_time_ms = 1672534800000
@@ -359,7 +360,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_dict = {
             "type": "candleSnapshot",
             "req": {
-                "coin": symbol,
+                "coin": symbol.value,
                 "interval": interval,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms,
@@ -401,7 +402,7 @@ class TestHyperliquidMarketDataServiceCandles:
         assert "Invalid candle snapshot response structure" in exc_info.value.message
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
             mock_malformed_response,
-            symbol,
+            symbol.value,
             interval,
             200,
             {},
@@ -417,7 +418,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data handles mapper errors gracefully."""
-        symbol = "BTC"
+        symbol = BTC_HL
         interval = "15m"
         start_time_ms = 1672531200000
         end_time_ms = 1672534800000
@@ -439,7 +440,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_dict = {
             "type": "candleSnapshot",
             "req": {
-                "coin": symbol,
+                "coin": symbol.value,
                 "interval": interval,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms,
@@ -490,7 +491,7 @@ class TestHyperliquidMarketDataServiceCandles:
         # Verify response handler was called with correct parameters
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
             mock_valid_response,
-            symbol,
+            symbol.value,
             interval,
             200,
             {},
@@ -513,7 +514,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data handles empty but successful response correctly."""
-        symbol = "ETH"
+        symbol = ETH_HL
         interval = "1w"
         start_time_ms = 1672531200000
         end_time_ms = 1672534800000
@@ -535,7 +536,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_payload_dict = {
             "type": "candleSnapshot",
             "req": {
-                "coin": symbol,
+                "coin": symbol.value,
                 "interval": interval,
                 "startTime": start_time_ms,
                 "endTime": end_time_ms,
@@ -582,7 +583,7 @@ class TestHyperliquidMarketDataServiceCandles:
         # Verify response handler was called with correct parameters
         mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
             mock_empty_response,
-            symbol,
+            symbol.value,
             interval,
             200,
             {},
@@ -604,7 +605,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_market_data propagates SERVER_ERROR correctly."""
-        symbol = "BTC"
+        symbol = BTC_HL
         interval = "1h"
         start_time_ms = 1672531200000
         end_time_ms = 1672534800000
@@ -651,7 +652,7 @@ class TestHyperliquidMarketDataServiceCandles:
         mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_market_data works with various interval types."""
-        symbol = "ETH"
+        symbol = ETH_HL
         intervals = ["1m", "5m", "15m", "1h", "4h", "1d", "1w"]
         start_time_ms = 1672531200000
         end_time_ms = 1672534800000
@@ -680,7 +681,7 @@ class TestHyperliquidMarketDataServiceCandles:
             mock_payload_dict = {
                 "type": "candleSnapshot",
                 "req": {
-                    "coin": symbol,
+                    "coin": symbol.value,
                     "interval": interval,
                     "startTime": start_time_ms,
                     "endTime": end_time_ms,
@@ -753,7 +754,7 @@ class TestHyperliquidMarketDataServiceCandles:
             # Verify response handler was called with correct parameters
             mock_hl_response_handler.handle_info_candle_snapshot_response.assert_called_once_with(
                 mock_interval_response,
-                symbol,
+                symbol.value,
                 interval,
                 200,
                 {},

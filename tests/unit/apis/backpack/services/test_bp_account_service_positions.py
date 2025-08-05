@@ -17,7 +17,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionR
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.enums import OrderSide
-from tests.common_symbols import SOL_BP
+from tests.common_symbols import BTC_USDC_BP, SOL_BP, SOL_USDC_BP
 
 
 class TestBackpackAccountServicePositions:
@@ -36,7 +36,7 @@ class TestBackpackAccountServicePositions:
 
         Tested via public get_positions.
         """
-        symbol_arg = SOL_BP.value
+        symbol_arg = SOL_BP
         mock_raw_positions_data_item_dict = {
             "symbol": SOL_BP.value,
             "subaccountId": 0,  # Add missing required field
@@ -129,7 +129,7 @@ class TestBackpackAccountServicePositions:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test get_positions when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         # Mock the HTTP client to return None which triggers APIError
         mock_http_client_requester.return_value = (None, 200, {})
 
@@ -149,7 +149,7 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_positions handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
 
         # Mock the HTTP client to return invalid data that causes validation error
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
@@ -179,7 +179,7 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions handles unexpected exception via public API."""
         # Mock the HTTP client to return valid data
-        mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
+        mock_http_client_requester.return_value = ([{"symbol": SOL_USDC_BP.value}], 200, {})
 
         # Mock the response handler to raise an unexpected exception
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
@@ -203,7 +203,7 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions with None symbol (all positions scenario)."""
         mock_raw_position_data = {
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "subaccountId": 0,  # Add missing required field
             "breakEvenPrice": "100.0",
             "entryPrice": "100.0",
@@ -236,7 +236,7 @@ class TestBackpackAccountServicePositions:
         # Business logic returns positions with exchange="backpack"
         assert len(result) == 1
         assert result[0].exchange == "backpack"
-        assert result[0].symbol == "SOL_USDC"
+        assert result[0].symbol == SOL_USDC_BP
 
     @pytest.mark.asyncio
     async def test_get_positions_comprehensive_scenarios(
@@ -252,7 +252,7 @@ class TestBackpackAccountServicePositions:
         Tests proper DerivativePosition construction.
         """
         mock_raw_position_data = {
-            "symbol": "SOL_USDC",
+            "symbol": SOL_USDC_BP.value,
             "subaccountId": 0,  # Add missing required field
             "breakEvenPrice": "100.0",
             "entryPrice": "100.0",
@@ -285,7 +285,7 @@ class TestBackpackAccountServicePositions:
         # Business logic returns positions with exchange="backpack"
         assert len(result) == 1
         assert result[0].exchange == "backpack"
-        assert result[0].symbol == "SOL_USDC"
+        assert result[0].symbol == SOL_USDC_BP
 
     @pytest.mark.asyncio
     async def test_get_positions_validation_error_coverage(
@@ -296,7 +296,7 @@ class TestBackpackAccountServicePositions:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_positions handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
 
         # Mock the HTTP client to return invalid data that causes validation error
         mock_http_client_requester.return_value = ([{"invalid": "position"}], 200, {})
@@ -326,7 +326,7 @@ class TestBackpackAccountServicePositions:
     ) -> None:
         """Test get_positions handles unexpected exception."""
         # Mock the HTTP client to return valid data
-        mock_http_client_requester.return_value = ([{"symbol": "SOL_USDC"}], 200, {})
+        mock_http_client_requester.return_value = ([{"symbol": SOL_USDC_BP.value}], 200, {})
 
         # Mock the response handler to raise an unexpected exception
         mock_response_handler.handle_get_positions_response.side_effect = Exception(
@@ -349,7 +349,7 @@ class TestBackpackAccountServicePositions:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_positions with specific symbol parameter."""
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
         # Mock the HTTP client to return empty list
         mock_http_client_requester.return_value = ([], 200, {})
         mock_response_handler.handle_get_positions_response.return_value = []
@@ -368,13 +368,13 @@ class TestBackpackAccountServicePositions:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_positions handles mapper exceptions gracefully."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
 
         # Mock the HTTP client and response handler to return valid data
         mock_http_client_requester.return_value = (
             [
                 BackpackRawPositionResponse.model_validate({
-                    "symbol": symbol,
+                    "symbol": symbol.value,
                     "subaccountId": 0,
                     "breakEvenPrice": "100.0",
                     "entryPrice": "100.0",
@@ -403,7 +403,7 @@ class TestBackpackAccountServicePositions:
         # Mock response handler to process data but mapper fails
         mock_response_handler.handle_get_positions_response.return_value = [
             BackpackRawPositionResponse(
-                symbol=symbol,
+                symbol=symbol.value,
                 subaccountId=0,
                 breakEvenPrice="100.0",
                 entryPrice="100.0",

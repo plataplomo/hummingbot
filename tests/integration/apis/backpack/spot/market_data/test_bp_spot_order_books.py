@@ -18,10 +18,10 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
-from cyberdelta.models import OrderBook
-from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP, ETH_USDC_BP
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import OrderBook
+from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
 
 
 # Mark all tests in this file

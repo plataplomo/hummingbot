@@ -163,7 +163,7 @@ class TestTransformRawAssetCtxToTicker:
         ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         assert isinstance(ticker, Ticker)
-        assert ticker.symbol == raw_ctx.name
+        assert ticker.symbol.value == raw_ctx.name
         assert isinstance(ticker.timestamp, datetime)
         assert (datetime.now(UTC) - ticker.timestamp) < timedelta(seconds=5)
 
@@ -184,7 +184,7 @@ class TestTransformRawAssetCtxToTicker:
         ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         assert isinstance(ticker, Ticker)
-        assert ticker.symbol == raw_ctx.name
+        assert ticker.symbol.value == raw_ctx.name
         assert ticker.price == Decimal(raw_ctx.mark_px)
         assert ticker.volume == Decimal(raw_ctx.day_ntl_vlm)
 
@@ -207,7 +207,7 @@ class TestTransformRawAssetCtxToTicker:
         # Verify precision is maintained (8 decimal places)
         assert ticker.price == Decimal("3010.12345679")
         assert ticker.volume == Decimal("50000000.11111111")
-        assert ticker.symbol == "PRECISION-PERP"
+        assert ticker.symbol.value == "PRECISION-PERP"
 
     def test_ticker_transformation_zero_values(
         self,
@@ -227,7 +227,7 @@ class TestTransformRawAssetCtxToTicker:
 
         assert ticker.price == Decimal("0.0")
         assert ticker.volume == Decimal("0.0")
-        assert ticker.symbol == "ZERO-PERP"
+        assert ticker.symbol.value == "ZERO-PERP"
 
     def test_ticker_timestamp_generation_consistency(
         self,
@@ -272,7 +272,7 @@ class TestTransformRawAssetCtxToTicker:
         ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(raw_ctx)
 
         # Ticker transformation should not be affected by negative funding
-        assert ticker.symbol == "NEGATIVE-FUND-PERP"
+        assert ticker.symbol.value == "NEGATIVE-FUND-PERP"
         assert ticker.price == Decimal("1500.75")
         assert ticker.volume == Decimal("25000000.50")
 
@@ -295,7 +295,7 @@ class TestTransformRawAssetCtxToTicker:
         assert ticker.price == Decimal("999999.99")
         # Business logic may introduce small precision differences for large volumes
         assert ticker.volume == Decimal("999999999999.98999023")
-        assert ticker.symbol == "LARGE-VALUES-PERP"
+        assert ticker.symbol.value == "LARGE-VALUES-PERP"
 
 
 # --- Tests for funding rate transformations ---
@@ -315,7 +315,7 @@ class TestTransformRawAssetCtxToFundingRate:
 
         assert funding_rate is not None
         assert isinstance(funding_rate, FundingRate)
-        assert funding_rate.symbol == raw_ctx.name
+        assert funding_rate.symbol.value == raw_ctx.name
         assert isinstance(funding_rate.timestamp, datetime)
         assert (datetime.now(UTC) - funding_rate.timestamp) < timedelta(seconds=10)
 
@@ -352,7 +352,7 @@ class TestTransformRawAssetCtxToFundingRate:
 
         assert funding_rate is not None
         assert isinstance(funding_rate, FundingRate)
-        assert funding_rate.symbol == raw_ctx.name
+        assert funding_rate.symbol.value == raw_ctx.name
 
         # Verify negative funding rate handling
         expected_hourly_rate = Decimal(raw_ctx.funding)
@@ -529,9 +529,9 @@ class TestCoreBusinessLogicValidation:
             funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx)
 
             # Symbol names should be identical across transformations
-            assert ticker.symbol == symbol
+            assert ticker.symbol.value == symbol
             assert funding_rate is not None
-            assert funding_rate.symbol == symbol
+            assert funding_rate.symbol.value == symbol
 
     def test_timestamp_generation_proximity(
         self,
@@ -601,7 +601,7 @@ class TestCoreBusinessLogicValidation:
         funding_rate = funding_mapper.transform_raw_asset_ctx_to_funding_rate(raw_ctx_no_impact)
 
         # Ticker transformation should work regardless of impact price
-        assert ticker.symbol == "NO-IMPACT-PERP"
+        assert ticker.symbol.value == "NO-IMPACT-PERP"
         assert ticker.price == Decimal("2000.0")
 
         # Funding rate should handle None impact price correctly

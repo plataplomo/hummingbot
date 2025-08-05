@@ -97,8 +97,9 @@ async def test_hl_get_perp_market_data_eth_1h_success(
     end_time = 1640995200
     start_time = end_time - 3600
 
+    test_symbol = exchanges.hyperliquid("ETH")
     args = GetMarketDataArgs(
-        symbol=exchanges.hyperliquid("ETH"),
+        symbol=test_symbol,
         timeframe="1h",
         start_time_ms=start_time * 1000,
         end_time_ms=end_time * 1000,
@@ -118,7 +119,7 @@ async def test_hl_get_perp_market_data_eth_1h_success(
             try:
                 current_price = await HyperliquidTestHelpers.get_current_market_price(
                     hl_api_for_test_env,
-                    "ETH",
+                    test_symbol,
                 )
                 # Allow historical prices to be within 50% of current price (reasonable range)
                 min_reasonable = current_price * Decimal("0.5")

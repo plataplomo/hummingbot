@@ -21,6 +21,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
 
@@ -56,7 +57,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 logger = get_logger(__name__)
 
 
-async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[str]]:
+async def get_real_trading_symbols(api: BackpackAPI) -> dict[str, list[Symbol]]:
     """Get real trading symbols from the exchange for subscription testing.
 
     Args:
@@ -228,7 +229,9 @@ class TestBackpackAPIRealWebSocketSubscriptions:
                 # Validate topic uses real symbols when applicable
                 if stream_type != "account":
                     all_symbols = symbols["spot"] + symbols["perp"]
-                    if not validate_subscription_topic(topic, all_symbols):
+                    # Convert Symbol objects to strings for validation
+                    symbol_strings = [sym.value for sym in all_symbols]
+                    if not validate_subscription_topic(topic, symbol_strings):
                         pytest.fail(
                             f"Invalid topic using non-real symbol: {topic}. "
                             "All subscriptions must use real exchange symbols.",

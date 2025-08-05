@@ -23,8 +23,8 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market import OrderBook, Trade
 
 
@@ -32,7 +32,7 @@ pytestmark = [pytest.mark.integration, pytest.mark.timing]
 logger = get_logger(__name__)
 
 
-async def get_active_trading_symbols(api: HyperliquidAPI) -> list[str]:
+async def get_active_trading_symbols(api: HyperliquidAPI) -> list[Symbol]:
     """Get actively trading symbols from exchange with real market data.
 
     Args:
@@ -77,7 +77,7 @@ class TestHyperliquidWebSocketMarketData:
 
     async def _setup_l2book_test(
         self, hl_api: HyperliquidAPI
-    ) -> tuple[str, list[OrderBook], asyncio.Event]:
+    ) -> tuple[Symbol, list[OrderBook], asyncio.Event]:
         """Setup L2 book test environment.
 
         Returns:
@@ -90,7 +90,10 @@ class TestHyperliquidWebSocketMarketData:
         return test_symbol, received_orderbooks, data_received
 
     def _create_l2book_handler(
-        self, test_symbol: Symbol, received_orderbooks: list[OrderBook], data_received: asyncio.Event
+        self,
+        test_symbol: Symbol,
+        received_orderbooks: list[OrderBook],
+        data_received: asyncio.Event,
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create L2 book handler with validation.
 

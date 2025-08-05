@@ -10,8 +10,8 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.apis.backpack.request_builders.bp_trading_request_builder import (
     BackpackTradingRequestBuilder,
 )
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from tests.common_symbols import BTC_USDT_BP, SOL_USDC_BP
 
 
@@ -132,8 +132,18 @@ class TestBuildGetTradeHistoryParams:
         [
             (SOL_USDC_BP, None, None, {"symbol": "SOL_USDC", "limit": 100}),
             (BTC_USDT_BP, 50, None, {"symbol": "BTC_USDT", "limit": 50}),
-            (exchanges.backpack("ETH_USDC_PERP"), None, "fillId", {"symbol": "ETH_USDC_PERP", "limit": 100, "fromId": "fillId"}),
-            (exchanges.backpack("SOL_USDC"), 25, "id123", {"symbol": "SOL_USDC", "limit": 25, "fromId": "id123"}),
+            (
+                exchanges.backpack("ETH_USDC_PERP"),
+                None,
+                "fillId",
+                {"symbol": "ETH_USDC_PERP", "limit": 100, "fromId": "fillId"},
+            ),
+            (
+                exchanges.backpack("SOL_USDC"),
+                25,
+                "id123",
+                {"symbol": "SOL_USDC", "limit": 25, "fromId": "id123"},
+            ),
         ],
     )
     def test_build_get_trade_history_params_parametrized(

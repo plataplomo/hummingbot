@@ -32,10 +32,10 @@ from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
 from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, Trade
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.operations import (
     Transfer,
     Withdrawal,

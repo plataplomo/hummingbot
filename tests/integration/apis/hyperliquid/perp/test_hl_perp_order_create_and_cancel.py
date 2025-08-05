@@ -30,7 +30,6 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
@@ -91,10 +90,11 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             )
 
         # Select a random symbol (first available for deterministic VCR)
-        symbol = available_symbols[0]
+        symbol = available_symbols[0]  # Already a Symbol object
+        symbol_str = symbol.value  # Get string representation for logging
         logger.info(
             "test_symbol_selected",
-            symbol=symbol,
+            symbol=symbol_str,
             selection_method="first_available",
             message="Selected symbol for test",
         )
@@ -131,7 +131,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
 
             # Define order parameters using dynamic values
             place_args = PlaceOrderArgs(
-                symbol=exchanges.hyperliquid(symbol),
+                symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=test_quantity,
@@ -147,8 +147,8 @@ class TestHyperliquidPerpOrderCreateAndCancel:
             assert placed_order.exchange == "hyperliquid", (
                 f"Order.exchange should be 'hyperliquid', got {placed_order.exchange}"
             )
-            assert placed_order.symbol.value == symbol, (
-                f"Order symbol should match request, got {placed_order.symbol.value}"
+            assert placed_order.symbol == symbol, (
+                f"Order symbol should match request, got {placed_order.symbol}"
             )
             assert placed_order.side == OrderSide.BUY, (
                 f"Order side should match request, got {placed_order.side}"
@@ -229,7 +229,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                         "This test requires at least one available perpetual symbol.",
                     )
 
-                symbol = available_symbols[0]
+                symbol = available_symbols[0]  # Already a Symbol object
 
                 # Get market price for minimal test quantity calculation
                 await HyperliquidTestHelpers.get_current_market_price(hl_api_for_test_env, symbol)
@@ -248,7 +248,7 @@ class TestHyperliquidPerpOrderCreateAndCancel:
                 )
 
                 place_args = PlaceOrderArgs(
-                    symbol=exchanges.hyperliquid(symbol),
+                    symbol=symbol,
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=test_quantity,

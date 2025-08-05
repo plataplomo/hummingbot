@@ -84,7 +84,9 @@ class TestBackpackPerpPositionsZero:
                     f"Position {i} must be DerivativePosition"
                 )
                 assert position.exchange == "backpack", f"Position {i} exchange must be 'backpack'"
-                assert isinstance(position.symbol, BaseSymbol), f"Position {i} symbol must be Symbol"
+                assert isinstance(position.symbol, BaseSymbol), (
+                    f"Position {i} symbol must be Symbol"
+                )
                 assert len(position.symbol.value) > 0, f"Position {i} symbol cannot be empty"
 
                 # For zero balance accounts, positions should be dust amounts
@@ -189,6 +191,7 @@ class TestBackpackPerpPositionsZero:
         ]
 
         for symbol_str in invalid_symbol_strings:
+            symbol = None  # Initialize symbol to handle cases where creation fails
             try:
                 # Create Symbol object even for invalid strings
                 try:
@@ -224,10 +227,10 @@ class TestBackpackPerpPositionsZero:
                     APIErrorCode.SERVER_ERROR.value,  # VCR-related errors
                 ]
                 if e.code not in expected_codes:
-                    pytest.fail(f"Unexpected error code for invalid symbol {symbol}: {e.code}")
+                    pytest.fail(f"Unexpected error code for invalid symbol {symbol or symbol_str}: {e.code}")
                 logger.info(
                     "invalid_symbol_rejected",
-                    symbol=symbol,
+                    symbol=symbol or symbol_str,
                     error_code=e.code,
                     message="✓ Invalid symbol properly rejected with error",
                 )
@@ -236,14 +239,14 @@ class TestBackpackPerpPositionsZero:
                 # Service layer validation errors for invalid symbols are acceptable
                 logger.info(
                     "invalid_symbol_value_error",
-                    symbol=symbol,
+                    symbol=symbol or symbol_str,
                     error_message=str(e),
                     message="✓ Invalid symbol properly rejected with ValueError",
                 )
 
             except (TypeError, KeyError) as e:
                 pytest.fail(
-                    f"Unexpected exception type for invalid symbol {symbol}: "
+                    f"Unexpected exception type for invalid symbol {symbol or symbol_str}: "
                     f"{type(e).__name__}: {e}",
                 )
 
@@ -432,7 +435,9 @@ class TestBackpackPerpPositionsZero:
         # Symbol validation
         assert isinstance(position.symbol, BaseSymbol), f"Position {index} symbol must be Symbol"
         assert len(position.symbol.value) > 0, f"Position {index} symbol cannot be empty"
-        assert len(position.symbol.value) <= 50, f"Position {index} symbol too long: {position.symbol.value}"
+        assert len(position.symbol.value) <= 50, (
+            f"Position {index} symbol too long: {position.symbol.value}"
+        )
 
         # For perp symbols, should contain _PERP suffix
         if "PERP" in position.symbol.value.upper():

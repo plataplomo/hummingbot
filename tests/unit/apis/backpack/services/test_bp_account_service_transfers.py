@@ -12,6 +12,7 @@ from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccount
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args.account import TransferArgs
 from cyberdelta.core.enums import InternalTransferStatus
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.operations import BackpackTransferDetails, Transfer
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -52,7 +53,7 @@ class TestBackpackAccountServiceTransfers:
 
         expected_internal_transfer = Transfer(
             id="transfer789",
-            exchange="backpack_test_account",
+            exchange=ExchangeName.BACKPACK,
             asset=asset,
             quantity=amount,
             status=InternalTransferStatus.COMPLETED,
@@ -321,7 +322,7 @@ class TestBackpackAccountServiceTransfers:
         }
         Transfer(
             id="transfer789",
-            exchange="backpack_test_account",
+            exchange=ExchangeName.BACKPACK,
             asset=asset,
             quantity=amount,
             status=InternalTransferStatus.COMPLETED,

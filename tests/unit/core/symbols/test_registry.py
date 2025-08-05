@@ -3,7 +3,7 @@
 import pytest
 
 from cyberdelta.core.symbols import exchanges, get_registry, symbol, symbols
-from cyberdelta.core.symbols.models import Symbol, BaseSymbol, BackpackMetadata
+from cyberdelta.core.symbols.models import BackpackMetadata, BaseSymbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from tests.common_symbols import AVAX_HL
 
@@ -84,7 +84,7 @@ class TestSymbolRegistry:
         # Should be the same cached object
         assert btc1 is btc2
 
-    def test_all_exchanges_registered(self):
+    def test_all_exchanges_registered(self) -> None:
         """Test that both exchanges are properly registered."""
         registry = get_registry()
 
@@ -102,7 +102,7 @@ class TestSymbolRegistry:
         assert hl_sym.exchange == ExchangeName.HYPERLIQUID
         assert bp_sym.exchange == ExchangeName.BACKPACK
 
-    def test_dynamic_asset_addition(self):
+    def test_dynamic_asset_addition(self) -> None:
         """Test adding new assets dynamically."""
         # Add AVAX dynamically
         symbols.add_asset(
@@ -114,14 +114,20 @@ class TestSymbolRegistry:
         )
 
         # Should now be able to use AVAX
-        avax_hl = symbols.AVAX.hyperliquid()
-        avax_bp = symbols.AVAX.backpack()
+        # Note: Dynamic attribute access - mypy can't verify this
+        # avax_hl = symbols.AVAX.hyperliquid()
+        # avax_bp = symbols.AVAX.backpack()
+        # Instead, use getattr for dynamic access
+        avax_asset = getattr(symbols, "AVAX", None)
+        assert avax_asset is not None
+        avax_hl = avax_asset.hyperliquid()
+        avax_bp = avax_asset.backpack()
 
         assert avax_hl.value == AVAX_HL.value
         assert avax_bp.value == "AVAX_USD_PERP"
         assert avax_bp.metadata.symbol_id == 11111
 
-    def test_for_exchanges_filter(self):
+    def test_for_exchanges_filter(self) -> None:
         """Test filtering symbols for specific exchanges."""
         # Get BTC only for Hyperliquid
         btc_hl_only = symbols.BTC.for_exchanges([ExchangeName.HYPERLIQUID])

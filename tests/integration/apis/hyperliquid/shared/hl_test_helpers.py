@@ -44,7 +44,7 @@ class HyperliquidTestHelpers:
     # Symbol Discovery Utilities
 
     @staticmethod
-    async def get_available_perp_symbols(api: HyperliquidAPI, limit: int = 3) -> list[str]:
+    async def get_available_perp_symbols(api: HyperliquidAPI, limit: int = 3) -> list[Symbol]:
         """Get available perpetual symbols from the exchange.
 
         Args:
@@ -64,20 +64,20 @@ class HyperliquidTestHelpers:
             markets = await api.get_markets(GetMarketsArgs())
             if markets:
                 # Extract symbols from markets data
-                symbols = [market.symbol.value for market in markets][:limit]
+                symbols = [market.symbol for market in markets][:limit]
                 if symbols:
                     return symbols
 
             # Fallback to trying common symbols if meta doesn't work
             common_symbols = ["BTC", "ETH", "SOL"]
-            available_symbols: list[str] = []
+            available_symbols: list[Symbol] = []
 
             for symbol in common_symbols:
                 try:
                     symbol_obj = exchanges.hyperliquid(symbol)
                     market = await api.get_market(GetMarketArgs(symbol=symbol_obj))
                     if market:
-                        available_symbols.append(symbol)
+                        available_symbols.append(symbol_obj)
                         if len(available_symbols) >= limit:
                             break
                 except (APIError, ValueError, TypeError, KeyError) as e:

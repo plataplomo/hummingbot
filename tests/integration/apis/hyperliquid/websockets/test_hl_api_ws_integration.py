@@ -19,6 +19,7 @@ import decimal
 import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 
 import pytest
 
@@ -27,7 +28,9 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.ticker import Ticker
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
@@ -121,7 +124,7 @@ class TestHyperliquidWebSocketIntegration:
             # Simulate WebSocket ticker update using real market data
             ws_ticker = Ticker(
                 symbol=test_symbol,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=rest_ticker.price,  # Use real price from exchange
                 timestamp=datetime.now(UTC),
                 volume=getattr(rest_ticker, "volume", Decimal(0)),
@@ -273,7 +276,7 @@ class TestHyperliquidWebSocketIntegration:
                 order_type=OrderType.LIMIT,
                 quantity_requested=safe_quantity,
                 price=safe_price,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 created_at=datetime.now(UTC),
                 status=placed_order.status,
                 time_in_force=TimeInForce.GTC,
@@ -305,7 +308,7 @@ class TestHyperliquidWebSocketIntegration:
                 order_type=OrderType.LIMIT,
                 quantity_requested=safe_quantity,
                 price=safe_price,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 created_at=ws_order_placed.created_at,
                 status=OrderStatus.CANCELED,
                 time_in_force=TimeInForce.GTC,
@@ -381,7 +384,7 @@ class TestHyperliquidWebSocketIntegration:
         # Create test ticker for timestamp validation only
         fresh_ticker = Ticker(
             symbol=test_symbol,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             price=Decimal(1),  # Placeholder - testing timestamps only
             timestamp=current_time,  # Current timestamp
             volume=Decimal(1),  # Placeholder - testing timestamps only
@@ -397,7 +400,7 @@ class TestHyperliquidWebSocketIntegration:
         stale_timestamp = current_time - timedelta(minutes=10)  # 10 minutes old
         stale_ticker = Ticker(
             symbol=test_symbol,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             price=Decimal(1),  # Placeholder - testing timestamps only
             timestamp=stale_timestamp,
             volume=Decimal(1),  # Placeholder - testing timestamps only
@@ -425,7 +428,7 @@ class TestHyperliquidWebSocketIntegration:
         try:
             invalid_ticker = Ticker(
                 symbol=test_symbol,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=Decimal("100.00"),
                 timestamp=naive_timestamp,  # This should cause issues
                 volume=Decimal("1000.0"),
@@ -494,14 +497,14 @@ class TestHyperliquidWebSocketIntegration:
         )
         return connection_attempts
 
-    async def _test_message_parsing_error_handling(self, test_symbol: str) -> bool:
+    async def _test_message_parsing_error_handling(self, test_symbol: Symbol) -> bool:
         """Test WebSocket message parsing error handling.
 
         Returns:
             True if error handling works correctly
         """
         # Simulate invalid JSON message
-        invalid_json = '{"price": "not_a_number", "symbol": "' + test_symbol + '"}'
+        invalid_json = '{"price": "not_a_number", "symbol": "' + test_symbol.value + '"}'
 
         try:
             # In real implementation, this would parse WebSocket message
@@ -610,12 +613,14 @@ class TestHyperliquidWebSocketIntegration:
 
             # Convert to internal model (simulate WebSocket processing)
             try:
+                # ticker_data["symbol"] is already a Symbol object from get_test_symbol
+                symbol = cast(Symbol, ticker_data["symbol"])
                 ticker = Ticker(
-                    symbol=ticker_data["symbol"],
-                    exchange="hyperliquid",
-                    price=Decimal(ticker_data["price"]),
-                    timestamp=datetime.fromisoformat(ticker_data["timestamp"]),
-                    volume=Decimal(ticker_data["volume"]),
+                    symbol=symbol,
+                    exchange=ExchangeName.HYPERLIQUID,
+                    price=Decimal(str(ticker_data["price"])),
+                    timestamp=datetime.fromisoformat(str(ticker_data["timestamp"])),
+                    volume=Decimal(str(ticker_data["volume"])),
                 )
 
                 # Validate the ticker
@@ -657,7 +662,7 @@ class TestHyperliquidWebSocketIntegration:
             # Using message_id to ensure unique tickers for concurrency validation
             ticker = Ticker(
                 symbol=test_symbol,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=Decimal(1),  # Placeholder for concurrency test - not financial calculation
                 timestamp=datetime.now(UTC),
                 volume=Decimal(1),  # Placeholder for concurrency test - not financial calculation

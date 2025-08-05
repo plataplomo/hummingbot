@@ -591,7 +591,7 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 # @pytest.fixture
 # def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
 #     """Create a CircuitBreakerSystem instance using mock config.
-# 
+#
 #     Returns:
 #         CircuitBreakerSystem: Configured circuit breaker system for testing.
 #     """

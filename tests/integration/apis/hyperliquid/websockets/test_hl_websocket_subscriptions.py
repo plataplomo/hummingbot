@@ -51,7 +51,7 @@ def check_account_subscription_available(api: HyperliquidAPI) -> bool:
         return False
 
 
-async def get_liquid_trading_symbols(api: HyperliquidAPI, min_count: int = 3) -> list[str]:
+async def get_liquid_trading_symbols(api: HyperliquidAPI, min_count: int = 3) -> list[Symbol]:
     """Get liquid trading symbols with volume from real market data.
 
     Args:
@@ -304,12 +304,14 @@ class TestHyperliquidWebSocketCandles:
                 - dict: Container for received candle data by symbol
         """
         liquid_symbols = await get_liquid_trading_symbols(hl_api, min_count=2)
+        # Convert Symbol objects to strings for this function's return type
+        liquid_symbol_strings = [symbol.value for symbol in liquid_symbols]
 
         # Prefer BTC as it's more likely to have active trading and candle data
         test_symbol = "BTC"
-        for symbol in liquid_symbols:
-            if "BTC" in symbol.upper():
-                test_symbol = symbol
+        for symbol_str in liquid_symbol_strings:
+            if "BTC" in symbol_str.upper():
+                test_symbol = symbol_str
                 break
 
         # Use fewer intervals for faster testing
@@ -587,7 +589,8 @@ class TestHyperliquidWebSocketComplexScenarios:
                 - list[str]: List of liquid trading symbols
                 - dict: Container for received messages by channel and symbol
         """
-        liquid_symbols = await get_liquid_trading_symbols(hl_api, min_count=3)
+        liquid_symbols_objects = await get_liquid_trading_symbols(hl_api, min_count=3)
+        liquid_symbols = [symbol.value for symbol in liquid_symbols_objects]
         received_messages: dict[str, dict[str, list[Any]]] = {"l2Book": {}, "trades": {}}
         return liquid_symbols, received_messages
 

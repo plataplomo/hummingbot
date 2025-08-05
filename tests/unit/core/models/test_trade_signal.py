@@ -19,6 +19,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.enums import OrderSide, SignalType
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import (
     DateTimeParsingError,
@@ -347,8 +348,8 @@ def test_tradesignal_mutability(minimal_signal_data: dict[str, Any]) -> None:
     assert signal.source_strategy == "NewStrat"
     signal.confidence = 0.99
     assert signal.confidence == 0.99
-    signal.exchange = ["backpack"]
-    assert signal.exchange == ["backpack"]
+    signal.exchange = [ExchangeName.BACKPACK]
+    assert signal.exchange == [ExchangeName.BACKPACK]
 
     # Modify invalidly - Constraint (gt=0)
     with pytest.raises(ValidationError):

@@ -21,7 +21,7 @@ class BackpackHandler:
 
     def parse_components(self, value: str) -> SymbolComponents:
         """Parse Backpack symbol format.
-        
+
         Returns:
             SymbolComponents: Parsed symbol components.
         """
@@ -50,7 +50,7 @@ class BackpackHandler:
 
     def format_symbol(self, components: SymbolComponents) -> str:
         """Format components into Backpack symbol.
-        
+
         Returns:
             str: Formatted Backpack symbol.
         """
@@ -66,7 +66,7 @@ class BackpackHandler:
 
     def to_canonical(self, value: str) -> tuple[str, SymbolComponents]:
         """Convert to canonical format.
-        
+
         Returns:
             tuple[str, SymbolComponents]: Canonical format and parsed components.
         """
@@ -79,7 +79,7 @@ class BackpackHandler:
 
     def from_canonical(self, canonical: str, components: SymbolComponents) -> str:
         """Convert from canonical to Backpack format.
-        
+
         Returns:
             str: Backpack formatted symbol.
         """
@@ -89,7 +89,7 @@ class BackpackHandler:
         self, asset_index: int | None = None, symbol_id: int | None = None
     ) -> BackpackMetadata:
         """Create Backpack metadata.
-        
+
         Returns:
             BackpackMetadata: Metadata instance for Backpack.
         """
@@ -99,7 +99,7 @@ class BackpackHandler:
         self, value: str, asset_index: int | None = None, symbol_id: int | None = None
     ) -> Symbol:
         """Create Backpack symbol.
-        
+
         Returns:
             Symbol: Created Backpack symbol.
         """

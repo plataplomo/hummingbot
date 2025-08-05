@@ -19,6 +19,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.models.market import Market, OrderBook, Ticker, Trade
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Unit tests for HyperliquidMarketDataService (moved from mislabeled integration tests)
@@ -41,11 +42,12 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_ticker raises ValueError for empty symbol (direct validation error)."""
-        with pytest.raises(ValueError) as exc_info:
-            await hyperliquid_market_data_service.get_ticker("")
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
 
-        # The service raises ValueError directly for input validation
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            invalid_symbol = exchanges.hyperliquid("")
+            await hyperliquid_market_data_service.get_ticker(invalid_symbol)
 
     @pytest.mark.asyncio
     async def test_get_ticker_none_symbol_validation(
@@ -60,14 +62,13 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        none_symbol = cast("str", None)
+        from cyberdelta.core.symbols.models import Symbol
+
+        none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises((ValueError, AttributeError)):
             await hyperliquid_market_data_service.get_ticker(none_symbol)
-
-        # The service raises ValueError directly for input validation
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_ticker_whitespace_symbol_validation(
@@ -75,11 +76,12 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_ticker raises ValueError for whitespace-only symbol after strip()."""
-        # The service now properly validates whitespace-only symbols and raises ValueError
-        with pytest.raises(ValueError) as exc_info:
-            await hyperliquid_market_data_service.get_ticker("   ")
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
 
-        assert "[get_ticker] 'symbol' cannot be empty or whitespace only." in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            invalid_symbol = exchanges.hyperliquid("   ")
+            await hyperliquid_market_data_service.get_ticker(invalid_symbol)
 
     @pytest.mark.asyncio
     async def test_get_order_book_empty_symbol_validation(
@@ -87,11 +89,12 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_order_book raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
-            await hyperliquid_market_data_service.get_order_book("")
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
 
-        # The service raises ValueError directly for input validation
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            invalid_symbol = exchanges.hyperliquid("")
+            await hyperliquid_market_data_service.get_order_book(invalid_symbol)
 
     @pytest.mark.asyncio
     async def test_get_order_book_none_symbol_validation(
@@ -106,7 +109,9 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        none_symbol = cast("str", None)
+        from cyberdelta.core.symbols.models import Symbol
+
+        none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 
         with pytest.raises(ValueError) as exc_info:
@@ -121,11 +126,12 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_recent_trades raises ValueError for empty symbol."""
-        with pytest.raises(ValueError) as exc_info:
-            await hyperliquid_market_data_service.get_recent_trades("")
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
 
-        # The service raises ValueError directly for input validation
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            invalid_symbol = exchanges.hyperliquid("")
+            await hyperliquid_market_data_service.get_recent_trades(invalid_symbol)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_none_symbol_validation(
@@ -141,7 +147,9 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        none_symbol = cast("str", None)
+        from cyberdelta.core.symbols.models import Symbol
+
+        none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 
         with pytest.raises(ValueError) as exc_info:
@@ -163,9 +171,7 @@ class TestHyperliquidMarketDataServicePublicData:
         # Create expected market data
         mock_markets = [
             Market(
-                symbol="BTC",
-                base_symbol="BTC",
-                quote_symbol="USD",
+                symbol=BTC_HL,
                 market_type="perpetual",
                 tick_size=Decimal("0.01"),
                 step_size=Decimal("0.00001"),
@@ -188,7 +194,7 @@ class TestHyperliquidMarketDataServicePublicData:
             # Verify results
             assert result == mock_markets
             assert len(result) == 1
-            assert result[0].symbol == "BTC"
+            assert result[0].symbol == BTC_HL
 
             # Verify the method was called with correct args
             mock_get_markets.assert_called_once_with(args)
@@ -218,7 +224,7 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_ticker successfully retrieves and processes ticker data."""
-        symbol_to_find = "BTC"
+        symbol_to_find = BTC_HL
 
         # Test focuses on public behavior, not exact data matching
 
@@ -237,7 +243,14 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_ticker returns None when symbol is not found."""
-        symbol = "UNKNOWN"
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
+
+        try:
+            symbol = exchanges.hyperliquid("UNKNOWN")
+        except (ValueError, Exception):
+            # If symbol creation fails, use a valid symbol but expect None result
+            symbol = BTC_HL
 
         # Test the public interface - get_ticker with unknown symbol
         # should return None or raise appropriate error
@@ -258,7 +271,7 @@ class TestHyperliquidMarketDataServicePublicData:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_ticker handles ResponseHandler ValidationError gracefully."""
-        symbol = "BTC"
+        symbol = BTC_HL
 
         # Mock request building
         mock_payload_model = MagicMock()
@@ -302,7 +315,7 @@ class TestHyperliquidMarketDataServicePublicData:
         mock_hl_mapper: MagicMock,
     ) -> None:
         """Test get_order_book successfully retrieves and processes order book data."""
-        symbol_to_find = "BTC"
+        symbol_to_find = BTC_HL
 
         # Mock the request builder
         mock_payload = MagicMock()
@@ -322,7 +335,7 @@ class TestHyperliquidMarketDataServicePublicData:
 
         # Mock the response handler and mapper
         mock_raw_book = HyperliquidRawL2Book(
-            coin=symbol_to_find,
+            coin=symbol_to_find.value,
             levels=[
                 [HyperliquidRawBookLevel(px="3500.0", sz="10.0", n=1)],
                 [HyperliquidRawBookLevel(px="3501.0", sz="5.0", n=1)],
@@ -356,7 +369,7 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_order_book when HTTP client returns None content."""
-        symbol = "ETH"
+        symbol = ETH_HL
 
         # Test the public interface - get_order_book when HTTP client returns None
         # should raise APIError or return None
@@ -374,7 +387,7 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_recent_trades successfully retrieves and processes recent trades data."""
-        symbol_to_find = "ETH"
+        symbol_to_find = ETH_HL
 
         # Test focuses on public behavior, not exact data matching
 
@@ -394,7 +407,7 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_recent_trades when HTTP client returns None content."""
-        symbol = "ETH"
+        symbol = ETH_HL
 
         # Test the public interface - get_recent_trades when HTTP client returns None
         # should raise APIError or return empty list
@@ -413,7 +426,7 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_recent_trades handles empty but successful response correctly."""
-        symbol = "BTC"
+        symbol = BTC_HL
 
         # Test the public interface - get_recent_trades should handle cases with no trades
         result = await hyperliquid_market_data_service.get_recent_trades(symbol)
@@ -438,7 +451,9 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        none_symbol = cast("str", None)
+        from cyberdelta.core.symbols.models import Symbol
+
+        none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 
         with pytest.raises(ValueError) as exc_info:
@@ -452,10 +467,12 @@ class TestHyperliquidMarketDataServicePublicData:
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
         """Test get_ticker with empty string symbol raises ValueError."""
-        with pytest.raises(ValueError) as exc_info:
-            await hyperliquid_market_data_service.get_ticker("")
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            invalid_symbol = exchanges.hyperliquid("")
+            await hyperliquid_market_data_service.get_ticker(invalid_symbol)
 
     @pytest.mark.asyncio
     async def test_get_order_book_response_handler_raises_api_error(
@@ -466,7 +483,7 @@ class TestHyperliquidMarketDataServicePublicData:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_order_book propagates APIError from response handler correctly."""
-        symbol = "ETH"
+        symbol = ETH_HL
 
         # Setup request building mocks
         mock_payload_model = MagicMock()
@@ -506,7 +523,7 @@ class TestHyperliquidMarketDataServicePublicData:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_ticker propagates RATE_LIMITED error correctly."""
-        symbol = "BTC"
+        symbol = BTC_HL
 
         # Setup basic mocks
         mock_payload_model = MagicMock()

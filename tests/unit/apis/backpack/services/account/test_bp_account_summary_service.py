@@ -41,6 +41,7 @@ from cyberdelta.apis.base.trading_execution_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import AccountSettings
 from cyberdelta.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 from tests.common_symbols import BTC_BP
@@ -245,7 +246,7 @@ def mock_margin_account_summary() -> MarginAccountSummary:
         MarginAccountSummary: A mock margin account summary with test values.
     """
     return MarginAccountSummary(
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
         timestamp=datetime.now(UTC),
         total_equity=Decimal("77600.00"),
         available_equity=Decimal("69890.00"),
@@ -271,7 +272,7 @@ def mock_account_settings() -> AccountSettings:
         AccountSettings: Mock account settings with test configuration.
     """
     return AccountSettings(
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
         auto_borrow_settlements=True,
         auto_lend=False,
         auto_realize_pnl=True,

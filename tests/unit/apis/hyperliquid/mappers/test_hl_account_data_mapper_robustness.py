@@ -160,7 +160,8 @@ class TestValidationErrorHandling:
         )
 
         with pytest.raises(ValueError) as exc_info:
-            AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+            account_summary_mapper = AccountSummaryMapper()
+            account_summary_mapper.transform_raw_clearinghouse_state_to_margin_summary(
                 current_raw_state_invalid,
             )
         assert "withdrawable" in str(exc_info.value).lower()
@@ -187,8 +188,9 @@ class TestValidationErrorHandling:
             updated_data_python_names,
         )
 
+        account_summary_mapper = AccountSummaryMapper()
         summary_updated_mmr = (
-            AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+            account_summary_mapper.transform_raw_clearinghouse_state_to_margin_summary(
                 current_raw_state_updated_mmr,
             )
         )
@@ -294,7 +296,8 @@ class TestBoundaryValueConditions:
         )
 
         # Should handle large values without error
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -359,7 +362,8 @@ class TestBoundaryValueConditions:
         )
 
         # Should handle small values without error
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -426,7 +430,8 @@ class TestBoundaryValueConditions:
                 time=1640995200000,
             )
 
-            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            position_mapper = PositionMapper()
+            positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -490,7 +495,8 @@ class TestBoundaryValueConditions:
                 time=1640995200000,
             )
 
-            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            position_mapper = PositionMapper()
+            positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -565,13 +571,14 @@ class TestUnicodeAndEncodingSupport:
             )
 
             # Should handle Unicode symbols without error
-            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            position_mapper = PositionMapper()
+            positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
             assert symbol in positions
             position = positions[symbol]
-            assert position.symbol == symbol
+            assert position.symbol.value == symbol
             assert position.exchange == ExchangeName.HYPERLIQUID.value
 
     def test_unicode_in_fill_client_order_ids(self) -> None:
@@ -601,7 +608,8 @@ class TestUnicodeAndEncodingSupport:
                 cloid=client_id,
             )
 
-            trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+            transaction_mapper = TransactionMapper()
+            trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
             assert trade.client_order_id == client_id
 
     def test_very_long_string_fields(self) -> None:
@@ -658,13 +666,14 @@ class TestUnicodeAndEncodingSupport:
             time=1640995200000,
         )
 
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
         assert long_symbol in positions
         position = positions[long_symbol]
-        assert position.symbol == long_symbol
+        assert position.symbol.value == long_symbol
 
         # Test long fields in fill
         raw_fill = HyperliquidRawFill(
@@ -684,8 +693,9 @@ class TestUnicodeAndEncodingSupport:
             cloid=long_client_id,
         )
 
-        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
-        assert trade.symbol == long_symbol
+        transaction_mapper = TransactionMapper()
+        trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
+        assert trade.symbol.value == long_symbol
         assert trade.client_order_id == long_client_id
         assert trade.hl_details is not None
         assert trade.hl_details.trade_hash == long_hash
@@ -753,7 +763,8 @@ class TestPerformanceAndMemory:
         )
 
         # Transform all positions efficiently
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -767,7 +778,8 @@ class TestPerformanceAndMemory:
             assert position.hl_details.leverage_type in ["cross", "isolated"]
 
         # Test margin summary transformation with large data set
-        margin_summary = AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+        account_summary_mapper = AccountSummaryMapper()
+        margin_summary = account_summary_mapper.transform_raw_clearinghouse_state_to_margin_summary(
             raw_state,
         )
 
@@ -808,15 +820,18 @@ class TestPerformanceAndMemory:
         )
 
         # Test multiple transformation methods on same data
-        margin_summary = AccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
+        account_summary_mapper = AccountSummaryMapper()
+        margin_summary = account_summary_mapper.transform_raw_clearinghouse_state_to_margin_summary(
             raw_state,
         )
 
-        spot_balances = BalanceMapper.transform_raw_clearinghouse_state_to_spot_balances(
+        balance_mapper = BalanceMapper()
+        spot_balances = balance_mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_state,
         )
 
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -882,7 +897,8 @@ class TestErrorRecoveryScenarios:
         )
 
         # Should handle missing optional fields gracefully
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -947,7 +963,8 @@ class TestErrorRecoveryScenarios:
         )
 
         # Should process all non-zero positions
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 

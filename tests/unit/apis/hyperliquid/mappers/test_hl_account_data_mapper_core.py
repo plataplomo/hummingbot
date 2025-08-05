@@ -33,6 +33,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     HyperliquidMarginDetails,
@@ -221,10 +222,9 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                current_raw_state,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            current_raw_state,
         )
 
         assert isinstance(summary, MarginAccountSummary)
@@ -272,10 +272,9 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                current_raw_state,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            current_raw_state,
         )
 
         assert summary.total_unrealized_pnl == Decimal(0)
@@ -312,10 +311,9 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                current_raw_state,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            current_raw_state,
         )
 
         # Verify precision is maintained
@@ -356,10 +354,9 @@ class TestMapRawClearinghouseStateToMarginSummary:
             updated_data_python_names,
         )
 
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                current_raw_state,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            current_raw_state,
         )
 
         assert summary.total_equity == Decimal("0.0")
@@ -373,10 +370,9 @@ class TestMapRawClearinghouseStateToMarginSummary:
         raw_clearinghouse_state_base_fixture: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test that margin summary generates appropriate timestamps."""
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                raw_clearinghouse_state_base_fixture,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            raw_clearinghouse_state_base_fixture,
         )
 
         assert summary.timestamp is not None
@@ -451,7 +447,8 @@ class TestMapRawClearinghouseStateToSpotBalances:
 
         assert isinstance(usdc_balance, SpotBalance)
         assert usdc_balance.exchange == ExchangeName.HYPERLIQUID.value
-        assert usdc_balance.asset == "USDC"
+        # Compare with the USDC Symbol for Hyperliquid
+        assert usdc_balance.asset == exchanges.hyperliquid("USDC")
         assert usdc_balance.total_quantity == Decimal("10000.0")
         assert usdc_balance.available_quantity == Decimal(0)
         assert isinstance(usdc_balance.timestamp, datetime)
@@ -504,9 +501,9 @@ class TestMapRawClearinghouseStateToSpotBalances:
         raw_state_with_multiple_spot = HyperliquidRawClearinghouseState(
             assetPositions=[
                 HyperliquidRawAssetPosition(
-                    asset=ETH_HL.value,
+                    asset=ETH_HL.value,  # Raw API uses string value
                     position=HyperliquidRawPositionInfo(
-                        coin=ETH_HL.value,
+                        coin=ETH_HL.value,  # Raw API uses string value
                         szi="1.0",
                         entryPx="3000.0",
                         leverage=HyperliquidRawLeverage(type="cross", value=10),
@@ -562,7 +559,8 @@ class TestMapRawClearinghouseStateToSpotBalances:
             time=1640995200000,
         )
 
-        spot_balances = HyperliquidBalanceMapper.transform_raw_clearinghouse_state_to_spot_balances(
+        mapper = HyperliquidBalanceMapper()
+        spot_balances = mapper.transform_raw_clearinghouse_state_to_spot_balances(
             raw_state_with_multiple_spot,
         )
 
@@ -575,7 +573,8 @@ class TestMapRawClearinghouseStateToSpotBalances:
         assert usdc_balance.available_quantity == Decimal("9900.0")
 
         spot_asset_balance = spot_balances["SPOT-ASSET"]
-        assert spot_asset_balance.asset == "SPOT-ASSET"
+        # For non-standard assets, we still need to check the value
+        assert spot_asset_balance.asset.value == "SPOT-ASSET"
         assert spot_asset_balance.total_quantity == Decimal("10.0")
         assert spot_asset_balance.available_quantity == Decimal("10.0")
         assert spot_asset_balance.hl_details is not None
@@ -666,10 +665,9 @@ class TestCoreBusinessLogicValidation:
         }
         raw_state = HyperliquidRawClearinghouseState.model_validate(updated_data)
 
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                raw_state,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            raw_state,
         )
 
         # Expected total unrealized PnL: 150.25 + (-75.50) = 74.75
@@ -691,10 +689,9 @@ class TestCoreBusinessLogicValidation:
         }
         raw_state = HyperliquidRawClearinghouseState.model_validate(updated_data)
 
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                raw_state,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            raw_state,
         )
 
         # Total maintenance margin should be cross + isolated
@@ -712,10 +709,9 @@ class TestCoreBusinessLogicValidation:
             update={"withdrawable": test_withdrawable},
         )
 
-        summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                raw_state,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            raw_state,
         )
 
         # Available equity should equal withdrawable amount
@@ -728,10 +724,9 @@ class TestCoreBusinessLogicValidation:
     ) -> None:
         """Test that exchange assignments are consistent across all transformations."""
         # Test margin summary
-        margin_summary = (
-            HyperliquidAccountSummaryMapper.transform_raw_clearinghouse_state_to_margin_summary(
-                raw_clearinghouse_state_base_fixture,
-            )
+        mapper = HyperliquidAccountSummaryMapper()
+        margin_summary = mapper.transform_raw_clearinghouse_state_to_margin_summary(
+            raw_clearinghouse_state_base_fixture,
         )
         assert margin_summary.exchange == ExchangeName.HYPERLIQUID.value
 

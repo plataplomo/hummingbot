@@ -26,6 +26,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.order_book import OrderBook
 
 
@@ -40,14 +42,14 @@ logger = get_logger(__name__)
 class TestHyperliquidOrderBookModelCreation:
     """Test OrderBook model creation from WebSocket l2Book streams."""
 
-    async def _setup_hl_orderbook_connection(self, api: HyperliquidAPI) -> str:
+    async def _setup_hl_orderbook_connection(self, api: HyperliquidAPI) -> Symbol:
         """Set up Hyperliquid connection and get test symbol for orderbook testing.
 
         Args:
             api: HyperliquidAPI instance to connect
 
         Returns:
-            Symbol string for testing orderbook functionality
+            Symbol object for testing orderbook functionality
         """
         await api.connect_websocket()
         if not api.is_connected:
@@ -118,7 +120,7 @@ class TestHyperliquidOrderBookModelCreation:
         )
 
     def _validate_all_hl_received_orderbooks(
-        self, received_orderbooks: list[OrderBook], test_symbol: str
+        self, received_orderbooks: list[OrderBook], test_symbol: Symbol
     ) -> None:
         """Validate all received Hyperliquid orderbooks and log results."""
         if received_orderbooks:
@@ -168,7 +170,7 @@ class TestHyperliquidOrderBookModelCreation:
                 "WebSocket to OrderBook transformation not working."
             )
 
-    def _validate_orderbook_structure(self, orderbook: OrderBook, expected_symbol: str) -> None:
+    def _validate_orderbook_structure(self, orderbook: OrderBook, expected_symbol: Symbol) -> None:
         """Validate OrderBook model structure."""
         assert isinstance(orderbook, OrderBook), f"Expected OrderBook, got {type(orderbook)}"
         assert orderbook.symbol == expected_symbol, (
@@ -306,14 +308,14 @@ class TestHyperliquidOrderBookModelCreation:
             asks = [(Decimal(level.px), Decimal(level.sz)) for level in l2book_event.levels[1]]
 
             orderbook = OrderBook(
-                symbol=l2book_event.coin,
+                symbol=exchanges.hyperliquid(l2book_event.coin),
                 bids=bids,
                 asks=asks,
                 timestamp=datetime.now(UTC),  # Would be set by transformer
             )
 
             # Validate created OrderBook
-            self._validate_orderbook_structure(orderbook, "BTC")
+            self._validate_orderbook_structure(orderbook, exchanges.hyperliquid("BTC"))
             self._validate_orderbook_financial_data(orderbook)
             self._validate_orderbook_integrity(orderbook)
 
@@ -369,7 +371,10 @@ class TestHyperliquidOrderBookModelCreation:
             asks = [(Decimal(level.px), Decimal(level.sz)) for level in l2book_event.levels[1]]
 
             orderbook = OrderBook(
-                symbol=l2book_event.coin, bids=bids, asks=asks, timestamp=datetime.now(UTC)
+                symbol=exchanges.hyperliquid(l2book_event.coin),
+                bids=bids,
+                asks=asks,
+                timestamp=datetime.now(UTC),
             )
 
             # Validate SDK-compliant precision
@@ -589,7 +594,7 @@ class TestHyperliquidOrderBookModelCreation:
                             asks = []
 
                         orderbook = OrderBook(
-                            symbol=l2book_event.coin,
+                            symbol=exchanges.hyperliquid(l2book_event.coin),
                             bids=bids,
                             asks=asks,
                             timestamp=datetime.now(UTC),
@@ -698,11 +703,14 @@ class TestHyperliquidOrderBookModelCreation:
             asks = [(Decimal(level.px), Decimal(level.sz)) for level in l2book_event.levels[1]]
 
             orderbook = OrderBook(
-                symbol=l2book_event.coin, bids=bids, asks=asks, timestamp=datetime.now(UTC)
+                symbol=exchanges.hyperliquid(l2book_event.coin),
+                bids=bids,
+                asks=asks,
+                timestamp=datetime.now(UTC),
             )
 
             # Validate standard OrderBook creation still works
-            self._validate_orderbook_structure(orderbook, "SOL")
+            self._validate_orderbook_structure(orderbook, exchanges.hyperliquid("SOL"))
 
         except (ValidationError, ValueError, TypeError, KeyError, AttributeError) as e:
             pytest.fail(

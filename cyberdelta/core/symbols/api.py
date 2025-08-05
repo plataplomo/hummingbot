@@ -19,7 +19,7 @@ def symbol(
     Examples:
         >>> symbol("BTC-PERP", ExchangeName.HYPERLIQUID)
         >>> symbol("BTC_USD_PERP", ExchangeName.BACKPACK, symbol_id=12345)
-        
+
     Returns:
         Symbol: Created symbol instance.
     """
@@ -39,7 +39,7 @@ class Exchanges:
 
     def __getattr__(self, name: str) -> SymbolFactory:
         """Get factory for the given exchange name.
-        
+
         Returns:
             SymbolFactory: Factory for creating symbols on the specified exchange.
         """
@@ -55,7 +55,7 @@ exchanges = Exchanges()
 @lru_cache(maxsize=1)
 def get_symbol_service() -> SymbolService:
     """Get symbol service for advanced operations like equivalence.
-    
+
     Returns:
         SymbolService: Service instance for symbol operations.
     """

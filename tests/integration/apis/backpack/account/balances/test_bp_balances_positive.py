@@ -148,7 +148,7 @@ class TestBackpackBalancesPositive:
         else:
             # If present, should be zero or small amount
             assert isinstance(doge_balance, SpotBalance)
-            assert doge_balance.asset == "DOGE"
+            assert doge_balance.asset.value == "DOGE"
             assert doge_balance.total_quantity >= Decimal(0)
 
     @pytest.mark.vcr
@@ -251,7 +251,7 @@ class TestBackpackBalancesPositive:
         total_balance_value = sum(
             balance.total_quantity
             for balance in balances.values()
-            if balance.asset in ["USDC", "USDT"]
+            if balance.asset.value in ["USDC", "USDT"]
         )
 
         if total_balance_value > Decimal(0):

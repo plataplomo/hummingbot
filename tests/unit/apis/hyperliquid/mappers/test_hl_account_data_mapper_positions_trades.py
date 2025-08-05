@@ -41,6 +41,7 @@ from cyberdelta.models import (
     Trade,
 )
 from cyberdelta.models.market.trade import HyperliquidTradeDetails
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Aliases for shorter method calls
@@ -211,7 +212,8 @@ class TestMapRawClearinghouseStateToDerivativePositions:
             time=1640995200000,
         )
 
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_empty,
         )
         assert isinstance(positions, dict)
@@ -222,7 +224,8 @@ class TestMapRawClearinghouseStateToDerivativePositions:
         raw_user_state_with_positions: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test mapping with ETH long and BTC short positions."""
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_with_positions,
         )
 
@@ -235,7 +238,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
         eth_pos = positions["ETH-PERP"]
         assert isinstance(eth_pos, DerivativePosition)
         assert eth_pos.exchange == ExchangeName.HYPERLIQUID.value
-        assert eth_pos.symbol == "ETH-PERP"
+        assert eth_pos.symbol == ETH_HL
         assert eth_pos.side == OrderSide.BUY
         assert eth_pos.size == Decimal("1.0")
         assert eth_pos.entry_price == Decimal("3000.0")
@@ -254,7 +257,7 @@ class TestMapRawClearinghouseStateToDerivativePositions:
         btc_pos = positions["BTC-PERP"]
         assert isinstance(btc_pos, DerivativePosition)
         assert btc_pos.exchange == ExchangeName.HYPERLIQUID.value
-        assert btc_pos.symbol == "BTC-PERP"
+        assert btc_pos.symbol == BTC_HL
         assert btc_pos.side == OrderSide.SELL
         assert btc_pos.size == Decimal("-0.5")
         assert btc_pos.entry_price == Decimal("60000.0")
@@ -327,7 +330,8 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                 time=1640995200000,
             )
 
-            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            position_mapper = PositionMapper()
+            positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -395,7 +399,8 @@ class TestMapRawClearinghouseStateToDerivativePositions:
                 time=1640995200000,
             )
 
-            positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+            position_mapper = PositionMapper()
+            positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
                 raw_state,
             )
 
@@ -452,7 +457,8 @@ class TestMapRawClearinghouseStateToDerivativePositions:
             time=1640995200000,
         )
 
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -471,7 +477,8 @@ class TestMapRawClearinghouseStateToDerivativePositions:
         raw_user_state_with_positions: HyperliquidRawClearinghouseState,
     ) -> None:
         """Test that position transformations generate appropriate timestamps."""
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_with_positions,
         )
 
@@ -497,11 +504,12 @@ class TestTransformRawFillToInternal:
     ) -> None:
         """Test transforming a raw BUY TAKER fill to an internal Trade model."""
         raw_fill = hyperliquid_raw_fill_buy_fixture
-        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+        transaction_mapper = TransactionMapper()
+        trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
         assert isinstance(trade, Trade)
         assert trade.id == str(raw_fill.tid)
-        assert trade.symbol == raw_fill.coin
+        assert trade.symbol.value == raw_fill.coin
         assert isinstance(trade.executed_at, datetime)
         assert trade.executed_at.timestamp() * 1000 == raw_fill.time
         assert trade.side == OrderSide.BUY
@@ -528,11 +536,12 @@ class TestTransformRawFillToInternal:
     ) -> None:
         """Test transforming a raw SELL MAKER fill to an internal Trade model."""
         raw_fill = hyperliquid_raw_fill_sell_maker_fixture
-        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+        transaction_mapper = TransactionMapper()
+        trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
         assert isinstance(trade, Trade)
         assert trade.id == str(raw_fill.tid)
-        assert trade.symbol == raw_fill.coin
+        assert trade.symbol.value == raw_fill.coin
         assert isinstance(trade.executed_at, datetime)
         assert trade.executed_at.timestamp() * 1000 == raw_fill.time
         assert trade.side == OrderSide.SELL
@@ -579,7 +588,8 @@ class TestTransformRawFillToInternal:
                 cloid="test",
             )
 
-            trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+            transaction_mapper = TransactionMapper()
+            trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
             assert trade.side == expected_order_side
 
     def test_fill_with_high_precision_values(self) -> None:
@@ -601,7 +611,8 @@ class TestTransformRawFillToInternal:
             cloid="precision_test",
         )
 
-        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+        transaction_mapper = TransactionMapper()
+        trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
         # Verify precision is maintained (8 decimal places for most fields)
         assert trade.price == Decimal("1000.12345679")
@@ -630,7 +641,8 @@ class TestTransformRawFillToInternal:
             cloid="zero_fee_test",
         )
 
-        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+        transaction_mapper = TransactionMapper()
+        trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
         assert trade.fee == Decimal("0.0")
         assert trade.is_maker is True
@@ -658,7 +670,8 @@ class TestTransformRawFillToInternal:
             cloid="timestamp_test",
         )
 
-        trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+        transaction_mapper = TransactionMapper()
+        trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
         assert trade.executed_at == expected_datetime
 
@@ -689,7 +702,8 @@ class TestTransformRawFillToInternal:
                 cloid=input_cloid,
             )
 
-            trade = TransactionMapper.transform_raw_fill_to_internal(raw_fill)
+            transaction_mapper = TransactionMapper()
+            trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
             assert trade.client_order_id == expected_cloid
 
 
@@ -706,12 +720,14 @@ class TestPositionAndTradeIntegration:
     ) -> None:
         """Test that position and trade transformations are consistent."""
         # Get positions
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_user_state_with_positions,
         )
 
         # Get trade
-        trade = TransactionMapper.transform_raw_fill_to_internal(hyperliquid_raw_fill_buy_fixture)
+        transaction_mapper = TransactionMapper()
+        trade = transaction_mapper.transform_raw_fill_to_internal(hyperliquid_raw_fill_buy_fixture)
 
         # Both should have consistent exchange assignments
         for position in positions.values():
@@ -779,7 +795,8 @@ class TestPositionAndTradeIntegration:
         )
 
         # Transform all positions
-        positions = PositionMapper.transform_raw_clearinghouse_state_to_derivative_positions(
+        position_mapper = PositionMapper()
+        positions = position_mapper.transform_raw_clearinghouse_state_to_derivative_positions(
             raw_state,
         )
 
@@ -788,7 +805,7 @@ class TestPositionAndTradeIntegration:
 
         for i, (symbol, position) in enumerate(positions.items()):
             assert symbol == f"TEST{i}-PERP"
-            assert position.symbol == symbol
+            assert position.symbol.value == symbol
             assert position.exchange == ExchangeName.HYPERLIQUID.value
             assert position.hl_details is not None
             assert position.hl_details.leverage_type in ["cross", "isolated"]

@@ -18,6 +18,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.models.market.candle import Candle
 from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
 from tests.fixtures.time_fixtures import FreezerProtocol
@@ -125,8 +126,8 @@ class TestBackpackSpotCandles:
                     f"Candle {i} low {candle.low} should be <= close {candle.close}"
                 )
 
-                assert candle.symbol == SOL_USDC_BP.value, (
-                    f"Candle {i} symbol should be 'SOL_USDC', got '{candle.symbol}'"
+                assert candle.symbol == SOL_USDC_BP, (
+                    f"Candle {i} symbol should be '{SOL_USDC_BP}', got '{candle.symbol}'"
                 )
 
     @pytest.mark.parametrize(
@@ -170,8 +171,8 @@ class TestBackpackSpotCandles:
                 assert isinstance(candle, Candle), (
                     f"Candle {i} should be Candle model, got {type(candle)}"
                 )
-                assert candle.symbol == BTC_USDC_BP.value, (
-                    f"Candle {i} symbol should be 'BTC_USDC', got '{candle.symbol}'"
+                assert candle.symbol == BTC_USDC_BP, (
+                    f"Candle {i} symbol should be '{BTC_USDC_BP}', got '{candle.symbol}'"
                 )
 
                 # Validate OHLC relationships instead of hardcoded price bounds
@@ -196,7 +197,7 @@ class TestBackpackSpotCandles:
                     f"BTC low {candle.low} should be <= close {candle.close}"
                 )
 
-    @pytest.mark.parametrize("symbol", [s.value for s in COMMON_SPOT_SYMBOLS_BP])
+    @pytest.mark.parametrize("symbol", COMMON_SPOT_SYMBOLS_BP)
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/candles"],
@@ -208,7 +209,7 @@ class TestBackpackSpotCandles:
         bp_api_for_test_env: BackpackAPI,
         custom_vcr_config: dict[str, Any],
         freezer: FreezerProtocol,
-        symbol: str,
+        symbol: Symbol,  # Symbol object
     ) -> None:
         """Test spot candle structure consistency across different symbols."""
         now = datetime.now(UTC)

@@ -72,10 +72,10 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
     @property
     def base_asset(self) -> str:
         """Get the base asset of the symbol.
-        
+
         Returns:
             str: The base asset name.
-            
+
         Raises:
             ValueError: If components are not set.
         """
@@ -87,10 +87,10 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
     @property
     def quote_asset(self) -> str | None:
         """Get the quote asset of the symbol.
-        
+
         Returns:
             str | None: The quote asset name, or None if not applicable.
-            
+
         Raises:
             ValueError: If components are not set.
         """
@@ -102,10 +102,10 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
     @property
     def market_type(self) -> MarketType:
         """Get the market type of the symbol.
-        
+
         Returns:
             MarketType: The market type (SPOT, PERP, etc.).
-            
+
         Raises:
             ValueError: If components are not set.
         """
@@ -116,7 +116,7 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
 
     def __str__(self) -> str:
         """String representation of the symbol.
-        
+
         Returns:
             str: String representation of the symbol.
         """
@@ -124,7 +124,7 @@ class BaseSymbol[TMetadata: SymbolMetadata](BaseModel):
 
     def __hash__(self) -> int:
         """Hash based on value and exchange.
-        
+
         Returns:
             int: Hash value based on symbol value and exchange.
         """

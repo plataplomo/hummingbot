@@ -37,7 +37,7 @@ class ArbitrageTestData:
 class ArbitrageSymbolBuilder:
     """Builder for arbitrage test scenarios with Symbol support."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the builder."""
         self._pairs: dict[str, ArbitragePair] = {}
         self._prices: dict[Symbol, Decimal] = {}
@@ -225,7 +225,7 @@ class MarketDataTestScenario:
 class MarketDataSymbolBuilder:
     """Builder for market data test scenarios."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the builder."""
         self._symbols: list[Symbol] = []
         self._tickers: dict[Symbol, dict[str, Any]] = {}
@@ -358,7 +358,7 @@ class TradingTestScenario:
 class TradingSymbolBuilder:
     """Builder for trading test scenarios."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize the builder."""
         self._symbols: dict[str, Symbol] = {}
         self._positions: dict[Symbol, Decimal] = {}

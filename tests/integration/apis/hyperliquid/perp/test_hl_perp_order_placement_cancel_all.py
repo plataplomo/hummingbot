@@ -33,7 +33,6 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import CancelOrderResult, Order
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
@@ -128,7 +127,7 @@ class TestHyperliquidPerpOrdersComprehensive:
 
                 # Define order parameters using dynamic values
                 place_args = PlaceOrderArgs(
-                    symbol=exchanges.hyperliquid(test_symbol),
+                    symbol=test_symbol,  # test_symbol is already a Symbol object
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     quantity=test_quantity,
@@ -157,7 +156,7 @@ class TestHyperliquidPerpOrdersComprehensive:
                 assert placed_order.exchange == "hyperliquid", (
                     f"Order.exchange should be 'hyperliquid', got {placed_order.exchange}"
                 )
-                assert placed_order.symbol.value == test_symbol, (
+                assert placed_order.symbol == test_symbol, (
                     f"Order symbol should match request, got {placed_order.symbol.value}"
                 )
                 assert placed_order.side == OrderSide.BUY, (
@@ -192,8 +191,8 @@ class TestHyperliquidPerpOrdersComprehensive:
 
             # Validate all orders use the same test symbol
             order_symbol_values = [order.symbol.value for order in placed_orders]
-            assert all(symbol == test_symbol for symbol in order_symbol_values), (
-                f"All orders should use {test_symbol} symbol, got: {order_symbol_values}"
+            assert all(symbol == test_symbol.value for symbol in order_symbol_values), (
+                f"All orders should use {test_symbol.value} symbol, got: {order_symbol_values}"
             )
 
             # Validate all orders have unique exchange order IDs

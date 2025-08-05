@@ -26,11 +26,11 @@ from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketE
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
 from cyberdelta.models.market.trade import Trade
-from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.models.market.market import Market
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (
@@ -106,9 +106,7 @@ class TestBackpackWebSocketIntegration:
             (
                 m
                 for m in markets
-                if "SOL" in m.symbol.value
-                and "USDC" in m.symbol.value
-                and m.market_type == "Spot"
+                if "SOL" in m.symbol.value and "USDC" in m.symbol.value and m.market_type == "Spot"
             ),
             # Fallback to any spot market
             next(
@@ -863,8 +861,8 @@ class TestBackpackWebSocketIntegration:
             (m.symbol for m in markets if "SOL" in m.symbol.value),
             markets[0].symbol,
         )
-        # Convert internal format to Backpack format
-        ws_symbol = self._convert_symbol_format(test_symbol)
+        # Convert internal format to Backpack format (if needed for future use)
+        # ws_symbol = self._convert_symbol_format(test_symbol)
 
         message_latencies: list[float] = []
         processing_times: list[float] = []
@@ -977,7 +975,11 @@ class TestBackpackWebSocketIntegration:
         # Test 2: Subscribe to valid but less liquid market
         markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
         less_liquid_symbol = next(
-            (m.symbol for m in markets if "BTC" not in m.symbol.value and "SOL" not in m.symbol.value),
+            (
+                m.symbol
+                for m in markets
+                if "BTC" not in m.symbol.value and "SOL" not in m.symbol.value
+            ),
             markets[-1].symbol if markets else None,
         )
         # Convert internal format to Backpack format if needed
@@ -999,7 +1001,9 @@ class TestBackpackWebSocketIntegration:
         # Convert internal format to Backpack format
         liquid_ws_symbol = self._convert_symbol_format(liquid_symbol)
         for _ in range(3):
-            await bp_api_for_test_env.subscribe(f"ticker.{liquid_ws_symbol}", error_tracking_handler)
+            await bp_api_for_test_env.subscribe(
+                f"ticker.{liquid_ws_symbol}", error_tracking_handler
+            )
             await asyncio.sleep(0.5)
             # Note: Backpack API doesn't have unsubscribe in the interface
             # This tests subscription replacement/override behavior

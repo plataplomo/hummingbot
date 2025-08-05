@@ -556,7 +556,7 @@ class TestConfigManager:
             risk_config = manager.settings.risk
 
             assert risk_config.global_risk.max_position_usd == Decimal("1000.0")
-            assert risk_config.simple_sizing_method == "fixed_fraction"
+            # simple_sizing_method was removed from EnhancedRiskSettings
 
     def test_file_permissions_error(self) -> None:
         """Test handling of file permission errors."""
@@ -770,7 +770,7 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
             assert settings.general.module_log_levels is not None
             assert len(settings.general.module_log_levels) == 3
             assert settings.exchanges["backpack"].symbols["SOL"] == SOL_USDC_BP.value
-            assert settings.risk.simple_sizing_method == "fixed_usd"
+            # simple_sizing_method was removed from EnhancedRiskSettings
             assert settings.safety_systems.circuit_breakers.global_consecutive_failures == 10
             assert settings.monitoring.alert_methods == ["log", "telegram"]
 

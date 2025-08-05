@@ -31,6 +31,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol, exchanges
+from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.models.market.mid_prices import MidPrices
 from cyberdelta.models.market.order_book import OrderBook
@@ -111,11 +113,11 @@ class TestHyperliquidAllStreamModelConversions:
         if not api.is_connected:
             pytest.fail("WebSocket connection failed - cannot test stream conversion")
 
-    async def _get_hl_test_symbol(self, api: HyperliquidAPI) -> str:
+    async def _get_hl_test_symbol(self, api: HyperliquidAPI) -> Symbol:
         """Get the most active test symbol (typically BTC) from Hyperliquid markets.
 
         Returns:
-            str: The most active trading symbol.
+            Symbol: The most active trading symbol.
         """
         return await get_most_active_symbol(api)
 
@@ -163,7 +165,7 @@ class TestHyperliquidAllStreamModelConversions:
         return l2book_handler
 
     def _validate_received_orderbooks(
-        self, received_orderbooks: list[OrderBook], test_symbol: str
+        self, received_orderbooks: list[OrderBook], test_symbol: Symbol
     ) -> None:
         """Validate received orderbook models and log results."""
         if received_orderbooks:
@@ -171,7 +173,7 @@ class TestHyperliquidAllStreamModelConversions:
                 self._validate_orderbook_model(orderbook, test_symbol)
             logger.info(
                 "l2book_stream_conversion_success",
-                symbol=test_symbol,
+                symbol=test_symbol.value,
                 orderbooks_received=len(received_orderbooks),
                 message=(
                     f"✓ Successfully converted {len(received_orderbooks)} "
@@ -209,7 +211,7 @@ class TestHyperliquidAllStreamModelConversions:
                 "L2Book stream conversion not working."
             )
 
-    def _validate_orderbook_model(self, orderbook: OrderBook, expected_symbol: str) -> None:
+    def _validate_orderbook_model(self, orderbook: OrderBook, expected_symbol: Symbol) -> None:
         """Validate OrderBook model structure and data."""
         assert isinstance(orderbook, OrderBook), f"Expected OrderBook, got {type(orderbook)}"
         assert orderbook.symbol == expected_symbol, (
@@ -336,14 +338,16 @@ class TestHyperliquidAllStreamModelConversions:
             )
         return trades_found
 
-    def _validate_hl_received_trades(self, received_trades: list[Trade], test_symbol: str) -> None:
+    def _validate_hl_received_trades(
+        self, received_trades: list[Trade], test_symbol: Symbol
+    ) -> None:
         """Validate received Hyperliquid trade models and log results."""
         if received_trades:
             for trade in received_trades[:3]:
                 self._validate_trade_model(trade, test_symbol)
             logger.info(
                 "trades_stream_conversion_success",
-                symbol=test_symbol,
+                symbol=test_symbol.value,
                 trades_received=len(received_trades),
                 message=f"✓ Successfully converted {len(received_trades)} trades to Trade models",
             )
@@ -385,7 +389,7 @@ class TestHyperliquidAllStreamModelConversions:
                 "The WebSocket connection and subscription are working correctly."
             )
 
-    def _validate_trade_model(self, trade: Trade, expected_symbol: str) -> None:
+    def _validate_trade_model(self, trade: Trade, expected_symbol: Symbol) -> None:
         """Validate Trade model structure and data."""
         assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
         assert trade.symbol == expected_symbol, (
@@ -506,8 +510,12 @@ class TestHyperliquidAllStreamModelConversions:
 
         # Validate individual prices
         for symbol, price in mid_prices.prices.items():
-            assert isinstance(symbol, str), f"Symbol should be string, got {type(symbol)}"
-            assert len(symbol) > 0, "Symbol should not be empty"
+            assert isinstance(symbol, BaseSymbol), (
+                f"Symbol should be BaseSymbol, got {type(symbol)}"
+            )
+            assert hasattr(symbol, "value") and len(symbol.value) > 0, (
+                "Symbol should have a non-empty value"
+            )
             assert isinstance(price, Decimal), (
                 f"Price for {symbol} should be Decimal, got {type(price)}"
             )
@@ -799,13 +807,13 @@ class TestHyperliquidAllStreamModelConversions:
             asks = [(Decimal(level.px), Decimal(level.sz)) for level in raw_l2book.levels[1]]
 
             domain_orderbook = OrderBook(
-                symbol=raw_l2book.coin,
+                symbol=exchanges.hyperliquid(raw_l2book.coin),
                 bids=bids,
                 asks=asks,
                 timestamp=datetime.now(UTC),  # Would be set by transformer
             )
 
-            self._validate_orderbook_model(domain_orderbook, "BTC")
+            self._validate_orderbook_model(domain_orderbook, exchanges.hyperliquid("BTC"))
 
             logger.info(
                 "l2book_transformation_success",
@@ -846,7 +854,7 @@ class TestHyperliquidAllStreamModelConversions:
             # Test transformation to domain model
             domain_trade = Trade(
                 id="test_trade_id",  # Would come from actual trade data
-                symbol=raw_trade.coin,
+                symbol=exchanges.hyperliquid(raw_trade.coin),
                 executed_at=datetime.now(UTC),  # Would be set by transformer
                 side=OrderSide.BUY if raw_trade.side == "B" else OrderSide.SELL,
                 order_id="test_order_id",  # Would come from actual trade data
@@ -855,7 +863,7 @@ class TestHyperliquidAllStreamModelConversions:
                 quantity=Decimal(raw_trade.sz),
             )
 
-            self._validate_trade_model(domain_trade, "ETH")
+            self._validate_trade_model(domain_trade, exchanges.hyperliquid("ETH"))
 
             logger.info(
                 "trade_transformation_success",
@@ -874,11 +882,11 @@ class TestHyperliquidAllStreamModelConversions:
 
     async def _setup_hl_stream_integration(
         self, hl_api_for_test_env: HyperliquidAPI
-    ) -> tuple[str, dict[str, list[Any]]]:
+    ) -> tuple[Symbol, dict[str, list[Any]]]:
         """Set up WebSocket connection and get test symbol for HL stream integration.
 
         Returns:
-            tuple[str, dict[str, list[Any]]]: Test symbol and stream results dictionary.
+            tuple[Symbol, dict[str, list[Any]]]: Test symbol and stream results dictionary.
         """
         await hl_api_for_test_env.connect_websocket()
 
@@ -935,13 +943,13 @@ class TestHyperliquidAllStreamModelConversions:
     async def _subscribe_to_hl_streams(
         self,
         hl_api_for_test_env: HyperliquidAPI,
-        test_symbol: str,
+        test_symbol: Symbol,
         stream_results: dict[str, list[Any]],
     ) -> None:
         """Subscribe to multiple Hyperliquid stream types."""
         stream_subscriptions = [
-            (f"l2Book:{test_symbol}", "l2Book"),
-            (f"trades:{test_symbol}", "trades"),
+            (f"l2Book:{test_symbol.value}", "l2Book"),
+            (f"trades:{test_symbol.value}", "trades"),
             ("allMids", "allMids"),
             ("userEvents", "userEvents"),  # Authenticated stream
         ]
@@ -1070,20 +1078,22 @@ class TestHyperliquidAllStreamModelConversions:
     ) -> None:
         """Handle single domain model with symbol for consistency tracking."""
         symbol = domain_model.symbol
-        if symbol not in model_data[stream_type]:
-            model_data[stream_type][symbol] = []
-        model_data[stream_type][symbol].append(domain_model)
-        self._log_hl_consistency_data_collected(stream_type, symbol, domain_model)
+        symbol_str = symbol.value if hasattr(symbol, "value") else str(symbol)
+        if symbol_str not in model_data[stream_type]:
+            model_data[stream_type][symbol_str] = []
+        model_data[stream_type][symbol_str].append(domain_model)
+        self._log_hl_consistency_data_collected(stream_type, symbol_str, domain_model)
 
     def _handle_mid_prices_model(
         self, domain_model: MidPrices, stream_type: str, model_data: dict[str, dict[str, Any]]
     ) -> None:
         """Handle MidPrices model for consistency tracking."""
         for symbol in domain_model.symbols():
-            if symbol not in model_data[stream_type]:
-                model_data[stream_type][symbol] = []
-            model_data[stream_type][symbol].append(domain_model)
-            self._log_hl_consistency_data_collected(stream_type, symbol, domain_model)
+            symbol_str = symbol.value if hasattr(symbol, "value") else str(symbol)
+            if symbol_str not in model_data[stream_type]:
+                model_data[stream_type][symbol_str] = []
+            model_data[stream_type][symbol_str].append(domain_model)
+            self._log_hl_consistency_data_collected(stream_type, symbol_str, domain_model)
 
     def _handle_model_list(
         self,
@@ -1163,13 +1173,13 @@ class TestHyperliquidAllStreamModelConversions:
     async def _subscribe_to_hl_consistency_streams(
         self,
         hl_api_for_test_env: HyperliquidAPI,
-        test_symbol: str,
+        test_symbol: Symbol,
         model_data: dict[str, dict[str, Any]],
     ) -> None:
         """Subscribe to multiple Hyperliquid streams for consistency testing."""
         consistency_streams = [
-            (f"l2Book:{test_symbol}", "l2Book"),
-            (f"trades:{test_symbol}", "trades"),
+            (f"l2Book:{test_symbol.value}", "l2Book"),
+            (f"trades:{test_symbol.value}", "trades"),
             ("allMids", "allMids"),
         ]
 

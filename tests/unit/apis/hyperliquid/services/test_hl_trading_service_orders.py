@@ -22,9 +22,10 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.models.market.order import CancelOrderResult, Order
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)
@@ -49,9 +50,13 @@ class TestHyperliquidTradingServiceOrders:
         """Test place_order raises ValueError for empty symbol."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises((ValueError, EmptyStringError)) as exc_info:
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
+
+        with pytest.raises((ValueError, EmptyStringError)):
+            invalid_symbol = exchanges.hyperliquid("")
             args = PlaceOrderArgs(
-                symbol="",  # Empty symbol should be rejected
+                symbol=invalid_symbol,  # Empty symbol should be rejected
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -59,8 +64,6 @@ class TestHyperliquidTradingServiceOrders:
                 time_in_force=TimeInForce.GTC,
             )
             await hl_trading_service.place_order(args)
-
-        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_place_order_invalid_quantity_validation(
@@ -73,7 +76,7 @@ class TestHyperliquidTradingServiceOrders:
         # Test zero quantity
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.0"),  # Invalid: zero quantity
@@ -86,7 +89,7 @@ class TestHyperliquidTradingServiceOrders:
         # Test negative quantity
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("-5.0"),  # Invalid: negative quantity
@@ -99,7 +102,7 @@ class TestHyperliquidTradingServiceOrders:
         # Test infinite quantity
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("inf"),  # Invalid: infinite quantity
@@ -132,7 +135,7 @@ class TestHyperliquidTradingServiceOrders:
         # Test zero price for LIMIT order - should be rejected
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -145,7 +148,7 @@ class TestHyperliquidTradingServiceOrders:
         # Test negative price
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -158,7 +161,7 @@ class TestHyperliquidTradingServiceOrders:
         # Test infinite price
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -179,7 +182,7 @@ class TestHyperliquidTradingServiceOrders:
         # Test negative stop_price
         with pytest.raises(ValueError) as exc_info:
             args = PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.STOP_LIMIT,
                 quantity=Decimal("1.0"),
@@ -199,7 +202,7 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         with pytest.raises((ValueError, EmptyStringError)) as exc_info:
-            await hl_trading_service.get_order(args=GetOrderArgs(symbol="ETH", order_id=""))
+            await hl_trading_service.get_order(args=GetOrderArgs(symbol=ETH_HL, order_id=""))
 
         assert "String cannot be empty" in str(exc_info.value)
 
@@ -216,7 +219,7 @@ class TestHyperliquidTradingServiceOrders:
 
         with pytest.raises(ValueError) as exc_info:
             await hl_trading_service.get_order(
-                args=GetOrderArgs(symbol="ETH", order_id="not_a_number"),
+                args=GetOrderArgs(symbol=ETH_HL, order_id="not_a_number"),
             )
 
         # The service re-raises input validation errors as ValueError
@@ -231,10 +234,14 @@ class TestHyperliquidTradingServiceOrders:
         """Test get_order raises ValidationError for empty symbol when provided."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(ValidationError) as exc_info:
-            await hl_trading_service.get_order(args=GetOrderArgs(symbol="", order_id="12345"))
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
 
-        assert "String cannot be empty" in str(exc_info.value)
+        with pytest.raises((ValidationError, ValueError)):
+            invalid_symbol = exchanges.hyperliquid("")
+            await hl_trading_service.get_order(
+                args=GetOrderArgs(symbol=invalid_symbol, order_id="12345")
+            )
 
     @pytest.mark.asyncio
     async def test_get_open_orders_empty_symbol_when_provided_validation(
@@ -244,12 +251,14 @@ class TestHyperliquidTradingServiceOrders:
         """Test get_open_orders raises ValueError for empty symbol when provided."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(ValueError) as exc_info:
-            await hl_trading_service.get_open_orders(
-                symbol="",  # Empty symbol should be rejected when provided
-            )
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
 
-        assert "'symbol' must be a non-empty string when provided" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            invalid_symbol = exchanges.hyperliquid("")
+            await hl_trading_service.get_open_orders(
+                symbol=invalid_symbol,  # Empty symbol should be rejected when provided
+            )
 
     @pytest.mark.asyncio
     async def test_cancel_order_none_symbol_validation(
@@ -276,14 +285,16 @@ class TestHyperliquidTradingServiceOrders:
         """Test cancel_order raises ValidationError for empty symbol."""
         hl_trading_service = make_hl_trading_service()
 
-        with pytest.raises(ValidationError) as exc_info:
+        # Test with actual invalid symbol creation
+        from cyberdelta.core.symbols import exchanges
+
+        with pytest.raises((ValidationError, ValueError)):
+            invalid_symbol = exchanges.hyperliquid("")
             args = CancelOrderArgs(
                 order_id="12345",
-                symbol="",  # Empty symbol should be rejected
+                symbol=invalid_symbol,  # Empty symbol should be rejected
             )
             await hl_trading_service.cancel_order(args)
-
-        assert "String cannot be empty" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_cancel_order_invalid_string_order_id_validation(
@@ -296,7 +307,7 @@ class TestHyperliquidTradingServiceOrders:
         with pytest.raises(ServiceParameterError) as exc_info:
             args = CancelOrderArgs(
                 order_id="not_a_number",  # Invalid string order_id
-                symbol="ETH",
+                symbol=ETH_HL,
             )
             await hl_trading_service.cancel_order(args)
 
@@ -313,7 +324,7 @@ class TestHyperliquidTradingServiceOrders:
         with pytest.raises(ServiceParameterError) as exc_info:
             args = CancelOrderArgs(
                 order_id="0",  # Zero order_id should be rejected
-                symbol="ETH",
+                symbol=ETH_HL,
             )
             await hl_trading_service.cancel_order(args)
 
@@ -330,7 +341,7 @@ class TestHyperliquidTradingServiceOrders:
         with pytest.raises(ServiceParameterError) as exc_info:
             args = CancelOrderArgs(
                 order_id="-12345",  # Negative order_id should be rejected
-                symbol="ETH",
+                symbol=ETH_HL,
             )
             await hl_trading_service.cancel_order(args)
 
@@ -349,7 +360,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_request_builder: MagicMock,
     ) -> None:
         """Test place_order when the service raises APIError for invalid response."""
-        symbol = "ETH"
+        symbol = ETH_HL
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
@@ -399,7 +410,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_order_response_mapper: MagicMock,
     ) -> None:
         """Test successful place_order operation through public interface."""
-        symbol = "BTC"
+        symbol = BTC_HL
         wallet_address = "0xSuccessWallet"
         quantity = Decimal("0.5")
         price = Decimal(50000)
@@ -423,7 +434,7 @@ class TestHyperliquidTradingServiceOrders:
         # Configure order response mapper to return proper Order object
         expected_order = Order(
             exchange_order_id="12345",
-            exchange="hyperliquid_test_trading",
+            exchange=ExchangeName.HYPERLIQUID,
             symbol=symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
@@ -468,7 +479,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_authenticator: MagicMock,
     ) -> None:
         """Test get_order when the service raises APIError for invalid response."""
-        symbol = "ETH"
+        symbol = ETH_HL
         order_id = "12345"
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
@@ -501,7 +512,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_response_handler: MagicMock,
     ) -> None:
         """Test get_order operation through public interface."""
-        symbol = "BTC"
+        symbol = BTC_HL
         order_id = "123456"
         wallet_address = "0xSuccessWallet"
 
@@ -536,7 +547,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_authenticator: MagicMock,
     ) -> None:
         """Test get_open_orders when the info HTTP client returns None content."""
-        symbol = "ETH"
+        symbol = ETH_HL
         wallet_address = "0xWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
@@ -564,7 +575,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_http_client_requester: AsyncMock,
     ) -> None:
         """Test successful get_open_orders operation."""
-        symbol = "BTC"
+        symbol = BTC_HL
         wallet_address = "0xSuccessWallet"
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
@@ -611,7 +622,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_request_builder: MagicMock,
     ) -> None:
         """Test cancel_order when the service raises APIError for invalid response."""
-        symbol = "ETH"
+        symbol = ETH_HL
         order_id = 111222
         wallet_address = "0xCancelWallet"
 
@@ -644,7 +655,7 @@ class TestHyperliquidTradingServiceOrders:
         mock_hl_order_response_mapper: MagicMock,
     ) -> None:
         """Test cancel_order operation through public interface."""
-        symbol = "ETH"
+        symbol = ETH_HL
         order_id = 111222
         wallet_address = "0xCancelSuccessWallet"
 

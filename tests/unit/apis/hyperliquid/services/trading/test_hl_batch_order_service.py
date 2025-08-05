@@ -22,6 +22,7 @@ from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidT
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import CancelOrderResult
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Import fixtures from the shared conftest
@@ -45,7 +46,7 @@ class TestBatchOrderService:
         # Create test orders
         orders = [
             PlaceOrderArgs(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.5"),
@@ -53,7 +54,7 @@ class TestBatchOrderService:
                 time_in_force=TimeInForce.GTC,
             ),
             PlaceOrderArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 side=OrderSide.SELL,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
@@ -108,7 +109,7 @@ class TestBatchOrderService:
 
         orders = [
             PlaceOrderArgs(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.5"),
@@ -175,7 +176,7 @@ class TestBatchOrderService:
         # Create a batch that's too large
         orders = [
             PlaceOrderArgs(
-                symbol="BTC",
+                symbol=BTC_HL,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.1"),
@@ -228,8 +229,8 @@ class TestBatchOrderService:
 
         # Create test cancellation args
         cancel_args = [
-            CancelOrderArgs(order_id="123456", symbol="BTC"),
-            CancelOrderArgs(order_id="123457", symbol="ETH"),
+            CancelOrderArgs(order_id="123456", symbol=BTC_HL),
+            CancelOrderArgs(order_id="123457", symbol=ETH_HL),
         ]
 
         # Test focuses on public behavior, not exact data matching

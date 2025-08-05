@@ -133,10 +133,10 @@ class SpotBalance(BaseModel):
     @classmethod
     def validate_exchange_string(cls, v: object, info: ValidationInfo) -> ExchangeName:
         """Validate exchange field is a valid ExchangeName.
-        
+
         Returns:
             ExchangeName: Validated exchange name.
-            
+
         Raises:
             InvalidExchangeNameError: If exchange name is invalid.
             TypeFieldError: If value is not a string or ExchangeName.

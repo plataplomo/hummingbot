@@ -41,7 +41,7 @@ async def get_available_symbols(api: HyperliquidAPI) -> list[str]:
     """
     try:
         markets = await api.get_markets(GetMarketsArgs())
-        symbols = [market.symbol for market in markets]
+        symbols = [market.symbol.value for market in markets]
 
         if not symbols:
             raise RuntimeError(

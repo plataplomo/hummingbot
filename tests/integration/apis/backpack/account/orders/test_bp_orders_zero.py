@@ -33,7 +33,7 @@ from tests.integration.apis.backpack.shared.bp_test_helpers import (
 
 # Constants for test symbols
 DEFAULT_TEST_SYMBOL_SPOT = SOL_USDC_BP.value
-TEST_SYMBOL_ETH_USDC = ETH_USDC_BP.value  
+TEST_SYMBOL_ETH_USDC = ETH_USDC_BP.value
 TEST_SYMBOL_BTC_USDC = BTC_USDC_BP.value
 
 

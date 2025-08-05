@@ -46,7 +46,7 @@ async def get_available_trading_symbols(api: BackpackAPI, limit: int = 3) -> lis
 
         # Get spot symbols (non-perpetual)
         spot_symbols = [
-            market.symbol for market in markets if not market.symbol.value.endswith("_PERP")
+            market.symbol.value for market in markets if not market.symbol.value.endswith("_PERP")
         ]
 
         if not spot_symbols:

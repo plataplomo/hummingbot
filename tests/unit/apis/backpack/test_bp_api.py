@@ -368,7 +368,9 @@ class TestBackpackAPIAccountOperations:
         result = await api.get_positions(symbol=exchanges.backpack("SOL"))
 
         # Verify service was called with correct parameters (positional argument)
-        mock_bp_account_service.get_positions.assert_called_once_with(symbol=exchanges.backpack("SOL"))
+        mock_bp_account_service.get_positions.assert_called_once_with(
+            symbol=exchanges.backpack("SOL")
+        )
         assert result == expected_positions
 
         await api.close()
@@ -410,7 +412,9 @@ class TestBackpackAPIAccountOperations:
         mock_bp_account_service.get_trade_history.return_value = expected_trades
 
         # Test delegation
-        result = await api.get_trade_history(args=GetTradeHistoryArgs(symbol=exchanges.backpack("SOL"), limit=50))
+        result = await api.get_trade_history(
+            args=GetTradeHistoryArgs(symbol=exchanges.backpack("SOL"), limit=50)
+        )
 
         # Verify service was called with correct parameters
         mock_bp_account_service.get_trade_history.assert_called_once_with(
@@ -541,7 +545,9 @@ class TestBackpackAPITradingOperations:
         mock_bp_trading_service.get_order.return_value = test_order
 
         # Test delegation
-        result = await api.get_order(GetOrderArgs(order_id="order_102", symbol=exchanges.backpack("SOL")))
+        result = await api.get_order(
+            GetOrderArgs(order_id="order_102", symbol=exchanges.backpack("SOL"))
+        )
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order.assert_called_once_with(
@@ -587,12 +593,16 @@ class TestBackpackAPITradingOperations:
 
         # Test delegation
         result = await api.get_order_status(
-            GetOrderArgs(order_id="order_103", symbol=exchanges.backpack("SOL"), client_order_id=None),
+            GetOrderArgs(
+                order_id="order_103", symbol=exchanges.backpack("SOL"), client_order_id=None
+            ),
         )
 
         # Verify service was called with correct parameters
         mock_bp_trading_service.get_order.assert_called_once_with(
-            GetOrderArgs(order_id="order_103", symbol=exchanges.backpack("SOL"), client_order_id=None),
+            GetOrderArgs(
+                order_id="order_103", symbol=exchanges.backpack("SOL"), client_order_id=None
+            ),
         )
         assert result == test_order
 
@@ -731,7 +741,9 @@ class TestBackpackAPIErrorHandling:
 
         # API client should propagate the exact same APIError
         with pytest.raises(APIError) as exc_info:
-            await api.get_order(GetOrderArgs(order_id="missing_order", symbol=exchanges.backpack("SOL")))
+            await api.get_order(
+                GetOrderArgs(order_id="missing_order", symbol=exchanges.backpack("SOL"))
+            )
 
         # Assert exact error propagation
         assert exc_info.value is service_error  # Same instance

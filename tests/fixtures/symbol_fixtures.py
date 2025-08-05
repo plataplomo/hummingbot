@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 import pytest
 
 from cyberdelta.core.symbols import Symbol, exchanges
+from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from tests.common_symbols import (
     BTC_BP,
@@ -103,7 +104,10 @@ def spot_asset(any_exchange: ExchangeName) -> Callable[[str], Symbol]:
 
     def _create(asset: str) -> Symbol:
         # Use exchanges API for dynamic symbol creation
-        return getattr(exchanges, any_exchange.value.lower())(f"{asset}_USDC")
+        factory = getattr(exchanges, any_exchange.value.lower())
+        result = factory(f"{asset}_USDC")
+        assert isinstance(result, BaseSymbol)
+        return result
 
     return _create
 
@@ -115,7 +119,10 @@ def exchange_symbol() -> Callable[[str, ExchangeName], Symbol]:
 
     def _create(value: str, exchange: ExchangeName) -> Symbol:
         # Use exchanges API for dynamic symbol creation
-        return getattr(exchanges, exchange.value.lower())(value)
+        factory = getattr(exchanges, exchange.value.lower())
+        result = factory(value)
+        assert isinstance(result, BaseSymbol)
+        return result
 
     return _create
 

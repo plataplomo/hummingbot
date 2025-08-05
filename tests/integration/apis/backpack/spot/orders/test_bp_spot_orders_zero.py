@@ -36,7 +36,11 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
-from tests.common_symbols import SOL_USDC_BP, SOL_USDC_BP as TEST_SYMBOL_SOL_USDC, BTC_USDC_BP as TEST_SYMBOL_BTC_USDC
+from tests.common_symbols import (
+    BTC_USDC_BP as TEST_SYMBOL_BTC_USDC,
+    SOL_USDC_BP,
+    SOL_USDC_BP as TEST_SYMBOL_SOL_USDC,
+)
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_current_market_price,
     get_dynamic_test_price,
@@ -226,6 +230,7 @@ class TestBackpackOrdersZeroBalance:
         for malformed_symbol in normalizable_symbols:
             try:
                 from cyberdelta.core.symbols import exchanges
+
                 # Try to create symbol from string - this will normalize it
                 symbol = exchanges.backpack(malformed_symbol)
                 place_args = PlaceOrderArgs(
@@ -274,6 +279,7 @@ class TestBackpackOrdersZeroBalance:
         # Test truly malformed symbols - should result in symbol validation errors
         for malformed_symbol in truly_malformed_symbols:
             from cyberdelta.core.symbols import exchanges
+
             if not malformed_symbol:
                 # Empty string will fail during symbol creation
                 with pytest.raises((ValidationError, ValueError)):
@@ -294,7 +300,7 @@ class TestBackpackOrdersZeroBalance:
                 except (ValueError, ValidationError):
                     # Symbol creation failed, which is expected for malformed symbols
                     continue
-                    
+
                 place_args = PlaceOrderArgs(
                     symbol=symbol,
                     side=OrderSide.BUY,

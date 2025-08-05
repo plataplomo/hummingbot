@@ -34,7 +34,10 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
-from tests.common_symbols import SOL_USDC_BP as TEST_SYMBOL_SOL_USDC, BTC_USDC_BP as TEST_SYMBOL_BTC_USDC
+from tests.common_symbols import (
+    BTC_USDC_BP as TEST_SYMBOL_BTC_USDC,
+    SOL_USDC_BP as TEST_SYMBOL_SOL_USDC,
+)
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_current_market_price,
     get_market_constraints,

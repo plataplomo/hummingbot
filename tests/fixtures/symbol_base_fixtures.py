@@ -9,6 +9,7 @@ import pytest
 from cyberdelta.core.symbols import exchanges, get_registry, get_symbol_service
 from cyberdelta.core.symbols.handlers.backpack import BackpackHandler
 from cyberdelta.core.symbols.handlers.hyperliquid import HyperliquidHandler
+from cyberdelta.core.symbols.models import BackpackMetadata, HyperliquidMetadata
 from cyberdelta.core.symbols.protocols import ExchangeHandler
 from cyberdelta.core.symbols.registry import SymbolRegistry
 from cyberdelta.core.symbols.service import SymbolService
@@ -36,7 +37,9 @@ def symbol_registry() -> SymbolRegistry:
 
 
 @pytest.fixture
-def exchange_handlers() -> dict[ExchangeName, ExchangeHandler]:
+def exchange_handlers() -> dict[
+    ExchangeName, ExchangeHandler[HyperliquidMetadata] | ExchangeHandler[BackpackMetadata]
+]:
     """Provide exchange handlers for tests.
 
     Returns:
@@ -47,7 +50,7 @@ def exchange_handlers() -> dict[ExchangeName, ExchangeHandler]:
 
 
 @pytest.fixture
-def hyperliquid_handler() -> ExchangeHandler:
+def hyperliquid_handler() -> ExchangeHandler[HyperliquidMetadata]:
     """Provide Hyperliquid handler.
 
     Returns:
@@ -57,7 +60,7 @@ def hyperliquid_handler() -> ExchangeHandler:
 
 
 @pytest.fixture
-def backpack_handler() -> ExchangeHandler:
+def backpack_handler() -> ExchangeHandler[BackpackMetadata]:
     """Provide Backpack handler.
 
     Returns:
@@ -67,7 +70,7 @@ def backpack_handler() -> ExchangeHandler:
 
 
 @pytest.fixture
-def exchanges_api():
+def exchanges_api() -> object:
     """Provide exchanges namespace for symbol creation.
 
     Returns:

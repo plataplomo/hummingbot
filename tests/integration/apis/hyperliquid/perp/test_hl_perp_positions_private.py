@@ -142,7 +142,7 @@ class TestHyperliquidPerpPositionsPrivate:
                 "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get minimal viable order size using real market data
         minimal_quantity = await get_minimal_test_quantity(
@@ -153,7 +153,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Define order parameters to open a position
         place_args = PlaceOrderArgs(
-            symbol=exchanges.hyperliquid(test_symbol),
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,  # Market order for immediate position opening
             quantity=minimal_quantity,
@@ -172,13 +172,13 @@ class TestHyperliquidPerpPositionsPrivate:
         # Find the position for the traded asset
         test_position = None
         for position in positions:
-            if position.symbol.value == test_symbol:
+            if position.symbol == test_symbol:
                 test_position = position
                 break
 
         # If position was created/modified, validate it
         if test_position is not None:
-            await self._validate_position_fields(test_position, test_symbol)
+            await self._validate_position_fields(test_position, test_symbol.value)
             await self._validate_position_business_logic(test_position, placed_order)
 
         # Clean up - attempt to close position if one was opened
@@ -188,7 +188,7 @@ class TestHyperliquidPerpPositionsPrivate:
             close_quantity = abs(test_position.size)
 
             close_args = PlaceOrderArgs(
-                symbol=exchanges.hyperliquid(test_symbol),
+                symbol=test_symbol,
                 side=close_side,
                 order_type=OrderType.MARKET,
                 quantity=close_quantity,
@@ -220,7 +220,7 @@ class TestHyperliquidPerpPositionsPrivate:
                 "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get minimal viable order size
         minimal_quantity = await get_minimal_test_quantity(
@@ -231,7 +231,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 1: First open a position
         open_args = PlaceOrderArgs(
-            symbol=exchanges.hyperliquid(test_symbol),
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=minimal_quantity,
@@ -245,7 +245,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_open = await hl_api_for_test_env.get_positions()
         test_position_after_open = None
         for position in positions_after_open:
-            if position.symbol.value == test_symbol and position.size != Decimal(0):
+            if position.symbol == test_symbol and position.size != Decimal(0):
                 test_position_after_open = position
                 break
 
@@ -257,7 +257,7 @@ class TestHyperliquidPerpPositionsPrivate:
             close_quantity = abs(test_position_after_open.size)
 
             close_args = PlaceOrderArgs(
-                symbol=exchanges.hyperliquid(test_symbol),
+                symbol=test_symbol,
                 side=close_side,
                 order_type=OrderType.MARKET,
                 quantity=close_quantity,
@@ -271,7 +271,7 @@ class TestHyperliquidPerpPositionsPrivate:
             positions_after_close = await hl_api_for_test_env.get_positions()
             test_position_after_close = None
             for position in positions_after_close:
-                if position.symbol.value == test_symbol:
+                if position.symbol == test_symbol:
                     test_position_after_close = position
                     break
 
@@ -305,7 +305,7 @@ class TestHyperliquidPerpPositionsPrivate:
                 "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get unreasonably large quantity - use exchange max
         constraints = await HyperliquidTestHelpers.get_market_constraints(
@@ -326,7 +326,7 @@ class TestHyperliquidPerpPositionsPrivate:
         )
 
         large_position_args = PlaceOrderArgs(
-            symbol=exchanges.hyperliquid(test_symbol),
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=large_quantity,
@@ -378,7 +378,7 @@ class TestHyperliquidPerpPositionsPrivate:
                 "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get minimal order size that meets $10 minimum requirement
         # This ensures we meet exchange minimum notional requirements for testnet
@@ -390,7 +390,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Test very small position size
         small_position_args = PlaceOrderArgs(
-            symbol=exchanges.hyperliquid(test_symbol),
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=small_quantity,
@@ -405,7 +405,7 @@ class TestHyperliquidPerpPositionsPrivate:
             positions = await hl_api_for_test_env.get_positions()
             test_position = None
             for position in positions:
-                if position.symbol.value == test_symbol and position.size != Decimal(0):
+                if position.symbol == test_symbol and position.size != Decimal(0):
                     test_position = position
                     break
 
@@ -427,7 +427,7 @@ class TestHyperliquidPerpPositionsPrivate:
                         OrderSide.SELL if test_position.size > Decimal(0) else OrderSide.BUY
                     )
                     close_args = PlaceOrderArgs(
-                        symbol=exchanges.hyperliquid(test_symbol),
+                        symbol=test_symbol,
                         side=close_side,
                         order_type=OrderType.MARKET,
                         quantity=abs(test_position.size),
@@ -464,7 +464,7 @@ class TestHyperliquidPerpPositionsPrivate:
                 "Cannot test invalid symbol handling.",
             )
 
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
         minimal_quantity = await get_minimal_test_quantity(
             hl_api_for_test_env,
             test_symbol,
@@ -515,7 +515,7 @@ class TestHyperliquidPerpPositionsPrivate:
                 "No perpetual symbols available from exchange. Cannot test position operations.",
             )
 
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get minimal viable order size
         minimal_quantity = await get_minimal_test_quantity(
@@ -530,7 +530,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 1: Open initial position
         initial_args = PlaceOrderArgs(
-            symbol=exchanges.hyperliquid(test_symbol),
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
             quantity=minimal_quantity,
@@ -544,7 +544,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_initial = await hl_api_for_test_env.get_positions()
         initial_position = None
         for position in positions_after_initial:
-            if position.symbol.value == test_symbol and position.size != Decimal(0):
+            if position.symbol == test_symbol and position.size != Decimal(0):
                 initial_position = position
                 break
 
@@ -553,7 +553,7 @@ class TestHyperliquidPerpPositionsPrivate:
 
         # Step 2: Add to position
         add_args = PlaceOrderArgs(
-            symbol=exchanges.hyperliquid(test_symbol),
+            symbol=test_symbol,
             side=OrderSide.BUY,  # Same side to add to position
             order_type=OrderType.MARKET,
             quantity=additional_quantity,
@@ -567,7 +567,7 @@ class TestHyperliquidPerpPositionsPrivate:
         positions_after_add = await hl_api_for_test_env.get_positions()
         test_position = None
         for position in positions_after_add:
-            if position.symbol.value == test_symbol and position.size != Decimal(0):
+            if position.symbol == test_symbol and position.size != Decimal(0):
                 test_position = position
                 break
 
@@ -606,7 +606,7 @@ class TestHyperliquidPerpPositionsPrivate:
         # Step 4: Clean up - close entire position
         if test_position:
             close_args = PlaceOrderArgs(
-                symbol=exchanges.hyperliquid(test_symbol),
+                symbol=test_symbol,
                 side=OrderSide.SELL,
                 order_type=OrderType.MARKET,
                 quantity=abs(test_position.size),

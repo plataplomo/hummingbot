@@ -135,8 +135,8 @@ class TestBackpackPerpCandles:
                 )
 
                 # Validate symbol
-                assert candle.symbol == SOL_USDC_PERP_BP.value, (
-                    f"Candle {i} symbol should be 'SOL_USDC_PERP', got '{candle.symbol}'"
+                assert candle.symbol == SOL_USDC_PERP_BP, (
+                    f"Candle {i} symbol should be '{SOL_USDC_PERP_BP}', got '{candle.symbol}'"
                 )
 
     @pytest.mark.vcr
@@ -180,8 +180,8 @@ class TestBackpackPerpCandles:
                 assert isinstance(candle, Candle), (
                     f"Candle {i} should be Candle model, got {type(candle)}"
                 )
-                assert candle.symbol == BTC_USDC_PERP_BP.value, (
-                    f"Candle {i} symbol should be 'BTC_USDC_PERP', got '{candle.symbol}'"
+                assert candle.symbol == BTC_USDC_PERP_BP, (
+                    f"Candle {i} symbol should be '{BTC_USDC_PERP_BP}', got '{candle.symbol}'"
                 )
 
                 # BTC perp prices should be positive and reasonable
@@ -237,8 +237,8 @@ class TestBackpackPerpCandles:
                 assert isinstance(candle, Candle), (
                     f"Candle {i} should be Candle model, got {type(candle)}"
                 )
-                assert candle.symbol == ETH_USDC_PERP_BP.value, (
-                    f"Candle {i} symbol should be 'ETH_USDC_PERP', got '{candle.symbol}'"
+                assert candle.symbol == ETH_USDC_PERP_BP, (
+                    f"Candle {i} symbol should be '{ETH_USDC_PERP_BP}', got '{candle.symbol}'"
                 )
 
                 # ETH perp prices should be positive and reasonable
@@ -304,7 +304,7 @@ class TestBackpackPerpCandles:
                         assert isinstance(candle, Candle), (
                             f"Should be Candle for interval {interval}"
                         )
-                        assert candle.symbol == SOL_USDC_PERP_BP.value, (
+                        assert candle.symbol == SOL_USDC_PERP_BP, (
                             f"Wrong symbol for interval {interval}"
                         )
 
@@ -630,8 +630,8 @@ class TestBackpackPerpCandles:
 
                 # All candles in the list should have same symbol
                 for i, candle in enumerate(candles):
-                    assert candle.symbol == symbol, (
-                        f"Perp candle {i} for {symbol} has wrong symbol: {candle.symbol}"
+                    assert candle.symbol.value == symbol, (
+                        f"Perp candle {i} for {symbol} has wrong symbol: {candle.symbol.value}"
                     )
                     # Validate it's actually a perp symbol
                     assert symbol.endswith("_PERP"), f"Should be perp symbol, got: {symbol}"

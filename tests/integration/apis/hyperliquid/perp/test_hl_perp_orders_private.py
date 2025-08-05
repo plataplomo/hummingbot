@@ -88,8 +88,7 @@ class TestHyperliquidPerpOrdersPrivate:
         """
         # Use dynamic helpers to get appropriate test symbol from exchange
 
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters - use market-based tolerance calculation
         market_price = await HyperliquidTestHelpers.get_current_market_price(
@@ -215,8 +214,7 @@ class TestHyperliquidPerpOrdersPrivate:
         This validates the complete order lifecycle: place → cancel → verify cancellation.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters that are safe and won't fill
         # Calculate safe tolerance to ensure no fill - use market price differential
@@ -290,8 +288,9 @@ class TestHyperliquidPerpOrdersPrivate:
     ) -> None:
         """Test place_order() with invalid asset/symbol error."""
         # Get a valid symbol first to use for dynamic price and quantity calculation
-        valid_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        valid_symbol = exchanges.hyperliquid(valid_symbol_str)
+        valid_symbol = await get_test_symbol(
+            hl_api_for_test_env, "perp", 0
+        )  # Already returns Symbol
 
         # Get dynamic values based on a valid symbol for test parameters
         test_price = await get_safe_test_price(
@@ -342,8 +341,7 @@ class TestHyperliquidPerpOrdersPrivate:
         where cancel_order returns CancelOrderResult instead of raising exceptions.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Attempt to cancel order with fake ID
         cancel_args = CancelOrderArgs(
@@ -390,8 +388,7 @@ class TestHyperliquidPerpOrdersPrivate:
         that are at the edge of exchange precision requirements.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get market constraints to calculate edge case values
         constraints = await HyperliquidTestHelpers.get_market_constraints(
@@ -501,8 +498,7 @@ class TestHyperliquidPerpOrdersPrivate:
         state transitions and error handling.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters for initial order
         initial_price = await get_safe_test_price(
@@ -560,8 +556,7 @@ class TestHyperliquidPerpOrdersPrivate:
         and only cancels orders for the specified symbol.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters for orders
         test_price_1 = await get_safe_test_price(
@@ -668,8 +663,7 @@ class TestHyperliquidPerpOrdersPrivate:
         across all symbols when no filter is specified.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters for order
         test_price = await get_safe_test_price(
@@ -745,8 +739,7 @@ class TestHyperliquidPerpOrdersPrivate:
         but there are no orders to cancel.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # First ensure no orders are open by cancelling any existing ones
         try:
@@ -781,8 +774,7 @@ class TestHyperliquidPerpOrdersPrivate:
         exist for that specific symbol.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters for order
         test_price = await get_safe_test_price(
@@ -864,8 +856,7 @@ class TestHyperliquidPerpOrdersPrivate:
         in bulk order cancellation.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters for orders
         test_price_1 = await get_safe_test_price(
@@ -964,8 +955,7 @@ class TestHyperliquidPerpOrdersPrivate:
         symbols and order types.
         """
         # Get test symbol from exchange
-        test_symbol_str = await get_test_symbol(hl_api_for_test_env, "perp", 0)
-        test_symbol = exchanges.hyperliquid(test_symbol_str)
+        test_symbol = await get_test_symbol(hl_api_for_test_env, "perp", 0)
 
         # Get dynamic test parameters for different orders
         test_price_1 = await get_safe_test_price(

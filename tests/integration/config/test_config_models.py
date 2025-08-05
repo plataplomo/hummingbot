@@ -421,7 +421,7 @@ class TestRiskSettings:
         assert settings.sizing.method == "simple"
         assert settings.sizing.simple_method == "fixed_fraction"
         assert settings.sizing.simple_fixed_fraction == Decimal("0.02")  # Default value
-        assert settings.sizing.simple_fixed_usd == Decimal("1000")  # Default value
+        assert settings.sizing.simple_fixed_usd == Decimal(1000)  # Default value
 
     def test_alias_field(self) -> None:
         """Test that 'global' alias works for global_risk field."""

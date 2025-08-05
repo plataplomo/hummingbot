@@ -276,7 +276,7 @@ class TestBoundaryValueConditions:
         )
 
         # Values that survive 8-decimal rounding should process successfully
-        assert ticker.symbol == "SMALL-VALUES-PERP"
+        assert ticker.symbol.value == "SMALL-VALUES-PERP"
         assert funding_rate is not None  # Should succeed with non-zero mark price
 
     def test_zero_values_edge_cases(
@@ -340,7 +340,7 @@ class TestBoundaryValueConditions:
             negative_funding_asset_ctx,
         )
 
-        assert ticker.symbol == "NEGATIVE-FUNDING-PERP"
+        assert ticker.symbol.value == "NEGATIVE-FUNDING-PERP"
         assert funding_rate is not None
         # Verify negative funding is preserved
         assert funding_rate.hl_details is not None
@@ -363,7 +363,7 @@ class TestBoundaryValueConditions:
         )
 
         ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(max_length_asset_ctx)
-        assert ticker.symbol == max_length_symbol
+        assert ticker.symbol.value == max_length_symbol
 
 
 # --- Tests for Unicode and encoding support ---
@@ -395,7 +395,7 @@ class TestUnicodeAndEncodingSupport:
             )
 
             ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(unicode_asset_ctx)
-            assert ticker.symbol == symbol
+            assert ticker.symbol.value == symbol
 
     def test_unicode_in_trade_hashes(
         self,
@@ -568,8 +568,8 @@ class TestErrorRecoveryScenarios:
 
         # Should return only valid trades
         assert len(trades) == 2
-        assert trades[0].symbol == "VALID-PERP"
-        assert trades[1].symbol == "ANOTHER-VALID-PERP"
+        assert trades[0].symbol.value == "VALID-PERP"
+        assert trades[1].symbol.value == "ANOTHER-VALID-PERP"
 
         # Should log warning for skipped trade in structured logs
         warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]

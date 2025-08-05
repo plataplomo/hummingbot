@@ -25,7 +25,6 @@ from cyberdelta.models import (
     Ticker,
     TimeInForce,
 )
-
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

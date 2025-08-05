@@ -29,7 +29,6 @@ from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
@@ -249,7 +248,9 @@ class TestBackpackAllStreamModelConversions:
 
         return ticker_handler
 
-    def _validate_received_tickers(self, received_tickers: list[Ticker], test_symbol: Symbol) -> None:
+    def _validate_received_tickers(
+        self, received_tickers: list[Ticker], test_symbol: Symbol
+    ) -> None:
         """Validate received ticker models and log results."""
         if received_tickers:
             for ticker in received_tickers[:3]:
@@ -716,7 +717,7 @@ class TestBackpackAllStreamModelConversions:
             # test_symbol should always be a Symbol object at this point
             test_symbol_obj = test_symbol
             test_symbol_str = test_symbol.value
-            
+
             # Get real depth data using Symbol object
             raw_depth = await get_real_depth_data(bp_api_for_test_env, test_symbol_obj)
 

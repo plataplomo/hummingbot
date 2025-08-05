@@ -6,7 +6,7 @@ symbol service behaviors in tests.
 
 from __future__ import annotations
 
-from typing import Any, Self
+from typing import Any, Callable, Self
 from unittest.mock import Mock
 
 from cyberdelta.core.symbols import Symbol
@@ -328,10 +328,10 @@ class MockExchangeHandler:
                 return self._format_rules[key]
             # Default formatting
             if self._exchange == ExchangeName.HYPERLIQUID:
-                if components.market_type.value == "perp":
+                if components.market_type.value == "PERP":
                     return f"{components.base_asset}-PERP"
                 return f"{components.base_asset}-{components.quote_asset or 'USDC'}"
-            if components.market_type.value == "perp":
+            if components.market_type.value == "PERP":
                 return f"{components.base_asset}_PERP"
             return f"{components.base_asset}_{components.quote_asset or 'USDC'}"
 
@@ -443,10 +443,14 @@ class MockSymbolRegistry:
         mock.create_symbol.side_effect = create_symbol
 
         # Configure get_factory
-        def get_factory(exchange: ExchangeName) -> Any:
+        def get_factory(exchange: ExchangeName) -> Callable[[str], Symbol] | None:
             if exchange in self._handlers:
                 handler = self._handlers[exchange]
-                return lambda value, **kwargs: handler.create_symbol(value, **kwargs)
+                
+                def factory(value: str, **kwargs: Any) -> Symbol:
+                    return handler.create_symbol(value, **kwargs)
+                
+                return factory
             return None
 
         mock.get_factory.side_effect = get_factory
@@ -461,7 +465,8 @@ class MockSymbolRegistry:
         def getattr_handler(name: str) -> Any:
             exchange = ExchangeName[name.upper()]
             return get_factory(exchange)
-        
+
+        # Use setattr to properly assign the method
         setattr(mock, "__getattr__", getattr_handler)
 
         return mock

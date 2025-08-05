@@ -48,7 +48,7 @@ class TestBackpackAccountServiceBalances:
 
         # The mapper transforms to exchange="backpack" not "backpack_test_account"
         assert result["USDC"].exchange == "backpack"
-        assert result["USDC"].asset == "USDC"
+        assert result["USDC"].asset.value == "USDC"
         assert isinstance(result["USDC"].timestamp, datetime)
         assert result["USDC"].timestamp.tzinfo == UTC
         assert result["USDC"].total_quantity == Decimal("1010.5")
@@ -97,7 +97,7 @@ class TestBackpackAccountServiceBalances:
         # Check USDC balance
         usdc_balance = result_balances["USDC"]
         assert usdc_balance.exchange == "backpack"  # Mapper returns "backpack"
-        assert usdc_balance.asset == "USDC"
+        assert usdc_balance.asset.value == "USDC"
         assert isinstance(usdc_balance.timestamp, datetime)
         assert usdc_balance.timestamp.tzinfo == UTC
         assert usdc_balance.total_quantity == Decimal("1010.5")
@@ -106,7 +106,7 @@ class TestBackpackAccountServiceBalances:
         # Check SOL balance
         sol_balance = result_balances["SOL"]
         assert sol_balance.exchange == "backpack"  # Mapper returns "backpack"
-        assert sol_balance.asset == "SOL"
+        assert sol_balance.asset.value == "SOL"
         assert isinstance(sol_balance.timestamp, datetime)
         assert sol_balance.timestamp.tzinfo == UTC
         assert sol_balance.total_quantity == Decimal("50.7")

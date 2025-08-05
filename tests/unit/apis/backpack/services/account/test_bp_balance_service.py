@@ -34,6 +34,7 @@ from cyberdelta.apis.backpack.services.account.bp_balance_service import (
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.models import SpotBalance
 from cyberdelta.models.spot_balance import BackpackSpotBalanceDetails
+from tests.common_symbols import BTC_ASSET_BP, USDC_BP
 
 
 @pytest.fixture
@@ -131,7 +132,7 @@ def mock_spot_balance() -> SpotBalance:
         SpotBalance: A mock spot balance for USDC.
     """
     return SpotBalance(
-        asset="USDC",
+        asset=USDC_BP,
         total_quantity=Decimal("1100.00"),
         available_quantity=Decimal("1000.00"),
         exchange="backpack",
@@ -251,7 +252,7 @@ class TestBackpackBalanceService:
 
         # Enhanced balance with collateral info
         enhanced_balance = SpotBalance(
-            asset="USDC",
+            asset=USDC_BP,
             total_quantity=Decimal("2100.00"),  # From collateral
             available_quantity=Decimal("2000.00"),  # From collateral
             exchange="backpack",
@@ -450,7 +451,7 @@ class TestBackpackBalanceService:
 
         # First transformation returns zero balance
         zero_spot_balance = SpotBalance(
-            asset="USDC",
+            asset=USDC_BP,
             total_quantity=Decimal("0.00"),
             available_quantity=Decimal("0.00"),
             exchange="backpack",
@@ -465,7 +466,7 @@ class TestBackpackBalanceService:
 
         # Create balance from collateral (from shared state)
         auto_lend_balance = SpotBalance(
-            asset="USDC",
+            asset=USDC_BP,
             total_quantity=Decimal("2100.00"),
             available_quantity=Decimal("2000.00"),
             exchange="backpack",
@@ -541,7 +542,7 @@ class TestBackpackBalanceService:
 
         # Transform both balances (service will filter out zero later)
         btc_balance = SpotBalance(
-            asset="BTC",
+            asset=BTC_ASSET_BP,
             total_quantity=Decimal("0.00"),
             available_quantity=Decimal("0.00"),
             exchange="backpack",
@@ -554,7 +555,7 @@ class TestBackpackBalanceService:
         )
 
         usdc_balance = SpotBalance(
-            asset="USDC",
+            asset=USDC_BP,
             total_quantity=Decimal("100.00"),
             available_quantity=Decimal("100.00"),
             exchange="backpack",

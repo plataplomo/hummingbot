@@ -23,6 +23,7 @@ from cyberdelta.core.enums import (
     TriggerType,
 )
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 from cyberdelta.models.market.order import (
@@ -408,7 +409,7 @@ def test_order_mutability(base_order_data: dict[str, Any]) -> None:
     order.quantity_filled = new_qty_filled
 
     # Test assignment to details slot
-    order.exchange = "backpack"
+    order.exchange = ExchangeName.BACKPACK
     order.bp_details = BackpackOrderDetails(origin=OrderUpdateOrigin.USER)
     assert order.bp_details is not None
     assert order.bp_details.origin == OrderUpdateOrigin.USER

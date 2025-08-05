@@ -30,6 +30,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawTickerEvent
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.models.market.ticker import Ticker
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
 
@@ -83,11 +84,11 @@ class TestBackpackProcessorPipeline:
             await asyncio.sleep(0.5)
             elapsed = (datetime.now(UTC) - start_time).total_seconds()
 
-    async def _setup_market_test(self, bp_api: BackpackAPI) -> str:
+    async def _setup_market_test(self, bp_api: BackpackAPI) -> Symbol:
         """Helper to setup market testing and return symbol.
 
         Returns:
-            Symbol string of the first available market.
+            Symbol object of the first available market.
         """
         await self._ensure_websocket_connected(bp_api)
         markets = await bp_api.get_markets(GetMarketsArgs())
@@ -262,7 +263,7 @@ class TestBackpackProcessorPipeline:
 
         # Validate the Pydantic models have real data
         for model in pydantic_models_created:
-            assert model.symbol == symbol
+            assert model.symbol == symbol.value
             # Prices should be parsable decimals
             assert Decimal(model.last_price) > 0
             assert Decimal(model.high) > 0
@@ -443,11 +444,11 @@ class TestBackpackProcessorPipeline:
                 "Complete pipeline not working with real WebSocket data."
             )
 
-    async def _get_test_symbol(self, bp_api_for_test_env: BackpackAPI) -> str:
+    async def _get_test_symbol(self, bp_api_for_test_env: BackpackAPI) -> Symbol:
         """Get a symbol for testing.
 
         Returns:
-            Symbol string of the first available market.
+            Symbol object of the first available market.
         """
         markets = await bp_api_for_test_env.get_markets(GetMarketsArgs())
         if not markets:
@@ -459,7 +460,7 @@ class TestBackpackProcessorPipeline:
         message_count: int,
         processing_times: list[float],
         start_time: float,
-        symbol: str,
+        symbol: Symbol,
     ) -> tuple[float, float]:
         """Calculate and log performance metrics.
 

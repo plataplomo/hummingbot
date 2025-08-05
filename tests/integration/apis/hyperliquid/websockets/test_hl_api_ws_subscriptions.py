@@ -42,8 +42,12 @@ async def get_available_symbols_detailed(api: HyperliquidAPI) -> dict[str, list[
     """
     try:
         markets = await api.get_markets(GetMarketsArgs())
-        spot_symbols = [market.symbol for market in markets if not market.symbol.endswith("_PERP")]
-        perp_symbols = [market.symbol for market in markets if market.symbol.endswith("_PERP")]
+        spot_symbols = [
+            market.symbol.value for market in markets if not market.symbol.value.endswith("_PERP")
+        ]
+        perp_symbols = [
+            market.symbol.value for market in markets if market.symbol.value.endswith("_PERP")
+        ]
 
         if not spot_symbols and not perp_symbols:
             raise RuntimeError(

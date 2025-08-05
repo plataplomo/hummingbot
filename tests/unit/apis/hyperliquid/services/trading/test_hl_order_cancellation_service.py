@@ -48,6 +48,7 @@ from cyberdelta.core.enums import (
 )
 from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import CancelOrderResult, Order
 from tests.common_symbols import BTC_USD_HL, ETH_USD_HL, SOL_USD_HL
 
@@ -250,7 +251,7 @@ def mock_open_order() -> Order:
         triggered_at=None,
         strategy_name=None,
         signal_id=None,
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         time_in_force=TimeInForce.GTC,
     )
 
@@ -292,7 +293,7 @@ def mock_open_orders() -> list[Order]:
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             time_in_force=TimeInForce.GTC,
         ),
         Order(
@@ -310,7 +311,7 @@ def mock_open_orders() -> list[Order]:
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             time_in_force=TimeInForce.GTC,
         ),
     ]
@@ -564,7 +565,7 @@ class TestBatchOrderCancellation:
                 triggered_at=None,
                 strategy_name=None,
                 signal_id=None,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 time_in_force=TimeInForce.GTC,
             )
             test_orders.append(order)
@@ -827,7 +828,7 @@ class TestErrorHandling:
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             time_in_force=TimeInForce.GTC,
         )
         mock_order_query_service.get_open_orders.return_value = [test_order]
@@ -867,7 +868,7 @@ class TestValidationLogic:
         # Test validation through public method - Pydantic validates args before service
         with pytest.raises(ValidationError) as exc_info:
             await order_cancellation_service.cancel_order(
-                CancelOrderArgs(symbol=BTC_USD_HL, order_id="")  # type: ignore[arg-type]
+                CancelOrderArgs(symbol=BTC_USD_HL, order_id="")
             )
 
         assert "order_id" in str(exc_info.value).lower()
@@ -884,7 +885,7 @@ class TestValidationLogic:
             Order(
                 exchange_order_id=str(i + 1),  # Start from 1, not 0
                 symbol=BTC_USD_HL,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 order_type=OrderType.LIMIT,
                 side=OrderSide.BUY,
                 quantity_requested=Decimal("0.1"),
@@ -964,7 +965,7 @@ class TestValidationLogic:
             Order(
                 exchange_order_id=str(i + 1),  # Start from 1, not 0
                 symbol=BTC_USD_HL,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 order_type=OrderType.LIMIT,
                 side=OrderSide.BUY,
                 quantity_requested=Decimal("0.1"),
@@ -1090,7 +1091,7 @@ class TestIntegrationScenarios:
                 triggered_at=None,
                 strategy_name=None,
                 signal_id=None,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 time_in_force=TimeInForce.GTC,
             ),
             Order(
@@ -1108,7 +1109,7 @@ class TestIntegrationScenarios:
                 triggered_at=None,
                 strategy_name=None,
                 signal_id=None,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 time_in_force=TimeInForce.GTC,
             ),
             Order(
@@ -1126,7 +1127,7 @@ class TestIntegrationScenarios:
                 triggered_at=None,
                 strategy_name=None,
                 signal_id=None,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 time_in_force=TimeInForce.GTC,
             ),
         ]

@@ -36,7 +36,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_funding_rate successfully retrieves and processes funding rate data."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
         raw_time_str = "2023-10-27T10:00:00"
         expected_internal_funding_rate = FundingRate(
             symbol=symbol,
@@ -70,7 +70,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_funding_rate when market metadata service returns empty list."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
 
         # Mock the market metadata service to return empty list (no funding rates)
         with patch.object(
@@ -98,7 +98,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_funding_rate handles validation error from market metadata service."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
 
         # Create a ValidationError by trying to validate invalid data
         try:
@@ -127,7 +127,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_funding_rate handles unexpected exception from market metadata service."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
 
         # Mock the market metadata service to raise an unexpected exception
         with patch.object(
@@ -160,7 +160,7 @@ class TestBackpackMarketDataServiceFunding:
         Note: Current business logic delegates to market metadata service's get_funding_rates method
         rather than making direct historical funding rate calls.
         """
-        symbol = SOL_BP.value
+        symbol = SOL_BP
         start_time_ms = 1678880000000
         end_time_ms = 1678886400000
         limit = 10
@@ -210,7 +210,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_historical_funding_rates when market metadata service returns empty list."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
         start_time_ms = 1678880000000
         limit = 5
 
@@ -244,7 +244,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_historical_funding_rates handles validation error from metadata service."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
 
         # Create a ValidationError by trying to validate invalid data
         try:
@@ -274,7 +274,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_historical_funding_rates handles unexpected exception from metadata service."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
 
         # Mock the market metadata service to raise an unexpected exception
         with patch.object(
@@ -304,7 +304,7 @@ class TestBackpackMarketDataServiceFunding:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_historical_funding_rates with only symbol parameter."""
-        symbol = SOL_BP.value
+        symbol = SOL_BP
 
         # Create expected internal funding rate
         expected_funding_rate = FundingRate(

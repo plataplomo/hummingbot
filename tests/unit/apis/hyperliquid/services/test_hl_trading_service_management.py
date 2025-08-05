@@ -11,6 +11,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOpenOrdersResponse,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 # Unit tests for HyperliquidTradingService (moved from mislabeled integration tests)
@@ -45,7 +46,7 @@ class TestHyperliquidTradingServiceManagement:
         mock_http_client_requester.return_value = (None, 200, {})
 
         with pytest.raises(APIError) as exc_info:
-            await hl_trading_service.cancel_all_orders(symbol="ETH")
+            await hl_trading_service.cancel_all_orders(symbol=ETH_HL)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No data received for open orders, status: 200" in exc_info.value.message
@@ -65,7 +66,7 @@ class TestHyperliquidTradingServiceManagement:
     ) -> None:
         """Test successful cancel_all_orders operation with symbol filtering."""
         wallet_address = "0xCancelAllWallet"
-        symbol = "BTC"
+        symbol = BTC_HL
         hl_trading_service = make_hl_trading_service(wallet_address=wallet_address)
 
         # Test focuses on public behavior, not exact data matching

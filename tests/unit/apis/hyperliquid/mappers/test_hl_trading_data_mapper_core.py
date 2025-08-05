@@ -516,8 +516,8 @@ class TestCoreValidationLogic:
             # Compare ExchangeSymbol domain objects properly
             assert raw_result.symbol.value == symbol
             assert historical_result.symbol.value == symbol
-            assert raw_result.symbol.exchange_id.value == "hyperliquid"
-            assert historical_result.symbol.exchange_id.value == "hyperliquid"
+            assert raw_result.symbol.exchange.value == "hyperliquid"
+            assert historical_result.symbol.exchange.value == "hyperliquid"
 
     def test_decimal_precision_handling(
         self,

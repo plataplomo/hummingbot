@@ -27,6 +27,7 @@ from cyberdelta.apis.models.service_args.trading import (
     CancelOrderArgs,
     PlaceOrderArgs,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
@@ -66,7 +67,7 @@ class TestHyperliquidSpotOrdersPrivate:
 
         # Define spot order parameters (if supported in future)
         place_args = PlaceOrderArgs(
-            symbol="USDC@0",  # Hypothetical spot trading pair format
+            symbol=exchanges.hyperliquid("USDC@0"),  # Hypothetical spot trading pair format
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=Decimal(10),
@@ -90,7 +91,7 @@ class TestHyperliquidSpotOrdersPrivate:
 
         cancel_args = CancelOrderArgs(
             order_id="12345",
-            symbol="USDC@0",  # Hypothetical spot symbol format
+            symbol=exchanges.hyperliquid("USDC@0"),  # Hypothetical spot symbol format
         )
 
         # The API returns an error result for invalid asset rather than raising

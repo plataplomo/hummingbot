@@ -14,7 +14,7 @@ def create_symbol_service(
     handlers: dict[ExchangeName, ExchangeHandler[Any]] | None = None,
 ) -> SymbolService:
     """Create configured symbol service with all dependencies.
-    
+
     Returns:
         SymbolService: Configured symbol service instance.
     """

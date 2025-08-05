@@ -552,12 +552,12 @@ async def get_most_active_symbol(api: BackpackAPI) -> Symbol:
 
     # Check common active pairs first - use consistent naming
     from tests.common_symbols import (
-        BTC_USDC_PERP_BP,
         BTC_USDC_BP,
-        ETH_USDC_PERP_BP,
+        BTC_USDC_PERP_BP,
         ETH_USDC_BP,
-        SOL_USDC_PERP_BP,
+        ETH_USDC_PERP_BP,
         SOL_USDC_BP,
+        SOL_USDC_PERP_BP,
     )
 
     priority_symbols = [

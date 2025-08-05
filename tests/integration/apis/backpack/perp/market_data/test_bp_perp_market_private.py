@@ -90,15 +90,15 @@ class TestBackpackPerpMarketPrivate:
         assert len(markets) > 0, "Should return at least some markets"
 
         # Test first 3 perpetual markets only
-        perp_markets = [m for m in markets if "_USDC_PERP" in m.symbol][:3]
+        perp_markets = [m for m in markets if "_USDC_PERP" in m.symbol.value][:3]
 
         for market in perp_markets:
-            individual_args = GetMarketArgs(symbol=exchanges.backpack(market.symbol))
+            individual_args = GetMarketArgs(symbol=market.symbol)
             individual_market = await bp_api_for_test_env.get_market(individual_args)
 
             assert individual_market is not None, f"Should retrieve market {market.symbol}"
-            assert individual_market.symbol.value == market.symbol, (
-                f"Retrieved market symbol should match: {individual_market.symbol.value} vs "
+            assert individual_market.symbol == market.symbol, (
+                f"Retrieved market symbol should match: {individual_market.symbol} vs "
                 f"{market.symbol}"
             )
 
@@ -152,7 +152,7 @@ class TestBackpackPerpMarketPrivate:
         args = GetMarketsArgs()
         markets = await bp_api_for_test_env.get_markets(args)
 
-        perp_markets = [m for m in markets if "_USDC_PERP" in m.symbol]
+        perp_markets = [m for m in markets if "_USDC_PERP" in m.symbol.value]
 
         for market in perp_markets:
             assert not hasattr(market, "account_balance"), (

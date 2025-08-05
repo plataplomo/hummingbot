@@ -18,7 +18,7 @@ from cyberdelta.logic.strategy.strategy_service import StrategyService
 __all__ = [
     "BaseStrategy",
     "StrategyError",
-    "StrategyConfigurationError", 
+    "StrategyConfigurationError",
     "StrategyExecutionError",
     "StrategyValidationError",
     "MomentumStrategy",

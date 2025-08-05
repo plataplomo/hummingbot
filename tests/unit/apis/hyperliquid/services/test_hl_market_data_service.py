@@ -13,6 +13,7 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_historical_data_mapper i
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.models.market import Candle
+from tests.common_symbols import BTC_HL
 
 
 class TestHyperliquidMarketDataService:
@@ -146,7 +147,7 @@ class TestHyperliquidMarketDataService:
         )
 
         # Call the service method
-        args = GetMarketDataArgs(symbol="BTC-USD", timeframe="1h", limit=100)
+        args = GetMarketDataArgs(symbol=BTC_HL, timeframe="1h", limit=100)
         result = await market_data_service.get_market_data(args)
 
         # Verify the mapper was called (proving it's being used)

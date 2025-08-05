@@ -14,9 +14,10 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_account_request_builder imp
     HyperliquidAccountRequestBuilder,
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models.market.trade import Trade
 from cyberdelta.utils.typing import ParsedJsonResponse
+from tests.common_symbols import BTC_HL
 
 
 # Type alias for the HTTP client requester callable
@@ -168,11 +169,11 @@ def mock_trade() -> Trade:
     """
     return Trade(
         id="trade_12345",
-        symbol="BTC-USD",
+        symbol=BTC_HL,
         executed_at=datetime.now(UTC),
         side=OrderSide.BUY,
         order_id="order_67890",
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         price=Decimal("50000.0"),
         quantity=Decimal("0.1"),
         fee=Decimal("0.05"),

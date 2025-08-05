@@ -79,8 +79,9 @@ class TestBackpackSpotBalancesZeroComprehensive:
             assert_valid_spot_balance(balance)
 
             # Validate core fields
-            assert balance.asset == asset_symbol, (
-                f"SpotBalance.asset ({balance.asset}) should match dict key ({asset_symbol})"
+            # balance.asset is a Symbol object, asset_symbol is the string key
+            assert balance.asset.value == asset_symbol, (
+                f"SpotBalance.asset ({balance.asset.value}) should match dict key ({asset_symbol})"
             )
             assert balance.exchange == "backpack", (
                 f"SpotBalance.exchange should be 'backpack', got {balance.exchange}"

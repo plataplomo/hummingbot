@@ -17,7 +17,7 @@ class _GlobalSymbolService:
     @classmethod
     def get(cls) -> SymbolService:
         """Get or create the global symbol service.
-        
+
         Returns:
             SymbolService: The global symbol service instance.
         """
@@ -28,7 +28,7 @@ class _GlobalSymbolService:
 
 def get_symbol_service() -> SymbolService:
     """Get or create the global symbol service.
-    
+
     Returns:
         SymbolService: The global symbol service instance.
     """
@@ -39,7 +39,7 @@ def get_symbol_service() -> SymbolService:
 @lru_cache(maxsize=1000)
 def bp_symbol(value: str, symbol_id: int | None = None) -> Symbol:
     """Create a Backpack symbol (cached).
-    
+
     Returns:
         Symbol: Backpack symbol instance.
     """
@@ -49,7 +49,7 @@ def bp_symbol(value: str, symbol_id: int | None = None) -> Symbol:
 @lru_cache(maxsize=1000)
 def hl_symbol(value: str, asset_index: int | None = None) -> Symbol:
     """Create a Hyperliquid symbol (cached).
-    
+
     Returns:
         Symbol: Hyperliquid symbol instance.
     """

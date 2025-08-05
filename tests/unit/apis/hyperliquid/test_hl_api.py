@@ -504,7 +504,6 @@ class TestHyperliquidAPIMarketDataMethods:
     ) -> None:
         """Test successful get_market call delegates to market data service."""
         # Create test data
-        symbol = BTC_HL.value
         expected_market = Market(
             symbol=BTC_HL,
             market_type="Perpetual",

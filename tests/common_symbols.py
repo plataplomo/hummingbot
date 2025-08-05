@@ -70,7 +70,7 @@ BTC_ASSET_BP = exchanges.backpack("BTC")
 USD_HL = exchanges.hyperliquid("USD")
 BTC_ASSET_HL = exchanges.hyperliquid("BTC")
 
-# Cross-asset pair  
+# Cross-asset pair
 USDT_USDC_BP = exchanges.backpack("USDT_USDC")
 
 # Cross-currency conversion symbols

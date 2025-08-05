@@ -39,7 +39,7 @@ class SymbolRegistry:
         self, exchange: ExchangeName, handler: ExchangeHandler[Any]
     ) -> SymbolFactory:
         """Create a factory function for an exchange.
-        
+
         Returns:
             SymbolFactory: Factory function for creating symbols.
         """
@@ -65,10 +65,10 @@ class SymbolRegistry:
 
     def get_factory(self, exchange: ExchangeName) -> SymbolFactory:
         """Get factory for an exchange.
-        
+
         Returns:
             SymbolFactory: Factory for the specified exchange.
-            
+
         Raises:
             ValueError: If exchange is not registered.
         """
@@ -85,7 +85,7 @@ class SymbolRegistry:
         symbol_id: int | None = None,
     ) -> Symbol:
         """Create symbol for any registered exchange.
-        
+
         Returns:
             Symbol: Created symbol instance.
         """
@@ -96,10 +96,10 @@ class SymbolRegistry:
         """Dynamic attribute access for exchange factories.
 
         Allows: registry.hyperliquid("BTC-PERP")
-        
+
         Returns:
             SymbolFactory: Factory for the requested exchange.
-            
+
         Raises:
             AttributeError: If exchange is not found.
         """
@@ -120,7 +120,7 @@ class SymbolRegistry:
 
     def get_handlers(self) -> dict[ExchangeName, ExchangeHandler[Any]]:
         """Get the registered handlers.
-        
+
         Returns:
             dict[ExchangeName, ExchangeHandler[Any]]: Registered exchange handlers.
         """
@@ -133,7 +133,7 @@ _registry = SymbolRegistry()
 
 def get_registry() -> SymbolRegistry:
     """Get the global symbol registry.
-    
+
     Returns:
         SymbolRegistry: The global symbol registry instance.
     """

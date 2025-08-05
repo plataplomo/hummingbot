@@ -6,504 +6,519 @@ import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock, patch
-import uuid
 
 import pytest
 
 from cyberdelta.config.models.config_models import AppSettings
+from cyberdelta.core.enums import OrderStatus
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.logic.trading.safe_mode_wrapper import (
     SafeModeWrapper,
     SimulatedFill,
-    SimulatedBalance,
-    SimulatedPosition
+    SimulatedPosition,
 )
-from cyberdelta.models.market.order import Order, OrderStatus
-from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.enums import ExchangeName, OrderSide, OrderType
+from cyberdelta.models.market.order import Order
 
 
 @pytest.fixture
-def mock_config():
+def mock_config() -> MagicMock:
     """Create mock configuration for testing."""
     config = MagicMock(spec=AppSettings)
-    
+
     # General config
     config.general.safe_mode = True
-    
+
     # Paper trading config
-    config.testing.paper_trading.initial_balance = Decimal("10000")
+    config.testing.paper_trading.initial_balance = Decimal(10000)
     config.testing.paper_trading.fill_probability = 0.95
     config.testing.paper_trading.slippage_range = Decimal("0.001")
     config.testing.paper_trading.limit_fill_delay_seconds = 1.0
-    
+
     # Exchange config
     config.exchanges = {
-        'hyperliquid': MagicMock(
-            maker_fee_rate=Decimal("0.0002"),
-            taker_fee_rate=Decimal("0.0005")
-        )
+        "hyperliquid": MagicMock(maker_fee_rate=Decimal("0.0002"), taker_fee_rate=Decimal("0.0005"))
     }
-    
+
     # Calculation config
     config.calculation.base_currency = "USDT"
-    
+
     return config
 
 
 @pytest.fixture
-def mock_real_api():
+def mock_real_api() -> AsyncMock:
     """Create mock real API for testing."""
     api = AsyncMock()
-    api.place_order = AsyncMock(return_value={
-        "order_id": "REAL_123",
-        "status": "open"
-    })
-    api.cancel_order = AsyncMock(return_value={
-        "order_id": "REAL_123",
-        "status": "cancelled"
-    })
-    api.get_order = AsyncMock(return_value={
-        "order_id": "REAL_123",
-        "status": "filled"
-    })
-    api.get_balances = AsyncMock(return_value=[
-        {"asset": "USDT", "total": 10000.0, "available": 10000.0}
-    ])
+    api.place_order = AsyncMock(return_value={"order_id": "REAL_123", "status": "open"})
+    api.cancel_order = AsyncMock(return_value={"order_id": "REAL_123", "status": "cancelled"})
+    api.get_order = AsyncMock(return_value={"order_id": "REAL_123", "status": "filled"})
+    api.get_balances = AsyncMock(
+        return_value=[{"asset": "USDT", "total": 10000.0, "available": 10000.0}]
+    )
     api.get_positions = AsyncMock(return_value=[])
     return api
 
 
 @pytest.fixture
-def safe_mode_wrapper(mock_config, mock_real_api):
+def safe_mode_wrapper(mock_config: MagicMock, mock_real_api: AsyncMock) -> SafeModeWrapper:
     """Create safe mode wrapper instance."""
-    return SafeModeWrapper(
-        mock_config,
-        mock_real_api,
-        ExchangeName.HYPERLIQUID
-    )
+    return SafeModeWrapper(mock_config, mock_real_api, ExchangeName.HYPERLIQUID)
 
 
 @pytest.fixture
-def safe_mode_disabled_wrapper(mock_config, mock_real_api):
+def safe_mode_disabled_wrapper(mock_config: MagicMock, mock_real_api: AsyncMock) -> SafeModeWrapper:
     """Create wrapper with safe mode disabled."""
     mock_config.general.safe_mode = False
-    return SafeModeWrapper(
-        mock_config,
-        mock_real_api,
-        ExchangeName.HYPERLIQUID
-    )
+    return SafeModeWrapper(mock_config, mock_real_api, ExchangeName.HYPERLIQUID)
 
 
 class TestSafeModeWrapper:
     """Test safe mode wrapper functionality."""
-    
-    def test_init_safe_mode_enabled(self, mock_config, mock_real_api):
+
+    def test_init_safe_mode_enabled(self, mock_config: MagicMock, mock_real_api: AsyncMock) -> None:
         """Test initialization with safe mode enabled."""
-        wrapper = SafeModeWrapper(
-            mock_config,
-            mock_real_api,
-            ExchangeName.HYPERLIQUID
-        )
-        
+        wrapper = SafeModeWrapper(mock_config, mock_real_api, ExchangeName.HYPERLIQUID)
+
         assert wrapper._safe_mode is True
-        assert wrapper._initial_balance == Decimal("10000")
+        assert wrapper._initial_balance == Decimal(10000)
         assert wrapper._fill_probability == 0.95
         assert wrapper._slippage_range == Decimal("0.001")
         assert wrapper._maker_fee_rate == Decimal("0.0002")
         assert wrapper._taker_fee_rate == Decimal("0.0005")
-        
+
         # Check initial balance
         assert "USDT" in wrapper._simulated_balances
         balance = wrapper._simulated_balances["USDT"]
-        assert balance.total == Decimal("10000")
-        assert balance.available == Decimal("10000")
-    
-    def test_init_safe_mode_disabled(self, mock_config, mock_real_api):
+        assert balance.total == Decimal(10000)
+        assert balance.available == Decimal(10000)
+
+    def test_init_safe_mode_disabled(
+        self, mock_config: MagicMock, mock_real_api: AsyncMock
+    ) -> None:
         """Test initialization with safe mode disabled."""
         mock_config.general.safe_mode = False
-        wrapper = SafeModeWrapper(
-            mock_config,
-            mock_real_api,
-            ExchangeName.HYPERLIQUID
-        )
-        
+        wrapper = SafeModeWrapper(mock_config, mock_real_api, ExchangeName.HYPERLIQUID)
+
         assert wrapper._safe_mode is False
-    
+
     @pytest.mark.asyncio
-    async def test_place_order_safe_mode_market(self, safe_mode_wrapper):
+    async def test_place_order_safe_mode_market(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test placing market order in safe mode."""
-        with patch('random.random', return_value=0.5):  # Will fill
+        with patch("random.random", return_value=0.5):  # Will fill
             result = await safe_mode_wrapper.place_order(
-                symbol="BTC_USD",
+                symbol=exchanges.hyperliquid("BTC").value,
                 side="buy",
                 order_type="market",
                 price=50000.0,
-                quantity=0.1
+                quantity=0.1,
             )
-        
+
         assert "SIM_" in result["order_id"]
         assert result["status"] == "open"
         assert result["safe_mode"] is True
-        
+
         # Check order was stored
         order_id = result["order_id"]
         assert order_id in safe_mode_wrapper._simulated_orders
-        
+
         order = safe_mode_wrapper._simulated_orders[order_id]
-        assert order.symbol == Symbol("BTC_USD")
+        assert order.symbol.value == "BTC_USD"
         assert order.side == OrderSide.BUY
         assert order.order_type == OrderType.MARKET
-        
+
         # Wait a bit for async fill
         await asyncio.sleep(0.1)
-        
+
         # Should be filled for market order
         assert order.status == OrderStatus.FILLED
-    
+
     @pytest.mark.asyncio
-    async def test_place_order_safe_mode_limit(self, safe_mode_wrapper):
+    async def test_place_order_safe_mode_limit(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test placing limit order in safe mode."""
+        btc_symbol = exchanges.hyperliquid("BTC")
         result = await safe_mode_wrapper.place_order(
-            symbol="BTC_USD",
+            symbol=btc_symbol.value,
             side="sell",
             order_type="limit",
             price=51000.0,
             quantity=0.05,
-            time_in_force="GTC"
+            time_in_force="GTC",
         )
-        
+
         assert "SIM_" in result["order_id"]
         assert result["safe_mode"] is True
-        
+
         order_id = result["order_id"]
         order = safe_mode_wrapper._simulated_orders[order_id]
-        
+
         assert order.order_type == OrderType.LIMIT
-        assert order.price == Decimal("51000")
-        assert order.quantity == Decimal("0.05")
+        assert order.price == Decimal(51000)
+        assert order.quantity_requested == Decimal("0.05")
         assert order.status == OrderStatus.OPEN  # Not immediately filled
-    
+
     @pytest.mark.asyncio
-    async def test_place_order_pass_through(self, safe_mode_disabled_wrapper, mock_real_api):
+    async def test_place_order_pass_through(
+        self, safe_mode_disabled_wrapper: SafeModeWrapper, mock_real_api: AsyncMock
+    ) -> None:
         """Test that orders pass through when safe mode is disabled."""
+        btc_symbol = exchanges.hyperliquid("BTC")
         result = await safe_mode_disabled_wrapper.place_order(
-            symbol="BTC_USD",
-            side="buy",
-            order_type="market",
-            price=50000.0,
-            quantity=0.1
+            symbol=btc_symbol.value, side="buy", order_type="market", price=50000.0, quantity=0.1
         )
-        
+
         # Should call real API
-        mock_real_api.place_order.assert_called_once_with(
-            "BTC_USD", "buy", "market", 50000.0, 0.1
-        )
-        
+        mock_real_api.place_order.assert_called_once_with(btc_symbol.value, "buy", "market", 50000.0, 0.1)
+
         assert result["order_id"] == "REAL_123"
         assert "safe_mode" not in result or result["safe_mode"] is False
-    
+
     @pytest.mark.asyncio
-    async def test_cancel_order_safe_mode(self, safe_mode_wrapper):
+    async def test_cancel_order_safe_mode(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test cancelling order in safe mode."""
         # First place an order
+        btc_symbol = exchanges.hyperliquid("BTC")
         place_result = await safe_mode_wrapper.place_order(
-            symbol="BTC_USD",
-            side="buy",
-            order_type="limit",
-            price=49000.0,
-            quantity=0.1
+            symbol=btc_symbol.value, side="buy", order_type="limit", price=49000.0, quantity=0.1
         )
-        
+
         order_id = place_result["order_id"]
-        
+
         # Cancel it
         cancel_result = await safe_mode_wrapper.cancel_order(order_id)
-        
+
         assert cancel_result["order_id"] == order_id
         assert cancel_result["status"] == "cancelled"
         assert cancel_result["safe_mode"] is True
-        
+
         # Check order status updated
         order = safe_mode_wrapper._simulated_orders[order_id]
-        assert order.status == OrderStatus.CANCELLED
-    
+        assert order.status == OrderStatus.CANCELED
+
     @pytest.mark.asyncio
-    async def test_cancel_nonexistent_order(self, safe_mode_wrapper):
+    async def test_cancel_nonexistent_order(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test cancelling non-existent order in safe mode."""
         result = await safe_mode_wrapper.cancel_order("FAKE_ORDER")
-        
+
         assert result["error"] == "Order not found"
         assert result["safe_mode"] is True
-    
+
     @pytest.mark.asyncio
-    async def test_get_order_safe_mode(self, safe_mode_wrapper):
+    async def test_get_order_safe_mode(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test getting order status in safe mode."""
         # Place an order
+        eth_symbol = exchanges.hyperliquid("ETH")
         place_result = await safe_mode_wrapper.place_order(
-            symbol="ETH_USD",
-            side="sell",
-            order_type="limit",
-            price=3000.0,
-            quantity=1.0
+            symbol=eth_symbol.value, side="sell", order_type="limit", price=3000.0, quantity=1.0
         )
-        
+
         order_id = place_result["order_id"]
-        
+
         # Get order status
         status = await safe_mode_wrapper.get_order(order_id)
-        
+
         assert status["order_id"] == order_id
-        assert status["symbol"] == "ETH_USD"
+        assert status["symbol"] == "ETH_USD"  # SafeModeWrapper converts ETH to ETH_USD
         assert status["side"] == "sell"
         assert status["price"] == 3000.0
         assert status["quantity"] == 1.0
         assert status["safe_mode"] is True
-    
+
     @pytest.mark.asyncio
-    async def test_get_balances_safe_mode(self, safe_mode_wrapper):
+    async def test_get_balances_safe_mode(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test getting balances in safe mode."""
         balances = await safe_mode_wrapper.get_balances()
-        
+
         assert len(balances) == 1
         assert balances[0]["asset"] == "USDT"
         assert balances[0]["total"] == 10000.0
         assert balances[0]["available"] == 10000.0
         assert balances[0]["safe_mode"] is True
-    
+
     @pytest.mark.asyncio
-    async def test_get_positions_safe_mode(self, safe_mode_wrapper):
+    async def test_get_positions_safe_mode(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test getting positions in safe mode."""
         positions = await safe_mode_wrapper.get_positions()
-        
+
         # Should be empty initially
         assert len(positions) == 0
-    
+
     @pytest.mark.asyncio
-    async def test_simulate_fill_buy_order(self, safe_mode_wrapper):
+    async def test_simulate_fill_buy_order(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test simulating a buy order fill."""
         order = Order(
-            order_id="TEST_123",
+            exchange_order_id="TEST_123",
             exchange=ExchangeName.HYPERLIQUID,
-            symbol=Symbol("BTC_USD"),
+            symbol=exchanges.hyperliquid("BTC"),
             side=OrderSide.BUY,
             order_type=OrderType.MARKET,
-            price=Decimal("50000"),
-            quantity=Decimal("0.1"),
+            price=Decimal(50000),
+            quantity_requested=Decimal("0.1"),
             status=OrderStatus.OPEN,
-            timestamp=datetime.now(UTC)
+            time_in_force=TimeInForce.GTC,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
-        
-        safe_mode_wrapper._simulated_orders[order.order_id] = order
-        
-        with patch('random.random', return_value=0.5), \
-             patch('random.uniform', return_value=0.0005):  # 0.05% slippage
+
+        assert order.exchange_order_id is not None
+        safe_mode_wrapper._simulated_orders[order.exchange_order_id] = order
+
+        with (
+            patch("random.random", return_value=0.5),
+            patch("random.uniform", return_value=0.0005),
+        ):  # 0.05% slippage
             await safe_mode_wrapper._simulate_fill(order, immediate=True)
-        
+
         # Check order filled
         assert order.status == OrderStatus.FILLED
-        assert order.filled_quantity == Decimal("0.1")
-        
+        assert order.quantity_filled == Decimal("0.1")
+
         # Check fill recorded
         assert len(safe_mode_wrapper._simulated_fills) == 1
         fill = safe_mode_wrapper._simulated_fills[0]
         assert fill.order_id == "TEST_123"
         assert fill.side == OrderSide.BUY
-        
+
         # Check balance updated (should decrease)
         balance = safe_mode_wrapper._simulated_balances["USDT"]
-        # Cost = 0.1 * 50025 (with slippage) + fee
-        expected_cost = Decimal("0.1") * Decimal("50025") + fill.fee
-        assert balance.total < Decimal("10000")
-    
+        # Balance should be less than initial amount due to trade cost and fees
+        assert balance.total < Decimal(10000)
+
     @pytest.mark.asyncio
-    async def test_simulate_fill_sell_order(self, safe_mode_wrapper):
+    async def test_simulate_fill_sell_order(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test simulating a sell order fill."""
         # First create a position
+        btc_symbol = exchanges.hyperliquid("BTC")
         safe_mode_wrapper._simulated_positions["BTC_USD"] = SimulatedPosition(
-            symbol=Symbol("BTC_USD"),
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             size=Decimal("0.1"),
-            entry_price=Decimal("50000"),
-            unrealized_pnl=Decimal("0"),
-            timestamp=datetime.now(UTC)
+            entry_price=Decimal(50000),
+            unrealized_pnl=Decimal(0),
+            timestamp=datetime.now(UTC),
         )
-        
+
         order = Order(
-            order_id="TEST_456",
+            exchange_order_id="TEST_456",
             exchange=ExchangeName.HYPERLIQUID,
-            symbol=Symbol("BTC_USD"),
+            symbol=exchanges.hyperliquid("BTC"),
             side=OrderSide.SELL,
             order_type=OrderType.LIMIT,
-            price=Decimal("51000"),
-            quantity=Decimal("0.05"),
+            price=Decimal(51000),
+            quantity_requested=Decimal("0.05"),
             status=OrderStatus.OPEN,
-            timestamp=datetime.now(UTC)
+            time_in_force=TimeInForce.GTC,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
-        
-        safe_mode_wrapper._simulated_orders[order.order_id] = order
-        
-        with patch('random.random', return_value=0.5), \
-             patch('random.uniform', return_value=-0.0005):  # -0.05% slippage
+
+        assert order.exchange_order_id is not None
+        safe_mode_wrapper._simulated_orders[order.exchange_order_id] = order
+
+        with (
+            patch("random.random", return_value=0.5),
+            patch("random.uniform", return_value=-0.0005),
+        ):  # -0.05% slippage
             await safe_mode_wrapper._simulate_fill(order)
-        
+
         # Check position reduced
         position = safe_mode_wrapper._simulated_positions.get("BTC_USD")
         assert position is not None
         assert position.size == Decimal("0.05")  # 0.1 - 0.05
-        
+
         # Check balance increased
         balance = safe_mode_wrapper._simulated_balances["USDT"]
-        assert balance.total > Decimal("10000")  # Sold at profit
-    
+        assert balance.total > Decimal(10000)  # Sold at profit
+
     @pytest.mark.asyncio
-    async def test_limit_order_delayed_fill(self, safe_mode_wrapper, mock_config):
+    async def test_limit_order_delayed_fill(
+        self, safe_mode_wrapper: SafeModeWrapper, mock_config: MagicMock
+    ) -> None:
         """Test that limit orders have delayed fills."""
         mock_config.testing.paper_trading.limit_fill_delay_seconds = 0.1
-        
+
         order = Order(
-            order_id="TEST_789",
+            exchange_order_id="TEST_789",
             exchange=ExchangeName.HYPERLIQUID,
-            symbol=Symbol("ETH_USD"),
+            symbol=exchanges.hyperliquid("ETH"),
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            price=Decimal("3000"),
-            quantity=Decimal("1"),
+            price=Decimal(3000),
+            quantity_requested=Decimal(1),
             status=OrderStatus.OPEN,
-            timestamp=datetime.now(UTC)
+            time_in_force=TimeInForce.GTC,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
-        
-        safe_mode_wrapper._simulated_orders[order.order_id] = order
-        
-        with patch('random.random', return_value=0.5):  # Will fill
+
+        assert order.exchange_order_id is not None
+        safe_mode_wrapper._simulated_orders[order.exchange_order_id] = order
+
+        with patch("random.random", return_value=0.5):  # Will fill
             # Start fill task
-            task = asyncio.create_task(
-                safe_mode_wrapper._simulate_limit_fill(order)
-            )
-            
+            task = asyncio.create_task(safe_mode_wrapper._simulate_limit_fill(order))
+
             # Order should still be open immediately
-            assert order.status == OrderStatus.OPEN
-            
+            initial_status = order.status
+            assert initial_status == OrderStatus.OPEN
+
             # Wait for delay
             await asyncio.sleep(0.15)
-            
-            # Now should be filled
-            assert order.status == OrderStatus.FILLED
-            
+
+            # Now should be filled (status changed by async task)
+            # Check the final status after async processing - status can change asynchronously
+            final_status = order.status
+            assert final_status == OrderStatus.FILLED, (
+                f"Expected order to be filled but status is {final_status}"
+            )
+
             await task
-    
+
     @pytest.mark.asyncio
-    async def test_update_position_from_fill_new(self, safe_mode_wrapper):
+    async def test_update_position_from_fill_new(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test creating new position from fill."""
+        sol_symbol = exchanges.hyperliquid("SOL")
         fill = SimulatedFill(
             order_id="TEST_001",
-            symbol=Symbol("SOL_USD"),
+            symbol=sol_symbol,
             side=OrderSide.BUY,
-            price=Decimal("100"),
-            quantity=Decimal("10"),
+            price=Decimal(100),
+            quantity=Decimal(10),
             fee=Decimal("0.05"),
-            timestamp=datetime.now(UTC)
+            timestamp=datetime.now(UTC),
         )
-        
+
         await safe_mode_wrapper._update_position_from_fill(fill)
-        
-        assert "SOL_USD" in safe_mode_wrapper._simulated_positions
-        position = safe_mode_wrapper._simulated_positions["SOL_USD"]
+
+        assert sol_symbol.value in safe_mode_wrapper._simulated_positions
+        position = safe_mode_wrapper._simulated_positions[sol_symbol.value]
         assert position.side == OrderSide.BUY
-        assert position.size == Decimal("10")
-        assert position.entry_price == Decimal("100")
-    
+        assert position.size == Decimal(10)
+        assert position.entry_price == Decimal(100)
+
     @pytest.mark.asyncio
-    async def test_update_position_from_fill_add(self, safe_mode_wrapper):
+    async def test_update_position_from_fill_add(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test adding to existing position."""
         # Create initial position
-        safe_mode_wrapper._simulated_positions["BTC_USD"] = SimulatedPosition(
-            symbol=Symbol("BTC_USD"),
+        btc_symbol = exchanges.hyperliquid("BTC")
+        safe_mode_wrapper._simulated_positions[btc_symbol.value] = SimulatedPosition(
+            symbol=btc_symbol,
             side=OrderSide.BUY,
             size=Decimal("0.1"),
-            entry_price=Decimal("50000"),
-            unrealized_pnl=Decimal("0"),
-            timestamp=datetime.now(UTC)
+            entry_price=Decimal(50000),
+            unrealized_pnl=Decimal(0),
+            timestamp=datetime.now(UTC),
         )
-        
+
         # Add to position
         fill = SimulatedFill(
             order_id="TEST_002",
-            symbol=Symbol("BTC_USD"),
+            symbol=btc_symbol,
             side=OrderSide.BUY,
-            price=Decimal("51000"),
+            price=Decimal(51000),
             quantity=Decimal("0.1"),
-            fee=Decimal("25"),
-            timestamp=datetime.now(UTC)
+            fee=Decimal(25),
+            timestamp=datetime.now(UTC),
         )
-        
+
         await safe_mode_wrapper._update_position_from_fill(fill)
-        
-        position = safe_mode_wrapper._simulated_positions["BTC_USD"]
+
+        position = safe_mode_wrapper._simulated_positions[btc_symbol.value]
         assert position.size == Decimal("0.2")  # 0.1 + 0.1
         # Average entry: (0.1 * 50000 + 0.1 * 51000) / 0.2 = 50500
-        assert position.entry_price == Decimal("50500")
-    
+        assert position.entry_price == Decimal(50500)
+
     @pytest.mark.asyncio
-    async def test_update_position_from_fill_close(self, safe_mode_wrapper):
+    async def test_update_position_from_fill_close(
+        self, safe_mode_wrapper: SafeModeWrapper
+    ) -> None:
         """Test closing position completely."""
         # Create initial position
-        safe_mode_wrapper._simulated_positions["ETH_USD"] = SimulatedPosition(
-            symbol=Symbol("ETH_USD"),
+        eth_symbol = exchanges.hyperliquid("ETH-PERP")
+        safe_mode_wrapper._simulated_positions[eth_symbol.value] = SimulatedPosition(
+            symbol=eth_symbol,
             side=OrderSide.BUY,
-            size=Decimal("1"),
-            entry_price=Decimal("3000"),
-            unrealized_pnl=Decimal("0"),
-            timestamp=datetime.now(UTC)
+            size=Decimal(1),
+            entry_price=Decimal(3000),
+            unrealized_pnl=Decimal(0),
+            timestamp=datetime.now(UTC),
         )
-        
+
         # Close position
         fill = SimulatedFill(
             order_id="TEST_003",
-            symbol=Symbol("ETH_USD"),
+            symbol=eth_symbol,
             side=OrderSide.SELL,
-            price=Decimal("3100"),
-            quantity=Decimal("1"),
+            price=Decimal(3100),
+            quantity=Decimal(1),
             fee=Decimal("1.5"),
-            timestamp=datetime.now(UTC)
+            timestamp=datetime.now(UTC),
         )
-        
+
         await safe_mode_wrapper._update_position_from_fill(fill)
-        
+
         # Position should be closed
-        assert "ETH_USD" not in safe_mode_wrapper._simulated_positions
-    
-    def test_get_simulated_stats(self, safe_mode_wrapper):
+        assert eth_symbol.value not in safe_mode_wrapper._simulated_positions
+
+    def test_get_simulated_stats(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test getting simulation statistics."""
         # Add some test data
         safe_mode_wrapper._simulated_orders["O1"] = Order(
-            order_id="O1",
+            exchange_order_id="O1",
             exchange=ExchangeName.HYPERLIQUID,
-            symbol=Symbol("BTC_USD"),
+            symbol=exchanges.hyperliquid("BTC"),
             side=OrderSide.BUY,
+            order_type=OrderType.MARKET,
+            price=Decimal(50000),
+            quantity_requested=Decimal("0.1"),
             status=OrderStatus.FILLED,
-            timestamp=datetime.now(UTC)
+            time_in_force=TimeInForce.GTC,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
         safe_mode_wrapper._simulated_orders["O2"] = Order(
-            order_id="O2",
+            exchange_order_id="O2",
             exchange=ExchangeName.HYPERLIQUID,
-            symbol=Symbol("ETH_USD"),
+            symbol=exchanges.hyperliquid("ETH"),
             side=OrderSide.SELL,
+            order_type=OrderType.LIMIT,
+            price=Decimal(3000),
+            quantity_requested=Decimal(1),
             status=OrderStatus.OPEN,
-            timestamp=datetime.now(UTC)
+            time_in_force=TimeInForce.GTC,
+            created_at=datetime.now(UTC),
+            updated_at=None,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
-        
-        safe_mode_wrapper._simulated_fills.append(SimulatedFill(
-            order_id="O1",
-            symbol=Symbol("BTC_USD"),
-            side=OrderSide.BUY,
-            price=Decimal("50000"),
-            quantity=Decimal("0.1"),
-            fee=Decimal("25"),
-            timestamp=datetime.now(UTC)
-        ))
-        
+
+        safe_mode_wrapper._simulated_fills.append(
+            SimulatedFill(
+                order_id="O1",
+                symbol=exchanges.hyperliquid("BTC"),
+                side=OrderSide.BUY,
+                price=Decimal(50000),
+                quantity=Decimal("0.1"),
+                fee=Decimal(25),
+                timestamp=datetime.now(UTC),
+            )
+        )
+
         stats = safe_mode_wrapper.get_simulated_stats()
-        
+
         assert stats["safe_mode"] is True
         assert stats["total_orders"] == 2
         assert stats["filled_orders"] == 1
@@ -512,8 +527,10 @@ class TestSafeModeWrapper:
         assert stats["total_volume"] == 5000.0  # 0.1 * 50000
         assert stats["total_fees"] == 25.0
         assert "current_balance" in stats
-    
-    def test_is_safe_mode(self, safe_mode_wrapper, safe_mode_disabled_wrapper):
+
+    def test_is_safe_mode(
+        self, safe_mode_wrapper: SafeModeWrapper, safe_mode_disabled_wrapper: SafeModeWrapper
+    ) -> None:
         """Test checking if safe mode is active."""
         assert safe_mode_wrapper.is_safe_mode() is True
         assert safe_mode_disabled_wrapper.is_safe_mode() is False

@@ -5,6 +5,7 @@ Tests validation, parsing, immutability, and level structure validation.
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -43,8 +44,8 @@ class TestOrderBook:
     def test_creation_with_levels(self, btc_symbol: Symbol) -> None:
         """Test creating an OrderBook with valid bid/ask levels."""
         now = datetime.now(UTC)
-        bids = [("50000.0", "1.5"), (Decimal("49999.5"), 2.0)]  # Mix types
-        asks = [(Decimal("50000.5"), 1), ("50001.0", "0.5")]  # Mix types
+        bids: list[tuple[Any, Any]] = [("50000.0", "1.5"), (Decimal("49999.5"), 2.0)]  # Mix types
+        asks: list[tuple[Any, Any]] = [(Decimal("50000.5"), 1), ("50001.0", "0.5")]  # Mix types
         expected_bids = [(Decimal("50000.0"), Decimal("1.5")), (Decimal("49999.5"), Decimal("2.0"))]
         expected_asks = [(Decimal("50000.5"), Decimal("1.0")), (Decimal("50001.0"), Decimal("0.5"))]
 
@@ -127,7 +128,7 @@ class TestOrderBook:
         now = datetime.now(UTC)
 
         # Test various input types
-        bids = [
+        bids: list[tuple[Any, Any]] = [
             ("100.5", "10"),  # strings
             (100.5, 10),  # floats
             (Decimal("100.5"), Decimal(10)),  # decimals

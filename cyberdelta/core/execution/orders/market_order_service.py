@@ -147,11 +147,15 @@ class MarketOrderService:
         # Use signal generator if available
         if self._signal_generator:
             try:
-                return Decimal(str(self._signal_generator.estimate_slippage(
-                    exchange=self._exchange.exchange_name,
-                    symbol=symbol,
-                    size=quantity,
-                )))
+                return Decimal(
+                    str(
+                        self._signal_generator.estimate_slippage(
+                            exchange=self._exchange.exchange_name,
+                            symbol=symbol,
+                            size=quantity,
+                        )
+                    )
+                )
             except (ValueError, TypeError, AttributeError) as e:
                 logger.warning(
                     "slippage_estimation_fallback",

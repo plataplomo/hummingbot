@@ -63,10 +63,10 @@ class SymbolGroupConfig(BaseModel):
         cls, mappings: list[SymbolMappingConfig]
     ) -> list[SymbolMappingConfig]:
         """Ensure each exchange appears only once.
-        
+
         Returns:
             Validated list of SymbolMappingConfig objects.
-            
+
         Raises:
             ValueError: If duplicate exchanges are found in mappings.
         """

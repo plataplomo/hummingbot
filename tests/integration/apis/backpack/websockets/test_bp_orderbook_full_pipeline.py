@@ -25,6 +25,7 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 from cyberdelta.models import OrderBook
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     get_current_market_price,
@@ -76,7 +77,7 @@ async def setup_websocket_connection(api: BackpackAPI) -> None:
             pytest.fail(f"Failed to connect WebSocket: {e}")
 
 
-async def get_test_symbol(api: BackpackAPI) -> tuple[str, str]:
+async def get_test_symbol(api: BackpackAPI) -> tuple[Symbol, str]:
     """Get test symbol following security rules.
 
     Returns:
@@ -85,14 +86,14 @@ async def get_test_symbol(api: BackpackAPI) -> tuple[str, str]:
     try:
         # Use shared helper - TESTING_SECURITY_RULES.md mandatory practice #1
         symbol = await get_major_crypto_symbol(api, "SOL", "spot")
-        ws_symbol = symbol.replace("/", "_") if "/" in symbol else symbol
+        ws_symbol = symbol.value.replace("/", "_") if "/" in symbol.value else symbol.value
     except (ConnectionError, OSError, RuntimeError, ValueError) as e:
         pytest.fail(f"Failed to get test symbol: {e}. Real market data is required.")
     else:
         return symbol, ws_symbol
 
 
-async def fetch_rest_snapshot(api: BackpackAPI, symbol: str) -> OrderBook:
+async def fetch_rest_snapshot(api: BackpackAPI, symbol: Symbol) -> OrderBook:
     """Fetch REST orderbook snapshot following security rules.
 
     Returns:
@@ -313,7 +314,7 @@ class TestBackpackOrderBookFullPipeline:
     """Test complete orderbook pipeline with REST snapshot + WebSocket updates."""
 
     async def _sample_accumulated_state_progression(
-        self, transformer: BackpackDepthStateTransformer, symbol: str
+        self, transformer: BackpackDepthStateTransformer, rest_symbol: Symbol
     ) -> None:
         """Sample accumulated state over time to validate deep liquidity building."""
         logger.info(
@@ -327,7 +328,7 @@ class TestBackpackOrderBookFullPipeline:
             if sample_num > 1:
                 await asyncio.sleep(3.0)  # Give more time for updates
 
-            full_state_orderbook = transformer.get_full_orderbook(symbol)
+            full_state_orderbook = transformer.get_full_orderbook(rest_symbol)
             if full_state_orderbook:
                 has_deep_bids = len(full_state_orderbook.bids) >= 5
                 has_deep_asks = len(full_state_orderbook.asks) >= 5
@@ -385,7 +386,9 @@ class TestBackpackOrderBookFullPipeline:
                         )
             else:
                 logger.warning(
-                    "No full state available for sample", sample_number=sample_num, symbol=symbol
+                    "No full state available for sample",
+                    sample_number=sample_num,
+                    symbol=rest_symbol,
                 )
 
     @pytest.mark.asyncio
@@ -398,21 +401,21 @@ class TestBackpackOrderBookFullPipeline:
         await setup_websocket_connection(bp_api_for_test_env)
 
         # 2. Get test symbol
-        symbol, ws_symbol = await get_test_symbol(bp_api_for_test_env)
+        rest_symbol, ws_symbol = await get_test_symbol(bp_api_for_test_env)
 
         logger.info(
             "starting_full_pipeline_test",
-            symbol=symbol,
+            symbol=rest_symbol,
             ws_symbol=ws_symbol,
             message="Starting full orderbook pipeline test",
         )
 
         # 3. Fetch REST snapshot
-        rest_orderbook = await fetch_rest_snapshot(bp_api_for_test_env, symbol)
+        rest_orderbook = await fetch_rest_snapshot(bp_api_for_test_env, rest_symbol)
 
         logger.info(
             "rest_snapshot_received",
-            symbol=symbol,
+            symbol=rest_symbol,
             bids_count=len(rest_orderbook.bids),
             asks_count=len(rest_orderbook.asks),
             best_bid=str(rest_orderbook.bids[0][0]) if rest_orderbook.bids else None,
@@ -434,21 +437,21 @@ class TestBackpackOrderBookFullPipeline:
         await wait_for_orderbooks(collector, min_count=5, timeout_seconds=15.0)
 
         # 8. Sample the accumulated state progression over time to show deep liquidity building
-        await self._sample_accumulated_state_progression(transformer, symbol)
+        await self._sample_accumulated_state_progression(transformer, rest_symbol)
 
         # Show what symbols are being tracked
         tracked_symbols = transformer.get_tracked_symbols()
         logger.info(
             "transformer_tracking_status",
             tracked_symbols=tracked_symbols,
-            has_symbol_state=transformer.has_symbol_state(symbol),
+            has_symbol_state=transformer.has_symbol_state(rest_symbol),
             message="Transformer state summary",
         )
 
         # 9. Validate the pipeline produced sensible OrderBooks
         if not collector.orderbooks:
             pytest.fail(
-                f"No OrderBooks generated for {symbol}. "
+                f"No OrderBooks generated for {rest_symbol}. "
                 "Pipeline must produce OrderBook domain models."
             )
 
@@ -508,7 +511,7 @@ class TestBackpackOrderBookFullPipeline:
 
         if len(unique_states) <= 1:
             pytest.fail(
-                f"OrderBook state for {symbol} never changed. "
+                f"OrderBook state for {rest_symbol} never changed. "
                 "Incremental updates must modify orderbook state."
             )
 
@@ -526,7 +529,7 @@ class TestBackpackOrderBookFullPipeline:
 
         logger.info(
             "full_pipeline_test_complete",
-            symbol=symbol,
+            symbol=rest_symbol,
             total_orderbooks=len(collector.orderbooks),
             total_raw_updates=len(collector.raw_updates),
             bid_updates=bid_updates,

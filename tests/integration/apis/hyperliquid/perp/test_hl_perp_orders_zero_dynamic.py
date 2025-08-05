@@ -20,7 +20,6 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
     HyperliquidTestHelpers,
@@ -96,7 +95,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             hl_api_for_zero_balance_test,
             limit=1,
         )
-        test_symbol = available_symbols[0]  # First available symbol
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get minimal order size using zero balance helpers
         minimal_quantity = await get_minimal_test_quantity_for_zero_balance(
@@ -138,7 +137,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             hl_api_for_zero_balance_test,
             limit=1,
         )
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get safe test price using dynamic helpers
         test_price = await get_safe_test_price(
@@ -189,7 +188,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             hl_api_for_zero_balance_test,
             limit=1,
         )
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get dynamic test parameters
         test_price = await get_safe_test_price(
@@ -206,7 +205,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
 
         # Create order args with dynamic parameters
         order_args = PlaceOrderArgs(
-            symbol=exchanges.hyperliquid(test_symbol),
+            symbol=test_symbol,
             side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
             quantity=test_quantity,
@@ -287,7 +286,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             hl_api_for_zero_balance_test,
             limit=1,
         )
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Calculate maximum position size
         max_position = await HyperliquidTestHelpers.calculate_maximum_position_size(
@@ -325,7 +324,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             hl_api_for_zero_balance_test,
             limit=1,
         )
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get market constraints
         constraints = await HyperliquidTestHelpers.get_market_constraints(
@@ -365,7 +364,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             hl_api_for_zero_balance_test,
             limit=1,
         )
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get unreasonably large values
         large_price = await HyperliquidTestHelpers.get_unreasonably_large_price(
@@ -416,7 +415,7 @@ class TestHyperliquidPerpOrdersZeroDynamic:
             hl_api_for_zero_balance_test,
             limit=1,
         )
-        test_symbol = available_symbols[0]
+        test_symbol = available_symbols[0]  # Already a Symbol object
 
         # Get dynamic parameters
         valid_price = await get_safe_test_price(

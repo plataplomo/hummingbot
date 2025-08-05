@@ -17,6 +17,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import Ticker
 
 
@@ -36,12 +37,13 @@ async def test_hl_get_spot_ticker_btc_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() with BTC returns valid Ticker model."""
-    ticker = await hl_api_for_test_env.get_ticker("BTC")
+    btc_symbol = exchanges.hyperliquid("BTC")
+    ticker = await hl_api_for_test_env.get_ticker(btc_symbol)
 
     assert ticker is not None, "Ticker should not be None for BTC"
     assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-    assert ticker.symbol == "BTC", f"Expected symbol 'BTC', got '{ticker.symbol}'"
+    assert ticker.symbol == btc_symbol, f"Expected symbol '{btc_symbol}', got '{ticker.symbol}'"
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
     assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
@@ -68,12 +70,13 @@ async def test_hl_get_spot_ticker_eth_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() with ETH returns valid Ticker model."""
-    ticker = await hl_api_for_test_env.get_ticker("ETH")
+    eth_symbol = exchanges.hyperliquid("ETH")
+    ticker = await hl_api_for_test_env.get_ticker(eth_symbol)
 
     assert ticker is not None, "Ticker should not be None for ETH"
     assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-    assert ticker.symbol == "ETH", f"Expected symbol 'ETH', got '{ticker.symbol}'"
+    assert ticker.symbol == eth_symbol, f"Expected symbol '{eth_symbol}', got '{ticker.symbol}'"
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
     assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
@@ -94,12 +97,13 @@ async def test_hl_get_spot_ticker_sol_success(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() with SOL returns valid Ticker model."""
-    ticker = await hl_api_for_test_env.get_ticker("SOL")
+    sol_symbol = exchanges.hyperliquid("SOL")
+    ticker = await hl_api_for_test_env.get_ticker(sol_symbol)
 
     assert ticker is not None, "Ticker should not be None for SOL"
     assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-    assert ticker.symbol == "SOL", f"Expected symbol 'SOL', got '{ticker.symbol}'"
+    assert ticker.symbol == sol_symbol, f"Expected symbol '{sol_symbol}', got '{ticker.symbol}'"
     assert isinstance(ticker.price, Decimal), f"Price should be Decimal, got {type(ticker.price)}"
     assert ticker.price > Decimal(0), f"Price should be positive, got {ticker.price}"
 
@@ -121,12 +125,15 @@ async def test_hl_get_spot_ticker_avax_success(
 ) -> None:
     """Test HyperliquidAPI.get_ticker() with AVAX returns valid Ticker model."""
     try:
-        ticker = await hl_api_for_test_env.get_ticker("AVAX")
+        avax_symbol = exchanges.hyperliquid("AVAX")
+        ticker = await hl_api_for_test_env.get_ticker(avax_symbol)
 
         if ticker is not None:
             assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-            assert ticker.symbol == "AVAX", f"Expected symbol 'AVAX', got '{ticker.symbol}'"
+            assert ticker.symbol == avax_symbol, (
+                f"Expected symbol '{avax_symbol}', got '{ticker.symbol}'"
+            )
             assert isinstance(ticker.price, Decimal), (
                 f"Price should be Decimal, got {type(ticker.price)}"
             )
@@ -156,7 +163,7 @@ async def test_hl_get_spot_ticker_nonexistent_symbol_returns_none(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() with non-existent symbol returns None."""
-    ticker = await hl_api_for_test_env.get_ticker("NONEXISTENT")
+    ticker = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid("NONEXISTENT"))
 
     assert ticker is None, f"Expected None for non-existent symbol, got {ticker}"
 
@@ -174,7 +181,7 @@ async def test_hl_get_spot_ticker_invalid_symbol_returns_none(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() with malformed symbol returns None."""
-    ticker = await hl_api_for_test_env.get_ticker("@#$%^&*")
+    ticker = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid("@#$%^&*"))
 
     assert ticker is None, f"Expected None for invalid symbol, got {ticker}"
 
@@ -195,7 +202,7 @@ async def test_hl_get_spot_ticker_empty_symbol_handling(
     # Empty symbol should raise validation error, not return None
     # This is proper input validation behavior
     with pytest.raises(ValueError) as exc_info:
-        await hl_api_for_test_env.get_ticker("")
+        await hl_api_for_test_env.get_ticker(exchanges.hyperliquid(""))
 
     error_message = str(exc_info.value)
     assert "symbol" in error_message.lower(), (
@@ -219,9 +226,9 @@ async def test_hl_get_spot_ticker_case_sensitivity(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() case sensitivity behavior for spot symbols."""
-    ticker_lower = await hl_api_for_test_env.get_ticker("btc")
+    ticker_lower = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid("btc"))
 
-    ticker_upper = await hl_api_for_test_env.get_ticker("BTC")
+    ticker_upper = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid("BTC"))
 
     if ticker_lower is not None and ticker_upper is not None:
         assert isinstance(ticker_lower, Ticker), (
@@ -261,7 +268,7 @@ async def test_hl_get_spot_ticker_precision_validation(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() ensures proper Decimal precision handling for spot."""
-    ticker = await hl_api_for_test_env.get_ticker("BTC")
+    ticker = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid("BTC"))
 
     assert ticker is not None, "Ticker should not be None for BTC"
     assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
@@ -301,7 +308,7 @@ async def test_hl_get_spot_ticker_multiple_symbols_consistency(
     tickers: list[Ticker] = []
 
     for symbol in symbols:
-        ticker = await hl_api_for_test_env.get_ticker(symbol)
+        ticker = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid(symbol))
         if ticker is not None:
             assert isinstance(ticker, Ticker), f"Expected Ticker for {symbol}, got {type(ticker)}"
             tickers.append(ticker)
@@ -319,8 +326,10 @@ async def test_hl_get_spot_ticker_multiple_symbols_consistency(
                 f"Ticker for {ticker.symbol} has None value for required attribute: {attr}"
             )
 
-    btc_ticker = next((t for t in tickers if t.symbol == "BTC"), None)
-    eth_ticker = next((t for t in tickers if t.symbol == "ETH"), None)
+    btc_symbol = exchanges.hyperliquid("BTC")
+    eth_symbol = exchanges.hyperliquid("ETH")
+    btc_ticker = next((t for t in tickers if t.symbol == btc_symbol), None)
+    eth_ticker = next((t for t in tickers if t.symbol == eth_symbol), None)
 
     if btc_ticker and eth_ticker and btc_ticker.price is not None and eth_ticker.price is not None:
         assert btc_ticker.price > eth_ticker.price, (
@@ -345,7 +354,7 @@ async def test_hl_get_spot_ticker_symbol_normalization(
     results: dict[str, Ticker | None] = {}
 
     for variant in symbol_variants:
-        ticker = await hl_api_for_test_env.get_ticker(variant)
+        ticker = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid(variant))
         results[variant] = ticker
 
     valid_tickers = {k: v for k, v in results.items() if v is not None}
@@ -358,8 +367,8 @@ async def test_hl_get_spot_ticker_symbol_normalization(
         )
 
         normalized_symbol = next(iter(symbols_returned))
-        assert normalized_symbol.isupper(), (
-            f"Expected uppercase normalized symbol, got '{normalized_symbol}'"
+        assert normalized_symbol.value.isupper(), (
+            f"Expected uppercase normalized symbol, got '{normalized_symbol.value}'"
         )
 
 
@@ -376,7 +385,7 @@ async def test_hl_get_spot_ticker_price_sanity_checks(
     custom_vcr_config: dict[str, Any],
 ) -> None:
     """Test HyperliquidAPI.get_ticker() performs comprehensive price validation for spot."""
-    ticker = await hl_api_for_test_env.get_ticker("BTC")
+    ticker = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid("BTC"))
 
     assert ticker is not None, "Ticker should not be None for BTC"
     assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
@@ -429,7 +438,7 @@ async def test_hl_get_spot_ticker_performance_consistency(
     tickers: list[Ticker] = []
 
     for _i in range(3):
-        ticker = await hl_api_for_test_env.get_ticker(symbol)
+        ticker = await hl_api_for_test_env.get_ticker(exchanges.hyperliquid(symbol))
         if ticker is not None:
             tickers.append(ticker)
 

@@ -140,7 +140,7 @@ class TradeSignal(BaseModel):
             InvalidExchangeNameError: If invalid exchange name
         """
         field_name = "exchange"
-        
+
         # Handle single exchange
         if isinstance(v, ExchangeName):
             return v
@@ -152,7 +152,7 @@ class TradeSignal(BaseModel):
                     value=v,
                     valid_exchanges=[ex.value for ex in ExchangeName],
                 ) from e
-        
+
         # Handle list of exchanges
         if _is_list_of_any(v):
             if not v:
@@ -181,7 +181,7 @@ class TradeSignal(BaseModel):
                         actual_value=item,
                     )
             return validated_list
-        
+
         raise TypeFieldError(
             field_name=field_name,
             expected_type="ExchangeName, string, or list thereof",

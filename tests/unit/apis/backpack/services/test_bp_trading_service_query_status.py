@@ -17,6 +17,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetAllOpenOrdersArgs,
     GetOrderArgs,
 )
+from tests.common_symbols import SOL_USDC_BP
 
 
 # Import fixtures from the shared conftest
@@ -35,7 +36,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_open_orders successfully retrieves open orders."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         MagicMock()
 
         # Use model_validate to handle optional fields automatically
@@ -43,7 +44,7 @@ class TestBackpackTradingServiceQueryStatus:
             "id": "12345",
             "clientId": "client_order_123",
             "relatedOrderId": "order_123",
-            "symbol": symbol,
+            "symbol": symbol.value,
             "side": "Bid",
             "orderType": "LIMIT",
             "quantity": "10.0",
@@ -88,13 +89,13 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_open_orders when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
 
         # Mock the order query service to raise an API error (simulating HTTP client returning None)
         with patch.object(bp_trading_service, "_order_query_service") as mock_query_service:
             api_error = APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
-                message="No data received for get open orders for SOL_USDC, status: 200",
+                message=f"No data received for get open orders for {symbol.value}, status: 200",
             )
             mock_query_service.get_open_orders = AsyncMock(side_effect=api_error)
 
@@ -103,7 +104,7 @@ class TestBackpackTradingServiceQueryStatus:
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
-                "No data received for get open orders for SOL_USDC, status: 200"
+                f"No data received for get open orders for {symbol.value}, status: 200"
                 in exc_info.value.message
             )
 
@@ -119,7 +120,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_open_orders handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
 
         # Create a ValidationError by trying to validate invalid data
         try:
@@ -144,7 +145,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_open_orders handles unexpected exception."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
 
         # Mock the order query service to raise an unexpected exception
         with patch.object(bp_trading_service, "_order_query_service") as mock_query_service:
@@ -169,7 +170,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_status successfully retrieves order status."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
         MagicMock()
 
@@ -177,7 +178,7 @@ class TestBackpackTradingServiceQueryStatus:
             "id": order_id,
             "clientId": "client_order_123",
             "relatedOrderId": "order_123",
-            "symbol": symbol,
+            "symbol": symbol.value,
             "side": "Bid",
             "orderType": "LIMIT",
             "quantity": "10.0",
@@ -222,7 +223,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_status when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
 
         # Mock the order query service to raise an exception that get_order_status catches
@@ -248,7 +249,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_status handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
 
         # Create a ValidationError by trying to validate invalid data
@@ -285,7 +286,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_status handles unexpected exception."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
 
         # Mock the order query service to raise an unexpected exception
@@ -311,7 +312,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test get_order_status when order is not found."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "nonexistent_order"
 
         # Mock the order query service to raise a LookupError (which get_order_status catches)
@@ -338,7 +339,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order successfully retrieves an order."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
         client_order_id = "client_order_123"
         MagicMock()
@@ -347,7 +348,7 @@ class TestBackpackTradingServiceQueryStatus:
             "id": order_id,
             "clientId": client_order_id,
             "relatedOrderId": "order_123",
-            "symbol": symbol,
+            "symbol": symbol.value,
             "side": "Bid",
             "orderType": "LIMIT",
             "quantity": "10.0",
@@ -394,14 +395,14 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order when HTTP client returns None content."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
 
         # Mock the order query service to raise an API error (simulating HTTP client returning None)
         with patch.object(bp_trading_service, "_order_query_service") as mock_query_service:
             api_error = APIError(
                 code=APIErrorCode.INVALID_RESPONSE.value,
-                message="No data received for get order 12345 (SOL_USDC), status: 200",
+                message=f"No data received for get order {order_id} ({symbol.value}), status: 200",
             )
             mock_query_service.get_order = AsyncMock(side_effect=api_error)
 
@@ -411,7 +412,7 @@ class TestBackpackTradingServiceQueryStatus:
 
             assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
             assert (
-                "No data received for get order 12345 (SOL_USDC), status: 200"
+                f"No data received for get order {order_id} ({symbol.value}), status: 200"
                 in exc_info.value.message
             )
 
@@ -427,7 +428,7 @@ class TestBackpackTradingServiceQueryStatus:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order handles validation error from response handler."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
 
         # Create a ValidationError by trying to validate invalid data

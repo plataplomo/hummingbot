@@ -19,8 +19,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from tests.common_symbols import ADA_BTC_BP, BTC_USDC_BP, DOGE_USDT_BP, ETH_USDC_BP, SOL_USDC_BP
 from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import ADA_BTC_BP, BTC_USDC_BP, DOGE_USDT_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
 # Third-party imports for type checking only

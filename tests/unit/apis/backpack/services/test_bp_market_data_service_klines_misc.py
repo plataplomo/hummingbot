@@ -13,6 +13,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.models.market import Candle
+from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP
 
 
 # Import fixtures from the shared conftest
@@ -34,7 +35,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         Note: Current business logic delegates to historical data service.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         timeframe: Literal["1m"] = "1m"
         limit = 2
 
@@ -63,7 +64,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_market_data when historical data service returns empty list."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         timeframe: Literal["1h"] = "1h"
         limit = 100
 
@@ -91,7 +92,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_market_data handles validation error from historical data service."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         timeframe: Literal["1m"] = "1m"
 
         # Create a ValidationError by trying to validate invalid data
@@ -123,7 +124,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_market_data handles unexpected exception from historical data service."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         timeframe: Literal["1m"] = "1m"
 
         # Mock the historical data service to raise an unexpected exception
@@ -158,7 +159,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
 
         Note: Current business logic delegates to historical data service.
         """
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         timeframe: Literal["5m"] = "5m"
         limit = 10
         start_time_ms = 1678880000000
@@ -243,10 +244,10 @@ class TestBackpackMarketDataServiceKlinesMisc:
         with patch.object(service, "_price_ticker_service") as mock_price_ticker_service:
             mock_price_ticker_service.get_ticker = AsyncMock(return_value=expected_ticker)
 
-            result = await service.get_ticker("TEST")
+            result = await service.get_ticker(BTC_USDC_BP)
 
             # Verify the business logic calls the price ticker service
-            mock_price_ticker_service.get_ticker.assert_called_once_with("TEST")
+            mock_price_ticker_service.get_ticker.assert_called_once_with(BTC_USDC_BP)
             assert result == expected_ticker
 
     @pytest.mark.asyncio
@@ -273,8 +274,8 @@ class TestBackpackMarketDataServiceKlinesMisc:
         with patch.object(service, "_price_ticker_service") as mock_price_ticker_service:
             mock_price_ticker_service.get_ticker = AsyncMock(return_value=expected_ticker)
 
-            result = await service.get_ticker("TEST")
+            result = await service.get_ticker(BTC_USDC_BP)
 
             # Verify the business logic calls the price ticker service
-            mock_price_ticker_service.get_ticker.assert_called_once_with("TEST")
+            mock_price_ticker_service.get_ticker.assert_called_once_with(BTC_USDC_BP)
             assert result == expected_ticker

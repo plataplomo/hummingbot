@@ -50,7 +50,7 @@ async def test_hl_get_perp_ticker_btc_success(
     # Get dynamic price bounds from exchange market data instead of hardcoded values
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
         hl_api_for_test_env,
-        "BTC",
+        ticker.symbol,  # Use the symbol from the ticker itself
     )
 
     # Use exchange-specific minimum price if available, otherwise use tick_size as minimum
@@ -98,7 +98,7 @@ async def test_hl_get_perp_ticker_eth_success(
     # Get dynamic price bounds from exchange market data instead of hardcoded values
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
         hl_api_for_test_env,
-        "ETH",
+        ticker.symbol,  # Use the symbol from the ticker itself
     )
 
     # Use exchange-specific bounds or calculate reasonable bounds from current price
@@ -140,7 +140,7 @@ async def test_hl_get_perp_ticker_sol_success(
     # Get dynamic price bounds from exchange market data instead of hardcoded values
     market_constraints = await HyperliquidTestHelpers.get_market_constraints(
         hl_api_for_test_env,
-        "SOL",
+        ticker.symbol,  # Use the symbol from the ticker itself
     )
 
     # Use exchange-specific bounds or calculate reasonable bounds from current price

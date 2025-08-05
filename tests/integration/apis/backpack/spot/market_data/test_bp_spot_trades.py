@@ -19,11 +19,11 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.models import Trade
-from cyberdelta.core.symbols.models import Symbol
-from tests.common_symbols import COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP, BTC_USDC_BP, ETH_USDC_BP
-from cyberdelta.core.symbols import exchanges
+from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
 
 
 # Mark all tests in this file
@@ -226,7 +226,9 @@ class TestBackpackSpotTrades:
         Raises appropriate error.
         """
         with pytest.raises(APIError) as exc_info:
-            await bp_api_for_test_env.get_recent_trades(exchanges.backpack("INVALID_SPOT_SYMBOL"), limit=5)
+            await bp_api_for_test_env.get_recent_trades(
+                exchanges.backpack("INVALID_SPOT_SYMBOL"), limit=5
+            )
 
         error = exc_info.value
         assert "INVALID_SPOT_SYMBOL" in str(error) or "symbol" in str(error).lower()

@@ -29,6 +29,7 @@ from cyberdelta.apis.exceptions import UnsupportedWebSocketTopicError, WebSocket
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (
@@ -92,11 +93,11 @@ class TestHyperliquidMessageSerializationIntegration:
         wait=wait_exponential(multiplier=1, min=2, max=8),
         retry=retry_if_exception_type((ConnectionError, OSError)),
     )
-    async def _get_test_symbol(self, api: HyperliquidAPI) -> str:
+    async def _get_test_symbol(self, api: HyperliquidAPI) -> Symbol:
         """Get the most active test symbol (typically BTC) with network retry only.
 
         Returns:
-            str: The symbol of the most active trading pair.
+            Symbol: The symbol of the most active trading pair.
 
         Raises:
             ConnectionError: If network connectivity issues occur.

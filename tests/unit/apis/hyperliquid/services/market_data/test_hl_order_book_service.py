@@ -34,8 +34,9 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
     HyperliquidOrderBookService,
 )
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import OrderBook, Trade
+from tests.common_symbols import ETH_HL
 
 
 @pytest.fixture
@@ -130,7 +131,7 @@ def mock_order_book() -> OrderBook:
         OrderBook: A mock order book with bids and asks for ETH.
     """
     return OrderBook(
-        symbol="ETH",
+        symbol=ETH_HL,
         bids=[
             (Decimal("3499.50"), Decimal("10.5")),
             (Decimal("3499.00"), Decimal("20.0")),
@@ -172,12 +173,12 @@ def mock_trade() -> Trade:
     return Trade(
         id="trade_123",
         order_id="order_123",
-        symbol="ETH",
+        symbol=ETH_HL,
         side=OrderSide.BUY,
         price=Decimal("3500.00"),
         quantity=Decimal("0.5"),
         executed_at=datetime(2024, 1, 1, tzinfo=UTC),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
     )
 
 
@@ -197,7 +198,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test successful order book retrieval."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         mock_request_payload = MagicMock()
         mock_request_builder.build_l2_book_request_payload.return_value = mock_request_payload
@@ -228,15 +229,16 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test order book retrieval with invalid symbol."""
         # Act & Assert
-        with pytest.raises(ValueError) as exc_info:
-            await order_book_service.get_order_book("")
+        from cyberdelta.core.symbols import exchanges
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        # Test validation for invalid symbols
+        with pytest.raises((ValueError, ValidationError)):
+            empty_symbol = exchanges.hyperliquid("")
+            await order_book_service.get_order_book(empty_symbol)
 
-        with pytest.raises(ValueError) as exc_info:
-            await order_book_service.get_order_book("   ")
-
-        assert "'symbol' cannot be empty or whitespace only" in str(exc_info.value)
+        with pytest.raises((ValueError, ValidationError)):
+            whitespace_symbol = exchanges.hyperliquid("   ")
+            await order_book_service.get_order_book(whitespace_symbol)
 
     @pytest.mark.asyncio
     async def test_get_order_book_empty_response(
@@ -247,7 +249,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test order book retrieval with None response."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
         mock_request_builder.build_l2_book_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = (None, 200, {})
 
@@ -265,7 +267,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test order book retrieval when request builder fails."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
         mock_request_builder.build_l2_book_request_payload.side_effect = Exception("Builder error")
 
         # Act & Assert
@@ -287,7 +289,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test order book retrieval with transformation error."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         mock_request_builder.build_l2_book_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ({"coin": "ETH"}, 200, {})
@@ -317,7 +319,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test successful recent trades retrieval."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         mock_request_payload = MagicMock()
         mock_request_builder.build_recent_trades_request_payload.return_value = mock_request_payload
@@ -351,7 +353,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades retrieval with empty response."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         mock_request_builder.build_recent_trades_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ([], 200, {})
@@ -370,10 +372,12 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades retrieval with invalid symbol."""
         # Act & Assert
-        with pytest.raises(ValueError) as exc_info:
-            await order_book_service.get_recent_trades("")
+        from cyberdelta.core.symbols import exchanges
 
-        assert "'symbol' must be a non-empty string" in str(exc_info.value)
+        # Test validation for invalid symbols
+        with pytest.raises((ValueError, ValidationError)):
+            empty_symbol = exchanges.hyperliquid("")
+            await order_book_service.get_recent_trades(empty_symbol)
 
     @pytest.mark.asyncio
     async def test_get_recent_trades_partial_mapping_failure(
@@ -388,7 +392,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades with some trades failing to map."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         mock_request_builder.build_recent_trades_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ([{}, {}], 200, {})
@@ -443,7 +447,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades retrieval with None response."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
         mock_request_builder.build_recent_trades_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = (None, 200, {})
 
@@ -464,7 +468,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades with validation error."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         mock_request_builder.build_recent_trades_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ([{"invalid": "data"}], 200, {})
@@ -501,7 +505,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades when mapper returns None."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
 
         mock_request_builder.build_recent_trades_request_payload.return_value = MagicMock()
         mock_http_requester.return_value = ([{}], 200, {})
@@ -527,7 +531,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test order book retrieval with HTTP error."""
         # Arrange
-        symbol = "ETH"
+        symbol = ETH_HL
         mock_request_builder.build_l2_book_request_payload.return_value = MagicMock()
         mock_http_requester.side_effect = Exception("Network timeout")
 

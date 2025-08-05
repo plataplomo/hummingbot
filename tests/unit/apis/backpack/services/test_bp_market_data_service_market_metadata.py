@@ -12,6 +12,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.models.market import Market
+from tests.common_symbols import BTC_USDC_BP
 
 
 # Import fixtures from the shared conftest
@@ -33,7 +34,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
 
         # Create expected internal market
         expected_market = MagicMock(spec=Market)
@@ -64,10 +65,11 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        empty_symbol = ""
+        # Test validation by trying to create an invalid symbol
+        from cyberdelta.core.symbols import exchanges
 
-        # The validation error should occur when creating GetMarketArgs, not in the service
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises((ValidationError, ValueError)) as exc_info:
+            empty_symbol = exchanges.backpack("")
             GetMarketArgs(symbol=empty_symbol)
 
         assert "String cannot be empty" in str(exc_info.value)
@@ -86,7 +88,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
 
         # Mock the market metadata service to raise an API error
         with patch.object(
@@ -121,7 +123,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
 
         # Mock the market metadata service to raise an API error for invalid response type
         with patch.object(
@@ -158,7 +160,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
 
         # Create a ValidationError
         try:
@@ -191,7 +193,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
 
         # Mock the market metadata service to raise a transformation error
         with patch.object(
@@ -223,7 +225,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
 
         # Mock the market metadata service to raise an unexpected exception
         with patch.object(
@@ -491,7 +493,7 @@ class TestBackpackMarketDataServiceMarketMetadata:
 
         Note: Current business logic delegates to market metadata service.
         """
-        symbol = "BTC_USDC"
+        symbol = BTC_USDC_BP
 
         # Create an APIError that would come from the market metadata service
         api_error = APIError("Symbol not found", APIErrorCode.SYMBOL_NOT_FOUND.value)

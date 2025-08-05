@@ -43,6 +43,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols import Symbol, exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.market.market import Market
@@ -449,7 +450,7 @@ class TestHyperliquidAPIComponentIntegration:
     async def _validate_concurrent_operation_results(
         self,
         results: list[Any],
-        test_symbol: str,
+        test_symbol: Symbol,
         start_time: datetime,
         end_time: datetime,
     ) -> None:
@@ -556,7 +557,7 @@ class TestHyperliquidAPIConcurrentOperations:
         market_data: Market | None,
         ticker_data: Ticker | None,
         orders_data: list[Order] | None,
-        test_symbol: str,
+        test_symbol: Symbol,
     ) -> None:
         """Validate data consistency across concurrent results."""
         if market_data and ticker_data:
@@ -590,7 +591,7 @@ class TestHyperliquidAPIConcurrentOperations:
     async def _execute_concurrent_operations(
         self,
         hl_api_for_test_env: HyperliquidAPI,
-        test_symbol: str,
+        test_symbol: Symbol,
     ) -> tuple[list[Any], datetime, datetime]:
         """Execute concurrent operations and return results with timing.
 
@@ -672,7 +673,7 @@ class TestHyperliquidAPIConcurrentOperations:
     ) -> None:
         """Test that different services handle errors consistently without VCR."""
         # Test 1: Invalid symbol across different services
-        invalid_symbol = "INVALID_SYMBOL_XYZ"
+        invalid_symbol = exchanges.hyperliquid("INVALID_SYMBOL_XYZ")
 
         # Market service should handle invalid symbol gracefully
         with pytest.raises(APIError) as market_exc:

@@ -40,6 +40,7 @@ from cyberdelta.core.enums import (
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Order
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
 logger = get_logger(__name__)
@@ -200,7 +201,7 @@ class TestTransformRawOrderToInternal:
         assert isinstance(result, Order)
         assert result.exchange_order_id == "12345"
         assert result.client_order_id == "0x" + "0" * 30 + "1" * 2
-        assert result.symbol == "ETH-PERP"
+        assert result.symbol == ETH_HL
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.time_in_force == TimeInForce.GTC
@@ -242,7 +243,7 @@ class TestTransformRawOrderToInternal:
         assert result.exchange_order_id == "54321"
         assert isinstance(result.client_order_id, str)
         assert len(result.client_order_id) > 0
-        assert result.symbol == "BTC-PERP"
+        assert result.symbol == BTC_HL
         assert result.side == OrderSide.SELL
         assert result.order_type == OrderType.LIMIT  # Historical market orders map to LIMIT
         assert result.time_in_force == TimeInForce.IOC  # Market orders become IOC
@@ -469,7 +470,7 @@ class TestTransformRawHistoricalOrderToInternal:
         assert isinstance(result, Order)
         assert result.exchange_order_id == "98765"
         assert result.client_order_id == "0x" + "0" * 30 + "2" * 2
-        assert result.symbol == "SOL-PERP"
+        assert result.symbol == SOL_HL
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.LIMIT
         assert result.time_in_force == TimeInForce.IOC
@@ -715,7 +716,7 @@ class TestTransformationIntegration:
         assert result.status == OrderStatus.CANCELED
         assert result.order_type == OrderType.LIMIT
         assert result.time_in_force == TimeInForce.IOC
-        assert result.symbol == "ETH-PERP"
+        assert result.symbol == ETH_HL
         assert result.exchange_order_id == "12345"
         assert result.client_order_id == "0x" + "0" * 30 + "3" * 2
         assert result.price == Decimal("1000.0")
@@ -766,7 +767,7 @@ class TestAdvancedScenarios:
         raw_order = create_raw_order(asset=unicode_symbol)
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-        assert result.symbol == unicode_symbol
+        assert result.symbol.value == unicode_symbol
 
     def test_very_long_client_order_ids(
         self,

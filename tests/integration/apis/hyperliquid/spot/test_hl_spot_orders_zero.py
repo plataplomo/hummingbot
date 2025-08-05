@@ -116,7 +116,7 @@ class TestHyperliquidSpotOrdersZero:
 
             # Filter for spot orders (when implemented, spot orders would have different symbols)
             spot_orders = [
-                order for order in open_orders if "@" in order.symbol
+                order for order in open_orders if "@" in order.symbol.value
             ]  # Hypothetical spot format
 
             # Validate spot orders when they become available

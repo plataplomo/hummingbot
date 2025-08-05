@@ -40,6 +40,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
 from cyberdelta.enums import OrderSide
 from cyberdelta.models import OrderBook, Trade
 from cyberdelta.models.market.trade import HyperliquidTradeDetails
+from tests.common_symbols import ETH_HL
 
 
 # Alias for shorter method calls
@@ -171,7 +172,7 @@ class TestTransformRawOrderBook:
         order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
 
         assert isinstance(order_book, OrderBook)
-        assert order_book.symbol == raw_book.coin
+        assert order_book.symbol.value == raw_book.coin
         assert isinstance(order_book.timestamp, datetime)
 
         # Verify bids and asks structure
@@ -220,7 +221,7 @@ class TestTransformRawOrderBook:
         order_book = market_data_mapper.transform_raw_order_book_to_internal(raw_book)
 
         assert isinstance(order_book, OrderBook)
-        assert order_book.symbol == raw_book.coin
+        assert order_book.symbol.value == raw_book.coin
         assert len(order_book.bids) == 0
         assert len(order_book.asks) == 0
 
@@ -325,7 +326,7 @@ class TestTransformRawPublicTradeToInternal:
 
         assert trade is not None
         assert isinstance(trade, Trade)
-        assert trade.symbol == raw_trade.coin
+        assert trade.symbol.value == raw_trade.coin
         assert trade.side == OrderSide.BUY  # "B" -> BUY
         assert trade.price == Decimal(raw_trade.px)
         assert trade.quantity == Decimal(raw_trade.sz)
@@ -348,7 +349,7 @@ class TestTransformRawPublicTradeToInternal:
 
         assert trade is not None
         assert isinstance(trade, Trade)
-        assert trade.symbol == raw_trade.coin
+        assert trade.symbol.value == raw_trade.coin
         assert trade.side == OrderSide.SELL  # "A" -> SELL
         assert trade.price == Decimal(raw_trade.px)
         assert trade.quantity == Decimal(raw_trade.sz)
@@ -562,7 +563,7 @@ class TestTransformRawTrades:
         # Should only return valid trades
         assert len(result) == 1
         assert isinstance(result[0], Trade)
-        assert result[0].symbol == "ETH-PERP"  # The valid trade
+        assert result[0].symbol == ETH_HL  # The valid trade
 
         # Check that warning was logged for skipped trade in structured logs
         warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
@@ -596,13 +597,17 @@ class TestTransformRawTrades:
             users=["0x1234567890abcdef"],
         )
 
-        # Store the original method
-        original_transform = HyperliquidOrderBookMapper.transform_raw_public_trade_to_internal
+        # Store the original method - need to use an instance
+        mapper_instance = HyperliquidOrderBookMapper()
+        original_transform = mapper_instance.transform_raw_public_trade_to_internal
 
-        def mock_transform_side_effect(raw_trade: HyperliquidRawPublicTrade) -> Trade | None:
+        def mock_transform_side_effect(
+            self: HyperliquidOrderBookMapper, raw_trade: HyperliquidRawPublicTrade
+        ) -> Trade | None:
             """Return mock transform side effect for testing.
 
             Args:
+                self: The mapper instance.
                 raw_trade: The raw trade to transform.
 
             Returns:
@@ -635,7 +640,7 @@ class TestTransformRawTrades:
         # Should only return the valid trade (error trade should be skipped)
         assert len(result) == 1
         assert isinstance(result[0], Trade)
-        assert result[0].symbol == "ETH-PERP"  # The valid trade
+        assert result[0].symbol == ETH_HL  # The valid trade
 
         # Check that error was logged in structured logs
         error_logs = [log for log in captured_logs if log.get("log_level") == "error"]
@@ -684,7 +689,7 @@ class TestOrderBookAndTradeIntegration:
 
         assert trade is not None
         # Both should have the same symbol
-        assert order_book.symbol == trade.symbol
+        assert order_book.symbol.value == trade.symbol.value
 
         # Timestamps should be reasonably close (within 10 seconds)
         time_diff = abs((order_book.timestamp - trade.executed_at).total_seconds())

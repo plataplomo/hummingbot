@@ -158,9 +158,9 @@ class TestOrderBookState:
         }
         state.last_update_time = datetime(2025, 1, 21, 12, 0, 0, tzinfo=UTC)
 
-        orderbook = state.to_orderbook(BTC_USDC_BP.value, mapper)
+        orderbook = state.to_orderbook(BTC_USDC_BP, mapper)
 
-        assert orderbook.symbol == BTC_USDC_BP.value
+        assert orderbook.symbol == BTC_USDC_BP
         assert orderbook.timestamp is not None  # Mapper handles timestamp conversion
 
         # Bids should be sorted descending (mapper ensures this)
@@ -242,8 +242,8 @@ class TestBackpackDepthStateTransformer:
             Mock WebSocketContextProtocol with symbol methods configured
         """
         context = Mock(spec=WebSocketContextProtocol)
-        context.get_symbol_param = Mock(return_value={"symbol": BTC_USDC_BP.value})
-        context.symbol = BTC_USDC_BP.value
+        context.get_symbol_param = Mock(return_value={"symbol": BTC_USDC_BP})
+        context.symbol = BTC_USDC_BP
         return context
 
     def test_init_creates_empty_transformer(
@@ -290,7 +290,7 @@ class TestBackpackDepthStateTransformer:
 
         # Should return valid OrderBook with BOTH old and new bids
         assert isinstance(result, OrderBook)
-        assert result.symbol == BTC_USDC_BP.value
+        assert result.symbol == BTC_USDC_BP
         assert len(result.bids) == 2  # Both old and new bids present
         assert len(result.asks) == 2  # Both old and new asks present
 
@@ -368,7 +368,7 @@ class TestBackpackDepthStateTransformer:
         assert result is None
 
         # State should be cleared
-        assert BTC_USDC_BP.value not in transformer.states
+        assert BTC_USDC_BP not in transformer.states
 
         # Stats should reflect error
         stats = transformer.get_statistics()
@@ -394,8 +394,8 @@ class TestBackpackDepthStateTransformer:
         """Test statistics retrieval."""
         # Process some events to generate stats
         mock_context = Mock(spec=WebSocketContextProtocol)
-        mock_context.get_symbol_param = Mock(return_value={"symbol": BTC_USDC_BP.value})
-        mock_context.symbol = BTC_USDC_BP.value
+        mock_context.get_symbol_param = Mock(return_value={"symbol": BTC_USDC_BP})
+        mock_context.symbol = BTC_USDC_BP
 
         # Send first update (WebSocket doesn't support snapshots)
         update1 = BackpackRawDepthUpdateEvent(
@@ -439,12 +439,12 @@ class TestBackpackDepthStateTransformer:
         """Test that multiple symbols maintain isolated state."""
         # Create contexts for different symbols
         btc_context = Mock()
-        btc_context.get_symbol_param = Mock(return_value={"symbol": BTC_USDC_BP.value})
-        btc_context.symbol = BTC_USDC_BP.value
+        btc_context.get_symbol_param = Mock(return_value={"symbol": BTC_USDC_BP})
+        btc_context.symbol = BTC_USDC_BP
 
         eth_context = Mock()
-        eth_context.get_symbol_param = Mock(return_value={"symbol": ETH_USDC_BP.value})
-        eth_context.symbol = ETH_USDC_BP.value
+        eth_context.get_symbol_param = Mock(return_value={"symbol": ETH_USDC_BP})
+        eth_context.symbol = ETH_USDC_BP
 
         # Send snapshots to both symbols
         snapshot1 = BackpackRawDepthUpdateEvent(
@@ -472,15 +472,15 @@ class TestBackpackDepthStateTransformer:
 
         # Each symbol should have its own state
         assert len(transformer.states) == 2
-        assert BTC_USDC_BP.value in transformer.states
-        assert ETH_USDC_BP.value in transformer.states
+        assert BTC_USDC_BP in transformer.states
+        assert ETH_USDC_BP in transformer.states
 
         # Results should reflect different data
         assert result1 is not None
-        assert result1.symbol == BTC_USDC_BP.value
+        assert result1.symbol == BTC_USDC_BP
         assert result1.bids[0][0] == Decimal("100.0")
         assert result2 is not None
-        assert result2.symbol == ETH_USDC_BP.value
+        assert result2.symbol == ETH_USDC_BP
         assert result2.bids[0][0] == Decimal("200.0")
 
         stats = transformer.get_statistics()

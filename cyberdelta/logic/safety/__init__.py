@@ -14,7 +14,7 @@ from cyberdelta.logic.safety.circuit_breaker import (
 
 __all__ = [
     "CircuitBreaker",
-    "CircuitBreakerManager", 
+    "CircuitBreakerManager",
     "CircuitBreakerState",
     "CircuitBreakerViolation",
     "FailureType",

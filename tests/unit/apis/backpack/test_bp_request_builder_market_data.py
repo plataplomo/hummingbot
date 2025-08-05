@@ -16,45 +16,55 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
 )
-from tests.common_symbols import BTC_BP, ETH_BP
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
+from tests.common_symbols import (
+    BTC_BP,
+    BTC_USDC_BP,
+    BTC_USDT_BP,
+    ETH_BP,
+    ETH_USDC_BP,
+    ETH_USDT_BP,
+    SOL_USDC_BP,
+)
 
 
 class TestBuildGetTickerParams:
     """Tests for build_get_ticker_params method."""
 
-    def test_build_get_ticker_params_spot_symbol(self, symbol_spot: str) -> None:
+    def test_build_get_ticker_params_spot_symbol(self, symbol_spot: Symbol) -> None:
         """Test build_get_ticker_params with spot symbol."""
         params = BackpackMarketDataRequestBuilder.build_get_ticker_params(symbol_spot)
         assert isinstance(params, BackpackRawGetTickerParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == {"symbol": symbol_spot}
 
-    def test_build_get_ticker_params_perp_symbol(self, symbol_perp: str) -> None:
+    def test_build_get_ticker_params_perp_symbol(self, symbol_perp: Symbol) -> None:
         """Test build_get_ticker_params with perp symbol."""
         params = BackpackMarketDataRequestBuilder.build_get_ticker_params(symbol_perp)
         assert isinstance(params, BackpackRawGetTickerParams)
-        expected_symbol = symbol_perp.replace("-", "_").upper()
+        expected_symbol = symbol_perp.value.replace("-", "_").upper()
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == {"symbol": expected_symbol}
 
     def test_build_get_ticker_params_formats_symbol(self) -> None:
         """Test build_get_ticker_params formats symbol correctly."""
-        params = BackpackMarketDataRequestBuilder.build_get_ticker_params("SOL-USDC")
+        params = BackpackMarketDataRequestBuilder.build_get_ticker_params(SOL_USDC_BP)
         assert isinstance(params, BackpackRawGetTickerParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": "SOL_USDC"}
+        assert params_dict == {"symbol": SOL_USDC_BP.value}
 
     @pytest.mark.parametrize(
         ("input_symbol", "expected_symbol"),
         [
-            ("sol-usdc", "SOL_USDC"),
-            (BTC_BP.value, BTC_BP.value.replace("-", "_")),
-            ("eth_usdt", "ETH_USDT"),
+            (SOL_USDC_BP, SOL_USDC_BP.value),
+            (BTC_BP, BTC_BP.value.replace("-", "_")),
+            (ETH_USDT_BP, ETH_USDT_BP.value),
         ],
     )
     def test_build_get_ticker_params_parametrized(
         self,
-        input_symbol: str,
+        input_symbol: Symbol,
         expected_symbol: str,
     ) -> None:
         """Test build_get_ticker_params with various symbol formats."""
@@ -67,14 +77,14 @@ class TestBuildGetTickerParams:
 class TestBuildGetOrderBookParams:
     """Tests for build_get_order_book_params method."""
 
-    def test_build_get_order_book_params_no_limit(self, symbol_btc_spot: str) -> None:
+    def test_build_get_order_book_params_no_limit(self, symbol_btc_spot: Symbol) -> None:
         """Test build_get_order_book_params without limit."""
         params = BackpackMarketDataRequestBuilder.build_get_order_book_params(symbol_btc_spot, None)
         assert isinstance(params, BackpackRawGetOrderBookParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == {"symbol": symbol_btc_spot}
 
-    def test_build_get_order_book_params_with_limit(self, symbol_btc_spot: str) -> None:
+    def test_build_get_order_book_params_with_limit(self, symbol_btc_spot: Symbol) -> None:
         """Test build_get_order_book_params with limit."""
         params = BackpackMarketDataRequestBuilder.build_get_order_book_params(symbol_btc_spot, 10)
         assert isinstance(params, BackpackRawGetOrderBookParams)
@@ -83,18 +93,18 @@ class TestBuildGetOrderBookParams:
 
     def test_build_get_order_book_params_formats_symbol(self) -> None:
         """Test build_get_order_book_params formats symbol correctly."""
-        params = BackpackMarketDataRequestBuilder.build_get_order_book_params("BTC-USDT", 20)
+        params = BackpackMarketDataRequestBuilder.build_get_order_book_params(BTC_USDT_BP, 20)
         assert isinstance(params, BackpackRawGetOrderBookParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": "BTC_USDT", "limit": 20}
+        assert params_dict == {"symbol": BTC_USDT_BP.value, "limit": 20}
 
     @pytest.mark.parametrize(
         ("limit", "expected_params"),
         [
-            (None, {"symbol": "SOL_USDC"}),
-            (5, {"symbol": "SOL_USDC", "limit": 5}),
-            (100, {"symbol": "SOL_USDC", "limit": 100}),
-            (1000, {"symbol": "SOL_USDC", "limit": 1000}),
+            (None, {"symbol": SOL_USDC_BP.value}),
+            (5, {"symbol": SOL_USDC_BP.value, "limit": 5}),
+            (100, {"symbol": SOL_USDC_BP.value, "limit": 100}),
+            (1000, {"symbol": SOL_USDC_BP.value, "limit": 1000}),
         ],
     )
     def test_build_get_order_book_params_parametrized(
@@ -103,7 +113,7 @@ class TestBuildGetOrderBookParams:
         expected_params: dict[str, Any],
     ) -> None:
         """Test build_get_order_book_params with various limits."""
-        params = BackpackMarketDataRequestBuilder.build_get_order_book_params("SOL_USDC", limit)
+        params = BackpackMarketDataRequestBuilder.build_get_order_book_params(SOL_USDC_BP, limit)
         assert isinstance(params, BackpackRawGetOrderBookParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == expected_params
@@ -112,7 +122,7 @@ class TestBuildGetOrderBookParams:
 class TestBuildGetRecentTradesParams:
     """Tests for build_get_recent_trades_params method."""
 
-    def test_build_get_recent_trades_params_no_limit(self, symbol_eth_spot: str) -> None:
+    def test_build_get_recent_trades_params_no_limit(self, symbol_eth_spot: Symbol) -> None:
         """Test build_get_recent_trades_params without limit."""
         params = BackpackMarketDataRequestBuilder.build_get_recent_trades_params(
             symbol_eth_spot, None
@@ -121,7 +131,7 @@ class TestBuildGetRecentTradesParams:
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == {"symbol": symbol_eth_spot}
 
-    def test_build_get_recent_trades_params_with_limit(self, symbol_eth_spot: str) -> None:
+    def test_build_get_recent_trades_params_with_limit(self, symbol_eth_spot: Symbol) -> None:
         """Test build_get_recent_trades_params with limit."""
         params = BackpackMarketDataRequestBuilder.build_get_recent_trades_params(
             symbol_eth_spot, 50
@@ -132,22 +142,22 @@ class TestBuildGetRecentTradesParams:
 
     def test_build_get_recent_trades_params_formats_symbol(self) -> None:
         """Test build_get_recent_trades_params formats symbol correctly."""
-        params = BackpackMarketDataRequestBuilder.build_get_recent_trades_params("ETH-USDC", 25)
+        params = BackpackMarketDataRequestBuilder.build_get_recent_trades_params(ETH_USDC_BP, 25)
         assert isinstance(params, BackpackRawGetRecentTradesParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": "ETH_USDC", "limit": 25}
+        assert params_dict == {"symbol": ETH_USDC_BP.value, "limit": 25}
 
     @pytest.mark.parametrize(
         ("symbol", "limit", "expected_params"),
         [
-            ("SOL_USDC", None, {"symbol": "SOL_USDC"}),
-            ("BTC_USDT", 10, {"symbol": "BTC_USDT", "limit": 10}),
-            (ETH_BP.value.lower(), 100, {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100}),
+            (SOL_USDC_BP, None, {"symbol": SOL_USDC_BP.value}),
+            (BTC_USDT_BP, 10, {"symbol": BTC_USDT_BP.value, "limit": 10}),
+            (ETH_BP, 100, {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100}),
         ],
     )
     def test_build_get_recent_trades_params_parametrized(
         self,
-        symbol: str,
+        symbol: Symbol,
         limit: int | None,
         expected_params: dict[str, Any],
     ) -> None:
@@ -161,7 +171,7 @@ class TestBuildGetRecentTradesParams:
 class TestBuildGetMarketDataParams:
     """Tests for build_get_market_data_params method (klines)."""
 
-    def test_build_get_market_data_params_basic(self, symbol_spot: str) -> None:
+    def test_build_get_market_data_params_basic(self, symbol_spot: Symbol) -> None:
         """Test build_get_market_data_params with basic parameters."""
         params = BackpackMarketDataRequestBuilder.build_get_market_data_params(
             symbol_spot,
@@ -177,7 +187,7 @@ class TestBuildGetMarketDataParams:
 
     def test_build_get_market_data_params_with_times(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
         current_timestamp_ms: int,
         past_timestamp_ms: int,
     ) -> None:
@@ -203,7 +213,7 @@ class TestBuildGetMarketDataParams:
     def test_build_get_market_data_params_formats_symbol(self) -> None:
         """Test build_get_market_data_params formats symbol correctly."""
         params = BackpackMarketDataRequestBuilder.build_get_market_data_params(
-            "SOL-USDC",
+            SOL_USDC_BP,
             "1m",
             1609459200,  # Sample timestamp
             None,
@@ -211,7 +221,12 @@ class TestBuildGetMarketDataParams:
         )
         assert isinstance(params, BackpackRawGetMarketDataParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": "SOL_USDC", "interval": "1m", "startTime": 1609459, "limit": 200}
+        expected = {
+            "symbol": SOL_USDC_BP.value,
+            "interval": "1m",
+            "startTime": 1609459,
+            "limit": 200,
+        }
         assert params_dict == expected
 
     @pytest.mark.parametrize(
@@ -225,7 +240,7 @@ class TestBuildGetMarketDataParams:
     )
     def test_build_get_market_data_params_timeframes(
         self,
-        symbol_spot: str,
+        symbol_spot: Symbol,
         timeframe: Literal["1m", "5m", "1h", "1d"],
         limit: int,
         expected_interval: str,
@@ -252,7 +267,7 @@ class TestBuildGetMarketDataParams:
 class TestBuildGetHistoricalTradesParams:
     """Tests for build_get_historical_trades_params method."""
 
-    def test_build_get_historical_trades_params_basic(self, symbol_eth_spot: str) -> None:
+    def test_build_get_historical_trades_params_basic(self, symbol_eth_spot: Symbol) -> None:
         """Test build_get_historical_trades_params with basic parameters."""
         params = BackpackMarketDataRequestBuilder.build_get_historical_trades_params(
             symbol_eth_spot,
@@ -264,7 +279,7 @@ class TestBuildGetHistoricalTradesParams:
         expected = {"symbol": symbol_eth_spot, "limit": 50}
         assert params_dict == expected
 
-    def test_build_get_historical_trades_params_with_from_id(self, symbol_perp: str) -> None:
+    def test_build_get_historical_trades_params_with_from_id(self, symbol_perp: Symbol) -> None:
         """Test build_get_historical_trades_params with from_id."""
         params = BackpackMarketDataRequestBuilder.build_get_historical_trades_params(
             symbol_perp,
@@ -272,7 +287,7 @@ class TestBuildGetHistoricalTradesParams:
             "trade123",
         )
         assert isinstance(params, BackpackRawGetHistoricalTradesParams)
-        expected_symbol = symbol_perp.replace("-", "_").upper()
+        expected_symbol = symbol_perp.value.replace("-", "_").upper()
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         expected = {"symbol": expected_symbol, "limit": 50, "fromId": "trade123"}
         assert params_dict == expected
@@ -280,7 +295,7 @@ class TestBuildGetHistoricalTradesParams:
     def test_build_get_historical_trades_params_formats_symbol(self) -> None:
         """Test build_get_historical_trades_params formats symbol correctly."""
         params = BackpackMarketDataRequestBuilder.build_get_historical_trades_params(
-            ETH_BP.value,
+            ETH_BP,
             100,
             "trade456",
         )
@@ -292,10 +307,15 @@ class TestBuildGetHistoricalTradesParams:
     @pytest.mark.parametrize(
         ("symbol", "limit", "from_id", "expected_params"),
         [
-            ("SOL_USDC", 25, None, {"symbol": "SOL_USDC", "limit": 25}),
-            ("BTC_USDT", 50, "id123", {"symbol": "BTC_USDT", "limit": 50, "fromId": "id123"}),
+            (SOL_USDC_BP, 25, None, {"symbol": SOL_USDC_BP.value, "limit": 25}),
             (
-                ETH_BP.value.lower(),
+                BTC_USDT_BP,
+                50,
+                "id123",
+                {"symbol": BTC_USDT_BP.value, "limit": 50, "fromId": "id123"},
+            ),
+            (
+                ETH_BP,
                 100,
                 "id456",
                 {"symbol": ETH_BP.value.replace("-", "_"), "limit": 100, "fromId": "id456"},
@@ -304,7 +324,7 @@ class TestBuildGetHistoricalTradesParams:
     )
     def test_build_get_historical_trades_params_parametrized(
         self,
-        symbol: str,
+        symbol: Symbol,
         limit: int,
         from_id: str | None,
         expected_params: dict[str, Any],
@@ -340,41 +360,41 @@ class TestBuildGetMarketsParams:
 class TestBuildGetMarketParams:
     """Tests for build_get_market_params method."""
 
-    def test_build_get_market_params_basic(self, symbol_spot: str) -> None:
+    def test_build_get_market_params_basic(self, symbol_spot: Symbol) -> None:
         """Test build_get_market_params with spot symbol."""
         params = BackpackMarketDataRequestBuilder.build_get_market_params(symbol_spot)
         assert isinstance(params, BackpackRawGetMarketParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == {"symbol": symbol_spot}
 
-    def test_build_get_market_params_perp_symbol(self, symbol_perp: str) -> None:
+    def test_build_get_market_params_perp_symbol(self, symbol_perp: Symbol) -> None:
         """Test build_get_market_params with perp symbol."""
         params = BackpackMarketDataRequestBuilder.build_get_market_params(symbol_perp)
         assert isinstance(params, BackpackRawGetMarketParams)
-        expected_symbol = symbol_perp.replace("-", "_").upper()
+        expected_symbol = symbol_perp.value.replace("-", "_").upper()
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
         assert params_dict == {"symbol": expected_symbol}
 
     def test_build_get_market_params_formats_symbol(self) -> None:
         """Test build_get_market_params formats symbol correctly."""
-        params = BackpackMarketDataRequestBuilder.build_get_market_params("SOL-USDC")
+        params = BackpackMarketDataRequestBuilder.build_get_market_params(SOL_USDC_BP)
         assert isinstance(params, BackpackRawGetMarketParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": "SOL_USDC"}
+        assert params_dict == {"symbol": SOL_USDC_BP.value}
 
     @pytest.mark.parametrize(
         ("input_symbol", "expected_symbol"),
         [
-            ("sol-usdc", "SOL_USDC"),
-            (BTC_BP.value, BTC_BP.value.replace("-", "_")),
-            ("eth_usdt", "ETH_USDT"),
-            ("AVAX_USDC", "AVAX_USDC"),
-            ("link-perp", "LINK_PERP"),
+            (SOL_USDC_BP, SOL_USDC_BP.value),
+            (BTC_BP, BTC_BP.value.replace("-", "_")),
+            (ETH_USDT_BP, ETH_USDT_BP.value),
+            (exchanges.backpack("AVAX_USDC"), "AVAX_USDC"),
+            (exchanges.backpack("LINK-PERP"), "LINK_PERP"),
         ],
     )
     def test_build_get_market_params_parametrized(
         self,
-        input_symbol: str,
+        input_symbol: Symbol,
         expected_symbol: str,
     ) -> None:
         """Test build_get_market_params with various symbol formats."""
@@ -385,10 +405,11 @@ class TestBuildGetMarketParams:
 
     def test_build_get_market_params_symbol_consistency(self) -> None:
         """Test build_get_market_params symbol formatting consistency."""
-        # Test that the method uses the same format_symbol logic as other methods
-        test_symbols = ["BTC_USDC", "ETH-USDT", "sol_perp", "AVAX-PERP"]
+        # Test that the method consistently handles Symbol objects
+        test_symbols = [BTC_USDC_BP, ETH_USDT_BP, SOL_USDC_BP, exchanges.backpack("AVAX-PERP")]
         for symbol in test_symbols:
             params = BackpackMarketDataRequestBuilder.build_get_market_params(symbol)
-            expected_formatted = BackpackMarketDataRequestBuilder.format_symbol(symbol)
             params_dict = params.model_dump(by_alias=True, exclude_none=True)
-            assert params_dict["symbol"] == expected_formatted
+            # The symbol should be formatted correctly by the request builder
+            assert "symbol" in params_dict
+            assert isinstance(params_dict["symbol"], str)

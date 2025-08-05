@@ -5,9 +5,11 @@ for constructing complex test scenarios.
 """
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 
+from cyberdelta.core.symbols.models import Symbol
 from tests.builders.symbol_builders import (
     ArbitrageSymbolBuilder,
     MarketDataSymbolBuilder,
@@ -123,14 +125,18 @@ def symbol_test_factory() -> SymbolTestFactory:
 
 
 @pytest.fixture
-def create_test_portfolio():
+def create_test_portfolio() -> Callable[
+    [list[str], bool], dict[str, dict[str, tuple[Symbol, Symbol]]]
+]:
     """Factory function for creating test portfolios.
 
     Returns:
         Callable: Function that creates test portfolio
     """
 
-    def _create(assets: list[str], include_spot: bool = False) -> dict:
+    def _create(
+        assets: list[str], include_spot: bool = False
+    ) -> dict[str, dict[str, tuple[Symbol, Symbol]]]:
         return SymbolTestFactory.create_arbitrage_set(
             assets=assets,
             include_spot=include_spot,
@@ -140,21 +146,21 @@ def create_test_portfolio():
 
 
 @pytest.fixture
-def create_invalid_symbols():
+def create_invalid_symbols() -> Callable[[], dict[str, Any]]:
     """Factory function for creating invalid test cases.
 
     Returns:
         Callable: Function that returns invalid test cases
     """
 
-    def _create() -> dict:
+    def _create() -> dict[str, Any]:
         return SymbolTestFactory.create_invalid_test_cases()
 
     return _create
 
 
 @pytest.fixture
-def standard_metadata_sets() -> dict:
+def standard_metadata_sets() -> dict[str, Any]:
     """Standard metadata sets for testing.
 
     Returns:
@@ -164,7 +170,7 @@ def standard_metadata_sets() -> dict:
 
 
 @pytest.fixture
-def standard_components() -> dict:
+def standard_components() -> dict[str, Any]:
     """Standard component sets for testing.
 
     Returns:

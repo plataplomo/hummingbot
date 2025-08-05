@@ -17,6 +17,7 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.enums import OrderSide
 from cyberdelta.models.operations import Withdrawal
+from tests.common_symbols import SOL_USDC_BP
 
 
 class TestBackpackAccountServiceHistoryOperations:
@@ -32,7 +33,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_order_history returns empty list (no order history endpoint)."""
-        symbol = "SOL_USDC"
         limit = 10
         start_time = datetime(2023, 1, 1, tzinfo=UTC)
         end_time = datetime(2023, 1, 2, tzinfo=UTC)
@@ -40,7 +40,7 @@ class TestBackpackAccountServiceHistoryOperations:
         # Business logic returns empty list since Backpack doesn't have order history endpoint
         result = await bp_account_service.get_order_history(
             GetOrderHistoryArgs(
-                symbol=symbol,
+                symbol=SOL_USDC_BP,
                 limit=limit,
                 start_time=start_time,
                 end_time=end_time,
@@ -58,10 +58,8 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_order_history returns empty list (no order history endpoint)."""
-        symbol = "SOL_USDC"
-
         # Business logic returns empty list since Backpack doesn't have order history endpoint
-        result = await bp_account_service.get_order_history(GetOrderHistoryArgs(symbol=symbol))
+        result = await bp_account_service.get_order_history(GetOrderHistoryArgs(symbol=SOL_USDC_BP))
 
         assert result == []
 
@@ -75,10 +73,8 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_order_history returns empty list (no order history endpoint)."""
-        symbol = "SOL_USDC"
-
         # Business logic returns empty list since Backpack doesn't have order history endpoint
-        result = await bp_account_service.get_order_history(GetOrderHistoryArgs(symbol=symbol))
+        result = await bp_account_service.get_order_history(GetOrderHistoryArgs(symbol=SOL_USDC_BP))
 
         assert result == []
 
@@ -92,12 +88,11 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper: MagicMock,
     ) -> None:
         """Test get_order_history returns empty list (no order history endpoint)."""
-        symbol = "SOL_USDC"
         limit = 10
 
         # Business logic returns empty list since Backpack doesn't have order history endpoint
         result = await bp_account_service.get_order_history(
-            GetOrderHistoryArgs(symbol=symbol, limit=limit)
+            GetOrderHistoryArgs(symbol=SOL_USDC_BP, limit=limit)
         )
 
         assert result == []
@@ -221,7 +216,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_mapper: MagicMock,
     ) -> None:
         """Test successful trade history retrieval."""
-        symbol = "SOL_USDC"
         limit = 50
 
         # Create proper raw trade data with all required fields
@@ -233,7 +227,7 @@ class TestBackpackAccountServiceHistoryOperations:
             "price": "100.0",
             "quantity": "10.0",
             "side": "Bid",  # Buy side
-            "symbol": symbol,
+            "symbol": SOL_USDC_BP.value,
             "timestamp": "2009-02-13T23:31:30.000Z",  # 1234567890 seconds from epoch
             "tradeId": 123,
         }
@@ -244,13 +238,13 @@ class TestBackpackAccountServiceHistoryOperations:
 
         # Test calls to the service, which delegates to the transaction history service
         result = await bp_account_service.get_trade_history(
-            GetTradeHistoryArgs(symbol=symbol, limit=limit),
+            GetTradeHistoryArgs(symbol=SOL_USDC_BP, limit=limit),
         )
 
         # The mapper returns trades with exchange="backpack" not "backpack_test_account"
         assert len(result) == 1
         assert result[0].id == "123"
-        assert result[0].symbol == symbol
+        assert result[0].symbol.value == SOL_USDC_BP.value
         assert result[0].exchange == "backpack"  # Mapper hardcodes this
         assert result[0].order_id == "order_123"
         assert result[0].quantity == Decimal("10.0")
@@ -269,7 +263,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_request_builder: MagicMock,
     ) -> None:
         """Test get_trade_history when HTTP client returns None content."""
-        symbol = "SOL_USDC"
         limit = 50
 
         # Mock the HTTP client to return None which triggers error
@@ -277,7 +270,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
-                GetTradeHistoryArgs(symbol=symbol, limit=limit),
+                GetTradeHistoryArgs(symbol=SOL_USDC_BP, limit=limit),
             )
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
@@ -292,7 +285,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_trade_history when validation error occurs."""
-        symbol = "SOL_USDC"
         limit = 50
 
         # Mock the HTTP client to return invalid data that causes validation error
@@ -305,7 +297,7 @@ class TestBackpackAccountServiceHistoryOperations:
 
         with pytest.raises(APIError) as exc_info:
             await bp_account_service.get_trade_history(
-                GetTradeHistoryArgs(symbol=symbol, limit=limit),
+                GetTradeHistoryArgs(symbol=SOL_USDC_BP, limit=limit),
             )
 
         # Business logic wraps validation errors as INVALID_RESPONSE
@@ -320,8 +312,6 @@ class TestBackpackAccountServiceHistoryOperations:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test get_trade_history when unexpected exception occurs."""
-        symbol = "SOL_USDC"
-
         # Mock the HTTP client to return incomplete data that causes validation error
         # This will trigger the business logic's error handling path
         mock_http_client_requester.return_value = (
@@ -331,7 +321,7 @@ class TestBackpackAccountServiceHistoryOperations:
         )
 
         with pytest.raises(APIError) as exc_info:
-            await bp_account_service.get_trade_history(GetTradeHistoryArgs(symbol=symbol))
+            await bp_account_service.get_trade_history(GetTradeHistoryArgs(symbol=SOL_USDC_BP))
 
         # Business logic wraps validation errors as INVALID_RESPONSE
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value

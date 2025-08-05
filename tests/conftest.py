@@ -96,7 +96,6 @@ __all__ = [
     "active_hl_secrets",
     "backpack_config",
     "backpack_secrets",
-    "circuit_breaker_system",
     "create_mock_response",
     # VCR configuration
     "custom_vcr_config",
@@ -107,7 +106,6 @@ __all__ = [
     "hyperliquid_secrets",
     "market_time_simulation",
     # Exchange mocks
-    "mock_arbitrage_opportunity",
     "mock_client_session",
     "mock_config",
     "mock_data_handler",

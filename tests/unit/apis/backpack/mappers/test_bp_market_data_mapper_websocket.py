@@ -27,11 +27,11 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTradeEvent
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderBook, Ticker, Trade
 from tests.common_symbols import BTC_USDC_BP, DOGE_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
-from cyberdelta.core.symbols import exchanges
 
 
 @pytest.fixture
@@ -386,7 +386,9 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(
+            exchanges.backpack("SOL-USDC"), raw_depth
+        )
 
         assert isinstance(result, OrderBook)
         assert result.symbol == SOL_USDC_BP
@@ -407,7 +409,9 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(
+            exchanges.backpack("SOL-USDC"), raw_depth
+        )
 
         assert len(result.bids) == 0
         assert len(result.asks) == 0
@@ -424,7 +428,9 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(
+            exchanges.backpack("SOL-USDC"), raw_depth
+        )
 
         assert len(result.bids) == 1
         assert len(result.asks) == 1
@@ -447,7 +453,9 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(
+            exchanges.backpack("SOL-USDC"), raw_depth
+        )
 
         assert len(result.bids) == 10
         assert len(result.asks) == 10
@@ -466,7 +474,9 @@ class TestWebSocketDepthEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
+        result = order_book_mapper.transform_ws_depth_event_to_internal(
+            exchanges.backpack("SOL-USDC"), raw_depth
+        )
 
         assert result.bids[0] == (Decimal("0.000001"), Decimal("999999999.999999"))
         assert result.asks[0] == (Decimal("1000000.000001"), Decimal("0.000000001"))
@@ -488,7 +498,9 @@ class TestWebSocketDepthEventTransformation:
                 TransformationError,
                 match="Failed to transform BackpackRawDepthUpdateEvent",
             ):
-                order_book_mapper.transform_ws_depth_event_to_internal(exchanges.backpack("SOL-USDC"), raw_depth)
+                order_book_mapper.transform_ws_depth_event_to_internal(
+                    exchanges.backpack("SOL-USDC"), raw_depth
+                )
 
     def test_transform_ws_depth_event_with_different_symbols(
         self,

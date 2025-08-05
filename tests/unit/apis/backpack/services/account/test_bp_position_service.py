@@ -31,7 +31,7 @@ from cyberdelta.apis.backpack.services.account.bp_position_service import (
     BackpackPositionService,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import DerivativePosition
 from cyberdelta.models.derivative_position import (
     BackpackPositionDetails as BackpackDerivativePositionDetails,
@@ -159,7 +159,7 @@ def mock_derivative_position() -> DerivativePosition:
         unrealized_pnl=Decimal("1000.00"),
         realized_pnl=Decimal("500.00"),
         liquidation_price=Decimal("45000.00"),
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
         timestamp=datetime.now(UTC),
         bp_details=BackpackDerivativePositionDetails(),
     )
@@ -333,7 +333,7 @@ class TestBackpackPositionService:
         mock_mapper.transform_raw_position_to_internal.return_value = btc_position
 
         # Act
-        result = await position_service.get_positions(symbol=BTC_BP.value)
+        result = await position_service.get_positions(symbol=BTC_BP)
 
         # Assert
         assert len(result) == 1
@@ -470,7 +470,7 @@ class TestBackpackPositionService:
             unrealized_pnl=Decimal("1000.00"),
             realized_pnl=Decimal("500.00"),
             liquidation_price=Decimal("45000.00"),
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             timestamp=datetime.now(UTC),
             bp_details=BackpackDerivativePositionDetails(),
         )

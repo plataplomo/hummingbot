@@ -46,6 +46,7 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.models import FundingRate
 from cyberdelta.models.market.candle import Candle
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 @pytest.fixture
@@ -201,7 +202,7 @@ def mock_funding_rate() -> FundingRate:
         FundingRate instance with sample ETH funding data.
     """
     return FundingRate(
-        symbol="ETH",
+        symbol=ETH_HL,
         funding_rate=Decimal("0.0001"),
         mark_price=Decimal("3500.00"),
         index_price=Decimal("3499.50"),
@@ -250,7 +251,7 @@ def mock_candle() -> Candle:
         Candle instance with sample BTC OHLCV data.
     """
     return Candle(
-        symbol="BTC",
+        symbol=BTC_HL,
         interval="1h",
         open_time=datetime(2024, 1, 1, tzinfo=UTC),
         open=Decimal("64000.00"),
@@ -283,7 +284,7 @@ class TestHyperliquidHistoricalDataService:
         ):
             # Create two funding rates for ETH and BTC
             funding_rate_btc = FundingRate(
-                symbol="BTC",
+                symbol=BTC_HL,
                 funding_rate=Decimal("0.0002"),
                 mark_price=Decimal("65000.00"),
                 index_price=Decimal("64999.00"),
@@ -314,7 +315,7 @@ class TestHyperliquidHistoricalDataService:
     ) -> None:
         """Test retrieval of funding rates for specific symbols."""
         # Arrange
-        args = GetFundingRatesArgs(symbols=["ETH"])
+        args = GetFundingRatesArgs(symbols=[ETH_HL])
 
         with patch.object(
             historical_data_service,
@@ -339,7 +340,11 @@ class TestHyperliquidHistoricalDataService:
     ) -> None:
         """Test funding rates retrieval with invalid symbols that don't exist in asset contexts."""
         # Arrange - use valid symbol format but non-existent symbols
-        args = GetFundingRatesArgs(symbols=["INVALID", "NONEXISTENT"])
+        from cyberdelta.core.symbols import exchanges
+
+        invalid_symbol = exchanges.hyperliquid("INVALID")
+        nonexistent_symbol = exchanges.hyperliquid("NONEXISTENT")
+        args = GetFundingRatesArgs(symbols=[invalid_symbol, nonexistent_symbol])
 
         # Mock empty asset contexts to simulate invalid symbols
         # Use proper tuple format that model expects
@@ -394,7 +399,7 @@ class TestHyperliquidHistoricalDataService:
         """Test successful historical funding rates retrieval."""
         # Arrange
         args = GetHistoricalFundingRatesArgs(
-            symbol="ETH",
+            symbol=ETH_HL,
             start_time=datetime(2024, 1, 1, tzinfo=UTC),
             end_time=datetime(2024, 1, 2, tzinfo=UTC),
         )
@@ -439,7 +444,7 @@ class TestHyperliquidHistoricalDataService:
         # Act & Assert - Model validation prevents invalid time ranges
         with pytest.raises(ValidationError) as exc_info:
             GetHistoricalFundingRatesArgs(
-                symbol="ETH",
+                symbol=ETH_HL,
                 start_time=datetime(2024, 1, 2, tzinfo=UTC),
                 end_time=datetime(2024, 1, 1, tzinfo=UTC),  # End before start
             )
@@ -458,7 +463,7 @@ class TestHyperliquidHistoricalDataService:
         # Arrange
         future_time = datetime.now(UTC) + timedelta(days=1)
         args = GetHistoricalFundingRatesArgs(
-            symbol="ETH",
+            symbol=ETH_HL,
             start_time=datetime.now(UTC),
             end_time=future_time,
         )
@@ -491,7 +496,7 @@ class TestHyperliquidHistoricalDataService:
         """Test successful market data (candles) retrieval."""
         # Arrange
         args = GetMarketDataArgs(
-            symbol="BTC",
+            symbol=BTC_HL,
             timeframe="1h",
             limit=100,
             start_time_ms=1704067200000,
@@ -526,7 +531,7 @@ class TestHyperliquidHistoricalDataService:
         assert result[0] == mock_candle
         mock_mapper.transform_raw_candle_snapshot_to_candles.assert_called_once_with(
             mock_candle_snapshot,
-            "BTC",
+            BTC_HL,
             "1h",
         )
 
@@ -542,7 +547,7 @@ class TestHyperliquidHistoricalDataService:
         """Test market data retrieval with invalid timeframe - uses default fallback."""
         # Arrange
         args = GetMarketDataArgs(
-            symbol="BTC",
+            symbol=BTC_HL,
             timeframe="invalid",
             limit=100,
         )
@@ -572,7 +577,7 @@ class TestHyperliquidHistoricalDataService:
         # Act & Assert - Pydantic will catch invalid limit (must be > 0)
         with pytest.raises(ValidationError) as exc_info:
             GetMarketDataArgs(
-                symbol="BTC",
+                symbol=BTC_HL,
                 timeframe="1h",
                 limit=0,  # Invalid limit - must be > 0
             )
@@ -591,7 +596,7 @@ class TestHyperliquidHistoricalDataService:
         Current implementation is simplified.
         """
         # Arrange
-        args = GetFundingRatesArgs(symbols=["ETH"])
+        args = GetFundingRatesArgs(symbols=[ETH_HL])
 
         with patch.object(
             historical_data_service,
@@ -624,7 +629,7 @@ class TestHyperliquidHistoricalDataService:
         """Test market data retrieval with empty candles response."""
         # Arrange
         args = GetMarketDataArgs(
-            symbol="BTC",
+            symbol=BTC_HL,
             timeframe="1h",
             limit=100,
         )
@@ -652,7 +657,7 @@ class TestHyperliquidHistoricalDataService:
         """Test historical funding rates with HTTP error."""
         # Arrange
         args = GetHistoricalFundingRatesArgs(
-            symbol="ETH",
+            symbol=ETH_HL,
             start_time=datetime(2024, 1, 1, tzinfo=UTC),
             end_time=datetime(2024, 1, 2, tzinfo=UTC),
         )

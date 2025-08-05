@@ -17,10 +17,10 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
-from cyberdelta.models import Ticker
-from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP, ETH_USDC_BP
 from cyberdelta.core.symbols import exchanges
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models import Ticker
+from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
 
 
 # Mark all tests in this file
@@ -46,9 +46,7 @@ class TestBackpackSpotTickers:
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == SOL_USDC_BP, (
-            f"Expected symbol SOL_USDC_BP, got '{ticker.symbol}'"
-        )
+        assert ticker.symbol == SOL_USDC_BP, f"Expected symbol SOL_USDC_BP, got '{ticker.symbol}'"
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
         )
@@ -81,9 +79,7 @@ class TestBackpackSpotTickers:
 
         assert isinstance(ticker, Ticker), f"Expected Ticker, got {type(ticker)}"
 
-        assert ticker.symbol == BTC_USDC_BP, (
-            f"Expected symbol BTC_USDC_BP, got '{ticker.symbol}'"
-        )
+        assert ticker.symbol == BTC_USDC_BP, f"Expected symbol BTC_USDC_BP, got '{ticker.symbol}'"
         assert isinstance(ticker.price, Decimal), (
             f"Price should be Decimal, got {type(ticker.price)}"
         )

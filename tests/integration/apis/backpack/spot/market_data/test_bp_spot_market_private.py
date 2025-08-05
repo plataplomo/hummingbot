@@ -44,8 +44,8 @@ class TestBackpackSpotMarketPrivate:
         market = await bp_api_for_test_env.get_market(args)
 
         assert isinstance(market, Market), f"Expected Market, got {type(market)}"
-        assert market.symbol == SOL_USDC_BP.value, (
-            f"Expected symbol '{SOL_USDC_BP.value}', got '{market.symbol}'"
+        assert market.symbol == SOL_USDC_BP, (
+            f"Expected symbol '{SOL_USDC_BP}', got '{market.symbol}'"
         )
 
         assert isinstance(market.tick_size, Decimal), (
@@ -85,7 +85,9 @@ class TestBackpackSpotMarketPrivate:
         assert len(markets) > 0, "Should return at least some markets"
 
         # Test first 3 spot markets only
-        spot_markets = [m for m in markets if "_USDC" in m.symbol and "PERP" not in m.symbol][:3]
+        spot_markets = [
+            m for m in markets if "_USDC" in m.symbol.value and "PERP" not in m.symbol.value
+        ][:3]
 
         for market in spot_markets:
             individual_args = GetMarketArgs(symbol=market.symbol)
@@ -117,12 +119,9 @@ class TestBackpackSpotMarketPrivate:
                     f"Expected Market for {symbol}, got {type(market)}"
                 )
 
-                assert isinstance(market.symbol, str), f"symbol should be str for {symbol}"
-                assert isinstance(market.base_symbol, str), (
-                    f"base_symbol should be str for {symbol}"
-                )
-                assert isinstance(market.quote_symbol, str), (
-                    f"quote_symbol should be str for {symbol}"
+                # Symbol is a Symbol object, not a string
+                assert hasattr(market.symbol, "value"), (
+                    f"symbol should have value attribute for {symbol}"
                 )
                 assert isinstance(market.tick_size, Decimal), (
                     f"tick_size should be Decimal for {symbol}"
@@ -151,7 +150,9 @@ class TestBackpackSpotMarketPrivate:
         args = GetMarketsArgs()
         markets = await bp_api_for_test_env.get_markets(args)
 
-        spot_markets = [m for m in markets if "_USDC" in m.symbol and "PERP" not in m.symbol]
+        spot_markets = [
+            m for m in markets if "_USDC" in m.symbol.value and "PERP" not in m.symbol.value
+        ]
 
         for market in spot_markets:
             assert not hasattr(market, "account_balance"), (

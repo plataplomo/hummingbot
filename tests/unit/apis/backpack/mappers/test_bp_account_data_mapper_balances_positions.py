@@ -23,8 +23,6 @@ from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackB
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
 from cyberdelta.apis.backpack.models.bp_raw_account_summary import BackpackRawAccountSummaryResponse
-from cyberdelta.core.symbols.models import Symbol
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawImfFunction,
     BackpackRawMmfFunction,
@@ -33,6 +31,8 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionR
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, MarginAccountSummary, SpotBalance
@@ -309,7 +309,9 @@ class TestBalanceTransformation:
 
         for asset in assets:
             raw_balance = create_raw_balance(available="500.0", locked="50.0", staked="50.0")
-            result = mapper.transform_raw_balance_to_internal(exchanges.backpack(asset), raw_balance)
+            result = mapper.transform_raw_balance_to_internal(
+                exchanges.backpack(asset), raw_balance
+            )
 
             assert result.asset.value == asset.upper()
             assert result.available_quantity == Decimal("500.0")

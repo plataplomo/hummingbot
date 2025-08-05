@@ -36,6 +36,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 )
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.enums import OrderSide, OrderType
+from tests.common_symbols import ETH_HL
 
 
 logger = get_logger(__name__)
@@ -157,7 +158,7 @@ class TestEdgeCasesAndBoundaryValues:
         assert result.exchange_order_id == "12345"
         assert isinstance(result.client_order_id, str)
         assert len(result.client_order_id) > 0
-        assert result.symbol == "ETH-PERP"
+        assert result.symbol == ETH_HL
         assert result.side == OrderSide.BUY
         assert result.order_type == OrderType.MARKET
 
@@ -259,7 +260,8 @@ class TestUnicodeAndSpecialCharacters:
         for symbol in unicode_symbols:
             order = create_raw_order(asset=symbol)
             result = trading_data_mapper.transform_raw_order_to_internal(order)
-            assert result.symbol == symbol
+            # Result contains a Symbol object created from the raw string
+            assert result.symbol.value == symbol
 
     def test_unicode_client_order_ids(
         self,
@@ -297,27 +299,27 @@ class TestUnicodeAndSpecialCharacters:
         # Test each case individually with None cloid (will generate UUIDs)
         test_order1 = create_raw_order(asset="BTC\\PERP", cloid=None)
         result1 = trading_data_mapper.transform_raw_order_to_internal(test_order1)
-        assert result1.symbol == "BTC\\PERP"
+        assert result1.symbol.value == "BTC\\PERP"
         assert result1.client_order_id is not None  # UUID generated
 
         test_order2 = create_raw_order(asset="ETH/PERP", cloid=None)
         result2 = trading_data_mapper.transform_raw_order_to_internal(test_order2)
-        assert result2.symbol == "ETH/PERP"
+        assert result2.symbol.value == "ETH/PERP"
         assert result2.client_order_id is not None  # UUID generated
 
         test_order3 = create_raw_order(asset="SOL PERP", cloid=None)
         result3 = trading_data_mapper.transform_raw_order_to_internal(test_order3)
-        assert result3.symbol == "SOL PERP"
+        assert result3.symbol.value == "SOL PERP"
         assert result3.client_order_id is not None  # UUID generated
 
         test_order4 = create_raw_order(asset="AVAX.PERP", cloid=None)
         result4 = trading_data_mapper.transform_raw_order_to_internal(test_order4)
-        assert result4.symbol == "AVAX.PERP"
+        assert result4.symbol.value == "AVAX.PERP"
         assert result4.client_order_id is not None  # UUID generated
 
         test_order5 = create_raw_order(asset="ADA-PERP-X", cloid=None)
         result5 = trading_data_mapper.transform_raw_order_to_internal(test_order5)
-        assert result5.symbol == "ADA-PERP-X"
+        assert result5.symbol.value == "ADA-PERP-X"
         assert result5.client_order_id is not None  # UUID generated
 
 
@@ -460,7 +462,7 @@ class TestPerformanceAndMemory:
         # Should handle large strings efficiently
         result = trading_data_mapper.transform_raw_order_to_internal(order)
         assert result.client_order_id is not None  # UUID generated
-        assert result.symbol == long_asset
+        assert result.symbol.value == long_asset
 
     def test_high_precision_calculation_stability(
         self,

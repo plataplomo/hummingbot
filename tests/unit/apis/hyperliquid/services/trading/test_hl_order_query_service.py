@@ -38,8 +38,9 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import 
 )
 from cyberdelta.apis.models.service_args.trading import GetOrderArgs
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models import Order, Trade
+from tests.common_symbols import BTC_HL, ETH_HL
 
 
 HyperliquidResponseHandler = HyperliquidTradingResponseHandler
@@ -142,7 +143,7 @@ def mock_open_order() -> Order:
     return Order(
         exchange_order_id="12345",
         client_order_id="client_123",
-        symbol="BTC-USD",
+        symbol=BTC_HL,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         quantity_requested=Decimal("0.1"),
@@ -150,7 +151,7 @@ def mock_open_order() -> Order:
         status=OrderStatus.NEW,
         quantity_filled=Decimal(0),
         created_at=datetime.now(UTC),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         time_in_force=TimeInForce.GTC,
         updated_at=datetime.now(UTC),
         triggered_at=None,
@@ -169,7 +170,7 @@ def mock_filled_order() -> Order:
     return Order(
         exchange_order_id="67890",
         client_order_id="client_456",
-        symbol="ETH-USD",
+        symbol=ETH_HL,
         side=OrderSide.SELL,
         order_type=OrderType.MARKET,
         quantity_requested=Decimal("1.0"),
@@ -178,7 +179,7 @@ def mock_filled_order() -> Order:
         quantity_filled=Decimal("1.0"),
         average_fill_price=Decimal(3500),
         created_at=datetime.now(UTC) - timedelta(hours=1),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         time_in_force=TimeInForce.IOC,
         updated_at=datetime.now(UTC),
         triggered_at=None,
@@ -197,14 +198,14 @@ def mock_trade() -> Trade:
     return Trade(
         id="trade_123",
         order_id="12345",
-        symbol="BTC-USD",
+        symbol=BTC_HL,
         side=OrderSide.BUY,
         price=Decimal(50000),
         quantity=Decimal("0.1"),
         fee=Decimal("0.05"),
         fee_asset="USDC",
         executed_at=datetime.now(UTC),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
     )
 
 
@@ -245,7 +246,7 @@ class TestOrderQueryService:
         mock_mapper.transform_raw_simple_open_order_to_internal.return_value = mock_open_order
 
         # Act
-        result = await order_query_service.get_open_orders("BTC-USD")
+        result = await order_query_service.get_open_orders(BTC_HL)
 
         # Assert
         assert len(result) == 1

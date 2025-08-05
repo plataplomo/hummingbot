@@ -79,10 +79,10 @@ class Ticker(BaseModel):
     @classmethod
     def validate_exchange(cls, v: object, info: ValidationInfo) -> ExchangeName:
         """Validate the 'exchange' field.
-        
+
         Returns:
             ExchangeName: Validated exchange name.
-            
+
         Raises:
             InvalidExchangeNameError: If exchange name is invalid.
             TypeFieldError: If value is not a string or ExchangeName.

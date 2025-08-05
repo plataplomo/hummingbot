@@ -22,7 +22,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce, Trade
+from tests.common_symbols import ETH_HL
 
 
 class TestHyperliquidAccountServiceOrderTradeHistory:
@@ -52,7 +54,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         """Test get_order_history successfully retrieves and processes order history data."""
         # Create test arguments
         args = GetOrderHistoryArgs(
-            symbol="ETH-USD",
+            symbol=ETH_HL,
             start_time=datetime(2023, 1, 1, tzinfo=UTC),
             end_time=datetime(2023, 1, 2, tzinfo=UTC),
         )
@@ -114,7 +116,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         mock_internal_order = Order(
             exchange_order_id="12345",
-            symbol="ETH-USD",
+            symbol=ETH_HL,
             side=OrderSide.BUY,
             quantity_requested=Decimal("10.0"),
             price=Decimal("2000.0"),
@@ -122,7 +124,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             time_in_force=TimeInForce.GTC,
             status=OrderStatus.FILLED,
             created_at=datetime(2023, 1, 1, 0, 0, tzinfo=UTC),
-            exchange="hyperliquid_test",
+            exchange=ExchangeName.HYPERLIQUID,
             updated_at=None,
             triggered_at=None,
             strategy_name=None,
@@ -175,14 +177,14 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert isinstance(result, list)
         assert len(result) == 1
         assert isinstance(result[0], Order)
-        assert result[0].symbol == "ETH-USD"
+        assert result[0].symbol == ETH_HL
 
     @pytest.mark.asyncio
     async def test_get_order_history_none_response_returns_empty_list(self) -> None:
         """Test get_order_history returns empty list when API response is None."""
         # Create test arguments
         args = GetOrderHistoryArgs(
-            symbol="ETH-USD",
+            symbol=ETH_HL,
             start_time=datetime(2023, 1, 1, tzinfo=UTC),
             end_time=datetime(2023, 1, 2, tzinfo=UTC),
         )
@@ -221,7 +223,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         """Test get_order_history raises error when authenticator is missing."""
         # Create test arguments
         args = GetOrderHistoryArgs(
-            symbol="ETH-USD",
+            symbol=ETH_HL,
             start_time=datetime(2023, 1, 1, tzinfo=UTC),
             end_time=datetime(2023, 1, 2, tzinfo=UTC),
         )
@@ -252,7 +254,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         """Test get_trade_history successfully retrieves and processes trade history data."""
         # Create test arguments
         args = GetTradeHistoryArgs(
-            symbol="ETH-USD",
+            symbol=ETH_HL,
             limit=50,
         )
 
@@ -307,11 +309,11 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         mock_internal_trade = Trade(
             id="123456",
-            symbol="ETH-USD",
+            symbol=ETH_HL,
             executed_at=datetime(2023, 1, 1, 0, 0, tzinfo=UTC),
             side=OrderSide.BUY,
             order_id="789012",
-            exchange="hyperliquid_test",
+            exchange=ExchangeName.HYPERLIQUID,
             price=Decimal("2000.0"),
             quantity=Decimal("5.0"),
             fee=Decimal("1.0"),
@@ -371,14 +373,14 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert isinstance(result, list)
         assert len(result) == 1
         assert isinstance(result[0], Trade)
-        assert result[0].symbol == "ETH-USD"
+        assert result[0].symbol == ETH_HL
 
     @pytest.mark.asyncio
     async def test_get_trade_history_none_response_raises_error(self) -> None:
         """Test get_trade_history raises error when API response is None."""
         # Create test arguments
         args = GetTradeHistoryArgs(
-            symbol="ETH-USD",
+            symbol=ETH_HL,
             limit=50,
         )
 

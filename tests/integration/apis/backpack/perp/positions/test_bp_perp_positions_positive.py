@@ -17,7 +17,7 @@ from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.models.config_models import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol, BaseSymbol
+from cyberdelta.core.symbols.models import BaseSymbol, Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.derivative_position import DerivativePosition
 from tests.common_symbols import SOL_USDC_PERP_BP

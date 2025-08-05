@@ -34,6 +34,7 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_market_metadata_service
 )
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.models.market import Market
+from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 
 @pytest.fixture
@@ -216,9 +217,7 @@ def mock_markets() -> list[Market]:
     """
     return [
         Market(
-            symbol="ETH",
-            base_symbol="ETH",
-            quote_symbol="USD",
+            symbol=ETH_HL,
             market_type="perpetual",
             tick_size=Decimal("0.01"),
             step_size=Decimal("0.0001"),
@@ -227,9 +226,7 @@ def mock_markets() -> list[Market]:
             status="Trading",
         ),
         Market(
-            symbol="BTC",
-            base_symbol="BTC",
-            quote_symbol="USD",
+            symbol=BTC_HL,
             market_type="perpetual",
             tick_size=Decimal("0.01"),
             step_size=Decimal("0.00001"),
@@ -238,9 +235,7 @@ def mock_markets() -> list[Market]:
             status="Trading",
         ),
         Market(
-            symbol="SOL",
-            base_symbol="SOL",
-            quote_symbol="USD",
+            symbol=SOL_HL,
             market_type="perpetual",
             tick_size=Decimal("0.01"),
             step_size=Decimal("0.001"),
@@ -289,9 +284,9 @@ class TestHyperliquidMarketMetadataService:
 
         # Assert
         assert len(result) == 3
-        assert result[0].symbol == "ETH"
-        assert result[1].symbol == "BTC"
-        assert result[2].symbol == "SOL"
+        assert result[0].symbol == ETH_HL
+        assert result[1].symbol == BTC_HL
+        assert result[2].symbol == SOL_HL
         mock_mapper.transform_raw_meta_and_asset_ctxs_to_markets.assert_called_once_with(
             mock_meta_and_asset_ctxs_response
         )
@@ -389,7 +384,7 @@ class TestHyperliquidMarketMetadataService:
     ) -> None:
         """Test successful retrieval of individual market."""
         # Arrange
-        args = GetMarketArgs(symbol="BTC")
+        args = GetMarketArgs(symbol=BTC_HL)
 
         # Mock get_markets to return our test markets
         with patch.object(market_metadata_service, "get_markets", return_value=mock_markets):
@@ -397,7 +392,7 @@ class TestHyperliquidMarketMetadataService:
             result = await market_metadata_service.get_market(args)
 
             # Assert
-            assert result.symbol == "BTC"
+            assert result.symbol == BTC_HL
             assert result.market_type == "perpetual"
             assert result.status == "Trading"
 
@@ -409,7 +404,9 @@ class TestHyperliquidMarketMetadataService:
     ) -> None:
         """Test market retrieval when symbol is not found."""
         # Arrange
-        args = GetMarketArgs(symbol="NONEXISTENT")
+        from cyberdelta.core.symbols import exchanges
+
+        args = GetMarketArgs(symbol=exchanges.hyperliquid("NONEXISTENT"))
 
         with patch.object(market_metadata_service, "get_markets", return_value=mock_markets):
             # Act & Assert
@@ -429,7 +426,7 @@ class TestHyperliquidMarketMetadataService:
     ) -> None:
         """Test that API errors from get_markets are propagated."""
         # Arrange
-        args = GetMarketArgs(symbol="BTC")
+        args = GetMarketArgs(symbol=BTC_HL)
 
         with patch.object(
             market_metadata_service,
@@ -515,7 +512,7 @@ class TestHyperliquidMarketMetadataService:
 
         # Assert
         # Check that SOL (isolated margin) is included
-        sol_market = next((m for m in result if m.symbol == "SOL"), None)
+        sol_market = next((m for m in result if m.symbol == SOL_HL), None)
         assert sol_market is not None
         assert sol_market.status == "Trading"  # Market is trading
 
@@ -526,7 +523,7 @@ class TestHyperliquidMarketMetadataService:
     ) -> None:
         """Test market retrieval when no markets are available."""
         # Arrange
-        args = GetMarketArgs(symbol="BTC")
+        args = GetMarketArgs(symbol=BTC_HL)
         empty_markets: list[Market] = []
 
         # Mock get_markets to return empty list

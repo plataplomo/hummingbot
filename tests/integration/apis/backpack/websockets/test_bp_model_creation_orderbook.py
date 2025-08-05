@@ -24,8 +24,8 @@ from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.models.market.order_book import OrderBook
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (
@@ -132,7 +132,7 @@ class TestBackpackOrderBookModelCreation:
         )
 
     def _validate_all_received_orderbooks(
-        self, received_orderbooks: list[OrderBook], test_symbol: str
+        self, received_orderbooks: list[OrderBook], test_symbol: Symbol
     ) -> None:
         """Validate all received orderbooks and log results."""
         if received_orderbooks:
@@ -143,7 +143,7 @@ class TestBackpackOrderBookModelCreation:
 
             logger.info(
                 "orderbook_creation_from_stream_success",
-                symbol=test_symbol,
+                symbol=test_symbol.value,
                 orderbooks_received=len(received_orderbooks),
                 message=(
                     f"✓ Successfully created {len(received_orderbooks)} "
@@ -153,7 +153,7 @@ class TestBackpackOrderBookModelCreation:
         else:
             # Rule #2: Use pytest.fail instead of logger.warning
             pytest.fail(
-                f"No OrderBook models received from depth stream for {test_symbol}. "
+                f"No OrderBook models received from depth stream for {test_symbol.value}. "
                 "Check transformation pipeline - depth-to-OrderBook conversion not working."
             )
 
@@ -168,7 +168,7 @@ class TestBackpackOrderBookModelCreation:
             received_orderbooks: list[OrderBook] = []
 
             orderbook_handler = await self._create_orderbook_handler(received_orderbooks)
-            await bp_api_for_test_env.subscribe(f"depth.{test_symbol}", orderbook_handler)
+            await bp_api_for_test_env.subscribe(f"depth.{test_symbol.value}", orderbook_handler)
             # Rule #4: Use proper wait condition instead of asyncio.sleep
             # Wait longer for depth data - Backpack may take time to send initial snapshot
             await wait_for_websocket_data(received_orderbooks, min_count=1, timeout_seconds=30.0)
@@ -190,8 +190,8 @@ class TestBackpackOrderBookModelCreation:
     def _validate_orderbook_structure(self, orderbook: OrderBook, expected_symbol: Symbol) -> None:
         """Validate OrderBook model structure."""
         assert isinstance(orderbook, OrderBook), f"Expected OrderBook, got {type(orderbook)}"
-        assert orderbook.symbol == expected_symbol.value, (
-            f"Expected symbol {expected_symbol.value}, got {orderbook.symbol}"
+        assert orderbook.symbol == expected_symbol, (
+            f"Expected symbol {expected_symbol.value}, got {orderbook.symbol.value}"
         )
         assert hasattr(orderbook, "bids"), "OrderBook missing bids attribute"
         assert hasattr(orderbook, "asks"), "OrderBook missing asks attribute"

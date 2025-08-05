@@ -32,9 +32,9 @@ from cyberdelta.apis.backpack.services.account.bp_transaction_history_service im
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models import Order, Trade
-from tests.common_symbols import INVALID_SPOT_BP
+from tests.common_symbols import BTC_USDC_BP, INVALID_SPOT_BP
 
 
 @pytest.fixture
@@ -126,7 +126,7 @@ def mock_raw_order() -> BackpackRawOrderResponse:
     """
     return BackpackRawOrderResponse(
         id="order_123",
-        symbol="BTC-USDC",
+        symbol=BTC_USDC_BP.value,
         side="Buy",
         orderType="Limit",
         status="Filled",
@@ -161,7 +161,7 @@ def mock_order() -> Order:
     return Order(
         exchange_order_id="order_123",
         client_order_id="client_123",
-        symbol="BTC-USDC",
+        symbol=BTC_USDC_BP,
         side=OrderSide.BUY,
         order_type=OrderType.LIMIT,
         time_in_force=TimeInForce.GTC,
@@ -175,7 +175,7 @@ def mock_order() -> Order:
         triggered_at=None,
         strategy_name=None,
         signal_id=None,
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
     )
 
 
@@ -189,7 +189,7 @@ def mock_raw_fill() -> BackpackRawFillResponse:
     return BackpackRawFillResponse(
         tradeId=456,
         orderId="order_123",
-        symbol="BTC-USDC",
+        symbol=BTC_USDC_BP.value,
         side="Bid",  # Business logic expects "Bid" or "Ask", not "Buy"
         price="50000.00",
         quantity="0.05",
@@ -212,14 +212,14 @@ def mock_trade() -> Trade:
     return Trade(
         id="trade_456",
         order_id="order_123",
-        symbol="BTC-USDC",
+        symbol=BTC_USDC_BP,
         side=OrderSide.BUY,
         price=Decimal("50000.00"),
         quantity=Decimal("0.05"),
         fee=Decimal("2.50"),
         fee_asset="USDC",
         executed_at=datetime(2024, 1, 15, 10, 31, tzinfo=UTC),
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
     )
 
 
@@ -239,7 +239,7 @@ class TestBackpackTransactionHistoryService:
         """Test successful order history retrieval."""
         # Arrange
         args = GetOrderHistoryArgs(
-            symbol="BTC-USDC",
+            symbol=BTC_USDC_BP,
             limit=100,
             start_time=datetime(2024, 1, 1, tzinfo=UTC),
             end_time=datetime(2024, 1, 31, tzinfo=UTC),
@@ -328,7 +328,7 @@ class TestBackpackTransactionHistoryService:
     ) -> None:
         """Test order history with empty response."""
         # Arrange
-        args = GetOrderHistoryArgs(symbol=INVALID_SPOT_BP.value)
+        args = GetOrderHistoryArgs(symbol=INVALID_SPOT_BP)
 
         mock_http_client.return_value = ([], 200, {})
         mock_response_handler.handle_get_order_history_response.return_value = []
@@ -462,7 +462,7 @@ class TestBackpackTransactionHistoryService:
         """Test successful trade history retrieval."""
         # Arrange
         args = GetTradeHistoryArgs(
-            symbol="BTC-USDC",
+            symbol=BTC_USDC_BP,
             limit=50,
         )
 
@@ -493,7 +493,7 @@ class TestBackpackTransactionHistoryService:
     ) -> None:
         """Test trade history with empty response."""
         # Arrange
-        args = GetTradeHistoryArgs(symbol=INVALID_SPOT_BP.value)
+        args = GetTradeHistoryArgs(symbol=INVALID_SPOT_BP)
 
         mock_http_client.return_value = ([], 200, {})
         mock_response_handler.handle_get_fills_response.return_value = []

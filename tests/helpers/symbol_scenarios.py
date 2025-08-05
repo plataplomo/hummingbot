@@ -12,8 +12,9 @@ from decimal import Decimal
 from typing import Any
 
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import Symbol, symbols
-from cyberdelta.enums import OrderSide, OrderType
+from cyberdelta.core.symbols import Symbol, exchanges, symbols
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
@@ -138,27 +139,44 @@ class SymbolTestScenarios:
         bid_price = mid_price - spread / 2
         ask_price = mid_price + spread / 2
 
+        # Determine exchange from symbol
+        exchange = (
+            ExchangeName.HYPERLIQUID if symbol.exchange == "hyperliquid" else ExchangeName.BACKPACK
+        )
+
         # Create orders
         orders = [
             Order(
-                id="buy_1",
+                exchange_order_id="buy_1",
+                exchange=exchange,
                 symbol=symbol,
                 side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
                 price=bid_price,
-                size=Decimal("0.1"),
+                quantity_requested=Decimal("0.1"),
                 status=OrderStatus.OPEN,
-                timestamp=datetime.now(UTC),
+                time_in_force=TimeInForce.GTC,
+                created_at=datetime.now(UTC),
+                updated_at=None,
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
             ),
             Order(
-                id="sell_1",
+                exchange_order_id="sell_1",
+                exchange=exchange,
                 symbol=symbol,
                 side=OrderSide.SELL,
                 order_type=OrderType.LIMIT,
                 price=ask_price,
-                size=Decimal("0.1"),
+                quantity_requested=Decimal("0.1"),
                 status=OrderStatus.OPEN,
-                timestamp=datetime.now(UTC),
+                time_in_force=TimeInForce.GTC,
+                created_at=datetime.now(UTC),
+                updated_at=None,
+                triggered_at=None,
+                strategy_name=None,
+                signal_id=None,
             ),
         ]
 
@@ -188,27 +206,27 @@ class SymbolTestScenarios:
         # Active positions
         positions = {
             symbols.BTC.hyperliquid(): DerivativePosition(
+                exchange=ExchangeName.HYPERLIQUID,
                 symbol=symbols.BTC.hyperliquid(),
-                contracts=Decimal("2.5"),
-                notional=Decimal(125000),  # 2.5 * 50000
+                side=OrderSide.BUY,
+                size=Decimal("2.5"),
                 entry_price=Decimal(48000),
                 mark_price=Decimal(50000),
                 liquidation_price=Decimal(40000),
                 unrealized_pnl=Decimal(5000),  # 2.5 * (50000 - 48000)
                 realized_pnl=Decimal(1000),
-                margin_requirement=Decimal(2500),
                 timestamp=datetime.now(UTC),
             ),
             symbols.ETH.backpack(): DerivativePosition(
+                exchange=ExchangeName.BACKPACK,
                 symbol=symbols.ETH.backpack(),
-                contracts=Decimal("-15.0"),  # Short
-                notional=Decimal(-45000),  # -15 * 3000
+                side=OrderSide.SELL,
+                size=Decimal("-15.0"),  # Short
                 entry_price=Decimal(3100),
                 mark_price=Decimal(3000),
                 liquidation_price=Decimal(3500),
                 unrealized_pnl=Decimal(1500),  # -15 * (3000 - 3100)
                 realized_pnl=Decimal(500),
-                margin_requirement=Decimal(1500),
                 timestamp=datetime.now(UTC),
             ),
         }
@@ -216,15 +234,17 @@ class SymbolTestScenarios:
         # Balances
         balances = {
             "USDC": SpotBalance(
-                symbol="USDC",
-                free=Decimal(50000),
-                locked=Decimal(5000),
+                exchange="hyperliquid",
+                asset=exchanges.hyperliquid("USDC"),
+                total_quantity=Decimal(55000),
+                available_quantity=Decimal(50000),
                 timestamp=datetime.now(UTC),
             ),
             "BTC": SpotBalance(
-                symbol="BTC",
-                free=Decimal("0.1"),
-                locked=Decimal(0),
+                exchange="hyperliquid",
+                asset=exchanges.hyperliquid("BTC"),
+                total_quantity=Decimal("0.1"),
+                available_quantity=Decimal("0.1"),
                 timestamp=datetime.now(UTC),
             ),
         }
@@ -241,26 +261,38 @@ class SymbolTestScenarios:
         orders = {
             symbols.BTC.hyperliquid(): [
                 Order(
-                    id="btc_stop_loss",
+                    exchange_order_id="btc_stop_loss",
+                    exchange=ExchangeName.HYPERLIQUID,
                     symbol=symbols.BTC.hyperliquid(),
                     side=OrderSide.SELL,
-                    order_type=OrderType.STOP,
-                    price=Decimal(48000),
-                    size=Decimal("2.5"),
+                    order_type=OrderType.STOP_MARKET,
+                    stop_price=Decimal(48000),
+                    quantity_requested=Decimal("2.5"),
                     status=OrderStatus.OPEN,
-                    timestamp=datetime.now(UTC),
+                    time_in_force=TimeInForce.GTC,
+                    created_at=datetime.now(UTC),
+                    updated_at=None,
+                    triggered_at=None,
+                    strategy_name=None,
+                    signal_id=None,
                 ),
             ],
             symbols.ETH.backpack(): [
                 Order(
-                    id="eth_take_profit",
+                    exchange_order_id="eth_take_profit",
+                    exchange=ExchangeName.BACKPACK,
                     symbol=symbols.ETH.backpack(),
                     side=OrderSide.BUY,
                     order_type=OrderType.LIMIT,
                     price=Decimal(2900),
-                    size=Decimal("15.0"),
+                    quantity_requested=Decimal("15.0"),
                     status=OrderStatus.OPEN,
-                    timestamp=datetime.now(UTC),
+                    time_in_force=TimeInForce.GTC,
+                    created_at=datetime.now(UTC),
+                    updated_at=None,
+                    triggered_at=None,
+                    strategy_name=None,
+                    signal_id=None,
                 ),
             ],
         }
@@ -295,17 +327,19 @@ class SymbolTestScenarios:
             "tickers": {
                 symbols.BTC.hyperliquid(): Ticker(
                     symbol=symbols.BTC.hyperliquid(),
+                    exchange=ExchangeName.HYPERLIQUID,
                     bid=Decimal(49990),
                     ask=Decimal(50010),
-                    last=Decimal(50000),
+                    price=Decimal(50000),
                     volume=Decimal(1000),
                     timestamp=datetime.now(UTC),
                 ),
                 symbols.BTC.backpack(): Ticker(
                     symbol=symbols.BTC.backpack(),
+                    exchange=ExchangeName.BACKPACK,
                     bid=Decimal(50000),
                     ask=Decimal(50020),
-                    last=Decimal(50010),
+                    price=Decimal(50010),
                     volume=Decimal(800),
                     timestamp=datetime.now(UTC),
                 ),

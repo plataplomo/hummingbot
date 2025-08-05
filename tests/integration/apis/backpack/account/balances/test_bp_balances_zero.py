@@ -80,7 +80,7 @@ class TestBackpackBalancesZero:
             pass  # This is expected for an asset with no balance
         else:
             assert isinstance(balance, SpotBalance)
-            assert balance.asset == "XRP"
+            assert balance.asset.value == "XRP"
             assert balance.exchange == "backpack"
             assert balance.total_quantity == Decimal(0)
             assert balance.available_quantity == Decimal(0)
@@ -166,7 +166,7 @@ class TestBackpackBalancesZero:
             assert True
         else:
             assert isinstance(balance, SpotBalance)
-            assert balance.asset == sol_asset
+            assert balance.asset.value == sol_asset
 
             # Check if auto-lending is detected (lend_quantity populated)
             auto_lending_detected = (

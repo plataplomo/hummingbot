@@ -30,6 +30,7 @@ from cyberdelta.apis.backpack.services.account.bp_transfer_service import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.account import TransferArgs, WithdrawArgs
 from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import (
     InvalidAccountTypeError,
     NetworkRequiredError,
@@ -144,7 +145,7 @@ def mock_transfer() -> Transfer:
         quantity=Decimal("1000.00"),
         status=InternalTransferStatus.COMPLETED,
         timestamp=datetime.now(UTC),
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
     )
 
 
@@ -162,7 +163,7 @@ def mock_withdrawal() -> Withdrawal:
         address="5xoBq7f7CDgZwqHrDBdRWM84ExRetg4gZq93dyJLpiLZ",
         status=InternalWithdrawalStatus.COMPLETED,
         timestamp=datetime.now(UTC),
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
     )
 
 

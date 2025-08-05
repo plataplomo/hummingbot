@@ -29,10 +29,10 @@ class SymbolService:
         symbol_id: int | None = None,
     ) -> Symbol:
         """Create symbol using appropriate handler.
-        
+
         Returns:
             Symbol: Created symbol instance.
-            
+
         Raises:
             ValueError: If no handler is registered for the exchange.
         """
@@ -51,10 +51,10 @@ class SymbolService:
 
     def parse_components(self, symbol: Symbol) -> SymbolComponents:
         """Parse symbol components using exchange handler.
-        
+
         Returns:
             SymbolComponents: Parsed symbol components.
-            
+
         Raises:
             ValueError: If no handler is registered for the exchange.
         """
@@ -70,10 +70,10 @@ class SymbolService:
         target_exchange: ExchangeName,
     ) -> Symbol:
         """Convert symbol to another exchange.
-        
+
         Returns:
             Symbol: Converted symbol for the target exchange.
-            
+
         Raises:
             ValueError: If no handler is registered for either exchange.
         """
@@ -94,7 +94,7 @@ class SymbolService:
 
     def get_canonical(self, symbol: Symbol) -> str:
         """Get canonical representation.
-        
+
         Returns:
             str: Canonical representation of the symbol.
         """
@@ -103,10 +103,10 @@ class SymbolService:
 
     def _get_canonical_with_components(self, symbol: Symbol) -> tuple[str, SymbolComponents]:
         """Get canonical representation with components (cached).
-        
+
         Returns:
             tuple[str, SymbolComponents]: Canonical format and components.
-            
+
         Raises:
             ValueError: If no handler is registered for the exchange.
         """
@@ -138,7 +138,7 @@ class SymbolService:
 
     def get_equivalent_symbols(self, symbol: Symbol) -> list[Symbol]:
         """Get all symbols equivalent to the given symbol.
-        
+
         Returns:
             list[Symbol]: List of equivalent symbols.
         """
@@ -147,7 +147,7 @@ class SymbolService:
 
     def find_symbol(self, value: str, exchange: ExchangeName) -> Symbol | None:
         """Find a registered symbol by value and exchange.
-        
+
         Returns:
             Symbol | None: Found symbol or None if not found.
         """
@@ -159,7 +159,7 @@ class SymbolService:
 
     def are_equivalent(self, symbol1: Symbol, symbol2: Symbol) -> bool:
         """Check if two symbols represent the same instrument.
-        
+
         Returns:
             bool: True if symbols are equivalent, False otherwise.
         """

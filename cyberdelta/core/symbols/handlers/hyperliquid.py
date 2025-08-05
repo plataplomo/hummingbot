@@ -22,7 +22,7 @@ class HyperliquidHandler:
 
     def parse_components(self, value: str) -> SymbolComponents:
         """Parse Hyperliquid symbol format.
-        
+
         Returns:
             SymbolComponents: Parsed symbol components.
         """
@@ -48,7 +48,7 @@ class HyperliquidHandler:
 
     def format_symbol(self, components: SymbolComponents) -> str:
         """Format components into Hyperliquid symbol.
-        
+
         Returns:
             str: Formatted Hyperliquid symbol.
         """
@@ -60,7 +60,7 @@ class HyperliquidHandler:
 
     def to_canonical(self, value: str) -> tuple[str, SymbolComponents]:
         """Convert to canonical format.
-        
+
         Returns:
             tuple[str, SymbolComponents]: Canonical format and parsed components.
         """
@@ -73,7 +73,7 @@ class HyperliquidHandler:
 
     def from_canonical(self, canonical: str, components: SymbolComponents) -> str:
         """Convert from canonical to Hyperliquid format.
-        
+
         Returns:
             str: Hyperliquid formatted symbol.
         """
@@ -83,7 +83,7 @@ class HyperliquidHandler:
         self, asset_index: int | None = None, symbol_id: int | None = None
     ) -> HyperliquidMetadata:
         """Create Hyperliquid metadata.
-        
+
         Returns:
             HyperliquidMetadata: Metadata instance for Hyperliquid.
         """
@@ -93,7 +93,7 @@ class HyperliquidHandler:
         self, value: str, asset_index: int | None = None, symbol_id: int | None = None
     ) -> Symbol:
         """Create Hyperliquid symbol.
-        
+
         Returns:
             Symbol: Created Hyperliquid symbol.
         """

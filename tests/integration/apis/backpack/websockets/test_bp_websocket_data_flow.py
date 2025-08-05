@@ -22,10 +22,10 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.trade import Trade
 
 
@@ -325,7 +325,9 @@ class TestBackpackWebSocketDataFlow:
         """Validate trade data to reduce complexity."""
         for trade in received_trades[:5]:  # Check first 5 trades
             assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
-            assert trade.symbol == test_symbol, f"Expected symbol {test_symbol.value}, got {trade.symbol}"
+            assert trade.symbol == test_symbol, (
+                f"Expected symbol {test_symbol.value}, got {trade.symbol}"
+            )
             assert isinstance(trade.price, Decimal), "Price should be Decimal"
             assert isinstance(trade.quantity, Decimal), "Quantity should be Decimal"
             assert trade.price > 0, "Price should be positive"
@@ -437,7 +439,8 @@ class TestBackpackWebSocketDataFlow:
             f"ticker.{test_symbol.value}", self._create_universal_handler("ticker", received_models)
         )
         await bp_api.subscribe(
-            f"depth.{test_symbol.value}", self._create_universal_handler("orderbook", received_models)
+            f"depth.{test_symbol.value}",
+            self._create_universal_handler("orderbook", received_models),
         )
         await bp_api.subscribe(
             f"trade.{test_symbol.value}", self._create_universal_handler("trades", received_models)

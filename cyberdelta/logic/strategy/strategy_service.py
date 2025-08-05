@@ -24,18 +24,18 @@ logger = get_logger(__name__)
 
 class StrategyService:
     """Orchestrates strategy execution and signal generation.
-    
+
     This service manages the execution loop for all registered strategies,
     provides them with market data and portfolio state, and routes generated
     signals to the signal service for validation.
-    
+
     Configuration Usage:
     - Uses config.strategies.execution_interval_seconds for loop timing
     - Uses config.strategies.enabled_strategies for strategy filtering
     - Uses config.general.safe_mode for paper trading awareness
     - Uses config.execution.retry_delay_base_sec for error recovery
     - Uses config.execution.retry_backoff_multiplier for backoff
-    
+
     IMPORTANT: Following CODING_STANDARDS.md:
     - ALL configuration from AppSettings, NO hardcoded values
     - Uses Symbol objects, NOT strings
@@ -43,7 +43,7 @@ class StrategyService:
     - NO assumptions about strategy availability or behavior
     - Fail fast on configuration errors
     """
-    
+
     def __init__(
         self,
         config: AppSettings,
@@ -53,7 +53,7 @@ class StrategyService:
         event_bus: EventBus,
     ):
         """Initialize strategy service with configuration and dependencies.
-        
+
         Args:
             config: Application settings containing all configuration
             market_service: Market data service for providing market snapshots
@@ -69,37 +69,37 @@ class StrategyService:
         self._strategies: Dict[str, BaseStrategy] = {}
         self._running = False
         self._execution_task: asyncio.Task | None = None
-        
+
         # Extract strategy configuration - NO hardcoded defaults
         self._strategy_config = config.strategies
         self._execution_interval = self._strategy_config.execution_interval_seconds
         self._enabled_strategies = set(self._strategy_config.enabled_strategies)
-        
+
         # Error handling settings from execution config
         self._retry_delay = config.execution.retry_delay_base_sec
         self._backoff_multiplier = config.execution.retry_backoff_multiplier
-        
+
         # Safe mode awareness
         self._safe_mode = config.general.safe_mode
-        
+
         logger.info(
             "strategy_service_initialized",
             execution_interval_seconds=float(self._execution_interval),
             enabled_strategies=list(self._enabled_strategies),
             safe_mode=self._safe_mode,
-            retry_delay_sec=float(self._retry_delay)
+            retry_delay_sec=float(self._retry_delay),
         )
-    
+
     def register_strategy(self, name: str, strategy: BaseStrategy) -> None:
         """Register a trading strategy.
-        
+
         Args:
             name: Strategy name (must be in enabled_strategies config)
             strategy: Strategy instance that implements BaseStrategy
-            
+
         Raises:
             ValueError: If strategy name not in enabled list or already registered
-            
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Only explicitly enabled strategies can be registered
         - NO automatic discovery or registration
@@ -109,144 +109,109 @@ class StrategyService:
             raise ValueError(
                 f"Strategy '{name}' not in enabled strategies list: {self._enabled_strategies}"
             )
-        
+
         if name in self._strategies:
-            raise ValueError(
-                f"Strategy '{name}' is already registered"
-            )
-        
+            raise ValueError(f"Strategy '{name}' is already registered")
+
         if not isinstance(strategy, BaseStrategy):
             raise ValueError(
-                f"Strategy '{name}' must be instance of BaseStrategy, "
-                f"got {type(strategy).__name__}"
+                f"Strategy '{name}' must be instance of BaseStrategy, got {type(strategy).__name__}"
             )
-        
+
         self._strategies[name] = strategy
-        
+
         logger.info(
             "strategy_registered",
             strategy_name=name,
             strategy_class=strategy.__class__.__name__,
-            total_strategies=len(self._strategies)
+            total_strategies=len(self._strategies),
         )
-    
+
     def unregister_strategy(self, name: str) -> bool:
         """Unregister a trading strategy.
-        
+
         Args:
             name: Strategy name to unregister
-            
+
         Returns:
             True if strategy was unregistered, False if not found
-            
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Explicit unregistration only
         - Clear logging of operations
         """
         if name in self._strategies:
             strategy = self._strategies.pop(name)
-            
+
             logger.info(
                 "strategy_unregistered",
                 strategy_name=name,
                 strategy_class=strategy.__class__.__name__,
-                remaining_strategies=len(self._strategies)
+                remaining_strategies=len(self._strategies),
             )
             return True
         else:
-            logger.warning(
-                "strategy_unregister_not_found",
-                strategy_name=name
-            )
+            logger.warning("strategy_unregister_not_found", strategy_name=name)
             return False
-    
+
     async def initialize_strategies(self) -> None:
         """Initialize all registered strategies.
-        
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Initialization fails fast if any strategy fails
         - NO silent failures or partial initialization
         - All strategies must initialize successfully
         """
-        logger.info(
-            "strategies_initialization_starting",
-            strategy_count=len(self._strategies)
-        )
-        
+        logger.info("strategies_initialization_starting", strategy_count=len(self._strategies))
+
         for name, strategy in self._strategies.items():
             try:
-                logger.debug(
-                    "strategy_initializing",
-                    strategy_name=name
-                )
-                
+                logger.debug("strategy_initializing", strategy_name=name)
+
                 await strategy.initialize()
-                
-                logger.info(
-                    "strategy_initialized_successfully",
-                    strategy_name=name
-                )
-                
+
+                logger.info("strategy_initialized_successfully", strategy_name=name)
+
             except Exception as e:
                 logger.error(
                     "strategy_initialization_failed",
                     strategy_name=name,
                     error=str(e),
-                    exc_info=True
+                    exc_info=True,
                 )
-                raise StrategyError(
-                    f"Failed to initialize strategy '{name}': {e}"
-                ) from e
-        
-        logger.info(
-            "strategies_initialization_completed",
-            initialized_count=len(self._strategies)
-        )
-    
+                raise StrategyError(f"Failed to initialize strategy '{name}': {e}") from e
+
+        logger.info("strategies_initialization_completed", initialized_count=len(self._strategies))
+
     async def cleanup_strategies(self) -> None:
         """Cleanup all registered strategies.
-        
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Cleanup continues even if individual strategies fail
         - All cleanup errors are logged but don't stop the process
         - Graceful shutdown sequence
         """
-        logger.info(
-            "strategies_cleanup_starting",
-            strategy_count=len(self._strategies)
-        )
-        
+        logger.info("strategies_cleanup_starting", strategy_count=len(self._strategies))
+
         for name, strategy in self._strategies.items():
             try:
-                logger.debug(
-                    "strategy_cleanup_starting",
-                    strategy_name=name
-                )
-                
+                logger.debug("strategy_cleanup_starting", strategy_name=name)
+
                 await strategy.cleanup()
-                
-                logger.info(
-                    "strategy_cleanup_completed",
-                    strategy_name=name
-                )
-                
+
+                logger.info("strategy_cleanup_completed", strategy_name=name)
+
             except Exception as e:
                 logger.error(
-                    "strategy_cleanup_failed",
-                    strategy_name=name,
-                    error=str(e),
-                    exc_info=True
+                    "strategy_cleanup_failed", strategy_name=name, error=str(e), exc_info=True
                 )
                 # Continue with other strategies - cleanup errors don't stop shutdown
-        
-        logger.info(
-            "strategies_cleanup_completed",
-            cleaned_count=len(self._strategies)
-        )
-    
+
+        logger.info("strategies_cleanup_completed", cleaned_count=len(self._strategies))
+
     async def start(self) -> None:
         """Start the strategy execution loop.
-        
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses configured execution interval
         - NO hardcoded timing or retry logic
@@ -255,31 +220,31 @@ class StrategyService:
         if self._running:
             logger.warning("strategy_service_already_running")
             return
-        
+
         if not self._strategies:
             logger.warning(
                 "strategy_service_start_no_strategies",
-                enabled_strategies=list(self._enabled_strategies)
+                enabled_strategies=list(self._enabled_strategies),
             )
             return
-        
+
         self._running = True
-        
+
         # Initialize all strategies first
         await self.initialize_strategies()
-        
+
         # Start execution loop
         self._execution_task = asyncio.create_task(self._execution_loop())
-        
+
         logger.info(
             "strategy_service_started",
             strategy_count=len(self._strategies),
-            execution_interval=float(self._execution_interval)
+            execution_interval=float(self._execution_interval),
         )
-    
+
     async def stop(self) -> None:
         """Stop the strategy execution loop.
-        
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Graceful shutdown with proper task cancellation
         - Strategy cleanup before exit
@@ -288,9 +253,9 @@ class StrategyService:
         if not self._running:
             logger.warning("strategy_service_not_running")
             return
-        
+
         self._running = False
-        
+
         # Cancel execution task
         if self._execution_task and not self._execution_task.done():
             self._execution_task.cancel()
@@ -298,94 +263,97 @@ class StrategyService:
                 await self._execution_task
             except asyncio.CancelledError:
                 pass
-        
+
         # Cleanup strategies
         await self.cleanup_strategies()
-        
+
         logger.info("strategy_service_stopped")
-    
+
     async def _execution_loop(self) -> None:
         """Main execution loop for all strategies.
-        
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses configured execution interval
         - Handles errors per strategy without stopping loop
         - Uses configured retry/backoff for error recovery
         """
         logger.info(
-            "strategy_execution_loop_started",
-            interval_seconds=float(self._execution_interval)
+            "strategy_execution_loop_started", interval_seconds=float(self._execution_interval)
         )
-        
+
         consecutive_errors = 0
         max_consecutive_errors = 5  # Could be configurable
-        
+
         while self._running:
             try:
                 # Get current market data with proper types
                 market_snapshot = await self._market_service.get_market_snapshot()
-                
+
                 # Get portfolio state with proper types
                 portfolio_state = await self._portfolio_service.get_state()
-                
+
                 # Run each strategy
                 signals_generated = 0
                 for name, strategy in self._strategies.items():
                     try:
                         # Generate signal with type-safe inputs
                         signal = await strategy.analyze(market_snapshot, portfolio_state)
-                        
+
                         if signal:
                             # Validate signal has required fields
                             self._validate_generated_signal(signal, name)
-                            
+
                             # Send to signal service for validation and routing
                             success = await self._signal_service.process_signal(signal)
-                            
+
                             if success:
                                 signals_generated += 1
-                                
+
                                 logger.info(
                                     "strategy_signal_generated",
                                     strategy_name=name,
                                     signal_id=signal.signal_id,
                                     symbol=signal.symbol.value,
-                                    exchange=signal.exchange.value if hasattr(signal.exchange, 'value') else str(signal.exchange),
-                                    side=signal.side.value if hasattr(signal.side, 'value') else str(signal.side),
-                                    price=float(signal.price) if signal.price else None
+                                    exchange=signal.exchange.value
+                                    if hasattr(signal.exchange, "value")
+                                    else str(signal.exchange),
+                                    side=signal.side.value
+                                    if hasattr(signal.side, "value")
+                                    else str(signal.side),
+                                    price=float(signal.price) if signal.price else None,
                                 )
                             else:
                                 logger.warning(
                                     "strategy_signal_rejected",
                                     strategy_name=name,
-                                    signal_id=signal.signal_id
+                                    signal_id=signal.signal_id,
                                 )
-                        
+
                     except Exception as e:
                         logger.error(
                             "strategy_execution_error",
                             strategy_name=name,
                             error=str(e),
-                            exc_info=True
+                            exc_info=True,
                         )
                         # Continue with other strategies - one failure doesn't stop all
-                
+
                 # Reset error counter on successful execution
                 consecutive_errors = 0
-                
+
                 logger.debug(
                     "strategy_execution_cycle_completed",
                     signals_generated=signals_generated,
-                    strategies_executed=len(self._strategies)
+                    strategies_executed=len(self._strategies),
                 )
-                
+
                 # Wait for next cycle using configured interval
                 await asyncio.sleep(float(self._execution_interval))
-                
+
             except asyncio.CancelledError:
                 logger.info("strategy_execution_loop_cancelled")
                 break
-                
+
             except Exception as e:
                 consecutive_errors += 1
                 logger.error(
@@ -393,40 +361,42 @@ class StrategyService:
                     error=str(e),
                     consecutive_errors=consecutive_errors,
                     max_consecutive_errors=max_consecutive_errors,
-                    exc_info=True
+                    exc_info=True,
                 )
-                
+
                 if consecutive_errors >= max_consecutive_errors:
                     logger.error(
                         "strategy_execution_loop_max_errors",
                         consecutive_errors=consecutive_errors,
-                        stopping_loop=True
+                        stopping_loop=True,
                     )
                     break
-                
+
                 # Use exponential backoff from config
-                backoff_delay = float(self._retry_delay) * (self._backoff_multiplier ** (consecutive_errors - 1))
-                
+                backoff_delay = float(self._retry_delay) * (
+                    self._backoff_multiplier ** (consecutive_errors - 1)
+                )
+
                 logger.info(
                     "strategy_execution_loop_error_backoff",
                     backoff_delay_seconds=backoff_delay,
-                    consecutive_errors=consecutive_errors
+                    consecutive_errors=consecutive_errors,
                 )
-                
+
                 await asyncio.sleep(backoff_delay)
-        
+
         logger.info("strategy_execution_loop_ended")
-    
+
     def _validate_generated_signal(self, signal: TradeSignal, strategy_name: str) -> None:
         """Validate signal generated by strategy.
-        
+
         Args:
             signal: Signal to validate
             strategy_name: Name of strategy that generated signal
-            
+
         Raises:
             ValueError: If signal validation fails
-            
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Validates proper types (Symbol, ExchangeName)
         - NO assumptions about signal structure
@@ -437,50 +407,44 @@ class StrategyService:
                 f"Strategy '{strategy_name}' must return TradeSignal instance, "
                 f"got {type(signal).__name__}"
             )
-        
+
         if not signal.symbol:
-            raise ValueError(
-                f"Strategy '{strategy_name}' generated signal without symbol"
-            )
-        
+            raise ValueError(f"Strategy '{strategy_name}' generated signal without symbol")
+
         # Import Symbol here to avoid circular imports
         from cyberdelta.core.symbols.models import Symbol
+
         if not isinstance(signal.symbol, Symbol):
             raise ValueError(
                 f"Strategy '{strategy_name}' generated signal with invalid symbol type: "
                 f"expected Symbol object, got {type(signal.symbol).__name__}"
             )
-        
+
         if not signal.exchange:
-            raise ValueError(
-                f"Strategy '{strategy_name}' generated signal without exchange"
-            )
-        
+            raise ValueError(f"Strategy '{strategy_name}' generated signal without exchange")
+
         # Import ExchangeName here to avoid circular imports
         from cyberdelta.enums.exchange_names import ExchangeName
+
         if not isinstance(signal.exchange, ExchangeName):
             raise ValueError(
                 f"Strategy '{strategy_name}' generated signal with invalid exchange type: "
                 f"expected ExchangeName enum, got {type(signal.exchange).__name__}"
             )
-        
+
         if not signal.side:
-            raise ValueError(
-                f"Strategy '{strategy_name}' generated signal without side"
-            )
-        
+            raise ValueError(f"Strategy '{strategy_name}' generated signal without side")
+
         logger.debug(
-            "strategy_signal_validated",
-            strategy_name=strategy_name,
-            signal_id=signal.signal_id
+            "strategy_signal_validated", strategy_name=strategy_name, signal_id=signal.signal_id
         )
-    
+
     async def handle_trade(self, trade: Trade) -> None:
         """Handle trade execution feedback to strategies.
-        
+
         Args:
             trade: Trade that was executed
-            
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Provides trade feedback to strategies that might need it
         - NO assumptions about which strategies care about trades
@@ -489,63 +453,61 @@ class StrategyService:
             "trade_feedback_to_strategies",
             trade_id=trade.id,
             symbol=trade.symbol.value,
-            exchange=trade.exchange
+            exchange=trade.exchange,
         )
-        
+
         # Future enhancement: strategies could implement handle_trade() method
         # for trade-based learning or state updates
-        
+
         # For now, just log that trade feedback is available
         for name, strategy in self._strategies.items():
-            if hasattr(strategy, 'handle_trade'):
+            if hasattr(strategy, "handle_trade"):
                 try:
                     await strategy.handle_trade(trade)
-                    
+
                     logger.debug(
-                        "strategy_trade_feedback_delivered",
-                        strategy_name=name,
-                        trade_id=trade.id
+                        "strategy_trade_feedback_delivered", strategy_name=name, trade_id=trade.id
                     )
-                    
+
                 except Exception as e:
                     logger.error(
                         "strategy_trade_feedback_error",
                         strategy_name=name,
                         trade_id=trade.id,
                         error=str(e),
-                        exc_info=True
+                        exc_info=True,
                     )
-    
+
     def get_registered_strategies(self) -> List[str]:
         """Get list of registered strategy names.
-        
+
         Returns:
             List of strategy names currently registered
         """
         return list(self._strategies.keys())
-    
+
     def get_enabled_strategies(self) -> List[str]:
         """Get list of enabled strategy names from configuration.
-        
+
         Returns:
             List of strategy names enabled in configuration
         """
         return list(self._enabled_strategies)
-    
+
     def is_running(self) -> bool:
         """Check if strategy service is currently running.
-        
+
         Returns:
             True if execution loop is running, False otherwise
         """
         return self._running
-    
+
     def get_execution_interval(self) -> float:
         """Get the configured execution interval.
-        
+
         Returns:
             Execution interval in seconds from configuration
-            
+
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns configured value, NOT hardcoded default
         """

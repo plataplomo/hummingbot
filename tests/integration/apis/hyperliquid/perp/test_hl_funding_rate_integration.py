@@ -125,7 +125,7 @@ async def test_hl_get_historical_funding_rates_btc_success(
         # Get exchange-specific funding rate bounds - NO HARDCODED VALUES
         funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
             hl_api_for_test_env,
-            "BTC",
+            exchanges.hyperliquid("BTC"),
         )
 
         for i, funding_rate in enumerate(funding_rates):
@@ -202,7 +202,7 @@ async def test_hl_get_historical_funding_rates_eth_success(
         # Get exchange-specific funding rate bounds for ETH - NO HARDCODED VALUES
         funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
             hl_api_for_test_env,
-            "ETH",
+            exchanges.hyperliquid("ETH"),
         )
 
         for funding_rate in funding_rates:
@@ -257,14 +257,14 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
 
     for symbol in available_symbols:
         args = GetHistoricalFundingRatesArgs(
-            symbol=exchanges.hyperliquid(symbol),
+            symbol=symbol,  # symbol is already a Symbol object
             start_time=start_time,
             end_time=end_time,
         )
 
         try:
             funding_rates = await hl_api_for_test_env.get_historical_funding_rates(args)
-            funding_data_by_symbol[symbol] = funding_rates
+            funding_data_by_symbol[symbol.value] = funding_rates  # Use string key for dict
 
             # Validate each symbol's funding rate data
             if funding_rates:
@@ -275,7 +275,9 @@ async def test_hl_get_historical_funding_rates_multiple_symbols_comprehensive(
                 )
 
                 for funding_rate in funding_rates:
-                    _validate_funding_rate(funding_rate, symbol, funding_rate_bounds)
+                    _validate_funding_rate(
+                        funding_rate, symbol.value, funding_rate_bounds
+                    )  # Pass string to validator
 
         except APIError as e:
             # NO GRACEFUL ERROR HANDLING - All API errors are test failures
@@ -354,8 +356,9 @@ async def test_hl_get_historical_funding_rates_edge_cases(
     long_start = datetime.now(UTC) - timedelta(days=7)  # 7 days to match bounds calculation
     long_end = datetime.now(UTC)
 
+    btc_symbol = exchanges.hyperliquid("BTC")
     args_long_range = GetHistoricalFundingRatesArgs(
-        symbol=exchanges.hyperliquid("BTC"),
+        symbol=btc_symbol,
         start_time=long_start,
         end_time=long_end,
     )
@@ -368,7 +371,7 @@ async def test_hl_get_historical_funding_rates_edge_cases(
             # Validate data consistency over long range using real bounds
             funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
                 hl_api_for_test_env,
-                "BTC",
+                btc_symbol,
             )
 
             for rate in long_range_rates:
@@ -491,7 +494,7 @@ async def test_hl_funding_rate_time_series_consistency(
         # Get exchange bounds for reasonable change validation
         funding_rate_bounds = await HyperliquidTestHelpers.get_funding_rate_bounds(
             hl_api_for_test_env,
-            "BTC",
+            exchanges.hyperliquid("BTC"),
         )
 
         # Validate time series ordering

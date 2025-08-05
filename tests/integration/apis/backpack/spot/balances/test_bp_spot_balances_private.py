@@ -52,7 +52,7 @@ class TestBackpackSpotBalancesPrivate:
 
         for asset_symbol, balance in balances.items():
             assert isinstance(balance, SpotBalance)
-            assert balance.asset == asset_symbol
+            assert balance.asset.value == asset_symbol
             assert balance.exchange == "backpack"
 
             # Validate timestamp recency (within 1 hour for active environment)

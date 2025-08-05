@@ -22,6 +22,7 @@ from cyberdelta.core.enums import (
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.order import CancelOrderResult, Order
+from tests.common_symbols import SOL_USDC_BP
 
 
 # Import fixtures from the shared conftest
@@ -51,12 +52,12 @@ class TestBackpackTradingServiceAccountMisc:
         )
 
         # Set up mocks for a get_open_orders call
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         BackpackRawOrderResponse(
             id="123",
             clientId="client_123",
             relatedOrderId="rel_123",
-            symbol=symbol,
+            symbol=symbol.value,
             side="Bid",
             orderType="LIMIT",
             quantity="10.0",
@@ -90,7 +91,7 @@ class TestBackpackTradingServiceAccountMisc:
             average_fill_price=None,
             status=OrderStatus.OPEN,
             time_in_force=TimeInForce.GTC,
-            exchange=ExchangeName.BACKPACK.value,
+            exchange=ExchangeName.BACKPACK,
             created_at=datetime.fromtimestamp(1678886400, UTC),
             updated_at=datetime.fromtimestamp(1678886400, UTC),
             triggered_at=None,
@@ -129,10 +130,10 @@ class TestBackpackTradingServiceAccountMisc:
         )
 
         # Set up mocks for a get_open_orders call
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         BackpackRawOrderResponse(
             id="123",
-            symbol=symbol,
+            symbol=symbol.value,
             side="Buy",
             orderType="LIMIT",
             status="NEW",
@@ -179,7 +180,7 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test that the service properly handles authenticated trading requests."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         side = OrderSide.BUY
         order_type = OrderType.LIMIT
         quantity = Decimal("10.0")
@@ -189,7 +190,7 @@ class TestBackpackTradingServiceAccountMisc:
         # Convert internal OrderSide to Backpack side format
         BackpackRawOrderResponse(
             id="123",
-            symbol=symbol,
+            symbol=symbol.value,
             side="Buy",
             orderType="LIMIT",
             status="NEW",
@@ -242,12 +243,12 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test that the service properly handles query operations like getting orders."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
 
         BackpackRawOrderResponse(
             id=order_id,
-            symbol=symbol,
+            symbol=symbol.value,
             side="Buy",
             orderType="LIMIT",
             status="NEW",
@@ -293,7 +294,7 @@ class TestBackpackTradingServiceAccountMisc:
         mock_response_handler: MagicMock,
     ) -> None:
         """Test that the service properly handles order cancellation operations."""
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
         order_id = "12345"
 
         mock_cancel_result = CancelOrderResult(
@@ -354,7 +355,7 @@ class TestBackpackTradingServiceAccountMisc:
     ) -> None:
         """Test that the service is properly configured to handle trading operations end-to-end."""
         # Test multiple operations to ensure the service is properly set up
-        symbol = "SOL_USDC"
+        symbol = SOL_USDC_BP
 
         # Mock all decomposed services for end-to-end testing
         with (

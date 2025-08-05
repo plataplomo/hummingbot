@@ -18,6 +18,7 @@ from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidA
 from cyberdelta.models import (
     MarginAccountSummary,
 )
+from tests.common_symbols import ETH_HL
 
 
 class TestHyperliquidAccountServiceBalancesPositions:
@@ -271,7 +272,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         )
 
         # Call with symbol filter
-        result = await service.get_positions("ETH-USD")
+        result = await service.get_positions(ETH_HL)
 
         # Verify the HTTP request was made
         mock_requester.assert_called_once()

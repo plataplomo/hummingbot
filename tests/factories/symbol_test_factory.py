@@ -36,11 +36,9 @@ class SymbolTestFactory:
         if exchange == ExchangeName.HYPERLIQUID:
             asset_index = metadata_kwargs.get("asset_index")
             return symbol(value, exchange, asset_index=asset_index)
-        if exchange == ExchangeName.BACKPACK:
-            symbol_id = metadata_kwargs.get("symbol_id")
-            return symbol(value, exchange, symbol_id=symbol_id)
-        # For future exchanges
-        return symbol(value, exchange)
+        # ExchangeName.BACKPACK
+        symbol_id = metadata_kwargs.get("symbol_id")
+        return symbol(value, exchange, symbol_id=symbol_id)
 
     @staticmethod
     def create_equivalent_pair(
@@ -100,7 +98,7 @@ class SymbolTestFactory:
         Returns:
             Dictionary mapping asset to market type to symbol pairs
         """
-        result = {}
+        result: dict[str, dict[str, tuple[Symbol, Symbol]]] = {}
 
         for asset in assets:
             result[asset] = {}
