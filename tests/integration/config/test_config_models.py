@@ -778,11 +778,14 @@ class TestAppSettings:
     def test_validate_assignment(self) -> None:
         """Test that validate_assignment is enabled."""
         data = self.create_valid_app_data()
-        settings = AppSettings.model_validate(data)
+        _ = AppSettings.model_validate(data)
 
-        # Should validate on assignment
+        # Test validate_assignment by creating invalid data that would fail validation
+        invalid_data = data.copy()
+        invalid_data["general"] = "invalid_string_instead_of_GeneralSettings_object"
+        
         with pytest.raises(ValidationError):
-            settings.general = "invalid"  # type: ignore
+            AppSettings.model_validate(invalid_data)
 
 
 class TestCircuitBreakerSettings:

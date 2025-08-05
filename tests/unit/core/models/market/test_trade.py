@@ -200,18 +200,22 @@ def test_trade_id_and_order_id_validation() -> None:
             quantity=Decimal("1.0"),
         )
     # Invalid: non-string types
-    for bad_id in [123, 1.23, None, [], {}, b"bytes"]:  # type: ignore
+    bad_ids: list[object] = [123, 1.23, None, [], {}, b"bytes"]
+    for bad_id in bad_ids:
         with pytest.raises((TypeError, ValueError, pydantic.ValidationError)):
-            Trade(
-                id=bad_id,  # type: ignore
-                symbol=BTC_HL,
-                executed_at=datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
-                side=OrderSide.BUY,
-                order_id="order-xyz",
-                exchange="backpack",
-                price=Decimal("1.0"),
-                quantity=Decimal("1.0"),
-            )
+            # Create test dict with wrong type for id field
+            test_data = {
+                "id": bad_id,
+                "symbol": BTC_HL,
+                "executed_at": datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC),
+                "side": OrderSide.BUY,
+                "order_id": "order-xyz",
+                "exchange": "backpack",
+                "price": Decimal("1.0"),
+                "quantity": Decimal("1.0"),
+            }
+            # Use model_validate to bypass type checking while still testing validation
+            Trade.model_validate(test_data)
 
 
 def test_trade_fee_asset_required() -> None:

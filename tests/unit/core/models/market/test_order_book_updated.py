@@ -24,12 +24,20 @@ class TestOrderBook:
 
     @pytest.fixture
     def btc_symbol(self) -> Symbol:
-        """Fixture providing a BTC exchange symbol."""
+        """Fixture providing a BTC exchange symbol.
+        
+        Returns:
+            Symbol: BTC exchange symbol.
+        """
         return BTC_HL
 
     @pytest.fixture
     def eth_symbol(self) -> Symbol:
-        """Fixture providing an ETH exchange symbol."""
+        """Fixture providing an ETH exchange symbol.
+        
+        Returns:
+            Symbol: ETH exchange symbol.
+        """
         return ETH_HL
 
     def test_minimal_creation(self, btc_symbol: Symbol) -> None:
@@ -57,14 +65,18 @@ class TestOrderBook:
         """Test that required fields (symbol, timestamp, bids, asks) raise errors if missing."""
         now = datetime.now(UTC)
         # Pydantic raises ValidationError if fields are missing entirely
+        # Test missing symbol
         with pytest.raises(ValidationError, match="Field required"):
-            OrderBook(timestamp=now, bids=[], asks=[])  # type: ignore[call-arg]
+            OrderBook.model_validate({"timestamp": now, "bids": [], "asks": []})
+        # Test missing timestamp
         with pytest.raises(ValidationError, match="Field required"):
-            OrderBook(symbol=btc_symbol, bids=[], asks=[])  # type: ignore[call-arg]
+            OrderBook.model_validate({"symbol": btc_symbol, "bids": [], "asks": []})
+        # Test missing bids
         with pytest.raises(ValidationError, match="Field required"):
-            OrderBook(symbol=btc_symbol, timestamp=now, asks=[])  # type: ignore[call-arg]
+            OrderBook.model_validate({"symbol": btc_symbol, "timestamp": now, "asks": []})
+        # Test missing asks
         with pytest.raises(ValidationError, match="Field required"):
-            OrderBook(symbol=btc_symbol, timestamp=now, bids=[])  # type: ignore[call-arg]
+            OrderBook.model_validate({"symbol": btc_symbol, "timestamp": now, "bids": []})
 
     def test_symbol_validation(self, btc_symbol: Symbol) -> None:
         """Test validation that symbol must be an Symbol."""
@@ -72,28 +84,41 @@ class TestOrderBook:
 
         # Test that string symbols are rejected
         with pytest.raises(ValidationError):
-            OrderBook(symbol="BTC-PERP", timestamp=now, bids=[], asks=[])  # type: ignore[arg-type]
+            OrderBook.model_validate({
+                "symbol": "BTC-PERP",
+                "timestamp": now,
+                "bids": [],
+                "asks": [],
+            })
 
         # Test that None is rejected
         with pytest.raises(ValidationError):
-            OrderBook(symbol=None, timestamp=now, bids=[], asks=[])  # type: ignore[arg-type]
+            OrderBook.model_validate({"symbol": None, "timestamp": now, "bids": [], "asks": []})
 
         # Test that other types are rejected
         with pytest.raises(ValidationError):
-            OrderBook(symbol=123, timestamp=now, bids=[], asks=[])  # type: ignore[arg-type]
+            OrderBook.model_validate({"symbol": 123, "timestamp": now, "bids": [], "asks": []})
 
     def test_timestamp_validation(self, btc_symbol: Symbol) -> None:
         """Test validation rules for the timestamp field."""
         # Valid: timezone-aware datetime
         OrderBook(symbol=btc_symbol, timestamp=datetime.now(UTC), bids=[], asks=[])
 
-        # Invalid: None
-        with pytest.raises(ValidationError):
-            OrderBook(symbol=btc_symbol, timestamp=None, bids=[], asks=[])  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):  # Test None value
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": None,
+                "bids": [],
+                "asks": [],
+            })
 
-        # Invalid: string
-        with pytest.raises(ValidationError):
-            OrderBook(symbol=btc_symbol, timestamp="2024-01-01", bids=[], asks=[])  # type: ignore[arg-type]
+        with pytest.raises(ValidationError):  # Test string value
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": "2024-01-01",
+                "bids": [],
+                "asks": [],
+            })
 
     def test_invalid_bid_ask_structure(self, btc_symbol: Symbol) -> None:
         """Test that invalid bid/ask structures are rejected."""
@@ -101,11 +126,21 @@ class TestOrderBook:
 
         # Invalid: bids not a list
         with pytest.raises(ListFieldError, match="bids"):
-            OrderBook(symbol=btc_symbol, timestamp=now, bids="invalid", asks=[])  # type: ignore[arg-type]
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": now,
+                "bids": "invalid",
+                "asks": [],
+            })
 
         # Invalid: asks not a list
         with pytest.raises(ListFieldError, match="asks"):
-            OrderBook(symbol=btc_symbol, timestamp=now, bids=[], asks="invalid")  # type: ignore[arg-type]
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": now,
+                "bids": [],
+                "asks": "invalid",
+            })
 
     def test_invalid_level_structure(self, btc_symbol: Symbol) -> None:
         """Test that invalid level structures within bids/asks are rejected."""
@@ -113,15 +148,30 @@ class TestOrderBook:
 
         # Invalid: Not a tuple
         with pytest.raises(ValidationError):
-            OrderBook(symbol=btc_symbol, timestamp=now, bids=["50000"], asks=[])  # type: ignore[list-item]
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": now,
+                "bids": ["50000"],
+                "asks": [],
+            })
 
         # Invalid: Wrong tuple length
         with pytest.raises(ValidationError):
-            OrderBook(symbol=btc_symbol, timestamp=now, bids=[("50000",)], asks=[])  # type: ignore[list-item]
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": now,
+                "bids": [("50000",)],
+                "asks": [],
+            })
 
         # Invalid: Wrong tuple length (too many)
         with pytest.raises(ValidationError):
-            OrderBook(symbol=btc_symbol, timestamp=now, bids=[("50000", "1", "extra")], asks=[])  # type: ignore[list-item]
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": now,
+                "bids": [("50000", "1", "extra")],
+                "asks": [],
+            })
 
     def test_decimal_parsing_in_levels(self, btc_symbol: Symbol) -> None:
         """Test that various numeric types are parsed to Decimal in bid/ask levels."""
@@ -167,13 +217,13 @@ class TestOrderBook:
     def test_extra_fields_forbidden(self, btc_symbol: Symbol) -> None:
         """Test that extra fields are forbidden (extra='forbid')."""
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            OrderBook(
-                symbol=btc_symbol,
-                timestamp=datetime.now(UTC),
-                bids=[],
-                asks=[],
-                extra_field="not_allowed",  # type: ignore[call-arg]
-            )
+            OrderBook.model_validate({
+                "symbol": btc_symbol,
+                "timestamp": datetime.now(UTC),
+                "bids": [],
+                "asks": [],
+                "extra_field": "not_allowed",
+            })
 
     def test_serialization(self, btc_symbol: Symbol) -> None:
         """Test that OrderBook can be serialized to dict/JSON."""

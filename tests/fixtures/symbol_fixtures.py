@@ -37,77 +37,123 @@ if TYPE_CHECKING:
 # Common test symbols as fixtures using the factories
 @pytest.fixture
 def btc_perp_hl() -> Symbol:
-    """BTC perpetual symbol for Hyperliquid."""
+    """BTC perpetual symbol for Hyperliquid.
+
+    Returns:
+        Symbol: BTC perpetual for Hyperliquid exchange.
+    """
     return BTC_HL
 
 
 @pytest.fixture
 def btc_perp_bp() -> Symbol:
-    """BTC perpetual symbol for Backpack."""
+    """BTC perpetual symbol for Backpack.
+
+    Returns:
+        Symbol: BTC perpetual for Backpack exchange.
+    """
     return BTC_BP
 
 
 @pytest.fixture
 def eth_perp_hl() -> Symbol:
-    """ETH perpetual symbol for Hyperliquid."""
+    """ETH perpetual symbol for Hyperliquid.
+
+    Returns:
+        Symbol: ETH perpetual for Hyperliquid exchange.
+    """
     return ETH_HL
 
 
 @pytest.fixture
 def eth_perp_bp() -> Symbol:
-    """ETH perpetual symbol for Backpack."""
+    """ETH perpetual symbol for Backpack.
+
+    Returns:
+        Symbol: ETH perpetual for Backpack exchange.
+    """
     return ETH_BP
 
 
 @pytest.fixture
 def btc_spot_hl() -> Symbol:
-    """BTC spot symbol for Hyperliquid."""
+    """BTC spot symbol for Hyperliquid.
+
+    Returns:
+        Symbol: BTC spot symbol for Hyperliquid exchange.
+    """
     # Hyperliquid doesn't have spot symbols in the same way, use perp
     return BTC_HL
 
 
 @pytest.fixture
 def btc_spot_bp() -> Symbol:
-    """BTC spot symbol for Backpack."""
+    """BTC spot symbol for Backpack.
+
+    Returns:
+        Symbol: BTC spot symbol for Backpack exchange.
+    """
     return BTC_USDC_BP
 
 
 # Spot asset fixtures (single assets for balance tracking)
 @pytest.fixture
 def usdc_hl() -> Symbol:
-    """USDC spot asset symbol for Hyperliquid."""
+    """USDC spot asset symbol for Hyperliquid.
+
+    Returns:
+        Symbol: USDC spot asset for Hyperliquid exchange.
+    """
     return SymbolFactory.create_custom_hyperliquid("USDC")
 
 
 @pytest.fixture
 def usdc_bp() -> Symbol:
-    """USDC spot asset symbol for Backpack."""
+    """USDC spot asset symbol for Backpack.
+
+    Returns:
+        Symbol: USDC spot asset for Backpack exchange.
+    """
     return SymbolFactory.create_custom_backpack("USDC")
 
 
 @pytest.fixture
 def btc_asset_hl() -> Symbol:
-    """BTC spot asset symbol for Hyperliquid."""
+    """BTC spot asset symbol for Hyperliquid.
+
+    Returns:
+        Symbol: BTC spot asset for Hyperliquid exchange.
+    """
     return SymbolFactory.create_custom_hyperliquid("BTC")
 
 
 @pytest.fixture
 def btc_asset_bp() -> Symbol:
-    """BTC spot asset symbol for Backpack."""
+    """BTC spot asset symbol for Backpack.
+
+    Returns:
+        Symbol: BTC spot asset for Backpack exchange.
+    """
     return SymbolFactory.create_custom_backpack("BTC")
 
 
 # Parameterized spot asset fixtures
 @pytest.fixture
 def spot_asset(any_exchange: ExchangeName) -> Callable[[str], Symbol]:
-    """Factory for creating spot asset symbols for any exchange."""
+    """Factory for creating spot asset symbols for any exchange.
+
+    Returns:
+        Callable[[str], Symbol]: Function to create spot asset symbols.
+    """
 
     def _create(asset: str) -> Symbol:
         # Use exchanges API for dynamic symbol creation
         factory = getattr(exchanges, any_exchange.value.lower())
         result = factory(f"{asset}_USDC")
         assert isinstance(result, BaseSymbol)
-        return result
+        # BaseSymbol is assignable to Symbol
+        symbol_result: Symbol = result
+        return symbol_result
 
     return _create
 
@@ -115,14 +161,20 @@ def spot_asset(any_exchange: ExchangeName) -> Callable[[str], Symbol]:
 # Generic symbol creation fixture
 @pytest.fixture
 def exchange_symbol() -> Callable[[str, ExchangeName], Symbol]:
-    """Factory for creating exchange symbols."""
+    """Factory for creating exchange symbols.
+
+    Returns:
+        Callable[[str, ExchangeName], Symbol]: Function to create exchange symbols.
+    """
 
     def _create(value: str, exchange: ExchangeName) -> Symbol:
         # Use exchanges API for dynamic symbol creation
         factory = getattr(exchanges, exchange.value.lower())
         result = factory(value)
         assert isinstance(result, BaseSymbol)
-        return result
+        # BaseSymbol is assignable to Symbol
+        symbol_result: Symbol = result
+        return symbol_result
 
     return _create
 
@@ -130,45 +182,73 @@ def exchange_symbol() -> Callable[[str, ExchangeName], Symbol]:
 # Internal symbol fixtures (for backward compatibility)
 @pytest.fixture
 def btc_perp_internal() -> Symbol:
-    """BTC perpetual internal symbol."""
+    """BTC perpetual internal symbol.
+    
+    Returns:
+        Symbol: BTC perpetual internal symbol.
+    """
     return InternalSymbolFactory.create_btc_usd_perp()
 
 
 @pytest.fixture
 def eth_perp_internal() -> Symbol:
-    """ETH perpetual internal symbol."""
+    """ETH perpetual internal symbol.
+    
+    Returns:
+        Symbol: ETH perpetual internal symbol.
+    """
     return InternalSymbolFactory.create_eth_usd_perp()
 
 
 @pytest.fixture
 def btc_spot_internal() -> Symbol:
-    """BTC/USDC spot internal symbol."""
+    """BTC/USDC spot internal symbol.
+    
+    Returns:
+        Symbol: BTC/USDC spot internal symbol.
+    """
     return InternalSymbolFactory.create_btc_usdc_spot()
 
 
 # Unified symbol fixtures (for backward compatibility)
 @pytest.fixture
 def btc_perp_unified() -> Symbol:
-    """BTC perpetual unified symbol."""
+    """BTC perpetual unified symbol.
+    
+    Returns:
+        Symbol: BTC perpetual unified symbol.
+    """
     return UnifiedSymbolFactory.create_btc_perp()
 
 
 @pytest.fixture
 def eth_perp_unified() -> Symbol:
-    """ETH perpetual unified symbol."""
+    """ETH perpetual unified symbol.
+    
+    Returns:
+        Symbol: ETH perpetual unified symbol.
+    """
     return UnifiedSymbolFactory.create_eth_perp()
 
 
 @pytest.fixture
 def btc_spot_unified() -> Symbol:
-    """BTC/USDC spot unified symbol."""
+    """BTC/USDC spot unified symbol.
+    
+    Returns:
+        Symbol: BTC/USDC spot unified symbol.
+    """
     return UnifiedSymbolFactory.create_btc_usdc_spot()
 
 
 # Symbol pair fixtures for arbitrage testing
 @pytest.fixture
 def btc_perp_pair() -> tuple[Symbol, Symbol]:
-    """BTC perpetual symbol pair for arbitrage."""
+    """BTC perpetual symbol pair for arbitrage.
+    
+    Returns:
+        tuple[Symbol, Symbol]: BTC perpetual symbol pair for arbitrage.
+    """
     return (
         BTC_HL,
         BTC_BP,
@@ -177,7 +257,11 @@ def btc_perp_pair() -> tuple[Symbol, Symbol]:
 
 @pytest.fixture
 def eth_perp_pair() -> tuple[Symbol, Symbol]:
-    """ETH perpetual symbol pair for arbitrage."""
+    """ETH perpetual symbol pair for arbitrage.
+    
+    Returns:
+        tuple[Symbol, Symbol]: ETH perpetual symbol pair for arbitrage.
+    """
     return (
         ETH_HL,
         ETH_BP,
@@ -186,7 +270,11 @@ def eth_perp_pair() -> tuple[Symbol, Symbol]:
 
 @pytest.fixture
 def sol_perp_pair() -> tuple[Symbol, Symbol]:
-    """SOL perpetual symbol pair for arbitrage."""
+    """SOL perpetual symbol pair for arbitrage.
+    
+    Returns:
+        tuple[Symbol, Symbol]: SOL perpetual symbol pair for arbitrage.
+    """
     return (
         SOL_HL,
         SOL_BP,
@@ -196,13 +284,21 @@ def sol_perp_pair() -> tuple[Symbol, Symbol]:
 # Factory fixtures for dynamic symbol creation
 @pytest.fixture
 def symbol_factory() -> SymbolFactory:
-    """Symbol factory instance for custom symbol creation."""
+    """Symbol factory instance for custom symbol creation.
+    
+    Returns:
+        SymbolFactory: Symbol factory instance for custom symbol creation.
+    """
     return SymbolFactory()
 
 
 @pytest.fixture
 def create_symbol() -> Callable[[str, ExchangeName], Symbol]:
-    """Factory function for creating custom symbols."""
+    """Factory function for creating custom symbols.
+    
+    Returns:
+        Callable[[str, ExchangeName], Symbol]: Function to create custom symbols.
+    """
 
     def _create(value: str, exchange: ExchangeName) -> Symbol:
         if exchange == ExchangeName.HYPERLIQUID:
@@ -215,7 +311,11 @@ def create_symbol() -> Callable[[str, ExchangeName], Symbol]:
 # Exchange-specific symbol factories
 @pytest.fixture
 def hyperliquid_symbol() -> Callable[[str], Symbol]:
-    """Factory for creating Hyperliquid symbols."""
+    """Factory for creating Hyperliquid symbols.
+    
+    Returns:
+        Callable[[str], Symbol]: Function to create Hyperliquid symbols.
+    """
 
     def _create(value: str) -> Symbol:
         return SymbolFactory.create_custom_hyperliquid(value)
@@ -225,7 +325,11 @@ def hyperliquid_symbol() -> Callable[[str], Symbol]:
 
 @pytest.fixture
 def backpack_symbol() -> Callable[[str], Symbol]:
-    """Factory for creating Backpack symbols."""
+    """Factory for creating Backpack symbols.
+    
+    Returns:
+        Callable[[str], Symbol]: Function to create Backpack symbols.
+    """
 
     def _create(value: str) -> Symbol:
         return SymbolFactory.create_custom_backpack(value)
@@ -236,14 +340,22 @@ def backpack_symbol() -> Callable[[str], Symbol]:
 # Exchange name fixtures
 @pytest.fixture
 def any_exchange() -> ExchangeName:
-    """Default exchange for testing (Hyperliquid)."""
+    """Default exchange for testing (Hyperliquid).
+    
+    Returns:
+        ExchangeName: Default exchange for testing.
+    """
     return ExchangeName.HYPERLIQUID
 
 
 # Parameterized symbol fixtures
 @pytest.fixture
 def btc_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
-    """BTC perpetual symbol for any exchange."""
+    """BTC perpetual symbol for any exchange.
+    
+    Returns:
+        Symbol: BTC perpetual symbol for any exchange.
+    """
     if any_exchange == ExchangeName.HYPERLIQUID:
         return SymbolFactory.create_btc_perp_hyperliquid()
     return SymbolFactory.create_btc_perp_backpack()
@@ -251,7 +363,11 @@ def btc_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
 
 @pytest.fixture
 def eth_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
-    """ETH perpetual symbol for any exchange."""
+    """ETH perpetual symbol for any exchange.
+    
+    Returns:
+        Symbol: ETH perpetual symbol for any exchange.
+    """
     if any_exchange == ExchangeName.HYPERLIQUID:
         return SymbolFactory.create_eth_perp_hyperliquid()
     return SymbolFactory.create_eth_perp_backpack()
@@ -260,39 +376,63 @@ def eth_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
 # Invalid symbol fixtures
 @pytest.fixture
 def invalid_symbol_long() -> str:
-    """Invalid symbol - too long."""
+    """Invalid symbol - too long.
+    
+    Returns:
+        str: Invalid symbol that exceeds maximum length.
+    """
     return "A" * 31  # Exceeds max length of 30
 
 
 @pytest.fixture
 def invalid_symbol_empty() -> str:
-    """Invalid symbol - empty string."""
+    """Invalid symbol - empty string.
+    
+    Returns:
+        str: Empty string for testing invalid symbols.
+    """
     return ""
 
 
 @pytest.fixture
 def invalid_symbol_special_chars() -> str:
-    """Invalid symbol - contains special characters."""
+    """Invalid symbol - contains special characters.
+    
+    Returns:
+        str: Symbol with invalid special characters.
+    """
     return "BTC$USD"
 
 
 # Arbitrage pair fixtures
 @pytest.fixture
 def btc_arbitrage_pair() -> tuple[Symbol, Symbol]:
-    """BTC arbitrage pair (Hyperliquid and Backpack)."""
+    """BTC arbitrage pair (Hyperliquid and Backpack).
+    
+    Returns:
+        tuple[Symbol, Symbol]: BTC arbitrage pair for cross-exchange trading.
+    """
     return (SymbolFactory.create_btc_perp_hyperliquid(), SymbolFactory.create_btc_perp_backpack())
 
 
 @pytest.fixture
 def eth_arbitrage_pair() -> tuple[Symbol, Symbol]:
-    """ETH arbitrage pair (Hyperliquid and Backpack)."""
+    """ETH arbitrage pair (Hyperliquid and Backpack).
+    
+    Returns:
+        tuple[Symbol, Symbol]: ETH arbitrage pair for cross-exchange trading.
+    """
     return (SymbolFactory.create_eth_perp_hyperliquid(), SymbolFactory.create_eth_perp_backpack())
 
 
 # Common test symbols collection
 @pytest.fixture
 def common_test_symbols() -> dict[str, Symbol]:
-    """Collection of commonly used test symbols."""
+    """Collection of commonly used test symbols.
+    
+    Returns:
+        dict[str, Symbol]: Dictionary of commonly used test symbols.
+    """
     return {
         "btc_perp_hl": SymbolFactory.create_btc_perp_hyperliquid(),
         "btc_perp_bp": SymbolFactory.create_btc_perp_backpack(),

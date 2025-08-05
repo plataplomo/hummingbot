@@ -21,6 +21,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.enums import CancelOrderResultStatus
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import CancelOrderResult
 from tests.common_symbols import SOL_USDC_BP
@@ -44,7 +45,6 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test place_order raises ValidationError for empty symbol (now from PlaceOrderArgs)."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
 
         with pytest.raises((ValidationError, ValueError)):
             invalid_symbol = exchanges.backpack("")
@@ -196,6 +196,7 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test cancel_order raises ValidationError for empty symbol."""
         # Test with actual invalid symbol creation
+
         with pytest.raises((ValidationError, ValueError)):
             invalid_symbol = exchanges.backpack("")
             CancelOrderArgs(
@@ -232,6 +233,7 @@ class TestBackpackTradingServiceOrderManagement:
     ) -> None:
         """Test get_order raises ValidationError for empty symbol."""
         # Test with actual invalid symbol creation
+
         with pytest.raises((ValidationError, ValueError)):
             invalid_symbol = exchanges.backpack("")
             GetOrderArgs(order_id="12345", symbol=invalid_symbol)

@@ -59,7 +59,7 @@ from cyberdelta.models.market.order import (
     CancelOrderResult,
     Order,
 )
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
+from tests.common_symbols import BTC_ASSET_HL, BTC_HL, ETH_HL, SOL_HL, USD_HL
 
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture
@@ -545,7 +545,7 @@ class TestHyperliquidAPIMarketDataMethods:
 
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
 
-        for symbol, base, quote in test_cases:
+        for symbol, _base, _quote in test_cases:
             # Create expected market for this test case
             expected_market = Market(
                 symbol=symbol,
@@ -644,7 +644,6 @@ class TestHyperliquidAPIAccountMethods:
     ) -> None:
         """Test successful get_balances call delegates to account service."""
         # Create test data
-        from tests.common_symbols import BTC_ASSET_HL, USD_HL
 
         expected_balances = {
             "USDC": SpotBalance(

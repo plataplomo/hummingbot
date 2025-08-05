@@ -42,13 +42,13 @@ class ArbitrageSymbolBuilder:
         self._pairs: dict[str, ArbitragePair] = {}
         self._prices: dict[Symbol, Decimal] = {}
         self._funding_rates: dict[Symbol, Decimal] = {}
-        self._metadata: dict[str, Any] = {}
+        self._metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]] = {}
 
     def add_perpetual_pair(
         self,
         base_asset: str,
-        hl_metadata: dict[str, Any] | None = None,
-        bp_metadata: dict[str, Any] | None = None,
+        hl_metadata: dict[str, str | int | float | bool] | None = None,
+        bp_metadata: dict[str, str | int | float | bool] | None = None,
         spread_threshold: Decimal = Decimal("0.001"),
     ) -> Self:
         """Add perpetual pair with custom metadata.
@@ -68,7 +68,9 @@ class ArbitrageSymbolBuilder:
         hl_symbol = symbol(
             hl_value,
             ExchangeName.HYPERLIQUID,
-            asset_index=hl_kwargs.get("asset_index"),
+            asset_index=int(hl_kwargs["asset_index"])
+            if "asset_index" in hl_kwargs and isinstance(hl_kwargs["asset_index"], (int, str))
+            else None,
         )
 
         # Create Backpack symbol
@@ -77,7 +79,9 @@ class ArbitrageSymbolBuilder:
         bp_symbol = symbol(
             bp_value,
             ExchangeName.BACKPACK,
-            symbol_id=bp_kwargs.get("symbol_id"),
+            symbol_id=int(bp_kwargs["symbol_id"])
+            if "symbol_id" in bp_kwargs and isinstance(bp_kwargs["symbol_id"], (int, str))
+            else None,
         )
 
         # Create pair
@@ -93,8 +97,8 @@ class ArbitrageSymbolBuilder:
         self,
         base_asset: str,
         quote_asset: str = "USDC",
-        hl_metadata: dict[str, Any] | None = None,
-        bp_metadata: dict[str, Any] | None = None,
+        hl_metadata: dict[str, str | int | float | bool] | None = None,
+        bp_metadata: dict[str, str | int | float | bool] | None = None,
     ) -> Self:
         """Add spot pair for both exchanges.
 
@@ -113,7 +117,9 @@ class ArbitrageSymbolBuilder:
         hl_symbol = symbol(
             hl_value,
             ExchangeName.HYPERLIQUID,
-            asset_index=hl_kwargs.get("asset_index"),
+            asset_index=int(hl_kwargs["asset_index"])
+            if "asset_index" in hl_kwargs and isinstance(hl_kwargs["asset_index"], (int, str))
+            else None,
         )
 
         # Create Backpack spot symbol
@@ -122,7 +128,9 @@ class ArbitrageSymbolBuilder:
         bp_symbol = symbol(
             bp_value,
             ExchangeName.BACKPACK,
-            symbol_id=bp_kwargs.get("symbol_id"),
+            symbol_id=int(bp_kwargs["symbol_id"])
+            if "symbol_id" in bp_kwargs and isinstance(bp_kwargs["symbol_id"], (int, str))
+            else None,
         )
 
         # Create pair with spot key
@@ -149,6 +157,9 @@ class ArbitrageSymbolBuilder:
 
         Returns:
             Self for chaining
+
+        Raises:
+            ValueError: If base_asset pair hasn't been added yet
         """
         if base_asset not in self._pairs:
             raise ValueError(f"Must add {base_asset} pair before setting prices")
@@ -174,6 +185,9 @@ class ArbitrageSymbolBuilder:
 
         Returns:
             Self for chaining
+
+        Raises:
+            ValueError: If base_asset pair hasn't been added yet
         """
         if base_asset not in self._pairs:
             raise ValueError(f"Must add {base_asset} pair before setting funding rates")
@@ -184,7 +198,9 @@ class ArbitrageSymbolBuilder:
 
         return self
 
-    def with_metadata(self, key: str, value: Any) -> Self:
+    def with_metadata(
+        self, key: str, value: str | float | bool | dict[str, Any] | list[Any]
+    ) -> Self:
         """Add metadata to the test scenario.
 
         Args:
@@ -216,10 +232,10 @@ class MarketDataTestScenario:
     """Market data test scenario."""
 
     symbols: list[Symbol]
-    tickers: dict[Symbol, dict[str, Any]]
-    order_books: dict[Symbol, dict[str, Any]]
-    candles: dict[Symbol, list[dict[str, Any]]]
-    metadata: dict[str, Any]
+    tickers: dict[Symbol, dict[str, Decimal | float]]
+    order_books: dict[Symbol, dict[str, list[tuple[Decimal, Decimal]] | Decimal | None]]
+    candles: dict[Symbol, list[dict[str, str | float | int]]]
+    metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]]
 
 
 class MarketDataSymbolBuilder:
@@ -228,16 +244,18 @@ class MarketDataSymbolBuilder:
     def __init__(self) -> None:
         """Initialize the builder."""
         self._symbols: list[Symbol] = []
-        self._tickers: dict[Symbol, dict[str, Any]] = {}
-        self._order_books: dict[Symbol, dict[str, Any]] = {}
-        self._candles: dict[Symbol, list[dict[str, Any]]] = {}
-        self._metadata: dict[str, Any] = {}
+        self._tickers: dict[Symbol, dict[str, Decimal | float]] = {}
+        self._order_books: dict[
+            Symbol, dict[str, list[tuple[Decimal, Decimal]] | Decimal | None]
+        ] = {}
+        self._candles: dict[Symbol, list[dict[str, str | float | int]]] = {}
+        self._metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]] = {}
 
     def add_symbol(
         self,
         value: str,
         exchange: ExchangeName,
-        **metadata_kwargs: Any,
+        **metadata_kwargs: str | float | bool,
     ) -> Self:
         """Add a symbol to the scenario.
 
@@ -249,7 +267,13 @@ class MarketDataSymbolBuilder:
         Returns:
             Self for chaining
         """
-        sym = symbol(value, exchange, **metadata_kwargs)
+        # Filter metadata_kwargs to only pass valid parameters
+        valid_kwargs: dict[str, int] = {}
+        if "asset_index" in metadata_kwargs and isinstance(metadata_kwargs["asset_index"], int):
+            valid_kwargs["asset_index"] = metadata_kwargs["asset_index"]
+        if "symbol_id" in metadata_kwargs and isinstance(metadata_kwargs["symbol_id"], int):
+            valid_kwargs["symbol_id"] = metadata_kwargs["symbol_id"]
+        sym = symbol(value, exchange, **valid_kwargs)
         self._symbols.append(sym)
         return self
 
@@ -274,6 +298,9 @@ class MarketDataSymbolBuilder:
 
         Returns:
             Self for chaining
+
+        Raises:
+            ValueError: If symbol not found in scenario
         """
         # Find matching symbol
         sym = next(
@@ -311,6 +338,9 @@ class MarketDataSymbolBuilder:
 
         Returns:
             Self for chaining
+
+        Raises:
+            ValueError: If symbol not found in scenario
         """
         sym = next(
             (s for s in self._symbols if s.value == symbol_value and s.exchange == exchange),
@@ -350,9 +380,9 @@ class TradingTestScenario:
 
     symbols: dict[str, Symbol]
     positions: dict[Symbol, Decimal]
-    orders: dict[Symbol, list[dict[str, Any]]]
+    orders: dict[Symbol, list[dict[str, str | int | float | bool]]]
     balances: dict[str, Decimal]
-    metadata: dict[str, Any]
+    metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]]
 
 
 class TradingSymbolBuilder:
@@ -362,16 +392,16 @@ class TradingSymbolBuilder:
         """Initialize the builder."""
         self._symbols: dict[str, Symbol] = {}
         self._positions: dict[Symbol, Decimal] = {}
-        self._orders: dict[Symbol, list[dict[str, Any]]] = {}
+        self._orders: dict[Symbol, list[dict[str, str | int | float | bool]]] = {}
         self._balances: dict[str, Decimal] = {}
-        self._metadata: dict[str, Any] = {}
+        self._metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]] = {}
 
     def add_trading_symbol(
         self,
         key: str,
         value: str,
         exchange: ExchangeName,
-        **metadata_kwargs: Any,
+        **metadata_kwargs: str | float | bool,
     ) -> Self:
         """Add a symbol for trading.
 
@@ -384,7 +414,13 @@ class TradingSymbolBuilder:
         Returns:
             Self for chaining
         """
-        self._symbols[key] = symbol(value, exchange, **metadata_kwargs)
+        # Filter metadata_kwargs to only pass valid parameters
+        valid_kwargs: dict[str, int] = {}
+        if "asset_index" in metadata_kwargs and isinstance(metadata_kwargs["asset_index"], int):
+            valid_kwargs["asset_index"] = metadata_kwargs["asset_index"]
+        if "symbol_id" in metadata_kwargs and isinstance(metadata_kwargs["symbol_id"], int):
+            valid_kwargs["symbol_id"] = metadata_kwargs["symbol_id"]
+        self._symbols[key] = symbol(value, exchange, **valid_kwargs)
         return self
 
     def with_position(
@@ -402,6 +438,9 @@ class TradingSymbolBuilder:
 
         Returns:
             Self for chaining
+
+        Raises:
+            ValueError: If symbol_key not found
         """
         if symbol_key not in self._symbols:
             raise ValueError(f"Symbol {symbol_key} not found")
@@ -410,14 +449,14 @@ class TradingSymbolBuilder:
         self._positions[sym] = size
 
         if entry_price:
-            self._metadata[f"{symbol_key}_entry_price"] = entry_price
+            self._metadata[f"{symbol_key}_entry_price"] = float(entry_price)
 
         return self
 
     def with_orders(
         self,
         symbol_key: str,
-        orders: list[dict[str, Any]],
+        orders: list[dict[str, str | int | float | bool]],
     ) -> Self:
         """Add orders for a symbol.
 
@@ -427,6 +466,9 @@ class TradingSymbolBuilder:
 
         Returns:
             Self for chaining
+
+        Raises:
+            ValueError: If symbol_key not found
         """
         if symbol_key not in self._symbols:
             raise ValueError(f"Symbol {symbol_key} not found")

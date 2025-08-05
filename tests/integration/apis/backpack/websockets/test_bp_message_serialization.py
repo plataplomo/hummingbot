@@ -861,8 +861,6 @@ class TestBackpackWebSocketIntegration:
             (m.symbol for m in markets if "SOL" in m.symbol.value),
             markets[0].symbol,
         )
-        # Convert internal format to Backpack format (if needed for future use)
-        # ws_symbol = self._convert_symbol_format(test_symbol)
 
         message_latencies: list[float] = []
         processing_times: list[float] = []

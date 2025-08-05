@@ -19,7 +19,11 @@ from cyberdelta.models.market.trade import Trade
 
 @pytest.fixture
 def mock_config() -> MagicMock:
-    """Create mock configuration for testing."""
+    """Create mock configuration for testing.
+    
+    Returns:
+        MagicMock: Mock configuration for testing.
+    """
     config = MagicMock(spec=AppSettings)
 
     # Set up calculation config
@@ -45,7 +49,11 @@ def mock_config() -> MagicMock:
 
 @pytest.fixture
 def mock_portfolio_service() -> AsyncMock:
-    """Create mock portfolio service."""
+    """Create mock portfolio service.
+    
+    Returns:
+        AsyncMock: Mock portfolio service.
+    """
     service = AsyncMock(spec=PortfolioService)
     service.get_state = AsyncMock()
     service.get_total_equity_usd = AsyncMock(return_value=Decimal(10000))
@@ -56,13 +64,21 @@ def mock_portfolio_service() -> AsyncMock:
 def performance_tracker(
     mock_config: MagicMock, mock_portfolio_service: AsyncMock
 ) -> PerformanceTracker:
-    """Create performance tracker instance."""
+    """Create performance tracker instance.
+    
+    Returns:
+        PerformanceTracker: Performance tracker instance.
+    """
     return PerformanceTracker(mock_config, mock_portfolio_service)
 
 
 @pytest.fixture
 def sample_trade() -> Trade:
-    """Create sample trade for testing."""
+    """Create sample trade for testing.
+    
+    Returns:
+        Trade: Sample trade for testing.
+    """
     return Trade(
         id="trade_123",
         symbol=exchanges.hyperliquid("BTC"),
@@ -86,13 +102,17 @@ class TestPerformanceTracker:
         tracker = PerformanceTracker(mock_config, mock_portfolio_service)
 
         assert tracker.config == mock_config
-        assert tracker._portfolio_service == mock_portfolio_service
-        assert len(tracker._enabled_metrics) == 6
-        assert tracker._calculation_period == 30
-        assert tracker._risk_free_rate == Decimal("0.05")
-        assert tracker._include_fees is True
-        assert tracker._sharpe_method == "daily"
-        assert tracker._drawdown_method == "peak_to_trough"
+        
+        # Use public API to verify configuration
+        summary = tracker.get_metrics_summary()
+        enabled_metrics = summary["enabled_metrics"]
+        assert isinstance(enabled_metrics, list)
+        assert len(enabled_metrics) == 6
+        assert summary["calculation_period_days"] == 30
+        assert summary["risk_free_rate"] == 0.05
+        assert summary["include_fees"] is True
+        assert summary["sharpe_method"] == "daily"
+        assert summary["drawdown_method"] == "peak_to_trough"
 
     @pytest.mark.asyncio
     async def test_add_trade(
@@ -101,8 +121,8 @@ class TestPerformanceTracker:
         """Test adding trade to history."""
         await performance_tracker.add_trade(sample_trade)
 
-        assert len(performance_tracker._trade_history) == 1
-        assert performance_tracker._trade_history[0] == sample_trade
+        summary = performance_tracker.get_metrics_summary()
+        assert summary["trade_history_length"] == 1
 
     @pytest.mark.asyncio
     async def test_update_equity_curve(self, performance_tracker: PerformanceTracker) -> None:
@@ -112,8 +132,8 @@ class TestPerformanceTracker:
 
         await performance_tracker.update_equity_curve(timestamp, equity)
 
-        assert len(performance_tracker._equity_curve) == 1
-        assert performance_tracker._equity_curve[0] == (timestamp, equity)
+        summary = performance_tracker.get_metrics_summary()
+        assert summary["equity_curve_length"] == 1
 
     @pytest.mark.asyncio
     async def test_calculate_metrics_basic(self, performance_tracker: PerformanceTracker) -> None:
@@ -155,7 +175,10 @@ class TestPerformanceTracker:
         # Calculate metrics with drawdown enabled
         metrics = await performance_tracker.calculate_metrics(10)
 
-        if "max_drawdown" in performance_tracker._enabled_metrics:
+        summary = performance_tracker.get_metrics_summary()
+        enabled_metrics = summary["enabled_metrics"]
+        assert isinstance(enabled_metrics, list)
+        if "max_drawdown" in enabled_metrics:
             assert metrics.max_drawdown_pct is not None
             # Max drawdown: (12000 - 9000) / 12000 * 100 = 25%
             assert metrics.max_drawdown_pct == Decimal(25)
@@ -214,7 +237,10 @@ class TestPerformanceTracker:
         # Calculate metrics
         metrics = await performance_tracker.calculate_metrics(10)
 
-        if "win_rate" in performance_tracker._enabled_metrics:
+        summary = performance_tracker.get_metrics_summary()
+        enabled_metrics = summary["enabled_metrics"]
+        assert isinstance(enabled_metrics, list)
+        if "win_rate" in enabled_metrics:
             assert metrics.total_trades is not None
             assert metrics.total_trades == 3
             assert metrics.win_rate_pct is not None
@@ -242,13 +268,16 @@ class TestPerformanceTracker:
         await performance_tracker.update_equity_curve(now - timedelta(days=6), equity)
 
         for i, daily_return in enumerate(daily_returns):
-            equity = equity * (Decimal(1) + daily_return)
+            equity *= (Decimal(1) + daily_return)
             await performance_tracker.update_equity_curve(now - timedelta(days=5 - i), equity)
 
         # Calculate metrics
         metrics = await performance_tracker.calculate_metrics(7)
 
-        if "sharpe_ratio" in performance_tracker._enabled_metrics:
+        summary = performance_tracker.get_metrics_summary()
+        enabled_metrics = summary["enabled_metrics"]
+        assert isinstance(enabled_metrics, list)
+        if "sharpe_ratio" in enabled_metrics:
             assert metrics.sharpe_ratio is not None
             # Should be positive given positive average return
             assert metrics.sharpe_ratio > Decimal(0)
@@ -294,7 +323,10 @@ class TestPerformanceTracker:
         metrics = await performance_tracker.calculate_metrics(365)
 
         # Check daily return if enabled
-        if "daily_return" in performance_tracker._enabled_metrics:
+        summary = performance_tracker.get_metrics_summary()
+        enabled_metrics = summary["enabled_metrics"]
+        assert isinstance(enabled_metrics, list)
+        if "daily_return" in enabled_metrics:
             assert metrics.daily_return_pct is not None
             # (12000 - 11800) / 11800 * 100 ≈ 1.69%
             expected_daily = (
@@ -303,7 +335,7 @@ class TestPerformanceTracker:
             assert abs(metrics.daily_return_pct - expected_daily) < Decimal("0.1")
 
         # Check weekly return if enabled
-        if "weekly_return" in performance_tracker._enabled_metrics:
+        if "weekly_return" in enabled_metrics:
             assert metrics.weekly_return_pct is not None
             # (12000 - 11500) / 11500 * 100 ≈ 4.35%
             expected_weekly = (
@@ -320,8 +352,11 @@ class TestPerformanceTracker:
         assert metrics.total_pnl == Decimal(0)
         assert metrics.total_return_pct == Decimal(0)
 
-        if "sharpe_ratio" in performance_tracker._enabled_metrics:
+        summary = performance_tracker.get_metrics_summary()
+        enabled_metrics = summary["enabled_metrics"]
+        assert isinstance(enabled_metrics, list)
+        if "sharpe_ratio" in enabled_metrics:
             assert metrics.sharpe_ratio == Decimal(0)
 
-        if "max_drawdown" in performance_tracker._enabled_metrics:
+        if "max_drawdown" in enabled_metrics:
             assert metrics.max_drawdown_pct == Decimal(0)

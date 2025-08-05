@@ -4,6 +4,7 @@ These helpers provide comprehensive validation methods for
 Symbol objects and their relationships in tests.
 """
 
+import contextlib
 from typing import Any
 
 from cyberdelta.core.enums.enums import MarketType
@@ -32,9 +33,6 @@ class SymbolTestValidator:
             long: Long position symbol
             short: Short position symbol
             symbol_service: Symbol service for equivalence checking
-
-        Raises:
-            AssertionError: If pair is invalid for arbitrage
         """
         # Must be equivalent symbols
         assert symbol_service.are_equivalent(long, short), (
@@ -47,22 +45,16 @@ class SymbolTestValidator:
         )
 
         # Must have same market type (if components available)
-        try:
+        with contextlib.suppress(AttributeError, ValueError):
             assert long.market_type == short.market_type, (
                 f"Market type mismatch: {long.market_type} vs {short.market_type}"
             )
-        except (AttributeError, ValueError):
-            # Components not set, skip this check
-            pass
 
         # Check base assets match (if components available)
-        try:
+        with contextlib.suppress(AttributeError, ValueError):
             assert long.base_asset == short.base_asset, (
                 f"Base asset mismatch: {long.base_asset} vs {short.base_asset}"
             )
-        except (AttributeError, ValueError):
-            # Components not set, skip this check
-            pass
 
     @staticmethod
     def assert_metadata_consistency(
@@ -74,9 +66,6 @@ class SymbolTestValidator:
         Args:
             symbol: Symbol to validate
             expected_metadata: Expected metadata fields
-
-        Raises:
-            AssertionError: If metadata doesn't match
         """
         if symbol.exchange == ExchangeName.HYPERLIQUID:
             assert isinstance(symbol.metadata, HyperliquidMetadata), (
@@ -155,14 +144,8 @@ class SymbolTestValidator:
             symbol: Symbol to validate
             expected_separator: Expected separator character
             expected_suffix: Expected suffix (e.g., "PERP")
-
-        Raises:
-            AssertionError: If format doesn't match expectations
         """
-        if symbol.exchange == ExchangeName.HYPERLIQUID:
-            default_separator = "-"
-        else:  # Backpack
-            default_separator = "_"
+        default_separator = "-" if symbol.exchange == ExchangeName.HYPERLIQUID else "_"
 
         separator = expected_separator or default_separator
 
@@ -186,9 +169,6 @@ class SymbolTestValidator:
         Args:
             symbols: List of symbols to check
             symbol_service: Symbol service for checking
-
-        Raises:
-            AssertionError: If any symbols are not equivalent
         """
         if len(symbols) < 2:
             return
@@ -213,9 +193,6 @@ class SymbolTestValidator:
             to_symbol: Result symbol
             target_exchange: Target exchange
             symbol_service: Symbol service
-
-        Raises:
-            AssertionError: If conversion is invalid
         """
         # Result must be on target exchange
         assert to_symbol.exchange == target_exchange, (
@@ -316,9 +293,6 @@ class MetadataAsserter:
             symbol: Symbol to check
             asset_index: Expected asset index
             check_none: Whether to check for None value
-
-        Raises:
-            AssertionError: If metadata invalid
         """
         assert symbol.exchange == ExchangeName.HYPERLIQUID
         assert isinstance(symbol.metadata, HyperliquidMetadata)
@@ -340,9 +314,6 @@ class MetadataAsserter:
             symbol: Symbol to check
             symbol_id: Expected symbol ID
             check_none: Whether to check for None value
-
-        Raises:
-            AssertionError: If metadata invalid
         """
         assert symbol.exchange == ExchangeName.BACKPACK
         assert isinstance(symbol.metadata, BackpackMetadata)

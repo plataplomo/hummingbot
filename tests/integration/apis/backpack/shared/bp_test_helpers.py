@@ -27,6 +27,7 @@ from tests.common_symbols import (
     ETH_USDC_PERP_BP,
     SOL_USDC_BP,
     SOL_USDC_PERP_BP,
+    USDT_USDC_BP,
 )
 
 
@@ -978,9 +979,6 @@ def generate_deterministic_client_order_id(test_name: str, symbol: Symbol, side:
 # =============================================================================
 # Common Test Symbols
 # =============================================================================
-
-
-from tests.common_symbols import USDT_USDC_BP
 
 
 COMMON_SPOT_SYMBOLS = [

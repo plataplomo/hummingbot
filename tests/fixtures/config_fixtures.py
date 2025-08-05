@@ -45,8 +45,6 @@ from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets, SecretsConfig
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
-
-# from cyberdelta.validation.circuit_breaker import CircuitBreakerSystem  # Module deleted
 from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_HL, ETH_USDC_BP
 
 
@@ -586,13 +584,3 @@ def mock_secrets_manager_with_missing() -> MagicMock:
 
 
 # --- System Component Fixtures ---
-
-
-# @pytest.fixture
-# def circuit_breaker_system(mock_config: AppSettings) -> CircuitBreakerSystem:
-#     """Create a CircuitBreakerSystem instance using mock config.
-#
-#     Returns:
-#         CircuitBreakerSystem: Configured circuit breaker system for testing.
-#     """
-#     return CircuitBreakerSystem(mock_config)

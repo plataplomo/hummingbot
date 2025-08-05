@@ -88,25 +88,6 @@ def mock_config() -> MagicMock:
     config.get.return_value = {}
     return config
 
-    # @pytest.fixture
-    # def pt_config() -> PortfolioTrackerConfig:
-    # """Standard portfolio tracker configuration.
-
-    # Returns:
-    #     PortfolioTrackerConfig: Standard portfolio tracker configuration.
-    # """
-    # return PortfolioTrackerConfig(
-    #     data_freshness_seconds=60,
-    #     # Ensure validation timeout <= state update timeout to satisfy business logic
-    #     validation=PortfolioValidationSettings(
-    #         validation_timeout=5.0,  # Set to 5.0 to be <= state.update_timeout default (5.0)
-    #     ),
-    #     state=PortfolioStateSettings(
-    #         update_timeout=10.0,  # Increase to 10.0 to provide buffer above validation_timeout
-    #     ),
-    # )
-    # Disabled - replaced by modular portfolio system
-
 
 # Symbol mapper fixtures
 @pytest.fixture
@@ -217,23 +198,7 @@ def symbol_mapper_config() -> dict[str, ExchangeSpecificConfig]:
         "backpack": create_test_exchange_config(ExchangeName.BACKPACK),
     }
 
-    # Portfolio tracker fixtures
-    # @pytest.fixture
-    # def mock_portfolio_state_manager() -> Mock:
-    # """Mock portfolio tracker with standard methods.
-
-    # Returns:
-    #     Mock: Mock portfolio tracker with configured method return values.
-    # """
-    # tracker = Mock(spec=PortfolioStateManager)
-    # tracker.get_open_orders.return_value = []
-    # tracker.get_order_history.return_value = []
-    # tracker.get_all_positions.return_value = []
-    # tracker.get_exchange_balance.return_value = None
-    # tracker.get_position.return_value = None
-    # tracker.get_order_by_id.return_value = None
-    # return tracker
-    # Disabled - replaced by modular portfolio system
+    # Portfolio tracker fixtures disabled - replaced by modular portfolio system
 
 
 # Sample data fixtures

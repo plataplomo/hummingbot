@@ -12,7 +12,11 @@ from cyberdelta.enums.exchange_names import ExchangeName
 def create_symbol(
     value: str, exchange: ExchangeName, asset_index: int | None = None, symbol_id: int | None = None
 ) -> Symbol:
-    """Create a symbol using the global symbol service."""
+    """Create a symbol using the global symbol service.
+
+    Returns:
+        Symbol: Created symbol instance.
+    """
     return get_symbol_service().create_symbol(
         value, exchange, asset_index=asset_index, symbol_id=symbol_id
     )
@@ -172,22 +176,38 @@ class InternalSymbolFactory:
 
     @staticmethod
     def create_btc_usd_perp() -> Symbol:
-        """Create BTC perpetual symbol."""
+        """Create BTC perpetual symbol.
+
+        Returns:
+            Symbol: BTC perpetual symbol.
+        """
         return SymbolFactory.create_btc_perp_hyperliquid()
 
     @staticmethod
     def create_eth_usd_perp() -> Symbol:
-        """Create ETH perpetual symbol."""
+        """Create ETH perpetual symbol.
+
+        Returns:
+            Symbol: ETH perpetual symbol.
+        """
         return SymbolFactory.create_eth_perp_hyperliquid()
 
     @staticmethod
     def create_btc_usdc_spot() -> Symbol:
-        """Create BTC/USDC spot symbol."""
+        """Create BTC/USDC spot symbol.
+
+        Returns:
+            Symbol: BTC/USDC spot symbol.
+        """
         return SymbolFactory.create_btc_usdc_spot_hyperliquid()
 
     @staticmethod
     def create_eth_usdc_spot() -> Symbol:
-        """Create ETH/USDC spot symbol."""
+        """Create ETH/USDC spot symbol.
+
+        Returns:
+            Symbol: ETH/USDC spot symbol.
+        """
         return create_symbol(
             value="ETH-USDC",
             exchange=ExchangeName.HYPERLIQUID,
@@ -195,14 +215,22 @@ class InternalSymbolFactory:
 
     @staticmethod
     def create_sol_usd_perp() -> Symbol:
-        """Create SOL perpetual symbol."""
+        """Create SOL perpetual symbol.
+
+        Returns:
+            Symbol: SOL perpetual symbol.
+        """
         return SymbolFactory.create_sol_perp_hyperliquid()
 
     @staticmethod
     def create_custom(
         base_asset: str, quote_asset: str | None = None, market_type: MarketType = MarketType.PERP
     ) -> Symbol:
-        """Create custom symbol."""
+        """Create custom symbol.
+
+        Returns:
+            Symbol: Custom symbol based on specified assets and market type.
+        """
         if market_type == MarketType.PERP:
             value = f"{base_asset}-PERP"
         else:
@@ -220,87 +248,155 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def create_hyperliquid_btc_perp() -> Symbol:
-        """Create Hyperliquid BTC perpetual symbol."""
+        """Create Hyperliquid BTC perpetual symbol.
+
+        Returns:
+            Symbol: BTC perpetual symbol for Hyperliquid.
+        """
         return SymbolFactory.create_btc_perp_hyperliquid()
 
     @staticmethod
     def btc_perp_hyperliquid() -> Symbol:
-        """Create Hyperliquid BTC perpetual symbol."""
+        """Create Hyperliquid BTC perpetual symbol.
+
+        Returns:
+            Symbol: BTC perpetual symbol for Hyperliquid.
+        """
         return SymbolFactory.create_btc_perp_hyperliquid()
 
     @staticmethod
     def create_hyperliquid_eth_perp() -> Symbol:
-        """Create Hyperliquid ETH perpetual symbol."""
+        """Create Hyperliquid ETH perpetual symbol.
+
+        Returns:
+            Symbol: ETH perpetual symbol for Hyperliquid.
+        """
         return SymbolFactory.create_eth_perp_hyperliquid()
 
     @staticmethod
     def eth_perp_hyperliquid() -> Symbol:
-        """Create Hyperliquid ETH perpetual symbol."""
+        """Create Hyperliquid ETH perpetual symbol.
+
+        Returns:
+            Symbol: ETH perpetual symbol for Hyperliquid.
+        """
         return SymbolFactory.create_eth_perp_hyperliquid()
 
     @staticmethod
     def create_backpack_btc_perp() -> Symbol:
-        """Create Backpack BTC perpetual symbol."""
+        """Create Backpack BTC perpetual symbol.
+
+        Returns:
+            Symbol: BTC perpetual symbol for Backpack.
+        """
         return SymbolFactory.create_btc_perp_backpack()
 
     @staticmethod
     def btc_perp_backpack() -> Symbol:
-        """Create Backpack BTC perpetual symbol."""
+        """Create Backpack BTC perpetual symbol.
+
+        Returns:
+            Symbol: BTC perpetual symbol for Backpack.
+        """
         return SymbolFactory.create_btc_perp_backpack()
 
     @staticmethod
     def create_backpack_eth_perp() -> Symbol:
-        """Create Backpack ETH perpetual symbol."""
+        """Create Backpack ETH perpetual symbol.
+
+        Returns:
+            Symbol: ETH perpetual symbol for Backpack.
+        """
         return SymbolFactory.create_eth_perp_backpack()
 
     @staticmethod
     def eth_perp_backpack() -> Symbol:
-        """Create Backpack ETH perpetual symbol."""
+        """Create Backpack ETH perpetual symbol.
+
+        Returns:
+            Symbol: ETH perpetual symbol for Backpack.
+        """
         return SymbolFactory.create_eth_perp_backpack()
 
     @staticmethod
     def create_hyperliquid_btc_usdc_spot() -> Symbol:
-        """Create Hyperliquid BTC/USDC spot symbol."""
+        """Create Hyperliquid BTC/USDC spot symbol.
+
+        Returns:
+            Symbol: BTC/USDC spot symbol for Hyperliquid.
+        """
         return SymbolFactory.create_btc_usdc_spot_hyperliquid()
 
     @staticmethod
     def btc_usdc_spot_hyperliquid() -> Symbol:
-        """Create Hyperliquid BTC/USDC spot symbol."""
+        """Create Hyperliquid BTC/USDC spot symbol.
+
+        Returns:
+            Symbol: BTC/USDC spot symbol for Hyperliquid.
+        """
         return SymbolFactory.create_btc_usdc_spot_hyperliquid()
 
     @staticmethod
     def create_backpack_btc_usdc_spot() -> Symbol:
-        """Create Backpack BTC/USDC spot symbol."""
+        """Create Backpack BTC/USDC spot symbol.
+
+        Returns:
+            Symbol: BTC/USDC spot symbol for Backpack.
+        """
         return SymbolFactory.create_btc_usdc_spot_backpack()
 
     @staticmethod
     def btc_usdc_spot_backpack() -> Symbol:
-        """Create Backpack BTC/USDC spot symbol."""
+        """Create Backpack BTC/USDC spot symbol.
+
+        Returns:
+            Symbol: BTC/USDC spot symbol for Backpack.
+        """
         return SymbolFactory.create_btc_usdc_spot_backpack()
 
     @staticmethod
     def create_hyperliquid_sol_perp() -> Symbol:
-        """Create Hyperliquid SOL perpetual symbol."""
+        """Create Hyperliquid SOL perpetual symbol.
+
+        Returns:
+            Symbol: SOL perpetual symbol for Hyperliquid.
+        """
         return SymbolFactory.create_sol_perp_hyperliquid()
 
     @staticmethod
     def sol_perp_hyperliquid() -> Symbol:
-        """Create Hyperliquid SOL perpetual symbol."""
+        """Create Hyperliquid SOL perpetual symbol.
+
+        Returns:
+            Symbol: SOL perpetual symbol for Hyperliquid.
+        """
         return SymbolFactory.create_sol_perp_hyperliquid()
 
     @staticmethod
     def create_backpack_sol_perp() -> Symbol:
-        """Create Backpack SOL perpetual symbol."""
+        """Create Backpack SOL perpetual symbol.
+
+        Returns:
+            Symbol: SOL perpetual symbol for Backpack.
+        """
         return SymbolFactory.create_sol_perp_backpack()
 
     @staticmethod
     def sol_perp_backpack() -> Symbol:
-        """Create Backpack SOL perpetual symbol."""
+        """Create Backpack SOL perpetual symbol.
+
+        Returns:
+            Symbol: SOL perpetual symbol for Backpack.
+        """
         return SymbolFactory.create_sol_perp_backpack()
 
     @staticmethod
     def create_hyperliquid_spot_index(index: int) -> Symbol:
-        """Create Hyperliquid spot index symbol."""
+        """Create Hyperliquid spot index symbol.
+
+        Returns:
+            Symbol: Spot index symbol for Hyperliquid.
+        """
         return create_symbol(
             value=f"@{index}",
             exchange=ExchangeName.HYPERLIQUID,
@@ -309,37 +405,65 @@ class ExchangeSymbolFactory:
 
     @staticmethod
     def spot_index_1_hyperliquid() -> Symbol:
-        """Create Hyperliquid spot index @1 symbol."""
+        """Create Hyperliquid spot index @1 symbol.
+
+        Returns:
+            Symbol: Spot index @1 symbol for Hyperliquid.
+        """
         return SymbolFactory.create_spot_index_1_hyperliquid()
 
     @staticmethod
     def create_hyperliquid_btc_spot() -> Symbol:
-        """Create Hyperliquid BTC spot symbol (same as BTC/USDC spot)."""
+        """Create Hyperliquid BTC spot symbol (same as BTC/USDC spot).
+
+        Returns:
+            Symbol: BTC spot symbol for Hyperliquid.
+        """
         return SymbolFactory.create_btc_usdc_spot_hyperliquid()
 
     @staticmethod
     def create_backpack_btc_spot() -> Symbol:
-        """Create Backpack BTC spot symbol (same as BTC/USDC spot)."""
+        """Create Backpack BTC spot symbol (same as BTC/USDC spot).
+
+        Returns:
+            Symbol: BTC spot symbol for Backpack.
+        """
         return SymbolFactory.create_btc_usdc_spot_backpack()
 
     @staticmethod
     def create_hyperliquid_usdc() -> Symbol:
-        """Create Hyperliquid USDC asset symbol."""
+        """Create Hyperliquid USDC asset symbol.
+
+        Returns:
+            Symbol: USDC asset symbol for Hyperliquid.
+        """
         return SymbolFactory.create_custom_hyperliquid("USDC")
 
     @staticmethod
     def create_backpack_usdc() -> Symbol:
-        """Create Backpack USDC asset symbol."""
+        """Create Backpack USDC asset symbol.
+
+        Returns:
+            Symbol: USDC asset symbol for Backpack.
+        """
         return SymbolFactory.create_custom_backpack("USDC")
 
     @staticmethod
     def create_hyperliquid_btc() -> Symbol:
-        """Create Hyperliquid BTC asset symbol."""
+        """Create Hyperliquid BTC asset symbol.
+
+        Returns:
+            Symbol: BTC asset symbol for Hyperliquid.
+        """
         return SymbolFactory.create_custom_hyperliquid("BTC")
 
     @staticmethod
     def create_backpack_btc() -> Symbol:
-        """Create Backpack BTC asset symbol."""
+        """Create Backpack BTC asset symbol.
+
+        Returns:
+            Symbol: BTC asset symbol for Backpack.
+        """
         return SymbolFactory.create_custom_backpack("BTC")
 
     @staticmethod
@@ -348,7 +472,11 @@ class ExchangeSymbolFactory:
         exchange_id: ExchangeName,
         internal_symbol: Symbol | None = None,  # Not used in new system
     ) -> Symbol:
-        """Create custom exchange symbol."""
+        """Create custom exchange symbol.
+
+        Returns:
+            Symbol: Custom symbol for the specified exchange.
+        """
         if exchange_id == ExchangeName.HYPERLIQUID:
             return SymbolFactory.create_custom_hyperliquid(value)
         return SymbolFactory.create_custom_backpack(value)
@@ -363,6 +491,9 @@ class UnifiedSymbolFactory:
         """Create BTC perpetual symbol.
 
         For backward compatibility, returns a single symbol for the first exchange.
+
+        Returns:
+            Symbol: BTC perpetual symbol for the first specified exchange.
         """
         if not exchanges:
             exchanges = [ExchangeName.HYPERLIQUID]
@@ -376,6 +507,9 @@ class UnifiedSymbolFactory:
         """Create ETH perpetual symbol.
 
         For backward compatibility, returns a single symbol for the first exchange.
+
+        Returns:
+            Symbol: ETH perpetual symbol for the first specified exchange.
         """
         if not exchanges:
             exchanges = [ExchangeName.HYPERLIQUID]
@@ -389,6 +523,9 @@ class UnifiedSymbolFactory:
         """Create BTC/USDC spot symbol.
 
         For backward compatibility, returns a single symbol for the first exchange.
+
+        Returns:
+            Symbol: BTC/USDC spot symbol for the first specified exchange.
         """
         if not exchanges:
             exchanges = [ExchangeName.HYPERLIQUID]
@@ -402,6 +539,9 @@ class UnifiedSymbolFactory:
         """Create SOL perpetual symbol.
 
         For backward compatibility, returns a single symbol for the first exchange.
+
+        Returns:
+            Symbol: SOL perpetual symbol for the first specified exchange.
         """
         if not exchanges:
             exchanges = [ExchangeName.HYPERLIQUID]
@@ -420,6 +560,9 @@ class UnifiedSymbolFactory:
         """Create custom unified symbol.
 
         For backward compatibility, returns a single symbol for the first exchange.
+
+        Returns:
+            Symbol: Custom symbol based on specified assets and market type for the first exchange.
         """
         if not exchanges:
             exchanges = [ExchangeName.HYPERLIQUID]

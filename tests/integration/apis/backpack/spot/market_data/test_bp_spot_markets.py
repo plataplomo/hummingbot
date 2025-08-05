@@ -54,7 +54,7 @@ class TestBackpackSpotMarkets:
         assert market.symbol == SOL_USDC_BP, (
             f"Expected symbol '{SOL_USDC_BP}', got '{market.symbol}'"
         )
-        # Base and quote symbol validation removed - Market model refactored to only have symbol field
+        # Base and quote symbol validation removed - Market model refactored to only have symbol
         # The symbol itself (SOL_USDC_BP) contains both base and quote information
 
         # Validate market type (should be spot)
@@ -159,7 +159,7 @@ class TestBackpackSpotMarkets:
 
         # Validate core market fields
         assert market.symbol == BTC_USDC_BP, f"Expected symbol 'BTC_USDC', got '{market.symbol}'"
-        # Base and quote symbol validation removed - Market model refactored to only have symbol field
+        # Base and quote symbol validation removed - Market model refactored to only have symbol
         # The symbol itself (BTC_USDC_BP) contains both base and quote information
 
         # BTC should have reasonable tick and step sizes for spot trading
@@ -186,7 +186,7 @@ class TestBackpackSpotMarkets:
 
         # Validate core market fields
         assert market.symbol == ETH_USDC_BP, f"Expected symbol 'ETH_USDC', got '{market.symbol}'"
-        # Base and quote symbol validation removed - Market model refactored to only have symbol field
+        # Base and quote symbol validation removed - Market model refactored
         # The symbol itself (ETH_USDC_BP) contains both base and quote information
 
         # ETH spot market validation
@@ -280,7 +280,7 @@ class TestBackpackSpotMarkets:
             )
             assert len(market.symbol.value) > 0, "symbol should not be empty"
 
-            # Base and quote symbol validation removed - Market model refactored to only have symbol field
+            # Base and quote symbol validation removed - Market model refactored
             # Symbol validation is handled by the Symbol type itself
 
             # Validate financial constraints

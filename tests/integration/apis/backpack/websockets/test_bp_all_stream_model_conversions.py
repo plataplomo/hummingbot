@@ -765,7 +765,7 @@ class TestBackpackAllStreamModelConversions:
         """Set up WebSocket connection and get test symbol for stream integration.
 
         Returns:
-            tuple[Symbol, dict[str, list[Any]]]: Test symbol and initialized stream results dictionary.
+            tuple[Symbol, dict[str, list[Any]]]: Test symbol and stream results dict.
         """
         await bp_api_for_test_env.connect_websocket()
 

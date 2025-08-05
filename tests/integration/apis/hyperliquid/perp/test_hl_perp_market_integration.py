@@ -22,6 +22,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.models.market.market import HyperliquidMarketDetails, Market
 
 
@@ -274,8 +275,6 @@ async def test_hl_get_perp_markets_success(
         symbols_seen.add(symbol_value)
 
         # Validate symbol is Symbol object
-        from cyberdelta.core.symbols.models import BaseSymbol
-
         assert isinstance(market.symbol, BaseSymbol), (
             f"symbol should be Symbol, got {type(market.symbol)}"
         )

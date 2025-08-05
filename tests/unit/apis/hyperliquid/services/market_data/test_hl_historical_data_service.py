@@ -44,6 +44,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import FundingRate
 from cyberdelta.models.market.candle import Candle
 from tests.common_symbols import BTC_HL, ETH_HL
@@ -340,7 +341,6 @@ class TestHyperliquidHistoricalDataService:
     ) -> None:
         """Test funding rates retrieval with invalid symbols that don't exist in asset contexts."""
         # Arrange - use valid symbol format but non-existent symbols
-        from cyberdelta.core.symbols import exchanges
 
         invalid_symbol = exchanges.hyperliquid("INVALID")
         nonexistent_symbol = exchanges.hyperliquid("NONEXISTENT")

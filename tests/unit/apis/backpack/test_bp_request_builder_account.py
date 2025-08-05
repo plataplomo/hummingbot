@@ -62,7 +62,6 @@ class TestBuildGetPositionsParams:
             SOL_USDC_BP,
             BTC_USDT_BP,
             ETH_BP,
-            SOL_USDC_BP,
         ],
     )
     def test_build_get_positions_params_parametrized(self, symbol: Symbol | None) -> None:

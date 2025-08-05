@@ -33,6 +33,7 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_market_metadata_service
     HyperliquidMarketMetadataService,
 )
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market import Market
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
@@ -404,7 +405,6 @@ class TestHyperliquidMarketMetadataService:
     ) -> None:
         """Test market retrieval when symbol is not found."""
         # Arrange
-        from cyberdelta.core.symbols import exchanges
 
         args = GetMarketArgs(symbol=exchanges.hyperliquid("NONEXISTENT"))
 

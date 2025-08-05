@@ -115,9 +115,7 @@ class TestSymbolRegistry:
 
         # Should now be able to use AVAX
         # Note: Dynamic attribute access - mypy can't verify this
-        # avax_hl = symbols.AVAX.hyperliquid()
-        # avax_bp = symbols.AVAX.backpack()
-        # Instead, use getattr for dynamic access
+        # Use getattr for dynamic access instead of direct attribute access
         avax_asset = getattr(symbols, "AVAX", None)
         assert avax_asset is not None
         avax_hl = avax_asset.hyperliquid()

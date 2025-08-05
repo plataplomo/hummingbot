@@ -18,12 +18,8 @@ from cyberdelta.core.symbols import exchanges, symbols
 BTC_HL = symbols.BTC.hyperliquid()
 ETH_HL = symbols.ETH.hyperliquid()
 SOL_HL = symbols.SOL.hyperliquid()
-# These symbols are not defined in CommonSymbols yet:
-# DOGE_HL = symbols.DOGE.hyperliquid()
-# AVAX_HL = symbols.AVAX.hyperliquid()
-# MATIC_HL = symbols.MATIC.hyperliquid()
-# ADA_HL = symbols.ADA.hyperliquid()
-# DOT_HL = symbols.DOT.hyperliquid()
+# NOTE: These symbols are not defined in CommonSymbols module
+# Using exchanges API directly for these symbols
 
 # Use exchanges API directly for these:
 DOGE_HL = exchanges.hyperliquid("DOGE-PERP")
@@ -41,7 +37,7 @@ SOL_USD_HL = exchanges.hyperliquid("SOL-USD")
 BTC_BP = symbols.BTC.backpack()
 ETH_BP = symbols.ETH.backpack()
 SOL_BP = symbols.SOL.backpack()
-# DOGE_BP = symbols.DOGE.backpack()  # Not defined in CommonSymbols
+# NOTE: DOGE not defined in CommonSymbols, using exchanges API
 DOGE_BP = exchanges.backpack("DOGE_USD_PERP")
 
 # Backpack spot symbols

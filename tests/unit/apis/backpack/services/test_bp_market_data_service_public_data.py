@@ -19,6 +19,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import (
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import OrderBook, Ticker, Trade
 from tests.common_symbols import ETH_USDC_BP, SOL_USDC_BP
@@ -42,8 +43,6 @@ class TestBackpackMarketDataServicePublicData:
     ) -> None:
         """Test get_ticker raises EmptySymbolError for empty symbol."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((EmptySymbolError, ValueError, ValidationError)):
             invalid_symbol = exchanges.backpack("")
             await backpack_market_data_service.get_ticker(invalid_symbol)

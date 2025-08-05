@@ -8,10 +8,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any, Self
+from collections.abc import Callable
+from typing import Any, Self
 from unittest.mock import Mock
 
-from cyberdelta.core.symbols import Symbol
-from cyberdelta.core.symbols.models import SymbolComponents
+from cyberdelta.core.enums.enums import MarketType
+from cyberdelta.core.symbols import Symbol, symbol
+from cyberdelta.core.symbols.models import BackpackMetadata, HyperliquidMetadata, SymbolComponents
 from cyberdelta.core.symbols.protocols import ExchangeHandler
 from cyberdelta.core.symbols.registry import SymbolRegistry
 from cyberdelta.core.symbols.service import SymbolService
@@ -137,8 +140,6 @@ class MockSymbolService:
 
         # Configure create_symbol
         def create_symbol(value: str, exchange: ExchangeName, **kwargs: Any) -> Symbol:
-            from cyberdelta.core.symbols import symbol
-
             return symbol(value, exchange, **kwargs)
 
         mock.create_symbol.side_effect = create_symbol
@@ -180,8 +181,6 @@ class MockSymbolService:
             if symbol in self._components:
                 return self._components[symbol]
             # Default components
-            from cyberdelta.core.enums.enums import MarketType
-
             return SymbolComponents(
                 base_asset=symbol.value.split("-")[0].split("_")[0],
                 quote_asset="USD" if "PERP" in symbol.value else "USDC",
@@ -207,7 +206,11 @@ class MockSymbolService:
         return mock
 
     def _get_or_create_canonical(self, symbol: Symbol) -> str:
-        """Get or create canonical representation."""
+        """Get or create canonical representation.
+        
+        Returns:
+            str: Canonical representation of the symbol.
+        """
         key = (symbol.value, symbol.exchange)
         if key in self._canonical_mappings:
             return self._canonical_mappings[key]
@@ -355,11 +358,7 @@ class MockExchangeHandler:
         # Configure create_metadata
         def create_metadata(**kwargs: Any) -> Any:
             if self._exchange == ExchangeName.HYPERLIQUID:
-                from cyberdelta.core.symbols.models import HyperliquidMetadata
-
                 return HyperliquidMetadata(asset_index=kwargs.get("asset_index"))
-            from cyberdelta.core.symbols.models import BackpackMetadata
-
             return BackpackMetadata(symbol_id=kwargs.get("symbol_id"))
 
         mock.create_metadata.side_effect = create_metadata
@@ -442,8 +441,10 @@ class MockSymbolRegistry:
             if exchange in self._handlers:
                 handler = self._handlers[exchange]
 
+
                 def factory(value: str, **kwargs: Any) -> Symbol:
                     return handler.create_symbol(value, **kwargs)
+
 
                 return factory
             return None
@@ -461,6 +462,7 @@ class MockSymbolRegistry:
             exchange = ExchangeName[name.upper()]
             return get_factory(exchange)
 
+        # Use setattr to properly assign the method
         mock.__getattr__ = getattr_handler
 
         return mock

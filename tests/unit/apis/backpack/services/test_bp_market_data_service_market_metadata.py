@@ -11,6 +11,7 @@ from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarketRespo
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market import Market
 from tests.common_symbols import BTC_USDC_BP
 
@@ -66,8 +67,6 @@ class TestBackpackMarketDataServiceMarketMetadata:
         Note: Current business logic delegates to market metadata service.
         """
         # Test validation by trying to create an invalid symbol
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValidationError, ValueError)) as exc_info:
             empty_symbol = exchanges.backpack("")
             GetMarketArgs(symbol=empty_symbol)

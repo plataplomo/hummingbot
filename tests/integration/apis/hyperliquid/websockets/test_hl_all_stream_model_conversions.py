@@ -513,9 +513,8 @@ class TestHyperliquidAllStreamModelConversions:
             assert isinstance(symbol, BaseSymbol), (
                 f"Symbol should be BaseSymbol, got {type(symbol)}"
             )
-            assert hasattr(symbol, "value") and len(symbol.value) > 0, (
-                "Symbol should have a non-empty value"
-            )
+            assert hasattr(symbol, "value"), "Symbol should have a value attribute"
+            assert len(symbol.value) > 0, "Symbol value should not be empty"
             assert isinstance(price, Decimal), (
                 f"Price for {symbol} should be Decimal, got {type(price)}"
             )

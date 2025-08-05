@@ -16,28 +16,41 @@ from cyberdelta.core.symbols.models import (
 from cyberdelta.enums.exchange_names import ExchangeName
 
 
+# Type alias for metadata keyword arguments
+MetadataKwargs = dict[str, int | str | None]
+
+
 class SymbolTestFactory:
     """Enhanced factory for creating test symbols with full metadata support."""
 
     @staticmethod
-    def create_with_metadata(value: str, exchange: ExchangeName, **metadata_kwargs: Any) -> Symbol:
+    def create_with_metadata(
+        value: str, exchange: ExchangeName, **metadata_kwargs: int | str | None
+    ) -> Symbol:
         """Create symbol with specific metadata.
 
         Args:
             value: Symbol value (e.g., "BTC-PERP")
             exchange: Exchange name
             **metadata_kwargs: Exchange-specific metadata fields
-                - For Hyperliquid: asset_index
-                - For Backpack: symbol_id
+                - For Hyperliquid: asset_index (int | None)
+                - For Backpack: symbol_id (int | None)
 
         Returns:
             Symbol with proper metadata
+            
+        Raises:
+            TypeError: If metadata kwargs have invalid types
         """
         if exchange == ExchangeName.HYPERLIQUID:
             asset_index = metadata_kwargs.get("asset_index")
+            if asset_index is not None and not isinstance(asset_index, int):
+                raise TypeError(f"asset_index must be int or None, got {type(asset_index)}")
             return symbol(value, exchange, asset_index=asset_index)
         # ExchangeName.BACKPACK
         symbol_id = metadata_kwargs.get("symbol_id")
+        if symbol_id is not None and not isinstance(symbol_id, int):
+            raise TypeError(f"symbol_id must be int or None, got {type(symbol_id)}")
         return symbol(value, exchange, symbol_id=symbol_id)
 
     @staticmethod
@@ -123,7 +136,7 @@ class SymbolTestFactory:
         base_asset: str,
         quote_asset: str | None = None,
         market_type: MarketType = MarketType.PERP,
-        **metadata_kwargs: Any,
+        **metadata_kwargs: int | str | None,
     ) -> Symbol:
         """Create symbol and ensure components are set.
 

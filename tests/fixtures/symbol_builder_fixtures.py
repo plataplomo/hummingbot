@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.enums.exchange_names import ExchangeName
 from tests.builders.symbol_builders import (
     ArbitrageSymbolBuilder,
     MarketDataSymbolBuilder,
@@ -96,8 +97,6 @@ def mock_exchange_handler_factory() -> Callable[[str], MockExchangeHandler]:
     """
 
     def create_handler(exchange_name: str) -> MockExchangeHandler:
-        from cyberdelta.enums.exchange_names import ExchangeName
-
         exchange = ExchangeName[exchange_name.upper()]
         return MockExchangeHandler(exchange)
 

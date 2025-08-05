@@ -355,16 +355,20 @@ def test_tradesignal_mutability(minimal_signal_data: dict[str, Any]) -> None:
     with pytest.raises(ValidationError):
         signal.quantity = Decimal(-1)
 
-    # Modify invalidly - Type
+    # Test invalid price type - create new instance with invalid data
+    invalid_price_data = minimal_signal_data.copy()
+    invalid_price_data["price"] = "not a price"
     with pytest.raises(
         ValidationError,
         match=r"Field 'price' decimal validation failed: Cannot convert to Decimal",
     ):
-        signal.price = "not a price"  # type: ignore[assignment]
+        TradeSignal(**invalid_price_data)
 
-    # Modify invalidly - Exchange format
+    # Test invalid exchange type - create new instance with invalid data
+    invalid_exchange_data = minimal_signal_data.copy()
+    invalid_exchange_data["exchange"] = 123
     with pytest.raises(
         TypeFieldError,
         match=r"Field 'exchange' must be string or list of strings, got int",
     ):
-        signal.exchange = 123  # type: ignore[assignment]
+        TradeSignal(**invalid_exchange_data)

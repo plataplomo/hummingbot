@@ -36,6 +36,7 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder
 from cyberdelta.apis.hyperliquid.services.market_data.hl_price_ticker_service import (
     HyperliquidPriceTickerService,
 )
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName
 from cyberdelta.models import FundingRate, Ticker
 from cyberdelta.models.market.mid_prices import MidPrices
@@ -358,7 +359,6 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test ticker retrieval when symbol is not found."""
         # Arrange
-        from cyberdelta.core.symbols import exchanges
 
         symbol = exchanges.hyperliquid("NONEXISTENT")
 
@@ -381,6 +381,7 @@ class TestHyperliquidPriceTickerService:
         """Test ticker retrieval with invalid symbol."""
         # Arrange & Act & Assert
         # Test validation logic that checks for invalid symbols
+
         # These should raise validation errors due to empty/whitespace values
         with pytest.raises((ValueError, ValidationError)):
             empty_symbol = exchanges.hyperliquid("")
@@ -519,6 +520,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test funding rate retrieval when symbol is not found."""
         # Arrange
+
         symbol = exchanges.hyperliquid("NONEXISTENT")
 
         with patch.object(
@@ -539,6 +541,7 @@ class TestHyperliquidPriceTickerService:
     ) -> None:
         """Test funding rate retrieval with invalid symbol."""
         # Act & Assert
+
         with pytest.raises((ValueError, ValidationError)):
             empty_symbol = exchanges.hyperliquid("")
             await price_ticker_service.get_funding_rate(empty_symbol)

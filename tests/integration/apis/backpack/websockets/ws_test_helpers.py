@@ -28,6 +28,14 @@ from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
+from tests.common_symbols import (
+    BTC_USDC_BP,
+    BTC_USDC_PERP_BP,
+    ETH_USDC_BP,
+    ETH_USDC_PERP_BP,
+    SOL_USDC_BP,
+    SOL_USDC_PERP_BP,
+)
 
 
 logger = get_logger(__name__)
@@ -551,14 +559,6 @@ async def get_most_active_symbol(api: BackpackAPI) -> Symbol:
     ticker_volumes: list[tuple[Symbol, Decimal]] = []
 
     # Check common active pairs first - use consistent naming
-    from tests.common_symbols import (
-        BTC_USDC_BP,
-        BTC_USDC_PERP_BP,
-        ETH_USDC_BP,
-        ETH_USDC_PERP_BP,
-        SOL_USDC_BP,
-        SOL_USDC_PERP_BP,
-    )
 
     priority_symbols = [
         SOL_USDC_BP,

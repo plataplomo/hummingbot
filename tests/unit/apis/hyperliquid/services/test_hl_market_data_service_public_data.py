@@ -18,6 +18,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
+from cyberdelta.core.symbols import exchanges
+from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market import Market, OrderBook, Ticker, Trade
 from tests.common_symbols import BTC_HL, ETH_HL
 
@@ -43,8 +45,6 @@ class TestHyperliquidMarketDataServicePublicData:
     ) -> None:
         """Test get_ticker raises ValueError for empty symbol (direct validation error)."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValueError, ValidationError)):
             invalid_symbol = exchanges.hyperliquid("")
             await hyperliquid_market_data_service.get_ticker(invalid_symbol)
@@ -62,8 +62,6 @@ class TestHyperliquidMarketDataServicePublicData:
         # invalid types are passed. Alternative typing solutions like Union types would not
         # work here as we specifically want to test the error case.
         # The developer is certain this cast is safe because the test expects a ValueError.
-        from cyberdelta.core.symbols.models import Symbol
-
         none_symbol = cast(Symbol, None)
         # Runtime verification: none_symbol is None at this point
 

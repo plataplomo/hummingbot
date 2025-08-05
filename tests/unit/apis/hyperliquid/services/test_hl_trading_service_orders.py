@@ -22,6 +22,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.enums import OrderStatus
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.models.market.order import CancelOrderResult, Order
@@ -51,8 +52,6 @@ class TestHyperliquidTradingServiceOrders:
         hl_trading_service = make_hl_trading_service()
 
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
-
         with pytest.raises((ValueError, EmptyStringError)):
             invalid_symbol = exchanges.hyperliquid("")
             args = PlaceOrderArgs(

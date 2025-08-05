@@ -28,6 +28,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
@@ -196,7 +197,7 @@ class TestBackpackPerpPositionsZero:
                 # Create Symbol object even for invalid strings
                 try:
                     symbol = exchanges.backpack(symbol_str)
-                except Exception as symbol_creation_error:
+                except (ValueError, ValidationError) as symbol_creation_error:
                     # If symbol creation fails, that's also valid behavior for invalid symbols
                     logger.info(
                         "invalid_symbol_creation_failed",

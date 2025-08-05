@@ -249,7 +249,7 @@ class TestBuildInternalTransferPayload:
         assert isinstance(payload, BackpackRawInternalTransferRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         expected_payload = {
-            "symbol": sol_perp_symbol.value,  # Current implementation passes symbol as-is, no formatting
+            "symbol": sol_perp_symbol.value,  # Implementation passes symbol as-is
             "quantity": "5",
             "fromAccount": "SPOT",
             "toAccount": "FUTURES",

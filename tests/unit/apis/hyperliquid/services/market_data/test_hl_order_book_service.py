@@ -34,6 +34,7 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
     HyperliquidOrderBookService,
 )
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import OrderBook, Trade
 from tests.common_symbols import ETH_HL
@@ -229,7 +230,6 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test order book retrieval with invalid symbol."""
         # Act & Assert
-        from cyberdelta.core.symbols import exchanges
 
         # Test validation for invalid symbols
         with pytest.raises((ValueError, ValidationError)):
@@ -372,6 +372,7 @@ class TestHyperliquidOrderBookService:
     ) -> None:
         """Test recent trades retrieval with invalid symbol."""
         # Act & Assert
+
         # Test validation for invalid symbols
         with pytest.raises((ValueError, ValidationError)):
             empty_symbol = exchanges.hyperliquid("")

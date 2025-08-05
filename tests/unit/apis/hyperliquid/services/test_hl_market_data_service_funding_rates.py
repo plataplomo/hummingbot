@@ -14,6 +14,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 # Removed unused imports - tests now focus on service delegation
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetHistoricalFundingRatesArgs
+from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import FundingRate
 from tests.common_symbols import BTC_HL, ETH_HL
 
@@ -105,7 +106,6 @@ class TestHyperliquidMarketDataServiceFundingRatesIntegration:
     ) -> None:
         """Test get_funding_rate returns None when symbol is not found."""
         # Test with actual invalid symbol creation
-        from cyberdelta.core.symbols import exchanges
 
         try:
             symbol = exchanges.hyperliquid("UNKNOWN")
