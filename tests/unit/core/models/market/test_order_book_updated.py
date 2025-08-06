@@ -25,7 +25,7 @@ class TestOrderBook:
     @pytest.fixture
     def btc_symbol(self) -> Symbol:
         """Fixture providing a BTC exchange symbol.
-        
+
         Returns:
             Symbol: BTC exchange symbol.
         """
@@ -34,7 +34,7 @@ class TestOrderBook:
     @pytest.fixture
     def eth_symbol(self) -> Symbol:
         """Fixture providing an ETH exchange symbol.
-        
+
         Returns:
             Symbol: ETH exchange symbol.
         """

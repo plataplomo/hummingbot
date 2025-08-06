@@ -80,6 +80,7 @@ from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
+    MidPrices,
     Order,
     SpotBalance,
     Ticker,
@@ -702,6 +703,20 @@ class BackpackAPI(ExchangeAPI):
         # Extract Symbol object from args
         symbol = args.symbol if args else None
         return await self.trading_service.get_open_orders(symbol)
+
+    async def get_all_mids(self) -> MidPrices:
+        """Get all mid prices - not supported by Backpack.
+
+        Backpack does not provide a bulk mid prices endpoint.
+        Use individual ticker calls or order book data instead.
+
+        Raises:
+            NotImplementedError: Backpack does not support bulk mid prices.
+        """
+        raise NotImplementedError(
+            "Backpack exchange does not support get_all_mids operation. "
+            "Use get_ticker() for individual symbols or get_order_book() for pricing data."
+        )
 
     async def subscribe(self, topic: str, handler: MessageHandler) -> None:
         """Register a handler for a WebSocket topic and send subscription via WebSocketManager."""

@@ -98,11 +98,14 @@ class RiskChecker:
         # Check 4: Additional checks from config.risk.checkers if enabled
         if self._checker_config.enable_profitability:
             min_profit = self._checker_config.thresholds.min_profitability
-            expected_profit = getattr(signal, "expected_profit", None)
-            if expected_profit and expected_profit < min_profit:
-                limit_violations.append(
-                    f"Expected profit {expected_profit} below minimum {min_profit}"
-                )
+            # TradeSignal doesn't have expected_profit - calculate from take_profit if provided
+            if signal.take_profit and signal.price:
+                # Calculate expected profit percentage
+                expected_profit = (signal.take_profit - signal.price) / signal.price
+                if expected_profit < min_profit:
+                    limit_violations.append(
+                        f"Expected profit {expected_profit:.4f} below minimum {min_profit}"
+                    )
 
         # Check 5: Price sanity checks if enabled
         if self._checker_config.enable_price_sanity:

@@ -127,7 +127,7 @@ class TestSafeModeWrapper:
                 order_type=OrderType.MARKET,
                 quantity=Decimal("0.1"),
                 time_in_force=TimeInForce.GTC,
-                price=Decimal("50000.0")
+                price=Decimal("50000.0"),
             )
             result = await safe_mode_wrapper.place_order(args)
 
@@ -148,7 +148,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.05"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("51000.0")
+            price=Decimal("51000.0"),
         )
         result = await safe_mode_wrapper.place_order(args)
 
@@ -171,7 +171,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("50000.0")
+            price=Decimal("50000.0"),
         )
         result = await safe_mode_disabled_wrapper.place_order(args)
 
@@ -190,7 +190,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.LIMIT,
             quantity=Decimal("0.1"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("49000.0")
+            price=Decimal("49000.0"),
         )
         place_result = await safe_mode_wrapper.place_order(place_args)
 
@@ -198,10 +198,7 @@ class TestSafeModeWrapper:
         assert order_id is not None  # Type guard
 
         # Cancel it using CancelOrderArgs
-        cancel_args = CancelOrderArgs(
-            order_id=order_id,
-            symbol=exchanges.hyperliquid("BTC")
-        )
+        cancel_args = CancelOrderArgs(order_id=order_id, symbol=exchanges.hyperliquid("BTC"))
         cancel_result = await safe_mode_wrapper.cancel_order(cancel_args)
 
         assert cancel_result.order_id == order_id
@@ -210,10 +207,7 @@ class TestSafeModeWrapper:
     @pytest.mark.asyncio
     async def test_cancel_nonexistent_order(self, safe_mode_wrapper: SafeModeWrapper) -> None:
         """Test cancelling non-existent order in safe mode."""
-        cancel_args = CancelOrderArgs(
-            order_id="FAKE_ORDER",
-            symbol=exchanges.hyperliquid("BTC")
-        )
+        cancel_args = CancelOrderArgs(order_id="FAKE_ORDER", symbol=exchanges.hyperliquid("BTC"))
         await safe_mode_wrapper.cancel_order(cancel_args)
 
         # For fake orders, we expect no exception to be raised
@@ -229,7 +223,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.LIMIT,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("3000.0")
+            price=Decimal("3000.0"),
         )
         place_result = await safe_mode_wrapper.place_order(place_args)
 
@@ -237,10 +231,7 @@ class TestSafeModeWrapper:
         assert order_id is not None  # Type guard
 
         # Get order status using GetOrderArgs
-        get_order_args = GetOrderArgs(
-            order_id=order_id,
-            symbol=exchanges.hyperliquid("ETH")
-        )
+        get_order_args = GetOrderArgs(order_id=order_id, symbol=exchanges.hyperliquid("ETH"))
         status = await safe_mode_wrapper.get_order(get_order_args)
 
         assert status is not None
@@ -279,7 +270,7 @@ class TestSafeModeWrapper:
                 order_type=OrderType.MARKET,
                 quantity=Decimal("0.1"),
                 time_in_force=TimeInForce.GTC,
-                price=Decimal("50000.0")
+                price=Decimal("50000.0"),
             )
             result = await safe_mode_wrapper.place_order(args)
 
@@ -289,16 +280,13 @@ class TestSafeModeWrapper:
         assert order_id is not None  # Type guard
 
         # Get order status through public API using GetOrderArgs
-        get_order_args = GetOrderArgs(
-            order_id=order_id,
-            symbol=exchanges.hyperliquid("BTC")
-        )
+        get_order_args = GetOrderArgs(order_id=order_id, symbol=exchanges.hyperliquid("BTC"))
         order_data = await safe_mode_wrapper.get_order(get_order_args)
         assert order_data is not None
         assert order_data.status.value == "FILLED"
         assert order_data.quantity_filled == Decimal("0.1")
 
-        # Check balances through public API  
+        # Check balances through public API
         balances = await safe_mode_wrapper.get_balances()
         # Balance should be affected by trade
         assert len(balances) >= 1
@@ -319,7 +307,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("50000.0")
+            price=Decimal("50000.0"),
         )
         await safe_mode_wrapper.place_order(buy_args)
 
@@ -342,7 +330,7 @@ class TestSafeModeWrapper:
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("0.05"),
                 time_in_force=TimeInForce.GTC,
-                price=Decimal("51000.0")
+                price=Decimal("51000.0"),
             )
             result = await safe_mode_wrapper.place_order(sell_args)
 
@@ -352,10 +340,7 @@ class TestSafeModeWrapper:
             # Check order status through public API using GetOrderArgs
             order_id = result.exchange_order_id
             assert order_id is not None  # Type guard
-            get_order_args = GetOrderArgs(
-                order_id=order_id,
-                symbol=exchanges.hyperliquid("BTC")
-            )
+            get_order_args = GetOrderArgs(order_id=order_id, symbol=exchanges.hyperliquid("BTC"))
             order_data = await safe_mode_wrapper.get_order(get_order_args)
             assert order_data is not None
             assert order_data.status.value == "FILLED"
@@ -390,7 +375,7 @@ class TestSafeModeWrapper:
                 order_type=OrderType.LIMIT,
                 quantity=Decimal("1.0"),
                 time_in_force=TimeInForce.GTC,
-                price=Decimal("3000.0")
+                price=Decimal("3000.0"),
             )
             result = await safe_mode_wrapper.place_order(args)
 
@@ -402,10 +387,7 @@ class TestSafeModeWrapper:
             await asyncio.sleep(0.15)
 
             # Check final status through public API
-            get_order_args = GetOrderArgs(
-                order_id=order_id,
-                symbol=exchanges.hyperliquid("ETH")
-            )
+            get_order_args = GetOrderArgs(order_id=order_id, symbol=exchanges.hyperliquid("ETH"))
             order_data = await safe_mode_wrapper.get_order(get_order_args)
             assert order_data is not None
             assert order_data.status.value.upper() == "FILLED"
@@ -420,7 +402,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.MARKET,
             quantity=Decimal("10.0"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("100.0")
+            price=Decimal("100.0"),
         )
         await safe_mode_wrapper.place_order(args)
 
@@ -448,7 +430,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("50000.0")
+            price=Decimal("50000.0"),
         )
         await safe_mode_wrapper.place_order(buy_args1)
 
@@ -462,7 +444,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.MARKET,
             quantity=Decimal("0.1"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("51000.0")
+            price=Decimal("51000.0"),
         )
         await safe_mode_wrapper.place_order(buy_args2)
 
@@ -493,7 +475,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("3000.0")
+            price=Decimal("3000.0"),
         )
         await safe_mode_wrapper.place_order(buy_args)
 
@@ -507,7 +489,7 @@ class TestSafeModeWrapper:
             order_type=OrderType.MARKET,
             quantity=Decimal("1.0"),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("3100.0")
+            price=Decimal("3100.0"),
         )
         await safe_mode_wrapper.place_order(sell_args)
 

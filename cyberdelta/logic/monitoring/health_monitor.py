@@ -100,7 +100,7 @@ class HealthMonitor:
     - Type-safe service registration
     """
 
-    def __init__(self, config: AppSettings):
+    def __init__(self, config: AppSettings) -> None:
         """Initialize health monitor with configuration.
 
         Args:
@@ -259,18 +259,14 @@ class HealthMonitor:
         Returns:
             HealthCheck result with current status
 
-
-        Raises:
-            ValueError: If service not registered
-
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured thresholds for status determination
-        - Structured error handling
-        - No assumptions about service state
+        Note:
+            Following CODING_STANDARDS.md:
+            - Uses configured thresholds for status determination
+            - Structured error handling
+            - No assumptions about service state
         """
         if service_name not in self._services:
-            raise ValueError(f"Service '{service_name}' not registered for monitoring")
+            self._raise_service_not_registered_error(service_name)
 
         service = self._services[service_name]
         start_time = datetime.now(UTC)
@@ -305,9 +301,6 @@ class HealthMonitor:
                 },
             )
 
-            # Cache the result
-            self._last_checks[service_name] = health_check
-
             logger.debug(
                 "service_health_check_completed",
                 service_name=service_name,
@@ -317,16 +310,14 @@ class HealthMonitor:
                 success_count=health_data.get("success_count", 0),
             )
 
-            return health_check
-
         except TimeoutError:
-            logger.error(
+            logger.exception(
                 "service_health_check_timeout",
                 service_name=service_name,
                 timeout_sec=float(self._monitoring_config.health_check_timeout_seconds),
             )
 
-            return HealthCheck(
+            health_check = HealthCheck(
                 service_name=service_name,
                 service_type=service.get_service_type(),
                 status=HealthStatus.CRITICAL,
@@ -338,11 +329,9 @@ class HealthMonitor:
             )
 
         except Exception as e:
-            logger.error(
-                "service_health_check_error", service_name=service_name, error=str(e), exc_info=True
-            )
+            logger.exception("service_health_check_error", service_name=service_name, error=str(e))
 
-            return HealthCheck(
+            health_check = HealthCheck(
                 service_name=service_name,
                 service_type=service.get_service_type(),
                 status=HealthStatus.CRITICAL,
@@ -350,6 +339,11 @@ class HealthMonitor:
                 error_message=str(e),
                 thresholds_used={},
             )
+        else:
+            # Cache the successful result
+            self._last_checks[service_name] = health_check
+
+        return health_check
 
     async def get_system_health(self) -> SystemHealthReport:
         """Get comprehensive system health report.
@@ -366,20 +360,20 @@ class HealthMonitor:
         logger.debug("generating_system_health_report", service_count=len(self._services))
 
         # Check all registered services
-        service_checks = []
-        for service_name in self._services.keys():
+        service_checks: list[HealthCheck] = []
+        for service_name in self._services:
             try:
                 health_check = await self.check_service_health(service_name)
                 service_checks.append(health_check)
-            except Exception as e:
-                logger.error(
+            except (ValueError, TimeoutError, ConnectionError, OSError) as e:
+                logger.exception(
                     "system_health_check_service_failed", service_name=service_name, error=str(e)
                 )
                 # Create a failed health check
                 # Determine service type - try to get it from the service if possible
                 try:
                     service_type = self._services[service_name].get_service_type()
-                except Exception:
+                except (AttributeError, ValueError, TypeError):
                     # If we can't get the service type, default to a known type
                     service_type = ServiceType.PORTFOLIO  # Use a valid ServiceType
 
@@ -485,7 +479,9 @@ class HealthMonitor:
         last_activity = health_data.get("last_activity")
         if last_activity:
             if isinstance(last_activity, str):
-                last_activity = datetime.fromisoformat(last_activity.replace("Z", "+00:00"))
+                last_activity = datetime.fromisoformat(last_activity.rstrip("Z")).replace(
+                    tzinfo=UTC
+                )
 
             time_since_activity = (datetime.now(UTC) - last_activity).total_seconds()
             if time_since_activity > self._stale_threshold:
@@ -549,7 +545,6 @@ class HealthMonitor:
         critical_count = status_counts.get(HealthStatus.CRITICAL, 0)
         unhealthy_count = status_counts.get(HealthStatus.UNHEALTHY, 0)
         degraded_count = status_counts.get(HealthStatus.DEGRADED, 0)
-        # healthy_count = status_counts.get(HealthStatus.HEALTHY, 0)  # Available if needed
 
         # Use configured thresholds for overall status determination
         critical_threshold = self._thresholds.critical_service_threshold
@@ -578,7 +573,7 @@ class HealthMonitor:
         - Collects only configured metrics
         - No hardcoded system monitoring
         """
-        metrics = {
+        metrics: dict[str, Any] = {
             "timestamp": datetime.now(UTC).isoformat(),
             "registered_services": len(self._services),
             "monitoring_enabled": self._monitoring_config.notifications_enabled,
@@ -616,7 +611,7 @@ class HealthMonitor:
         - Uses configured alert thresholds
         - Returns explicit alert messages
         """
-        alerts = []
+        alerts: list[str] = []
 
         # Check for critical services
         critical_services = [
@@ -693,7 +688,7 @@ class HealthMonitor:
                 logger.info("health_monitoring_loop_cancelled")
                 break
             except Exception as e:
-                logger.error("health_monitoring_loop_error", error=str(e), exc_info=True)
+                logger.exception("health_monitoring_loop_error", error=str(e))
 
                 # Use exponential backoff from config for errors
                 error_backoff = float(self.config.execution.retry_delay_base_sec) * float(
@@ -738,3 +733,15 @@ class HealthMonitor:
             List of service names currently being monitored
         """
         return list(self._services.keys())
+
+    def _raise_service_not_registered_error(self, service_name: str) -> None:
+        """Raise an error for unregistered service.
+
+        Args:
+            service_name: Name of the unregistered service
+
+        Raises:
+            ValueError: If service is not registered
+        """
+        msg = f"Service '{service_name}' not registered for monitoring"
+        raise ValueError(msg)

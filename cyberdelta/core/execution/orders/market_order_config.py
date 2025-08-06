@@ -138,11 +138,12 @@ class MarketOrderConfig(BaseModel):
             Decimal: Configured slippage for the symbol, or default if not found
         """
         # Extract base asset from symbol for configuration lookup
-        symbol_key = (
-            symbol.base_asset
-            if hasattr(symbol, "base_asset") and symbol.base_asset
-            else symbol.value
-        )
+        try:
+            symbol_key = symbol.base_asset or symbol.value
+        except ValueError:
+            # Components not set, use symbol value as fallback
+            symbol_key = symbol.value
+
         return self.slippage_by_base_asset.get(symbol_key, self.slippage_by_base_asset["default"])
 
     def validate_slippage(self, slippage: Decimal) -> Decimal:

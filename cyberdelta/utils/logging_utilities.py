@@ -101,9 +101,18 @@ class ErrorSuppressor:
                 kwargs["occurrence_count"] = self.counts[error_key]
                 kwargs["suppressed_duration"] = self.suppress_duration
 
-            # Log the error
-            log_method = getattr(self.logger, level)
-            log_method(event, **kwargs)
+            # Log the error using type-safe method dispatch
+            if level == "debug":
+                self.logger.debug(event, **kwargs)
+            elif level == "info":
+                self.logger.info(event, **kwargs)
+            elif level == "warning":
+                self.logger.warning(event, **kwargs)
+            elif level == "error":
+                self.logger.error(event, **kwargs)
+            else:
+                # Fallback to error level for unknown levels including critical
+                self.logger.error(event, level=level, **kwargs)
 
             # Update last log time and reset count
             self.errors[error_key] = now
@@ -165,9 +174,18 @@ class SmartErrorSuppressor:
                 kwargs["occurrence_count"] = state["count"]
                 kwargs["since_last_log"] = round(now - state["last_log"], 1)
 
-            # Log the error
-            log_method = getattr(self.logger, level)
-            log_method(event, **kwargs)
+            # Log the error using type-safe method dispatch
+            if level == "debug":
+                self.logger.debug(event, **kwargs)
+            elif level == "info":
+                self.logger.info(event, **kwargs)
+            elif level == "warning":
+                self.logger.warning(event, **kwargs)
+            elif level == "error":
+                self.logger.error(event, **kwargs)
+            else:
+                # Fallback to error level for unknown levels including critical
+                self.logger.error(event, level=level, **kwargs)
 
             # Calculate next suppression duration with exponential backoff
             suppress_duration = min(

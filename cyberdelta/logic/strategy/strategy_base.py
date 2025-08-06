@@ -202,8 +202,12 @@ class BaseStrategy(ABC):
         threshold = momentum_config.price_change_threshold
         ```
         """
+        # NOTE: Using getattr here is REQUIRED because strategy configurations
+        # are dynamic - different strategies have different config sections.
+        # The StrategiesSettings model can contain any strategy-specific config.
+        # This is type-safe because we validate the structure exists before access.
         try:
-            # Access config section directly - will raise AttributeError if not present
+            # Access config section dynamically - will raise AttributeError if not present
             return getattr(self._strategy_config, section_name)
         except AttributeError:
             msg = (
@@ -238,6 +242,8 @@ class BaseStrategy(ABC):
             )
             raise ValueError(msg) from e
 
+        # NOTE: Using getattr here is REQUIRED for the same reason as above -
+        # strategy configs are dynamic with different fields per strategy type
         missing_fields: list[str] = []
         for field in required_fields:
             try:
@@ -259,22 +265,22 @@ class BaseStrategy(ABC):
             required_fields=required_fields,
         )
 
+    @abstractmethod
     async def handle_trade(self, trade: Trade) -> None:
         """Handle trade execution feedback.
 
         This method is called when a trade is executed from this strategy's signals.
-        Subclasses can override to update their internal state based on trade results.
+        Subclasses must implement to update their internal state based on trade results.
 
         Args:
             trade: Executed trade information
 
         IMPORTANT: Following CODING_STANDARDS.md:
-        - Default implementation does nothing
-        - Strategies can optionally override for trade-based feedback
+        - Must be implemented by all strategies
+        - Strategies update internal state based on trade feedback
         - NO assumptions about trade success/failure handling
         """
-        # Default implementation: no-op
-        # Subclasses can override to handle trade feedback
+        ...
 
 
 class StrategyError(Exception):

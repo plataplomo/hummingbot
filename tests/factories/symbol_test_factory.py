@@ -38,7 +38,7 @@ class SymbolTestFactory:
 
         Returns:
             Symbol with proper metadata
-            
+
         Raises:
             TypeError: If metadata kwargs have invalid types
         """

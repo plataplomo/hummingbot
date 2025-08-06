@@ -47,3 +47,9 @@ class ExecutionSettings(BaseModel):
         gt=Decimal(0),
         description="Minimal quantity to use when price is not available for sizing",
     )
+
+    # Shutdown behavior
+    cancel_on_shutdown: bool = Field(
+        default=True,
+        description="Whether to cancel all open orders on shutdown",
+    )

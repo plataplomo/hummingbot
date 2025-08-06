@@ -7,6 +7,7 @@ the configuration-first principle with no auto-discovery.
 
 from __future__ import annotations
 
+import inspect
 from typing import TYPE_CHECKING
 
 from cyberdelta.config.models import AppSettings
@@ -104,10 +105,7 @@ class StrategyRegistry:
             name: Strategy name (must match config key)
             strategy_class: Strategy class that extends BaseStrategy
 
-        Raises:
-            StrategyError: If strategy class is invalid
-
-        IMPORTANT: Following CODING_STANDARDS.md:
+        Note: Following CODING_STANDARDS.md:
         - Explicit registration only, NO auto-discovery
         - Strategy name must exactly match configuration key
         - Validates strategy class before registration
@@ -134,11 +132,6 @@ class StrategyRegistry:
 
         Raises:
             StrategyConfigurationError: If any enabled strategy cannot be initialized
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Only initializes strategies listed in config.strategies.enabled_strategies
-        - Fail fast if any enabled strategy is not available or fails to initialize
-        - NO silent skipping of failed strategies
         """
         initialized_strategies: list[BaseStrategy] = []
 
@@ -173,10 +166,11 @@ class StrategyRegistry:
         Raises:
             StrategyConfigurationError: If strategy cannot be initialized
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Strategy must be explicitly registered
-        - Strategy gets full AppSettings for configuration
-        - Fail fast if strategy class not found or initialization fails
+        Note:
+            Following CODING_STANDARDS.md:
+            - Strategy must be explicitly registered
+            - Strategy gets full AppSettings for configuration
+            - Fail fast if strategy class not found or initialization fails
         """
         if strategy_name not in self._available_strategies:
             available_names = list(self._available_strategies.keys())
@@ -196,7 +190,6 @@ class StrategyRegistry:
         try:
             # Create strategy instance with full AppSettings and market service
             # Check if strategy constructor accepts market_service parameter
-            import inspect
 
             sig = inspect.signature(strategy_class.__init__)
             params = sig.parameters
@@ -207,11 +200,7 @@ class StrategyRegistry:
                 if param.default == inspect.Parameter.empty:
                     # market_service is required
                     if not self._market_service:
-                        msg = (
-                            f"Strategy '{strategy_name}' requires market_service "
-                            f"but none provided to registry"
-                        )
-                        raise StrategyConfigurationError(msg)
+                        self._raise_missing_market_service_error(strategy_name)
                     strategy_instance = strategy_class(self.config)
                 else:
                     # market_service is optional
@@ -316,10 +305,11 @@ class StrategyRegistry:
     async def shutdown_all_strategies(self) -> None:
         """Shutdown and cleanup all active strategies.
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Graceful shutdown with proper error handling
-        - Continue cleanup even if individual strategies fail
-        - NO assumptions about shutdown order
+        Note:
+            Following CODING_STANDARDS.md:
+            - Graceful shutdown with proper error handling
+            - Continue cleanup even if individual strategies fail
+            - NO assumptions about shutdown order
         """
         strategy_names = list(self._active_strategies.keys())
 
@@ -342,15 +332,28 @@ class StrategyRegistry:
 
         logger.info("all_strategies_shutdown_completed")
 
+    def _raise_missing_market_service_error(self, strategy_name: str) -> None:
+        """Raise an error when market service is missing.
+
+        Args:
+            strategy_name: Name of the strategy that requires market service
+
+        Raises:
+            StrategyConfigurationError: Always raises with descriptive message
+        """
+        msg = f"Strategy '{strategy_name}' requires market_service but none provided to registry"
+        raise StrategyConfigurationError(msg)
+
     def get_registry_status(self) -> dict[str, object]:
         """Get current registry status and configuration.
 
         Returns:
             Dictionary with registry status information
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns structured status information
-        - Configuration context included
+        Note:
+            Following CODING_STANDARDS.md:
+            - Returns structured status information
+            - Configuration context included
         """
         return {
             "enabled_strategies": self._enabled_strategies,
@@ -403,7 +406,7 @@ class StrategyRegistry:
                     # This will raise an exception if config is invalid
                     _ = strategy_class(self.config)
                     logger.debug("strategy_config_validation_passed", strategy_name=strategy_name)
-                except Exception as e:
+                except (ValueError, StrategyConfigurationError, TypeError, AttributeError) as e:
                     validation_errors.append(
                         f"Strategy '{strategy_name}' configuration invalid: {e}"
                     )

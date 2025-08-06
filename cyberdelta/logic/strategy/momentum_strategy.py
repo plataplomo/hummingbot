@@ -21,6 +21,7 @@ from cyberdelta.logic.strategy.strategy_base import BaseStrategy, StrategyConfig
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
+from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.portfolio.state import PortfolioState
 
 
@@ -222,10 +223,9 @@ class MomentumStrategy(BaseStrategy):
         Returns:
             Price change percentage, or 0.0 if historical data unavailable
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured lookback_hours
-        - NO hardcoded timeframes or calculations
-        - Proper error handling with fallback
+        Raises:
+            StrategyConfigurationError: If market service is not available
+
         """
         # Market service is now required in constructor, so we can use it directly
 
@@ -239,17 +239,10 @@ class MomentumStrategy(BaseStrategy):
             end_time_ms = int(end_time.timestamp() * 1000)
 
             # Determine appropriate timeframe based on lookback period
-            if self._lookback_hours <= 1:
-                timeframe = "5m"  # 5-minute candles for short lookback
-            elif self._lookback_hours <= 6:
-                timeframe = "15m"  # 15-minute candles
-            elif self._lookback_hours <= 24:
-                timeframe = "1h"  # Hourly candles
-            else:
-                timeframe = "4h"  # 4-hour candles for longer lookback
+            timeframe = self._get_appropriate_timeframe(self._lookback_hours)
 
             # Fetch historical candles
-            candles = await self._market_service.get_historical_candles(
+            candles_result = await self._market_service.get_historical_candles(
                 symbol=self._target_symbol,
                 exchange=self._target_exchange,
                 timeframe=timeframe,
@@ -257,20 +250,38 @@ class MomentumStrategy(BaseStrategy):
                 end_time_ms=end_time_ms,
             )
 
-            if not candles or len(candles) < 2:
+            if candles_result is None:
+                logger.warning(
+                    "momentum_no_historical_data",
+                    strategy_name=self.name,
+                    symbol=self._target_symbol.value,
+                    exchange=self._target_exchange.value,
+                )
+                msg = f"No historical data for {self._target_symbol.value}"
+                self._raise_config_error(msg)
+
+            # Type narrowing - after error raised above, candles_result cannot be None
+            # Using type guard instead of assert for production code
+            if candles_result is None:  # This should never happen due to raise above
+                logger.error("momentum_unexpected_none_candles")
+                return Decimal(0)
+
+            candles = candles_result
+
+            min_candles_required = 2
+            if len(candles) < min_candles_required:
                 logger.warning(
                     "momentum_insufficient_historical_data",
                     strategy_name=self.name,
                     symbol=self._target_symbol.value,
                     exchange=self._target_exchange.value,
-                    candle_count=len(candles) if candles else 0,
+                    candle_count=len(candles),
                 )
-                # Raise error as suggested instead of returning 0
                 msg = (
                     f"Insufficient historical data for {self._target_symbol.value}. "
-                    f"Need at least 2 candles, got {len(candles) if candles else 0}"
+                    f"Need at least 2 candles, got {len(candles)}"
                 )
-                raise StrategyConfigurationError(msg)
+                self._raise_config_error(msg)
 
             # Get the price from the oldest candle in our range
             # Use close price from candle (Candle model has close, not price)
@@ -284,7 +295,7 @@ class MomentumStrategy(BaseStrategy):
                     oldest_price=oldest_price,
                 )
                 msg = "Historical candle has invalid price data"
-                raise StrategyConfigurationError(msg)
+                self._raise_config_error(msg)
 
             # Calculate percentage change
             price_change = current_price - oldest_price
@@ -302,8 +313,6 @@ class MomentumStrategy(BaseStrategy):
                 candle_count=len(candles),
             )
 
-            return price_change_pct
-
         except StrategyConfigurationError:
             # Re-raise configuration errors
             raise
@@ -316,6 +325,8 @@ class MomentumStrategy(BaseStrategy):
             # Re-raise with context as suggested
             msg = f"Failed to fetch or process historical data: {e}"
             raise StrategyConfigurationError(msg) from e
+        else:
+            return price_change_pct
 
     def _generate_momentum_signal(
         self,
@@ -339,10 +350,7 @@ class MomentumStrategy(BaseStrategy):
         - Returns proper typed TradeSignal
         """
         # Check if we have a current position
-        has_position = (
-            current_position is not None
-            and current_position.size != 0
-        )
+        has_position = current_position is not None and current_position.size != 0
 
         # Determine signal side based on momentum and position
         signal_side = None
@@ -456,3 +464,64 @@ class MomentumStrategy(BaseStrategy):
         # as it doesn't maintain persistent resources
 
         logger.info("momentum_strategy_cleanup_completed", strategy_name=self.name)
+
+    def _raise_config_error(self, message: str) -> None:
+        """Raise a configuration error.
+
+        Args:
+            message: Error message
+
+        Raises:
+            StrategyConfigurationError: Always raises with the provided message
+        """
+        raise StrategyConfigurationError(message)
+
+    def _get_appropriate_timeframe(self, lookback_hours: float) -> str:
+        """Determine appropriate candle timeframe based on lookback period.
+
+        Args:
+            lookback_hours: Number of hours to look back
+
+        Returns:
+            Timeframe string for candle data
+        """
+        hours_short = 1
+        hours_medium = 6
+        hours_long = 24
+
+        if lookback_hours <= hours_short:
+            return "5m"  # 5-minute candles for short lookback
+        if lookback_hours <= hours_medium:
+            return "15m"  # 15-minute candles
+        if lookback_hours <= hours_long:
+            return "1h"  # Hourly candles
+        return "4h"  # 4-hour candles for longer lookback
+
+    def _raise_data_error(self, error: Exception) -> None:
+        """Raise a data processing error.
+
+        Args:
+            error: Original exception
+
+        Raises:
+            StrategyConfigurationError: Always raises with wrapped error
+        """
+        msg = f"Failed to fetch or process historical data: {error}"
+        raise StrategyConfigurationError(msg) from error
+
+    async def handle_trade(self, trade: Trade) -> None:
+        """Handle trade execution feedback.
+
+        For momentum strategy, we can update our internal state based on trade results.
+
+        Args:
+            trade: Executed trade information
+        """
+        logger.info(
+            "momentum_strategy_trade_handled",
+            strategy_name=self.name,
+            trade_id=trade.id,
+            symbol=trade.symbol.value if trade.symbol else None,
+            side=trade.side.value if trade.side else None,
+            quantity=float(trade.quantity) if trade.quantity else None,
+        )

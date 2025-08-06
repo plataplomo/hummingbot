@@ -72,6 +72,7 @@ from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
+    MidPrices,
     SpotBalance,
     Ticker,
     Trade,
@@ -1067,3 +1068,12 @@ class HyperliquidAPI(ExchangeAPI):
             List of open Order objects
         """
         return await self.trading_service.get_all_open_orders(args=args)
+
+    async def get_all_mids(self) -> MidPrices:
+        """Get all mid prices for efficient market order pricing.
+
+        Returns:
+            MidPrices object containing mid price data for all available symbols.
+            This is used for reference pricing in market order calculations.
+        """
+        return await self.market_data_service.get_all_mids()

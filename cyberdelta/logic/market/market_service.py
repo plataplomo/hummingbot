@@ -249,17 +249,7 @@ class MarketDataService:
             )
 
             # Call the market data method directly on the API client
-            candles = await api_client.get_market_data(args)
-
-            logger.info(
-                "historical_data_fetched",
-                symbol=symbol.value,
-                exchange=exchange.value,
-                timeframe=timeframe,
-                candle_count=len(candles) if candles else 0,
-            )
-
-            return candles
+            return await api_client.get_market_data(args)
 
         except Exception as e:
             logger.exception(

@@ -171,7 +171,7 @@ class PositionSizer:
         """
         # Simplified Kelly implementation using signal confidence
         # In production, this would use historical win rate and profit/loss ratios
-        confidence = getattr(signal, "confidence", Decimal("0.5"))
+        confidence = Decimal(str(signal.confidence)) if signal.confidence else Decimal("0.5")
 
         # Kelly fraction = (bp - q) / b where:
         # b = odds received on the wager (profit/loss ratio)

@@ -4,9 +4,7 @@ This service calculates aggressive prices for market order execution and
 manages the business logic for converting market orders into IoC limit orders.
 """
 
-from collections.abc import Awaitable, Callable
 from decimal import ROUND_DOWN, Decimal
-from typing import Any, cast
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs
@@ -20,7 +18,7 @@ from cyberdelta.core.execution.orders.market_order_errors import (
 )
 from cyberdelta.core.symbols import Symbol, exchanges
 from cyberdelta.enums import ExchangeName, OrderSide
-from cyberdelta.models import MidPrices, OrderBook
+from cyberdelta.models import OrderBook
 
 
 logger = get_logger(__name__)
@@ -32,18 +30,18 @@ class MarketOrderService:
     def __init__(
         self,
         exchange_api: ExchangeAPI,
-        signal_generator: Any | None = None,
+        # No signal generator - slippage handled by config
         config: MarketOrderConfig | None = None,
     ) -> None:
         """Initialize MarketOrderService.
 
         Args:
             exchange_api: Exchange API instance for market data access
-            signal_generator: Optional signal generator for slippage estimation
+            # Slippage estimation handled by configuration
             config: Market order configuration
         """
         self._exchange = exchange_api
-        self._signal_generator = signal_generator
+        # Slippage estimation handled by configuration
         self._config = config or MarketOrderConfig()
 
     async def calculate_aggressive_price(
@@ -144,29 +142,7 @@ class MarketOrderService:
         Returns:
             Decimal: Estimated slippage percentage
         """
-        # Use signal generator if available
-        if self._signal_generator:
-            try:
-                return Decimal(
-                    str(
-                        self._signal_generator.estimate_slippage(
-                            exchange=self._exchange.exchange_name,
-                            symbol=symbol,
-                            size=quantity,
-                        )
-                    )
-                )
-            except (ValueError, TypeError, AttributeError) as e:
-                logger.warning(
-                    "slippage_estimation_fallback",
-                    error=str(e),
-                    message=(
-                        "Failed to estimate slippage using SignalGenerator, "
-                        "falling back to config default"
-                    ),
-                )
-
-        # Fallback to configured default
+        # Use configured slippage - no external signal generator
         return self._config.get_slippage_for_symbol(symbol)
 
     def _validate_price_bounds(
@@ -224,14 +200,11 @@ class MarketOrderService:
                 if self._exchange.exchange_name == "hyperliquid"
                 else ExchangeName.BACKPACK
             )
-            # Dynamically call the appropriate exchange method
-            try:
-                exchange_method = getattr(exchanges, exchange_name.value.lower())
-                exchange_symbol = exchange_method(value=symbol, exchange_id=exchange_name)
-            except AttributeError as e:
-                raise MarketOrderError(
-                    f"Exchange method for {exchange_name.value} not found"
-                ) from e
+            # Get the appropriate exchange symbol using type-safe method
+            if exchange_name == ExchangeName.HYPERLIQUID:
+                exchange_symbol = exchanges.hyperliquid(value=symbol.value)
+            else:  # ExchangeName.BACKPACK
+                exchange_symbol = exchanges.backpack(value=symbol.value)
             market = await self._exchange.get_market(GetMarketArgs(symbol=exchange_symbol))
         except MarketOrderError:
             raise
@@ -290,14 +263,11 @@ class MarketOrderService:
                 if self._exchange.exchange_name == "hyperliquid"
                 else ExchangeName.BACKPACK
             )
-            # Dynamically call the appropriate exchange method
-            try:
-                exchange_method = getattr(exchanges, exchange_name.value.lower())
-                exchange_symbol = exchange_method(value=symbol, exchange_id=exchange_name)
-            except AttributeError as e:
-                raise MarketOrderError(
-                    f"Exchange method for {exchange_name.value} not found"
-                ) from e
+            # Get the appropriate exchange symbol using type-safe method
+            if exchange_name == ExchangeName.HYPERLIQUID:
+                exchange_symbol = exchanges.hyperliquid(value=symbol.value)
+            else:  # ExchangeName.BACKPACK
+                exchange_symbol = exchanges.backpack(value=symbol.value)
             market = await self._exchange.get_market(GetMarketArgs(symbol=exchange_symbol))
         except MarketOrderError:
             raise
@@ -351,14 +321,17 @@ class MarketOrderService:
             return None
 
         try:
-            # Check if exchange supports get_all_mids
-            if hasattr(self._exchange, "get_all_mids"):
-                get_all_mids_method = getattr(self._exchange, "get_all_mids", None)
-                if get_all_mids_method and callable(get_all_mids_method):
-                    # Type assertion for dynamic method
-                    typed_method = cast("Callable[[], Awaitable[MidPrices]]", get_all_mids_method)
-                    all_mids = await typed_method()
-                    return all_mids.get(symbol)
+            # Use the standard ExchangeAPI get_all_mids method
+            all_mids = await self._exchange.get_all_mids()
+            return all_mids.get(symbol)
+        except NotImplementedError:
+            # Exchange doesn't support get_all_mids (e.g., Backpack)
+            logger.debug(
+                "allmids_not_supported",
+                exchange=self._exchange.exchange_name,
+                message=f"Exchange {self._exchange.exchange_name} does not support get_all_mids",
+            )
+            return None
         except MarketOrderError:
             raise
         except (ValueError, TypeError, AttributeError, OSError) as e:

@@ -252,7 +252,10 @@ class TradingService(HealthCheckable):
 
         # Calculate percent of equity placeholder (would be from portfolio)
         # Using config value for now
-        percent_of_equity = Decimal(str(self.config.risk.sizing.simple_fixed_fraction * 100))
+        # Convert fraction to percentage (e.g., 0.01 -> 1%)
+        percent_factor = Decimal(100)
+        fraction = Decimal(str(self.config.risk.sizing.simple_fixed_fraction))
+        percent_of_equity = fraction * percent_factor
 
         position_size = PositionSize(
             value_usd=Decimal(str(position_value)),

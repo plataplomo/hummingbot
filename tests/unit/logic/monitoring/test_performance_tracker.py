@@ -21,7 +21,7 @@ from cyberdelta.models.market.trade import Trade
 @pytest.fixture
 def mock_config() -> MagicMock:
     """Create mock configuration for testing.
-    
+
     Returns:
         MagicMock: Mock configuration for testing.
     """
@@ -51,7 +51,7 @@ def mock_config() -> MagicMock:
 @pytest.fixture
 def mock_portfolio_service() -> AsyncMock:
     """Create mock portfolio service.
-    
+
     Returns:
         AsyncMock: Mock portfolio service.
     """
@@ -66,7 +66,7 @@ def performance_tracker(
     mock_config: MagicMock, mock_portfolio_service: AsyncMock
 ) -> PerformanceTracker:
     """Create performance tracker instance.
-    
+
     Returns:
         PerformanceTracker: Performance tracker instance.
     """
@@ -76,7 +76,7 @@ def performance_tracker(
 @pytest.fixture
 def sample_trade() -> Trade:
     """Create sample trade for testing.
-    
+
     Returns:
         Trade: Sample trade for testing.
     """
@@ -103,7 +103,7 @@ class TestPerformanceTracker:
         tracker = PerformanceTracker(mock_config, mock_portfolio_service)
 
         assert tracker.config == mock_config
-        
+
         # Use public API to verify configuration
         summary = tracker.get_metrics_summary()
         enabled_metrics = cast(list[str], summary["enabled_metrics"])
@@ -271,7 +271,7 @@ class TestPerformanceTracker:
         await performance_tracker.update_equity_curve(now - timedelta(days=6), equity)
 
         for i, daily_return in enumerate(daily_returns):
-            equity *= (Decimal(1) + daily_return)
+            equity *= Decimal(1) + daily_return
             await performance_tracker.update_equity_curve(now - timedelta(days=5 - i), equity)
 
         # Calculate metrics
@@ -334,18 +334,14 @@ class TestPerformanceTracker:
         if "daily_return" in enabled_metrics:
             assert metrics.daily_return_pct is not None
             # (12000 - 11800) / 11800 * 100 ≈ 1.69%
-            expected_daily = (
-                (Decimal(12000) - Decimal(11800)) / Decimal(11800) * Decimal(100)
-            )
+            expected_daily = (Decimal(12000) - Decimal(11800)) / Decimal(11800) * Decimal(100)
             assert abs(metrics.daily_return_pct - expected_daily) < Decimal("0.1")
 
         # Check weekly return if enabled
         if "weekly_return" in enabled_metrics:
             assert metrics.weekly_return_pct is not None
             # (12000 - 11500) / 11500 * 100 ≈ 4.35%
-            expected_weekly = (
-                (Decimal(12000) - Decimal(11500)) / Decimal(11500) * Decimal(100)
-            )
+            expected_weekly = (Decimal(12000) - Decimal(11500)) / Decimal(11500) * Decimal(100)
             assert abs(metrics.weekly_return_pct - expected_weekly) < Decimal("0.1")
 
     @pytest.mark.asyncio

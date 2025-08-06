@@ -141,6 +141,9 @@ class RiskLimitsSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    # Enable/disable limits checking
+    enabled: bool = Field(default=True, description="Enable risk limit checks")
+
     # Position count limits
     max_positions_per_symbol: int = Field(default=5, gt=0, le=100)
     max_positions_total: int = Field(default=20, gt=0, le=1000)

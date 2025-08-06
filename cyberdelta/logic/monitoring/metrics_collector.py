@@ -52,6 +52,8 @@ class MetricsSnapshot(BaseModel):
     collection_duration_ms: Decimal
 
     class Config:
+        """Pydantic configuration allowing arbitrary types."""
+
         arbitrary_types_allowed = True
 
 
@@ -71,7 +73,7 @@ class MetricsCollector:
     - Type-safe metric handling
     """
 
-    def __init__(self, config: AppSettings):
+    def __init__(self, config: AppSettings) -> None:
         """Initialize metrics collector with configuration.
 
         Args:
@@ -169,15 +171,19 @@ class MetricsCollector:
         Args:
             provider: Object that implements get_metrics() method
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Explicit provider registration
-        - NO auto-discovery
-        - Type checking for required methods
+        Note:
+            Following CODING_STANDARDS.md:
+            - Explicit provider registration
+            - NO auto-discovery
+            - Type checking for required methods
         """
-        if not hasattr(provider, "get_metrics"):
-            raise ValueError(
-                f"Metrics provider {type(provider).__name__} must implement get_metrics() method"
-            )
+        # MetricsProvider protocol ensures get_metrics() method exists
+        # No need for hasattr check - type system handles this
+        try:
+            # Verify the provider has the required method by checking protocol compliance
+            _ = provider.get_metrics
+        except AttributeError:
+            self._raise_invalid_provider_error(provider)
 
         self._metric_providers.append(provider)
 
@@ -254,11 +260,10 @@ class MetricsCollector:
                     collected_metrics.extend(provider_metrics)
 
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         "metrics_provider_error",
                         provider_type=type(provider).__name__,
                         error=str(e),
-                        exc_info=True,
                     )
                     # Continue with other providers
 
@@ -292,11 +297,11 @@ class MetricsCollector:
                 providers_checked=len(self._metric_providers),
             )
 
-            return snapshot
-
         except Exception as e:
-            logger.error("metrics_collection_error", error=str(e), exc_info=True)
+            logger.exception("metrics_collection_error", error=str(e))
             raise
+        else:
+            return snapshot
 
     async def _collection_loop(self) -> None:
         """Main metrics collection loop.
@@ -338,11 +343,10 @@ class MetricsCollector:
                 break
             except Exception as e:
                 self._collection_errors += 1
-                logger.error(
+                logger.exception(
                     "metrics_collection_loop_error",
                     error=str(e),
                     collection_errors=self._collection_errors,
-                    exc_info=True,
                 )
 
                 # Brief delay before retrying - could be configurable
@@ -364,27 +368,25 @@ class MetricsCollector:
         - NO assumptions about provider interface
         - Converts provider data to typed metrics
         """
+        provider_timeout = float(self.config.monitoring.health_check_interval_seconds)
         try:
             # Call provider with timeout
-            provider_timeout = float(self.config.monitoring.health_check_interval_seconds)
             raw_metrics = await asyncio.wait_for(provider.get_metrics(), timeout=provider_timeout)
 
-            metrics = []
+            metrics: list[MetricValue] = []
 
-            if isinstance(raw_metrics, dict):
-                for name, value in raw_metrics.items():
-                    if isinstance(value, (int, float, Decimal)):
-                        metrics.append(
-                            MetricValue(
-                                name=f"{type(provider).__name__.lower()}.{name}",
-                                value=Decimal(str(value)),
-                                metric_type=MetricType.GAUGE,  # Default type
-                                timestamp=datetime.now(UTC),
-                                tags={"provider": type(provider).__name__},
-                            )
+            # Protocol guarantees this returns dict[str, Any]
+            for name, value in raw_metrics.items():
+                if isinstance(value, (int, float, Decimal)):
+                    metrics.append(
+                        MetricValue(
+                            name=f"{type(provider).__name__.lower()}.{name}",
+                            value=Decimal(str(value)),
+                            metric_type=MetricType.GAUGE,  # Default type
+                            timestamp=datetime.now(UTC),
+                            tags={"provider": type(provider).__name__},
                         )
-
-            return metrics
+                    )
 
         except TimeoutError:
             logger.warning(
@@ -394,13 +396,14 @@ class MetricsCollector:
             )
             return []
         except Exception as e:
-            logger.error(
+            logger.exception(
                 "metrics_provider_collection_error",
                 provider_type=type(provider).__name__,
                 error=str(e),
-                exc_info=True,
             )
             return []
+        else:
+            return metrics
 
     async def _cleanup_old_metrics(self) -> None:
         """Clean up old metrics based on retention policy.
@@ -485,13 +488,23 @@ class MetricsCollector:
         Returns:
             List of metric values over time
         """
-        history = []
+        history: list[MetricValue] = []
         start_time = since or (datetime.now(UTC) - timedelta(hours=24))
 
         for snapshot in self._metric_history:
             if snapshot.timestamp >= start_time:
-                for metric in snapshot.metrics:
-                    if metric.name == metric_name:
-                        history.append(metric)
+                history.extend(metric for metric in snapshot.metrics if metric.name == metric_name)
 
         return history
+
+    def _raise_invalid_provider_error(self, provider: MetricsProvider) -> None:
+        """Raise an error for invalid provider.
+
+        Args:
+            provider: The invalid provider
+
+        Raises:
+            ValueError: If provider is invalid
+        """
+        msg = f"Metrics provider {type(provider).__name__} must implement get_metrics() method"
+        raise ValueError(msg)

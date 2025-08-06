@@ -17,7 +17,7 @@ from cyberdelta.logic.risk.limit_checker import LimitChecker
 from cyberdelta.logic.risk.portfolio_analyzer import PortfolioAnalyzer
 from cyberdelta.logic.risk.position_sizer import PositionSizer
 from cyberdelta.logic.risk.risk_checker import RiskChecker
-from cyberdelta.models import TradeSignal
+from cyberdelta.models import DerivativePosition, TradeSignal
 from cyberdelta.models.risk.assessment import PositionSize, RiskAssessment
 
 
@@ -97,7 +97,7 @@ class RiskService:
                 if isinstance(signal.exchange, list)
                 else signal.exchange.value
             ),
-            side=signal.side.value if hasattr(signal.side, "value") else str(signal.side),
+            side=signal.side.value,
         )
 
         try:
@@ -120,7 +120,7 @@ class RiskService:
 
             # Calculate max loss estimate
             max_loss_usd = self._risk_checker.calculate_max_loss(
-                position_size, signal.price, getattr(signal, "stop_loss", None)
+                position_size, signal.price, signal.stop_loss
             )
 
             assessment = RiskAssessment(
@@ -155,7 +155,7 @@ class RiskService:
         self,
         signal: TradeSignal,
         exchange_name: ExchangeName,
-        position: object,
+        position: DerivativePosition | None,
         position_size: PositionSize,
     ) -> list[str]:
         """Run all risk checks and return violations.
@@ -220,10 +220,11 @@ class RiskService:
             portfolio_value: Current portfolio value (if None, fetches from service)
 
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Delegates to DrawdownMonitor for calculations
-        - NO assumptions about value availability
-        - Should be called regularly to maintain accurate monitoring
+        Note:
+            Following CODING_STANDARDS.md:
+            - Delegates to DrawdownMonitor for calculations
+            - NO assumptions about value availability
+            - Should be called regularly to maintain accurate monitoring
         """
         try:
             await self._drawdown_monitor.update_portfolio_value(portfolio_value)
@@ -240,9 +241,10 @@ class RiskService:
             Dictionary with drawdown status and configuration
 
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns structured status from DrawdownMonitor
-        - Configuration context included
+        Note:
+            Following CODING_STANDARDS.md:
+            - Returns structured status from DrawdownMonitor
+            - Configuration context included
         """
         return self._drawdown_monitor.get_drawdown_status()
 
@@ -253,9 +255,10 @@ class RiskService:
             True if drawdown exceeds configured limits
 
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses DrawdownMonitor state
-        - NO assumptions about violation handling
+        Note:
+            Following CODING_STANDARDS.md:
+            - Uses DrawdownMonitor state
+            - NO assumptions about violation handling
         """
         return self._drawdown_monitor.is_drawdown_violated()
 
@@ -266,18 +269,20 @@ class RiskService:
             Maximum drawdown percentage, None if insufficient data
 
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns Decimal, NOT float
-        - Based on configured lookback period
+        Note:
+            Following CODING_STANDARDS.md:
+            - Returns Decimal, NOT float
+            - Based on configured lookback period
         """
         return await self._drawdown_monitor.get_historical_max_drawdown()
 
     def reset_drawdown_tracking(self) -> None:
         """Reset drawdown tracking state.
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Explicit state reset for emergency situations
-        - Logs reset action for audit trail
+        Note:
+            Following CODING_STANDARDS.md:
+            - Explicit state reset for emergency situations
+            - Logs reset action for audit trail
         """
         logger.warning("risk_service_drawdown_reset_requested", reason="manual_intervention")
         self._drawdown_monitor.reset_drawdown_tracking()

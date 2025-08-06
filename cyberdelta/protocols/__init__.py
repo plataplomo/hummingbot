@@ -25,13 +25,13 @@ from .infrastructure.monitoring import HealthCheckable
 __all__ = [
     # Portfolio domain protocols
     "BalanceManagerProtocol",
+    # Infrastructure protocols
+    "HealthCheckable",
     "PnLCalculatorProtocol",
     "PortfolioStateManagerProtocol",
     "PortfolioStorageProtocol",
     "PositionManagerProtocol",
     "ReconciliationEngineProtocol",
-    # Infrastructure protocols
-    "HealthCheckable",
     # Storage exceptions
     "StorageError",
 ]

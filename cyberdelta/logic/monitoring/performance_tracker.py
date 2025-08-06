@@ -9,17 +9,25 @@ from __future__ import annotations
 import math
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
+from cyberdelta.enums.trading import OrderSide
 from cyberdelta.models.market.trade import Trade
 
 
+if TYPE_CHECKING:
+    from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
+    from cyberdelta.models.portfolio.state import PortfolioState
+
+
 logger = get_logger(__name__)
+
+# Constants for statistical calculations
+MIN_DATA_POINTS_FOR_METRICS = 2
 
 
 class PerformanceMetrics(BaseModel):
@@ -95,7 +103,7 @@ class PerformanceTracker:
         self,
         config: AppSettings,
         portfolio_service: PortfolioService,
-    ):
+    ) -> None:
         """Initialize performance tracker with configuration.
 
         Args:
@@ -173,70 +181,20 @@ class PerformanceTracker:
             base_currency=self.config.calculation.base_currency,
         )
 
-        # Calculate optional metrics based on enabled_metrics
-        if "realized_pnl" in self._enabled_metrics:
-            metrics.realized_pnl = await self._calculate_realized_pnl(period_start, period_end)
+        # Calculate optional metrics based on configuration
+        await self._calculate_pnl_metrics(metrics, period_start, period_end, portfolio_state)
+        await self._calculate_return_metrics(metrics)
+        await self._calculate_risk_metrics(metrics, period_start, period_end)
+        await self._calculate_trading_metrics(metrics, period_start, period_end)
 
-        if "unrealized_pnl" in self._enabled_metrics:
-            metrics.unrealized_pnl = await self._calculate_unrealized_pnl(portfolio_state)
-
-        # Period returns
-        if "daily_return" in self._enabled_metrics:
-            metrics.daily_return_pct = await self._calculate_period_return(1)
-
-        if "weekly_return" in self._enabled_metrics:
-            metrics.weekly_return_pct = await self._calculate_period_return(7)
-
-        if "monthly_return" in self._enabled_metrics:
-            metrics.monthly_return_pct = await self._calculate_period_return(30)
-
-        if "yearly_return" in self._enabled_metrics:
-            metrics.yearly_return_pct = await self._calculate_period_return(365)
-
-        # Risk metrics
-        if "sharpe_ratio" in self._enabled_metrics:
-            metrics.sharpe_ratio = await self._calculate_sharpe_ratio(period_start, period_end)
-
-        if "sortino_ratio" in self._enabled_metrics:
-            metrics.sortino_ratio = await self._calculate_sortino_ratio(period_start, period_end)
-
-        if "max_drawdown" in self._enabled_metrics:
-            drawdown_data = await self._calculate_drawdown(period_start, period_end)
-            metrics.max_drawdown_pct = drawdown_data["max_drawdown"]
-            metrics.max_drawdown_duration_days = drawdown_data["max_duration_days"]
-            metrics.current_drawdown_pct = drawdown_data["current_drawdown"]
-
-        # Trading metrics
-        if "win_rate" in self._enabled_metrics or "profit_factor" in self._enabled_metrics:
-            trading_stats = await self._calculate_trading_statistics(period_start, period_end)
-
-            if "win_rate" in self._enabled_metrics:
-                metrics.total_trades = trading_stats["total_trades"]
-                metrics.winning_trades = trading_stats["winning_trades"]
-                metrics.losing_trades = trading_stats["losing_trades"]
-                metrics.win_rate_pct = trading_stats["win_rate"]
-                metrics.average_win = trading_stats["average_win"]
-                metrics.average_loss = trading_stats["average_loss"]
-
-            if "profit_factor" in self._enabled_metrics:
-                metrics.profit_factor = trading_stats["profit_factor"]
-
-        # Statistical metrics
-        if "volatility" in self._enabled_metrics:
-            metrics.volatility_pct = await self._calculate_volatility(period_start, period_end)
-
-        if "beta" in self._enabled_metrics:
-            metrics.beta = await self._calculate_beta(period_start, period_end)
-
-        if "alpha" in self._enabled_metrics:
-            metrics.alpha = await self._calculate_alpha(period_start, period_end)
+        await self._calculate_statistical_metrics(metrics, period_start, period_end)
 
         logger.info(
             "performance_metrics_calculated",
             total_pnl=float(total_pnl),
             total_return_pct=float(total_return_pct),
             period_days=period_days,
-            metrics_calculated=sum(1 for k, v in metrics.model_dump().items() if v is not None),
+            metrics_calculated=sum(1 for _, v in metrics.model_dump().items() if v is not None),
         )
 
         return metrics
@@ -263,7 +221,7 @@ class PerformanceTracker:
         realized_pnl = Decimal(0)
         for trade in trades:
             trade_pnl = trade.quantity * (
-                trade.price if trade.side.value == "sell" else -trade.price
+                trade.price if trade.side == OrderSide.SELL else -trade.price
             )
 
             # Include fees if configured
@@ -272,10 +230,10 @@ class PerformanceTracker:
 
             realized_pnl += trade_pnl
 
-        # Add unrealized PnL if available
+        # Calculate unrealized PnL from current positions
         portfolio_state = await self._portfolio_service.get_state()
-        if portfolio_state and hasattr(portfolio_state, "total_unrealized_pnl"):
-            unrealized_pnl = portfolio_state.total_unrealized_pnl or Decimal(0)
+        if portfolio_state:
+            unrealized_pnl = await self._calculate_unrealized_pnl_from_positions(portfolio_state)
             return realized_pnl + unrealized_pnl
 
         return realized_pnl
@@ -439,7 +397,7 @@ class PerformanceTracker:
             trade_pnl = (
                 trade.quantity
                 * trade.price
-                * (Decimal(1) if trade.side.value == "sell" else Decimal(-1))
+                * (Decimal(1) if trade.side == OrderSide.SELL else Decimal(-1))
             )
 
             if self._include_fees:
@@ -499,10 +457,10 @@ class PerformanceTracker:
         # Add new data point
         self._equity_curve.append((timestamp, equity))
 
-        # Trim old data based on config
-        if hasattr(self._metrics_config, "max_history_days"):
-            cutoff = datetime.now(UTC) - timedelta(days=self._metrics_config.max_history_days)
-            self._equity_curve = [(ts, eq) for ts, eq in self._equity_curve if ts >= cutoff]
+        # Trim old data based on calculation period to prevent unbounded growth
+        max_days = self._calculation_period * 3  # Keep 3x calculation period
+        cutoff = datetime.now(UTC) - timedelta(days=max_days)
+        self._equity_curve = [(ts, eq) for ts, eq in self._equity_curve if ts >= cutoff]
 
         logger.debug(
             "equity_curve_updated",
@@ -524,21 +482,29 @@ class PerformanceTracker:
         """
         self._trade_history.append(trade)
 
-        # Trim old trades based on config
-        if hasattr(self._metrics_config, "max_history_days"):
-            cutoff = datetime.now(UTC) - timedelta(days=self._metrics_config.max_history_days)
-            self._trade_history = [t for t in self._trade_history if t.executed_at >= cutoff]
+        # Trim old trades based on calculation period to prevent unbounded growth
+        max_days = self._calculation_period * 3  # Keep 3x calculation period
+        cutoff = datetime.now(UTC) - timedelta(days=max_days)
+        self._trade_history = [t for t in self._trade_history if t.executed_at >= cutoff]
 
     # Helper methods (private)
 
     async def _get_trades_in_period(
         self, period_start: datetime, period_end: datetime
     ) -> list[Trade]:
-        """Get trades within specified period."""
+        """Get trades within specified period.
+
+        Returns:
+            List of trades in the specified period
+        """
         return [t for t in self._trade_history if period_start <= t.executed_at <= period_end]
 
     async def _get_equity_at_time(self, timestamp: datetime) -> Decimal | None:
-        """Get equity value at specific time."""
+        """Get equity value at specific time.
+
+        Returns:
+            Equity value at timestamp, or None if not found
+        """
         # Find closest equity value
         for ts, equity in reversed(self._equity_curve):
             if ts <= timestamp:
@@ -548,8 +514,12 @@ class PerformanceTracker:
     async def _get_daily_returns(
         self, period_start: datetime, period_end: datetime
     ) -> list[Decimal]:
-        """Calculate daily returns for period."""
-        daily_returns = []
+        """Calculate daily returns for period.
+
+        Returns:
+            List of daily returns as Decimal values
+        """
+        daily_returns: list[Decimal] = []
 
         # Get equity values in period
         period_data = [
@@ -570,13 +540,21 @@ class PerformanceTracker:
     async def _get_equity_curve(
         self, period_start: datetime, period_end: datetime
     ) -> list[tuple[datetime, Decimal]]:
-        """Get equity curve for period."""
+        """Get equity curve for period.
+
+        Returns:
+            List of tuples containing (timestamp, equity) pairs
+        """
         return [(ts, eq) for ts, eq in self._equity_curve if period_start <= ts <= period_end]
 
     def _calculate_peak_to_trough_drawdown(
         self, equity_curve: list[tuple[datetime, Decimal]]
     ) -> dict[str, Any]:
-        """Calculate drawdown using peak-to-trough method."""
+        """Calculate drawdown using peak-to-trough method.
+
+        Returns:
+            Dictionary with max_drawdown, max_duration_days, and current_drawdown
+        """
         if not equity_curve:
             return {
                 "max_drawdown": Decimal(0),
@@ -619,14 +597,22 @@ class PerformanceTracker:
     def _calculate_underwater_drawdown(
         self, equity_curve: list[tuple[datetime, Decimal]]
     ) -> dict[str, Any]:
-        """Calculate drawdown using underwater equity method."""
+        """Calculate drawdown using underwater equity method.
+
+        Returns:
+            Dictionary with max_drawdown, max_duration_days, and current_drawdown
+        """
         # Similar to peak-to-trough but tracks time underwater
         return self._calculate_peak_to_trough_drawdown(equity_curve)
 
     async def _calculate_realized_pnl(
         self, period_start: datetime, period_end: datetime
     ) -> Decimal:
-        """Calculate realized PnL for closed positions."""
+        """Calculate realized PnL for closed positions.
+
+        Returns:
+            Realized PnL as Decimal
+        """
         # Placeholder - would track closed positions
         trades = await self._get_trades_in_period(period_start, period_end)
 
@@ -636,7 +622,7 @@ class PerformanceTracker:
             trade_pnl = (
                 trade.quantity
                 * trade.price
-                * (Decimal(1) if trade.side.value == "sell" else Decimal(-1))
+                * (Decimal(1) if trade.side == OrderSide.SELL else Decimal(-1))
             )
             if self._include_fees:
                 trade_pnl -= trade.fee
@@ -644,17 +630,21 @@ class PerformanceTracker:
 
         return realized_pnl
 
-    async def _calculate_unrealized_pnl(self, portfolio_state: Any) -> Decimal:
-        """Calculate unrealized PnL for open positions."""
-        # Placeholder - would calculate from current positions and market prices
-        return (
-            portfolio_state.total_unrealized_pnl
-            if hasattr(portfolio_state, "total_unrealized_pnl")
-            else Decimal(0)
-        )
+    async def _calculate_unrealized_pnl(self, portfolio_state: PortfolioState) -> Decimal:
+        """Calculate unrealized PnL for open positions.
+
+        Returns:
+            Unrealized PnL as Decimal
+        """
+        # Calculate unrealized PnL from current positions
+        return await self._calculate_unrealized_pnl_from_positions(portfolio_state)
 
     async def _calculate_period_return(self, days: int) -> Decimal:
-        """Calculate return for specific period."""
+        """Calculate return for specific period.
+
+        Returns:
+            Period return percentage as Decimal
+        """
         period_end = datetime.now(UTC)
         period_start = period_end - timedelta(days=days)
 
@@ -669,7 +659,11 @@ class PerformanceTracker:
     async def _calculate_sortino_ratio(
         self, period_start: datetime, period_end: datetime
     ) -> Decimal:
-        """Calculate Sortino ratio (downside deviation)."""
+        """Calculate Sortino ratio (downside deviation).
+
+        Returns:
+            Sortino ratio as Decimal
+        """
         # Get daily returns
         daily_returns = await self._get_daily_returns(period_start, period_end)
 
@@ -696,10 +690,14 @@ class PerformanceTracker:
         return (avg_return - daily_risk_free) / downside_std
 
     async def _calculate_volatility(self, period_start: datetime, period_end: datetime) -> Decimal:
-        """Calculate return volatility."""
+        """Calculate return volatility.
+
+        Returns:
+            Annualized volatility percentage as Decimal
+        """
         daily_returns = await self._get_daily_returns(period_start, period_end)
 
-        if len(daily_returns) < 2:
+        if len(daily_returns) < MIN_DATA_POINTS_FOR_METRICS:
             return Decimal(0)
 
         avg_return = sum(daily_returns) / Decimal(len(daily_returns))
@@ -710,12 +708,20 @@ class PerformanceTracker:
         return std_dev * Decimal(str(math.sqrt(365))) * Decimal(100)
 
     async def _calculate_beta(self, period_start: datetime, period_end: datetime) -> Decimal:
-        """Calculate beta relative to benchmark."""
+        """Calculate beta relative to benchmark.
+
+        Returns:
+            Beta as Decimal
+        """
         # Placeholder - would need benchmark data
         return Decimal(1)
 
     async def _calculate_alpha(self, period_start: datetime, period_end: datetime) -> Decimal:
-        """Calculate alpha (excess return)."""
+        """Calculate alpha (excess return).
+
+        Returns:
+            Alpha as Decimal
+        """
         # Placeholder - would need benchmark data
         return Decimal(0)
 
@@ -739,3 +745,93 @@ class PerformanceTracker:
             "equity_curve_length": len(self._equity_curve),
             "trade_history_length": len(self._trade_history),
         }
+
+    async def _calculate_pnl_metrics(
+        self,
+        metrics: PerformanceMetrics,
+        period_start: datetime,
+        period_end: datetime,
+        portfolio_state: PortfolioState,
+    ) -> None:
+        """Calculate PnL-related metrics."""
+        if "realized_pnl" in self._enabled_metrics:
+            metrics.realized_pnl = await self._calculate_realized_pnl(period_start, period_end)
+
+        if "unrealized_pnl" in self._enabled_metrics:
+            metrics.unrealized_pnl = await self._calculate_unrealized_pnl(portfolio_state)
+
+    async def _calculate_return_metrics(self, metrics: PerformanceMetrics) -> None:
+        """Calculate period return metrics."""
+        if "daily_return" in self._enabled_metrics:
+            metrics.daily_return_pct = await self._calculate_period_return(1)
+
+        if "weekly_return" in self._enabled_metrics:
+            metrics.weekly_return_pct = await self._calculate_period_return(7)
+
+        if "monthly_return" in self._enabled_metrics:
+            metrics.monthly_return_pct = await self._calculate_period_return(30)
+
+        if "yearly_return" in self._enabled_metrics:
+            metrics.yearly_return_pct = await self._calculate_period_return(365)
+
+    async def _calculate_risk_metrics(
+        self, metrics: PerformanceMetrics, period_start: datetime, period_end: datetime
+    ) -> None:
+        """Calculate risk-related metrics."""
+        if "sharpe_ratio" in self._enabled_metrics:
+            metrics.sharpe_ratio = await self._calculate_sharpe_ratio(period_start, period_end)
+
+        if "sortino_ratio" in self._enabled_metrics:
+            metrics.sortino_ratio = await self._calculate_sortino_ratio(period_start, period_end)
+
+        if "max_drawdown" in self._enabled_metrics:
+            drawdown_data = await self._calculate_drawdown(period_start, period_end)
+            metrics.max_drawdown_pct = drawdown_data["max_drawdown"]
+            metrics.max_drawdown_duration_days = drawdown_data["max_duration_days"]
+            metrics.current_drawdown_pct = drawdown_data["current_drawdown"]
+
+    async def _calculate_trading_metrics(
+        self, metrics: PerformanceMetrics, period_start: datetime, period_end: datetime
+    ) -> None:
+        """Calculate trading-related metrics."""
+        if "win_rate" in self._enabled_metrics or "profit_factor" in self._enabled_metrics:
+            trading_stats = await self._calculate_trading_statistics(period_start, period_end)
+
+            if "win_rate" in self._enabled_metrics:
+                metrics.total_trades = trading_stats["total_trades"]
+                metrics.winning_trades = trading_stats["winning_trades"]
+                metrics.losing_trades = trading_stats["losing_trades"]
+                metrics.win_rate_pct = trading_stats["win_rate"]
+                metrics.average_win = trading_stats["average_win"]
+                metrics.average_loss = trading_stats["average_loss"]
+
+            if "profit_factor" in self._enabled_metrics:
+                metrics.profit_factor = trading_stats["profit_factor"]
+
+    async def _calculate_statistical_metrics(
+        self, metrics: PerformanceMetrics, period_start: datetime, period_end: datetime
+    ) -> None:
+        """Calculate statistical metrics."""
+        if "volatility" in self._enabled_metrics:
+            metrics.volatility_pct = await self._calculate_volatility(period_start, period_end)
+
+        if "beta" in self._enabled_metrics:
+            metrics.beta = await self._calculate_beta(period_start, period_end)
+
+        if "alpha" in self._enabled_metrics:
+            metrics.alpha = await self._calculate_alpha(period_start, period_end)
+
+    async def _calculate_unrealized_pnl_from_positions(
+        self, portfolio_state: PortfolioState
+    ) -> Decimal:
+        """Calculate unrealized PnL from current positions.
+
+        Args:
+            portfolio_state: Current portfolio state
+
+        Returns:
+            Total unrealized PnL as Decimal
+        """
+        # For now, return zero as this would require current market prices
+        # This should be implemented based on the actual position valuation logic
+        return Decimal(0)

@@ -46,6 +46,7 @@ from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
     FundingRate,
+    MidPrices,
     Order,
     OrderBook,
     OrderSide,
@@ -384,6 +385,14 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
             MockSubscriptionPayload with subscription details.
         """
         return MockSubscriptionPayload(type="subscribe", channel=topic)
+
+    async def get_all_mids(self) -> MidPrices:
+        """Get all mid prices for efficient market order pricing.
+
+        Returns:
+            Mock MidPrices object.
+        """
+        return MagicMock(spec=MidPrices)
 
     async def ping_websocket(self) -> None:
         """Send a ping message to the WebSocket connection."""
@@ -799,6 +808,14 @@ class TestExchangeAPIWebSocketOperations:
             def _construct_subscription_payload(self, topic: str) -> BaseModel:
                 self.payload_construction_calls.append(topic)
                 return MockSubscriptionPayload(type="subscribe", channel=topic)
+
+            async def get_all_mids(self) -> MidPrices:
+                """Get all mid prices for efficient market order pricing.
+                
+                Returns:
+                    MidPrices: Mock mid prices data
+                """
+                return MagicMock(spec=MidPrices)
 
             async def transfer(self, args: TransferArgs) -> Transfer:
                 return MagicMock(spec=Transfer)

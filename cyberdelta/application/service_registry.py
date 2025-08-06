@@ -45,10 +45,12 @@ class ServiceRegistry:
         """
         # Check if already registered
         if interface in self._services:
-            raise ValueError(f"Service already registered for interface {interface.__name__}")
+            msg = f"Service already registered for interface {interface.__name__}"
+            raise ValueError(msg)
 
         if not isinstance(implementation, type(implementation)):
-            raise TypeError(f"Implementation must be an instance, got {type(implementation)}")
+            msg = f"Implementation must be an instance, got {type(implementation)}"
+            raise TypeError(msg)
 
         self._services[interface] = implementation
 
@@ -72,10 +74,11 @@ class ServiceRegistry:
             ValueError: If no implementation registered for interface
         """
         if interface not in self._services:
-            raise ValueError(
+            msg = (
                 f"No implementation registered for interface {interface.__name__}. "
                 f"Available interfaces: {list(self._services.keys())}"
             )
+            raise ValueError(msg)
 
         implementation = self._services[interface]
 
@@ -108,9 +111,8 @@ class ServiceRegistry:
             ValueError: If interface is not registered
         """
         if interface not in self._services:
-            raise ValueError(
-                f"Cannot unregister - no implementation found for interface {interface.__name__}"
-            )
+            msg = f"Cannot unregister - no implementation found for interface {interface.__name__}"
+            raise ValueError(msg)
 
         implementation = self._services.pop(interface)
 

@@ -28,7 +28,7 @@ from cyberdelta.models.trade_signal import TradeSignal
 @pytest.fixture
 def mock_config() -> MagicMock:
     """Create mock configuration for testing.
-    
+
     Returns:
         MagicMock: Mock configuration for testing.
     """
@@ -54,7 +54,7 @@ def mock_config() -> MagicMock:
 @pytest.fixture
 def audit_logger(mock_config: MagicMock) -> AuditLogger:
     """Create audit logger instance.
-    
+
     Returns:
         AuditLogger: Audit logger instance.
     """
@@ -64,7 +64,7 @@ def audit_logger(mock_config: MagicMock) -> AuditLogger:
 @pytest.fixture
 def sample_order() -> Order:
     """Create sample order for testing.
-    
+
     Returns:
         Order: Sample order for testing.
     """
@@ -89,7 +89,7 @@ def sample_order() -> Order:
 @pytest.fixture
 def sample_trade() -> Trade:
     """Create sample trade for testing.
-    
+
     Returns:
         Trade: Sample trade for testing.
     """
@@ -110,7 +110,7 @@ def sample_trade() -> Trade:
 @pytest.fixture
 def sample_signal() -> TradeSignal:
     """Create sample trade signal for testing.
-    
+
     Returns:
         TradeSignal: Sample trade signal for testing.
     """
@@ -174,7 +174,7 @@ class TestAuditLogger:
         stats = audit_logger.get_session_stats()
         assert stats["buffer_size"] == 1
         assert stats["total_events"] == 1
-        
+
         # We can't test specific event details without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -188,7 +188,7 @@ class TestAuditLogger:
         stats = audit_logger.get_session_stats()
         assert stats["buffer_size"] == 1
         assert stats["total_events"] == 1
-        
+
         # We can't test specific event details without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -202,7 +202,7 @@ class TestAuditLogger:
         stats = audit_logger.get_session_stats()
         assert stats["buffer_size"] == 1
         assert stats["total_events"] == 1
-        
+
         # We can't test specific event details without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -218,7 +218,7 @@ class TestAuditLogger:
         stats = audit_logger.get_session_stats()
         assert stats["buffer_size"] == 1
         assert stats["total_events"] == 1
-        
+
         # We can't test specific event details without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -238,7 +238,7 @@ class TestAuditLogger:
         stats = audit_logger.get_session_stats()
         assert stats["buffer_size"] == 1
         assert stats["total_events"] == 1
-        
+
         # We can't test specific event details without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -252,7 +252,7 @@ class TestAuditLogger:
         stats = audit_logger.get_session_stats()
         assert stats["buffer_size"] == 1
         assert stats["total_events"] == 1
-        
+
         # We can't test specific event details without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -274,7 +274,7 @@ class TestAuditLogger:
 
         stats = audit_logger.get_session_stats()
         assert stats["buffer_size"] == 1
-        
+
         # We can't test specific filtered data without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -294,7 +294,7 @@ class TestAuditLogger:
 
         stats = logger.get_session_stats()
         assert stats["buffer_size"] == 1
-        
+
         # We can't test specific logged data without accessing private members
         # This is acceptable as we're testing the public interface behavior
 
@@ -382,7 +382,7 @@ class TestAuditLogger:
 
         # Second start should not raise and should not significantly increase events
         await audit_logger.start()
-        
+
         stats_second = audit_logger.get_session_stats()
         assert stats_second["total_events"] >= initial_events
 

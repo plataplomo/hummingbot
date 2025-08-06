@@ -16,6 +16,7 @@ general:
   state_backup_directory: data/state_backups
   state_save_interval: 60
   state_backup_count: 5
+  shutdown_grace_period: 10.0
 exchanges:
   hyperliquid:
     exchange_name: hyperliquid
@@ -175,6 +176,7 @@ execution:
   timeout_seconds: 30.0
   retry_enabled: true
   max_retry_attempts: 3
+  cancel_on_shutdown: true
   compensation:
     use_limit_orders: true
     limit_price_offset_pct: 0.05

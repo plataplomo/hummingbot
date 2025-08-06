@@ -44,7 +44,7 @@ class LimitChecker:
         self.config = config
         self._portfolio_service = portfolio_service
 
-        logger.debug("limit_checker_initialized", has_limits_config=hasattr(config.risk, "limits"))
+        logger.debug("limit_checker_initialized", limits_enabled=config.risk.limits.enabled)
 
     async def check_position_limits(self, symbol: Symbol, exchange: ExchangeName) -> list[str]:
         """Check position limits for a specific symbol and exchange.
@@ -71,44 +71,37 @@ class LimitChecker:
             return violations
 
         # Get risk limits configuration
-        if not hasattr(self.config.risk, "limits"):
-            # No limits configured - return no violations
-            logger.debug(
-                "no_position_limits_configured", symbol=symbol.value, exchange=exchange.value
-            )
+        limits_config = self.config.risk.limits
+        if not limits_config.enabled:
+            logger.debug("position_limits_disabled", symbol=symbol.value, exchange=exchange.value)
             return violations
 
-        limits_config = self.config.risk.limits
-
         # Check per-symbol position limits
-        if hasattr(limits_config, "max_positions_per_symbol"):
-            max_per_symbol = limits_config.max_positions_per_symbol
-            current_symbol_positions = self._count_symbol_positions(portfolio_state, symbol)
+        max_per_symbol = limits_config.max_positions_per_symbol
+        current_symbol_positions = self._count_symbol_positions(portfolio_state, symbol)
 
-            if current_symbol_positions >= max_per_symbol:
-                violations.append(
-                    f"Symbol {symbol.value} has {current_symbol_positions} positions, "
-                    f"max allowed: {max_per_symbol}"
-                )
+        if current_symbol_positions >= max_per_symbol:
+            violations.append(
+                f"Symbol {symbol.value} has {current_symbol_positions} positions, "
+                f"max allowed: {max_per_symbol}"
+            )
 
         # Check total position limits
-        if hasattr(limits_config, "max_positions_total"):
-            max_total = limits_config.max_positions_total
-            total_positions = self._count_total_positions(portfolio_state)
+        max_total = limits_config.max_positions_total
+        total_positions = self._count_total_positions(portfolio_state)
 
-            if total_positions >= max_total:
-                violations.append(f"Total positions {total_positions} at max allowed: {max_total}")
+        if total_positions >= max_total:
+            violations.append(f"Total positions {total_positions} at max allowed: {max_total}")
 
         # Check exchange-specific position limits
-        if hasattr(limits_config, "max_positions_per_exchange"):
-            max_per_exchange = limits_config.max_positions_per_exchange
-            exchange_positions = self._count_exchange_positions(portfolio_state, exchange)
+        max_per_exchange = limits_config.max_positions_per_exchange
+        exchange_positions = self._count_exchange_positions(portfolio_state, exchange)
 
-            if exchange_positions >= max_per_exchange:
-                violations.append(
-                    f"Exchange {exchange.value} has {exchange_positions} positions, "
-                    f"max allowed: {max_per_exchange}"
-                )
+        if exchange_positions >= max_per_exchange:
+            violations.append(
+                f"Exchange {exchange.value} has {exchange_positions} positions, "
+                f"max allowed: {max_per_exchange}"
+            )
 
         if violations:
             logger.warning(
@@ -230,40 +223,33 @@ class LimitChecker:
         total_equity = portfolio_state.total_equity_usd
 
         # Get concentration limits configuration
-        if not hasattr(self.config.risk, "limits"):
-            return violations
-
         limits_config = self.config.risk.limits
 
         # Check per-symbol concentration
-        if hasattr(limits_config, "max_concentration_per_symbol"):
-            max_symbol_pct = limits_config.max_concentration_per_symbol
-            current_symbol_value = self._get_symbol_total_value(portfolio_state, symbol)
-            new_symbol_value = current_symbol_value + position_value_usd
-            new_symbol_pct = (new_symbol_value / total_equity) * 100
+        max_symbol_pct = limits_config.max_concentration_per_symbol
+        current_symbol_value = self._get_symbol_total_value(portfolio_state, symbol)
+        new_symbol_value = current_symbol_value + position_value_usd
+        new_symbol_pct = (new_symbol_value / total_equity) * 100
 
-            if new_symbol_pct > max_symbol_pct:
+        if new_symbol_pct > max_symbol_pct:
+            violations.append(
+                f"Symbol {symbol.value} concentration would be {new_symbol_pct:.1f}%, "
+                f"max allowed: {max_symbol_pct}%"
+            )
+
+        # Check asset class concentration
+        asset_class = self._get_asset_class(symbol)
+        if asset_class:
+            max_class_pct = limits_config.max_concentration_per_asset_class
+            current_class_value = self._get_asset_class_total_value(portfolio_state, asset_class)
+            new_class_value = current_class_value + position_value_usd
+            new_class_pct = (new_class_value / total_equity) * 100
+
+            if new_class_pct > max_class_pct:
                 violations.append(
-                    f"Symbol {symbol.value} concentration would be {new_symbol_pct:.1f}%, "
-                    f"max allowed: {max_symbol_pct}%"
+                    f"Asset class {asset_class} concentration would be {new_class_pct:.1f}%, "
+                    f"max allowed: {max_class_pct}%"
                 )
-
-        # Check asset class concentration (if configured)
-        if hasattr(limits_config, "max_concentration_per_asset_class"):
-            asset_class = self._get_asset_class(symbol)
-            if asset_class:
-                max_class_pct = limits_config.max_concentration_per_asset_class
-                current_class_value = self._get_asset_class_total_value(
-                    portfolio_state, asset_class
-                )
-                new_class_value = current_class_value + position_value_usd
-                new_class_pct = (new_class_value / total_equity) * 100
-
-                if new_class_pct > max_class_pct:
-                    violations.append(
-                        f"Asset class {asset_class} concentration would be {new_class_pct:.1f}%, "
-                        f"max allowed: {max_class_pct}%"
-                    )
 
         return violations
 

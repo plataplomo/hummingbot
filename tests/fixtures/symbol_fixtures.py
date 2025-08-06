@@ -181,7 +181,7 @@ def exchange_symbol() -> Callable[[str, ExchangeName], Symbol]:
 @pytest.fixture
 def btc_perp_internal() -> Symbol:
     """BTC perpetual internal symbol.
-    
+
     Returns:
         Symbol: BTC perpetual internal symbol.
     """
@@ -191,7 +191,7 @@ def btc_perp_internal() -> Symbol:
 @pytest.fixture
 def eth_perp_internal() -> Symbol:
     """ETH perpetual internal symbol.
-    
+
     Returns:
         Symbol: ETH perpetual internal symbol.
     """
@@ -201,7 +201,7 @@ def eth_perp_internal() -> Symbol:
 @pytest.fixture
 def btc_spot_internal() -> Symbol:
     """BTC/USDC spot internal symbol.
-    
+
     Returns:
         Symbol: BTC/USDC spot internal symbol.
     """
@@ -212,7 +212,7 @@ def btc_spot_internal() -> Symbol:
 @pytest.fixture
 def btc_perp_unified() -> Symbol:
     """BTC perpetual unified symbol.
-    
+
     Returns:
         Symbol: BTC perpetual unified symbol.
     """
@@ -222,7 +222,7 @@ def btc_perp_unified() -> Symbol:
 @pytest.fixture
 def eth_perp_unified() -> Symbol:
     """ETH perpetual unified symbol.
-    
+
     Returns:
         Symbol: ETH perpetual unified symbol.
     """
@@ -232,7 +232,7 @@ def eth_perp_unified() -> Symbol:
 @pytest.fixture
 def btc_spot_unified() -> Symbol:
     """BTC/USDC spot unified symbol.
-    
+
     Returns:
         Symbol: BTC/USDC spot unified symbol.
     """
@@ -243,7 +243,7 @@ def btc_spot_unified() -> Symbol:
 @pytest.fixture
 def btc_perp_pair() -> tuple[Symbol, Symbol]:
     """BTC perpetual symbol pair for arbitrage.
-    
+
     Returns:
         tuple[Symbol, Symbol]: BTC perpetual symbol pair for arbitrage.
     """
@@ -256,7 +256,7 @@ def btc_perp_pair() -> tuple[Symbol, Symbol]:
 @pytest.fixture
 def eth_perp_pair() -> tuple[Symbol, Symbol]:
     """ETH perpetual symbol pair for arbitrage.
-    
+
     Returns:
         tuple[Symbol, Symbol]: ETH perpetual symbol pair for arbitrage.
     """
@@ -269,7 +269,7 @@ def eth_perp_pair() -> tuple[Symbol, Symbol]:
 @pytest.fixture
 def sol_perp_pair() -> tuple[Symbol, Symbol]:
     """SOL perpetual symbol pair for arbitrage.
-    
+
     Returns:
         tuple[Symbol, Symbol]: SOL perpetual symbol pair for arbitrage.
     """
@@ -283,7 +283,7 @@ def sol_perp_pair() -> tuple[Symbol, Symbol]:
 @pytest.fixture
 def symbol_factory() -> SymbolFactory:
     """Symbol factory instance for custom symbol creation.
-    
+
     Returns:
         SymbolFactory: Symbol factory instance for custom symbol creation.
     """
@@ -293,7 +293,7 @@ def symbol_factory() -> SymbolFactory:
 @pytest.fixture
 def create_symbol() -> Callable[[str, ExchangeName], Symbol]:
     """Factory function for creating custom symbols.
-    
+
     Returns:
         Callable[[str, ExchangeName], Symbol]: Function to create custom symbols.
     """
@@ -310,7 +310,7 @@ def create_symbol() -> Callable[[str, ExchangeName], Symbol]:
 @pytest.fixture
 def hyperliquid_symbol() -> Callable[[str], Symbol]:
     """Factory for creating Hyperliquid symbols.
-    
+
     Returns:
         Callable[[str], Symbol]: Function to create Hyperliquid symbols.
     """
@@ -324,7 +324,7 @@ def hyperliquid_symbol() -> Callable[[str], Symbol]:
 @pytest.fixture
 def backpack_symbol() -> Callable[[str], Symbol]:
     """Factory for creating Backpack symbols.
-    
+
     Returns:
         Callable[[str], Symbol]: Function to create Backpack symbols.
     """
@@ -339,7 +339,7 @@ def backpack_symbol() -> Callable[[str], Symbol]:
 @pytest.fixture
 def any_exchange() -> ExchangeName:
     """Default exchange for testing (Hyperliquid).
-    
+
     Returns:
         ExchangeName: Default exchange for testing.
     """
@@ -350,7 +350,7 @@ def any_exchange() -> ExchangeName:
 @pytest.fixture
 def btc_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
     """BTC perpetual symbol for any exchange.
-    
+
     Returns:
         Symbol: BTC perpetual symbol for any exchange.
     """
@@ -362,7 +362,7 @@ def btc_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
 @pytest.fixture
 def eth_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
     """ETH perpetual symbol for any exchange.
-    
+
     Returns:
         Symbol: ETH perpetual symbol for any exchange.
     """
@@ -375,7 +375,7 @@ def eth_perp_any_exchange(any_exchange: ExchangeName) -> Symbol:
 @pytest.fixture
 def invalid_symbol_long() -> str:
     """Invalid symbol - too long.
-    
+
     Returns:
         str: Invalid symbol that exceeds maximum length.
     """
@@ -385,7 +385,7 @@ def invalid_symbol_long() -> str:
 @pytest.fixture
 def invalid_symbol_empty() -> str:
     """Invalid symbol - empty string.
-    
+
     Returns:
         str: Empty string for testing invalid symbols.
     """
@@ -395,7 +395,7 @@ def invalid_symbol_empty() -> str:
 @pytest.fixture
 def invalid_symbol_special_chars() -> str:
     """Invalid symbol - contains special characters.
-    
+
     Returns:
         str: Symbol with invalid special characters.
     """
@@ -406,7 +406,7 @@ def invalid_symbol_special_chars() -> str:
 @pytest.fixture
 def btc_arbitrage_pair() -> tuple[Symbol, Symbol]:
     """BTC arbitrage pair (Hyperliquid and Backpack).
-    
+
     Returns:
         tuple[Symbol, Symbol]: BTC arbitrage pair for cross-exchange trading.
     """
@@ -416,7 +416,7 @@ def btc_arbitrage_pair() -> tuple[Symbol, Symbol]:
 @pytest.fixture
 def eth_arbitrage_pair() -> tuple[Symbol, Symbol]:
     """ETH arbitrage pair (Hyperliquid and Backpack).
-    
+
     Returns:
         tuple[Symbol, Symbol]: ETH arbitrage pair for cross-exchange trading.
     """
@@ -427,7 +427,7 @@ def eth_arbitrage_pair() -> tuple[Symbol, Symbol]:
 @pytest.fixture
 def common_test_symbols() -> dict[str, Symbol]:
     """Collection of commonly used test symbols.
-    
+
     Returns:
         dict[str, Symbol]: Dictionary of commonly used test symbols.
     """

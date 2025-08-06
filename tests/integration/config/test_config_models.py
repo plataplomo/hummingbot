@@ -784,7 +784,7 @@ class TestAppSettings:
         # Test validate_assignment by creating invalid data that would fail validation
         invalid_data = data.copy()
         invalid_data["general"] = "invalid_string_instead_of_GeneralSettings_object"
-        
+
         with pytest.raises(ValidationError):
             AppSettings.model_validate(invalid_data)
 

@@ -87,7 +87,9 @@ class StorageError(Exception):
     - NO silent failures
     """
 
-    def __init__(self, message: str, operation: str, original_error: Exception | None = None):
+    def __init__(
+        self, message: str, operation: str, original_error: Exception | None = None
+    ) -> None:
         """Initialize storage error.
 
         Args:

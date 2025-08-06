@@ -73,6 +73,7 @@ from cyberdelta.models import (
     DerivativePosition,
     FundingRate,
     MarginAccountSummary,
+    MidPrices,
     Order,
     OrderBook,
     SpotBalance,
@@ -1086,6 +1087,20 @@ class ExchangeAPI(ABC):
 
         Raises:
             APIError: If the API request fails.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def get_all_mids(self) -> MidPrices:
+        """Get all mid prices for efficient market order pricing.
+
+        Returns:
+            MidPrices object containing mid price data for all available symbols.
+            This is typically used for reference pricing in market order calculations.
+
+        Raises:
+            APIError: If the API request fails.
+            NotImplementedError: If the exchange does not support this operation.
         """
         raise NotImplementedError
 

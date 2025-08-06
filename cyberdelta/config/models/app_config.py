@@ -13,7 +13,10 @@ from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 # Import all configuration components
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
-from cyberdelta.config.models.execution_config import ExecutionSettings, ExecutionCompensationSettings
+from cyberdelta.config.models.execution_config import (
+    ExecutionCompensationSettings,
+    ExecutionSettings,
+)
 from cyberdelta.config.models.funding_strategy_models import (
     StrategiesSettings,
     StrategyConfigHLPerpBPSpot,
@@ -29,7 +32,7 @@ from cyberdelta.config.models.portfolio_config import (
 from cyberdelta.config.models.risk_config import (
     CheckerSettings,
     EnhancedRiskSettings,
-    GlobalRiskSettings,  
+    GlobalRiskSettings,
     RiskLimitsSettings,
     SizingSettings,
 )
@@ -40,11 +43,12 @@ from cyberdelta.config.models.safety_config import (
     SafetySystemsSettings,
 )
 from cyberdelta.config.models.simulation_config import SimulationSettings
+from cyberdelta.config.models.smart_symbol_generator import SmartSymbolGenerator
 from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
 
 
 if TYPE_CHECKING:
-    from cyberdelta.config.models.smart_symbol_generator import SmartSymbolGenerator
+    pass
 
 
 class AppSettings(BaseModel):
@@ -71,7 +75,7 @@ class AppSettings(BaseModel):
         default_factory=lambda: StrategiesSettings(
             hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
                 long_exchange="hyperliquid",
-                short_exchange="backpack", 
+                short_exchange="backpack",
                 symbol_long="BTC-PERP",
                 symbol_short="BTC_USDC",
                 params=StrategyParamsHLPerpBPSpot(
@@ -83,30 +87,28 @@ class AppSettings(BaseModel):
                     risk_aversion=Decimal("0.5"),
                     rebalance_threshold=Decimal("0.05"),
                     perp_exchange="hyperliquid",
-                    spot_exchange="backpack"
-                )
+                    spot_exchange="backpack",
+                ),
             )
-        ), 
-        description="Trading strategy settings"
+        ),
+        description="Trading strategy settings",
     )
     risk: EnhancedRiskSettings = Field(
         default_factory=lambda: EnhancedRiskSettings.model_validate({
             "global": GlobalRiskSettings(
-                max_position_usd=Decimal("10000.0"),
-                max_total_exposure_usd=Decimal("50000.0")
+                max_position_usd=Decimal("10000.0"), max_total_exposure_usd=Decimal("50000.0")
             ),
             "checkers": CheckerSettings(),
-            "sizing": SizingSettings(),  
-            "limits": RiskLimitsSettings()
-        }), 
-        description="Risk management settings"
+            "sizing": SizingSettings(),
+            "limits": RiskLimitsSettings(),
+        }),
+        description="Risk management settings",
     )
     execution: ExecutionSettings = Field(
         default_factory=lambda: ExecutionSettings(
-            max_slippage_pct=Decimal("0.01"),
-            compensation=ExecutionCompensationSettings()
-        ), 
-        description="Order execution settings"
+            max_slippage_pct=Decimal("0.01"), compensation=ExecutionCompensationSettings()
+        ),
+        description="Order execution settings",
     )
 
     # Safety and monitoring
@@ -116,9 +118,9 @@ class AppSettings(BaseModel):
             position_reconciliation=PositionReconciliationSettings(),
             balance_monitoring=BalanceMonitoringSettings(
                 min_balance_thresholds_usd={"BTC": Decimal("0.001"), "ETH": Decimal("0.01")}
-            )
-        ), 
-        description="Safety systems configuration"
+            ),
+        ),
+        description="Safety systems configuration",
     )
     monitoring: MonitoringSettings = Field(
         default_factory=MonitoringSettings, description="Monitoring and alerting settings"
@@ -146,19 +148,16 @@ class AppSettings(BaseModel):
             list=["BTC", "ETH"],
             patterns=SymbolPatterns(
                 hyperliquid={"perp": "{symbol}-PERP", "spot": "{symbol}"},
-                backpack={"perp": "{symbol}_PERP", "spot": "{symbol}_USDC"}
-            )
-        ), 
-        description="Smart symbol configuration"
+                backpack={"perp": "{symbol}_PERP", "spot": "{symbol}_USDC"},
+            ),
+        ),
+        description="Smart symbol configuration",
     )
 
     @property
     @computed_field
     def symbol_generator(self) -> SmartSymbolGenerator:
         """Get the symbol generator for this configuration."""
-        # Lazy import to avoid circular dependency
-        from cyberdelta.config.models.smart_symbol_generator import SmartSymbolGenerator
-
         return SmartSymbolGenerator(self.symbols)
 
     def get_exchange_config(self, exchange_name: str) -> ExchangeSpecificConfig | None:

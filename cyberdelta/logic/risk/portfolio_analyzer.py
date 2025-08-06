@@ -11,7 +11,7 @@ from decimal import Decimal
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
-from cyberdelta.models import TradeSignal
+from cyberdelta.models import DerivativePosition, TradeSignal
 
 
 logger = get_logger(__name__)
@@ -43,7 +43,7 @@ class PortfolioAnalyzer:
 
     async def get_portfolio_data(
         self, signal: TradeSignal
-    ) -> tuple[ExchangeName, object, Decimal, Decimal]:
+    ) -> tuple[ExchangeName, DerivativePosition | None, Decimal, Decimal]:
         """Get portfolio data needed for risk assessment.
 
         Args:
@@ -61,7 +61,9 @@ class PortfolioAnalyzer:
 
         return exchange_name, position, total_equity, current_exposure
 
-    def calculate_exposure(self, position: object | None, signal_price: Decimal | None) -> Decimal:
+    def calculate_exposure(
+        self, position: DerivativePosition | None, signal_price: Decimal | None
+    ) -> Decimal:
         """Calculate current exposure for a position.
 
         Args:
@@ -78,10 +80,9 @@ class PortfolioAnalyzer:
         if not position or not signal_price:
             return Decimal(0)
 
-        # Get position size if available
-        position_size = getattr(position, "size", None)
-        if position_size is None or position_size == 0:
+        # Get position size
+        if position.size == 0:
             return Decimal(0)
 
         # Calculate exposure as absolute value * current price
-        return abs(Decimal(str(position_size))) * signal_price
+        return abs(position.size) * signal_price

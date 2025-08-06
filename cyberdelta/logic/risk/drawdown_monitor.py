@@ -58,12 +58,8 @@ class DrawdownMonitor:
         self._max_drawdown_pct = self._global_risk_config.max_drawdown_pct
         self._lookback_days = self._global_risk_config.drawdown_lookback_days
 
-        # Check if optional check interval is configured
-        if hasattr(self._global_risk_config, "drawdown_check_interval_sec"):
-            self._check_interval = self._global_risk_config.drawdown_check_interval_sec
-        else:
-            # Use default from monitoring config if available
-            self._check_interval = config.monitoring.health_check_interval_seconds
+        # Use configured check interval
+        self._check_interval = self._global_risk_config.drawdown_check_interval_sec
 
         # Portfolio value history for drawdown calculation
         self._value_history: list[dict[str, Decimal | datetime]] = []
@@ -330,14 +326,13 @@ class DrawdownMonitor:
                 f"maximum allowed {self._max_drawdown_pct:.2f}%"
             )
 
-        # Check if approaching warning threshold (if configured)
-        if hasattr(self._global_risk_config, "drawdown_warning_pct"):
-            warning_threshold = self._global_risk_config.drawdown_warning_pct
-            if self._current_drawdown_pct > warning_threshold and not self._drawdown_violated:
-                violations.append(
-                    f"Portfolio drawdown {self._current_drawdown_pct:.2f}% approaching "
-                    f"warning threshold {warning_threshold:.2f}%"
-                )
+        # Check if approaching warning threshold
+        warning_threshold = self._global_risk_config.drawdown_warning_pct
+        if self._current_drawdown_pct > warning_threshold and not self._drawdown_violated:
+            violations.append(
+                f"Portfolio drawdown {self._current_drawdown_pct:.2f}% approaching "
+                f"warning threshold {warning_threshold:.2f}%"
+            )
 
         return violations
 

@@ -73,7 +73,6 @@ class TestMarketOrderService:
         """
         return MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=mock_signal_generator,
             config=default_config,
         )
 
@@ -254,7 +253,6 @@ class TestMarketOrderService:
 
         service_with_custom_config = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=mock_signal_generator,
             config=custom_config,
         )
 
@@ -304,7 +302,6 @@ class TestMarketOrderService:
         # Create a service with the failing signal generator
         service_with_failing_generator = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=mock_failing_signal_generator,
             config=default_config,
         )
 
@@ -340,7 +337,6 @@ class TestMarketOrderService:
         """Test slippage estimation without signal generator."""
         service = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=None,
             config=default_config,
         )
 
@@ -371,7 +367,6 @@ class TestMarketOrderService:
         config_with_all_mids = MarketOrderConfig(use_all_mids_for_reference=True)
         service_with_all_mids = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=None,
             config=config_with_all_mids,
         )
 
@@ -399,7 +394,6 @@ class TestMarketOrderService:
         # Create a service with default config (AllMids disabled)
         service_with_disabled_all_mids = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=None,
             config=MarketOrderConfig(),  # Default has use_all_mids_for_reference=False
         )
 
@@ -416,7 +410,6 @@ class TestMarketOrderService:
         config_with_all_mids = MarketOrderConfig(use_all_mids_for_reference=True)
         service_with_all_mids = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=None,
             config=config_with_all_mids,
         )
 
@@ -434,7 +427,6 @@ class TestMarketOrderService:
         # Test valid config
         valid_service = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=mock_signal_generator,
             config=MarketOrderConfig(),
         )
         valid_service.validate_config()  # Should not raise
@@ -443,7 +435,6 @@ class TestMarketOrderService:
         disabled_config = MarketOrderConfig(enabled=False)
         disabled_service = MarketOrderService(
             exchange_api=mock_exchange_api,
-            signal_generator=mock_signal_generator,
             config=disabled_config,
         )
         with pytest.raises(ValueError, match="Market orders are disabled"):

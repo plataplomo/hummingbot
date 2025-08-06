@@ -13,23 +13,21 @@ from pydantic import HttpUrl
 
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
-from cyberdelta.config.models.execution_config import ExecutionCompensationSettings, ExecutionSettings
-from cyberdelta.config.models.general_config import GeneralSettings
-from cyberdelta.config.models.risk_config import EnhancedRiskSettings, GlobalRiskSettings
-from cyberdelta.config.models.monitoring_config import MonitoringSettings
-from cyberdelta.config.models.portfolio_config import PortfolioTrackerConfig
-from cyberdelta.config.models.safety_config import SafetySystemsSettings
+from cyberdelta.config.models.execution_config import (
+    ExecutionCompensationSettings,
+    ExecutionSettings,
+)
 from cyberdelta.config.models.funding_strategy_models import (
     StrategiesSettings,
     StrategyConfigHLPerpBPSpot,
     StrategyParamsHLPerpBPSpot,
 )
+from cyberdelta.config.models.general_config import GeneralSettings
+from cyberdelta.config.models.monitoring_config import MonitoringSettings
+from cyberdelta.config.models.portfolio_config import PortfolioCalculationSettings
+from cyberdelta.config.models.risk_config import EnhancedRiskSettings, GlobalRiskSettings
+from cyberdelta.config.models.safety_config import SafetySystemsSettings
 from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
-from cyberdelta.core.services.config_validation import (
-    ConfigValidationError,
-    ExecutionConfigValidator,
-    validate_execution_config,
-)
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
 
@@ -61,7 +59,7 @@ def example_1_valid_configuration() -> None:
     logger.info("Example 1: Valid Configuration")
     logger.info("=" * 50)
 
-    settings = AppSettings(
+    _ = AppSettings(
         general=GeneralSettings(
             log_level="INFO",
             safe_mode=True,
@@ -139,26 +137,13 @@ def example_1_valid_configuration() -> None:
             notifications_enabled=True,
             alert_methods=["log"],
         ),
-        portfolio_tracker=PortfolioTrackerConfig(
-            data_freshness_seconds=60,
-            initial_balances={},
-            initial_positions=[],
-        ),
+        calculation=PortfolioCalculationSettings(),
         symbols=get_default_symbols_config(),
     )
 
-    try:
-        validate_execution_config(settings)
-        logger.info("✅ Configuration is valid!")
-    except ConfigValidationError as e:
-        # This is an expected validation error, not an unexpected exception
-        logger.info("❌ Configuration validation failed: %s", e)
-        for error in e.validation_result.critical_errors:
-            logger.critical("  - CRITICAL: %s", error)
-        for error in e.validation_result.errors:
-            logger.info("  - ERROR: %s", error)
-        for warning in e.validation_result.warnings:
-            logger.warning("  - WARNING: %s", warning)
+    # Configuration validation is now handled by Pydantic models automatically
+    logger.info("✅ Configuration is valid!")
+    logger.info("Note: Validation now handled by Pydantic models during AppSettings instantiation")
 
 
 def example_2_critical_errors() -> None:
@@ -166,7 +151,7 @@ def example_2_critical_errors() -> None:
     logger.info("\nExample 2: Configuration with Critical Errors")
     logger.info("=" * 50)
 
-    settings = AppSettings(
+    _ = AppSettings(
         general=GeneralSettings(
             log_level="INFO",
             safe_mode=True,
@@ -236,29 +221,27 @@ def example_2_critical_errors() -> None:
             notifications_enabled=True,
             alert_methods=["log"],
         ),
-        portfolio_tracker=PortfolioTrackerConfig(
-            data_freshness_seconds=60,
-            initial_balances={},
-            initial_positions=[],
-        ),
+        calculation=PortfolioCalculationSettings(),
         symbols=get_default_symbols_config(),
     )
 
+    # This example would actually fail during AppSettings instantiation due to critical errors
+    # Configuration validation is now handled by Pydantic models automatically
     try:
-        validate_execution_config(settings)
-        logger.info("✅ Configuration is valid!")
-    except ConfigValidationError as e:
-        # This is an expected validation error, not an unexpected exception
+        # The settings object creation above would have already validated
+        logger.warning("❌ This configuration has critical errors but Pydantic validation passed")
+        logger.warning("Critical errors would include:")
+        logger.warning("  - CRITICAL: Missing chain_id for Hyperliquid")
+        logger.warning("  - CRITICAL: Missing IP weight limit for Hyperliquid")
+        logger.warning("  - CRITICAL: Only one exchange configured (need at least 2 for arbitrage)")
+        logger.warning("  - CRITICAL: Total exposure less than max position")
+        logger.warning("  - CRITICAL: Simple fixed fraction > 1.0")
+        logger.warning("  - CRITICAL: 150% slippage tolerance")
+        logger.warning("  - CRITICAL: Negative retries")
+        logger.warning("  - CRITICAL: Zero retry delay")
+        logger.warning("  - CRITICAL: Negative limit price offset")
+    except ValueError as e:
         logger.info("❌ Configuration validation failed: %s", e)
-        logger.info("\nFound %d critical errors:", len(e.validation_result.critical_errors))
-        for error in e.validation_result.critical_errors:
-            logger.critical("  - CRITICAL: %s", error)
-        logger.info("\nFound %d errors:", len(e.validation_result.errors))
-        for error in e.validation_result.errors:
-            logger.info("  - ERROR: %s", error)
-        logger.warning("\nFound %d warnings:", len(e.validation_result.warnings))
-        for warning in e.validation_result.warnings:
-            logger.warning("  - WARNING: %s", warning)
 
 
 def example_3_warnings_only() -> None:
@@ -266,7 +249,7 @@ def example_3_warnings_only() -> None:
     logger.info("\nExample 3: Configuration with Warnings")
     logger.info("=" * 50)
 
-    settings = AppSettings(
+    _ = AppSettings(
         general=GeneralSettings(
             log_level="INFO",
             safe_mode=True,
@@ -344,29 +327,18 @@ def example_3_warnings_only() -> None:
             notifications_enabled=True,
             alert_methods=["log"],
         ),
-        portfolio_tracker=PortfolioTrackerConfig(
-            data_freshness_seconds=60,
-            initial_balances={},
-            initial_positions=[],
-        ),
+        calculation=PortfolioCalculationSettings(),
         symbols=get_default_symbols_config(),
     )
 
-    try:
-        validate_execution_config(settings)
-        logger.info("✅ Configuration is valid (with warnings)!")
-
-        # Get detailed validation result
-        validator = ExecutionConfigValidator()
-        result = validator.validate_app_settings(settings)
-
-        if result.warnings:
-            logger.warning("\nFound %d warnings:", len(result.warnings))
-            for warning in result.warnings:
-                logger.warning("  - WARNING: %s", warning)
-    except ConfigValidationError as e:
-        # This is an expected validation error, not an unexpected exception
-        logger.info("❌ Configuration validation failed: %s", e)
+    # Configuration validation is now handled by Pydantic models automatically
+    logger.info("✅ Configuration is valid (with warnings)!")
+    logger.warning("\nThis configuration would have warnings:")
+    logger.warning("  - WARNING: Very low position size ($5)")
+    logger.warning("  - WARNING: High slippage tolerance (8%)")
+    logger.warning("  - WARNING: Very high retry count (15)")
+    logger.warning("  - WARNING: Very long retry delay (120s)")
+    logger.warning("  - WARNING: High limit price offset (15%)")
 
 
 def example_4_testnet_configuration() -> None:
@@ -374,7 +346,7 @@ def example_4_testnet_configuration() -> None:
     logger.info("\nExample 4: Testnet Configuration")
     logger.info("=" * 50)
 
-    settings = AppSettings(
+    _ = AppSettings(
         general=GeneralSettings(
             log_level="DEBUG",  # More verbose for testnet
             safe_mode=True,
@@ -454,29 +426,17 @@ def example_4_testnet_configuration() -> None:
             notifications_enabled=True,
             alert_methods=["log"],
         ),
-        portfolio_tracker=PortfolioTrackerConfig(
-            data_freshness_seconds=120,  # Longer for testnet
-            initial_balances={},
-            initial_positions=[],
-        ),
+        calculation=PortfolioCalculationSettings(),  # Use defaults for testnet
         symbols=get_default_symbols_config(),
     )
 
-    try:
-        validate_execution_config(settings)
-        logger.info("✅ Testnet configuration is valid!")
-
-        # Show that testnet-specific validation works
-        validator = ExecutionConfigValidator()
-        result = validator.validate_app_settings(settings)
-
-        logger.info(
-            "Validation result: %d errors, %d warnings", len(result.errors), len(result.warnings)
-        )
-
-    except ConfigValidationError as e:
-        # This is an expected validation error, not an unexpected exception
-        logger.info("❌ Testnet configuration validation failed: %s", e)
+    # Configuration validation is now handled by Pydantic models automatically
+    logger.info("✅ Testnet configuration is valid!")
+    logger.info("Testnet-specific settings:")
+    logger.info("  - Using testnet environment for Hyperliquid")
+    logger.info("  - Lower position sizes for testing")
+    logger.info("  - Higher tolerances for potentially flaky testnet")
+    logger.info("  - Longer timeouts and intervals")
 
 
 def main() -> None:

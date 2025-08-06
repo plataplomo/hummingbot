@@ -39,7 +39,9 @@ class FeeStructureConfig(BaseModel):
     # Fee asset
     fee_asset: str | None = Field(
         default=None,
-        description="Asset used for fee payment (e.g., 'USDC', 'BNB'). If None, uses quote currency",
+        description=(
+            "Asset used for fee payment (e.g., 'USDC', 'BNB'). If None, uses quote currency"
+        ),
     )
 
     # Fee limits (optional)
@@ -54,7 +56,6 @@ class FeeStructureConfig(BaseModel):
         description="Maximum fee amount in fee asset",
     )
 
-    # Rebates (optional)
     maker_rebate_rate: float | None = Field(
         default=None,
         ge=0.0,
@@ -84,4 +85,3 @@ class FeeStructureConfig(BaseModel):
         le=1.0,
         description="Discount rate when using exchange token (e.g., 0.25 = 25% discount)",
     )
-

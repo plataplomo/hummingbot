@@ -16,7 +16,6 @@ import asyncio
 import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
-from datetime import UTC, datetime, timedelta
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -214,7 +213,7 @@ class AuditLogger:
                 metadata={
                     "session_id": self._session_id,
                     "safe_mode": self._general_config.safe_mode,
-                    "config_version": getattr(self.config, "version", "unknown"),
+                    "system_startup": True,
                 },
             )
         )
@@ -333,13 +332,11 @@ class AuditLogger:
             description=description,
             entity_type="Order",
             entity_id=order.exchange_order_id or order.client_order_id,
-            entity_id=order.exchange_order_id or order.client_order_id,
             exchange=order.exchange,
             symbol=order.symbol,
             metadata={
                 "order_data": order_data,
                 "side": order.side.value if order.side else None,
-                "quantity": float(order.quantity_requested) if order.quantity_requested else None,
                 "quantity": float(order.quantity_requested) if order.quantity_requested else None,
                 "price": float(order.price) if order.price else None,
                 **metadata,
@@ -518,7 +515,14 @@ class AuditLogger:
             return
 
         sensitive_keys = [
-            "api_key", "secret", "password", "token", "private_key", "seed", "mnemonic", "key"
+            "api_key",
+            "secret",
+            "password",
+            "token",
+            "private_key",
+            "seed",
+            "mnemonic",
+            "key",
         ]
         for key in list(data.keys()):
             if any(sensitive in key.lower() for sensitive in sensitive_keys):
@@ -565,9 +569,11 @@ class AuditLogger:
             ("metadata", event.metadata),
         ]
 
-        for field_name, field_value in optional_fields:
-            if field_value is not None:
-                log_data[field_name] = field_value
+        log_data.update({
+            field_name: field_value
+            for field_name, field_value in optional_fields
+            if field_value is not None
+        })
 
         return log_data
 
@@ -603,7 +609,6 @@ class AuditLogger:
         self._event_buffer.clear()
 
         try:
-
             # Write based on configured format
             if self._log_format == "json":
                 await self._write_json_format(events_to_write)
@@ -619,9 +624,7 @@ class AuditLogger:
         except Exception as e:
             # Re-add events to buffer on failure
             self._event_buffer = events_to_write + self._event_buffer
-            logger.exception(
-                "audit_flush_failed", error=str(e), event_count=len(events_to_write)
-            )
+            logger.exception("audit_flush_failed", error=str(e), event_count=len(events_to_write))
             # Don't raise - we don't want to crash the system due to audit logging
 
     async def _write_json_format(self, events: list[AuditEvent]) -> None:

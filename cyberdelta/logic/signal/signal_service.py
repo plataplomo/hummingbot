@@ -114,7 +114,7 @@ class SignalService:
                 if isinstance(signal.exchange, ExchangeName)
                 else [e.value for e in signal.exchange]
             ),
-            side=signal.side.value if hasattr(signal.side, "value") else str(signal.side),
+            side=signal.side.value,
         )
 
         try:
@@ -155,15 +155,15 @@ class SignalService:
                     if isinstance(signal.exchange, ExchangeName)
                     else [e.value for e in signal.exchange]
                 ),
-                side=signal.side.value if hasattr(signal.side, "value") else str(signal.side),
+                side=signal.side.value,
                 price=float(signal.price) if signal.price else None,
             )
-
-            return True
 
         except Exception as e:
             logger.exception("signal_processing_error", signal_id=signal.signal_id, error=str(e))
             return False
+        else:
+            return True
 
     async def validate_signal(self, signal: TradeSignal) -> list[str]:
         """Validate signal against configured business rules.
@@ -177,7 +177,7 @@ class SignalService:
         Note: Pydantic handles structural validation (types, required fields, ranges).
         This method only validates business logic that Pydantic cannot handle.
         """
-        violations = []
+        violations: list[str] = []
 
         # Check 1: Exchange enabled in config (business rule)
         exchange_violations = self._validate_exchange_enabled(signal.exchange)
@@ -220,7 +220,7 @@ class SignalService:
         Returns:
             List of violations
         """
-        violations = []
+        violations: list[str] = []
 
         # Handle single exchange or list of exchanges
         exchanges_to_check = [exchange] if isinstance(exchange, ExchangeName) else exchange
@@ -243,7 +243,7 @@ class SignalService:
         Returns:
             List of violations
         """
-        violations = []
+        violations: list[str] = []
 
         # Check against configured business bounds
         if price < self._min_price:
@@ -263,7 +263,7 @@ class SignalService:
         Returns:
             List of violations
         """
-        violations = []
+        violations: list[str] = []
 
         # Check against configured minimum threshold
         if Decimal(str(confidence)) < self._min_confidence:

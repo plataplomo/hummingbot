@@ -80,14 +80,18 @@ class EventBus:
         Args:
             event: Domain event to publish
 
+        Raises:
+            RuntimeError: If EventBus is not running
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - NO silent failures - all handler errors are logged
-        - NO retry logic - handlers must implement their own retry if needed
-        - Fail fast on critical errors
+        Note:
+            Following CODING_STANDARDS.md:
+            - NO silent failures - all handler errors are logged
+            - NO retry logic - handlers must implement their own retry if needed
+            - Fail fast on critical errors
         """
         if not self._running:
-            raise RuntimeError("EventBus is not running")
+            msg = "EventBus is not running"
+            raise RuntimeError(msg)
 
         event_type = event.__class__.__name__
         subscribers = self._subscribers.get(event_type, [])
@@ -106,7 +110,7 @@ class EventBus:
         )
 
         # Execute all handlers concurrently
-        tasks = []
+        tasks: list[asyncio.Task[None]] = []
         for handler in subscribers:
             task = asyncio.create_task(self._handle_event_safely(handler, event, event_type))
             tasks.append(task)
@@ -143,13 +147,12 @@ class EventBus:
         except Exception as e:
             # Log error but don't re-raise - one handler failure shouldn't
             # stop other handlers from processing the event
-            logger.error(
+            logger.exception(
                 "event_handler_failed",
                 event_type=event_type,
                 event_id=event.event_id,
                 handler=handler.__name__,
                 error=str(e),
-                exc_info=True,
             )
 
     async def shutdown(self) -> None:

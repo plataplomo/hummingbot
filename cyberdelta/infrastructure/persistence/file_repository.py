@@ -10,6 +10,8 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import aiofiles
+
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models.portfolio.state import PortfolioState
@@ -34,7 +36,7 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
     - NO silent failures
     """
 
-    def __init__(self, config: AppSettings):
+    def __init__(self, config: AppSettings) -> None:
         """Initialize file storage with configuration.
 
         Args:
@@ -71,8 +73,9 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             self._backup_dir.mkdir(parents=True, exist_ok=True)
 
         except OSError as e:
+            msg = f"Failed to create storage directories: {e}"
             raise StorageError(
-                f"Failed to create storage directories: {e}",
+                msg,
                 operation="directory_creation",
                 original_error=e,
             ) from e
@@ -94,8 +97,8 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             state_data = state.model_dump(mode="json")
 
             # Write to temporary file first
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(state_data, f, indent=2, ensure_ascii=False)
+            async with aiofiles.open(temp_file, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(state_data, indent=2, ensure_ascii=False))
 
             # Atomic move to final location
             temp_file.replace(self._state_file)
@@ -109,9 +112,8 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             )
 
         except (OSError, ValueError) as e:
-            raise StorageError(
-                f"Failed to save portfolio state: {e}", operation="save_state", original_error=e
-            ) from e
+            msg = f"Failed to save portfolio state: {e}"
+            raise StorageError(msg, operation="save_state", original_error=e) from e
 
     async def load_state(self) -> PortfolioState | None:
         """Load portfolio state from JSON file.
@@ -127,8 +129,9 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             return None
 
         try:
-            with open(self._state_file, encoding="utf-8") as f:
-                state_data = json.load(f)
+            async with aiofiles.open(self._state_file, encoding="utf-8") as f:
+                content = await f.read()
+                state_data = json.loads(content)
 
             # Validate and create PortfolioState
             state = PortfolioState.model_validate(state_data)
@@ -141,12 +144,11 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
                 position_count=len(state.positions),
             )
 
-            return state
-
         except (OSError, json.JSONDecodeError, ValueError) as e:
-            raise StorageError(
-                f"Failed to load portfolio state: {e}", operation="load_state", original_error=e
-            ) from e
+            msg = f"Failed to load portfolio state: {e}"
+            raise StorageError(msg, operation="load_state", original_error=e) from e
+        else:
+            return state
 
     async def save_snapshot(self, state: PortfolioState, snapshot_name: str) -> None:
         """Save a named snapshot of portfolio state.
@@ -173,8 +175,8 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             }
 
             # Write snapshot
-            with open(snapshot_file, "w", encoding="utf-8") as f:
-                json.dump(snapshot_data, f, indent=2, ensure_ascii=False)
+            async with aiofiles.open(snapshot_file, "w", encoding="utf-8") as f:
+                await f.write(json.dumps(snapshot_data, indent=2, ensure_ascii=False))
 
             # Rotate backups based on config
             await self._rotate_snapshots()
@@ -186,8 +188,9 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             )
 
         except (OSError, ValueError) as e:
+            msg = f"Failed to save snapshot '{snapshot_name}': {e}"
             raise StorageError(
-                f"Failed to save snapshot '{snapshot_name}': {e}",
+                msg,
                 operation="save_snapshot",
                 original_error=e,
             ) from e
@@ -205,7 +208,7 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             if not self._backup_dir.exists():
                 return []
 
-            snapshots = []
+            snapshots: list[str] = []
             for file_path in self._backup_dir.glob("*.json"):
                 # Extract snapshot name (filename without extension)
                 snapshot_name = file_path.stem
@@ -220,12 +223,11 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
                 snapshots=snapshots[:5],  # Log first 5 for brevity
             )
 
-            return snapshots
-
         except OSError as e:
-            raise StorageError(
-                f"Failed to list snapshots: {e}", operation="list_snapshots", original_error=e
-            ) from e
+            msg = f"Failed to list snapshots: {e}"
+            raise StorageError(msg, operation="list_snapshots", original_error=e) from e
+        else:
+            return snapshots
 
     async def delete_snapshot(self, snapshot_name: str) -> None:
         """Delete a named snapshot.
@@ -240,9 +242,8 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             snapshot_file = self._backup_dir / f"{snapshot_name}.json"
 
             if not snapshot_file.exists():
-                raise StorageError(
-                    f"Snapshot '{snapshot_name}' not found", operation="delete_snapshot"
-                )
+                msg = f"Snapshot '{snapshot_name}' not found"
+                raise StorageError(msg, operation="delete_snapshot")
 
             snapshot_file.unlink()
 
@@ -251,8 +252,9 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             )
 
         except OSError as e:
+            msg = f"Failed to delete snapshot '{snapshot_name}': {e}"
             raise StorageError(
-                f"Failed to delete snapshot '{snapshot_name}': {e}",
+                msg,
                 operation="delete_snapshot",
                 original_error=e,
             ) from e
@@ -278,7 +280,7 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
                     kept_count=self._backup_count,
                 )
 
-        except Exception as e:
+        except OSError as e:
             # Log but don't raise - snapshot rotation failure shouldn't
             # prevent the main snapshot operation from completing
             logger.warning("snapshot_rotation_failed", error=str(e), exc_info=True)
