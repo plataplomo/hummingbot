@@ -14,18 +14,23 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 from pydantic_core.core_schema import ValidationInfo
 
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import DecimalFiniteError, FieldNameMissingError
+from cyberdelta.models.base_validators import (
+    ExchangeValidationMixin,
+    ExtensionSlotModel,
+    StandardModel,
+)
 from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
 
 
 # --- Account Settings Core Model (MUTABLE CONFIGURATION) ---
 
 
-class AccountSettings(BaseModel):
+class AccountSettings(ExchangeValidationMixin, StandardModel):
     """Represents mutable account configuration settings.
 
     Follows the "Core + Typed Extension Slots" pattern.
@@ -67,8 +72,7 @@ class AccountSettings(BaseModel):
     hl_details: HyperliquidAccountSettingsDetails | None = Field(default=None)
     bp_details: BackpackAccountSettingsDetails | None = Field(default=None)
 
-    # Config: MUTABLE (not frozen), forbid extra fields, validate on assignment
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    # Config: Mutable (inherited from StandardModel with validate_assignment=True)
 
     # --- Field Validators (Simplified - reuse validation from parsing utils) ---
     def update_leverage_limit(self, new_limit: Decimal | None) -> None:
@@ -99,7 +103,7 @@ class AccountSettings(BaseModel):
 # --- Account Settings Details Sub-Models (INTERNAL, IMMUTABLE) ---
 
 
-class HyperliquidAccountSettingsDetails(BaseModel):
+class HyperliquidAccountSettingsDetails(ExtensionSlotModel):
     """Immutable exchange-specific details for Hyperliquid account settings.
 
     Note:
@@ -119,11 +123,10 @@ class HyperliquidAccountSettingsDetails(BaseModel):
         description="Whether cross margin is enabled by default",
     )
 
-    # Config: Immutable, ignore extra fields during creation
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
+    # Config: Extension slot (inherited from ExtensionSlotModel)
 
 
-class BackpackAccountSettingsDetails(BaseModel):
+class BackpackAccountSettingsDetails(ExtensionSlotModel):
     """Backpack-specific account settings enrichment data.
 
     Maps to Backpack's account settings fields providing enhanced
@@ -165,11 +168,8 @@ class BackpackAccountSettingsDetails(BaseModel):
         description="Source endpoint for debugging",
     )
 
-    model_config = ConfigDict(
-        extra="forbid",
-        validate_assignment=True,
-        frozen=True,
-    )
+    # Config: Extension slot (inherited from ExtensionSlotModel)
+    # Note: Using ExtensionSlotModel for consistency even though it has extra="ignore"
 
     @field_validator("leverage_limit_raw", mode="before")
     @classmethod

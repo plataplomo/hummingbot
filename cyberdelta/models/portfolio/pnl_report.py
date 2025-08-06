@@ -9,13 +9,14 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models.base_validators import ExchangeValidationMixin, ImmutableModel
 from cyberdelta.symbols.models import Symbol
 
 
-class PositionPnLDetail(BaseModel):
+class PositionPnLDetail(ExchangeValidationMixin, ImmutableModel):
     """Type-safe PnL details for a specific position.
 
     This model replaces dict[str, Any] returns in position PnL calculations
@@ -58,14 +59,10 @@ class PositionPnLDetail(BaseModel):
         default=None, description="Days position has been held"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable for thread safety
-        validate_assignment = True
+    # Config: Immutable (inherited from ImmutableModel)
 
 
-class PnLReport(BaseModel):
+class PnLReport(ImmutableModel):
     """Type-safe comprehensive PnL report.
 
     This model replaces dict[str, Any] returns in PnL calculations
@@ -134,14 +131,10 @@ class PnLReport(BaseModel):
         key = f"{exchange.value}:{symbol.value}"
         return self.position_pnls.get(key)
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable for thread safety
-        validate_assignment = True
+    # Config: Immutable (inherited from ImmutableModel)
 
 
-class ReconciliationReport(BaseModel):
+class ReconciliationReport(ImmutableModel):
     """Type-safe reconciliation report.
 
     This model replaces dict[str, Any] returns in reconciliation processes
@@ -179,14 +172,10 @@ class ReconciliationReport(BaseModel):
         default=None, description="List of error messages if reconciliation failed"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable for thread safety
-        validate_assignment = True
+    # Config: Immutable (inherited from ImmutableModel)
 
 
-class ValidationStatistics(BaseModel):
+class ValidationStatistics(ImmutableModel):
     """Type-safe validation statistics.
 
     This model replaces dict[str, object] returns in validation processes
@@ -215,8 +204,4 @@ class ValidationStatistics(BaseModel):
         default=None, description="Average validation processing time in milliseconds"
     )
 
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable for thread safety
-        validate_assignment = True
+    # Config: Immutable (inherited from ImmutableModel)
