@@ -11,8 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import Field, field_validator
-from pydantic_core.core_schema import ValidationInfo
+from pydantic import Field, ValidationInfo, field_validator
 
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (

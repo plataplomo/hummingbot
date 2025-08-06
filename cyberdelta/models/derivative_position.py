@@ -12,10 +12,10 @@ from typing import Self
 
 from pydantic import (
     Field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
-from pydantic_core.core_schema import ValidationInfo
 
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName

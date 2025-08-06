@@ -18,8 +18,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, field_validator
-from pydantic_core.core_schema import ValidationInfo
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
@@ -40,7 +39,26 @@ if TYPE_CHECKING:
 
 
 class StandardModel(BaseModel):
-    """Standard base model with common configuration.
+    """Standard base model with common configuration for mutable data models.
+
+    Use this as the base class for models that:
+        - Need to allow field mutation after creation (mutable)
+        - Should strictly forbid extra fields during initialization (`extra="forbid"`)
+        - Should validate on assignment to catch errors early (`validate_assignment=True`)
+        - Should strip whitespace from strings (`str_strip_whitespace=True`)
+        - Should not use enum values directly (`use_enum_values=False`)
+
+    When to use:
+        - StandardModel: For typical mutable models (e.g., Order, TradeSignal, AccountSettings)
+        - ImmutableModel: For frozen snapshots that shouldn't change (e.g., Fill, Ticker, Market)
+        - ExtensionSlotModel: For exchange-specific detail models (e.g., HyperliquidFillDetails)
+
+    Examples:
+        class Order(ExchangeValidationMixin, StandardModel):
+            # Mutable order that can be updated with fills
+            order_id: str
+            status: OrderStatus
+            quantity_filled: Decimal = Decimal(0)
 
     Eliminates ConfigDict duplication across 40+ models.
     """
@@ -55,7 +73,34 @@ class StandardModel(BaseModel):
 
 
 class ImmutableModel(BaseModel):
-    """Immutable base model for frozen data structures."""
+    """Immutable base model for frozen data structures that should not change after creation.
+
+    Use this as the base class for models that:
+        - Represent immutable snapshots or events (`frozen=True`)
+        - Should prevent any field mutation after initialization
+        - Should strictly forbid extra fields (`extra="forbid"`)
+        - Should NOT validate on assignment (since frozen prevents changes anyway)
+        - Represent data that comes from external sources as-is
+
+    When to use:
+        - ImmutableModel: For data snapshots, historical records, or API responses
+          (e.g., Fill, Ticker, Market, Candle, FundingRate, OrderBook)
+        - StandardModel: For models that need mutation (e.g., Order, TradeSignal)
+        - ExtensionSlotModel: For exchange-specific detail models
+
+    Examples:
+        class Fill(ExchangeValidationMixin, ImmutableModel):
+            # Immutable fill record from exchange
+            fill_id: str
+            price: Decimal
+            quantity: Decimal
+            executed_at: datetime
+
+    Benefits:
+        - Thread-safe due to immutability
+        - Prevents accidental modification of historical data
+        - Clear intent that this data is a snapshot
+    """
 
     model_config = ConfigDict(
         frozen=True,
@@ -68,7 +113,43 @@ class ImmutableModel(BaseModel):
 
 
 class ExtensionSlotModel(BaseModel):
-    """Base model for extension slot patterns."""
+    """Base model for exchange-specific extension slot patterns.
+
+    Use this as the base class for models that:
+        - Contain exchange-specific enrichment data
+        - Should ignore unknown fields from APIs (`extra="ignore"`)
+        - Should be immutable once created (`frozen=True`)
+        - Act as detail/extension objects attached to core models
+        - Need to preserve raw API data without strict validation
+
+    When to use:
+        - ExtensionSlotModel: For exchange-specific detail models that extend core models
+          (e.g., HyperliquidFillDetails, BackpackOrderDetails, HyperliquidMarketDetails)
+        - StandardModel: For core mutable business models
+        - ImmutableModel: For core immutable snapshots
+
+    Design Pattern:
+        The "Core + Typed Extension Slots" pattern allows core models to have
+        exchange-specific data without polluting the core model with exchange-specific fields.
+
+    Examples:
+        class HyperliquidFillDetails(ExtensionSlotModel):
+            # Exchange-specific fields for Hyperliquid fills
+            fill_hash: str
+            liquidation_mark_px: Decimal | None = None
+
+        class Fill(ImmutableModel):
+            # Core fill model with extension slots
+            id: str
+            price: Decimal
+            hl_details: HyperliquidFillDetails | None = None
+            bp_details: BackpackFillDetails | None = None
+
+    Benefits:
+        - Preserves unknown fields from external APIs
+        - Keeps core models clean and exchange-agnostic
+        - Type-safe exchange-specific data access
+    """
 
     model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
 

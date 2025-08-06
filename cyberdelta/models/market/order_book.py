@@ -17,8 +17,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TypeGuard, cast
 
-from pydantic import field_validator
-from pydantic_core.core_schema import ValidationInfo
+from pydantic import ValidationInfo, field_validator
 
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
