@@ -430,7 +430,6 @@ class TestConfigManager:
             assert manager.loaded is False
             assert manager.settings is None
 
-
     def test_decimal_field_validation(self) -> None:
         """Test Decimal field validation through ConfigManager."""
         with tempfile.TemporaryDirectory() as temp_dir:

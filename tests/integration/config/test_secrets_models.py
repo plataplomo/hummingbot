@@ -18,6 +18,7 @@ from cyberdelta.config.secrets_models import (
     SecretsConfig,
     TelegramSecrets,
 )
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 class TestApiKeyAuthSecrets:
@@ -242,7 +243,6 @@ class TestTelegramSecrets:
     def test_chat_id_validation_failures(self) -> None:
         """Test chat_id validation failures."""
         # Empty chat_id (raises EmptyStringError)
-        from cyberdelta.config.validation import EmptyStringError
         with pytest.raises(EmptyStringError) as exc_info:
             TelegramSecrets.model_validate(
                 {
@@ -252,25 +252,24 @@ class TestTelegramSecrets:
             )
         assert "chat_id" in str(exc_info.value)
 
-        # Non-string chat_id
-        with pytest.raises(ValidationError) as exc_info:
+        # Non-string chat_id - should be converted to string and validated
+        with pytest.raises(ValidationError):
             TelegramSecrets.model_validate(
                 {
                     "bot_token": "test_token",
                     "chat_id": 123456789,
                 },
             )
-        # Should be converted to string and validated
 
         # Too long chat_id
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info_val2:
             TelegramSecrets.model_validate(
                 {
                     "bot_token": "test_token",
                     "chat_id": "x" * 101,  # Exceeds max_length=100
                 },
             )
-        assert "chat_id" in str(exc_info.value)
+        assert "chat_id" in str(exc_info_val2.value)
 
     def test_missing_required_fields(self) -> None:
         """Test missing required fields."""
@@ -422,7 +421,6 @@ class TestSecretsConfig:
         data = self.create_valid_secrets_data()
 
         # Test empty exchange name (raises EmptyStringError)
-        from cyberdelta.config.validation import EmptyStringError
         data["exchanges"][""] = {"auth_type": "api_key", "api_key": "key", "api_secret": "secret"}
         with pytest.raises(EmptyStringError) as exc_info:
             SecretsConfig.model_validate(data)
@@ -435,9 +433,9 @@ class TestSecretsConfig:
             "api_key": "key",
             "api_secret": "secret",
         }
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info_validation:
             SecretsConfig.model_validate(data)
-        assert "exchanges" in str(exc_info.value)
+        assert "exchanges" in str(exc_info_validation.value)
 
     def test_hyperliquid_wrong_auth_type(self) -> None:
         """Test Hyperliquid validation when wrong auth_type is provided."""
