@@ -6,7 +6,6 @@ components following CODING_STANDARDS.md.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.config.models.app_config import AppSettings
@@ -178,84 +177,6 @@ class FillHandler:
         )
 
         return processed_trade
-
-    async def process_bulk_fills(
-        self,
-        order: Order,
-        fill_list: list[dict[str, object]],  # TODO: Convert after API layer updates
-    ) -> list[Trade]:
-        """Process multiple fills for an order efficiently.
-
-        Args:
-            order: Order that received multiple fills
-            fill_list: List of fill data dictionaries
-
-        Returns:
-            List of processed Trade objects
-
-        Note:
-        - Processes each fill with same validation as single fills
-        - Maintains fill sequence and audit trail
-        - NO assumptions about fill order or timing
-        """
-        trades: list[Trade] = []
-
-        logger.info(
-            "bulk_fill_processing_starting",
-            order_id=order.exchange_order_id,
-            fill_count=len(fill_list),
-        )
-
-        for i, fill_data_dict in enumerate(fill_list):
-            try:
-                # Convert dict to typed Trade model with proper type handling
-
-                timestamp_val = fill_data_dict.get("timestamp")
-                timestamp = timestamp_val if isinstance(timestamp_val, datetime) else None
-
-                maker_taker_val = fill_data_dict.get("maker_taker")
-                str(maker_taker_val) if maker_taker_val is not None else None
-
-                commission_asset_val = fill_data_dict.get("commission_asset")
-                str(commission_asset_val) if commission_asset_val is not None else None
-
-                # Convert dict to Trade object
-                trade = Trade(
-                    id=str(fill_data_dict.get("trade_id", f"bulk_{i}_{order.exchange_order_id}")),
-                    symbol=order.symbol,
-                    executed_at=timestamp or datetime.now(UTC),
-                    side=order.side,
-                    order_id=order.exchange_order_id or "unknown",
-                    exchange=order.exchange,
-                    price=Decimal(str(fill_data_dict.get("fill_price", 0))),
-                    quantity=Decimal(str(fill_data_dict.get("filled_quantity", 0))),
-                    fee=Decimal(str(fill_data_dict.get("fee", 0))),
-                    fee_asset=str(fill_data_dict.get("fee_asset", "USD")),
-                    client_order_id=order.client_order_id,
-                )
-
-                processed_trade = await self.process_fill(order, trade)
-                trades.append(processed_trade)
-
-            except Exception as e:
-                logger.exception(
-                    "bulk_fill_item_failed",
-                    order_id=order.exchange_order_id,
-                    fill_index=i,
-                    error=str(e),
-                )
-                # Continue processing remaining fills
-                continue
-
-        logger.info(
-            "bulk_fill_processing_completed",
-            order_id=order.exchange_order_id,
-            requested_fills=len(fill_list),
-            successful_fills=len(trades),
-            failed_fills=len(fill_list) - len(trades),
-        )
-
-        return trades
 
     def get_fill_statistics(self) -> FillStatistics:
         """Get fill processing statistics.

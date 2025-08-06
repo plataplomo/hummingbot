@@ -13,10 +13,10 @@ from decimal import Decimal
 from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.domain.monitoring.service_health_monitor import ServiceType
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
+from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.events import (
     OrderExecutedEvent,

@@ -13,7 +13,7 @@ from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from cyberdelta.domain.monitoring.service_health_monitor import ServiceType
+from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 
 

@@ -103,69 +103,6 @@ class FillProcessor:
         return trade
 
     @staticmethod
-    def validate_fill_data(fill_data: dict[str, object]) -> None:  # Keep for backward compatibility
-        """Validate fill data structure and required fields.
-
-        Note: This method is kept for backward compatibility.
-        New code should use FillData model validation.
-
-        Args:
-            fill_data: Fill data to validate
-
-        Raises:
-            ValueError: If fill data is invalid
-
-        Note:
-        - NO assumptions about fill data structure
-        - Explicit validation with clear error messages
-        """
-        required_fields = ["fill_price", "filled_quantity"]
-
-        for field in required_fields:
-            if field not in fill_data:
-                msg = f"Missing required fill data field: {field}"
-                raise ValueError(msg)
-
-            value = fill_data[field]
-            if value is None:
-                msg = f"Fill data field {field} cannot be None"
-                raise ValueError(msg)
-
-        # Validate numeric fields
-        try:
-            price = Decimal(str(fill_data["fill_price"]))
-            quantity = Decimal(str(fill_data["filled_quantity"]))
-
-            if price <= 0:
-                FillProcessor._raise_invalid_price_error(price)
-            if quantity <= 0:
-                FillProcessor._raise_invalid_quantity_error(quantity)
-
-        except (ValueError, TypeError) as e:
-            msg = f"Invalid numeric values in fill data: {e}"
-            raise ValueError(msg) from e
-
-    @staticmethod
-    def _raise_invalid_price_error(price: Decimal) -> None:
-        """Raise error for invalid fill price.
-
-        Raises:
-            ValueError: Price is not positive
-        """
-        msg = f"Fill price must be positive: {price}"
-        raise ValueError(msg)
-
-    @staticmethod
-    def _raise_invalid_quantity_error(quantity: Decimal) -> None:
-        """Raise error for invalid fill quantity.
-
-        Raises:
-            ValueError: Quantity is not positive
-        """
-        msg = f"Fill quantity must be positive: {quantity}"
-        raise ValueError(msg)
-
-    @staticmethod
     def get_fill_sequence_number(order: Order, processed_fills: list[Trade]) -> int:
         """Get sequence number for this fill within the order.
 

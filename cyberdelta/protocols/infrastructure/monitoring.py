@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 if TYPE_CHECKING:
-    from cyberdelta.domain.monitoring.service_health_monitor import ServiceType
+    from cyberdelta.enums.monitoring import ServiceType
 
 
 class HealthCheckable(Protocol):

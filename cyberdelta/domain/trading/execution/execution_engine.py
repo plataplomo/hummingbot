@@ -17,11 +17,11 @@ from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOr
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.domain.monitoring.service_health_monitor import ServiceType
 from cyberdelta.domain.trading.execution.order_tracker import OrderTracker
 from cyberdelta.domain.trading.fills.fill_handler import FillHandler
 from cyberdelta.domain.trading.validation.order_validator import OrderValidator
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType
+from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
@@ -165,8 +165,8 @@ class ExecutionEngine(HealthCheckable):
                 # Use FillHandler for comprehensive fill processing
                 trade = await self._fill_handler.process_fill(order, update.fill)
             else:
-                # Fallback to basic fill processing
-                trade = self._create_trade_from_fill(order, update.fill)
+                # Fallback: update.fill is already a Trade object
+                trade = update.fill
 
             # Update order filled quantity through tracker to avoid direct mutation
             current_filled = order.quantity_filled or Decimal(0)
@@ -721,17 +721,6 @@ class ExecutionEngine(HealthCheckable):
                 error=str(e),
             )
             return False
-
-    def _create_trade_from_fill(self, order: Order, trade: Trade) -> Trade:
-        """Create Trade object from trade data.
-
-        Returns:
-            Trade object representing the fill (may be the same object)
-
-        Note:
-            This is a pass-through method since we already have a Trade object
-        """
-        return trade
 
     @staticmethod
     def _raise_exchange_config_error(exchange: ExchangeName) -> NoReturn:

@@ -11,8 +11,9 @@ import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from enum import Enum
 from typing import TYPE_CHECKING, Any
+
+from cyberdelta.enums.monitoring import ServiceType
 
 
 if TYPE_CHECKING:
@@ -33,19 +34,6 @@ from cyberdelta.protocols import HealthCheckable
 
 
 logger = get_logger(__name__)
-
-
-class ServiceType(Enum):
-    """Types of services that can be monitored."""
-
-    PORTFOLIO = "portfolio_service"
-    MARKET_DATA = "market_data_service"
-    RISK = "risk_service"
-    EXECUTION = "execution_engine"
-    TRADING = "trading_service"
-    SIGNAL = "signal_service"
-    STRATEGY = "strategy_service"
-    EVENT_BUS = "event_bus"
 
 
 @dataclass

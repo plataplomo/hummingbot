@@ -17,8 +17,8 @@ from typing import TYPE_CHECKING
 from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.domain.monitoring.service_health_monitor import ServiceType
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.enums.trading import OrderSide
 from cyberdelta.exceptions.portfolio import (
     PortfolioNotInitializedError,
