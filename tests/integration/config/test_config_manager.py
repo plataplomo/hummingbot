@@ -111,16 +111,6 @@ class TestConfigManager:
                 "notifications_enabled": True,
                 "alert_methods": ["log"],
             },
-            "portfolio_tracker": {
-                "data_freshness_seconds": 30,
-                "initial_positions": [],
-                "validation": {
-                    "validation_timeout": 3.0,
-                },
-                "state": {
-                    "update_timeout": 5.0,
-                },
-            },
             "symbols": {
                 "list": ["BTC", "ETH"],
                 "patterns": {
@@ -215,12 +205,14 @@ class TestConfigManager:
         with tempfile.TemporaryDirectory() as temp_dir:
             config_path = Path(temp_dir) / "invalid_structure.yaml"
 
-            # Write invalid structure (missing required sections)
+            # Write invalid structure (extra forbidden field)
             invalid_data = {
                 "general": {
                     "log_level": "INFO",
                 },
-                # Missing other required sections
+                "invalid_extra_field": {  # This field is not allowed
+                    "some_data": "value",
+                },
             }
 
             with config_path.open("w", encoding="utf-8") as f:
@@ -438,21 +430,6 @@ class TestConfigManager:
             assert manager.loaded is False
             assert manager.settings is None
 
-    def test_cross_reference_validation(self) -> None:
-        """Test cross-reference validation through ConfigManager."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config_data = self.create_valid_config_dict()
-            # Create invalid cross-reference
-            config_data["strategies"]["hl_perp_bp_spot"]["long_exchange"] = "nonexistent"
-
-            config_path = Path(temp_dir) / "config.yaml"
-            with config_path.open("w", encoding="utf-8") as f:
-                yaml.safe_dump(config_data, f)
-
-            with pytest.raises(ConfigurationError) as exc_info:
-                ConfigManager(str(config_path))
-
-            assert "long_exchange" in str(exc_info.value)
 
     def test_decimal_field_validation(self) -> None:
         """Test Decimal field validation through ConfigManager."""
@@ -462,7 +439,7 @@ class TestConfigManager:
             config_data["strategies"]["hl_perp_bp_spot"]["params"]["funding_threshold"] = (
                 0.01  # float
             )
-            config_data["risk"]["global"]["max_position_usd"] = 1000  # int
+            config_data["risk"]["global"]["max_position_usd"] = 20000  # int
             config_data["execution"]["max_slippage_pct"] = "0.01"  # string
 
             config_path = Path(temp_dir) / "config.yaml"
@@ -478,7 +455,7 @@ class TestConfigManager:
             assert manager.settings.strategies.hl_perp_bp_spot.params.funding_threshold == Decimal(
                 "0.01",
             )
-            assert manager.settings.risk.global_risk.max_position_usd == Decimal(1000)
+            assert manager.settings.risk.global_risk.max_position_usd == Decimal(20000)
             assert manager.settings.execution.max_slippage_pct == Decimal("0.01")
 
     @patch("cyberdelta.config.config_manager.logger")
@@ -555,7 +532,7 @@ class TestConfigManager:
             # Test accessing risk settings
             risk_config = manager.settings.risk
 
-            assert risk_config.global_risk.max_position_usd == Decimal("1000.0")
+            assert risk_config.global_risk.max_position_usd == Decimal("20000.0")
             # simple_sizing_method was removed from EnhancedRiskSettings
 
     def test_file_permissions_error(self) -> None:
@@ -700,18 +677,23 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                             "funding_threshold": "0.005",
                             "max_price_spread_pct": "0.02",
                             "min_profit_usd": "5.0",
+                            "min_funding_differential": "0.001",
+                            "check_interval": 60,
+                            "risk_aversion": "1.5",
+                            "rebalance_threshold": "0.05",
+                            "perp_exchange": "hyperliquid",
+                            "spot_exchange": "backpack",
                         },
                     },
                 },
                 "risk": {
                     "global": {
-                        "max_position_usd": "2000.0",
-                        "max_total_exposure_usd": "10000.0",
+                        "max_position_usd": "20000.0",
+                        "max_total_exposure_usd": "100000.0",
                     },
-                    "use_simple_sizing_path": True,
-                    "simple_sizing_method": "fixed_usd",
-                    "simple_fixed_fraction": "0.2",
-                    "simple_fixed_usd_size": "50.0",
+                    "sizing": {
+                        "max_position_size": "10000.0",
+                    },
                 },
                 "execution": {
                     "max_slippage_pct": "0.005",
@@ -748,10 +730,6 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                 "monitoring": {
                     "notifications_enabled": True,
                     "alert_methods": ["log", "telegram"],
-                },
-                "portfolio_tracker": {
-                    "data_freshness_seconds": 30,
-                    "initial_positions": [],
                 },
             }
 

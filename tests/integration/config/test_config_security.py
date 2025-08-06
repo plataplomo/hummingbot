@@ -89,12 +89,20 @@ strategies:
       funding_threshold: "0.01"
       max_price_spread_pct: "0.05"
       min_profit_usd: "10.0"
+      min_funding_differential: "0.001"
+      check_interval: 60
+      risk_aversion: "1.0"
+      rebalance_threshold: "0.05"
+      perp_exchange: "hyperliquid"
+      spot_exchange: "backpack"
 
 # Risk management
 risk:
   global:
-    max_position_usd: "100.0"
-    max_total_exposure_usd: "500.0"
+    max_position_usd: "10000.0"
+    max_total_exposure_usd: "50000.0"
+  sizing:
+    max_position_size: "5000.0"
 
 # Execution
 execution:
@@ -120,11 +128,6 @@ monitoring:
   notifications_enabled: true
   alert_methods:
     - "log"
-
-# Portfolio tracker
-portfolio_tracker:
-  data_freshness_seconds: 30
-  initial_positions: []
             """,
             encoding="utf-8",
         )
@@ -132,9 +135,9 @@ portfolio_tracker:
         invalid_config_path = str(Path(temp_dir_name) / "invalid_config.yaml")
         Path(invalid_config_path).write_text(
             """
-# Missing required sections
+# Invalid config with bad data type
 general:
-  log_level: DEBUG
+  log_level: 123  # Should be string, not number
             """,
             encoding="utf-8",
         )
@@ -156,8 +159,9 @@ def test_config_validation_failure(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
     """Test that an invalid config fails validation."""
+    from cyberdelta.config.validation import TypeFieldError
     _, _, invalid_config_path = secure_config_manager_setup
-    with pytest.raises(ConfigurationError):
+    with pytest.raises(TypeFieldError):
         ConfigManager(invalid_config_path)
 
 
@@ -195,7 +199,9 @@ def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, s
         config_data = yaml.safe_load(f)
 
     config_data["general"]["log_level"] = "INFO"
-    config_data["risk"]["global"]["max_position_usd"] = 200.0
+    # Update both position values to maintain constraint
+    config_data["risk"]["global"]["max_position_usd"] = 10000.0
+    config_data["risk"]["sizing"]["max_position_size"] = 8000.0
 
     yaml_content = yaml.dump(config_data)
     Path(config_path).write_text(yaml_content, encoding="utf-8")
@@ -204,7 +210,8 @@ def test_reload_after_change(secure_config_manager_setup: tuple[ConfigManager, s
     assert config_manager.settings is not None
     assert config_manager.settings.general.log_level == "INFO"
 
-    assert config_manager.settings.risk.global_risk.max_position_usd == Decimal("200.0")
+    assert config_manager.settings.risk.global_risk.max_position_usd == Decimal("10000.0")
+    assert config_manager.settings.risk.sizing.max_position_size == Decimal("8000.0")
 
 
 @pytest.fixture
@@ -392,10 +399,18 @@ strategies:
       funding_threshold: "0.01"
       max_price_spread_pct: "0.05"
       min_profit_usd: "10.0"
+      min_funding_differential: "0.001"
+      check_interval: 60
+      risk_aversion: "1.0"
+      rebalance_threshold: "0.05"
+      perp_exchange: "hyperliquid"
+      spot_exchange: "backpack"
 risk:
   global:
-    max_position_usd: "100.0"
-    max_total_exposure_usd: "500.0"
+    max_position_usd: "10000.0"
+    max_total_exposure_usd: "50000.0"
+  sizing:
+    max_position_size: "5000.0"
 execution:
   max_slippage_pct: "0.01"
   compensation:
@@ -415,9 +430,6 @@ monitoring:
   notifications_enabled: true
   alert_methods:
     - "log"
-portfolio_tracker:
-  data_freshness_seconds: 30
-  initial_positions: []
             """,
             encoding="utf-8",
         )

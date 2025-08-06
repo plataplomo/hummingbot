@@ -12,11 +12,32 @@ The fixtures are organized into separate modules for better maintainability:
 
 from __future__ import annotations
 
-
 # Import all fixtures from the organized modules
 # This makes all fixtures available to tests as if they were defined in this file
+from tests.fixtures.config_fixtures import (
+    active_bp_config,
+    active_bp_secrets,
+    active_hl_config,
+    active_hl_secrets,
+    hl_test_environment,
+    hl_test_environment_from_config,
+    test_app_settings,
+    test_config_file_path,
+    test_secrets_config,
+    test_secrets_file_path,
+)
 
 
 # Re-export all imported fixtures so they can be discovered by pytest
-# Currently no fixtures are defined in this module, so __all__ is empty
-__all__: list[str] = []
+__all__: list[str] = [
+    "active_bp_config",
+    "active_bp_secrets",
+    "active_hl_config",
+    "active_hl_secrets",
+    "hl_test_environment",
+    "hl_test_environment_from_config",
+    "test_app_settings",
+    "test_config_file_path",
+    "test_secrets_config",
+    "test_secrets_file_path",
+]
