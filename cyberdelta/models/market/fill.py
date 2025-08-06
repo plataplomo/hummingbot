@@ -12,8 +12,6 @@ from decimal import Decimal
 from typing import Any, Self
 
 from pydantic import (
-    BaseModel,
-    ConfigDict,
     Field,
     computed_field,
     field_validator,
@@ -22,18 +20,20 @@ from pydantic import (
 
 from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.field_validation import (
-    DecimalFiniteError,
-    FillLogicError,
-    InvalidExchangeNameError,
-    RequiredFieldNoneError,
-    TypeFieldError,
+from cyberdelta.exceptions.field_validation import FillLogicError
+from cyberdelta.models.base_validators import (
+    ExchangeValidationMixin,
+    ExtensionSlotModel,
+    ImmutableModel,
+    optional_decimal_validator,
+    required_datetime_validator,
+    required_decimal_validator,
 )
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import validate_str_field
 
 
-class Fill(BaseModel):
+class Fill(ExchangeValidationMixin, ImmutableModel):
     """Lean core internal model for a single execution event (fill) across all supported exchanges.
 
     Contains only essential, universal fields. Immutable, robust, and validated.
@@ -70,7 +70,8 @@ class Fill(BaseModel):
     hl_details: HyperliquidFillDetails | None = Field(default=None)
     bp_details: BackpackFillDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
+    # Config: Immutable (inherited from ImmutableModel)
+    # Exchange validation: ExchangeValidationMixin provides validate_exchange()
 
     @field_validator("id", "order_id", mode="before")
     @classmethod
@@ -89,99 +90,10 @@ class Fill(BaseModel):
         # exchange specs
         return validate_str_field(v, field_name=str(field_name), max_length=128)
 
-    @field_validator("exchange", mode="before")
-    @classmethod
-    def validate_exchange(cls, v: object, info: object) -> ExchangeName:
-        """Validate exchange field is a valid ExchangeName.
+    # Exchange validation provided by ExchangeValidationMixin
 
-        Returns:
-            ExchangeName: Validated exchange name.
-
-        Raises:
-            InvalidExchangeNameError: If exchange name is invalid.
-            TypeFieldError: If value is not a string or ExchangeName.
-        """
-        if isinstance(v, ExchangeName):
-            return v
-        if isinstance(v, str):
-            try:
-                return ExchangeName(v.lower())
-            except ValueError as e:
-                raise InvalidExchangeNameError(
-                    value=v,
-                    valid_exchanges=[ex.value for ex in ExchangeName],
-                ) from e
-        raise TypeFieldError(
-            field_name="exchange",
-            expected_type="string or ExchangeName",
-            actual_type=type(v).__name__,
-            actual_value=v,
-        )
-
-    @field_validator("executed_at", mode="before")
-    @classmethod
-    def parse_executed_at(
-        cls,
-        raw_value: str | float | datetime | None,
-        info: object,
-    ) -> datetime:
-        """Parse and validate the execution timestamp field.
-
-        Converts various timestamp formats to a UTC datetime object for consistent
-        internal representation. Ensures the timestamp is not None.
-
-        Args:
-            raw_value: Raw timestamp value from external source
-            info: Pydantic field validation context
-
-        Returns:
-            Validated UTC datetime object
-
-        Raises:
-            RequiredFieldNoneError: If timestamp cannot be parsed or is None
-
-        """
-        dt = parse_datetime_utc(raw_value, field_name="executed_at")
-        if dt is None:
-            raise RequiredFieldNoneError(
-                field_name="executed_at",
-                reason="Fill execution timestamp is required and cannot be None",
-            )
-        return dt
-
-    @field_validator("price", "quantity", "fee", mode="before")
-    @classmethod
-    def parse_decimal_fields(
-        cls,
-        raw_value: str | float | Decimal | None,
-        info: object,
-    ) -> Decimal:
-        """Parse and validate decimal fields for financial precision.
-
-        Converts various numeric formats to finite Decimal objects for precise
-        financial calculations. Ensures all values are finite and valid.
-
-        Args:
-            raw_value: Raw numeric value from external source
-            info: Pydantic field validation context
-
-        Returns:
-            Validated finite Decimal object
-
-        Raises:
-            DecimalFiniteError: If value cannot be parsed to finite Decimal
-
-        """
-        field_name = getattr(info, "field_name", None)
-        d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
-        # allow_none=False ensures d is never None
-        if not d.is_finite():
-            raise DecimalFiniteError(
-                field_name=str(field_name),
-                value=d,
-                context="for fill financial calculations",
-            )
-        return d
+    _validate_executed_at = required_datetime_validator("executed_at")
+    _validate_required_decimals = required_decimal_validator("price", "quantity", "fee")
 
     @field_validator("client_order_id", "fee_asset", mode="before")
     @classmethod
@@ -253,7 +165,7 @@ class Fill(BaseModel):
         return data
 
 
-class HyperliquidFillDetails(BaseModel):
+class HyperliquidFillDetails(ExtensionSlotModel):
     """Hyperliquid-specific fill enrichment fields for extension slot on Fill.
 
     Fields:
@@ -271,7 +183,10 @@ class HyperliquidFillDetails(BaseModel):
     start_position: Decimal | None = None
     dir: str | None = None
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Use centralized validators
+    _validate_optional_decimals = optional_decimal_validator(
+        "liquidation_mark_px", "start_position"
+    )
 
     @field_validator("fill_hash", mode="before")
     @classmethod
@@ -312,45 +227,8 @@ class HyperliquidFillDetails(BaseModel):
         # TODO: Replace with enum validation if/when values are known
         return validate_str_field(v, field_name="dir", max_length=32)
 
-    @field_validator("liquidation_mark_px", "start_position", mode="before")
-    @classmethod
-    def validate_decimals(
-        cls,
-        v: str | float | Decimal | None,
-        info: object,
-    ) -> Decimal | None:
-        """Validate and parse Hyperliquid decimal fields to ensure financial precision.
 
-        Converts raw numeric values from external APIs to validated Decimal objects
-        for precise financial calculations. Handles liquidation mark price and
-        starting position size fields from Hyperliquid's ApiUserFill structure.
-
-        Args:
-            v: Raw numeric value from external source (can be None)
-            info: Pydantic field validation context containing field name
-
-        Returns:
-            Validated finite Decimal or None if not provided
-
-        Raises:
-            DecimalFiniteError: If value cannot be parsed to finite Decimal
-
-        """
-        if v is None:
-            return None
-        field_name = getattr(info, "field_name", "unknown")
-        d = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        # allow_none=False ensures d is never None
-        if not d.is_finite():
-            raise DecimalFiniteError(
-                field_name=str(field_name),
-                value=d,
-                context="for Hyperliquid fill details",
-            )
-        return d
-
-
-class BackpackFillDetails(BaseModel):
+class BackpackFillDetails(ExtensionSlotModel):
     """Backpack-specific fill enrichment fields for extension slot on Fill.
 
     Fields:
@@ -359,8 +237,6 @@ class BackpackFillDetails(BaseModel):
     """
 
     system_order_type: str | None = None
-
-    model_config = ConfigDict(extra="ignore", frozen=True)
 
     @field_validator("system_order_type", mode="before")
     @classmethod

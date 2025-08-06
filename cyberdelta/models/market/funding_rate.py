@@ -15,14 +15,19 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field
 
-from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
+from cyberdelta.models.base_validators import (
+    ExtensionSlotModel,
+    ImmutableModel,
+    optional_datetime_validator,
+    optional_decimal_validator,
+    required_datetime_validator,
+)
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
-class HyperliquidFundingDetails(BaseModel):
+class HyperliquidFundingDetails(ExtensionSlotModel):
     """Hyperliquid-specific funding rate enrichment fields for extension slot on FundingRate.
 
     Fields:
@@ -39,51 +44,23 @@ class HyperliquidFundingDetails(BaseModel):
     hl_impact_px: Decimal | None = None
     premium: Decimal | None = None
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
-
-    @field_validator(
-        "hl_funding_hourly",
-        "hl_prev_day_px",
-        "hl_day_ntl_vlm",
-        "hl_impact_px",
-        "premium",
-        mode="before",
+    # Config: Extension slot (inherited from ExtensionSlotModel)
+    # Use centralized validators
+    _validate_optional_decimals = optional_decimal_validator(
+        "hl_funding_hourly", "hl_prev_day_px", "hl_day_ntl_vlm", "hl_impact_px", "premium"
     )
-    @classmethod
-    def parse_decimal_fields(
-        cls,
-        raw_value: str | float | Decimal | None,
-        info: object,
-    ) -> Decimal | None:
-        """Parse and validate decimal fields to ensure they are valid finite Decimal objects.
-
-        Returns:
-            Decimal | None: Validated finite decimal value, or None if input was None.
-
-        Raises:
-            DecimalFiniteError: If the decimal value is not finite (infinite, NaN).
-        """
-        value = parse_decimal_value(raw_value)
-        if value is not None and not value.is_finite():
-            field_name = getattr(info, "field_name", "funding_details")
-            raise DecimalFiniteError(
-                field_name=str(field_name),
-                value=value,
-                context="for Hyperliquid funding details",
-            )
-        return value
 
 
-class BackpackFundingDetails(BaseModel):
+class BackpackFundingDetails(ExtensionSlotModel):
     """Backpack-specific funding rate enrichment fields for extension slot on FundingRate.
 
     # TODO: Add BP-specific enrichment fields if identified later.
     """
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Extension slot (inherited from ExtensionSlotModel)
 
 
-class FundingRate(BaseModel):
+class FundingRate(ImmutableModel):
     """Core internal model for funding rate information across all supported exchanges.
 
     Contains only essential, universal fields with exchange-specific details in extension slots.
@@ -117,70 +94,13 @@ class FundingRate(BaseModel):
     hl_details: HyperliquidFundingDetails | None = Field(default=None)
     bp_details: BackpackFundingDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
+    # Config: Immutable (inherited from ImmutableModel)
+    # Use centralized validators
+    _validate_timestamp = required_datetime_validator("timestamp")
+    _validate_optional_decimals = optional_decimal_validator(
+        "funding_rate", "predicted_rate", "mark_price", "index_price"
+    )
+    _validate_next_funding = optional_datetime_validator("next_funding_time")
 
     # Symbol validation is handled by Pydantic's type system
     # No need for a custom validator since Symbol is always valid
-
-    @field_validator("funding_rate", "predicted_rate", "mark_price", "index_price", mode="before")
-    @classmethod
-    def parse_decimal_fields(
-        cls,
-        raw_value: str | float | Decimal | None,
-        info: object,
-    ) -> Decimal | None:
-        """Parse and validate decimal fields to ensure they are valid finite Decimal objects.
-
-        Returns:
-            Decimal | None: Validated finite decimal value, or None if input was None.
-
-        Raises:
-            DecimalFiniteError: If the decimal value is not finite (infinite, NaN).
-        """
-        value = parse_decimal_value(raw_value)
-        if value is not None and not value.is_finite():
-            field_name = getattr(info, "field_name", "funding_field")
-            raise DecimalFiniteError(
-                field_name=str(field_name),
-                value=value,
-                context="for funding rate calculations",
-            )
-        # The Field(gt=0) constraint will handle ensuring positive values for prices
-        return value
-
-    @field_validator("timestamp", mode="before")
-    @classmethod
-    def validate_timestamp(
-        cls,
-        raw_value: datetime | float | str | None,
-        info: object,
-    ) -> datetime:
-        """Parse and validate timestamp to ensure it is a UTC-aware datetime object.
-
-        Returns:
-            datetime: UTC-aware datetime object representing the funding rate timestamp.
-
-        Raises:
-            RequiredFieldNoneError: If timestamp is None or cannot be parsed.
-        """
-        value = parse_datetime_utc(raw_value, field_name="timestamp")
-        if value is None:
-            raise RequiredFieldNoneError(
-                field_name="timestamp",
-                reason="Funding rate timestamp is required and must be a valid format",
-            )
-        return value
-
-    @field_validator("next_funding_time", mode="before")
-    @classmethod
-    def parse_next_funding_time(
-        cls,
-        raw_value: datetime | float | str | None,
-        info: object,
-    ) -> datetime | None:
-        """Parse and validate next_funding_time to ensure it is a UTC-aware datetime object.
-
-        Returns:
-            datetime | None: UTC-aware datetime for next funding time, or None if not provided.
-        """
-        return parse_datetime_utc(raw_value, field_name="next_funding_time")

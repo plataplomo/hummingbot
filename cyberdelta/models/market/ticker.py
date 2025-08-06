@@ -16,25 +16,25 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import Field
 
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.field_validation import (
-    DecimalFiniteError,
-    InvalidExchangeNameError,
-    RequiredFieldNoneError,
-    TypeFieldError,
+from cyberdelta.models.base_validators import (
+    ExchangeValidationMixin,
+    ExtensionSlotModel,
+    ImmutableModel,
+    optional_decimal_validator,
+    required_datetime_validator,
 )
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 
 # Instantiate logger for this module
 logger = get_logger(__name__)
 
 
-class Ticker(BaseModel):
+class Ticker(ExchangeValidationMixin, ImmutableModel):
     """Represents an immutable, validated snapshot of the latest ticker data for a symbol.
 
     Provides core price (last, bid, ask) and volume information, ensuring data integrity
@@ -70,102 +70,16 @@ class Ticker(BaseModel):
     hl_details: HyperliquidTickerDetails | None = Field(default=None)
     bp_details: BackpackTickerDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
+    # Config: Immutable (inherited from ImmutableModel)
+    # Exchange validation: ExchangeValidationMixin provides validate_exchange()
 
     # Symbol validation is handled by Pydantic's type system
     # No need for a custom validator since Symbol is always valid
 
-    @field_validator("exchange", mode="before")
-    @classmethod
-    def validate_exchange(cls, v: object, info: ValidationInfo) -> ExchangeName:
-        """Validate the 'exchange' field.
+    # Exchange validation provided by ExchangeValidationMixin
 
-        Returns:
-            ExchangeName: Validated exchange name.
-
-        Raises:
-            InvalidExchangeNameError: If exchange name is invalid.
-            TypeFieldError: If value is not a string or ExchangeName.
-        """
-        if isinstance(v, ExchangeName):
-            return v
-        if isinstance(v, str):
-            try:
-                return ExchangeName(v.lower())
-            except ValueError as e:
-                raise InvalidExchangeNameError(
-                    value=v,
-                    valid_exchanges=[ex.value for ex in ExchangeName],
-                ) from e
-        raise TypeFieldError(
-            field_name="exchange",
-            expected_type="string or ExchangeName",
-            actual_type=type(v).__name__,
-            actual_value=v,
-        )
-
-    @field_validator("timestamp", mode="before")
-    @classmethod
-    def validate_timestamp(cls, v: datetime | float | str | None) -> datetime:
-        """Validate and parse the 'timestamp' field to a required UTC datetime object.
-
-        Args:
-            v: Value to validate and parse.
-
-        Returns:
-            datetime: Parsed UTC datetime object.
-
-        Raises:
-            RequiredFieldNoneError: If timestamp is None.
-        """
-        dt = parse_datetime_utc(v, field_name="timestamp")
-        if dt is None:
-            raise RequiredFieldNoneError(
-                field_name="timestamp",
-                reason="Ticker timestamp is required and must be a valid format",
-            )
-        return dt
-
-    @field_validator("price", "bid", "ask", "volume", mode="before")
-    @classmethod
-    def validate_and_parse_decimal_optional(
-        cls,
-        v: str | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal | None:
-        """Validate, parse, and check finiteness for optional Decimal fields.
-
-        Uses `parse_decimal_value` which handles None input gracefully (returns None).
-        Adds an explicit check to ensure that any non-None parsed Decimal is finite.
-        The non-negativity (`ge=0`) constraint is handled by `Field`.
-
-        Args:
-            v: The raw input value (can be various numeric types or None).
-            info: Pydantic validation context. Used for field name in error messages if needed.
-
-        Returns:
-            The parsed Decimal value if input is valid and non-None, None if input is None,
-            or raises ValueError for invalid/non-finite inputs.
-
-        Raises:
-            DecimalFiniteError: If a non-None input is not finite.
-
-        """
-        # Ensure field_name is a str for the parsing utility.
-        field_name = info.field_name if info.field_name is not None else "unknown_field"
-
-        # parse_decimal_value returns None if v is None, raises ValueError otherwise on failure.
-        parsed_decimal = parse_decimal_value(v, allow_none=True, field_name=field_name)
-
-        # Ensure non-None results are finite. NaN/Infinity are invalid for ticker data.
-        if parsed_decimal is not None and not parsed_decimal.is_finite():
-            raise DecimalFiniteError(
-                field_name=field_name,
-                value=parsed_decimal,
-                context="for ticker price data",
-            )
-
-        return parsed_decimal
+    _validate_timestamp = required_datetime_validator("timestamp")
+    _validate_optional_decimals = optional_decimal_validator("price", "bid", "ask", "volume")
 
     @property
     def mid_price(self) -> Decimal | None:
@@ -214,7 +128,7 @@ class Ticker(BaseModel):
         return None  # Return None if bid or ask is None or non-finite
 
 
-class HyperliquidTickerDetails(BaseModel):
+class HyperliquidTickerDetails(ExtensionSlotModel):
     """Hyperliquid-specific ticker enrichment fields for extension slot on Ticker.
 
     Fields:
@@ -223,10 +137,10 @@ class HyperliquidTickerDetails(BaseModel):
 
     mid_price_source: str | None = Field(default=None)
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Immutable (inherited from ExtensionSlotModel)
 
 
-class BackpackTickerDetails(BaseModel):
+class BackpackTickerDetails(ExtensionSlotModel):
     """Backpack-specific ticker enrichment fields for extension slot on Ticker.
 
     Preserves the rich 24-hour ticker statistics provided by Backpack's REST API
@@ -250,4 +164,4 @@ class BackpackTickerDetails(BaseModel):
     quote_volume: Decimal | None = Field(default=None, ge=Decimal(0))
     trades: int | None = Field(default=None, ge=0)
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Immutable (inherited from ExtensionSlotModel)
