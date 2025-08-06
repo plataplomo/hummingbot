@@ -28,7 +28,7 @@ from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.risk.risk_service import RiskService
 from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
-from cyberdelta.domain.trading.execution_engine import ExecutionEngine
+from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
 from cyberdelta.infrastructure.exchange_api_factory import ExchangeAPIFactory
 from cyberdelta.infrastructure.persistence.file_repository import FilePortfolioStorage

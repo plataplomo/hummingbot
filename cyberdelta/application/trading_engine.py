@@ -24,7 +24,7 @@ from cyberdelta.domain.risk.risk_service import RiskService
 from cyberdelta.domain.safety.circuit_breaker import CircuitBreakerManager
 from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
-from cyberdelta.domain.trading.execution_engine import ExecutionEngine
+from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
 from cyberdelta.enums.signals import SignalType
 from cyberdelta.models import Trade, TradeSignal

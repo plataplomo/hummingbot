@@ -101,7 +101,10 @@ class SafeModeWrapper:
     """
 
     def __init__(
-        self, config: AppSettings, real_api: ExchangeAPI, exchange_name: ExchangeName
+        self,
+        config: AppSettings,
+        real_api: ExchangeAPI,
+        exchange_name: ExchangeName,
     ) -> None:
         """Initialize safe mode wrapper with real ExchangeAPI.
 
@@ -364,7 +367,8 @@ class SafeModeWrapper:
         return await self._real_api.get_funding_rates(args)
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get historical funding rates - always use real market data.
 
@@ -556,7 +560,8 @@ class SafeModeWrapper:
         return results
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs]
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Cancel batch orders - simulated in safe mode, real in normal mode.
 
@@ -636,7 +641,7 @@ class SafeModeWrapper:
         # Apply slippage from config
         # Always use secrets for secure randomness
         slippage_factor = Decimal(
-            str(secrets.SystemRandom().uniform(-self._slippage_range[1], self._slippage_range[1]))
+            str(secrets.SystemRandom().uniform(-self._slippage_range[1], self._slippage_range[1])),
         )
 
         if order.side == OrderSide.BUY:
@@ -653,8 +658,12 @@ class SafeModeWrapper:
         fee = order.quantity_requested * fill_price * fee_rate
 
         # Create simulated fill
+        if order.exchange_order_id is None:
+            # For simulation, generate an order ID if not present
+            order.exchange_order_id = f"SIM-{order.client_order_id}"
+
         fill = SimulatedFill(
-            order_id=order.exchange_order_id or "",
+            order_id=order.exchange_order_id,  # Now guaranteed to be non-None
             symbol=order.symbol,
             side=order.side,
             price=fill_price,
@@ -799,7 +808,9 @@ class SafeModeWrapper:
                 del self._simulated_positions[symbol_key]
 
                 logger.info(
-                    "safe_mode_position_closed", symbol=symbol_key, realized_pnl=float(realized_pnl)
+                    "safe_mode_position_closed",
+                    symbol=symbol_key,
+                    realized_pnl=float(realized_pnl),
                 )
             else:
                 # Position reduced

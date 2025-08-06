@@ -16,7 +16,7 @@ from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.monitoring.health_monitor import ServiceType
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
-from cyberdelta.domain.trading.execution_engine import ExecutionEngine
+from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.events import (
@@ -204,7 +204,9 @@ class TradingService(HealthCheckable):
         - Proper logging for each execution
         """
         logger.info(
-            "bulk_signal_execution_started", signal_count=len(signals), safe_mode=self._safe_mode
+            "bulk_signal_execution_started",
+            signal_count=len(signals),
+            safe_mode=self._safe_mode,
         )
 
         orders: list[Order] = []
@@ -303,7 +305,11 @@ class TradingService(HealthCheckable):
                     symbol=order.symbol,
                     executed_at=order.updated_at or datetime.now(UTC),
                     side=order.side,
-                    order_id=order.exchange_order_id or "",
+                    order_id=(
+                        order.exchange_order_id
+                        if order.exchange_order_id is not None
+                        else "pending"
+                    ),
                     exchange=order.exchange.value,
                     price=order.average_fill_price or order.price or Decimal(0),
                     quantity=order.quantity_filled,
@@ -325,7 +331,9 @@ class TradingService(HealthCheckable):
 
         except Exception as e:
             logger.exception(
-                "portfolio_update_from_order_failed", order_id=order.exchange_order_id, error=str(e)
+                "portfolio_update_from_order_failed",
+                order_id=order.exchange_order_id,
+                error=str(e),
             )
             # Don't re-raise - portfolio update failure shouldn't cancel trade
 
@@ -345,7 +353,9 @@ class TradingService(HealthCheckable):
 
             # Publish order executed event
             order_event = OrderExecutedEvent(
-                order_id=order.exchange_order_id or "",
+                order_id=(
+                    order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
+                ),
                 symbol=order.symbol,
                 exchange=order.exchange,
                 side=order.side,
@@ -367,7 +377,9 @@ class TradingService(HealthCheckable):
 
             signal_event = SignalProcessedEvent(
                 signal_id=original_signal.signal_id,
-                order_id=order.exchange_order_id or "",
+                order_id=(
+                    order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
+                ),
                 symbol=original_signal.symbol,
                 exchange=signal_exchange,
                 success=order.status.value in {"OPEN", "FILLED", "PARTIALLY_FILLED"},
@@ -413,12 +425,16 @@ class TradingService(HealthCheckable):
             await self._portfolio_service.save_state()
 
             logger.debug(
-                "order_persisted", order_id=order.exchange_order_id, symbol=order.symbol.value
+                "order_persisted",
+                order_id=order.exchange_order_id,
+                symbol=order.symbol.value,
             )
 
         except Exception as e:
             logger.exception(
-                "order_persistence_failed", order_id=order.exchange_order_id, error=str(e)
+                "order_persistence_failed",
+                order_id=order.exchange_order_id,
+                error=str(e),
             )
             # Don't re-raise - persistence failure shouldn't cancel trade
 
