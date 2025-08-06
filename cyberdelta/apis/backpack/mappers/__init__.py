@@ -30,7 +30,7 @@ from .market_data.bp_funding_rate_mapper import BackpackFundingRateMapper
 from .market_data.bp_market_mapper import BackpackMarketMapper
 from .market_data.bp_order_book_mapper import BackpackOrderBookMapper
 from .market_data.bp_ticker_mapper import BackpackTickerMapper
-from .market_data.bp_trade_mapper import BackpackTradeMapper
+from .market_data.bp_trade_mapper import BackpackFillMapper
 from .trading.bp_order_mapper import BackpackOrderMapper
 from .utils.common_mappers import BackpackCommonMappers
 
@@ -40,13 +40,13 @@ __all__ = [
     "BackpackBalanceMapper",
     "BackpackCandleMapper",
     "BackpackCommonMappers",
+    "BackpackFillMapper",
     "BackpackFundingRateMapper",
     "BackpackMarketMapper",
     "BackpackOrderBookMapper",
     "BackpackOrderMapper",
     "BackpackPositionMapper",
     "BackpackTickerMapper",
-    "BackpackTradeMapper",
     "BackpackTransactionMapper",
     "BackpackTransferMapper",
 ]

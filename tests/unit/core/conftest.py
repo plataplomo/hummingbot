@@ -19,6 +19,7 @@ from cyberdelta.core.enums import SignalType
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
+    Fill,
     FundingRate,
     MarginAccountSummary,
     Order,
@@ -29,7 +30,6 @@ from cyberdelta.models import (
     SpotBalance,
     Ticker,
     TimeInForce,
-    Trade,
     TradeSignal,
 )
 from cyberdelta.models.market.candle import Candle
@@ -266,14 +266,14 @@ def sample_derivative_position(btc_symbols: SymbolSet) -> DerivativePosition:
 
 
 @pytest.fixture
-def sample_trade(btc_symbols: SymbolSet) -> Trade:
-    """Standard test trade.
+def sample_fill(btc_symbols: SymbolSet) -> Fill:
+    """Standard test fill.
 
     Returns:
-        Trade: Test BTC-PERP buy trade at $50k.
+        Fill: Test BTC-PERP buy fill at $50k.
     """
     btc_symbol = btc_symbols.perp_hl
-    return Trade(
+    return Fill(
         id=str(uuid4()),
         symbol=btc_symbol,
         side=OrderSide.BUY,
@@ -281,7 +281,7 @@ def sample_trade(btc_symbols: SymbolSet) -> Trade:
         price=Decimal("50000.0"),
         order_id=str(uuid4()),
         executed_at=datetime.now(UTC),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
     )
 
 

@@ -7,14 +7,16 @@ balances and positions.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.portfolio import ReconciliationError
 from cyberdelta.models import DerivativePosition, SpotBalance
+from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
 from cyberdelta.symbols.api import symbol as create_symbol
 
 
@@ -74,11 +76,13 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
 
         logger.info(
             "reconciliation_engine_initialized",
-            balance_tolerance=float(self._balance_tolerance),
-            position_tolerance=float(self._position_tolerance),
+            balance_tolerance=self._balance_tolerance,
+            position_tolerance=self._position_tolerance,
         )
 
-    async def reconcile_with_exchanges(self, api_clients: dict[str, ExchangeAPI]) -> dict[str, Any]:
+    async def reconcile_with_exchanges(
+        self, api_clients: dict[str, ExchangeAPI]
+    ) -> ReconciliationReport:
         """Reconcile portfolio state with actual exchange balances and positions.
 
         This method fetches current balances and positions from all enabled exchanges
@@ -101,14 +105,22 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
             api_clients: Dictionary of exchange API clients
 
         Returns:
-            Dictionary with reconciliation results including errors and discrepancies
+            Typed reconciliation results including errors and discrepancies
 
         Raises:
             ReconciliationError: If reconciliation fails for all exchanges
         """
         if not api_clients:
             logger.warning("reconciliation_skipped", reason="no_api_clients_configured")
-            return {"error": "No API clients configured", "critical_errors": 0}
+            return ReconciliationReport(
+                reconciliation_timestamp=datetime.now(UTC),
+                reconciliation_successful=False,
+                total_discrepancies=0,
+                exchange_results={},
+                balance_discrepancies=[],
+                position_discrepancies=[],
+                error_messages=["No API clients configured"],
+            )
 
         logger.info("portfolio_reconciliation_starting")
 
@@ -155,11 +167,22 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
         else:
             logger.info("reconciliation_completed_successfully", exchanges_checked=len(api_clients))
 
-        return {
-            "total_discrepancies": total_discrepancies,
-            "critical_errors": critical_discrepancies,
-            "exchanges_checked": len(api_clients),
-        }
+        # Convert string keys to ExchangeName enum for the report
+        exchange_results = {ExchangeName(key): critical_discrepancies == 0 for key in api_clients}
+
+        return ReconciliationReport(
+            reconciliation_timestamp=datetime.now(UTC),
+            reconciliation_successful=total_discrepancies == 0 and critical_discrepancies == 0,
+            total_discrepancies=total_discrepancies,
+            exchange_results=exchange_results,
+            balance_discrepancies=[],  # Would need to collect from _reconcile_single_exchange
+            position_discrepancies=[],  # Would need to collect from _reconcile_single_exchange
+            error_messages=(
+                [f"{critical_discrepancies} critical errors"]
+                if critical_discrepancies > 0
+                else None
+            ),
+        )
 
     async def _reconcile_single_exchange(
         self,
@@ -198,7 +221,7 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
             logger.info(
                 "reconciling_exchange",
                 exchange=exchange_name,
-                timeout_seconds=float(reconciliation_timeout),
+                timeout_seconds=reconciliation_timeout,
             )
 
             # Reconcile balances for this exchange
@@ -280,7 +303,7 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                         "balance_missing_in_cache",
                         exchange=exchange.value,
                         asset=asset_name,
-                        exchange_balance=float(exchange_balance.total_quantity),
+                        exchange_balance=exchange_balance.total_quantity,
                     )
 
                     # Add missing balance to cache
@@ -300,10 +323,10 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                             "balance_discrepancy_detected",
                             exchange=exchange.value,
                             asset=asset_name,
-                            cached_balance=float(cached_balance.total_quantity),
-                            exchange_balance=float(exchange_balance.total_quantity),
-                            difference=float(difference),
-                            tolerance=float(tolerance),
+                            cached_balance=cached_balance.total_quantity,
+                            exchange_balance=exchange_balance.total_quantity,
+                            difference=difference,
+                            tolerance=tolerance,
                         )
 
                         # Update cached balance to match exchange
@@ -322,7 +345,7 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                         "balance_exists_only_in_cache",
                         exchange=exchange.value,
                         asset=asset_name,
-                        cached_balance=float(cached_balance.total_quantity),
+                        cached_balance=cached_balance.total_quantity,
                     )
                     discrepancies += 1
 
@@ -380,7 +403,7 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                             "position_missing_in_cache",
                             exchange=exchange.value,
                             symbol=symbol_name,
-                            exchange_position_size=float(exchange_position.size),
+                            exchange_position_size=exchange_position.size,
                         )
 
                         # Add missing position to cache
@@ -398,10 +421,10 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                             "position_discrepancy_detected",
                             exchange=exchange.value,
                             symbol=symbol_name,
-                            cached_size=float(cached_position.size),
-                            exchange_size=float(exchange_position.size),
-                            difference=float(difference),
-                            tolerance=float(tolerance),
+                            cached_size=cached_position.size,
+                            exchange_size=exchange_position.size,
+                            difference=difference,
+                            tolerance=tolerance,
                         )
 
                         # Update cached position to match exchange
@@ -417,7 +440,7 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                         "position_exists_only_in_cache",
                         exchange=exchange.value,
                         symbol=symbol_name,
-                        cached_size=float(cached_position.size),
+                        cached_size=cached_position.size,
                     )
                     discrepancies += 1
 

@@ -30,7 +30,7 @@ from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError
-from cyberdelta.models import DerivativePosition, Trade
+from cyberdelta.models import DerivativePosition, Fill
 from cyberdelta.symbols import exchanges
 from cyberdelta.utils.parsing import parse_decimal_value
 from tests.common_symbols import SOL_USDC_BP
@@ -166,7 +166,7 @@ class TestFillTransformation:
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawFillResponse to internal Trade."""
+        """Test successful transformation of BackpackRawFillResponse to internal Fill."""
         raw_fill = create_raw_fill(
             fee="0.05",
             fee_symbol="USDC",
@@ -182,7 +182,7 @@ class TestFillTransformation:
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
-        assert isinstance(result, Trade)
+        assert isinstance(result, Fill)
         assert result.id == "123456"
         assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
@@ -207,7 +207,7 @@ class TestFillTransformation:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.side == OrderSide.SELL
 
     def test_transform_raw_fill_with_client_id(
@@ -222,7 +222,7 @@ class TestFillTransformation:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.client_order_id == "client123"
 
     def test_transform_raw_fill_zero_price_returns_none(
@@ -281,7 +281,7 @@ class TestFillTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawFillResponse to Trade",
+                match="Failed to transform BackpackRawFillResponse to Fill",
             ):
                 mapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -302,7 +302,7 @@ class TestFillTransformation:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.price == Decimal("0.000001")
         assert result.quantity == Decimal("999999999.999999")
         assert result.fee == Decimal("0.000000001")
@@ -328,14 +328,14 @@ class TestFillTransformation:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.side == expected_side
 
 
-class TestTradeTransformation:
-    """Test cases for trade transformation functionality."""
+class TestFillTransformationPrivate:
+    """Test cases for private fill transformation functionality."""
 
-    def test_transform_raw_trade_to_internal_returns_none(
+    def test_transform_raw_fill_to_internal_returns_none(
         self,
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
@@ -350,7 +350,7 @@ class TestTradeTransformation:
             order_id="order123",
         )
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        result = mapper.transform_raw_fill_to_internal_public(raw_trade)
 
         # Backpack REST API for trades lacks side information, so mapper returns None
         assert result is None
@@ -386,9 +386,9 @@ class TestTradeTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
+                match="Failed to transform BackpackRawPublicTrade to Fill",
             ):
-                mapper.transform_raw_trade_to_internal(raw_trade)
+                mapper.transform_raw_fill_to_internal_public(raw_trade)
 
     def test_transform_raw_trade_missing_quantity_raises_error(
         self,
@@ -421,20 +421,20 @@ class TestTradeTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
+                match="Failed to transform BackpackRawPublicTrade to Fill",
             ):
-                mapper.transform_raw_trade_to_internal(raw_trade)
+                mapper.transform_raw_fill_to_internal_public(raw_trade)
 
 
 class TestWebSocketFillTransformation:
     """Test cases for WebSocket fill event transformation functionality."""
 
-    def test_transform_ws_fill_event_to_internal_trade_happy_path(
+    def test_transform_ws_fill_event_to_internal_fill_happy_path(
         self,
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of WebSocket fill event to internal Trade."""
+        """Test successful transformation of WebSocket fill event to internal Fill."""
         raw_fill = create_raw_fill(
             fee="0.05",
             fee_symbol="USDC",
@@ -448,9 +448,9 @@ class TestWebSocketFillTransformation:
             trade_id=123456,
         )
 
-        result = mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
-        assert isinstance(result, Trade)
+        assert isinstance(result, Fill)
         assert result.id == "123456"
         assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
@@ -474,7 +474,7 @@ class TestWebSocketFillTransformation:
             timestamp=test_timestamp,
         )
 
-        result = mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is None
 
@@ -595,7 +595,7 @@ class TestErrorHandling:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.symbol == exchanges.backpack("SOL-USDC🚀")
 
     def test_very_long_trade_ids(
@@ -611,5 +611,5 @@ class TestErrorHandling:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.id == str(long_id)

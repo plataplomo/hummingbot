@@ -406,6 +406,56 @@ class TradeTransformationError(TransformationError):
         }
 
 
+class FillTransformationError(TransformationError):
+    """Raised when fill data transformation fails."""
+
+    def __init__(
+        self,
+        fill_source: str,
+        reason: str,
+        symbol: str | None = None,
+        fill_id: str | None = None,
+        original_error: Exception | None = None,
+        source_data: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize fill transformation error.
+
+        Args:
+            fill_source: Source of fill data (e.g., 'BackpackRawFillResponse')
+            reason: Reason for transformation failure
+            symbol: Symbol being transformed if available
+            fill_id: Fill ID if available
+            original_error: The original exception
+            source_data: The source fill data
+        """
+        if symbol and fill_id:
+            message = (
+                f"Failed to transform {fill_source} to Fill for {symbol} (ID: {fill_id}): {reason}"
+            )
+        elif symbol:
+            message = f"Failed to transform {fill_source} to Fill for {symbol}: {reason}"
+        elif fill_id:
+            message = f"Failed to transform {fill_source} to Fill (ID: {fill_id}): {reason}"
+        else:
+            message = f"Failed to transform {fill_source} to Fill: {reason}"
+
+        super().__init__(
+            message=message,
+            source_value=source_data,
+            original_exception=original_error,
+        )
+        self.fill_source = fill_source
+        self.symbol = symbol
+        self.fill_id = fill_id
+        self.reason = reason
+        self.source_type = fill_source
+        self.target_type = "Fill"
+        self.details = {
+            "symbol": symbol,
+            "fill_id": fill_id,
+        }
+
+
 class FundingRateTransformationError(TransformationError):
     """Raised when funding rate data transformation fails."""
 

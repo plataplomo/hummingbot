@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import DerivativePosition, SpotBalance, Trade
+from cyberdelta.models import DerivativePosition, Fill, SpotBalance
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.symbols.models import Symbol
 
@@ -63,10 +63,10 @@ class PortfolioStateManagerProtocol(Protocol):
         """
         ...
 
-    async def update_from_trade(self, trade: Trade) -> None:
-        """Update portfolio state from trade execution.
+    async def update_from_fill(self, fill: Fill) -> None:
+        """Update portfolio state from fill execution.
 
         Args:
-            trade: Trade execution details
+            fill: Fill execution details
         """
         ...

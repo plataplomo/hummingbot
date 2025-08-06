@@ -9,25 +9,26 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.domain.monitoring.health_monitor import ServiceType
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
+from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.events import (
     OrderExecutedEvent,
     SignalExecutionFailedEvent,
     SignalProcessedEvent,
 )
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.risk.assessment import PositionSize
 from cyberdelta.models.trading.execution_request import ExecutionRequest
+from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 from cyberdelta.protocols.infrastructure.monitoring import HealthCheckable
 
 
@@ -96,7 +97,7 @@ class TradingService(HealthCheckable):
             safe_mode=self._safe_mode,
             update_on_execution=self._update_on_execution,
             persist_on_trade=self._persist_on_trade,
-            execution_timeout=float(self._execution_config.timeout_seconds),
+            execution_timeout=self._execution_config.timeout_seconds,
             retry_enabled=self._execution_config.retry_enabled,
         )
 
@@ -126,7 +127,7 @@ class TradingService(HealthCheckable):
                 else signal.exchange[0].value
             ),
             side=signal.side.value,
-            price=float(signal.price) if signal.price else None,
+            price=signal.price or None,
             safe_mode=self._safe_mode,
         )
 
@@ -169,11 +170,9 @@ class TradingService(HealthCheckable):
                 order_id=order.exchange_order_id,
                 symbol=order.symbol.value,
                 exchange=order.exchange.value,
-                price=float(order.price) if order.price else None,
-                quantity_requested=(
-                    float(order.quantity_requested) if order.quantity_requested else None
-                ),
-                quantity_filled=float(order.quantity_filled) if order.quantity_filled else None,
+                price=order.price or None,
+                quantity_requested=(order.quantity_requested or None),
+                quantity_filled=order.quantity_filled or None,
             )
 
         except Exception as e:
@@ -295,12 +294,12 @@ class TradingService(HealthCheckable):
         """
         try:
             # Create a simplified Trade object from the Order for portfolio update
-            # This is a temporary bridge until full Trade events are available
+            # This is a temporary bridge until full Fill events are available
             # Imports already available at top level
 
             if order.quantity_filled and order.quantity_filled > 0:
-                # Create trade from filled order
-                trade = Trade(
+                # Create fill from filled order
+                trade = Fill(
                     id=f"trade_{uuid.uuid4().hex[:8]}",
                     symbol=order.symbol,
                     executed_at=order.updated_at or datetime.now(UTC),
@@ -310,7 +309,7 @@ class TradingService(HealthCheckable):
                         if order.exchange_order_id is not None
                         else "pending"
                     ),
-                    exchange=order.exchange.value,
+                    exchange=order.exchange,
                     price=order.average_fill_price or order.price or Decimal(0),
                     quantity=order.quantity_filled,
                     fee=Decimal(0),  # Fee would come from exchange response
@@ -319,14 +318,14 @@ class TradingService(HealthCheckable):
                 )
 
                 # Update portfolio with the trade
-                await self._portfolio_service.update_from_trade(trade)
+                await self._portfolio_service.update_from_fill(trade)
 
             logger.debug(
                 "portfolio_updated_from_order",
                 order_id=order.exchange_order_id,
                 symbol=order.symbol.value,
                 exchange=order.exchange.value,
-                quantity_filled=float(order.quantity_filled) if order.quantity_filled else 0,
+                quantity_filled=order.quantity_filled or 0,
             )
 
         except Exception as e:
@@ -471,32 +470,17 @@ class TradingService(HealthCheckable):
                 publishing_error=str(e),
             )
 
-    async def get_execution_status(self) -> dict[str, Any]:
+    async def get_execution_status(self) -> ExecutionStatistics:
         """Get current execution status and configuration.
 
         Returns:
-            Dictionary with execution configuration and status
-
+            Typed execution statistics and configuration
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns explicit configuration state
         - NO hardcoded defaults in response
         """
-        return {
-            "configuration": {
-                "safe_mode": self._safe_mode,
-                "update_on_execution": self._update_on_execution,
-                "persist_on_trade": self._persist_on_trade,
-                "execution_timeout_seconds": float(self._execution_config.timeout_seconds),
-                "retry_enabled": self._execution_config.retry_enabled,
-                "max_retry_attempts": (
-                    self._execution_config.max_retry_attempts
-                    if self._execution_config.retry_enabled
-                    else 0
-                ),
-            },
-            "engine_status": "running",  # Execution engine is always running if service is running
-        }
+        return await self._execution_engine.check_health()
 
     def is_safe_mode(self) -> bool:
         """Check if trading service is in safe mode.
@@ -510,11 +494,11 @@ class TradingService(HealthCheckable):
         """
         return self._safe_mode
 
-    async def check_health(self) -> dict[str, Any]:
+    async def check_health(self) -> ExecutionStatistics:
         """Health check implementation for TradingService.
 
         Returns:
-            Dictionary with health metrics and status
+            Typed execution statistics
 
 
         IMPORTANT: Following CODING_STANDARDS.md:
@@ -522,26 +506,79 @@ class TradingService(HealthCheckable):
         - No assumptions about normal operation
         """
         # Get execution engine health if available
-        execution_health = {}
+        execution_health = None
         try:
             execution_health = await self._execution_engine.check_health()
-        except (RuntimeError, ValueError, ConnectionError) as e:
-            execution_health = {"error": f"Health check failed: {e}"}
+        except (RuntimeError, ValueError, ConnectionError):
+            # Create minimal stats for failed health check
 
-        return {
-            "is_running": True,
-            "signal_count": self._signal_count,
-            "success_count": self._success_count,
-            "error_count": self._error_count,
-            "last_activity": self._last_activity.isoformat() if self._last_activity else None,
-            "safe_mode": self._safe_mode,
-            "update_on_execution": self._update_on_execution,
-            "persist_on_trade": self._persist_on_trade,
-            "execution_engine_health": execution_health,
-            "success_rate": (
-                self._success_count / self._signal_count if self._signal_count > 0 else 0.0
+            error_order_stats = OrderTrackerStatistics(
+                active_orders=0,
+                total_orders=0,
+                success_count=0,
+                error_count=1,
+                success_rate=Decimal(0),
+                last_activity_timestamp=None,
+            )
+
+            execution_health = ExecutionStatistics(
+                order_tracking=error_order_stats,
+                api_clients_available=0,
+                safe_mode_enabled=True,
+                max_slippage_pct=Decimal(0),
+                max_retries=0,
+            )
+
+        # Use execution engine stats as base, or create minimal stats
+        if execution_health:
+            # Update order tracking stats with trading service metrics
+
+            enhanced_order_stats = OrderTrackerStatistics(
+                active_orders=execution_health.order_tracking.active_orders,
+                total_orders=max(execution_health.order_tracking.total_orders, self._signal_count),
+                success_count=max(
+                    execution_health.order_tracking.success_count, self._success_count
+                ),
+                error_count=max(execution_health.order_tracking.error_count, self._error_count),
+                success_rate=(
+                    Decimal(self._success_count) / Decimal(self._signal_count)
+                    if self._signal_count > 0
+                    else execution_health.order_tracking.success_rate
+                ),
+                last_activity_timestamp=(
+                    self._last_activity or execution_health.order_tracking.last_activity_timestamp
+                ),
+            )
+
+            return ExecutionStatistics(
+                order_tracking=enhanced_order_stats,
+                api_clients_available=execution_health.api_clients_available,
+                safe_mode_enabled=self._safe_mode,
+                max_slippage_pct=execution_health.max_slippage_pct,
+                max_retries=execution_health.max_retries,
+            )
+        # Fallback stats when execution engine is unavailable
+
+        fallback_order_stats = OrderTrackerStatistics(
+            active_orders=0,
+            total_orders=self._signal_count,
+            success_count=self._success_count,
+            error_count=self._error_count,
+            success_rate=(
+                Decimal(self._success_count) / Decimal(self._signal_count)
+                if self._signal_count > 0
+                else Decimal(0)
             ),
-        }
+            last_activity_timestamp=self._last_activity,
+        )
+
+        return ExecutionStatistics(
+            order_tracking=fallback_order_stats,
+            api_clients_available=0,
+            safe_mode_enabled=self._safe_mode,
+            max_slippage_pct=Decimal(0),
+            max_retries=0,
+        )
 
     def get_service_type(self) -> ServiceType:
         """Return service type for health monitoring."""

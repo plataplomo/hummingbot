@@ -70,6 +70,7 @@ from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
+    Fill,
     FundingRate,
     MarginAccountSummary,
     MidPrices,
@@ -77,7 +78,6 @@ from cyberdelta.models import (
     OrderBook,
     SpotBalance,
     Ticker,
-    Trade,
 )
 from cyberdelta.models.market import Market
 from cyberdelta.models.market.candle import Candle
@@ -1255,7 +1255,7 @@ class ExchangeAPI(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Fetch historical trade data (account fills).
 
         Args:

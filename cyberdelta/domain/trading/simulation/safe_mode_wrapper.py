@@ -53,12 +53,12 @@ from cyberdelta.models.account_settings import AccountSettings
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.market.candle import Candle
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.funding_rate import FundingRate
 from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.order import CancelOrderResult, Order
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.operations import Transfer, Withdrawal
 from cyberdelta.models.spot_balance import SpotBalance
 from cyberdelta.symbols import bp_symbol, hl_symbol
@@ -156,8 +156,8 @@ class SafeModeWrapper:
             logger.warning(
                 "safe_mode_wrapper_active",
                 exchange=exchange_name.value,
-                initial_balance=float(self._initial_balance),
-                fill_probability=float(self._fill_probability),
+                initial_balance=self._initial_balance,
+                fill_probability=self._fill_probability,
                 slippage_range=self._slippage_range,
                 message="ALL TRADES WILL BE SIMULATED - NO REAL ORDERS",
             )
@@ -206,8 +206,8 @@ class SafeModeWrapper:
             symbol=args.symbol.value,
             side=args.side.value,
             order_type=args.order_type.value,
-            price=float(args.price) if args.price else None,
-            quantity=float(args.quantity),
+            price=args.price or None,
+            quantity=args.quantity,
             safe_mode=True,
             message="SIMULATED ORDER - NOT SENT TO EXCHANGE",
         )
@@ -423,19 +423,19 @@ class SafeModeWrapper:
 
         return orders
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Get trade history - simulated in safe mode, real in normal mode.
 
         Returns:
-            list[Trade]: List of historical trades
+            list[Fill]: List of historical trades
         """
         if not self._safe_mode:
             return await self._real_api.get_trade_history(args)
 
-        # Convert simulated fills to Trade objects
-        trades: list[Trade] = []
+        # Convert simulated fills to Fill objects
+        trades: list[Fill] = []
         for fill in self._simulated_fills:
-            trade = Trade(
+            trade = Fill(
                 id=f"trade_{uuid.uuid4().hex[:8]}",
                 symbol=fill.symbol,
                 executed_at=fill.timestamp,
@@ -613,7 +613,7 @@ class SafeModeWrapper:
             "safe_mode_balances_initialized",
             exchange=self._exchange_name.value,
             base_currency=base_currency,
-            initial_balance=float(self._initial_balance),
+            initial_balance=self._initial_balance,
         )
 
     async def _simulate_fill(self, order: Order, immediate: bool = False) -> None:
@@ -622,11 +622,11 @@ class SafeModeWrapper:
         # Always use secrets for secure randomness
         fill_check = secrets.SystemRandom().random()
 
-        if not immediate and fill_check > float(self._fill_probability):
+        if not immediate and fill_check > self._fill_probability:
             logger.debug(
                 "safe_mode_order_not_filled",
                 order_id=order.exchange_order_id,
-                fill_probability=float(self._fill_probability),
+                fill_probability=self._fill_probability,
             )
             return
 
@@ -688,10 +688,10 @@ class SafeModeWrapper:
             order_id=order.exchange_order_id,
             symbol=order.symbol.value,
             side=order.side.value,
-            fill_price=float(fill_price),
-            quantity=float(order.quantity_requested),
-            fee=float(fee),
-            slippage_factor=float(slippage_factor),
+            fill_price=fill_price,
+            quantity=order.quantity_requested,
+            fee=fee,
+            slippage_factor=slippage_factor,
             safe_mode=True,
             message="SIMULATED FILL - NOT A REAL TRADE",
         )
@@ -753,9 +753,9 @@ class SafeModeWrapper:
         logger.debug(
             "safe_mode_balance_updated",
             asset=base_currency,
-            total=float(new_total),
-            available=float(new_available),
-            change=float(-cost if fill.side == OrderSide.BUY else proceeds),
+            total=new_total,
+            available=new_available,
+            change=-cost if fill.side == OrderSide.BUY else proceeds,
         )
 
     async def _update_position_from_fill(self, fill: SimulatedFill) -> None:
@@ -810,7 +810,7 @@ class SafeModeWrapper:
                 logger.info(
                     "safe_mode_position_closed",
                     symbol=symbol_key,
-                    realized_pnl=float(realized_pnl),
+                    realized_pnl=realized_pnl,
                 )
             else:
                 # Position reduced
@@ -847,12 +847,11 @@ class SafeModeWrapper:
             "filled_orders": filled_orders,
             "fill_rate": filled_orders / total_orders if total_orders > 0 else 0,
             "total_fills": len(self._simulated_fills),
-            "total_volume": float(total_volume),
-            "total_fees": float(total_fees),
+            "total_volume": total_volume,
+            "total_fees": total_fees,
             "open_positions": len(self._simulated_positions),
             "current_balance": {
-                asset: float(balance.total_quantity)
-                for asset, balance in self._simulated_balances.items()
+                asset: balance.total_quantity for asset, balance in self._simulated_balances.items()
             },
         }
 

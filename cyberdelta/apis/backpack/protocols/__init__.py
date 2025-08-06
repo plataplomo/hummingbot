@@ -30,6 +30,7 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import (
     AccountSummaryMapperProtocol,
     BalanceMapperProtocol,
     CandleMapperProtocol,
+    FillMapperProtocol,
     FundingRateMapperProtocol,
     MarketDataMapperProtocol,
     MarketMapperProtocol,
@@ -37,7 +38,6 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import (
     OrderMapperProtocol,
     PositionMapperProtocol,
     TickerMapperProtocol,
-    TradeMapperProtocol,
     TransactionMapperProtocol,
     TransferMapperProtocol,
 )
@@ -57,6 +57,7 @@ __all__ = [
     "AccountSummaryMapperProtocol",
     "BalanceMapperProtocol",
     "CandleMapperProtocol",
+    "FillMapperProtocol",
     "FundingRateMapperProtocol",
     # Base protocols
     "MapperProtocol",
@@ -70,7 +71,6 @@ __all__ = [
     "RequestBuilderProtocol",
     "ResponseHandlerProtocol",
     "TickerMapperProtocol",
-    "TradeMapperProtocol",
     "TradingRequestBuilderProtocol",
     "TradingResponseHandlerProtocol",
     "TransactionMapperProtocol",

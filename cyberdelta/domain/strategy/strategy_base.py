@@ -11,8 +11,8 @@ from abc import ABC, abstractmethod
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models import TradeSignal
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.portfolio.state import PortfolioState
 
 
@@ -266,19 +266,19 @@ class BaseStrategy(ABC):
         )
 
     @abstractmethod
-    async def handle_trade(self, trade: Trade) -> None:
-        """Handle trade execution feedback.
+    async def handle_fill(self, fill: Fill) -> None:
+        """Handle fill execution feedback.
 
-        This method is called when a trade is executed from this strategy's signals.
-        Subclasses must implement to update their internal state based on trade results.
+        This method is called when a fill is executed from this strategy's signals.
+        Subclasses must implement to update their internal state based on fill results.
 
         Args:
-            trade: Executed trade information
+            fill: Executed fill information
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Must be implemented by all strategies
-        - Strategies update internal state based on trade feedback
-        - NO assumptions about trade success/failure handling
+        - Strategies update internal state based on fill feedback
+        - NO assumptions about fill success/failure handling
         """
         ...
 

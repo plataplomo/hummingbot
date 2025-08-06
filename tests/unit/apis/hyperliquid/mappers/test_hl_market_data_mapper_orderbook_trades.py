@@ -38,8 +38,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
 from cyberdelta.enums import OrderSide
-from cyberdelta.models import OrderBook, Trade
-from cyberdelta.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.models import Fill, OrderBook
+from cyberdelta.models.market.fill import HyperliquidFillDetails
 from tests.common_symbols import ETH_HL
 
 
@@ -325,7 +325,7 @@ class TestTransformRawPublicTradeToInternal:
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
 
         assert trade is not None
-        assert isinstance(trade, Trade)
+        assert isinstance(trade, Fill)
         assert trade.symbol.value == raw_trade.coin
         assert trade.side == OrderSide.BUY  # "B" -> BUY
         assert trade.price == Decimal(raw_trade.px)
@@ -334,8 +334,8 @@ class TestTransformRawPublicTradeToInternal:
 
         # Verify Hyperliquid-specific details
         assert trade.hl_details is not None
-        assert isinstance(trade.hl_details, HyperliquidTradeDetails)
-        assert trade.hl_details.trade_hash == raw_trade.hash
+        assert isinstance(trade.hl_details, HyperliquidFillDetails)
+        assert trade.hl_details.fill_hash == raw_trade.hash
         assert trade.bp_details is None
 
     def test_trade_transformation_sell_happy_path(
@@ -348,7 +348,7 @@ class TestTransformRawPublicTradeToInternal:
         trade = market_data_mapper.transform_raw_public_trade_to_internal(raw_trade)
 
         assert trade is not None
-        assert isinstance(trade, Trade)
+        assert isinstance(trade, Fill)
         assert trade.symbol.value == raw_trade.coin
         assert trade.side == OrderSide.SELL  # "A" -> SELL
         assert trade.price == Decimal(raw_trade.px)
@@ -499,7 +499,7 @@ class TestTransformRawTrades:
         result = market_data_mapper.transform_raw_trades(raw_trades)
 
         assert len(result) == 2
-        assert all(isinstance(trade, Trade) for trade in result)
+        assert all(isinstance(trade, Fill) for trade in result)
         assert result[0].side == OrderSide.BUY
         assert result[1].side == OrderSide.SELL
 
@@ -518,7 +518,7 @@ class TestTransformRawTrades:
         result = market_data_mapper.transform_raw_trades(raw_trades, limit=1)
 
         assert len(result) == 1
-        assert isinstance(result[0], Trade)
+        assert isinstance(result[0], Fill)
 
     def test_transform_trades_limit_greater_than_list_size(
         self,
@@ -531,7 +531,7 @@ class TestTransformRawTrades:
         result = market_data_mapper.transform_raw_trades(raw_trades, limit=10)
 
         assert len(result) == 1  # Should return all available trades
-        assert isinstance(result[0], Trade)
+        assert isinstance(result[0], Fill)
 
     def test_transform_trades_with_some_invalid_trades(
         self,
@@ -562,7 +562,7 @@ class TestTransformRawTrades:
 
         # Should only return valid trades
         assert len(result) == 1
-        assert isinstance(result[0], Trade)
+        assert isinstance(result[0], Fill)
         assert result[0].symbol == ETH_HL  # The valid trade
 
         # Check that warning was logged for skipped trade in structured logs
@@ -603,7 +603,7 @@ class TestTransformRawTrades:
 
         def mock_transform_side_effect(
             self: HyperliquidOrderBookMapper, raw_trade: HyperliquidRawPublicTrade
-        ) -> Trade | None:
+        ) -> Fill | None:
             """Return mock transform side effect for testing.
 
             Args:
@@ -611,7 +611,7 @@ class TestTransformRawTrades:
                 raw_trade: The raw trade to transform.
 
             Returns:
-                Trade | None: Transformed trade or None if transformation fails.
+                Fill | None: Transformed trade or None if transformation fails.
 
             Raises:
                 ValueError: If the trade coin is 'ERROR-PERP' (for testing error handling).
@@ -620,7 +620,7 @@ class TestTransformRawTrades:
                 raise ValueError("Simulated transformation error")
             result = original_transform(raw_trade)
             # Ensure we return the correct type
-            return result if isinstance(result, Trade) else None
+            return result if isinstance(result, Fill) else None
 
         # Patch the static method at the class level
         mocker.patch.object(
@@ -639,7 +639,7 @@ class TestTransformRawTrades:
 
         # Should only return the valid trade (error trade should be skipped)
         assert len(result) == 1
-        assert isinstance(result[0], Trade)
+        assert isinstance(result[0], Fill)
         assert result[0].symbol == ETH_HL  # The valid trade
 
         # Check that error was logged in structured logs
@@ -756,7 +756,7 @@ class TestOrderBookAndTradeIntegration:
 
         assert len(trades) == 50
         # Verify all trades are valid
-        assert all(isinstance(trade, Trade) for trade in trades)
+        assert all(isinstance(trade, Fill) for trade in trades)
         # Verify side distribution
         buy_trades = [t for t in trades if t.side == OrderSide.BUY]
         sell_trades = [t for t in trades if t.side == OrderSide.SELL]

@@ -698,7 +698,7 @@ class TestUnicodeAndEncodingSupport:
         assert trade.symbol.value == long_symbol
         assert trade.client_order_id == long_client_id
         assert trade.hl_details is not None
-        assert trade.hl_details.trade_hash == long_hash
+        assert trade.hl_details.fill_hash == long_hash
 
 
 # --- Tests for performance and memory considerations ---

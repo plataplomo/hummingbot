@@ -325,7 +325,7 @@ def structural_balance_mapper() -> BalanceMapperProtocol:
             asset_symbol: Symbol, raw_user_state: HyperliquidRawClearinghouseState
         ) -> SpotBalance:
             return SpotBalance(
-                exchange="test",
+                exchange=ExchangeName.HYPERLIQUID,
                 asset=asset_symbol,
                 timestamp=datetime.now(UTC),
                 total_quantity=Decimal(0),

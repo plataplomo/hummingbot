@@ -20,13 +20,13 @@ from cyberdelta.apis.backpack.mappers import (
     BackpackAccountSummaryMapper,
     BackpackBalanceMapper,
     BackpackCandleMapper,
+    BackpackFillMapper,
     BackpackFundingRateMapper,
     BackpackMarketMapper,
     BackpackOrderBookMapper,
     BackpackOrderMapper,
     BackpackPositionMapper,
     BackpackTickerMapper,
-    BackpackTradeMapper,
     BackpackTransactionMapper,
     BackpackTransferMapper,
 )
@@ -35,13 +35,13 @@ from cyberdelta.apis.backpack.protocols import (
     AccountResponseHandlerProtocol,
     BalanceMapperProtocol,
     CandleMapperProtocol,
+    FillMapperProtocol,
     MarketDataRequestBuilderProtocol,
     MarketDataResponseHandlerProtocol,
     OrderBookMapperProtocol,
     OrderMapperProtocol,
     PositionMapperProtocol,
     TickerMapperProtocol,
-    TradeMapperProtocol,
     TradingRequestBuilderProtocol,
     TradingResponseHandlerProtocol,
 )
@@ -100,7 +100,7 @@ MapperComponent = (
     | BackpackMarketMapper
     | BackpackOrderBookMapper
     | BackpackTickerMapper
-    | BackpackTradeMapper
+    | BackpackFillMapper
     | BackpackOrderMapper
 )
 
@@ -321,7 +321,7 @@ class BackpackAPIComponentsFactory:
             "trade_mapper": (
                 self._registry.mappers.get("market.trade")
                 if self._registry.mappers.is_registered("market.trade")
-                else BackpackTradeMapper()
+                else BackpackFillMapper()
             ),
             # Trading mappers - all stateless with static methods
             "order_mapper": (
@@ -411,7 +411,7 @@ class BackpackAPIComponentsFactory:
             ("order_mapper", OrderMapperProtocol),
             ("ticker_mapper", TickerMapperProtocol),
             ("order_book_mapper", OrderBookMapperProtocol),
-            ("trade_mapper", TradeMapperProtocol),
+            ("trade_mapper", FillMapperProtocol),
             ("candle_mapper", CandleMapperProtocol),
             # Request builder protocol validations
             ("account_request_builder", AccountRequestBuilderProtocol),
@@ -534,7 +534,7 @@ class BackpackAPIComponentsFactory:
     def get_shared_component(
         self,
         component_name: Literal["trade_mapper"],
-    ) -> BackpackTradeMapper: ...
+    ) -> BackpackFillMapper: ...
 
     # Trading mappers
     @overload
@@ -740,11 +740,11 @@ class BackpackAPIComponentsFactory:
         """
         return self.get_shared_component("candle_mapper")
 
-    def create_trade_mapper(self) -> BackpackTradeMapper:
-        """Create a BackpackTradeMapper instance.
+    def create_trade_mapper(self) -> BackpackFillMapper:
+        """Create a BackpackFillMapper instance.
 
         Returns:
-            BackpackTradeMapper: A shared mapper instance.
+            BackpackFillMapper: A shared mapper instance.
         """
         return self.get_shared_component("trade_mapper")
 
@@ -773,7 +773,7 @@ class BackpackAPIComponentsFactory:
         # Optional mapper parameters for dependency injection
         ticker_mapper: BackpackTickerMapper | None = None,
         order_book_mapper: BackpackOrderBookMapper | None = None,
-        trade_mapper: BackpackTradeMapper | None = None,
+        trade_mapper: BackpackFillMapper | None = None,
         candle_mapper: BackpackCandleMapper | None = None,
         market_mapper: BackpackMarketMapper | None = None,
         funding_rate_mapper: BackpackFundingRateMapper | None = None,

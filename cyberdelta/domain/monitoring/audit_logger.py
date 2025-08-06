@@ -26,8 +26,8 @@ from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
 from cyberdelta.logging.logging_helpers import SENSITIVE_FIELDS
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.trade_signal import TradeSignal
 from cyberdelta.symbols.models import Symbol
 
@@ -345,41 +345,41 @@ class AuditLogger:
 
         await self.log_event(event)
 
-    async def log_trade_event(
+    async def log_fill_event(
         self,
-        trade: Trade,
+        fill: Fill,
         event_type: AuditEventType,
         description: str,
         **metadata: str | float | bool,
     ) -> None:
-        """Log a trade-related audit event.
+        """Log a fill-related audit event.
 
         Args:
-            trade: The trade executed
-            event_type: Type of trade event
+            fill: The fill executed
+            event_type: Type of fill event
             description: Human-readable description
             **metadata: Additional metadata
         """
-        # Build trade data excluding sensitive fields if configured
-        trade_data = trade.model_dump(
+        # Build fill data excluding sensitive fields if configured
+        fill_data = fill.model_dump(
             mode="json",
-            exclude=SENSITIVE_FIELDS.get(Trade, set()) if not self._log_sensitive_data else set(),
+            exclude=SENSITIVE_FIELDS.get(Fill, set()) if not self._log_sensitive_data else set(),
         )
 
         event = AuditEvent(
             event_type=event_type,
             severity=AuditSeverity.INFO,
             description=description,
-            entity_type="Trade",
-            entity_id=trade.id,
-            exchange=ExchangeName(trade.exchange) if trade.exchange else None,
-            symbol=trade.symbol,
+            entity_type="Fill",
+            entity_id=fill.id,
+            exchange=ExchangeName(fill.exchange) if fill.exchange else None,
+            symbol=fill.symbol,
             metadata={
-                "trade_data": trade_data,
-                "side": trade.side.value if trade.side else None,
-                "quantity": float(trade.quantity) if trade.quantity else None,
-                "price": float(trade.price) if trade.price else None,
-                "fee": float(trade.fee) if trade.fee else None,
+                "fill_data": fill_data,
+                "side": fill.side.value if fill.side else None,
+                "quantity": float(fill.quantity) if fill.quantity else None,
+                "price": float(fill.price) if fill.price else None,
+                "fee": float(fill.fee) if fill.fee else None,
                 **metadata,
             },
         )

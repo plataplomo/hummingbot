@@ -51,7 +51,7 @@ if TYPE_CHECKING:
         BackpackOrderBookMapper,
     )
     from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
-    from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
+    from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 
 
 class SymbolExtractionError(ValueError):
@@ -65,9 +65,9 @@ class SymbolExtractionError(ValueError):
 if TYPE_CHECKING:
     from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
     from cyberdelta.models.market import (
+        Fill,
         OrderBook,
         Ticker,
-        Trade,
     )
 
 
@@ -176,10 +176,10 @@ class BackpackTickerTransformer:
         return self.ticker_mapper.transform_ws_ticker_event_to_internal(validated)
 
 
-class BackpackTradeTransformer:
-    """Transforms Backpack raw trade events to internal Trade models."""
+class BackpackFillTransformer:
+    """Transforms Backpack raw trade events to internal Fill models."""
 
-    def __init__(self, trade_mapper: BackpackTradeMapper) -> None:
+    def __init__(self, trade_mapper: BackpackFillMapper) -> None:
         """Initialize with trade mapper.
 
         Args:
@@ -192,19 +192,19 @@ class BackpackTradeTransformer:
         self,
         validated: BackpackRawPublicTradeEvent,
         context: WebSocketContextProtocol | None = None,
-    ) -> Trade:
-        """Transform validated trade event to Trade.
+    ) -> Fill:
+        """Transform validated trade event to Fill.
 
         Args:
             validated: Validated Backpack trade event.
             context: Optional context (ignored).
 
         Returns:
-            Internal Trade model.
+            Internal Fill model.
 
         """
         # Use existing mapper to transform to internal model
-        return self.trade_mapper.transform_ws_trade_event_to_internal(validated)
+        return self.trade_mapper.transform_ws_fill_event_to_internal_fill(validated)
 
 
 class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope]):
@@ -219,7 +219,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         error_handler: BaseErrorHandler,
         order_book_mapper: BackpackOrderBookMapper,
         ticker_mapper: BackpackTickerMapper,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Initialize the Backpack WebSocket router.
 
@@ -265,7 +265,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
 
         self.processors["trade"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawPublicTradeEvent,
-            transformer=BackpackTradeTransformer(self.trade_mapper),
+            transformer=BackpackFillTransformer(self.trade_mapper),
             error_handler=self.error_handler,
             processor_name="backpack_trade",
         )

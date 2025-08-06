@@ -54,7 +54,7 @@ class TradeSignal(BaseModel):
         price (Decimal): Required signal price (must be positive).
         quantity (Optional[Decimal]): Optional signal quantity (must be positive if set).
             Risk/Execution may adjust this.
-        exchange (Union[str, list[str]]): Target exchange(s).
+        exchange (Union[ExchangeName, list[ExchangeName]]): Target exchange(s).
         timestamp (datetime): Signal creation timestamp (UTC), defaults to now.
         confidence (Optional[float]): Optional confidence score (0.0 to 1.0). Uses float.
         source_strategy (Optional[str]): Optional strategy identifier.

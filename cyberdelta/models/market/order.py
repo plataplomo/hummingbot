@@ -45,7 +45,7 @@ from cyberdelta.exceptions import (
     RequiredFieldNoneError,
 )
 from cyberdelta.exceptions.field_validation import InvalidExchangeNameError, TypeFieldError
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
@@ -138,7 +138,7 @@ class Order(BaseModel):
     # static analysis bug, not a code issue. The type is fully known at runtime.
     # See: https://github.com/microsoft/pyright/issues/10442
     # TODO: Remove this ignore when pyright fixes the regression
-    trades: list[Trade] = Field(  # pyright: ignore[reportUnknownVariableType]
+    trades: list[Fill] = Field(  # pyright: ignore[reportUnknownVariableType]
         default_factory=list,
         description="List of associated trade fills.",
     )

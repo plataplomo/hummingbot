@@ -19,6 +19,7 @@ from cyberdelta.domain.risk.risk_checker import RiskChecker
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, TradeSignal
 from cyberdelta.models.risk.assessment import PositionSize, RiskAssessment
+from cyberdelta.models.risk.drawdown_status import DrawdownStatus
 
 
 logger = get_logger(__name__)
@@ -234,17 +235,17 @@ class RiskService:
                 error=str(e),
             )
 
-    def get_drawdown_status(self) -> dict[str, object]:
+    def get_drawdown_status(self) -> DrawdownStatus:
         """Get current drawdown monitoring status.
 
         Returns:
-            Dictionary with drawdown status and configuration
-
+            Typed drawdown status with configuration
 
         Note:
             Following CODING_STANDARDS.md:
             - Returns structured status from DrawdownMonitor
             - Configuration context included
+            - Type-safe status reporting
         """
         return self._drawdown_monitor.get_drawdown_status()
 

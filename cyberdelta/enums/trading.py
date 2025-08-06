@@ -57,3 +57,15 @@ class TimeInForce(Enum):
     IOC = "IOC"  # Immediate Or Cancel (Backpack, HL via Limit)
     FOK = "FOK"  # Fill Or Kill (Backpack, HL via Limit)
     ALO = "ALO"  # Add Liquidity Only / Post-Only (Hyperliquid specific TIF value)
+
+
+class MakerTaker(Enum):
+    """Enum representing whether a fill was executed as maker or taker.
+
+    Used throughout CyberDeltaEngine for fee calculation and execution reporting.
+    - MAKER: Order was filled as a maker (provided liquidity to the book)
+    - TAKER: Order was filled as a taker (removed liquidity from the book)
+    """
+
+    MAKER = "MAKER"
+    TAKER = "TAKER"

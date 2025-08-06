@@ -1,7 +1,7 @@
-"""Core trade models for CyberDeltaEngine.
+"""Core fill models for CyberDeltaEngine.
 
-This module defines the internal Trade model and exchange-specific enrichment details
-for representing executed trades across all supported exchanges. The Trade model follows
+This module defines the internal Fill model and exchange-specific enrichment details
+for representing executed fills across all supported exchanges. The Fill model follows
 the "Core + Typed Extension Slots" pattern for exchange-specific data.
 """
 
@@ -20,26 +20,26 @@ from pydantic import (
     model_validator,
 )
 
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
+    FillLogicError,
     InvalidExchangeNameError,
     RequiredFieldNoneError,
-    TradeLogicError,
     TypeFieldError,
 )
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 
-class Trade(BaseModel):
+class Fill(BaseModel):
     """Lean core internal model for a single execution event (fill) across all supported exchanges.
 
     Contains only essential, universal fields. Immutable, robust, and validated.
 
     Fields:
-        id (str): Trade ID (string, unique per exchange fill)
+        id (str): Fill ID (string, unique per exchange fill)
         symbol (Symbol): Trading symbol domain object
         executed_at (datetime): UTC timestamp of execution
         side (OrderSide): Buy or sell
@@ -48,11 +48,11 @@ class Trade(BaseModel):
         client_order_id (Optional[str]): Client-generated order ID
         price (Decimal): Execution price (must be positive)
         quantity (Decimal): Executed quantity (must be positive)
-        fee (Decimal): Fee paid for this trade (can be negative for rebates/promotions)
+        fee (Decimal): Fee paid for this fill (can be negative for rebates/promotions)
         fee_asset (Optional[str]): Asset in which the fee was paid (required if fee != 0)
-        is_maker (Optional[bool]): True if maker fill, False if taker, None if unknown
-        hl_details (Optional[HyperliquidTradeDetails]): Hyperliquid-specific enrichment slot
-        bp_details (Optional[BackpackTradeDetails]): Backpack-specific enrichment slot
+        maker_taker (Optional[MakerTaker]): MAKER or TAKER, None if unknown
+        hl_details (Optional[HyperliquidFillDetails]): Hyperliquid-specific enrichment slot
+        bp_details (Optional[BackpackFillDetails]): Backpack-specific enrichment slot
     """
 
     id: str
@@ -60,22 +60,22 @@ class Trade(BaseModel):
     executed_at: datetime
     side: OrderSide
     order_id: str
-    exchange: str
+    exchange: ExchangeName
     price: Decimal = Field(gt=Decimal(0))
     quantity: Decimal = Field(gt=Decimal(0))
     client_order_id: str | None = Field(default=None)
     fee: Decimal = Field(default=Decimal(0))
     fee_asset: str | None = Field(default=None)
-    is_maker: bool | None = Field(default=None)
-    hl_details: HyperliquidTradeDetails | None = Field(default=None)
-    bp_details: BackpackTradeDetails | None = Field(default=None)
+    maker_taker: MakerTaker | None = Field(default=None)
+    hl_details: HyperliquidFillDetails | None = Field(default=None)
+    bp_details: BackpackFillDetails | None = Field(default=None)
 
     model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
 
     @field_validator("id", "order_id", mode="before")
     @classmethod
     def validate_id_fields(cls, v: str, info: object) -> str:
-        """Validate trade and order ID fields with appropriate length limits.
+        """Validate fill and order ID fields with appropriate length limits.
 
         Args:
             v: ID field value to validate
@@ -145,7 +145,7 @@ class Trade(BaseModel):
         if dt is None:
             raise RequiredFieldNoneError(
                 field_name="executed_at",
-                reason="Trade execution timestamp is required and cannot be None",
+                reason="Fill execution timestamp is required and cannot be None",
             )
         return dt
 
@@ -179,7 +179,7 @@ class Trade(BaseModel):
             raise DecimalFiniteError(
                 field_name=str(field_name),
                 value=d,
-                context="for trade financial calculations",
+                context="for fill financial calculations",
             )
         return d
 
@@ -215,21 +215,21 @@ class Trade(BaseModel):
             Self for method chaining
 
         Raises:
-            TradeLogicError: If fee is non-zero but fee_asset is not provided
+            FillLogicError: If fee is non-zero but fee_asset is not provided
 
         """
         if self.fee != Decimal(0) and not self.fee_asset:
-            raise TradeLogicError(
+            raise FillLogicError(
                 validation_type="fee_asset_required",
                 message="fee_asset must be provided if fee is nonzero",
-                trade_id=self.id,
+                fill_id=self.id,
                 fields={"fee": self.fee, "fee_asset": self.fee_asset},
             )
         return self
 
     @computed_field
     def cost(self) -> Decimal:
-        """Total cost (price * quantity) for this trade.
+        """Total cost (price * quantity) for this fill.
 
         Returns:
             Total cost as Decimal
@@ -246,18 +246,18 @@ class Trade(BaseModel):
         for key, value in data.items():
             if isinstance(value, Decimal):
                 data[key] = str(value)
-            elif isinstance(value, OrderSide):
+            elif isinstance(value, (OrderSide, MakerTaker)):
                 data[key] = value.value
             elif isinstance(value, datetime):
                 data[key] = value.isoformat()
         return data
 
 
-class HyperliquidTradeDetails(BaseModel):
-    """Hyperliquid-specific trade enrichment fields for extension slot on Trade.
+class HyperliquidFillDetails(BaseModel):
+    """Hyperliquid-specific fill enrichment fields for extension slot on Fill.
 
     Fields:
-        trade_hash (str): Unique trade hash (ApiUserFill.hash)
+        fill_hash (str): Unique fill hash (ApiUserFill.hash)
         liquidation_mark_px (Optional[Decimal]): Mark price at liquidation
             (ApiUserFill.liquidationMarkPx)
         start_position (Optional[Decimal]): Position size before fill
@@ -266,30 +266,30 @@ class HyperliquidTradeDetails(BaseModel):
             Enum validation to be added if values are known.
     """
 
-    trade_hash: str
+    fill_hash: str
     liquidation_mark_px: Decimal | None = None
     start_position: Decimal | None = None
     dir: str | None = None
 
     model_config = ConfigDict(extra="ignore", frozen=True)
 
-    @field_validator("trade_hash", mode="before")
+    @field_validator("fill_hash", mode="before")
     @classmethod
-    def validate_trade_hash(cls, v: str, info: object) -> str:
-        """Validate and sanitize the Hyperliquid trade hash field.
+    def validate_fill_hash(cls, v: str, info: object) -> str:
+        """Validate and sanitize the Hyperliquid fill hash field.
 
-        Ensures the trade hash is a non-empty string with reasonable length limits
+        Ensures the fill hash is a non-empty string with reasonable length limits
         to prevent malformed or excessively long hash values from external APIs.
 
         Args:
-            v: Raw trade hash value from external source
+            v: Raw fill hash value from external source
             info: Pydantic field validation context
 
         Returns:
-            Validated trade hash string
+            Validated fill hash string
 
         """
-        return validate_str_field(v, field_name="trade_hash", max_length=128)
+        return validate_str_field(v, field_name="fill_hash", max_length=128)
 
     @field_validator("dir", mode="before")
     @classmethod
@@ -345,13 +345,13 @@ class HyperliquidTradeDetails(BaseModel):
             raise DecimalFiniteError(
                 field_name=str(field_name),
                 value=d,
-                context="for Hyperliquid trade details",
+                context="for Hyperliquid fill details",
             )
         return d
 
 
-class BackpackTradeDetails(BaseModel):
-    """Backpack-specific trade enrichment fields for extension slot on Trade.
+class BackpackFillDetails(BaseModel):
+    """Backpack-specific fill enrichment fields for extension slot on Fill.
 
     Fields:
         system_order_type (Optional[str]): Type of system order that triggered the fill

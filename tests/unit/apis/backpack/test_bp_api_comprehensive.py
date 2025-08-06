@@ -46,11 +46,11 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import (
     DerivativePosition,
+    Fill,
     MarginAccountSummary,
     Order,
     SpotBalance,
     Ticker,
-    Trade,
     Transfer,
     Withdrawal,
 )
@@ -213,7 +213,7 @@ class TestBackpackAPIPublicBehavior:
         bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test successful recent trades retrieval."""
-        mock_trades = [MagicMock(spec=Trade) for _ in range(3)]
+        mock_trades = [MagicMock(spec=Fill) for _ in range(3)]
         for i, trade in enumerate(mock_trades):
             trade.symbol = SOL_USDC_BP
             trade.trade_id = f"trade_{i}"
@@ -607,7 +607,7 @@ class TestBackpackAPIPublicBehavior:
         bp_api_with_di: Callable[..., BackpackAPI],
     ) -> None:
         """Test successful trade history retrieval."""
-        mock_trades = [MagicMock(spec=Trade) for _ in range(10)]
+        mock_trades = [MagicMock(spec=Fill) for _ in range(10)]
 
         # Create API instance from factory
         backpack_api = bp_api_with_di()

@@ -1,7 +1,8 @@
-"""Health monitoring system for trading services.
+"""Service health monitoring system for trading services.
 
 This module provides comprehensive health monitoring capabilities with
-configuration-driven thresholds and structured reporting.
+configuration-driven thresholds and structured reporting for individual
+trading services (portfolio, execution, risk, etc.).
 """
 
 from __future__ import annotations
@@ -9,40 +10,30 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from enum import Enum
-from typing import Any
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel
+from cyberdelta.enums.monitoring import ServiceType
+
+
+if TYPE_CHECKING:
+    from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.models.monitoring.system_health_models import (
+    HealthCheckDetails,
+    HealthStatus,
+    MonitoringConfiguration,
+    OperationalThresholds,
+    ServiceHealthStatus,
+    SystemHealthReport,
+    SystemMetrics,
+)
 from cyberdelta.protocols import HealthCheckable
 
 
 logger = get_logger(__name__)
-
-
-class HealthStatus(Enum):
-    """Health status levels."""
-
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
-    CRITICAL = "critical"
-    UNKNOWN = "unknown"
-
-
-class ServiceType(Enum):
-    """Types of services that can be monitored."""
-
-    PORTFOLIO = "portfolio_service"
-    MARKET_DATA = "market_data_service"
-    RISK = "risk_service"
-    EXECUTION = "execution_engine"
-    TRADING = "trading_service"
-    SIGNAL = "signal_service"
-    STRATEGY = "strategy_service"
-    EVENT_BUS = "event_bus"
 
 
 @dataclass
@@ -58,31 +49,13 @@ class HealthMetrics:
     cpu_usage_percent: float | None
 
 
-class HealthCheck(BaseModel):
-    """Individual health check result."""
-
-    service_name: str
-    service_type: ServiceType
-    status: HealthStatus
-    timestamp: datetime
-    response_time_ms: float | None = None
-    error_message: str | None = None
-    metrics: dict[str, Any] | None = None
-    thresholds_used: dict[str, Any]
+# Use ServiceHealthStatus from models instead of duplicate HealthCheck
 
 
-class SystemHealthReport(BaseModel):
-    """Overall system health report."""
-
-    overall_status: HealthStatus
-    timestamp: datetime
-    service_checks: list[HealthCheck]
-    system_metrics: dict[str, Any]
-    alerts_triggered: list[str]
-    configuration: dict[str, Any]
+# Use SystemHealthReport from models instead of duplicate
 
 
-class HealthMonitor:
+class ServiceHealthMonitor:
     """Central health monitoring system with configuration-driven behavior.
 
     Configuration Usage:
@@ -109,7 +82,7 @@ class HealthMonitor:
         self.config = config
         self._monitoring_config = config.monitoring
         self._services: dict[str, HealthCheckable] = {}
-        self._last_checks: dict[str, HealthCheck] = {}
+        self._last_checks: dict[str, ServiceHealthStatus] = {}
         self._running = False
         self._monitor_task: asyncio.Task[None] | None = None
 
@@ -125,7 +98,7 @@ class HealthMonitor:
         self._thresholds = self._monitoring_config.health_check_thresholds
 
         logger.info(
-            "health_monitor_initialized",
+            "service_health_monitor_initialized",
             check_interval_sec=float(self._check_interval),
             stale_threshold_sec=float(self._stale_threshold),
             response_time_threshold_ms=float(self._response_time_threshold),
@@ -206,14 +179,14 @@ class HealthMonitor:
         - Fail-fast if already running
         """
         if self._running:
-            logger.warning("health_monitor_already_running")
+            logger.warning("service_health_monitor_already_running")
             return
 
         self._running = True
         self._monitor_task = asyncio.create_task(self._monitoring_loop())
 
         logger.info(
-            "health_monitor_started",
+            "service_health_monitor_started",
             check_interval_sec=float(self._check_interval),
             registered_services=len(self._services),
             service_names=list(self._services.keys()),
@@ -228,7 +201,7 @@ class HealthMonitor:
         - Uses configured shutdown timeout
         """
         if not self._running:
-            logger.warning("health_monitor_not_running")
+            logger.warning("service_health_monitor_not_running")
             return
 
         self._running = False
@@ -241,15 +214,15 @@ class HealthMonitor:
                 )
             except TimeoutError:
                 logger.warning(
-                    "health_monitor_shutdown_timeout",
+                    "service_health_monitor_shutdown_timeout",
                     grace_period_sec=float(self.config.general.shutdown_grace_period),
                 )
             except asyncio.CancelledError:
                 pass
 
-        logger.info("health_monitor_stopped")
+        logger.info("service_health_monitor_stopped")
 
-    async def check_service_health(self, service_name: str) -> HealthCheck:
+    async def check_service_health(self, service_name: str) -> ServiceHealthStatus:
         """Check health of a specific service.
 
         Args:
@@ -257,7 +230,7 @@ class HealthMonitor:
 
 
         Returns:
-            HealthCheck result with current status
+            ServiceHealthStatus result with current status
 
         Note:
             Following CODING_STANDARDS.md:
@@ -285,20 +258,24 @@ class HealthMonitor:
             status = self._determine_health_status(service_name, health_data, response_time)
 
             # Create health check result
-            health_check = HealthCheck(
+            health_check = ServiceHealthStatus(
                 service_name=service_name,
                 service_type=service.get_service_type(),
-                status=status,
-                timestamp=datetime.now(UTC),
-                response_time_ms=response_time,
-                metrics=health_data,
-                thresholds_used={
-                    "response_time_threshold_ms": float(self._response_time_threshold),
-                    "error_rate_threshold": float(self._error_rate_threshold),
-                    "stale_threshold_sec": float(self._stale_threshold),
-                    "memory_threshold_mb": float(self._memory_threshold_mb),
-                    "cpu_threshold_percent": float(self._cpu_threshold_percent),
-                },
+                is_healthy=(status == HealthStatus.HEALTHY),
+                is_running=True,
+                health_status=status,
+                last_check_timestamp=datetime.now(UTC),
+                response_time_ms=Decimal(str(response_time)),
+                error_count=self._extract_health_metric(health_data, "error_count"),
+                success_count=self._extract_health_metric(health_data, "success_count"),
+                health_details=HealthCheckDetails(
+                    status=status.value,
+                    thresholds_used=OperationalThresholds(
+                        response_time_ms=float(self._response_time_threshold),
+                        error_rate=float(self._error_rate_threshold),
+                        stale_data_sec=float(self._stale_threshold),
+                    ),
+                ),
             )
 
             logger.debug(
@@ -306,8 +283,8 @@ class HealthMonitor:
                 service_name=service_name,
                 status=status.value,
                 response_time_ms=response_time,
-                error_count=health_data.get("error_count", 0),
-                success_count=health_data.get("success_count", 0),
+                error_count=self._extract_health_metric(health_data, "error_count"),
+                success_count=self._extract_health_metric(health_data, "success_count"),
             )
 
         except TimeoutError:
@@ -317,27 +294,36 @@ class HealthMonitor:
                 timeout_sec=float(self._monitoring_config.health_check_timeout_seconds),
             )
 
-            health_check = HealthCheck(
+            health_check = ServiceHealthStatus(
                 service_name=service_name,
                 service_type=service.get_service_type(),
-                status=HealthStatus.CRITICAL,
-                timestamp=datetime.now(UTC),
-                error_message="Health check timeout",
-                thresholds_used={
-                    "timeout_sec": float(self._monitoring_config.health_check_timeout_seconds)
-                },
+                is_healthy=False,
+                is_running=False,
+                health_status=HealthStatus.CRITICAL,
+                last_check_timestamp=datetime.now(UTC),
+                response_time_ms=Decimal(
+                    str(float(self._monitoring_config.health_check_timeout_seconds) * 1000)
+                ),
+                health_details=HealthCheckDetails(
+                    error_message="Health check timeout",
+                    timeout_sec=float(self._monitoring_config.health_check_timeout_seconds),
+                ),
             )
 
         except Exception as e:
             logger.exception("service_health_check_error", service_name=service_name, error=str(e))
 
-            health_check = HealthCheck(
+            health_check = ServiceHealthStatus(
                 service_name=service_name,
                 service_type=service.get_service_type(),
-                status=HealthStatus.CRITICAL,
-                timestamp=datetime.now(UTC),
-                error_message=str(e),
-                thresholds_used={},
+                is_healthy=False,
+                is_running=False,
+                health_status=HealthStatus.CRITICAL,
+                last_check_timestamp=datetime.now(UTC),
+                response_time_ms=Decimal(0),
+                health_details=HealthCheckDetails(
+                    error_message=str(e),
+                ),
             )
         else:
             # Cache the successful result
@@ -360,7 +346,7 @@ class HealthMonitor:
         logger.debug("generating_system_health_report", service_count=len(self._services))
 
         # Check all registered services
-        service_checks: list[HealthCheck] = []
+        service_checks: list[ServiceHealthStatus] = []
         for service_name in self._services:
             try:
                 health_check = await self.check_service_health(service_name)
@@ -378,13 +364,17 @@ class HealthMonitor:
                     service_type = ServiceType.PORTFOLIO  # Use a valid ServiceType
 
                 service_checks.append(
-                    HealthCheck(
+                    ServiceHealthStatus(
                         service_name=service_name,
                         service_type=service_type,
-                        status=HealthStatus.CRITICAL,
-                        timestamp=datetime.now(UTC),
-                        error_message=f"Health check failed: {e!s}",
-                        thresholds_used={},
+                        is_healthy=False,
+                        is_running=False,
+                        health_status=HealthStatus.CRITICAL,
+                        last_check_timestamp=datetime.now(UTC),
+                        response_time_ms=Decimal(0),
+                        health_details=HealthCheckDetails(
+                            error_message=f"Health check failed: {e!s}",
+                        ),
                     )
                 )
 
@@ -397,29 +387,39 @@ class HealthMonitor:
         # Check for alerts
         alerts = self._check_alerts(service_checks, system_metrics)
 
+        # Count healthy/unhealthy services
+        healthy_count = sum(1 for check in service_checks if check.is_healthy)
+        unhealthy_count = len(service_checks) - healthy_count
+
+        # Convert service_checks to service_statuses dict
+        service_statuses = {check.service_name: check for check in service_checks}
+
         report = SystemHealthReport(
-            overall_status=overall_status,
-            timestamp=datetime.now(UTC),
-            service_checks=service_checks,
+            overall_health_status=overall_status.value,
+            report_timestamp=datetime.now(UTC),
+            total_services_monitored=len(service_checks),
+            healthy_services_count=healthy_count,
+            unhealthy_services_count=unhealthy_count,
+            service_statuses=service_statuses,
             system_metrics=system_metrics,
-            alerts_triggered=alerts,
-            configuration={
-                "monitoring_enabled": self._monitoring_config.notifications_enabled,
-                "check_interval_sec": float(self._check_interval),
-                "total_services": len(self._services),
-                "thresholds": {
-                    "response_time_ms": float(self._response_time_threshold),
-                    "error_rate": float(self._error_rate_threshold),
-                    "stale_data_sec": float(self._stale_threshold),
-                },
-            },
+            active_alerts=alerts,
+            monitoring_configuration=MonitoringConfiguration(
+                monitoring_enabled=self._monitoring_config.notifications_enabled,
+                check_interval_sec=float(self._check_interval),
+                total_services=len(self._services),
+                thresholds=OperationalThresholds(
+                    response_time_ms=float(self._response_time_threshold),
+                    error_rate=float(self._error_rate_threshold),
+                    stale_data_sec=float(self._stale_threshold),
+                ),
+            ),
         )
 
         logger.info(
             "system_health_report_generated",
             overall_status=overall_status.value,
             healthy_services=sum(
-                1 for check in service_checks if check.status == HealthStatus.HEALTHY
+                1 for check in service_checks if check.health_status == HealthStatus.HEALTHY
             ),
             total_services=len(service_checks),
             alerts_count=len(alerts),
@@ -427,8 +427,32 @@ class HealthMonitor:
 
         return report
 
+    def _extract_health_metric(
+        self, health_data: dict[str, Any] | ExecutionStatistics, metric_name: str
+    ) -> int:
+        """Extract metric from health data, handling both dict and typed objects.
+
+        Returns:
+            Metric value as integer, 0 if not found
+        """
+        if isinstance(health_data, dict):
+            value = health_data.get(metric_name, 0)
+            return int(value) if value is not None else 0
+
+        # Handle ExecutionStatistics with order_tracking composition
+        if hasattr(health_data, "order_tracking"):
+            value = getattr(health_data.order_tracking, metric_name, 0)
+            return int(value) if value is not None else 0
+
+        # Handle direct attributes
+        value = getattr(health_data, metric_name, 0)
+        return int(value) if value is not None else 0
+
     def _determine_health_status(
-        self, service_name: str, health_data: dict[str, Any], response_time_ms: float
+        self,
+        service_name: str,
+        health_data: dict[str, Any] | ExecutionStatistics,
+        response_time_ms: float,
     ) -> HealthStatus:
         """Determine health status based on configured thresholds.
 
@@ -437,10 +461,8 @@ class HealthMonitor:
             health_data: Health data from service
             response_time_ms: Response time in milliseconds
 
-
         Returns:
             Determined health status
-
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Uses only configured thresholds
@@ -448,11 +470,50 @@ class HealthMonitor:
         - No hardcoded threshold values
         """
         # Check critical conditions first
-        if health_data.get("is_running", True) is False:
+        if not self._is_service_running(health_data):
             logger.warning("service_not_running", service_name=service_name)
             return HealthStatus.CRITICAL
 
-        # Check response time against configured threshold
+        # Check response time
+        if self._is_response_time_slow(service_name, response_time_ms):
+            return HealthStatus.DEGRADED
+
+        # Check error rate
+        error_status = self._check_error_rate(service_name, health_data)
+        if error_status != HealthStatus.HEALTHY:
+            return error_status
+
+        # Check data staleness
+        if self._is_data_stale(service_name, health_data):
+            return HealthStatus.DEGRADED
+
+        # Check resource usage
+        resource_status = self._check_resource_usage(service_name, health_data)
+        if resource_status != HealthStatus.HEALTHY:
+            return resource_status
+
+        # If all checks pass, service is healthy
+        return HealthStatus.HEALTHY
+
+    def _is_service_running(self, health_data: dict[str, Any] | ExecutionStatistics) -> bool:
+        """Check if service is running.
+
+        Returns:
+            True if service is running, False otherwise
+        """
+        if isinstance(health_data, dict):
+            value = health_data.get("is_running", True)
+            return bool(value)
+        if hasattr(health_data, "is_running"):
+            return getattr(health_data, "is_running", True)
+        return True
+
+    def _is_response_time_slow(self, service_name: str, response_time_ms: float) -> bool:
+        """Check if response time exceeds threshold.
+
+        Returns:
+            True if response time is slow, False otherwise
+        """
         if response_time_ms > self._response_time_threshold:
             logger.warning(
                 "service_slow_response",
@@ -460,12 +521,23 @@ class HealthMonitor:
                 response_time_ms=response_time_ms,
                 threshold_ms=float(self._response_time_threshold),
             )
-            return HealthStatus.DEGRADED
+            return True
+        return False
 
-        # Check error rate against configured threshold
-        total_requests = health_data.get("success_count", 0) + health_data.get("error_count", 0)
+    def _check_error_rate(
+        self, service_name: str, health_data: dict[str, Any] | ExecutionStatistics
+    ) -> HealthStatus:
+        """Check error rate against configured threshold.
+
+        Returns:
+            HealthStatus.UNHEALTHY if error rate too high, HealthStatus.HEALTHY otherwise
+        """
+        success_count = self._extract_health_metric(health_data, "success_count")
+        error_count = self._extract_health_metric(health_data, "error_count")
+        total_requests = success_count + error_count
+
         if total_requests > 0:
-            error_rate = health_data.get("error_count", 0) / total_requests
+            error_rate = error_count / total_requests
             if error_rate > self._error_rate_threshold:
                 logger.warning(
                     "service_high_error_rate",
@@ -475,8 +547,18 @@ class HealthMonitor:
                 )
                 return HealthStatus.UNHEALTHY
 
-        # Check data staleness against configured threshold
-        last_activity = health_data.get("last_activity")
+        return HealthStatus.HEALTHY
+
+    def _is_data_stale(
+        self, service_name: str, health_data: dict[str, Any] | ExecutionStatistics
+    ) -> bool:
+        """Check if data is stale based on last activity.
+
+        Returns:
+            True if data is stale, False otherwise
+        """
+        last_activity = self._extract_last_activity(health_data)
+
         if last_activity:
             if isinstance(last_activity, str):
                 last_activity = datetime.fromisoformat(last_activity.rstrip("Z")).replace(
@@ -491,10 +573,54 @@ class HealthMonitor:
                     time_since_activity_sec=time_since_activity,
                     threshold_sec=float(self._stale_threshold),
                 )
-                return HealthStatus.DEGRADED
+                return True
 
-        # Check memory usage if available
-        memory_usage = health_data.get("memory_usage_mb")
+        return False
+
+    def _extract_last_activity(
+        self, health_data: dict[str, Any] | ExecutionStatistics
+    ) -> datetime | str | None:
+        """Extract last activity timestamp from health data.
+
+        Returns:
+            Last activity timestamp or None if not found
+        """
+        if isinstance(health_data, dict):
+            return health_data.get("last_activity")
+        if hasattr(health_data, "last_activity_timestamp"):
+            return getattr(health_data, "last_activity_timestamp", None)
+        if hasattr(health_data, "last_activity"):
+            return getattr(health_data, "last_activity", None)
+        return None
+
+    def _check_resource_usage(
+        self, service_name: str, health_data: dict[str, Any] | ExecutionStatistics
+    ) -> HealthStatus:
+        """Check memory and CPU usage against thresholds.
+
+        Returns:
+            HealthStatus.DEGRADED if resources high, HealthStatus.HEALTHY otherwise
+        """
+        # Check memory usage
+        if self._is_memory_usage_high(service_name, health_data):
+            return HealthStatus.DEGRADED
+
+        # Check CPU usage
+        if self._is_cpu_usage_high(service_name, health_data):
+            return HealthStatus.DEGRADED
+
+        return HealthStatus.HEALTHY
+
+    def _is_memory_usage_high(
+        self, service_name: str, health_data: dict[str, Any] | ExecutionStatistics
+    ) -> bool:
+        """Check if memory usage exceeds threshold.
+
+        Returns:
+            True if memory usage is high, False otherwise
+        """
+        memory_usage = self._extract_metric_value(health_data, "memory_usage_mb")
+
         if memory_usage and memory_usage > self._memory_threshold_mb:
             logger.warning(
                 "service_high_memory_usage",
@@ -502,10 +628,19 @@ class HealthMonitor:
                 memory_usage_mb=memory_usage,
                 threshold_mb=float(self._memory_threshold_mb),
             )
-            return HealthStatus.DEGRADED
+            return True
+        return False
 
-        # Check CPU usage if available
-        cpu_usage = health_data.get("cpu_usage_percent")
+    def _is_cpu_usage_high(
+        self, service_name: str, health_data: dict[str, Any] | ExecutionStatistics
+    ) -> bool:
+        """Check if CPU usage exceeds threshold.
+
+        Returns:
+            True if CPU usage is high, False otherwise
+        """
+        cpu_usage = self._extract_metric_value(health_data, "cpu_usage_percent")
+
         if cpu_usage and cpu_usage > self._cpu_threshold_percent:
             logger.warning(
                 "service_high_cpu_usage",
@@ -513,12 +648,26 @@ class HealthMonitor:
                 cpu_usage_percent=cpu_usage,
                 threshold_percent=float(self._cpu_threshold_percent),
             )
-            return HealthStatus.DEGRADED
+            return True
+        return False
 
-        # If all checks pass, service is healthy
-        return HealthStatus.HEALTHY
+    def _extract_metric_value(
+        self,
+        health_data: dict[str, Any] | ExecutionStatistics,
+        metric_name: str,
+    ) -> float | None:
+        """Extract a metric value from health data.
 
-    def _determine_overall_status(self, service_checks: list[HealthCheck]) -> HealthStatus:
+        Returns:
+            Metric value or None if not found
+        """
+        if isinstance(health_data, dict):
+            return health_data.get(metric_name)
+        if hasattr(health_data, metric_name):
+            return getattr(health_data, metric_name, None)
+        return None
+
+    def _determine_overall_status(self, service_checks: list[ServiceHealthStatus]) -> HealthStatus:
         """Determine overall system status from service checks.
 
         Args:
@@ -539,7 +688,7 @@ class HealthMonitor:
         # Count services by status
         status_counts: dict[HealthStatus, int] = {}
         for check in service_checks:
-            status_counts[check.status] = status_counts.get(check.status, 0) + 1
+            status_counts[check.health_status] = status_counts.get(check.health_status, 0) + 1
 
         total_services = len(service_checks)
         critical_count = status_counts.get(HealthStatus.CRITICAL, 0)
@@ -562,7 +711,7 @@ class HealthMonitor:
             return HealthStatus.DEGRADED
         return HealthStatus.HEALTHY
 
-    async def _collect_system_metrics(self) -> dict[str, Any]:
+    async def _collect_system_metrics(self) -> SystemMetrics:
         """Collect system-level metrics.
 
         Returns:
@@ -573,28 +722,17 @@ class HealthMonitor:
         - Collects only configured metrics
         - No hardcoded system monitoring
         """
-        metrics: dict[str, Any] = {
-            "timestamp": datetime.now(UTC).isoformat(),
-            "registered_services": len(self._services),
-            "monitoring_enabled": self._monitoring_config.notifications_enabled,
-            "check_interval_sec": float(self._check_interval),
-        }
-
-        # Add service-specific metrics if available
-        service_metrics = {}
-        for service_name, last_check in self._last_checks.items():
-            if last_check.metrics:
-                service_metrics[service_name] = {
-                    "status": last_check.status.value,
-                    "response_time_ms": last_check.response_time_ms,
-                    "last_check": last_check.timestamp.isoformat(),
-                }
-
-        metrics["services"] = service_metrics
-        return metrics
+        # Return basic system metrics directly as SystemMetrics object
+        return SystemMetrics(
+            cpu_usage_percent=Decimal(0),  # Placeholder - would normally collect from system
+            memory_usage_percent=Decimal(0),  # Placeholder - would normally collect from system
+            disk_usage_percent=Decimal(0),  # Placeholder - would normally collect from system
+            uptime_seconds=0,  # Placeholder - would normally collect from system
+            metrics_collection_timestamp=datetime.now(UTC),
+        )
 
     def _check_alerts(
-        self, service_checks: list[HealthCheck], system_metrics: dict[str, Any]
+        self, service_checks: list[ServiceHealthStatus], system_metrics: SystemMetrics
     ) -> list[str]:
         """Check for alert conditions based on health checks.
 
@@ -615,20 +753,17 @@ class HealthMonitor:
 
         # Check for critical services
         critical_services = [
-            check.service_name for check in service_checks if check.status == HealthStatus.CRITICAL
+            check.service_name
+            for check in service_checks
+            if check.health_status == HealthStatus.CRITICAL
         ]
         if critical_services:
             alerts.append(f"Critical services detected: {', '.join(critical_services)}")
 
         # Check for high error rates across services
-        total_errors = sum(
-            check.metrics.get("error_count", 0) if check.metrics else 0 for check in service_checks
-        )
+        total_errors = sum(check.error_count or 0 for check in service_checks)
         total_requests = sum(
-            (check.metrics.get("error_count", 0) + check.metrics.get("success_count", 0))
-            if check.metrics
-            else 0
-            for check in service_checks
+            (check.error_count or 0) + (check.success_count or 0) for check in service_checks
         )
 
         if total_requests > 0:
@@ -659,7 +794,7 @@ class HealthMonitor:
         - Structured logging for all events
         """
         logger.info(
-            "health_monitoring_loop_started",
+            "service_health_monitoring_loop_started",
             interval_sec=float(self._check_interval),
             services_count=len(self._services),
         )
@@ -672,23 +807,24 @@ class HealthMonitor:
                 # Log system status
                 logger.info(
                     "health_check_cycle_completed",
-                    overall_status=health_report.overall_status.value,
-                    services_checked=len(health_report.service_checks),
-                    alerts_count=len(health_report.alerts_triggered),
+                    overall_status=health_report.overall_health_status,
+                    services_checked=health_report.total_services_monitored,
+                    alerts_count=len(health_report.active_alerts or []),
                 )
 
                 # Log any alerts
-                for alert in health_report.alerts_triggered:
-                    logger.warning("health_alert_triggered", alert_message=alert)
+                if health_report.active_alerts:
+                    for alert in health_report.active_alerts:
+                        logger.warning("health_alert_triggered", alert_message=alert)
 
                 # Wait for next cycle
                 await asyncio.sleep(float(self._check_interval))
 
             except asyncio.CancelledError:
-                logger.info("health_monitoring_loop_cancelled")
+                logger.info("service_health_monitoring_loop_cancelled")
                 break
             except Exception as e:
-                logger.exception("health_monitoring_loop_error", error=str(e))
+                logger.exception("service_health_monitoring_loop_error", error=str(e))
 
                 # Use exponential backoff from config for errors
                 error_backoff = float(self.config.execution.retry_delay_base_sec) * float(
@@ -696,9 +832,9 @@ class HealthMonitor:
                 )
                 await asyncio.sleep(error_backoff)
 
-        logger.info("health_monitoring_loop_ended")
+        logger.info("service_health_monitoring_loop_ended")
 
-    def get_last_check(self, service_name: str) -> HealthCheck | None:
+    def get_last_check(self, service_name: str) -> ServiceHealthStatus | None:
         """Get the last health check result for a service.
 
         Args:
@@ -710,7 +846,7 @@ class HealthMonitor:
         """
         return self._last_checks.get(service_name)
 
-    def get_all_last_checks(self) -> dict[str, HealthCheck]:
+    def get_all_last_checks(self) -> dict[str, ServiceHealthStatus]:
         """Get all last health check results.
 
         Returns:

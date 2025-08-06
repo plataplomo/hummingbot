@@ -53,7 +53,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_public_trades import (
     HyperliquidRawPublicTrade,
 )
-from cyberdelta.models import Trade
+from cyberdelta.models import Fill
 
 
 # Aliases for shorter method calls
@@ -397,11 +397,11 @@ class TestUnicodeAndEncodingSupport:
             ticker = ticker_mapper.transform_raw_asset_ctx_to_ticker(unicode_asset_ctx)
             assert ticker.symbol.value == symbol
 
-    def test_unicode_in_trade_hashes(
+    def test_unicode_in_fill_hashes(
         self,
         order_book_mapper: HyperliquidOrderBookMapper,
     ) -> None:
-        """Test handling of Unicode characters in trade hashes."""
+        """Test handling of Unicode characters in fill hashes."""
         # While unlikely in real hashes, test robustness
         unicode_hash = "0x1234567890abcdef1234567890abcdef1234567890abcdef123456789012🚀65"
 
@@ -419,7 +419,7 @@ class TestUnicodeAndEncodingSupport:
         trade = order_book_mapper.transform_raw_public_trade_to_internal(unicode_trade)
         assert trade is not None
         assert trade.hl_details is not None
-        assert trade.hl_details.trade_hash == unicode_hash
+        assert trade.hl_details.fill_hash == unicode_hash
 
 
 # --- Tests for performance and memory considerations ---
@@ -480,7 +480,7 @@ class TestPerformanceAndMemory:
 
         assert len(trades) == 1000
         # Verify all trades are valid
-        assert all(isinstance(trade, Trade) for trade in trades)
+        assert all(isinstance(trade, Fill) for trade in trades)
 
     def test_memory_usage_with_high_precision_decimals(
         self,

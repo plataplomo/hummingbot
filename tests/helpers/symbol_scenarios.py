@@ -234,14 +234,14 @@ class SymbolTestScenarios:
         # Balances
         balances = {
             "USDC": SpotBalance(
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 asset=exchanges.hyperliquid("USDC"),
                 total_quantity=Decimal(55000),
                 available_quantity=Decimal(50000),
                 timestamp=datetime.now(UTC),
             ),
             "BTC": SpotBalance(
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 asset=exchanges.hyperliquid("BTC"),
                 total_quantity=Decimal("0.1"),
                 available_quantity=Decimal("0.1"),

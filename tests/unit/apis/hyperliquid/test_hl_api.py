@@ -44,15 +44,15 @@ from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus, OrderStatus
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.enums.trading import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums.trading import MakerTaker, OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import (
     DerivativePosition,
+    Fill,
     FundingRate,
     MarginAccountSummary,
     SpotBalance,
     Ticker,
-    Trade,
 )
 from cyberdelta.models.market import Candle, Market, OrderBook
 from cyberdelta.models.market.order import (
@@ -854,7 +854,7 @@ class TestHyperliquidAPIAccountMethods:
         """Test successful get_trade_history call."""
         # Create test data
         expected_trades = [
-            Trade(
+            Fill(
                 id="trade123",
                 symbol=BTC_HL,
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
@@ -866,7 +866,7 @@ class TestHyperliquidAPIAccountMethods:
                 client_order_id="order123",
                 fee=Decimal("5.00"),
                 fee_asset="USDC",
-                is_maker=False,
+                maker_taker=MakerTaker.TAKER,
                 hl_details=None,
                 bp_details=None,
             ),
@@ -1294,7 +1294,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         """Test successful get_recent_trades call."""
         # Create test data
         expected_trades = [
-            Trade(
+            Fill(
                 id="trade123",
                 symbol=BTC_HL,
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:00+00:00"),
@@ -1306,11 +1306,11 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
                 client_order_id=None,
                 fee=Decimal("0.0"),
                 fee_asset=None,
-                is_maker=None,
+                maker_taker=None,
                 hl_details=None,
                 bp_details=None,
             ),
-            Trade(
+            Fill(
                 id="trade124",
                 symbol=BTC_HL,
                 executed_at=datetime.fromisoformat("2024-01-01T10:00:01+00:00"),
@@ -1322,7 +1322,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
                 client_order_id=None,
                 fee=Decimal("0.0"),
                 fee_asset=None,
-                is_maker=None,
+                maker_taker=None,
                 hl_details=None,
                 bp_details=None,
             ),

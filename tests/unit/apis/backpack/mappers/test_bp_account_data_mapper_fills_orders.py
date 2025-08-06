@@ -4,9 +4,9 @@
 
 Comprehensive test suite for BackpackTransactionMapper fill and order methods.
 Tests fill and order transformation methods with various scenarios including:
-- Fill transformations to Trade objects
+- Fill transformations to Fill objects
 - Order transformations with status/side/type mapping
-- Trade transformations (REST API limitations)
+- Fill transformations (REST API limitations)
 - Error handling and edge cases
 - Enum mapping validation
 """
@@ -27,7 +27,7 @@ from cyberdelta.apis.exceptions.data_transformation import (
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import Order, Trade
+from cyberdelta.models import Fill, Order
 from cyberdelta.symbols import exchanges
 from cyberdelta.utils.parsing import parse_decimal_value
 
@@ -165,7 +165,7 @@ class TestFillTransformation:
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawFillResponse to internal Trade."""
+        """Test successful transformation of BackpackRawFillResponse to internal Fill."""
         raw_fill = create_raw_fill(
             fee="0.05",
             fee_symbol="USDC",
@@ -181,7 +181,7 @@ class TestFillTransformation:
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
-        assert isinstance(result, Trade)
+        assert isinstance(result, Fill)
         assert result.id == "123456"
         assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
@@ -206,7 +206,7 @@ class TestFillTransformation:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.side == OrderSide.SELL
 
     def test_transform_raw_fill_transformation_error(
@@ -225,7 +225,7 @@ class TestFillTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawFillResponse to Trade",
+                match="Failed to transform BackpackRawFillResponse to Fill",
             ):
                 mapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -265,7 +265,7 @@ class TestFillTransformation:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.client_order_id == "client123"
 
     def test_transform_raw_fill_high_precision_values(
@@ -285,7 +285,7 @@ class TestFillTransformation:
 
         # DEFENSIVE CHECK: result could be None if price/quantity is zero.
         # Mypy=[union-attr] Ruff=[N/A]
-        assert result is not None, "Expected Trade object but got None"
+        assert result is not None, "Expected Fill object but got None"
         assert result.price == Decimal("100.123456789012345")
         assert result.quantity == Decimal("10.987654321098765")
         assert result.fee == Decimal("0.012345678901234")
@@ -482,10 +482,10 @@ class TestOrderTransformation:
         assert result.average_fill_price == Decimal("100.987654321098765")
 
 
-class TestTradeTransformation:
+class TestPublicFillTransformation:
     """Test cases for trade transformation functionality."""
 
-    def test_transform_raw_trade_to_internal_happy_path(
+    def test_transform_raw_fill_to_internal_happy_path(
         self,
         mapper: BackpackTransactionMapper,
         test_timestamp: str,
@@ -501,7 +501,7 @@ class TestTradeTransformation:
             is_buyer=True,
         )
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        result = mapper.transform_raw_fill_to_internal_public(raw_trade)
 
         # Backpack REST API for trades lacks side information, so mapper returns None
         assert result is None
@@ -537,9 +537,9 @@ class TestTradeTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
+                match="Failed to transform BackpackRawPublicTrade to Fill",
             ):
-                mapper.transform_raw_trade_to_internal(raw_trade)
+                mapper.transform_raw_fill_to_internal_public(raw_trade)
 
     def test_transform_raw_trade_missing_quantity(
         self,
@@ -572,9 +572,9 @@ class TestTradeTransformation:
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
+                match="Failed to transform BackpackRawPublicTrade to Fill",
             ):
-                mapper.transform_raw_trade_to_internal(raw_trade)
+                mapper.transform_raw_fill_to_internal_public(raw_trade)
 
     def test_transform_raw_trade_high_precision_values(
         self,
@@ -588,7 +588,7 @@ class TestTradeTransformation:
             time=test_timestamp,
         )
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        result = mapper.transform_raw_fill_to_internal_public(raw_trade)
 
         # Should still return None due to missing side information
         assert result is None
@@ -602,7 +602,7 @@ class TestTradeTransformation:
         long_id = "a" * 64  # Maximum allowed length
         raw_trade = create_raw_trade(trade_id=long_id, time=test_timestamp)
 
-        result = mapper.transform_raw_trade_to_internal(raw_trade)
+        result = mapper.transform_raw_fill_to_internal_public(raw_trade)
 
         # Should still return None due to missing side information
         assert result is None

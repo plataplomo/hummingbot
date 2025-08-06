@@ -1,12 +1,12 @@
-"""Hyperliquid Trade History Service.
+"""Hyperliquid Fill History Service.
 
-This service handles all trade history operations for the Hyperliquid exchange,
+This service handles all fill history operations for the Hyperliquid exchange,
 extracted from the monolithic account service to improve maintainability and testability.
 
 Focused on:
-- Trade fill history retrieval
-- Trade filtering and processing
-- Trade transformation and mapping
+- Fill history retrieval
+- Fill filtering and processing
+- Fill transformation and mapping
 - Comprehensive error handling
 """
 
@@ -30,7 +30,7 @@ from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetUserFi
 from cyberdelta.apis.models.service_args.trading import GetTradeHistoryArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.models import Trade
+from cyberdelta.models import Fill
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -81,14 +81,14 @@ class HyperliquidTradeHistoryService:
         self._exchange_name = exchange_name
         self._wallet_address = wallet_address
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
-        """Retrieve user trade history (fills).
+    async def get_fill_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
+        """Retrieve user fill history (fills).
 
         Args:
-            args: Parameters for filtering trade history including symbol and limit.
+            args: Parameters for filtering fill history including symbol and limit.
 
         Returns:
-            list[Trade]: List of trade fills
+            list[Fill]: List of fill executions
 
         Raises:
             APIError: If trade history retrieval fails or processing fails
@@ -112,7 +112,7 @@ class HyperliquidTradeHistoryService:
                 exchange=self._exchange_name,
                 symbol=args.symbol,
                 limit=args.limit,
-                message="Retrieving trade history from API",
+                message="Retrieving fill history from API",
             )
 
             (
@@ -130,26 +130,26 @@ class HyperliquidTradeHistoryService:
                 status_code,
             )
 
-            # Map to internal Trade models
-            internal_trades = self._map_fills_to_internal_trades(validated_fills_response)
+            # Map to internal Fill models
+            internal_fills = self._map_fills_to_internal_fills(validated_fills_response)
 
             # Apply client-side filtering
-            filtered_trades = self._apply_trade_filters(internal_trades, args)
+            filtered_fills = self._apply_fill_filters(internal_fills, args)
 
             logger.info(
-                "trade_history_retrieved",
+                "fill_history_retrieved",
                 exchange=self._exchange_name,
                 symbol=args.symbol,
-                trade_count=len(filtered_trades),
-                total_fetched=len(internal_trades),
-                message="Successfully retrieved trade history",
+                fill_count=len(filtered_fills),
+                total_fetched=len(internal_fills),
+                message="Successfully retrieved fill history",
             )
         except APIError:
             raise
         except TransformationError as e_transform:
             self._handle_transformation_error(
                 e_transform,
-                "get_trade_history",
+                "get_fill_history",
                 status_code,
                 raw_response_content,
             )
@@ -157,24 +157,24 @@ class HyperliquidTradeHistoryService:
         except ValidationError as e_val:
             self._handle_validation_error(
                 e_val,
-                "get_trade_history",
+                "get_fill_history",
                 status_code,
                 raw_response_content,
             )
             raise
         except (ValueError, TypeError) as e_service_logic:
-            self._handle_service_logic_error(e_service_logic, "get_trade_history")
+            self._handle_service_logic_error(e_service_logic, "get_fill_history")
             raise
         except Exception as e_unexpected:
             self._handle_unexpected_error(
                 e_unexpected,
-                "get_trade_history",
+                "get_fill_history",
                 status_code,
                 raw_response_content,
             )
             raise
         else:
-            return filtered_trades
+            return filtered_fills
 
     async def _fetch_trade_history_data(
         self,
@@ -277,17 +277,17 @@ class HyperliquidTradeHistoryService:
             status_code,
         )
 
-    def _map_fills_to_internal_trades(
+    def _map_fills_to_internal_fills(
         self,
         fills_response: HyperliquidRawUserFillsResponse,
-    ) -> list[Trade]:
-        """Map raw fills to internal Trade models.
+    ) -> list[Fill]:
+        """Map raw fills to internal Fill models.
 
         Args:
             fills_response: Raw user fills response
 
         Returns:
-            list[Trade]: Mapped internal trades
+            list[Fill]: Mapped internal fills
 
         Note:
             The mapper may raise TransformationError if mapping fails.
@@ -296,42 +296,42 @@ class HyperliquidTradeHistoryService:
             self._mapper.transform_raw_user_fill_to_internal(fill) for fill in fills_response.root
         ]
 
-    def _apply_trade_filters(self, trades: list[Trade], args: GetTradeHistoryArgs) -> list[Trade]:
-        """Apply client-side filtering to trades.
+    def _apply_fill_filters(self, fills: list[Fill], args: GetTradeHistoryArgs) -> list[Fill]:
+        """Apply client-side filtering to fills.
 
         Args:
-            trades: List of trades to filter
+            fills: List of fills to filter
             args: Filter arguments
 
         Returns:
-            list[Trade]: Filtered trades
+            list[Fill]: Filtered fills
         """
-        filtered_trades = trades
+        filtered_fills = fills
 
         # Filter by symbol if specified
         if args.symbol:
-            filtered_trades = [trade for trade in filtered_trades if trade.symbol == args.symbol]
+            filtered_fills = [fill for fill in filtered_fills if fill.symbol == args.symbol]
             logger.debug(
-                "trades_filtered_by_symbol",
+                "fills_filtered_by_symbol",
                 exchange=self._exchange_name,
                 symbol=args.symbol,
-                original_count=len(trades),
-                filtered_count=len(filtered_trades),
-                message="Filtered trades by symbol",
+                original_count=len(fills),
+                filtered_count=len(filtered_fills),
+                message="Filtered fills by symbol",
             )
 
         # Apply limit if specified
         if args.limit and args.limit > 0:
-            filtered_trades = filtered_trades[: args.limit]
+            filtered_fills = filtered_fills[: args.limit]
             logger.debug(
-                "trades_limited",
+                "fills_limited",
                 exchange=self._exchange_name,
                 limit=args.limit,
-                final_count=len(filtered_trades),
-                message="Applied limit to trades",
+                final_count=len(filtered_fills),
+                message="Applied limit to fills",
             )
 
-        return filtered_trades
+        return filtered_fills
 
     def _handle_transformation_error(
         self,

@@ -1,6 +1,6 @@
 """Monitoring and metrics infrastructure."""
 
-from cyberdelta.domain.monitoring.health_monitor import ServiceType
+from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.protocols import HealthCheckable
 
 

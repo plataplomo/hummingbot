@@ -37,6 +37,7 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     AccountSummaryMapperProtocol,
     BalanceMapperProtocol,
     CandleMapperProtocol,
+    FillMapperProtocol,
     FundingRateMapperProtocol,
     MarketDataMapperProtocol,
     MarketMapperProtocol,
@@ -44,7 +45,6 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     OrderMapperProtocol,
     PositionMapperProtocol,
     TickerMapperProtocol,
-    TradeMapperProtocol,
 )
 
 
@@ -58,6 +58,7 @@ __all__ = [
     # Mapper protocols
     "BalanceMapperProtocol",
     "CandleMapperProtocol",
+    "FillMapperProtocol",
     "FundingRateMapperProtocol",
     # Base protocols
     "MapperProtocol",
@@ -71,7 +72,6 @@ __all__ = [
     "RequestBuilderProtocol",
     "ResponseHandlerProtocol",
     "TickerMapperProtocol",
-    "TradeMapperProtocol",
     "TradingRequestBuilderProtocol",
     "TradingResponseHandlerProtocol",
 ]

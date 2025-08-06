@@ -222,6 +222,38 @@ class TradeLogicError(ValueError, FieldError):
         self.fields = fields or {}
 
 
+class FillLogicError(ValueError, FieldError):
+    """Raised when fill cross-field logic validation fails."""
+
+    def __init__(
+        self,
+        validation_type: str,
+        message: str,
+        *,
+        fill_id: str | None = None,
+        fields: dict[str, object] | None = None,
+    ) -> None:
+        """Initialize fill logic error.
+
+        Args:
+            validation_type: Type of validation that failed
+            message: Human-readable error message
+            fill_id: ID of the fill that failed validation
+            fields: Dictionary of field names and values involved in the validation
+        """
+        super().__init__(message)
+        FieldError.__init__(
+            self,
+            message,
+            field_name=validation_type,
+            source_value=fields,
+            code="FILL_LOGIC_VALIDATION",
+        )
+        self.validation_type = validation_type
+        self.fill_id = fill_id
+        self.fields = fields or {}
+
+
 class PositionLogicError(ValueError, FieldError):
     """Raised when position cross-field logic validation fails."""
 

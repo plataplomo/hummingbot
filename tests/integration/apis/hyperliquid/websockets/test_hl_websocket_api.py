@@ -24,7 +24,8 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.models.market import OrderBook, Trade
+from cyberdelta.enums import ExchangeName
+from cyberdelta.models.market import Fill, OrderBook
 from cyberdelta.symbols.models import Symbol
 
 
@@ -218,7 +219,7 @@ class TestHyperliquidWebSocketMarketData:
             )
 
     def _create_trades_handler(
-        self, test_symbol: Symbol, received_trades: list[Trade], trade_received: asyncio.Event
+        self, test_symbol: Symbol, received_trades: list[Fill], trade_received: asyncio.Event
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create trades handler with validation.
 
@@ -246,7 +247,7 @@ class TestHyperliquidWebSocketMarketData:
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "trades" in data:
                         for trade_data in data["trades"]:
-                            trade = Trade(
+                            trade = Fill(
                                 id=str(trade_data.get("tid", "")),
                                 symbol=test_symbol,
                                 price=Decimal(str(trade_data.get("px", 0))),
@@ -254,7 +255,7 @@ class TestHyperliquidWebSocketMarketData:
                                 executed_at=datetime.fromtimestamp(
                                     trade_data.get("time", 0) / 1000, tz=UTC
                                 ),
-                                exchange="hyperliquid",
+                                exchange=ExchangeName.HYPERLIQUID,
                                 side=trade_data.get("side", "buy"),
                                 order_id=str(trade_data.get("oid", "unknown")),
                             )
@@ -272,7 +273,7 @@ class TestHyperliquidWebSocketMarketData:
 
         return trades_handler
 
-    def _validate_trade_data(self, trade: Trade) -> None:
+    def _validate_trade_data(self, trade: Fill) -> None:
         """Validate trade data integrity."""
         if trade.price <= Decimal(0):
             pytest.fail(
@@ -286,7 +287,7 @@ class TestHyperliquidWebSocketMarketData:
                 "Trade quantities must be positive for volume analysis."
             )
 
-    def _validate_trade_timestamp(self, trade: Trade) -> None:
+    def _validate_trade_timestamp(self, trade: Fill) -> None:
         """Validate trade timestamp is timezone-aware."""
         if trade.executed_at.tzinfo is None:
             pytest.fail(
@@ -360,7 +361,7 @@ class TestHyperliquidWebSocketMarketData:
         """Test trades stream with proper financial validation."""
         active_symbols = await get_active_trading_symbols(hl_api_for_test_env)
         test_symbol = active_symbols[0]
-        received_trades: list[Trade] = []
+        received_trades: list[Fill] = []
         trade_received = asyncio.Event()
 
         trades_handler = self._create_trades_handler(test_symbol, received_trades, trade_received)

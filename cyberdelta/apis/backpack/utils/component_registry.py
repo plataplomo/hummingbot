@@ -11,13 +11,13 @@ from cyberdelta.apis.backpack.mappers import (
     BackpackBalanceMapper,
     BackpackCandleMapper,
     BackpackCommonMappers,
+    BackpackFillMapper,
     BackpackFundingRateMapper,
     BackpackMarketMapper,
     BackpackOrderBookMapper,
     BackpackOrderMapper,
     BackpackPositionMapper,
     BackpackTickerMapper,
-    BackpackTradeMapper,
     BackpackTransactionMapper,
     BackpackTransferMapper,
 )
@@ -96,7 +96,7 @@ class BackpackMapperRegistry(BaseComponentRegistry[IMapper]):
         self.register("market.ticker", BackpackTickerMapper())
         self.register("market.order_book", BackpackOrderBookMapper())
         self.register("market.candle", BackpackCandleMapper())
-        self.register("market.trade", BackpackTradeMapper())
+        self.register("market.trade", BackpackFillMapper())
         self.register("market.market", BackpackMarketMapper())
         self.register("market.funding_rate", BackpackFundingRateMapper())
 

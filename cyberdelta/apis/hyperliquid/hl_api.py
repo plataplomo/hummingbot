@@ -71,9 +71,9 @@ from cyberdelta.models import (
     MidPrices,
     SpotBalance,
     Ticker,
-    Trade,
 )
 from cyberdelta.models.market import Candle, Market, OrderBook
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import (
     CancelOrderResult,
     Order,
@@ -665,7 +665,7 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_order_book(symbol=symbol)
 
-    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 50) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 50) -> list[Fill]:
         """Get recent trades for a specific symbol.
 
         Args:
@@ -673,9 +673,9 @@ class HyperliquidAPI(ExchangeAPI):
             limit: Maximum number of trades to return (default 50)
 
         Returns:
-            List of recent Trade objects
+            List of recent Fill objects
         """
-        return await self.market_data_service.get_recent_trades(symbol=symbol)
+        return await self.market_data_service.get_recent_fills(symbol=symbol)
 
     async def get_funding_rates(self, args: GetFundingRatesArgs) -> list[FundingRate]:
         """Get funding rates for specified symbols or all symbols.
@@ -861,16 +861,16 @@ class HyperliquidAPI(ExchangeAPI):
         """
         return await self.account_service.get_order_history(args=args)
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Get recent trade history.
 
         Args:
             args: Parameters for filtering trade history including symbol and limit.
 
         Returns:
-            List of Trade objects from history
+            List of Fill objects from history
         """
-        return await self.account_service.get_trade_history(args=args)
+        return await self.account_service.get_fill_history(args=args)
 
     async def get_historical_funding_rates(
         self,

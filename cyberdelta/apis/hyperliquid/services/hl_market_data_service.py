@@ -42,8 +42,9 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketsArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.models import FundingRate, OrderBook, Ticker, Trade
+from cyberdelta.models import FundingRate, OrderBook, Ticker
 from cyberdelta.models.market import Candle, Market
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.mid_prices import MidPrices
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -188,13 +189,13 @@ class HyperliquidMarketDataService:
         """
         return await self._order_book_service.get_order_book(symbol)
 
-    async def get_recent_trades(self, symbol: Symbol) -> list[Trade]:
+    async def get_recent_fills(self, symbol: Symbol) -> list[Fill]:
         """Retrieve recent public trades for a specific symbol.
 
         Returns:
-            list[Trade]: List of recent trades
+            list[Fill]: List of recent fills
         """
-        return await self._order_book_service.get_recent_trades(symbol)
+        return await self._order_book_service.get_recent_fills(symbol)
 
     # Historical Data Operations
 

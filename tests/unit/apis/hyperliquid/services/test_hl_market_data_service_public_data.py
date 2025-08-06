@@ -1,6 +1,6 @@
 """Unit tests for HyperliquidMarketDataService public data operations.
 
-Tests the public market data methods including get_ticker, get_order_book, and get_recent_trades.
+Tests the public market data methods including get_ticker, get_order_book, and get_recent_fills.
 """
 
 from datetime import UTC, datetime
@@ -18,7 +18,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
-from cyberdelta.models.market import Market, OrderBook, Ticker, Trade
+from cyberdelta.models.market import Fill, Market, OrderBook, Ticker
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import BTC_HL, ETH_HL
@@ -113,24 +113,24 @@ class TestHyperliquidMarketDataServicePublicData:
         assert "'symbol' must be a non-empty string" in str(exc_info.value)
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_empty_symbol_validation(
+    async def test_get_recent_fills_empty_symbol_validation(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_recent_trades raises ValueError for empty symbol."""
+        """Test get_recent_fills raises ValueError for empty symbol."""
         # Test with actual invalid symbol creation
         with pytest.raises((ValueError, ValidationError)):
             invalid_symbol = exchanges.hyperliquid("")
-            await hyperliquid_market_data_service.get_recent_trades(invalid_symbol)
+            await hyperliquid_market_data_service.get_recent_fills(invalid_symbol)
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_none_symbol_validation(
+    async def test_get_recent_fills_none_symbol_validation(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_recent_trades raises ValueError for None symbol."""
+        """Test get_recent_fills raises ValueError for None symbol."""
         # JUSTIFICATION FOR CAST:
-        # This test intentionally passes None to the get_recent_trades method to verify that
+        # This test intentionally passes None to the get_recent_fills method to verify that
         # the method
         # properly validates input types and raises ValueError. The type checker correctly
         # identifies this as a type error, but we need to test the runtime behavior when
@@ -141,7 +141,7 @@ class TestHyperliquidMarketDataServicePublicData:
         # Runtime verification: none_symbol is None at this point
 
         with pytest.raises(ValueError) as exc_info:
-            await hyperliquid_market_data_service.get_recent_trades(none_symbol)
+            await hyperliquid_market_data_service.get_recent_fills(none_symbol)
 
         # The service raises ValueError directly for input validation
         assert "'symbol' must be a non-empty string" in str(exc_info.value)
@@ -368,37 +368,37 @@ class TestHyperliquidMarketDataServicePublicData:
             pass
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_success(
+    async def test_get_recent_fills_success(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_recent_trades successfully retrieves and processes recent trades data."""
+        """Test get_recent_fills successfully retrieves and processes recent trades data."""
         symbol_to_find = ETH_HL
 
         # Test focuses on public behavior, not exact data matching
 
-        # Test the public interface - get_recent_trades should return a list of Trade objects
-        result_trades = await hyperliquid_market_data_service.get_recent_trades(symbol_to_find)
+        # Test the public interface - get_recent_fills should return a list of Trade objects
+        result_trades = await hyperliquid_market_data_service.get_recent_fills(symbol_to_find)
 
         # Verify result structure - the service should return a list
         assert isinstance(result_trades, list)
         # If there are trades, they should be Trade objects
         for trade in result_trades:
-            assert isinstance(trade, Trade)
+            assert isinstance(trade, Fill)
             assert trade.symbol == symbol_to_find
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_http_client_returns_none(
+    async def test_get_recent_fills_http_client_returns_none(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_recent_trades when HTTP client returns None content."""
+        """Test get_recent_fills when HTTP client returns None content."""
         symbol = ETH_HL
 
-        # Test the public interface - get_recent_trades when HTTP client returns None
+        # Test the public interface - get_recent_fills when HTTP client returns None
         # should raise APIError or return empty list
         try:
-            result = await hyperliquid_market_data_service.get_recent_trades(symbol)
+            result = await hyperliquid_market_data_service.get_recent_fills(symbol)
             # If no error is raised, result should be an empty list
             assert isinstance(result, list)
             assert len(result) == 0
@@ -407,21 +407,21 @@ class TestHyperliquidMarketDataServicePublicData:
             pass
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_empty_successful_response(
+    async def test_get_recent_fills_empty_successful_response(
         self,
         hyperliquid_market_data_service: HyperliquidMarketDataService,
     ) -> None:
-        """Test get_recent_trades handles empty but successful response correctly."""
+        """Test get_recent_fills handles empty but successful response correctly."""
         symbol = BTC_HL
 
-        # Test the public interface - get_recent_trades should handle cases with no trades
-        result = await hyperliquid_market_data_service.get_recent_trades(symbol)
+        # Test the public interface - get_recent_fills should handle cases with no trades
+        result = await hyperliquid_market_data_service.get_recent_fills(symbol)
 
         # Verify result structure - should return an empty list or list with trades
         assert isinstance(result, list)
         # All items should be Trade objects if any exist
         for trade in result:
-            assert isinstance(trade, Trade)
+            assert isinstance(trade, Fill)
             assert trade.symbol == symbol
 
     @pytest.mark.asyncio

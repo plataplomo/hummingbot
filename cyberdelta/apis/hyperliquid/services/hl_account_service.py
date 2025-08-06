@@ -73,8 +73,8 @@ from cyberdelta.models import (
     MarginAccountSummary,
     Order,
     SpotBalance,
-    Trade,
 )
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.operations import Transfer, Withdrawal
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
@@ -91,10 +91,10 @@ if TYPE_CHECKING:
     from cyberdelta.apis.base.authenticator_interface import IAuthenticator
     from cyberdelta.models import (
         DerivativePosition,
+        Fill,  # For fill history
         MarginAccountSummary,
         Order,  # For order history
         SpotBalance,
-        Trade,  # For trade history
     )
     from cyberdelta.models.account_settings import AccountSettings
     from cyberdelta.models.operations import Transfer, Withdrawal
@@ -293,7 +293,7 @@ class HyperliquidAccountService:
 
     # Trade History Operations
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_fill_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Retrieve user trade history (fills).
 
         Args:
@@ -303,7 +303,7 @@ class HyperliquidAccountService:
             List of trade history records (fills)
 
         """
-        return await self._trade_history_service.get_trade_history(args)
+        return await self._trade_history_service.get_fill_history(args)
 
     # Operations Not Implemented
 

@@ -8,14 +8,14 @@ This module handles all position-related operations including:
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 import structlog
 
 from cyberdelta.config import AppSettings
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import DerivativePosition
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.market.fill import Fill
+from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
 from cyberdelta.protocols.domain.portfolio import (
     PortfolioStateManagerProtocol,
     PositionManagerProtocol,
@@ -101,11 +101,11 @@ class PositionManager(PositionManagerProtocol):
             return {k: v for k, v in state.positions.items() if k.startswith(f"{exchange.value}:")}
         return state.positions.copy()
 
-    async def update_position_from_trade(self, trade: Trade) -> Decimal | None:
-        """Update position based on trade execution.
+    async def update_position_from_fill(self, fill: Fill) -> Decimal | None:
+        """Update position based on fill execution.
 
         Args:
-            trade: Executed trade
+            fill: Executed fill
 
         Returns:
             Realized PnL if position was closed/reduced, None otherwise
@@ -114,15 +114,15 @@ class PositionManager(PositionManagerProtocol):
         if not state:
             return None
 
-        # Trade.exchange is a string, use directly for key
-        position_key = f"{trade.exchange}:{trade.symbol.value}"
+        # Fill.exchange is a string, use directly for key
+        position_key = f"{fill.exchange}:{fill.symbol.value}"
         position = state.positions.get(position_key)
 
         # Calculate new position
         if position:
-            new_quantity, realized_pnl = self._calculate_position_change(position, trade)
+            new_quantity, realized_pnl = self._calculate_position_change(position, fill)
         else:
-            new_quantity = trade.quantity if trade.side == OrderSide.BUY else -trade.quantity
+            new_quantity = fill.quantity if fill.side == OrderSide.BUY else -fill.quantity
             realized_pnl = None
 
         # Update or create position
@@ -131,23 +131,23 @@ class PositionManager(PositionManagerProtocol):
                 del state.positions[position_key]
                 logger.info(
                     "Position closed",
-                    symbol=trade.symbol.value,
-                    exchange=trade.exchange,
-                    realized_pnl=float(realized_pnl) if realized_pnl else 0,
+                    symbol=fill.symbol.value,
+                    exchange=fill.exchange,
+                    realized_pnl=realized_pnl or 0,
                 )
         else:
             # Calculate new average price
             if position:
-                new_avg_price = self._calculate_average_price(position, trade, new_quantity)
+                new_avg_price = self._calculate_average_price(position, fill, new_quantity)
             else:
-                new_avg_price = trade.price
+                new_avg_price = fill.price
 
             # Create/update position
-            # Convert trade.exchange string to ExchangeName
-            exchange_enum = ExchangeName(trade.exchange)
+            # Convert fill.exchange string to ExchangeName
+            exchange_enum = ExchangeName(fill.exchange)
             state.positions[position_key] = DerivativePosition(
                 exchange=exchange_enum,
-                symbol=trade.symbol,
+                symbol=fill.symbol,
                 side=OrderSide.BUY if new_quantity > 0 else OrderSide.SELL,
                 size=abs(new_quantity),
                 entry_price=new_avg_price,
@@ -157,10 +157,10 @@ class PositionManager(PositionManagerProtocol):
 
             logger.info(
                 "Position updated",
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,
-                new_size=float(abs(new_quantity)),
-                avg_price=float(new_avg_price),
+                symbol=fill.symbol.value,
+                exchange=fill.exchange,
+                new_size=abs(new_quantity),
+                avg_price=new_avg_price,
             )
 
         # Update state timestamp and save
@@ -172,13 +172,13 @@ class PositionManager(PositionManagerProtocol):
     def _calculate_position_change(
         self,
         position: DerivativePosition,
-        trade: Trade,
+        fill: Fill,
     ) -> tuple[Decimal, Decimal | None]:
-        """Calculate position change from trade.
+        """Calculate position change from fill.
 
         Args:
             position: Current position
-            trade: New trade
+            fill: New fill
 
         Returns:
             Tuple of (new_quantity, realized_pnl)
@@ -188,13 +188,13 @@ class PositionManager(PositionManagerProtocol):
         if position.side == OrderSide.SELL:
             current_qty = -current_qty
 
-        # Trade quantity (signed)
-        trade_qty = trade.quantity
-        if trade.side == OrderSide.SELL:
-            trade_qty = -trade_qty
+        # Fill quantity (signed)
+        fill_qty = fill.quantity
+        if fill.side == OrderSide.SELL:
+            fill_qty = -fill_qty
 
         # New position quantity
-        new_qty = current_qty + trade_qty
+        new_qty = current_qty + fill_qty
 
         # Calculate realized PnL if reducing/closing position
         realized_pnl = None
@@ -203,23 +203,23 @@ class PositionManager(PositionManagerProtocol):
             reduced_qty = abs(current_qty) - abs(new_qty)
             if position.entry_price:
                 if current_qty > 0:  # Was long
-                    realized_pnl = reduced_qty * (trade.price - position.entry_price)
+                    realized_pnl = reduced_qty * (fill.price - position.entry_price)
                 else:  # Was short
-                    realized_pnl = reduced_qty * (position.entry_price - trade.price)
+                    realized_pnl = reduced_qty * (position.entry_price - fill.price)
 
         return new_qty, realized_pnl
 
     def _calculate_average_price(
         self,
         position: DerivativePosition,
-        trade: Trade,
+        fill: Fill,
         new_quantity: Decimal,
     ) -> Decimal:
-        """Calculate new average price after trade.
+        """Calculate new average price after fill.
 
         Args:
             position: Current position
-            trade: New trade
+            fill: New fill
             new_quantity: New position quantity (signed)
 
         Returns:
@@ -231,19 +231,19 @@ class PositionManager(PositionManagerProtocol):
             old_signed_qty = -old_signed_qty
 
         if (old_signed_qty > 0 and new_quantity < 0) or (old_signed_qty < 0 and new_quantity > 0):
-            return trade.price
+            return fill.price
 
-        # Calculate weighted average for same-side trades
+        # Calculate weighted average for same-side fills
         if not position.entry_price:
-            return trade.price
+            return fill.price
 
         old_value = abs(old_signed_qty) * position.entry_price
-        trade_value = trade.quantity * trade.price
-        total_value = old_value + trade_value
-        total_quantity = abs(old_signed_qty) + trade.quantity
+        fill_value = fill.quantity * fill.price
+        total_value = old_value + fill_value
+        total_quantity = abs(old_signed_qty) + fill.quantity
 
         if total_quantity == 0:
-            return trade.price
+            return fill.price
 
         return total_value / total_quantity
 
@@ -327,9 +327,9 @@ class PositionManager(PositionManagerProtocol):
 
     async def reconcile_positions(
         self,
-        exchange_positions: dict[str, Any],
+        exchange_positions: list[DerivativePosition],
         exchange: ExchangeName,
-    ) -> dict[str, Any]:
+    ) -> ReconciliationReport:
         """Reconcile local positions with exchange data.
 
         Args:
@@ -337,25 +337,30 @@ class PositionManager(PositionManagerProtocol):
             exchange: Exchange name
 
         Returns:
-            Reconciliation results
+            Typed reconciliation results
         """
-        discrepancies: list[dict[str, Any]] = []
+        position_discrepancies: list[str] = []
         updated = 0
 
         state = await self._state_manager.get_state()
         if not state:
-            return {"error": "No portfolio state"}
+            return ReconciliationReport(
+                reconciliation_timestamp=datetime.now(UTC),
+                reconciliation_successful=False,
+                total_discrepancies=0,
+                exchange_results={exchange: False},
+                balance_discrepancies=[],
+                position_discrepancies=[],
+                error_messages=["No portfolio state available"],
+            )
 
         # Process each exchange position
-        for symbol_str, position_data in exchange_positions.items():
-            # Create Symbol object using service
-            symbol = _symbol_service.create_symbol(symbol_str, exchange)
-            key = f"{exchange.value}:{symbol_str}"
+        for exchange_position in exchange_positions:
+            symbol = exchange_position.symbol
+            key = f"{exchange.value}:{symbol.value}"
 
             # Get exchange position data
-            exchange_size = abs(Decimal(str(position_data.get("size", 0))))
-            exchange_side = position_data.get("side", "").upper()
-            exchange_entry = Decimal(str(position_data.get("entry_price", 0)))
+            exchange_size = abs(exchange_position.size)
 
             # Get local position
             local_position = state.positions.get(key)
@@ -364,43 +369,24 @@ class PositionManager(PositionManagerProtocol):
                 # Check for discrepancy
                 size_diff = abs(local_position.size - exchange_size)
                 if size_diff > self._position_tolerance:
-                    discrepancies.append({
-                        "symbol": symbol_str,
-                        "local_size": float(local_position.size),
-                        "exchange_size": float(exchange_size),
-                        "difference": float(size_diff),
-                    })
+                    position_discrepancies.append(
+                        f"{symbol.value}: local={local_position.size}, "
+                        f"exchange={exchange_size}, diff={size_diff}"
+                    )
 
                     # Update to match exchange
                     if self.config.state.reconciliation_enabled and exchange_size > 0:
-                        state.positions[key] = DerivativePosition(
-                            exchange=exchange,
-                            symbol=symbol,
-                            side=OrderSide[exchange_side] if exchange_side else OrderSide.BUY,
-                            size=exchange_size,
-                            entry_price=(
-                                exchange_entry if exchange_entry > 0 else local_position.entry_price
-                            ),
-                            timestamp=datetime.now(UTC),
-                            unrealized_pnl=Decimal(0),
-                        )
+                        # Use the exchange position directly
+                        state.positions[key] = exchange_position
                         updated += 1
             elif exchange_size > 0:
-                # New position from exchange
-                state.positions[key] = DerivativePosition(
-                    exchange=exchange,
-                    symbol=symbol,
-                    side=OrderSide[exchange_side] if exchange_side else OrderSide.BUY,
-                    size=exchange_size,
-                    entry_price=exchange_entry,
-                    timestamp=datetime.now(UTC),
-                    unrealized_pnl=Decimal(0),
-                )
+                # New position from exchange - use the exchange position directly
+                state.positions[key] = exchange_position
                 updated += 1
 
         # Remove positions that don't exist on exchange
         local_keys = [k for k in state.positions if k.startswith(f"{exchange.value}:")]
-        exchange_keys = [f"{exchange.value}:{s}" for s in exchange_positions]
+        exchange_keys = [f"{exchange.value}:{pos.symbol.value}" for pos in exchange_positions]
 
         for key in local_keys:
             if key not in exchange_keys and self.config.state.reconciliation_enabled:
@@ -412,14 +398,15 @@ class PositionManager(PositionManagerProtocol):
             state.timestamp = datetime.now(UTC)
             await self._state_manager.save_state()
 
-        return {
-            "discrepancies": discrepancies,
-            "updated": updated,
-            "total_checked": len(exchange_positions),
-            "removed": (
-                len(local_keys) - len(exchange_keys) if len(local_keys) > len(exchange_keys) else 0
-            ),
-        }
+        return ReconciliationReport(
+            reconciliation_timestamp=datetime.now(UTC),
+            reconciliation_successful=len(position_discrepancies) == 0,
+            total_discrepancies=len(position_discrepancies),
+            exchange_results={exchange: len(position_discrepancies) == 0},
+            balance_discrepancies=[],
+            position_discrepancies=position_discrepancies,
+            error_messages=None,
+        )
 
     async def get_exchange_positions(self, exchange: ExchangeName) -> dict[str, DerivativePosition]:
         """Get all positions for a specific exchange.
@@ -475,8 +462,8 @@ class PositionManager(PositionManagerProtocol):
                 exchange=exchange.value,
                 symbol=symbol.value,
                 side=new_position.side.value,
-                size=float(new_position.size),
-                entry_price=float(new_position.entry_price) if new_position.entry_price else None,
+                size=new_position.size,
+                entry_price=new_position.entry_price or None,
             )
 
         state.timestamp = datetime.now(UTC)

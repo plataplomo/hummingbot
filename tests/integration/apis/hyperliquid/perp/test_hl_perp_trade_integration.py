@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.models import Trade
+from cyberdelta.models import Fill
 from cyberdelta.symbols import exchanges
 
 
@@ -32,7 +32,7 @@ async def test_hl_get_perp_recent_trades_btc_success(
 
     if len(trades) > 0:
         for i, trade in enumerate(trades):
-            assert isinstance(trade, Trade), f"Trade {i} should be Trade model, got {type(trade)}"
+            assert isinstance(trade, Fill), f"Trade {i} should be Fill model, got {type(trade)}"
             assert hasattr(trade, "symbol")
             assert hasattr(trade, "price")
             assert hasattr(trade, "quantity")
@@ -61,5 +61,5 @@ async def test_hl_get_perp_recent_trades_eth_success(
 
     if len(trades) > 0:
         for trade in trades:
-            assert isinstance(trade, Trade), f"Should be Trade model, got {type(trade)}"
+            assert isinstance(trade, Fill), f"Should be Fill model, got {type(trade)}"
             assert trade.symbol.value == "ETH", f"Wrong symbol, got {trade.symbol}"

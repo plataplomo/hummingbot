@@ -17,8 +17,8 @@ from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.market.market_service import MarketDataService
 from cyberdelta.domain.monitoring.alert_service import AlertLevel, AlertService
-from cyberdelta.domain.monitoring.health_monitor import HealthMonitor
 from cyberdelta.domain.monitoring.metrics_collector import MetricsCollector
+from cyberdelta.domain.monitoring.service_health_monitor import ServiceHealthMonitor
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.risk.risk_service import RiskService
 from cyberdelta.domain.safety.circuit_breaker import CircuitBreakerManager
@@ -26,8 +26,9 @@ from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
+from cyberdelta.enums import MakerTaker
 from cyberdelta.enums.signals import SignalType
-from cyberdelta.models import Trade, TradeSignal
+from cyberdelta.models import Fill, TradeSignal
 from cyberdelta.models.events.base_event import DomainEvent
 from cyberdelta.models.events.portfolio_events import PositionUpdatedEvent
 from cyberdelta.models.events.risk_events import RiskLimitViolationEvent
@@ -36,6 +37,7 @@ from cyberdelta.models.events.strategy_events import (
     StrategySignalGeneratedEvent,
 )
 from cyberdelta.models.events.trading_events import OrderFilledEvent
+from cyberdelta.models.monitoring.system_health_models import CircuitBreakerSystemHealth
 
 
 logger = get_logger(__name__)
@@ -75,7 +77,7 @@ class TradingEngine:
         strategy_service: StrategyService,
         execution_engine: ExecutionEngine,
         circuit_breaker_manager: CircuitBreakerManager | None = None,
-        health_monitor: HealthMonitor | None = None,
+        health_monitor: ServiceHealthMonitor | None = None,
         alert_service: AlertService | None = None,
         metrics_collector: MetricsCollector | None = None,
     ) -> None:
@@ -106,7 +108,7 @@ class TradingEngine:
         self._strategy = strategy_service
         self._execution = execution_engine
         self._circuit_breakers = circuit_breaker_manager or CircuitBreakerManager(config)
-        self._health_monitor = health_monitor or HealthMonitor(config)
+        self._health_monitor = health_monitor or ServiceHealthMonitor(config)
         self._alert_service = alert_service or AlertService(config)
         self._metrics_collector = metrics_collector or MetricsCollector(config)
         self._running = False
@@ -481,7 +483,7 @@ class TradingEngine:
                 error_type=type(e).__name__,
             )
 
-    async def _handle_trade_executed(self, trade: Trade) -> None:
+    async def _handle_trade_executed(self, trade: Fill) -> None:
         """Handle trade execution completion.
 
         Args:
@@ -505,7 +507,7 @@ class TradingEngine:
 
             # Notify strategy service about trade completion with circuit breaker protection
             await self._circuit_breakers.protect(
-                "strategy_service", "handle_trade", self._strategy.handle_trade, trade
+                "strategy_service", "handle_fill", self._strategy.handle_fill, trade
             )
 
         except Exception as e:
@@ -753,60 +755,60 @@ class TradingEngine:
 
             logger.debug(
                 "health_check_completed",
-                overall_status=health_report.overall_status.value,
-                services_checked=len(health_report.service_checks),
-                alerts_triggered=len(health_report.alerts_triggered),
+                overall_status=health_report.overall_health_status,
+                services_checked=len(health_report.service_statuses),
+                alerts_triggered=len(health_report.active_alerts or []),
             )
 
             # Log individual service health
-            for check in health_report.service_checks:
-                if check.status.value in {"degraded", "unhealthy", "critical"}:
+            for check in health_report.service_statuses.values():
+                if check.health_status.value in {"degraded", "unhealthy", "critical"}:
                     logger.warning(
                         "service_health_issue",
                         service_name=check.service_name,
                         service_type=check.service_type.value,
-                        status=check.status.value,
-                        response_time_ms=check.response_time_ms,
-                        error_message=check.error_message,
+                        status=check.health_status.value,
+                        response_time_ms=float(check.response_time_ms),
                     )
 
             # Log any system-level alerts
-            for alert in health_report.alerts_triggered:
-                logger.warning(
-                    "system_health_alert",
-                    alert_message=alert,
-                    overall_status=health_report.overall_status.value,
-                )
+            if health_report.active_alerts:
+                for alert in health_report.active_alerts:
+                    logger.warning(
+                        "system_health_alert",
+                        alert_message=alert,
+                        overall_status=health_report.overall_health_status,
+                    )
 
             # Check for critical system health issues and create alerts
-            if health_report.overall_status.value in {"critical", "unhealthy"}:
+            if health_report.overall_health_status in {"critical", "unhealthy"}:
                 critical_services = [
                     check.service_name
-                    for check in health_report.service_checks
-                    if check.status.value == "critical"
+                    for check in health_report.service_statuses.values()
+                    if check.health_status.value == "critical"
                 ]
 
                 logger.error(
                     "system_health_critical",
-                    overall_status=health_report.overall_status.value,
+                    overall_status=health_report.overall_health_status,
                     critical_services=critical_services,
                 )
 
                 # Create critical health alert
                 await self._alert_service.create_alert(
-                    title=f"System Health {health_report.overall_status.value.upper()}",
-                    description=f"System health is {health_report.overall_status.value}. "
+                    title=f"System Health {health_report.overall_health_status.upper()}",
+                    description=f"System health is {health_report.overall_health_status}. "
                     f"Critical services: "
                     f"{', '.join(critical_services) if critical_services else 'None'}",
                     level=AlertLevel.CRITICAL
-                    if health_report.overall_status.value == "critical"
+                    if health_report.overall_health_status == "critical"
                     else AlertLevel.ERROR,
                     source="health_monitor",
                     metadata={
-                        "overall_status": health_report.overall_status.value,
+                        "overall_status": health_report.overall_health_status,
                         "critical_services": critical_services,
-                        "total_services": len(health_report.service_checks),
-                        "alerts_triggered": health_report.alerts_triggered,
+                        "total_services": len(health_report.service_statuses),
+                        "alerts_triggered": health_report.active_alerts,
                     },
                 )
 
@@ -911,8 +913,8 @@ class TradingEngine:
                 "registered_services": self._health_monitor.get_registered_services(),
                 "last_checks": {
                     name: {
-                        "status": check.status.value,
-                        "timestamp": check.timestamp.isoformat(),
+                        "status": check.health_status.value,
+                        "timestamp": check.last_check_timestamp.isoformat(),
                         "response_time_ms": check.response_time_ms,
                     }
                     for name, check in self._health_monitor.get_all_last_checks().items()
@@ -963,7 +965,7 @@ class TradingEngine:
 
         self._circuit_breakers.reset_all()
 
-    def get_circuit_breaker_health(self) -> dict[str, Any]:
+    def get_circuit_breaker_health(self) -> CircuitBreakerSystemHealth:
         """Get circuit breaker system health.
 
         Returns:
@@ -988,22 +990,21 @@ class TradingEngine:
         try:
             health_report = await self._health_monitor.get_system_health()
             return {
-                "overall_status": health_report.overall_status.value,
-                "timestamp": health_report.timestamp.isoformat(),
+                "overall_status": health_report.overall_health_status,
+                "timestamp": health_report.report_timestamp.isoformat(),
                 "service_checks": [
                     {
                         "service_name": check.service_name,
                         "service_type": check.service_type.value,
-                        "status": check.status.value,
-                        "response_time_ms": check.response_time_ms,
-                        "error_message": check.error_message,
-                        "timestamp": check.timestamp.isoformat(),
+                        "status": check.health_status.value,
+                        "response_time_ms": float(check.response_time_ms),
+                        "timestamp": check.last_check_timestamp.isoformat(),
                     }
-                    for check in health_report.service_checks
+                    for _, check in health_report.service_statuses.items()
                 ],
                 "system_metrics": health_report.system_metrics,
-                "alerts_triggered": health_report.alerts_triggered,
-                "configuration": health_report.configuration,
+                "alerts_triggered": health_report.active_alerts,
+                "configuration": health_report.monitoring_configuration,
             }
         except Exception as e:
             logger.exception("get_system_health_report_error", error=str(e))
@@ -1315,20 +1316,23 @@ class TradingEngine:
 
     async def _process_order_filled_event(self, event: OrderFilledEvent) -> None:
         """Process order filled event."""
-        # Create Trade instance with proper fields
-        trade = Trade(
+        # Create Fill instance with proper fields
+        # Convert partial flag to MakerTaker enum
+        maker_taker = MakerTaker.MAKER if event.is_partial else MakerTaker.TAKER
+
+        fill = Fill(
             id=event.order_id,
             symbol=event.symbol,
             executed_at=event.timestamp,
             side=event.side,
             order_id=event.order_id,
-            exchange=str(event.exchange),
+            exchange=event.exchange,
             price=event.fill_price,
             quantity=event.fill_quantity,
             fee=event.commission,
-            is_maker=event.is_partial,  # Use partial flag as proxy for maker
+            maker_taker=maker_taker,  # Use partial flag as proxy for maker
         )
-        await self._handle_trade_executed(trade)
+        await self._handle_trade_executed(fill)
 
     async def _process_market_data_event(self, event: MarketDataUpdatedEvent) -> None:
         """Process market data event."""

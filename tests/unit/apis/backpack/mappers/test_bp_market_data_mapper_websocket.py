@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
-from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawTickerEvent,
@@ -29,7 +29,7 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTradeE
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import OrderBook, Ticker, Trade
+from cyberdelta.models import Fill, OrderBook, Ticker
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_BP, DOGE_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
@@ -55,13 +55,13 @@ def order_book_mapper() -> BackpackOrderBookMapper:
 
 
 @pytest.fixture
-def trade_mapper() -> BackpackTradeMapper:
-    """Fixture providing a BackpackTradeMapper instance.
+def trade_mapper() -> BackpackFillMapper:
+    """Fixture providing a BackpackFillMapper instance.
 
     Returns:
-        BackpackTradeMapper: Instance for testing trade transformations.
+        BackpackFillMapper: Instance for testing trade transformations.
     """
-    return BackpackTradeMapper()
+    return BackpackFillMapper()
 
 
 @pytest.fixture
@@ -172,7 +172,7 @@ class TestSideMapping:
 
     def test_side_mapping_buyer_is_maker(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test side mapping when buyer is the maker (BUY side)."""
@@ -185,12 +185,12 @@ class TestSideMapping:
             event_time=test_timestamp_ms,
         )
 
-        result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade_event)
+        result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade_event)
         assert result.side == OrderSide.BUY
 
     def test_side_mapping_buyer_is_not_maker(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test side mapping when buyer is not the maker (SELL side)."""
@@ -203,12 +203,12 @@ class TestSideMapping:
             event_time=test_timestamp_ms,
         )
 
-        result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade_event)
+        result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade_event)
         assert result.side == OrderSide.SELL
 
     def test_side_mapping_consistency_across_multiple_trades(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test that side mapping is consistent across multiple trade events."""
@@ -227,12 +227,12 @@ class TestSideMapping:
                 event_time=test_timestamp_ms,
             )
 
-            result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade_event)
+            result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade_event)
             assert result.side == expected_side
 
     def test_side_mapping_with_different_symbols(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test that side mapping works correctly with different trading symbols."""
@@ -248,7 +248,7 @@ class TestSideMapping:
                     event_time=test_timestamp_ms,
                 )
 
-                result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade_event)
+                result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade_event)
                 assert result.side == expected_side
                 assert result.symbol == symbol
 
@@ -519,9 +519,9 @@ class TestWebSocketDepthEventTransformation:
 class TestWebSocketTradeEventTransformation:
     """Test cases for WebSocket trade event transformation functionality."""
 
-    def test_transform_ws_trade_event_to_internal_happy_path(
+    def test_transform_ws_fill_event_to_internal_fill_happy_path(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test successful transformation of BackpackRawPublicTradeEvent to internal Trade."""
@@ -537,9 +537,9 @@ class TestWebSocketTradeEventTransformation:
             trade_time=test_timestamp_ms,
         )
 
-        result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+        result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
-        assert isinstance(result, Trade)
+        assert isinstance(result, Fill)
         assert result.symbol == SOL_USDC_BP
         assert result.price == Decimal("100.50")
         assert result.quantity == Decimal("10.0")
@@ -549,7 +549,7 @@ class TestWebSocketTradeEventTransformation:
 
     def test_transform_ws_trade_event_buyer_side(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with buyer side."""
@@ -562,13 +562,13 @@ class TestWebSocketTradeEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+        result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
         assert result.side == OrderSide.BUY
 
     def test_transform_ws_trade_event_seller_side(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with seller side."""
@@ -581,13 +581,13 @@ class TestWebSocketTradeEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+        result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
         assert result.side == OrderSide.SELL
 
     def test_transform_ws_trade_event_with_extreme_values(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with extreme price/quantity values."""
@@ -597,14 +597,14 @@ class TestWebSocketTradeEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+        result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
         assert result.price == Decimal("0.000001")
         assert result.quantity == Decimal("999999999.999999")
 
     def test_transform_ws_trade_event_with_zero_values(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with zero price/quantity raises error."""
@@ -620,11 +620,11 @@ class TestWebSocketTradeEventTransformation:
             TransformationError,
             match="Failed to transform BackpackRawPublicTradeEvent",
         ):
-            trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+            trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
     def test_transform_ws_trade_event_with_very_long_id(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with very long trade ID."""
@@ -634,13 +634,13 @@ class TestWebSocketTradeEventTransformation:
             event_time=test_timestamp_ms,
         )
 
-        result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+        result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
         assert result.id == long_id
 
     def test_transform_ws_trade_event_transformation_error(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test that WebSocket trade event transformation errors are properly wrapped."""
@@ -655,11 +655,11 @@ class TestWebSocketTradeEventTransformation:
                 TransformationError,
                 match="Failed to transform BackpackRawPublicTradeEvent",
             ):
-                trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+                trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
     def test_transform_ws_trade_event_with_different_symbols(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test WebSocket trade event transformation with different trading symbols."""
@@ -672,12 +672,12 @@ class TestWebSocketTradeEventTransformation:
                 event_time=test_timestamp_ms,
             )
 
-            result = trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+            result = trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
             assert result.symbol.value == symbol
 
     def test_transform_ws_trade_event_missing_required_fields(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp_ms: int,
     ) -> None:
         """Test that WebSocket trade event with missing required fields raises error."""
@@ -690,11 +690,11 @@ class TestWebSocketTradeEventTransformation:
             mock_parse.return_value = None
 
             with pytest.raises(TransformationError):
-                trade_mapper.transform_ws_trade_event_to_internal(raw_trade)
+                trade_mapper.transform_ws_fill_event_to_internal_fill(raw_trade)
 
     def test_transform_ws_trade_event_real_time_scenarios(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Test WebSocket trade event transformation in real-time scenarios."""
         # Simulate rapid succession of trades with different timestamps
@@ -711,9 +711,9 @@ class TestWebSocketTradeEventTransformation:
             for i in range(5)
         ]
 
-        results: list[Trade] = []
+        results: list[Fill] = []
         for trade_event in trade_events:
-            result = trade_mapper.transform_ws_trade_event_to_internal(trade_event)
+            result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
             results.append(result)
 
         # Verify all trades were processed correctly

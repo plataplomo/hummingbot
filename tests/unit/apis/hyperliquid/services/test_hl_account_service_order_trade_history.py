@@ -22,8 +22,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
-from cyberdelta.enums import ExchangeName
-from cyberdelta.models import Order, OrderSide, OrderStatus, OrderType, TimeInForce, Trade
+from cyberdelta.enums import ExchangeName, MakerTaker
+from cyberdelta.models import Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce
 from tests.common_symbols import ETH_HL
 
 
@@ -250,8 +250,8 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
         assert "Authentication required" in str(exc_info.value.message)
 
     @pytest.mark.asyncio
-    async def test_get_trade_history_success(self) -> None:
-        """Test get_trade_history successfully retrieves and processes trade history data."""
+    async def test_get_fill_history_success(self) -> None:
+        """Test get_fill_history successfully retrieves and processes trade history data."""
         # Create test arguments
         args = GetTradeHistoryArgs(
             symbol=ETH_HL,
@@ -307,7 +307,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Mock the internal Trade object that should be returned by the mapper
 
-        mock_internal_trade = Trade(
+        mock_internal_trade = Fill(
             id="123456",
             symbol=ETH_HL,
             executed_at=datetime(2023, 1, 1, 0, 0, tzinfo=UTC),
@@ -318,7 +318,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             quantity=Decimal("5.0"),
             fee=Decimal("1.0"),
             fee_asset="USD",
-            is_maker=True,
+            maker_taker=MakerTaker.MAKER,
         )
 
         # Configure the mocks
@@ -345,7 +345,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Create trade history service mock
         mock_trade_history_service = MagicMock()
-        mock_trade_history_service.get_trade_history = AsyncMock(return_value=[mock_internal_trade])
+        mock_trade_history_service.get_fill_history = AsyncMock(return_value=[mock_internal_trade])
 
         # Patch the trade history service creation
         with patch(
@@ -364,20 +364,20 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             )
 
             # Call the service method
-            result = await service.get_trade_history(args)
+            result = await service.get_fill_history(args)
 
         # Verify the mock trade history service was called correctly
-        mock_trade_history_service.get_trade_history.assert_called_once_with(args)
+        mock_trade_history_service.get_fill_history.assert_called_once_with(args)
 
         # Verify result structure (we test the public behavior, not exact values)
         assert isinstance(result, list)
         assert len(result) == 1
-        assert isinstance(result[0], Trade)
+        assert isinstance(result[0], Fill)
         assert result[0].symbol == ETH_HL
 
     @pytest.mark.asyncio
-    async def test_get_trade_history_none_response_raises_error(self) -> None:
-        """Test get_trade_history raises error when API response is None."""
+    async def test_get_fill_history_none_response_raises_error(self) -> None:
+        """Test get_fill_history raises error when API response is None."""
         # Create test arguments
         args = GetTradeHistoryArgs(
             symbol=ETH_HL,
@@ -405,6 +405,6 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
 
         # Call and expect error (trade history service validates None responses as errors)
         with pytest.raises(APIError) as exc_info:
-            await service.get_trade_history(args)
+            await service.get_fill_history(args)
 
         assert "No data received" in str(exc_info.value.message)

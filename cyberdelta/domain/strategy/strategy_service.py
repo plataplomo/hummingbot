@@ -16,7 +16,8 @@ from cyberdelta.domain.market.market_service import MarketDataService
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_base import BaseStrategy, StrategyError
-from cyberdelta.models import Trade, TradeSignal
+from cyberdelta.models import TradeSignal
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
 from cyberdelta.models.portfolio.state import PortfolioState
 
@@ -391,41 +392,41 @@ class StrategyService:
             "strategy_signal_validated", strategy_name=strategy_name, signal_id=signal.signal_id
         )
 
-    async def handle_trade(self, trade: Trade) -> None:
-        """Handle trade execution feedback to strategies.
+    async def handle_fill(self, fill: Fill) -> None:
+        """Handle fill execution feedback to strategies.
 
         Args:
-            trade: Trade that was executed
+            fill: Fill that was executed
 
 
         IMPORTANT: Following CODING_STANDARDS.md:
-        - Provides trade feedback to strategies that might need it
-        - NO assumptions about which strategies care about trades
+        - Provides fill feedback to strategies that might need it
+        - NO assumptions about which strategies care about fills
         """
         logger.debug(
-            "trade_feedback_to_strategies",
-            trade_id=trade.id,
-            symbol=trade.symbol.value,
-            exchange=trade.exchange,
+            "fill_feedback_to_strategies",
+            fill_id=fill.id,
+            symbol=fill.symbol.value,
+            exchange=fill.exchange,
         )
 
-        # Future enhancement: strategies could implement handle_trade() method
-        # for trade-based learning or state updates
+        # Future enhancement: strategies could implement handle_fill() method
+        # for fill-based learning or state updates
 
-        # Send trade feedback to all strategies
+        # Send fill feedback to all strategies
         for name, strategy in self._strategies.items():
             try:
-                await strategy.handle_trade(trade)
+                await strategy.handle_fill(fill)
 
                 logger.debug(
-                    "strategy_trade_feedback_delivered", strategy_name=name, trade_id=trade.id
+                    "strategy_fill_feedback_delivered", strategy_name=name, fill_id=fill.id
                 )
 
             except Exception as e:
                 logger.exception(
-                    "strategy_trade_feedback_error",
+                    "strategy_fill_feedback_error",
                     strategy_name=name,
-                    trade_id=trade.id,
+                    fill_id=fill.id,
                     error=str(e),
                 )
 

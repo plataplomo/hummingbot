@@ -44,6 +44,7 @@ from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
+    Fill,
     FundingRate,
     MidPrices,
     Order,
@@ -53,7 +54,6 @@ from cyberdelta.models import (
     SpotBalance,
     Ticker,
     TimeInForce,
-    Trade,
 )
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.market import Candle
@@ -317,13 +317,13 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
         """
         return [MagicMock(spec=Order)]
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
-        """Get trade history for the specified arguments.
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
+        """Get fill history for the specified arguments.
 
         Returns:
-            List of mock Trade objects.
+            List of mock Fill objects.
         """
-        return [MagicMock(spec=Trade)]
+        return [MagicMock(spec=Fill)]
 
     async def get_order_status(self, args: GetOrderArgs) -> Order | None:
         """Get the status of a specific order.

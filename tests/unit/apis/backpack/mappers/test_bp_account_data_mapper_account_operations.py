@@ -32,9 +32,9 @@ from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
 from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import DerivativePosition, Trade
+from cyberdelta.models import DerivativePosition, Fill
 from cyberdelta.models.operations import (
     Transfer,
     Withdrawal,
@@ -684,11 +684,11 @@ class TestWithdrawalTransformation:
 class TestWebSocketFillTransformation:
     """Test cases for WebSocket fill event transformation functionality."""
 
-    def test_transform_ws_fill_event_to_internal_trade_happy_path(
+    def test_transform_ws_fill_event_to_internal_fill_happy_path(
         self,
         transaction_mapper: BackpackTransactionMapper,
     ) -> None:
-        """Test successful WebSocket fill event transformation to Trade."""
+        """Test successful WebSocket fill event transformation to Fill."""
         raw_fill = create_raw_fill(
             trade_id=12345,
             symbol="SOL-USDC",
@@ -703,10 +703,10 @@ class TestWebSocketFillTransformation:
             client_id="client123",
         )
 
-        result = transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is not None
-        assert isinstance(result, Trade)
+        assert isinstance(result, Fill)
         assert result.id == "12345"
         assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.side == OrderSide.BUY  # Bid -> BUY
@@ -714,7 +714,7 @@ class TestWebSocketFillTransformation:
         assert result.price == Decimal("100.0")
         assert result.fee == Decimal("0.05")
         assert result.fee_asset == "USDC"
-        assert result.is_maker
+        assert result.maker_taker == MakerTaker.MAKER
         assert result.order_id == "order123"
         assert result.client_order_id == "client123"
         assert result.exchange == ExchangeName.BACKPACK.value
@@ -726,11 +726,11 @@ class TestWebSocketFillTransformation:
         """Test WebSocket fill event transformation with Ask side."""
         raw_fill = create_raw_fill(side="Ask", is_maker=False)
 
-        result = transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is not None
         assert result.side == OrderSide.SELL  # Ask -> SELL
-        assert not result.is_maker
+        assert result.maker_taker == MakerTaker.TAKER
 
     def test_transform_ws_fill_event_zero_price_returns_none(
         self,
@@ -739,7 +739,7 @@ class TestWebSocketFillTransformation:
         """Test that WebSocket fill with zero price returns None."""
         raw_fill = create_raw_fill(price="0.0")
 
-        result = transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is None
 
@@ -750,7 +750,7 @@ class TestWebSocketFillTransformation:
         """Test that WebSocket fill with zero quantity returns None."""
         raw_fill = create_raw_fill(quantity="0.0")
 
-        result = transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is None
 
@@ -761,7 +761,7 @@ class TestWebSocketFillTransformation:
         """Test that None client_id is handled gracefully."""
         raw_fill = create_raw_fill(client_id=None)
 
-        result = transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is not None
         assert result.client_order_id is None
@@ -781,9 +781,9 @@ class TestWebSocketFillTransformation:
 
             with pytest.raises(
                 TransformationError,
-                match="Failed to transform BackpackRawFillResponse to Trade",
+                match="Failed to transform BackpackRawFillResponse to Fill",
             ):
-                transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+                transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
     def test_transform_ws_fill_event_high_precision_values(
         self,
@@ -796,7 +796,7 @@ class TestWebSocketFillTransformation:
             fee="0.012345678901234",
         )
 
-        result = transaction_mapper.transform_ws_fill_event_to_internal_trade(raw_fill)
+        result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is not None
         assert result.quantity == Decimal("10.123456789012345")
