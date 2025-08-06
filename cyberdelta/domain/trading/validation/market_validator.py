@@ -56,18 +56,18 @@ class MarketValidator:
             ticker = market_snapshot.get_ticker(order.exchange, order.symbol)
             if not ticker:
                 violations.append(
-                    f"No market data available for {order.symbol.value} on {order.exchange}"
+                    f"No market data available for {order.symbol.value} on {order.exchange}",
                 )
                 return violations
 
             # Check price deviation
             violations.extend(
-                MarketValidator._check_price_deviation(order, ticker, exchange_config)
+                MarketValidator._check_price_deviation(order, ticker, exchange_config),
             )
 
             # Check order book depth
             violations.extend(
-                MarketValidator._check_order_book_depth(order, market_snapshot, exchange_config)
+                MarketValidator._check_order_book_depth(order, market_snapshot, exchange_config),
             )
 
         except Exception as e:
@@ -82,7 +82,7 @@ class MarketValidator:
 
     @staticmethod
     def _check_price_deviation(
-        order: Order, ticker: Ticker, exchange_config: ExchangeSpecificConfig
+        order: Order, ticker: Ticker, exchange_config: ExchangeSpecificConfig,
     ) -> list[str]:
         """Check order price deviation from market.
 
@@ -99,7 +99,7 @@ class MarketValidator:
             if price_deviation > max_deviation:
                 violations.append(
                     f"Order price {order.price} deviates {price_deviation:.2f}% from market "
-                    f"price {current_price}, exceeds max {max_deviation}%"
+                    f"price {current_price}, exceeds max {max_deviation}%",
                 )
 
         return violations
@@ -122,8 +122,8 @@ class MarketValidator:
             if order_book:
                 violations.extend(
                     MarketValidator._validate_book_depth(
-                        order, order_book, exchange_config.min_order_book_depth
-                    )
+                        order, order_book, exchange_config.min_order_book_depth,
+                    ),
                 )
 
         return violations
@@ -141,13 +141,13 @@ class MarketValidator:
             depth = sum(ask[1] for ask in order_book.asks[:5])  # Top 5 levels
             if depth < min_depth:
                 violations.append(
-                    f"Insufficient ask depth {depth} for buy order, minimum {min_depth}"
+                    f"Insufficient ask depth {depth} for buy order, minimum {min_depth}",
                 )
         elif order.side == OrderSide.SELL and order_book.bids:
             depth = sum(bid[1] for bid in order_book.bids[:5])  # Top 5 levels
             if depth < min_depth:
                 violations.append(
-                    f"Insufficient bid depth {depth} for sell order, minimum {min_depth}"
+                    f"Insufficient bid depth {depth} for sell order, minimum {min_depth}",
                 )
 
         return violations

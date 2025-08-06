@@ -63,7 +63,7 @@ class ExchangeValidator:
 
     @staticmethod
     def _check_order_value_constraints(
-        order: Order, exchange_config: ExchangeSpecificConfig
+        order: Order, exchange_config: ExchangeSpecificConfig,
     ) -> list[str]:
         """Check order value against min/max constraints.
 
@@ -93,7 +93,7 @@ class ExchangeValidator:
         # Calculate order value only when we have a valid price
         if not order.price:
             violations.append(
-                f"Cannot calculate order value without price for {order.order_type.value} order"
+                f"Cannot calculate order value without price for {order.order_type.value} order",
             )
             return violations
 
@@ -105,7 +105,7 @@ class ExchangeValidator:
             if order_value < min_size:
                 violations.append(
                     f"Order value ${order_value} below minimum ${min_size} "
-                    f"for {order.exchange.value}"
+                    f"for {order.exchange.value}",
                 )
 
         # Check maximum order size from config
@@ -114,7 +114,7 @@ class ExchangeValidator:
             if order_value > max_size:
                 violations.append(
                     f"Order value ${order_value} exceeds maximum ${max_size} "
-                    f"for {order.exchange.value}"
+                    f"for {order.exchange.value}",
                 )
 
         return violations
@@ -140,14 +140,14 @@ class ExchangeValidator:
                 if price_remainder != 0:
                     violations.append(
                         f"Price {order.price} not aligned to tick size {tick_size} "
-                        f"for {order.exchange}"
+                        f"for {order.exchange}",
                     )
 
         return violations
 
     @staticmethod
     def _check_quantity_alignment(
-        order: Order, exchange_config: ExchangeSpecificConfig
+        order: Order, exchange_config: ExchangeSpecificConfig,
     ) -> list[str]:
         """Check quantity alignment against lot size.
 
@@ -163,7 +163,7 @@ class ExchangeValidator:
                 if quantity_remainder != 0:
                     violations.append(
                         f"Quantity {order.quantity_requested} not aligned to lot size {lot_size} "
-                        f"for {order.exchange}"
+                        f"for {order.exchange}",
                     )
 
         return violations
@@ -183,7 +183,7 @@ class ExchangeValidator:
             if order.quantity_requested < min_quantity:
                 violations.append(
                     f"Quantity {order.quantity_requested} below minimum {min_quantity} "
-                    f"for {order.exchange}"
+                    f"for {order.exchange}",
                 )
 
         # Check maximum quantity from config
@@ -192,7 +192,7 @@ class ExchangeValidator:
             if order.quantity_requested > max_quantity:
                 violations.append(
                     f"Quantity {order.quantity_requested} exceeds maximum {max_quantity} "
-                    f"for {order.exchange}"
+                    f"for {order.exchange}",
                 )
 
         return violations

@@ -56,14 +56,14 @@ class OrderModificationValidator:
         # Check modification-specific constraints
         violations.extend(
             OrderModificationValidator._check_price_change(
-                original_order, modified_order, exchange_config
-            )
+                original_order, modified_order, exchange_config,
+            ),
         )
 
         violations.extend(
             OrderModificationValidator._check_quantity_change(
-                original_order, modified_order, exchange_config
-            )
+                original_order, modified_order, exchange_config,
+            ),
         )
 
         return violations
@@ -90,7 +90,7 @@ class OrderModificationValidator:
                 if price_change > max_change:
                     violations.append(
                         f"Price change {price_change:.2f}% exceeds maximum "
-                        f"{max_change}% for modifications"
+                        f"{max_change}% for modifications",
                     )
 
         return violations
@@ -118,7 +118,7 @@ class OrderModificationValidator:
             if quantity_change > max_change:
                 violations.append(
                     f"Quantity change {quantity_change:.2f}% exceeds maximum "
-                    f"{max_change}% for modifications"
+                    f"{max_change}% for modifications",
                 )
 
         return violations
@@ -153,7 +153,7 @@ class OrderModificationValidator:
             if order.status and order.status.value not in cancellable_statuses:
                 violations.append(
                     f"Order status {order.status.value} not cancellable, "
-                    f"allowed: {cancellable_statuses}"
+                    f"allowed: {cancellable_statuses}",
                 )
 
         return violations

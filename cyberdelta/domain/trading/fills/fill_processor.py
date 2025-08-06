@@ -58,6 +58,11 @@ class FillProcessor:
         - All monetary values as Decimal
         - NO assumptions about fill data structure
         """
+        # Validate order has exchange_order_id first
+        if order.exchange_order_id is None:
+            msg = f"Cannot process fill without exchange_order_id: {order.client_order_id}"
+            raise ValueError(msg)
+
         # Extract trade ID from fill data
         trade_id = fill_data.get("trade_id")
         if not isinstance(trade_id, str):
@@ -67,11 +72,6 @@ class FillProcessor:
         fill_timestamp = fill_data.get("timestamp", datetime.now(UTC))
         if not isinstance(fill_timestamp, datetime):
             fill_timestamp = datetime.now(UTC)
-
-        # Create Trade object with all calculated values
-        if order.exchange_order_id is None:
-            msg = f"Cannot process fill without exchange_order_id: {order.client_order_id}"
-            raise ValueError(msg)
 
         trade = Trade(
             id=trade_id,

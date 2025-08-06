@@ -10,7 +10,7 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, NoReturn
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
@@ -167,11 +167,13 @@ class ExecutionEngine(HealthCheckable):
                 # Fallback to basic fill processing
                 trade = self._create_trade_from_fill(order, fill_data)
 
-            # Update order filled quantity
-            order.quantity_filled = (order.quantity_filled or Decimal(0)) + trade.quantity
+            # Update order filled quantity through tracker to avoid direct mutation
+            current_filled = order.quantity_filled or Decimal(0)
+            new_filled = current_filled + trade.quantity
+            self._order_tracker.update_order_filled_quantity(order_id, new_filled)
 
             # Check if order is complete
-            if order.quantity_filled >= order.quantity_requested:
+            if new_filled >= order.quantity_requested:
                 self._order_tracker.update_order_status(order_id, OrderStatus.FILLED)
 
                 logger.info(
@@ -239,17 +241,16 @@ class ExecutionEngine(HealthCheckable):
             exchange_config = self.config.exchanges.get(order.exchange.value)
             if not exchange_config:
                 self._raise_exchange_config_error(order.exchange.value)
-                return False  # This line won't be reached but satisfies type checker
             timeout = exchange_config.request_timeout_seconds
 
             success = await asyncio.wait_for(
-                self._cancel_order_via_api(api_client, order), timeout=timeout
+                self._cancel_order_via_api(api_client, order), timeout=timeout,
             )
 
             if success:
                 self._order_tracker.update_order_status(order_id, OrderStatus.CANCELED)
                 logger.info(
-                    "order_cancelled_success", order_id=order_id, exchange=order.exchange.value
+                    "order_cancelled_success", order_id=order_id, exchange=order.exchange.value,
                 )
 
         except Exception as e:
@@ -371,7 +372,7 @@ class ExecutionEngine(HealthCheckable):
         return order_type, price
 
     async def _create_and_validate_order(
-        self, request: ExecutionRequest, order_type: OrderType, price: Decimal | None
+        self, request: ExecutionRequest, order_type: OrderType, price: Decimal | None,
     ) -> Order:
         """Create order and validate if validator available.
 
@@ -493,7 +494,7 @@ class ExecutionEngine(HealthCheckable):
             raise ValueError(msg)
 
     def _calculate_limit_price(
-        self, side: OrderSide, market_price: Decimal | None
+        self, side: OrderSide, market_price: Decimal | None,
     ) -> Decimal | None:
         """Calculate limit price with configured offset.
 
@@ -610,7 +611,7 @@ class ExecutionEngine(HealthCheckable):
                 )
 
                 exchange_order = await asyncio.wait_for(
-                    self._place_order_via_api(api_client, order), timeout=timeout
+                    self._place_order_via_api(api_client, order), timeout=timeout,
                 )
 
                 # Update order with exchange response
@@ -688,7 +689,6 @@ class ExecutionEngine(HealthCheckable):
         try:
             if order.exchange_order_id is None:
                 self._raise_missing_order_id_error(order.client_order_id)
-                return False  # This line won't be reached but satisfies type checker
 
             cancel_order_args = CancelOrderArgs(
                 order_id=order.exchange_order_id,
@@ -705,7 +705,7 @@ class ExecutionEngine(HealthCheckable):
 
         except Exception as e:
             logger.exception(
-                "api_cancel_order_error", order_id=order.exchange_order_id, error=str(e)
+                "api_cancel_order_error", order_id=order.exchange_order_id, error=str(e),
             )
             return False
 
@@ -749,7 +749,7 @@ class ExecutionEngine(HealthCheckable):
         )
 
     @staticmethod
-    def _raise_exchange_config_error(exchange: str) -> None:
+    def _raise_exchange_config_error(exchange: str) -> NoReturn:
         """Raise error for missing exchange configuration.
 
         Raises:
@@ -759,7 +759,7 @@ class ExecutionEngine(HealthCheckable):
         raise ValueError(msg)
 
     @staticmethod
-    def _raise_missing_order_id_error(client_order_id: str) -> None:
+    def _raise_missing_order_id_error(client_order_id: str) -> NoReturn:
         """Raise error for missing exchange order ID.
 
         Raises:

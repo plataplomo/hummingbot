@@ -60,7 +60,7 @@ class RiskValidator:
 
                 if order_value > max_position:
                     violations.append(
-                        f"Order value ${order_value} exceeds maximum position ${max_position}"
+                        f"Order value ${order_value} exceeds maximum position ${max_position}",
                     )
 
             # Check validation-specific constraints

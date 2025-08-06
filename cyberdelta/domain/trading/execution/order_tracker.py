@@ -7,6 +7,7 @@ functionality following CODING_STANDARDS.md.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from decimal import Decimal
 from typing import Any
 
 from cyberdelta.config.models.app_config import AppSettings
@@ -168,6 +169,36 @@ class OrderTracker:
                 self._success_count / self._order_count if self._order_count > 0 else 0.0
             ),
         }
+
+    def update_order_filled_quantity(self, order_id: str, filled_quantity: Decimal) -> bool:
+        """Update the filled quantity of a tracked order.
+
+        Args:
+            order_id: Exchange order ID
+            filled_quantity: New total filled quantity
+
+        Returns:
+            True if order was found and updated, False otherwise
+        """
+        order = self._active_orders.get(order_id)
+        if not order:
+            logger.warning("filled_quantity_update_for_unknown_order", order_id=order_id)
+            return False
+
+        old_filled = order.quantity_filled or Decimal(0)
+        order.quantity_filled = filled_quantity
+        order.updated_at = datetime.now(UTC)
+
+        logger.info(
+            "order_filled_quantity_updated",
+            order_id=order_id,
+            old_filled=float(old_filled),
+            new_filled=float(filled_quantity),
+            quantity_requested=float(order.quantity_requested),
+        )
+
+        self._last_activity = datetime.now(UTC)
+        return True
 
     def increment_error_count(self) -> None:
         """Increment error count for tracking metrics."""

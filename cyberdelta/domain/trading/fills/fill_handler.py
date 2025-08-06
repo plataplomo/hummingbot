@@ -100,12 +100,12 @@ class FillHandler:
 
             # Calculate fees using exchange configuration
             fee_amount, fee_asset = FeeCalculator.calculate_fee(
-                order, fill_price, fill_quantity, fill_data, exchange_config
+                order, fill_price, fill_quantity, fill_data, exchange_config,
             )
 
             # Create Trade object with all calculated values
             trade = FillProcessor.process_fill(
-                order, fill_price, fill_quantity, fee_amount, fee_asset, fill_data
+                order, fill_price, fill_quantity, fee_amount, fee_asset, fill_data,
             )
 
             # Update portfolio with trade
@@ -118,7 +118,7 @@ class FillHandler:
 
         except Exception as e:
             logger.exception(
-                "fill_processing_failed", order_id=order.exchange_order_id, error=str(e)
+                "fill_processing_failed", order_id=order.exchange_order_id, error=str(e),
             )
             raise
 
@@ -139,10 +139,9 @@ class FillHandler:
         - Tracks partial fill sequence for audit
         - Updates order state appropriately
         """
+        # Use Decimal for consistency with process_fill
         fill_qty = fill_data.get("filled_quantity", 0)
-        new_fill_quantity = (
-            float(fill_qty) if isinstance(fill_qty, (int, float, Decimal, str)) else 0.0
-        )
+        new_fill_quantity = Decimal(str(fill_qty)) if fill_qty else Decimal(0)
 
         filled_quantity = order.quantity_filled
 
@@ -151,7 +150,7 @@ class FillHandler:
             order_id=order.exchange_order_id,
             filled_so_far=float(filled_quantity),
             order_quantity=float(order.quantity_requested),
-            new_fill_quantity=new_fill_quantity,
+            new_fill_quantity=float(new_fill_quantity),
         )
 
         # Process same as regular fill
@@ -163,14 +162,14 @@ class FillHandler:
             fill_sequence=FillProcessor.get_fill_sequence_number(order, self._processed_fills),
             is_partial_fill=True,
             remaining_quantity=float(
-                order.quantity_requested - (order.quantity_filled or Decimal(0))
+                order.quantity_requested - (order.quantity_filled or Decimal(0)),
             ),
         )
 
         return trade
 
     async def process_bulk_fills(
-        self, order: Order, fill_list: list[dict[str, object]]
+        self, order: Order, fill_list: list[dict[str, object]],
     ) -> list[Trade]:
         """Process multiple fills for an order efficiently.
 
@@ -244,7 +243,7 @@ class FillHandler:
             "average_fill_size_usd": (
                 float(
                     sum(trade.price * trade.quantity for trade in self._processed_fills)
-                    / len(self._processed_fills)
+                    / len(self._processed_fills),
                 )
                 if self._processed_fills
                 else 0

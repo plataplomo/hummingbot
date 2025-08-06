@@ -95,12 +95,12 @@ class PortfolioValidator:
 
         if not balance:
             violations.append(
-                f"No {quote_asset_str} balance found on {order.exchange} for buy order"
+                f"No {quote_asset_str} balance found on {order.exchange} for buy order",
             )
         elif balance.available_quantity < required_amount:
             violations.append(
                 f"Insufficient {quote_asset_str} balance: need {required_amount}, "
-                f"available {balance.available_quantity}"
+                f"available {balance.available_quantity}",
             )
 
         return violations
@@ -129,12 +129,12 @@ class PortfolioValidator:
 
         if not balance:
             violations.append(
-                f"No {base_asset_str} balance found on {order.exchange} for sell order"
+                f"No {base_asset_str} balance found on {order.exchange} for sell order",
             )
         elif balance.available_quantity < order.quantity_requested:
             violations.append(
                 f"Insufficient {base_asset_str} balance: need {order.quantity_requested}, "
-                f"available {balance.available_quantity}"
+                f"available {balance.available_quantity}",
             )
 
         return violations
