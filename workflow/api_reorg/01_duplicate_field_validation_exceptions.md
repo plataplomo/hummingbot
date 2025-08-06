@@ -1,18 +1,21 @@
 # 01. Duplicate Field Validation Exceptions - Deep Code Research Report
 
+**Last Updated**: 2025-08-06
+**Status**: ❌ UNRESOLVED - Duplication still exists
+
 ## Executive Summary
-Two field validation exception modules exist with significant overlap but different scopes. The main module (`/cyberdelta/exceptions/field_validation.py`) contains 18 comprehensive exception classes, while the API-specific module (`/cyberdelta/apis/exceptions/field_validation.py`) contains only 6 basic exceptions.
+Two field validation exception modules exist with significant overlap but different scopes. The main module (`/cyberdelta/exceptions/field_validation.py`) contains **22 comprehensive exception classes** (grown from 18), while the API-specific module (`/cyberdelta/apis/exceptions/field_validation.py`) contains **7 basic exceptions** (grown from 6).
 
 ## File Locations and Sizes
 
 ### 1. Main Module: `/cyberdelta/exceptions/field_validation.py`
-- **Lines**: 807
-- **Classes**: 18 exception classes
+- **Lines**: 882
+- **Classes**: 22 exception classes (grown from 18)
 - **Purpose**: Comprehensive field validation exceptions for entire CyberDelta system
 
 ### 2. API Module: `/cyberdelta/apis/exceptions/field_validation.py`
 - **Lines**: 152
-- **Classes**: 6 exception classes
+- **Classes**: 7 exception classes (grown from 6)
 - **Purpose**: API-specific field validation exceptions
 
 ## Detailed Comparison
@@ -23,7 +26,7 @@ Two field validation exception modules exist with significant overlap but differ
 3. **TypeFieldError** - Type validation errors (slight differences)
 4. **ListFieldError** - List field validation (different implementations)
 
-### Unique to Main Module (14 classes)
+### Unique to Main Module (18 classes - grown from 14)
 1. **OrderFieldError** - Order field validation errors
 2. **FieldNameMissingError** - When field name is None
 3. **RequiredFieldNoneError** - Required fields that are None
@@ -41,7 +44,7 @@ Two field validation exception modules exist with significant overlap but differ
 15. **DateTimeFieldError** - DateTime validation
 16. **OHLCConsistencyError** - OHLC data consistency
 
-### Unique to API Module (2 classes)
+### Unique to API Module (3 classes)
 1. **EmptyStringFieldError** - Empty string validation
 2. **ConflictingMarketIdentifiersError** - Hyperliquid-specific
 3. **MissingMarketIdentifierError** - Hyperliquid-specific
@@ -49,22 +52,22 @@ Two field validation exception modules exist with significant overlap but differ
 ## Import Analysis
 
 ### Files importing from main module (`cyberdelta.exceptions.field_validation`)
-**Total**: 62 files
+**Total**: ~50+ files
 
 Key importers:
-- Core models (trade, ticker, market, order, etc.)
-- Utils (parsing, secure_transformation)
-- Risk checks
-- Strategy modules
-- Test files
+- Core domain models (`cyberdelta/models/`)
+- Utilities (`cyberdelta/utils/`)
+- Configuration models (`cyberdelta/config/`)
+- Test files across the codebase
 
 ### Files importing from API module (`cyberdelta.apis.exceptions.field_validation`)
-**Total**: 8 files
+**Total**: 12 files (grown from 8)
 
 Key importers:
-- API-specific models (Hyperliquid and Backpack)
-- API mappers
-- Service args models
+- API service argument models (`cyberdelta/apis/models/service_args/`)
+- Hyperliquid API models (`cyberdelta/apis/hyperliquid/models/`)
+- Backpack API models (`cyberdelta/apis/backpack/models/`)
+- API mappers and utilities
 
 ## Impact Assessment
 
@@ -139,5 +142,15 @@ Consider creating a layered exception structure:
 - **Medium Risk**: Need to ensure API-specific functionality is preserved
 - **Migration Risk**: Low - only 8 files need import updates
 
+## Current Status (August 2025)
+
+**⚠️ UNRESOLVED**: Despite comprehensive documentation in January 2025, the consolidation has NOT been completed:
+- Both modules still exist and are actively used
+- Module sizes have grown (22 classes vs 18, 7 classes vs 6)
+- All 4 duplicate base classes remain duplicated
+- Number of importing files has increased
+
+The architectural separation between API and core validation may be intentionally preserved to maintain clean boundaries as per project rules.
+
 ## Conclusion
-The duplicate field validation exceptions create unnecessary maintenance overhead and confusion. Consolidating to a single module while preserving API-specific functionality would improve code maintainability and reduce the risk of inconsistent implementations.
+The duplicate field validation exceptions create unnecessary maintenance overhead and confusion. While consolidating to a single module would improve code maintainability, the current architecture may be intentionally maintaining this separation to enforce clean boundaries between API-specific and core domain validation concerns.
