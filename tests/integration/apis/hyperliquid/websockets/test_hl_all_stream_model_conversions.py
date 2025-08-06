@@ -31,7 +31,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models.market.mid_prices import MidPrices
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.trade import Trade
@@ -857,7 +857,7 @@ class TestHyperliquidAllStreamModelConversions:
                 executed_at=datetime.now(UTC),  # Would be set by transformer
                 side=OrderSide.BUY if raw_trade.side == "B" else OrderSide.SELL,
                 order_id="test_order_id",  # Would come from actual trade data
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=Decimal(raw_trade.px),
                 quantity=Decimal(raw_trade.sz),
             )

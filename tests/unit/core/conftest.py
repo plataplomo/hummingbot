@@ -281,7 +281,7 @@ def sample_trade(btc_symbols: SymbolSet) -> Trade:
         price=Decimal("50000.0"),
         order_id=str(uuid4()),
         executed_at=datetime.now(UTC),
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
     )
 
 

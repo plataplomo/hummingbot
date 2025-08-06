@@ -226,7 +226,7 @@ class FillHandler:
                     executed_at=timestamp or datetime.now(UTC),
                     side=order.side,
                     order_id=order.exchange_order_id or "unknown",
-                    exchange=order.exchange.value,
+                    exchange=order.exchange,
                     price=Decimal(str(fill_data_dict.get("fill_price", 0))),
                     quantity=Decimal(str(fill_data_dict.get("filled_quantity", 0))),
                     fee=Decimal(str(fill_data_dict.get("fee", 0))),

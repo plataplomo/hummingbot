@@ -53,7 +53,7 @@ class TradingSessionStartedEvent(DomainEvent):
 
     session_id: str
     safe_mode: bool
-    enabled_exchanges: list[str]
+    enabled_exchanges: list[ExchangeName]
     enabled_strategies: list[str]
     risk_limits: dict[str, Any] = Field(default_factory=dict)
 

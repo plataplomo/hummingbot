@@ -167,7 +167,8 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
         else:
             logger.info("reconciliation_completed_successfully", exchanges_checked=len(api_clients))
 
-        exchange_results = dict.fromkeys(api_clients.keys(), critical_discrepancies == 0)
+        # Convert string keys to ExchangeName enum for the report
+        exchange_results = {ExchangeName(key): critical_discrepancies == 0 for key in api_clients}
 
         return ReconciliationReport(
             reconciliation_timestamp=datetime.now(UTC),

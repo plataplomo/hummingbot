@@ -116,7 +116,7 @@ class SpotBalance(BaseModel):
     """
 
     # --- Core Required Fields ---
-    exchange: str
+    exchange: ExchangeName
     asset: Symbol
     timestamp: datetime
     total_quantity: Decimal = Field(ge=Decimal(0))

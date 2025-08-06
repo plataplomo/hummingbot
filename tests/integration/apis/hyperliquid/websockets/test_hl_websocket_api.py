@@ -24,6 +24,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import OrderBook, Trade
 from cyberdelta.symbols.models import Symbol
 
@@ -254,7 +255,7 @@ class TestHyperliquidWebSocketMarketData:
                                 executed_at=datetime.fromtimestamp(
                                     trade_data.get("time", 0) / 1000, tz=UTC
                                 ),
-                                exchange="hyperliquid",
+                                exchange=ExchangeName.HYPERLIQUID,
                                 side=trade_data.get("side", "buy"),
                                 order_id=str(trade_data.get("oid", "unknown")),
                             )

@@ -78,7 +78,7 @@ class FillProcessor:
             executed_at=fill_timestamp,
             side=order.side,
             order_id=order.exchange_order_id,
-            exchange=order.exchange.value,
+            exchange=order.exchange,
             price=fill_price,
             quantity=fill_quantity,
             fee=fee,

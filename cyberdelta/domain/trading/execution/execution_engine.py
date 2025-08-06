@@ -241,7 +241,7 @@ class ExecutionEngine(HealthCheckable):
             # Get exchange-specific timeout
             exchange_config = self.config.exchanges.get(order.exchange.value)
             if not exchange_config:
-                self._raise_exchange_config_error(order.exchange.value)
+                self._raise_exchange_config_error(order.exchange)
             timeout = exchange_config.request_timeout_seconds
 
             success = await asyncio.wait_for(
@@ -734,13 +734,13 @@ class ExecutionEngine(HealthCheckable):
         return trade
 
     @staticmethod
-    def _raise_exchange_config_error(exchange: str) -> NoReturn:
+    def _raise_exchange_config_error(exchange: ExchangeName) -> NoReturn:
         """Raise error for missing exchange configuration.
 
         Raises:
             ValueError: Exchange configuration not found
         """
-        msg = f"No exchange configuration found for {exchange}"
+        msg = f"No exchange configuration found for {exchange.value}"
         raise ValueError(msg)
 
     @staticmethod

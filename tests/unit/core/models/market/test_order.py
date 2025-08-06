@@ -127,7 +127,7 @@ def test_order_all_core_fields(base_order_data: dict[str, Any]) -> None:
         id="trade1",
         order_id="bp12345",  # Assume this matches exchange_order_id below
         client_order_id=client_order_id_for_trade,
-        exchange="backpack",
+        exchange=ExchangeName.BACKPACK,
         symbol=BTC_HL,
         side=OrderSide.BUY,
         quantity=Decimal("0.5"),

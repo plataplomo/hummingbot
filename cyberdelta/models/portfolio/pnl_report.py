@@ -159,7 +159,7 @@ class ReconciliationReport(BaseModel):
     total_discrepancies: int = Field(description="Total number of discrepancies found")
 
     # Exchange-specific reconciliation results
-    exchange_results: dict[str, bool] = Field(
+    exchange_results: dict[ExchangeName, bool] = Field(
         description="Reconciliation results keyed by exchange name"
     )
 

@@ -11,6 +11,7 @@ from decimal import Decimal, InvalidOperation
 from typing import NoReturn, Protocol, cast, runtime_checkable
 
 from cyberdelta.apis.exceptions import MissingRequiredFieldError
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import (
     SpotBalance,
 )
@@ -28,7 +29,7 @@ class BalanceMapperMixin:
     can use to reduce code duplication and ensure consistent behavior.
     """
 
-    def create_zero_balance(self, asset: Symbol, exchange: str) -> SpotBalance:
+    def create_zero_balance(self, asset: Symbol, exchange: ExchangeName) -> SpotBalance:
         """Create a zero balance for missing or unavailable assets.
 
         Args:

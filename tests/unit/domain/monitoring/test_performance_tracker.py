@@ -226,7 +226,7 @@ class TestPerformanceTracker:
                 executed_at=now - timedelta(days=1),
                 side=OrderSide.BUY,
                 order_id="order_3",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 price=Decimal(3000),
                 quantity=Decimal(1),
                 fee=Decimal(3),

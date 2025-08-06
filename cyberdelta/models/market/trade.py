@@ -60,7 +60,7 @@ class Trade(BaseModel):
     executed_at: datetime
     side: OrderSide
     order_id: str
-    exchange: str
+    exchange: ExchangeName
     price: Decimal = Field(gt=Decimal(0))
     quantity: Decimal = Field(gt=Decimal(0))
     client_order_id: str | None = Field(default=None)

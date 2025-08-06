@@ -67,7 +67,7 @@ class HyperliquidBalanceMapper(CommonDataParserMixin, BalanceMapperMixin, Balanc
             # Return zero balance for missing assets using mixin utility
             return self.create_zero_balance(
                 asset=exchanges.hyperliquid(value=asset_symbol_str),
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
             )
 
         return balances[asset_symbol_str]

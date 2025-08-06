@@ -309,7 +309,7 @@ class TradingService(HealthCheckable):
                         if order.exchange_order_id is not None
                         else "pending"
                     ),
-                    exchange=order.exchange.value,
+                    exchange=order.exchange,
                     price=order.average_fill_price or order.price or Decimal(0),
                     quantity=order.quantity_filled,
                     fee=Decimal(0),  # Fee would come from exchange response

@@ -1322,7 +1322,7 @@ class TradingEngine:
             executed_at=event.timestamp,
             side=event.side,
             order_id=event.order_id,
-            exchange=str(event.exchange),
+            exchange=event.exchange,
             price=event.fill_price,
             quantity=event.fill_quantity,
             fee=event.commission,
