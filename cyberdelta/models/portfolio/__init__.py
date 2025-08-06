@@ -1,7 +1,6 @@
 """Portfolio domain models."""
 
 from .pnl_report import (
-    DrawdownStatus,
     PnLReport,
     PositionPnLDetail,
     ReconciliationReport,
@@ -10,7 +9,6 @@ from .pnl_report import (
 
 
 __all__ = [
-    "DrawdownStatus",
     "PnLReport",
     "PositionPnLDetail",
     "ReconciliationReport",

@@ -65,7 +65,3 @@ class FillStatistics(BaseModel):
 
         frozen = True  # Immutable for thread safety
         validate_assignment = True
-
-
-# Update the forward reference
-OrderUpdateData.model_rebuild()

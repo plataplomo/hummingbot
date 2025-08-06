@@ -186,49 +186,6 @@ class ReconciliationReport(BaseModel):
         validate_assignment = True
 
 
-class DrawdownStatus(BaseModel):
-    """Type-safe drawdown monitoring status.
-
-    This model replaces dict[str, object] returns in drawdown monitoring
-    to ensure type safety for risk monitoring.
-
-    IMPORTANT: Following CODING_STANDARDS.md:
-    - NO default values for critical fields
-    - All monetary values use Decimal type
-    """
-
-    current_drawdown_pct: Decimal = Field(description="Current drawdown as percentage")
-
-    max_drawdown_pct: Decimal = Field(description="Maximum allowed drawdown percentage")
-
-    peak_equity_usd: Decimal = Field(description="Peak equity in USD")
-
-    current_equity_usd: Decimal = Field(description="Current equity in USD")
-
-    drawdown_start_timestamp: datetime | None = Field(
-        default=None, description="When current drawdown began"
-    )
-
-    is_in_drawdown: bool = Field(description="Whether portfolio is currently in drawdown")
-
-    drawdown_breach: bool = Field(description="Whether drawdown limit has been breached")
-
-    # Optional recovery metrics
-    recovery_needed_usd: Decimal | None = Field(
-        default=None, description="USD amount needed to recover from drawdown"
-    )
-
-    drawdown_duration_hours: Decimal | None = Field(
-        default=None, description="Hours portfolio has been in drawdown"
-    )
-
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable for thread safety
-        validate_assignment = True
-
-
 class ValidationStatistics(BaseModel):
     """Type-safe validation statistics.
 
