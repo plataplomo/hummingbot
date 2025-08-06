@@ -26,6 +26,7 @@ from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
+from cyberdelta.enums import MakerTaker
 from cyberdelta.enums.signals import SignalType
 from cyberdelta.models import Fill, TradeSignal
 from cyberdelta.models.events.base_event import DomainEvent
@@ -1316,6 +1317,9 @@ class TradingEngine:
     async def _process_order_filled_event(self, event: OrderFilledEvent) -> None:
         """Process order filled event."""
         # Create Fill instance with proper fields
+        # Convert partial flag to MakerTaker enum
+        maker_taker = MakerTaker.MAKER if event.is_partial else MakerTaker.TAKER
+
         fill = Fill(
             id=event.order_id,
             symbol=event.symbol,
@@ -1326,7 +1330,7 @@ class TradingEngine:
             price=event.fill_price,
             quantity=event.fill_quantity,
             fee=event.commission,
-            is_maker=event.is_partial,  # Use partial flag as proxy for maker
+            maker_taker=maker_taker,  # Use partial flag as proxy for maker
         )
         await self._handle_trade_executed(fill)
 

@@ -22,7 +22,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
-from cyberdelta.enums import ExchangeName
+from cyberdelta.enums import ExchangeName, MakerTaker
 from cyberdelta.models import Fill, Order, OrderSide, OrderStatus, OrderType, TimeInForce
 from tests.common_symbols import ETH_HL
 
@@ -318,7 +318,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             quantity=Decimal("5.0"),
             fee=Decimal("1.0"),
             fee_asset="USD",
-            is_maker=True,
+            maker_taker=MakerTaker.MAKER,
         )
 
         # Configure the mocks

@@ -11,7 +11,7 @@ from decimal import Decimal
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.models.fee_config import FeeStructureConfig
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import ExchangeName
+from cyberdelta.enums import ExchangeName, MakerTaker
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
 
@@ -119,10 +119,10 @@ class FeeCalculator:
         Returns:
             Decimal: Fee rate as Decimal
         """
-        # Use is_maker field from Fill model, default to taker if not specified
-        is_maker = fill.is_maker if fill.is_maker is not None else False
+        # Use maker_taker field from Fill model, default to TAKER if not specified
+        maker_taker = fill.maker_taker if fill.maker_taker is not None else MakerTaker.TAKER
 
-        if is_maker:
+        if maker_taker == MakerTaker.MAKER:
             return Decimal(str(fee_structure.maker_fee_rate))
         return Decimal(str(fee_structure.taker_fee_rate))
 
@@ -195,8 +195,8 @@ class FeeCalculator:
     ) -> None:
         """Log fee calculation details."""
         exchange_name = exchange.value
-        # Use is_maker field from Fill model to determine liquidity type
-        liquidity = "maker" if fill.is_maker else "taker"
+        # Use maker_taker field from Fill model to determine liquidity type
+        liquidity = fill.maker_taker.value.lower() if fill.maker_taker else "taker"
         fee_method = fee_structure.fee_calculation_method
 
         logger.debug(

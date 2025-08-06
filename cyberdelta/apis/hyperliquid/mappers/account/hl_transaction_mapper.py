@@ -26,6 +26,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import TransactionMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import MakerTaker
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.fill import Fill, HyperliquidFillDetails
 from cyberdelta.symbols import exchanges
@@ -108,6 +109,12 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 value=raw_fill.coin,
             )
 
+            # Convert boolean is_maker to MakerTaker enum
+            is_maker_value = getattr(raw_fill, "is_maker", None)
+            maker_taker = None
+            if is_maker_value is not None:
+                maker_taker = MakerTaker.MAKER if is_maker_value else MakerTaker.TAKER
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": str(getattr(raw_fill, "hash", f"fill_{raw_fill.time}_{raw_fill.coin}")),
@@ -121,7 +128,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 "quantity": str(quantity),
                 "fee": str(fee),
                 "fee_asset": raw_fill.coin,  # Fee asset is the traded symbol
-                "is_maker": getattr(raw_fill, "is_maker", None),
+                "maker_taker": maker_taker.value if maker_taker else None,
                 "hl_details": details.model_dump() if details else None,
                 "bp_details": None,
             }
@@ -223,6 +230,9 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 value=raw_fill.coin,
             )
 
+            # Convert boolean is_maker to MakerTaker enum
+            maker_taker = MakerTaker.MAKER if raw_fill.is_maker else MakerTaker.TAKER
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": str(raw_fill.tid),
@@ -236,7 +246,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 "quantity": str(quantity),
                 "fee": str(fee),
                 "fee_asset": raw_fill.coin,  # Fee asset is the traded symbol
-                "is_maker": raw_fill.is_maker,
+                "maker_taker": maker_taker.value if maker_taker else None,
                 "hl_details": details.model_dump() if details else None,
                 "bp_details": None,
             }
@@ -335,6 +345,9 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 value=raw_fill.coin,
             )
 
+            # Convert boolean is_maker to MakerTaker enum
+            maker_taker = MakerTaker.MAKER if raw_fill.is_maker else MakerTaker.TAKER
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": raw_fill.hash,
@@ -348,7 +361,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 "quantity": str(quantity),
                 "fee": "0",  # Fee not available in WS fill events
                 "fee_asset": None,
-                "is_maker": raw_fill.is_maker,
+                "maker_taker": maker_taker.value if maker_taker else None,
                 "hl_details": details.model_dump() if details else None,
                 "bp_details": None,
             }

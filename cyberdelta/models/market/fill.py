@@ -20,7 +20,7 @@ from pydantic import (
     model_validator,
 )
 
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
@@ -50,7 +50,7 @@ class Fill(BaseModel):
         quantity (Decimal): Executed quantity (must be positive)
         fee (Decimal): Fee paid for this fill (can be negative for rebates/promotions)
         fee_asset (Optional[str]): Asset in which the fee was paid (required if fee != 0)
-        is_maker (Optional[bool]): True if maker fill, False if taker, None if unknown
+        maker_taker (Optional[MakerTaker]): MAKER or TAKER, None if unknown
         hl_details (Optional[HyperliquidFillDetails]): Hyperliquid-specific enrichment slot
         bp_details (Optional[BackpackFillDetails]): Backpack-specific enrichment slot
     """
@@ -66,7 +66,7 @@ class Fill(BaseModel):
     client_order_id: str | None = Field(default=None)
     fee: Decimal = Field(default=Decimal(0))
     fee_asset: str | None = Field(default=None)
-    is_maker: bool | None = Field(default=None)
+    maker_taker: MakerTaker | None = Field(default=None)
     hl_details: HyperliquidFillDetails | None = Field(default=None)
     bp_details: BackpackFillDetails | None = Field(default=None)
 
@@ -246,7 +246,7 @@ class Fill(BaseModel):
         for key, value in data.items():
             if isinstance(value, Decimal):
                 data[key] = str(value)
-            elif isinstance(value, OrderSide):
+            elif isinstance(value, (OrderSide, MakerTaker)):
                 data[key] = value.value
             elif isinstance(value, datetime):
                 data[key] = value.isoformat()

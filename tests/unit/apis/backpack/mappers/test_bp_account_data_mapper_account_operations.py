@@ -32,7 +32,7 @@ from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
 from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, Fill
 from cyberdelta.models.operations import (
@@ -714,7 +714,7 @@ class TestWebSocketFillTransformation:
         assert result.price == Decimal("100.0")
         assert result.fee == Decimal("0.05")
         assert result.fee_asset == "USDC"
-        assert result.is_maker
+        assert result.maker_taker == MakerTaker.MAKER
         assert result.order_id == "order123"
         assert result.client_order_id == "client123"
         assert result.exchange == ExchangeName.BACKPACK.value
@@ -730,7 +730,7 @@ class TestWebSocketFillTransformation:
 
         assert result is not None
         assert result.side == OrderSide.SELL  # Ask -> SELL
-        assert not result.is_maker
+        assert result.maker_taker == MakerTaker.TAKER
 
     def test_transform_ws_fill_event_zero_price_returns_none(
         self,

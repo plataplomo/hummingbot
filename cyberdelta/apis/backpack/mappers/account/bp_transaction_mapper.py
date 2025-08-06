@@ -35,6 +35,7 @@ from cyberdelta.core.enums import (
     TriggerType,
 )
 from cyberdelta.enums import (
+    MakerTaker,
     OrderType,
     TimeInForce,
 )
@@ -385,6 +386,9 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 value=raw_fill.symbol,
             )
 
+            # Convert boolean is_maker to MakerTaker enum
+            maker_taker = MakerTaker.MAKER if raw_fill.is_maker else MakerTaker.TAKER
+
             # Use secure_transform for type-safe model creation
             trade_data = {
                 "id": str(raw_fill.trade_id),
@@ -398,7 +402,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 "quantity": str(quantity_typed),
                 "fee": str(fee),
                 "fee_asset": raw_fill.fee_symbol,
-                "is_maker": raw_fill.is_maker,
+                "maker_taker": maker_taker.value,
                 "bp_details": details.model_dump() if details else None,
                 "hl_details": None,
             }

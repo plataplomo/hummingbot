@@ -33,7 +33,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
@@ -520,7 +520,9 @@ class TestTransformRawFillToInternal:
         assert trade.quantity == Decimal(raw_fill.sz)
         assert trade.fee == Decimal(raw_fill.fee)
         assert trade.fee_asset == raw_fill.coin
-        assert trade.is_maker == raw_fill.is_maker
+        # Check maker_taker enum conversion
+        expected_maker_taker = MakerTaker.MAKER if raw_fill.is_maker else MakerTaker.TAKER
+        assert trade.maker_taker == expected_maker_taker
 
         assert trade.hl_details is not None
         assert isinstance(trade.hl_details, HyperliquidFillDetails)
@@ -552,7 +554,9 @@ class TestTransformRawFillToInternal:
         assert trade.quantity == Decimal(raw_fill.sz)
         assert trade.fee == Decimal(raw_fill.fee)
         assert trade.fee_asset == raw_fill.coin
-        assert trade.is_maker == raw_fill.is_maker
+        # Check maker_taker enum conversion
+        expected_maker_taker = MakerTaker.MAKER if raw_fill.is_maker else MakerTaker.TAKER
+        assert trade.maker_taker == expected_maker_taker
 
         assert trade.hl_details is not None
         assert isinstance(trade.hl_details, HyperliquidFillDetails)
@@ -645,7 +649,7 @@ class TestTransformRawFillToInternal:
         trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
         assert trade.fee == Decimal("0.0")
-        assert trade.is_maker is True
+        assert trade.maker_taker == MakerTaker.MAKER
 
     def test_fill_timestamp_conversion(self) -> None:
         """Test that fill timestamps are correctly converted from milliseconds."""

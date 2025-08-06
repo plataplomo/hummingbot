@@ -37,7 +37,7 @@ import pydantic
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.enums import ExchangeName, OrderSide
+from cyberdelta.enums import ExchangeName, MakerTaker, OrderSide
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.models.market.fill import BackpackFillDetails, Fill, HyperliquidFillDetails
@@ -69,8 +69,8 @@ def test_fill_minimal_valid() -> None:
     assert fill.cost == price * quantity
     assert fill.fee == Decimal(0)
     assert fill.fee_asset is None
-    assert fill.is_maker is None
-    assert fill.exchange == "backpack"
+    assert fill.maker_taker is None
+    assert fill.exchange == ExchangeName.BACKPACK
     assert fill.side == OrderSide.BUY
 
 
@@ -103,14 +103,14 @@ def test_fill_with_all_optionals() -> None:
         client_order_id="cloid-123",
         fee=Decimal("-0.01"),
         fee_asset="USDC",
-        is_maker=True,
+        maker_taker=MakerTaker.MAKER,
         hl_details=hl_details,
         bp_details=bp_details,
     )
     assert fill.client_order_id == "cloid-123"
     assert fill.fee == Decimal("-0.01")
     assert fill.fee_asset == "USDC"
-    assert fill.is_maker is True
+    assert fill.maker_taker == MakerTaker.MAKER
     assert fill.hl_details is not None
     assert fill.hl_details.fill_hash == "hash-abc"
     assert fill.hl_details.liquidation_mark_px == Decimal("99.5")

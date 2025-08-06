@@ -11,6 +11,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import MakerTaker
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
 
@@ -84,7 +85,7 @@ class FillProcessor:
             fee=fee,
             fee_asset=fee_asset,
             client_order_id=order.client_order_id,
-            is_maker=False,  # Default to taker, can be enhanced later
+            maker_taker=MakerTaker.TAKER,  # Default to taker, can be enhanced later
         )
 
         logger.info(

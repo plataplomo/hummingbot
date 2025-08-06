@@ -22,7 +22,7 @@ from cyberdelta.core.enums import (
     SelfTradePrevention,
     TriggerType,
 )
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import MakerTaker, OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
@@ -135,7 +135,7 @@ def test_order_all_core_fields(base_order_data: dict[str, Any]) -> None:
         fee=Decimal("0.5"),
         fee_asset="USDC",
         executed_at=datetime.now(UTC),
-        is_maker=False,
+        maker_taker=MakerTaker.TAKER,
     )
 
     data.update(
