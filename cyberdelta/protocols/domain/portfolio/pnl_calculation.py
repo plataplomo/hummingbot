@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Protocol
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols.models import Symbol
 
 
 class PnLCalculatorProtocol(Protocol):

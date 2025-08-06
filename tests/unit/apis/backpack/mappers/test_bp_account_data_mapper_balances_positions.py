@@ -31,11 +31,11 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionR
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, MarginAccountSummary, SpotBalance
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 
 
 pytestmark = pytest.mark.timing

@@ -20,7 +20,6 @@ from pydantic import (
     model_validator,
 )
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
@@ -30,6 +29,7 @@ from cyberdelta.exceptions.field_validation import (
     TradeLogicError,
     TypeFieldError,
 )
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 

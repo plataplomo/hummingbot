@@ -6,8 +6,8 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import Trade
+from cyberdelta.symbols import exchanges
 
 
 pytestmark = [pytest.mark.integration, pytest.mark.perp, pytest.mark.zero_balance]

@@ -13,7 +13,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.symbols import exchanges
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     COMMON_SPOT_SYMBOLS,

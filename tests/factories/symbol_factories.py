@@ -5,8 +5,8 @@ with realistic test data, supporting both simple and complex test scenarios.
 """
 
 from cyberdelta.core.enums.enums import MarketType
-from cyberdelta.core.symbols import Symbol, get_symbol_service
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import Symbol, get_symbol_service
 
 
 def create_symbol(

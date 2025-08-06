@@ -15,18 +15,18 @@ from typing import Any
 from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.domain.market.market_service import MarketDataService
+from cyberdelta.domain.monitoring.alert_service import AlertLevel, AlertService
+from cyberdelta.domain.monitoring.health_monitor import HealthMonitor
+from cyberdelta.domain.monitoring.metrics_collector import MetricsCollector
+from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
+from cyberdelta.domain.risk.risk_service import RiskService
+from cyberdelta.domain.safety.circuit_breaker import CircuitBreakerManager
+from cyberdelta.domain.signal.signal_service import SignalService
+from cyberdelta.domain.strategy.strategy_service import StrategyService
+from cyberdelta.domain.trading.execution_engine import ExecutionEngine
+from cyberdelta.domain.trading.trading_service import TradingService
 from cyberdelta.enums.signals import SignalType
-from cyberdelta.logic.market.market_service import MarketDataService
-from cyberdelta.logic.monitoring.alert_service import AlertLevel, AlertService
-from cyberdelta.logic.monitoring.health_monitor import HealthMonitor
-from cyberdelta.logic.monitoring.metrics_collector import MetricsCollector
-from cyberdelta.logic.portfolio.portfolio_service import PortfolioService
-from cyberdelta.logic.risk.risk_service import RiskService
-from cyberdelta.logic.safety.circuit_breaker import CircuitBreakerManager
-from cyberdelta.logic.signal.signal_service import SignalService
-from cyberdelta.logic.strategy.strategy_service import StrategyService
-from cyberdelta.logic.trading.execution_engine import ExecutionEngine
-from cyberdelta.logic.trading.trading_service import TradingService
 from cyberdelta.models import Trade, TradeSignal
 from cyberdelta.models.events.base_event import DomainEvent
 from cyberdelta.models.events.portfolio_events import PositionUpdatedEvent

@@ -10,12 +10,12 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 
 from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.models.service_args.common import validate_api_str_field
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.service_validation import (
     IntegerConversionError,
     NegativeValueError,
     TimeRangeError,
 )
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc
 
 

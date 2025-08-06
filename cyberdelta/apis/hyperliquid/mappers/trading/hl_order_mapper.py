@@ -44,7 +44,6 @@ from cyberdelta.core.enums import (
     OrderStatus,
     TriggerType,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import (
     OrderSide,
     OrderType,
@@ -52,6 +51,7 @@ from cyberdelta.enums import (
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Order, Trade
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

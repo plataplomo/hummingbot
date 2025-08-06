@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import SpotBalance
+from cyberdelta.symbols.models import Symbol
 
 
 class BalanceManagerProtocol(Protocol):

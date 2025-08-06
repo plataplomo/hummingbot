@@ -23,10 +23,10 @@ from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import BackpackSpotBalanceDetails, SpotBalance
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

@@ -10,7 +10,7 @@ from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler 
     BackpackMarketDataResponseHandler,
 )
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

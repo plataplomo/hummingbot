@@ -11,8 +11,8 @@ from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawMarketRespo
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market import Market
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_BP
 
 

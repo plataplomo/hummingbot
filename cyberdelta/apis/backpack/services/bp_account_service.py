@@ -57,7 +57,6 @@ from cyberdelta.apis.models.service_args.trading import (
     GetTradeHistoryArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
@@ -67,6 +66,7 @@ from cyberdelta.models import (
     Trade,
 )
 from cyberdelta.models.operations import Transfer, Withdrawal
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

@@ -18,7 +18,6 @@ from pydantic import (
 )
 from pydantic_core.core_schema import ValidationInfo
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DateTimeFieldError,
@@ -27,6 +26,7 @@ from cyberdelta.exceptions.field_validation import (
     InvalidExchangeNameError,
     TypeFieldError,
 )
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
     parse_decimal_value,

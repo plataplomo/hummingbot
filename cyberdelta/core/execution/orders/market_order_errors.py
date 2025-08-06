@@ -5,7 +5,7 @@ This module defines custom exceptions for market order execution failures.
 
 from decimal import Decimal
 
-from cyberdelta.core.symbols import Symbol
+from cyberdelta.symbols import Symbol
 
 
 class MarketOrderError(Exception):

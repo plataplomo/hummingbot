@@ -27,10 +27,10 @@ from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import BackpackPositionDetails, DerivativePosition
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

@@ -14,7 +14,7 @@ from cyberdelta.apis.common import APIError, TransformationError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 
 
 logger = get_logger(__name__)

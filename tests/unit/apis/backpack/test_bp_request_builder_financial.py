@@ -13,8 +13,8 @@ from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
 from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import (
     BackpackAccountRequestBuilder,
 )
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import USDC_BP
 
 

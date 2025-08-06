@@ -8,8 +8,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
+from cyberdelta.symbols.models import Symbol
 
 
 class GetMaxBorrowQuantityArgs(BaseModel):

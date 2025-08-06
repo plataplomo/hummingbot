@@ -17,8 +17,8 @@ import pytest
 
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import Ticker
+from cyberdelta.symbols import exchanges
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 
 

@@ -8,8 +8,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.service_validation import TimeRangeError
+from cyberdelta.symbols.models import Symbol
 
 
 class HyperliquidGetOrderStatusArgs(BaseModel):

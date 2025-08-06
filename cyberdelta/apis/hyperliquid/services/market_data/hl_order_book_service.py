@@ -32,9 +32,9 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderBookMapperProtocol
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models import OrderBook, Trade
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

@@ -28,8 +28,8 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import Ticker
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_BP, DOGE_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 from tests.fixtures.time_fixtures import FreezerProtocol
 

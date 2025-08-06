@@ -27,8 +27,8 @@ from cyberdelta.apis.models.service_args.trading import (
     CancelOrderArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.symbols import exchanges
 
 
 pytestmark = [

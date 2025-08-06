@@ -10,8 +10,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Self, cast
 
-from cyberdelta.core.symbols import Symbol, symbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import Symbol, symbol
 
 
 @dataclass

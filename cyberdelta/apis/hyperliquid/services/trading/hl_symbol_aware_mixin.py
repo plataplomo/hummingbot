@@ -7,7 +7,7 @@ while working with the existing string-based infrastructure.
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.core.enums.enums import MarketType
-from cyberdelta.core.symbols.models import HyperliquidMetadata, Symbol
+from cyberdelta.symbols.models import HyperliquidMetadata, Symbol
 
 
 if TYPE_CHECKING:

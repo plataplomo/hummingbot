@@ -8,14 +8,14 @@ import contextlib
 from typing import Any
 
 from cyberdelta.core.enums.enums import MarketType
-from cyberdelta.core.symbols import Symbol
-from cyberdelta.core.symbols.models import (
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import Symbol
+from cyberdelta.symbols.models import (
     BackpackMetadata,
     HyperliquidMetadata,
     SymbolComponents,
 )
-from cyberdelta.core.symbols.service import SymbolService
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols.service import SymbolService
 
 
 class SymbolTestValidator:

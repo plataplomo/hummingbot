@@ -34,9 +34,9 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
     HyperliquidOrderBookService,
 )
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import OrderBook, Trade
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import ETH_HL
 
 

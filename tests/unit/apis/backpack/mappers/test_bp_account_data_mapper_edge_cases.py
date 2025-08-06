@@ -19,7 +19,7 @@ import pytest
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.core.symbols import exchanges
+from cyberdelta.symbols import exchanges
 
 
 pytestmark = pytest.mark.timing

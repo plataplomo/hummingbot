@@ -21,12 +21,12 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import TradeMapperProto
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import TradeTransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Trade
 from cyberdelta.models.market.trade import BackpackTradeDetails
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

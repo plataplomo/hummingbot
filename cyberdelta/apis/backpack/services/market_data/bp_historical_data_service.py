@@ -45,9 +45,9 @@ from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market import Trade
 from cyberdelta.models.market.candle import Candle
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

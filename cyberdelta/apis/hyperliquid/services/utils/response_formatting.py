@@ -12,8 +12,8 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions import InvalidBatchResponseError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import CancelOrderResultStatus
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.order import CancelOrderResult
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_decimal_value
 
 

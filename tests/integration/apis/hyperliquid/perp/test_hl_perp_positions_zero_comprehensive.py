@@ -26,8 +26,8 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.models.derivative_position import DerivativePosition
+from cyberdelta.symbols.models import BaseSymbol
 
 
 # Mark all tests in this file as integration tests

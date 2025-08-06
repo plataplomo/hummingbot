@@ -355,6 +355,7 @@ dependencies = [
     { name = "simplejson" },
     { name = "structlog" },
     { name = "tenacity" },
+    { name = "types-aiofiles" },
     { name = "web3" },
     { name = "websockets" },
 ]
@@ -433,6 +434,7 @@ requires-dist = [
     { name = "simplejson", specifier = "==3.20.1" },
     { name = "structlog", specifier = "==25.3.0" },
     { name = "tenacity", specifier = "==9.1.2" },
+    { name = "types-aiofiles", specifier = ">=24.1.0.20250801" },
     { name = "types-cachetools", marker = "extra == 'dev'", specifier = ">=6.0.0.20250525" },
     { name = "types-jsonschema", marker = "extra == 'dev'", specifier = "==4.23.0.20241208,<4.30.0" },
     { name = "types-orjson", marker = "extra == 'dev'", specifier = ">=3.6.2" },
@@ -2065,6 +2067,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/8a/0b/d80dfa675bf592f636d1ea0b835eab4ec8df6e9415d8cfd766df54456123/toolz-1.0.0.tar.gz", hash = "sha256:2c86e3d9a04798ac556793bced838816296a2f085017664e4995cb40a1047a02", size = 66790, upload-time = "2024-10-04T16:17:04.001Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/03/98/eb27cc78ad3af8e302c9d8ff4977f5026676e130d28dd7578132a457170c/toolz-1.0.0-py3-none-any.whl", hash = "sha256:292c8f1c4e7516bf9086f8850935c799a874039c8bcf959d47b600e4c44a6236", size = 56383, upload-time = "2024-10-04T16:17:01.533Z" },
+]
+
+[[package]]
+name = "types-aiofiles"
+version = "24.1.0.20250801"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f3/fb/978d03bec716a3d58b53058df42c8175ee6e163140b0cdf781b748b3b796/types_aiofiles-24.1.0.20250801.tar.gz", hash = "sha256:050d85e662eba7be4dd2a66a7d6ccd4ff779a3a89361603393ed16ba30d12457", size = 14311, upload-time = "2025-08-01T03:48:26.212Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3b/c3/5ab027a94662ca7f453757370f79ca3a1b9c42b279ff3d3bcde80db8e454/types_aiofiles-24.1.0.20250801-py3-none-any.whl", hash = "sha256:0f3bdb3384ae5b3425644a2e56e414b7c2791b23079e639a2c2914b0b85c3ecf", size = 14266, upload-time = "2025-08-01T03:48:25.094Z" },
 ]
 
 [[package]]

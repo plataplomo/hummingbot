@@ -19,9 +19,6 @@ from pydantic import (
 )
 from pydantic_core.core_schema import ValidationInfo
 
-# Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
-# (Although for Details, we usually transform *before* creating Details)
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
@@ -32,6 +29,10 @@ from cyberdelta.exceptions import (
     TypeFieldError,
 )
 from cyberdelta.exceptions.field_validation import InvalidExchangeNameError
+
+# Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
+# (Although for Details, we usually transform *before* creating Details)
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
     parse_decimal_value,

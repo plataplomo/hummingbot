@@ -27,7 +27,6 @@ from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixi
 from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     AccountSettings,
@@ -35,6 +34,7 @@ from cyberdelta.models import (
     BackpackMarginDetails,
     MarginAccountSummary,
 )
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

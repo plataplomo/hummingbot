@@ -67,8 +67,8 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetRecentTradesArgs,
 )
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType
+from cyberdelta.symbols.models import Symbol
 
 
 @runtime_checkable

@@ -22,8 +22,8 @@ from cyberdelta.apis.base.trading_execution_domain import (
     LiquidityRequirement,
     OrderExecution,
 )
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_USDT_BP,
     ETH_BP,

@@ -24,8 +24,8 @@ from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.order_book import OrderBook
+from cyberdelta.symbols.models import Symbol
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (

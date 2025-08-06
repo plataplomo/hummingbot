@@ -4,7 +4,7 @@ These exceptions handle risk management errors including configuration,
 validation, and portfolio constraint violations.
 """
 
-from cyberdelta.core.symbols import Symbol
+from cyberdelta.symbols import Symbol
 
 
 class RiskManagerError(Exception):

@@ -7,7 +7,7 @@ while working with the existing string-based infrastructure.
 from typing import Any
 
 from cyberdelta.core.enums.enums import MarketType
-from cyberdelta.core.symbols.models import BackpackMetadata, Symbol
+from cyberdelta.symbols.models import BackpackMetadata, Symbol
 
 
 class SymbolAwareMixin:

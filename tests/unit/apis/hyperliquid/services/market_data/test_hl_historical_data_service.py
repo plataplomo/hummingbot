@@ -44,9 +44,9 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import FundingRate
 from cyberdelta.models.market.candle import Candle
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

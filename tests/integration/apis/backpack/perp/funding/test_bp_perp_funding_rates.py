@@ -21,8 +21,8 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolListError
 from cyberdelta.apis.models.service_args.market_data import GetFundingRatesArgs
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import FundingRate
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
 

@@ -18,8 +18,8 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
-from cyberdelta.core.symbols import Symbol
 from cyberdelta.models.market.candle import Candle
+from cyberdelta.symbols import Symbol
 from tests.common_symbols import BTC_USDC_BP, COMMON_SPOT_SYMBOLS_BP, SOL_USDC_BP
 from tests.fixtures.time_fixtures import FreezerProtocol
 

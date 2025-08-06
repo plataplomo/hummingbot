@@ -61,8 +61,8 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType
+from cyberdelta.symbols.models import Symbol
 
 
 logger = get_logger(__name__)

@@ -74,7 +74,6 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecretsConfig
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
@@ -89,6 +88,7 @@ from cyberdelta.models import (
 from cyberdelta.models.market import Candle, Market, OrderBook
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.models.operations import Transfer, Withdrawal
+from cyberdelta.symbols.models import Symbol
 
 
 logger = get_logger(__name__)

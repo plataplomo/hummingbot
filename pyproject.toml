@@ -88,6 +88,7 @@ dev = [
     "types-orjson>=3.6.2",
     "psutil==7.0.0",
     "types-psutil>=7.0.0.20250601,<7.1.0",
+    "types-aiofiles>=24.1.0.20250801",
 ]
 
 [tool.pytest.ini_options]

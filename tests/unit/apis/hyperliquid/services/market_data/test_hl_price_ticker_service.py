@@ -36,10 +36,10 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder
 from cyberdelta.apis.hyperliquid.services.market_data.hl_price_ticker_service import (
     HyperliquidPriceTickerService,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName
 from cyberdelta.models import FundingRate, Ticker
 from cyberdelta.models.market.mid_prices import MidPrices
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 

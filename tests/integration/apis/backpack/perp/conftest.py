@@ -9,7 +9,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 from tests.integration.apis.backpack.shared.bp_test_helpers import get_market_constraints
 

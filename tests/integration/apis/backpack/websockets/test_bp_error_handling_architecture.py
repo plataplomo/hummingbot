@@ -28,10 +28,10 @@ from cyberdelta.apis.websocket.ws_context import (
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
+from cyberdelta.symbols.models import Symbol
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (

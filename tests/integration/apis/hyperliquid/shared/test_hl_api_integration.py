@@ -43,12 +43,12 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import Symbol, exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.ticker import Ticker
+from cyberdelta.symbols import Symbol, exchanges
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import HyperliquidTestHelpers
 from tests.integration.apis.hyperliquid.shared.symbol_helpers import (
     get_test_symbol,

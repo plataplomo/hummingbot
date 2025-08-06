@@ -16,8 +16,8 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import CandleMapperProt
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import CandleTransformationError, MissingRequiredFieldError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market import Candle
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

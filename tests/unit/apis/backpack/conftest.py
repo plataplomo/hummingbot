@@ -10,9 +10,9 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import BTC_USDT_BP, ETH_USDT_BP, SOL_USDC_BP, SOL_USDC_PERP_BP, USDC_BP
 
 
