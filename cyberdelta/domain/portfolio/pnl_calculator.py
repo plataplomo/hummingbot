@@ -20,6 +20,7 @@ from cyberdelta.symbols.models import Symbol
 if TYPE_CHECKING:
     from cyberdelta.protocols.domain.portfolio import PortfolioStateManagerProtocol
 
+from cyberdelta.models.portfolio.pnl_report import PnLReport, PositionPnLDetail
 from cyberdelta.protocols.domain.portfolio import PnLCalculatorProtocol
 
 
@@ -71,7 +72,7 @@ class PnLCalculator(PnLCalculatorProtocol):
             performance_period_days=self._performance_period_days,
         )
 
-    async def calculate_pnl(self) -> dict[str, Any]:
+    async def calculate_pnl(self) -> PnLReport:
         """Calculate comprehensive PnL report using configured calculation method.
 
         Following CODING_STANDARDS.md:
@@ -82,7 +83,7 @@ class PnLCalculator(PnLCalculatorProtocol):
         - NO hardcoded calculation parameters
 
         Returns:
-            Dictionary containing PnL calculations and metrics
+            Typed PnL report with calculations and metrics
         """
         # Get current portfolio state
         portfolio_state = await self._state_manager.get_state()
@@ -95,7 +96,8 @@ class PnLCalculator(PnLCalculatorProtocol):
             position_count=len(portfolio_state.positions),
         )
 
-        pnl_report = {}
+        # Placeholder for comprehensive PnL calculation
+        # This will be replaced with actual calculation logic
 
         try:
             # Use comprehensive calculation for all methods since others are not implemented
@@ -106,9 +108,9 @@ class PnLCalculator(PnLCalculatorProtocol):
             logger.info(
                 "pnl_calculation_completed",
                 method=self._pnl_method,
-                total_unrealized_pnl=float(pnl_report.get("total_unrealized_pnl", 0)),
-                total_realized_pnl=float(pnl_report.get("total_realized_pnl", 0)),
-                net_pnl=float(pnl_report.get("net_pnl", 0)),
+                total_unrealized_pnl=pnl_report.total_unrealized_pnl_usd,
+                total_realized_pnl=pnl_report.total_realized_pnl_usd,
+                net_pnl=pnl_report.net_pnl_usd,
             )
 
         except Exception as e:
@@ -119,7 +121,7 @@ class PnLCalculator(PnLCalculatorProtocol):
 
     async def calculate_position_pnl(
         self, symbol: Symbol, exchange: ExchangeName
-    ) -> dict[str, Any] | None:
+    ) -> PositionPnLDetail | None:
         """Calculate PnL for a specific position.
 
         Following CODING_STANDARDS.md:
@@ -132,7 +134,7 @@ class PnLCalculator(PnLCalculatorProtocol):
             exchange: Exchange where position is held
 
         Returns:
-            Dictionary with position PnL details or None if position not found
+            Typed position PnL details or None if position not found
         """
         # Get current portfolio state
         portfolio_state = await self._state_manager.get_state()
@@ -167,29 +169,26 @@ class PnLCalculator(PnLCalculatorProtocol):
         entry_value = position.entry_price * abs(position.size)
         return_pct = (unrealized_pnl / entry_value * 100) if entry_value > 0 else Decimal(0)
 
-        pnl_details = {
-            "symbol": symbol.value,
-            "exchange": exchange.value,
-            "position_side": position.side.value,
-            "position_size": position.size,
-            "entry_price": position.entry_price,
-            "current_price": current_price,
-            "entry_value": entry_value,
-            "current_value": current_price * abs(position.size),
-            "unrealized_pnl": unrealized_pnl,
-            "return_percentage": return_pct,
-            "calculation_timestamp": datetime.now(UTC).isoformat(),
-        }
-
         logger.debug(
             "position_pnl_calculated",
             symbol=symbol.value,
             exchange=exchange.value,
-            unrealized_pnl=float(unrealized_pnl),
-            return_pct=float(return_pct),
+            unrealized_pnl=unrealized_pnl,
+            return_pct=return_pct,
         )
 
-        return pnl_details
+        return PositionPnLDetail(
+            symbol=symbol,
+            exchange=exchange,
+            unrealized_pnl_usd=unrealized_pnl,
+            realized_pnl_usd=Decimal(0),  # TODO: Calculate from trade history
+            total_pnl_usd=unrealized_pnl,
+            entry_price=position.entry_price,
+            current_price=current_price,
+            quantity=abs(position.size),
+            market_value_usd=current_price * abs(position.size),
+            pnl_percentage=return_pct,
+        )
 
     async def _calculate_mark_to_market_pnl(
         self, include_fees: bool, base_currency: str
@@ -213,7 +212,7 @@ class PnLCalculator(PnLCalculatorProtocol):
 
         total_unrealized_pnl = Decimal(0)
         total_realized_pnl = Decimal(0)
-        position_pnls: dict[str, dict[str, Any]] = {}
+        position_pnls: dict[str, PositionPnLDetail] = {}
 
         # Calculate unrealized PnL for each position
         for position_key, position in portfolio_state.positions.items():
@@ -232,14 +231,17 @@ class PnLCalculator(PnLCalculatorProtocol):
                         # Short position: profit when price goes down
                         unrealized_pnl = (position.entry_price - current_price) * abs(position.size)
 
-                    position_pnls[position_key] = {
-                        "symbol": position.symbol.value,
-                        "exchange": position.exchange.value,
-                        "entry_price": position.entry_price,
-                        "current_price": current_price,
-                        "position_size": position.size,
-                        "unrealized_pnl": unrealized_pnl,
-                    }
+                    position_pnls[position_key] = PositionPnLDetail(
+                        symbol=position.symbol,
+                        exchange=position.exchange,
+                        unrealized_pnl_usd=unrealized_pnl,
+                        realized_pnl_usd=Decimal(0),  # TODO: Calculate from trade history
+                        total_pnl_usd=unrealized_pnl,
+                        entry_price=position.entry_price,
+                        current_price=current_price,
+                        quantity=abs(position.size),
+                        market_value_usd=current_price * abs(position.size),
+                    )
 
                     total_unrealized_pnl += unrealized_pnl
 
@@ -247,9 +249,9 @@ class PnLCalculator(PnLCalculatorProtocol):
                         "position_pnl_calculated",
                         symbol=position.symbol.value,
                         exchange=position.exchange.value,
-                        entry_price=float(position.entry_price),
-                        current_price=float(current_price),
-                        unrealized_pnl=float(unrealized_pnl),
+                        entry_price=position.entry_price,
+                        current_price=current_price,
+                        unrealized_pnl=unrealized_pnl,
                     )
                 else:
                     logger.warning(
@@ -333,7 +335,7 @@ class PnLCalculator(PnLCalculatorProtocol):
 
     async def _calculate_comprehensive_pnl(
         self, include_fees: bool, base_currency: str
-    ) -> dict[str, Any]:
+    ) -> PnLReport:
         """Calculate comprehensive PnL with all metrics.
 
         Args:
@@ -341,7 +343,7 @@ class PnLCalculator(PnLCalculatorProtocol):
             base_currency: Base currency for reporting
 
         Returns:
-            Dictionary with comprehensive PnL analysis
+            Typed comprehensive PnL report
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Includes both realized and unrealized PnL
@@ -357,32 +359,24 @@ class PnLCalculator(PnLCalculatorProtocol):
 
         # Calculate return percentages if we have portfolio value
         if portfolio_value and portfolio_value > 0:
-            unrealized_return_pct = (mtm_pnl["total_unrealized_pnl"] / portfolio_value) * 100
-            realized_return_pct = (mtm_pnl["total_realized_pnl"] / portfolio_value) * 100
             net_return_pct = (mtm_pnl["net_pnl"] / portfolio_value) * 100
         else:
-            unrealized_return_pct = Decimal(0)
-            realized_return_pct = Decimal(0)
             net_return_pct = Decimal(0)
 
-        # Get performance period settings from config (using available fields)
-        performance_period_days = self._performance_period_days
-
-        # Calculate time-weighted returns (placeholder for now)
-        time_weighted_return = Decimal(0)
-        # This would be implemented when performance metrics are added to config
-
-        return {
-            **mtm_pnl,  # Include all mark-to-market data
-            "calculation_method": "comprehensive",
-            "portfolio_value_usd": portfolio_value,
-            "unrealized_return_pct": unrealized_return_pct,
-            "realized_return_pct": realized_return_pct,
-            "net_return_pct": net_return_pct,
-            "time_weighted_return_pct": time_weighted_return,
-            "performance_period_days": performance_period_days,
-            "performance_metrics_enabled": True,
-        }
+        return PnLReport(
+            total_unrealized_pnl_usd=mtm_pnl["total_unrealized_pnl"],
+            total_realized_pnl_usd=mtm_pnl["total_realized_pnl"],
+            net_pnl_usd=mtm_pnl["net_pnl"],
+            total_equity_usd=portfolio_value,
+            total_exposure_usd=portfolio_value,  # TODO: Calculate actual exposure
+            calculation_timestamp=datetime.now(UTC),
+            calculation_method="comprehensive",
+            fees_included=include_fees,
+            base_currency=base_currency,
+            position_pnls=mtm_pnl["position_pnls"],
+            pnl_percentage=net_return_pct,
+            total_fees_usd=mtm_pnl["total_fees"] if include_fees else None,
+        )
 
     async def _get_current_market_price(
         self, symbol: Symbol, exchange: ExchangeName

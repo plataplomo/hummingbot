@@ -81,8 +81,8 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
 
         logger.info(
             "state_manager_initialized",
-            balance_tolerance=float(self._balance_tolerance),
-            position_tolerance=float(self._position_tolerance),
+            balance_tolerance=self._balance_tolerance,
+            position_tolerance=self._position_tolerance,
             save_interval=self._save_interval,
             atomic_updates=self._atomic_updates,
         )
@@ -155,7 +155,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 asset=asset.value,
                 exchange=exchange.value,
                 found=balance is not None,
-                balance_value=float(balance.total_quantity) if balance else None,
+                balance_value=balance.total_quantity if balance else None,
             )
 
             return balance
@@ -194,7 +194,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 symbol=symbol.value,
                 exchange=exchange.value,
                 found=position is not None,
-                position_size=float(position.size) if position else None,
+                position_size=position.size if position else None,
             )
 
             return position
@@ -249,8 +249,8 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 symbol=trade.symbol.value,
                 exchange=trade.exchange,  # exchange is str in Trade model
                 side=trade.side.value,
-                quantity=float(trade.quantity),
-                price=float(trade.price),
+                quantity=trade.quantity,
+                price=trade.price,
             )
 
             try:
@@ -319,8 +319,8 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 "position_opened",
                 symbol=trade.symbol.value,
                 exchange=trade.exchange,
-                size=float(new_position.size),
-                entry_price=float(new_position.entry_price) if new_position.entry_price else 0.0,
+                size=new_position.size,
+                entry_price=new_position.entry_price or 0.0,
             )
 
         else:
@@ -338,7 +338,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                     "position_closed",
                     symbol=trade.symbol.value,
                     exchange=trade.exchange,
-                    realized_pnl=float(realized_pnl) if realized_pnl else None,
+                    realized_pnl=realized_pnl or None,
                 )
 
             else:
@@ -371,9 +371,9 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                     "position_updated",
                     symbol=trade.symbol.value,
                     exchange=trade.exchange,
-                    old_size=float(current_position.size),
-                    new_size=float(new_size),
-                    new_avg_price=float(new_avg_price),
+                    old_size=current_position.size,
+                    new_size=new_size,
+                    new_avg_price=new_avg_price,
                 )
 
     async def _update_balance_from_trade(self, trade: Trade) -> None:
@@ -452,9 +452,9 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
             "balance_updated_from_trade",
             asset=quote_asset.value,
             exchange=trade.exchange,
-            balance_change=float(balance_change),
-            new_total=float(new_total),
-            fee_paid=float(trade.fee),
+            balance_change=balance_change,
+            new_total=new_total,
+            fee_paid=trade.fee,
         )
 
     def _calculate_average_price(
@@ -691,8 +691,8 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
             "balance_updated_directly",
             exchange=exchange.value,
             asset=asset.value,
-            total=float(new_balance.total_quantity),
-            available=float(new_balance.available_quantity),
+            total=new_balance.total_quantity,
+            available=new_balance.available_quantity,
         )
 
     async def update_position(
@@ -733,8 +733,8 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 exchange=exchange.value,
                 symbol=symbol.value,
                 side=new_position.side.value,
-                size=float(new_position.size),
-                entry_price=float(new_position.entry_price) if new_position.entry_price else None,
+                size=new_position.size,
+                entry_price=new_position.entry_price or None,
             )
 
         self._cached_state.timestamp = datetime.now(UTC)

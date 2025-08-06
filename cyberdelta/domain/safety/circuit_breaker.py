@@ -12,10 +12,14 @@ from datetime import UTC, datetime
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.domain.safety.circuit_breaker_health import CircuitBreakerHealthMonitor
 from cyberdelta.domain.safety.failure_tracker import FailureTracker
-from cyberdelta.domain.safety.health_monitor import HealthMonitor
 from cyberdelta.domain.safety.models import CircuitBreakerState, CircuitBreakerViolationError
 from cyberdelta.domain.safety.state_manager import StateManager
+from cyberdelta.models.monitoring.system_health_models import (
+    CircuitBreakerStatistics,
+    CircuitBreakerSystemHealth,
+)
 
 
 logger = get_logger(__name__)
@@ -191,7 +195,7 @@ class CircuitBreakerManager:
 
     This class orchestrates:
     - CircuitBreaker instances: Individual breaker management
-    - HealthMonitor: System health calculations and monitoring
+    - CircuitBreakerHealthMonitor: System health calculations and monitoring
 
     IMPORTANT: Following CODING_STANDARDS.md:
     - Centralized management of all circuit breakers
@@ -211,7 +215,7 @@ class CircuitBreakerManager:
         self._enabled = self._cb_config.enabled
 
         # Initialize health monitor
-        self._health_monitor = HealthMonitor(config)
+        self._health_monitor = CircuitBreakerHealthMonitor(config)
 
         # Create service-specific circuit breakers if enabled
         if self._cb_config.per_service_enabled:
@@ -302,7 +306,7 @@ class CircuitBreakerManager:
         breaker = self.get_breaker(service_name)
         return await breaker.call(operation_name, func, *args, **kwargs)
 
-    def get_all_stats(self) -> dict[str, dict[str, object]]:
+    def get_all_stats(self) -> dict[str, CircuitBreakerStatistics]:
         """Get statistics for all circuit breakers.
 
         Returns:
@@ -310,7 +314,7 @@ class CircuitBreakerManager:
         """
         return self._health_monitor.aggregate_breaker_stats(self._breakers)
 
-    def get_system_health(self) -> dict[str, object]:
+    def get_system_health(self) -> CircuitBreakerSystemHealth:
         """Get overall system health from circuit breaker perspective.
 
         Returns:

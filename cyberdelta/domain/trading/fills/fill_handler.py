@@ -6,6 +6,7 @@ components following CODING_STANDARDS.md.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.config.models.app_config import AppSettings
@@ -16,6 +17,7 @@ from cyberdelta.domain.trading.fills.fee_calculator import FeeCalculator
 from cyberdelta.domain.trading.fills.fill_processor import FillProcessor
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.trading.fill_statistics import FillStatistics
 
 
 logger = get_logger(__name__)
@@ -63,15 +65,15 @@ class FillHandler:
             portfolio_service_available=True,
         )
 
-    async def process_fill(self, order: Order, fill_data: dict[str, object]) -> Trade:
+    async def process_fill(self, order: Order, trade: Trade) -> Trade:
         """Process an order fill with comprehensive fee calculation.
 
         Args:
             order: Order that was filled
-            fill_data: Fill data from exchange
+            trade: Trade object from exchange with fill data
 
         Returns:
-            Trade object with calculated fees and metadata
+            Processed Trade object (may be the same object or updated copy)
 
         Note:
         - Fee calculation from config.exchanges[exchange].fee_structure
@@ -84,16 +86,14 @@ class FillHandler:
             order_id=order.exchange_order_id,
             symbol=order.symbol.value,
             exchange=order.exchange.value,
-            fill_data_keys=list(fill_data.keys()),
+            fill_price=trade.price,
+            filled_quantity=trade.quantity,
         )
 
         try:
-            # Validate fill data
-            FillProcessor.validate_fill_data(fill_data)
-
-            # Extract fill information
-            fill_price = Decimal(str(fill_data.get("fill_price", 0)))
-            fill_quantity = Decimal(str(fill_data.get("filled_quantity", 0)))
+            # Trade object already has the fill information
+            fill_price = trade.price
+            fill_quantity = trade.quantity
 
             # Get exchange configuration
             exchange_config = self._get_exchange_config(order)
@@ -103,25 +103,26 @@ class FillHandler:
                 order,
                 fill_price,
                 fill_quantity,
-                fill_data,
+                trade,
                 exchange_config,
             )
 
             # Create Trade object with all calculated values
-            trade = FillProcessor.process_fill(
+            processed_trade = FillProcessor.process_fill(
                 order,
                 fill_price,
                 fill_quantity,
                 fee_amount,
                 fee_asset,
-                fill_data,
+                trade.id,
+                trade.executed_at,
             )
 
-            # Update portfolio with trade
-            await self._portfolio_service.update_from_trade(trade)
+            # Update portfolio with processed trade
+            await self._portfolio_service.update_from_trade(processed_trade)
 
             # Track fill statistics
-            self._processed_fills.append(trade)
+            self._processed_fills.append(processed_trade)
             self._fill_count += 1
             self._total_fees_usd += fee_amount  # Simplified - assumes USD fees
 
@@ -133,14 +134,14 @@ class FillHandler:
             )
             raise
 
-        return trade
+        return processed_trade
 
-    async def process_partial_fill(self, order: Order, fill_data: dict[str, object]) -> Trade:
+    async def process_partial_fill(self, order: Order, trade: Trade) -> Trade:
         """Process a partial fill of an order.
 
         Args:
             order: Order that was partially filled
-            fill_data: Partial fill data from exchange
+            trade: Trade object from exchange
 
         Returns:
             Trade object representing the partial fill
@@ -151,21 +152,20 @@ class FillHandler:
         - Updates order state appropriately
         """
         # Use Decimal for consistency with process_fill
-        fill_qty = fill_data.get("filled_quantity", 0)
-        new_fill_quantity = Decimal(str(fill_qty)) if fill_qty else Decimal(0)
+        new_fill_quantity = trade.quantity
 
         filled_quantity = order.quantity_filled
 
         logger.debug(
             "partial_fill_processing",
             order_id=order.exchange_order_id,
-            filled_so_far=float(filled_quantity),
-            order_quantity=float(order.quantity_requested),
-            new_fill_quantity=float(new_fill_quantity),
+            filled_so_far=filled_quantity,
+            order_quantity=order.quantity_requested,
+            new_fill_quantity=new_fill_quantity,
         )
 
         # Process same as regular fill
-        trade = await self.process_fill(order, fill_data)
+        processed_trade = await self.process_fill(order, trade)
 
         # Additional tracking for partial fills
         logger.debug(
@@ -177,12 +177,12 @@ class FillHandler:
             ),
         )
 
-        return trade
+        return processed_trade
 
     async def process_bulk_fills(
         self,
         order: Order,
-        fill_list: list[dict[str, object]],
+        fill_list: list[dict[str, object]],  # TODO: Convert after API layer updates
     ) -> list[Trade]:
         """Process multiple fills for an order efficiently.
 
@@ -206,17 +206,36 @@ class FillHandler:
             fill_count=len(fill_list),
         )
 
-        for i, fill_data in enumerate(fill_list):
+        for i, fill_data_dict in enumerate(fill_list):
             try:
-                # Add sequence information to fill data
-                fill_data_with_sequence = {
-                    **fill_data,
-                    "bulk_sequence": i + 1,
-                    "bulk_total": len(fill_list),
-                }
+                # Convert dict to typed Trade model with proper type handling
 
-                trade = await self.process_fill(order, fill_data_with_sequence)
-                trades.append(trade)
+                timestamp_val = fill_data_dict.get("timestamp")
+                timestamp = timestamp_val if isinstance(timestamp_val, datetime) else None
+
+                maker_taker_val = fill_data_dict.get("maker_taker")
+                str(maker_taker_val) if maker_taker_val is not None else None
+
+                commission_asset_val = fill_data_dict.get("commission_asset")
+                str(commission_asset_val) if commission_asset_val is not None else None
+
+                # Convert dict to Trade object
+                trade = Trade(
+                    id=str(fill_data_dict.get("trade_id", f"bulk_{i}_{order.exchange_order_id}")),
+                    symbol=order.symbol,
+                    executed_at=timestamp or datetime.now(UTC),
+                    side=order.side,
+                    order_id=order.exchange_order_id or "unknown",
+                    exchange=order.exchange.value,
+                    price=Decimal(str(fill_data_dict.get("fill_price", 0))),
+                    quantity=Decimal(str(fill_data_dict.get("filled_quantity", 0))),
+                    fee=Decimal(str(fill_data_dict.get("fee", 0))),
+                    fee_asset=str(fill_data_dict.get("fee_asset", "USD")),
+                    client_order_id=order.client_order_id,
+                )
+
+                processed_trade = await self.process_fill(order, trade)
+                trades.append(processed_trade)
 
             except Exception as e:
                 logger.exception(
@@ -238,31 +257,40 @@ class FillHandler:
 
         return trades
 
-    def get_fill_statistics(self) -> dict[str, object]:
+    def get_fill_statistics(self) -> FillStatistics:
         """Get fill processing statistics.
 
         Returns:
-            Dictionary with fill statistics and metrics
+            Typed fill statistics and metrics
 
         Note:
         - Returns explicit statistics from actual processing
         - NO calculated/derived statistics
         """
-        return {
-            "total_fills_processed": self._fill_count,
-            "total_fees_usd": float(self._total_fees_usd),
-            "unique_orders_filled": len({trade.order_id for trade in self._processed_fills}),
-            "exchanges_processed": len({trade.exchange for trade in self._processed_fills}),
-            "average_fill_size_usd": (
-                float(
-                    sum(trade.price * trade.quantity for trade in self._processed_fills)
-                    / len(self._processed_fills),
-                )
-                if self._processed_fills
-                else 0
-            ),
-            "processing_started": len(self._processed_fills) > 0,
-        }
+        if self._processed_fills:
+            total_value = Decimal(0)
+            for trade in self._processed_fills:
+                total_value += trade.price * trade.quantity
+            average_fill_size = total_value / len(self._processed_fills)
+        else:
+            average_fill_size = Decimal(0)
+
+        success_rate = Decimal(1) if self._fill_count > 0 else Decimal(0)
+
+        last_fill_timestamp = (
+            max(trade.executed_at for trade in self._processed_fills)
+            if self._processed_fills
+            else None
+        )
+
+        return FillStatistics(
+            fill_handler_available=True,
+            total_fills_processed=self._fill_count,
+            total_fees_usd=self._total_fees_usd,
+            average_fill_size_usd=average_fill_size,
+            success_rate=success_rate,
+            last_fill_timestamp=last_fill_timestamp,
+        )
 
     def get_recent_fills(self, limit: int = 10) -> list[Trade]:
         """Get most recent processed fills.

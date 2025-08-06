@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Protocol
+
+
+if TYPE_CHECKING:
+    from cyberdelta.models.portfolio.pnl_report import PnLReport, PositionPnLDetail
 
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.symbols.models import Symbol
@@ -15,17 +19,17 @@ class PnLCalculatorProtocol(Protocol):
     including comprehensive reports and position-specific calculations.
     """
 
-    async def calculate_pnl(self) -> dict[str, Any]:
+    async def calculate_pnl(self) -> PnLReport:
         """Calculate comprehensive PnL report.
 
         Returns:
-            Dictionary containing PnL calculations and metrics
+            Typed PnL report with calculations and metrics
         """
         ...
 
     async def calculate_position_pnl(
         self, symbol: Symbol, exchange: ExchangeName
-    ) -> dict[str, Any] | None:
+    ) -> PositionPnLDetail | None:
         """Calculate PnL for a specific position.
 
         Args:
@@ -33,6 +37,6 @@ class PnLCalculatorProtocol(Protocol):
             exchange: Exchange where position is held
 
         Returns:
-            Dictionary with position PnL details or None if position not found
+            Typed position PnL details or None if position not found
         """
         ...

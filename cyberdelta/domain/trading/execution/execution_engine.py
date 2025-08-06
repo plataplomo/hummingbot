@@ -10,21 +10,23 @@ import asyncio
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, NoReturn
+from typing import NoReturn
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOrderArgs
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.domain.monitoring.health_monitor import ServiceType
+from cyberdelta.domain.monitoring.service_health_monitor import ServiceType
 from cyberdelta.domain.trading.execution.order_tracker import OrderTracker
 from cyberdelta.domain.trading.fills.fill_handler import FillHandler
 from cyberdelta.domain.trading.validation.order_validator import OrderValidator
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.trading.execution_request import ExecutionRequest
+from cyberdelta.models.trading.fill_statistics import FillStatistics, OrderUpdateData
 from cyberdelta.protocols.infrastructure.monitoring import HealthCheckable
 
 
@@ -90,9 +92,9 @@ class ExecutionEngine(HealthCheckable):
 
         logger.info(
             "execution_engine_initialized",
-            max_slippage_pct=float(self._max_slippage),
+            max_slippage_pct=self._max_slippage,
             max_retries=self._max_retries,
-            retry_delay_sec=float(self._retry_delay),
+            retry_delay_sec=self._retry_delay,
             use_limit_orders=self._use_limit_orders,
             safe_mode=self._safe_mode,
         )
@@ -129,12 +131,12 @@ class ExecutionEngine(HealthCheckable):
 
         return order
 
-    async def handle_order_update(self, order_id: str, update: dict[str, Any]) -> Trade | None:
+    async def handle_order_update(self, order_id: str, update: OrderUpdateData) -> Trade | None:
         """Handle order status updates from exchange.
 
         Args:
             order_id: Exchange order ID
-            update: Update data from exchange
+            update: Typed update data from exchange
 
         Returns:
             Trade object if order was filled, None otherwise
@@ -148,24 +150,23 @@ class ExecutionEngine(HealthCheckable):
             "order_update_received",
             order_id=order_id,
             client_order_id=order.client_order_id,
-            update_type=update.get("type", "unknown"),
+            update_type=update.update_type or "unknown",
         )
 
         # Update order status
-        if update.get("status"):
-            new_status = OrderStatus(update["status"])
+        if update.status:
+            new_status = OrderStatus(update.status)
             self._order_tracker.update_order_status(order_id, new_status)
             order.status = new_status
 
         # Handle fills
-        fill_data = update.get("fill")
-        if fill_data and fill_data.get("filled_quantity"):
+        if update.fill:
             if self._fill_handler:
                 # Use FillHandler for comprehensive fill processing
-                trade = await self._fill_handler.process_fill(order, fill_data)
+                trade = await self._fill_handler.process_fill(order, update.fill)
             else:
                 # Fallback to basic fill processing
-                trade = self._create_trade_from_fill(order, fill_data)
+                trade = self._create_trade_from_fill(order, update.fill)
 
             # Update order filled quantity through tracker to avoid direct mutation
             current_filled = order.quantity_filled or Decimal(0)
@@ -179,16 +180,16 @@ class ExecutionEngine(HealthCheckable):
                 logger.info(
                     "order_fully_filled",
                     order_id=order_id,
-                    total_filled=float(order.quantity_filled),
-                    order_quantity=float(order.quantity_requested),
+                    total_filled=order.quantity_filled,
+                    order_quantity=order.quantity_requested,
                 )
             else:
                 logger.info(
                     "order_partially_filled",
                     order_id=order_id,
-                    filled_quantity=float(trade.quantity),
-                    total_filled=float(order.quantity_filled),
-                    remaining=float(order.quantity_requested - order.quantity_filled),
+                    filled_quantity=trade.quantity,
+                    total_filled=order.quantity_filled,
+                    remaining=order.quantity_requested - order.quantity_filled,
                 )
 
             return trade
@@ -279,32 +280,27 @@ class ExecutionEngine(HealthCheckable):
         """
         return self._order_tracker.get_active_orders()
 
-    async def check_health(self) -> dict[str, Any]:
+    async def check_health(self) -> ExecutionStatistics:
         """Health check implementation for ExecutionEngine.
 
         Returns:
-            Health status dictionary with statistics
+            Health status with composed statistics
         """
-        stats = self._order_tracker.get_statistics()
+        order_stats = self._order_tracker.get_statistics()
 
-        return {
-            "is_running": True,
-            "active_orders": stats["active_orders"],
-            "total_orders": stats["total_orders"],
-            "success_count": stats["success_count"],
-            "error_count": stats["error_count"],
-            "last_activity": stats["last_activity"],
-            "api_clients_available": len(self._api_clients),
-            "safe_mode": self._safe_mode,
-            "max_slippage_pct": float(self._max_slippage),
-            "max_retries": self._max_retries,
-        }
+        return ExecutionStatistics(
+            order_tracking=order_stats,
+            api_clients_available=len(self._api_clients),
+            safe_mode_enabled=self._safe_mode,
+            max_slippage_pct=self._max_slippage,
+            max_retries=self._max_retries,
+        )
 
     def get_service_type(self) -> ServiceType:
         """Return service type for health monitoring."""
         return ServiceType.EXECUTION
 
-    def get_fill_statistics(self) -> dict[str, object]:
+    def get_fill_statistics(self) -> FillStatistics:
         """Get fill processing statistics from FillHandler.
 
         Returns:
@@ -312,10 +308,16 @@ class ExecutionEngine(HealthCheckable):
         """
         if self._fill_handler:
             return self._fill_handler.get_fill_statistics()
-        return {
-            "fill_handler_available": False,
-            "message": "No fill handler configured for detailed statistics",
-        }
+
+        return FillStatistics(
+            fill_handler_available=False,
+            total_fills_processed=0,
+            total_fees_usd=Decimal(0),
+            average_fill_size_usd=Decimal(0),
+            success_rate=Decimal(0),
+            message="No fill handler configured for detailed statistics",
+            last_fill_timestamp=None,
+        )
 
     def get_recent_fills(self, limit: int = 10) -> list[Trade]:
         """Get recent fills processed by the FillHandler.
@@ -344,7 +346,7 @@ class ExecutionEngine(HealthCheckable):
                 else request.signal.exchange[0].value
             ),
             side=request.signal.side.value,
-            position_value_usd=float(request.position_size.value_usd),
+            position_value_usd=request.position_size.value_usd,
             safe_mode=self._safe_mode,
         )
 
@@ -367,9 +369,9 @@ class ExecutionEngine(HealthCheckable):
             logger.debug(
                 "market_order_converted_to_limit",
                 signal_id=request.signal.signal_id,
-                original_price=float(request.signal.price) if request.signal.price else None,
-                limit_price=float(price) if price else None,
-                offset_pct=float(self._limit_offset_pct),
+                original_price=request.signal.price or None,
+                limit_price=price or None,
+                offset_pct=self._limit_offset_pct,
             )
 
         return order_type, price
@@ -552,8 +554,8 @@ class ExecutionEngine(HealthCheckable):
         logger.debug(
             "slippage_check_passed",
             signal_id=request.signal.signal_id,
-            estimated_slippage=float(estimated_slippage),
-            max_allowed=float(self._max_slippage),
+            estimated_slippage=estimated_slippage,
+            max_allowed=self._max_slippage,
         )
 
     async def _simulate_order_execution(self, order: Order) -> Order:
@@ -564,7 +566,7 @@ class ExecutionEngine(HealthCheckable):
         """
         # Simulate order placement delay if configured
         if self._safe_mode and self.config.simulation.simulate_network_delay:
-            delay = float(self.config.simulation.min_network_delay_ms) / 1000.0
+            delay = self.config.simulation.min_network_delay_ms / 1000.0
             await asyncio.sleep(delay)
 
         # Assign simulated order ID
@@ -578,8 +580,8 @@ class ExecutionEngine(HealthCheckable):
             symbol=order.symbol.value,
             exchange=order.exchange.value,
             side=order.side.value,
-            quantity=float(order.quantity_requested),
-            price=float(order.price) if order.price else None,
+            quantity=order.quantity_requested,
+            price=order.price or None,
             safe_mode=True,
         )
 
@@ -720,44 +722,16 @@ class ExecutionEngine(HealthCheckable):
             )
             return False
 
-    def _create_trade_from_fill(self, order: Order, fill_data: dict[str, Any]) -> Trade:
-        """Create Trade object from order fill data.
+    def _create_trade_from_fill(self, order: Order, trade: Trade) -> Trade:
+        """Create Trade object from trade data.
 
         Returns:
-            Trade object representing the fill
+            Trade object representing the fill (may be the same object)
 
-        Raises:
-            ValueError: If required data is missing
+        Note:
+            This is a pass-through method since we already have a Trade object
         """
-        if order.exchange_order_id is None:
-            msg = f"Cannot create trade without exchange_order_id: {order.client_order_id}"
-            raise ValueError(msg)
-
-        fill_price = fill_data.get("fill_price")
-        if fill_price is None:
-            if order.price is None:
-                msg = f"No fill price available for order: {order.client_order_id}"
-                raise ValueError(msg)
-            fill_price = order.price
-
-        filled_quantity = fill_data.get("filled_quantity")
-        if filled_quantity is None:
-            msg = f"No filled quantity in fill data for order: {order.client_order_id}"
-            raise ValueError(msg)
-
-        return Trade(
-            id=fill_data.get("trade_id", str(uuid.uuid4())),
-            symbol=order.symbol,
-            executed_at=datetime.now(UTC),
-            side=order.side,
-            order_id=order.exchange_order_id,
-            exchange=order.exchange.value,
-            price=Decimal(str(fill_price)),
-            quantity=Decimal(str(filled_quantity)),
-            fee=Decimal(str(fill_data.get("fee", "0"))),
-            fee_asset=fill_data.get("fee_asset"),
-            client_order_id=order.client_order_id,
-        )
+        return trade
 
     @staticmethod
     def _raise_exchange_config_error(exchange: str) -> NoReturn:

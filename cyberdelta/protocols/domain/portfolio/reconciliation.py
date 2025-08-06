@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Protocol
 
 
 if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
+    from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
 
 
 class ReconciliationEngineProtocol(Protocol):
@@ -16,13 +17,15 @@ class ReconciliationEngineProtocol(Protocol):
     actual exchange balances and positions to ensure data consistency.
     """
 
-    async def reconcile_with_exchanges(self, api_clients: dict[str, ExchangeAPI]) -> dict[str, Any]:
+    async def reconcile_with_exchanges(
+        self, api_clients: dict[str, ExchangeAPI]
+    ) -> ReconciliationReport:
         """Reconcile portfolio state with actual exchange balances and positions.
 
         Args:
             api_clients: Dictionary of exchange API clients
 
         Returns:
-            Dictionary with reconciliation results including errors and discrepancies
+            Typed reconciliation results including errors and discrepancies
         """
         ...

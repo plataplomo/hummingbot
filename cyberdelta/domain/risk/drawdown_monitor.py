@@ -12,6 +12,7 @@ from decimal import Decimal
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
+from cyberdelta.models.risk.drawdown_status import DrawdownConfiguration, DrawdownStatus
 
 
 logger = get_logger(__name__)
@@ -273,38 +274,34 @@ class DrawdownMonitor:
         """
         return self._drawdown_violated
 
-    def get_drawdown_status(self) -> dict[str, object]:
+    def get_drawdown_status(self) -> DrawdownStatus:
         """Get comprehensive drawdown monitoring status.
 
         Returns:
-            Dictionary with drawdown status and configuration
-
+            Typed drawdown status with configuration
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns structured status information
         - Configuration context included
+        - Type-safe status reporting
         """
-        return {
-            "current_drawdown_pct": float(self._current_drawdown_pct),
-            "max_allowed_pct": float(self._max_drawdown_pct),
-            "drawdown_violated": self._drawdown_violated,
-            "violation_timestamp": (
-                self._violation_timestamp.isoformat() if self._violation_timestamp else None
+        return DrawdownStatus(
+            current_drawdown_pct=self._current_drawdown_pct,
+            max_allowed_pct=self._max_drawdown_pct,
+            drawdown_violated=self._drawdown_violated,
+            violation_timestamp=self._violation_timestamp,
+            peak_value=self._peak_value,
+            peak_timestamp=self._peak_timestamp,
+            trough_value=self._trough_value,
+            trough_timestamp=self._trough_timestamp,
+            history_entries=len(self._value_history),
+            lookback_days=self._lookback_days,
+            configuration=DrawdownConfiguration(
+                max_drawdown_pct=self._max_drawdown_pct,
+                lookback_days=self._lookback_days,
+                check_interval_sec=Decimal(str(self._check_interval)),
             ),
-            "peak_value": float(self._peak_value),
-            "peak_timestamp": (self._peak_timestamp.isoformat() if self._peak_timestamp else None),
-            "trough_value": float(self._trough_value),
-            "trough_timestamp": (
-                self._trough_timestamp.isoformat() if self._trough_timestamp else None
-            ),
-            "history_entries": len(self._value_history),
-            "lookback_days": self._lookback_days,
-            "configuration": {
-                "max_drawdown_pct": float(self._max_drawdown_pct),
-                "lookback_days": self._lookback_days,
-                "check_interval_sec": float(self._check_interval),
-            },
-        }
+        )
 
     async def check_drawdown_limits(self) -> list[str]:
         """Check drawdown limits and return violations.

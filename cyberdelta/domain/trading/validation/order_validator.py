@@ -91,8 +91,8 @@ class OrderValidator:
             symbol=order.symbol.value,
             exchange=order.exchange.value,
             side=order.side.value,
-            quantity=float(order.quantity_requested),
-            price=float(order.price) if order.price else None,
+            quantity=order.quantity_requested,
+            price=order.price or None,
         )
 
         try:

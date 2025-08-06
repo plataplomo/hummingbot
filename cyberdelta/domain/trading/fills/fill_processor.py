@@ -35,7 +35,8 @@ class FillProcessor:
         fill_quantity: Decimal,
         fee: Decimal,
         fee_asset: str,
-        fill_data: dict[str, object],
+        trade_id: str | None = None,
+        timestamp: datetime | None = None,
     ) -> Trade:
         """Process order fill and create Trade object.
 
@@ -45,7 +46,8 @@ class FillProcessor:
             fill_quantity: Quantity that was filled
             fee: Calculated fee amount
             fee_asset: Asset used for fee payment
-            fill_data: Additional fill data from exchange
+            trade_id: Optional trade ID, will generate if not provided
+            timestamp: Optional timestamp, will use current time if not provided
 
         Returns:
             Trade object representing the fill
@@ -63,15 +65,12 @@ class FillProcessor:
             msg = f"Cannot process fill without exchange_order_id: {order.client_order_id}"
             raise ValueError(msg)
 
-        # Extract trade ID from fill data
-        trade_id = fill_data.get("trade_id")
-        if not isinstance(trade_id, str):
-            trade_id = f"fill_{order.exchange_order_id}_{uuid.uuid4().hex[:8]}"
+        # Use provided trade ID or generate one
+        if trade_id is None:
+            trade_id = f"trade_{uuid.uuid4().hex[:8]}"
 
-        # Extract timestamp from fill data
-        fill_timestamp = fill_data.get("timestamp", datetime.now(UTC))
-        if not isinstance(fill_timestamp, datetime):
-            fill_timestamp = datetime.now(UTC)
+        # Use provided timestamp or current time
+        fill_timestamp = timestamp or datetime.now(UTC)
 
         trade = Trade(
             id=trade_id,
@@ -85,7 +84,7 @@ class FillProcessor:
             fee=fee,
             fee_asset=fee_asset,
             client_order_id=order.client_order_id,
-            is_maker=fill_data.get("liquidity", "taker") == "maker",
+            is_maker=False,  # Default to taker, can be enhanced later
         )
 
         logger.info(
@@ -95,17 +94,20 @@ class FillProcessor:
             symbol=order.symbol.value,
             exchange=trade.exchange,
             side=order.side.value if order.side else "unknown",
-            price=float(fill_price),
-            quantity=float(fill_quantity),
-            fee=float(fee),
+            price=fill_price,
+            quantity=fill_quantity,
+            fee=fee,
             fee_asset=fee_asset,
         )
 
         return trade
 
     @staticmethod
-    def validate_fill_data(fill_data: dict[str, object]) -> None:
+    def validate_fill_data(fill_data: dict[str, object]) -> None:  # Keep for backward compatibility
         """Validate fill data structure and required fields.
+
+        Note: This method is kept for backward compatibility.
+        New code should use FillData model validation.
 
         Args:
             fill_data: Fill data to validate

@@ -8,7 +8,6 @@ This module handles all balance-related operations including:
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 import structlog
 
@@ -16,6 +15,7 @@ from cyberdelta.config import AppSettings
 from cyberdelta.enums import ExchangeName
 from cyberdelta.models import SpotBalance
 from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
 from cyberdelta.protocols.domain.portfolio import (
     BalanceManagerProtocol,
     PortfolioStateManagerProtocol,
@@ -190,8 +190,8 @@ class BalanceManager(BalanceManagerProtocol):
             "Balance updated",
             exchange=exchange.value,
             asset=asset.value,
-            delta=float(delta),
-            new_total=float(new_balance.total_quantity),
+            delta=delta,
+            new_total=new_balance.total_quantity,
         )
 
     async def validate_balance(
@@ -219,34 +219,40 @@ class BalanceManager(BalanceManagerProtocol):
 
     async def reconcile_balances(
         self,
-        exchange_balances: dict[str, Any],
+        exchange_balances: list[SpotBalance],
         exchange: ExchangeName,
-    ) -> dict[str, Any]:
+    ) -> ReconciliationReport:
         """Reconcile local balances with exchange data.
 
         Args:
-            exchange_balances: Balances from exchange
+            exchange_balances: Typed balances from exchange
             exchange: Exchange name
 
         Returns:
-            Reconciliation results
+            Typed reconciliation results
         """
-        discrepancies: list[dict[str, Any]] = []
+        balance_discrepancies: list[str] = []
         updated = 0
 
         state = await self._state_manager.get_state()
         if not state:
-            return {"error": "No portfolio state"}
+            return ReconciliationReport(
+                reconciliation_timestamp=datetime.now(UTC),
+                reconciliation_successful=False,
+                total_discrepancies=0,
+                exchange_results={exchange.value: False},
+                balance_discrepancies=[],
+                position_discrepancies=[],
+                error_messages=["No portfolio state available"],
+            )
 
         # Process each exchange balance
-        for asset_str, balance_data in exchange_balances.items():
-            # Create Symbol object for asset using service
-            asset = _symbol_service.create_symbol(asset_str, exchange)
-            key = f"{exchange.value}:{asset_str}"
+        for exchange_balance in exchange_balances:
+            asset = exchange_balance.asset
+            key = f"{exchange.value}:{asset.value}"
 
-            # Get exchange balance
-            exchange_total = Decimal(str(balance_data.get("total", 0)))
-            exchange_available = Decimal(str(balance_data.get("available", 0)))
+            # Get exchange balance data
+            exchange_total = exchange_balance.total_quantity
 
             # Get local balance
             local_balance = state.balances.get(key)
@@ -255,32 +261,19 @@ class BalanceManager(BalanceManagerProtocol):
                 # Check for discrepancy
                 diff = abs(local_balance.total_quantity - exchange_total)
                 if diff > self._balance_tolerance:
-                    discrepancies.append({
-                        "asset": asset_str,
-                        "local": float(local_balance.total_quantity),
-                        "exchange": float(exchange_total),
-                        "difference": float(diff),
-                    })
+                    balance_discrepancies.append(
+                        f"{asset.value}: local={local_balance.total_quantity}, "
+                        f"exchange={exchange_total}, diff={diff}"
+                    )
 
                     # Update to match exchange
                     if self.config.state.reconciliation_enabled:
-                        state.balances[key] = SpotBalance(
-                            exchange=exchange,
-                            asset=asset,
-                            timestamp=datetime.now(UTC),
-                            total_quantity=exchange_total,
-                            available_quantity=exchange_available,
-                        )
+                        # Use the exchange balance directly
+                        state.balances[key] = exchange_balance
                         updated += 1
             elif exchange_total > 0:
-                # New balance from exchange
-                state.balances[key] = SpotBalance(
-                    exchange=exchange,
-                    asset=asset,
-                    timestamp=datetime.now(UTC),
-                    total_quantity=exchange_total,
-                    available_quantity=exchange_available,
-                )
+                # New balance from exchange - use it directly
+                state.balances[key] = exchange_balance
                 updated += 1
 
         # Save if updated
@@ -288,11 +281,15 @@ class BalanceManager(BalanceManagerProtocol):
             state.timestamp = datetime.now(UTC)
             await self._state_manager.save_state()
 
-        return {
-            "discrepancies": discrepancies,
-            "updated": updated,
-            "total_checked": len(exchange_balances),
-        }
+        return ReconciliationReport(
+            reconciliation_timestamp=datetime.now(UTC),
+            reconciliation_successful=len(balance_discrepancies) == 0,
+            total_discrepancies=len(balance_discrepancies),
+            exchange_results={exchange.value: len(balance_discrepancies) == 0},
+            balance_discrepancies=balance_discrepancies,
+            position_discrepancies=[],
+            error_messages=None,
+        )
 
     def _get_quote_asset(self, symbol: Symbol) -> Symbol | None:
         """Get quote asset from trading symbol.
@@ -372,6 +369,6 @@ class BalanceManager(BalanceManagerProtocol):
             "balance_updated_directly",
             exchange=exchange.value,
             asset=asset.value,
-            total=float(new_balance.total_quantity),
-            available=float(new_balance.available_quantity),
+            total=new_balance.total_quantity,
+            available=new_balance.available_quantity,
         )

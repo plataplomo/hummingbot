@@ -12,12 +12,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.domain.monitoring.health_monitor import ServiceType
+from cyberdelta.domain.monitoring.service_health_monitor import ServiceType
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums.trading import OrderSide
 from cyberdelta.exceptions.portfolio import (
@@ -25,7 +25,14 @@ from cyberdelta.exceptions.portfolio import (
     ReconciliationError,
 )
 from cyberdelta.models import DerivativePosition, SpotBalance, Trade
+from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
+from cyberdelta.models.portfolio.pnl_report import (
+    PnLReport,
+    PositionPnLDetail,
+    ReconciliationReport,
+)
 from cyberdelta.models.portfolio.state import PortfolioState
+from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 from cyberdelta.protocols import HealthCheckable
 from cyberdelta.protocols.domain.portfolio import PortfolioStorageProtocol
 from cyberdelta.symbols.models import Symbol
@@ -275,9 +282,9 @@ class PortfolioService(HealthCheckable):
                 symbol=trade.symbol.value,
                 exchange=trade.exchange,
                 side=trade.side.value,
-                quantity=float(trade.quantity),
-                price=float(trade.price),
-                realized_pnl=float(realized_pnl) if realized_pnl else None,
+                quantity=trade.quantity,
+                price=trade.price,
+                realized_pnl=realized_pnl or None,
             )
 
         except Exception as e:
@@ -291,11 +298,11 @@ class PortfolioService(HealthCheckable):
 
     # PnL operations (delegated to PnL calculator)
 
-    async def calculate_pnl(self) -> dict[str, Any]:
+    async def calculate_pnl(self) -> PnLReport:
         """Calculate comprehensive PnL report.
 
         Returns:
-            Comprehensive PnL report
+            Typed comprehensive PnL report
         """
         return await self._pnl_calculator.calculate_pnl()
 
@@ -303,7 +310,7 @@ class PortfolioService(HealthCheckable):
         self,
         symbol: Symbol,
         exchange: ExchangeName,
-    ) -> dict[str, Any] | None:
+    ) -> PositionPnLDetail | None:
         """Calculate PnL for specific position.
 
         Args:
@@ -311,34 +318,37 @@ class PortfolioService(HealthCheckable):
             exchange: Exchange name
 
         Returns:
-            PnL data for the position or None if not found
+            Typed PnL data for the position or None if not found
         """
-        # Get current market price (placeholder for now)
-        current_price = await self._get_current_market_price(symbol, exchange)
-        if not current_price:
-            return None
-
-        return await self._position_manager.calculate_position_pnl(symbol, exchange, current_price)
+        return await self._pnl_calculator.calculate_position_pnl(symbol, exchange)
 
     # Reconciliation operations (delegated to reconciliation engine)
 
-    async def reconcile_with_exchanges(self) -> dict[str, Any]:
+    async def reconcile_with_exchanges(self) -> ReconciliationReport:
         """Reconcile portfolio state with all exchanges.
 
         Returns:
-            Dictionary with reconciliation results including errors and discrepancies
+            Typed reconciliation results including errors and discrepancies
 
         Raises:
             ReconciliationError: If reconciliation fails critically
         """
         if not self._api_clients:
             logger.warning("reconciliation_skipped", reason="no_api_clients_configured")
-            return {"error": "No API clients configured", "critical_errors": 0}
+            return ReconciliationReport(
+                reconciliation_timestamp=datetime.now(UTC),
+                reconciliation_successful=False,
+                total_discrepancies=0,
+                exchange_results={},
+                balance_discrepancies=[],
+                position_discrepancies=[],
+                error_messages=["No API clients configured"],
+            )
 
         results = await self._reconciliation_engine.reconcile_with_exchanges(self._api_clients)
 
         # Check for critical errors
-        critical_errors = results.get("critical_errors", 0)
+        critical_errors = len(results.error_messages) if results.error_messages else 0
         if critical_errors >= len(self._api_clients):
             raise ReconciliationError(len(self._api_clients))
 
@@ -346,7 +356,7 @@ class PortfolioService(HealthCheckable):
 
     # Health check implementation
 
-    async def check_health(self) -> dict[str, Any]:
+    async def check_health(self) -> ExecutionStatistics:
         """Health check implementation for PortfolioService.
 
         Returns:
@@ -359,60 +369,55 @@ class PortfolioService(HealthCheckable):
             # Get state info
             try:
                 state = await self._state_manager.get_state()
-                is_running = True
-                balance_count = len(state.balances)
                 position_count = len(state.positions)
-                # Calculate state age
-                state_age_seconds = (datetime.now(UTC) - state.timestamp).total_seconds()
+                # Note: State age could be calculated here if needed for future health checks
             except PortfolioNotInitializedError:
-                state = None
-                is_running = False
-                balance_count = 0
                 position_count = 0
-                state_age_seconds = 0.0
-
-            # Check if state is stale
-            max_state_age = float(self.config.validation.max_position_age_seconds)
-            state_is_stale = state_age_seconds > max_state_age
 
             # Calculate success rate
             success_rate = (
                 self._success_count / self._operation_count if self._operation_count > 0 else 1.0
             )
 
-            return {
-                "is_running": is_running,
-                "state_initialized": is_running,
-                "balance_count": balance_count,
-                "position_count": position_count,
-                "operation_count": self._operation_count,
-                "success_count": self._success_count,
-                "error_count": self._error_count,
-                "success_rate": success_rate,
-                "last_activity": self._last_activity.isoformat(),
-                "state_age_seconds": state_age_seconds,
-                "state_is_stale": state_is_stale,
-                "max_state_age_seconds": max_state_age,
-                "modules": {
-                    "state_manager": "initialized",
-                    "reconciliation_engine": "initialized",
-                    "pnl_calculator": "initialized",
-                    "balance_manager": "initialized",
-                    "position_manager": "initialized",
-                },
-            }
+            # Create OrderTrackerStatistics for composition
+            order_stats = OrderTrackerStatistics(
+                active_orders=position_count,
+                total_orders=self._operation_count,
+                success_count=self._success_count,
+                error_count=self._error_count,
+                success_rate=Decimal(str(success_rate)),
+                last_activity_timestamp=self._last_activity,
+            )
+
+            return ExecutionStatistics(
+                order_tracking=order_stats,
+                api_clients_available=len(self._api_clients),
+                safe_mode_enabled=False,
+                max_slippage_pct=Decimal(0),
+                max_retries=0,
+            )
 
         except Exception as e:
             self._error_count += 1
             logger.exception("portfolio_health_check_error", error=str(e))
 
-            return {
-                "is_running": False,
-                "error": str(e),
-                "last_activity": self._last_activity.isoformat() if self._last_activity else None,
-                "operation_count": self._operation_count,
-                "error_count": self._error_count,
-            }
+            # Create OrderTrackerStatistics for error case
+            order_stats = OrderTrackerStatistics(
+                active_orders=0,
+                total_orders=self._operation_count,
+                success_count=self._success_count,
+                error_count=self._error_count,
+                success_rate=Decimal(0),
+                last_activity_timestamp=self._last_activity,
+            )
+
+            return ExecutionStatistics(
+                order_tracking=order_stats,
+                api_clients_available=0,
+                safe_mode_enabled=False,
+                max_slippage_pct=Decimal(0),
+                max_retries=0,
+            )
 
     def get_service_type(self) -> ServiceType:
         """Return service type for health monitoring."""

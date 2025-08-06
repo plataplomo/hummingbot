@@ -8,7 +8,6 @@ This module handles all position-related operations including:
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 import structlog
 
@@ -16,6 +15,7 @@ from cyberdelta.config import AppSettings
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import DerivativePosition
 from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
 from cyberdelta.protocols.domain.portfolio import (
     PortfolioStateManagerProtocol,
     PositionManagerProtocol,
@@ -133,7 +133,7 @@ class PositionManager(PositionManagerProtocol):
                     "Position closed",
                     symbol=trade.symbol.value,
                     exchange=trade.exchange,
-                    realized_pnl=float(realized_pnl) if realized_pnl else 0,
+                    realized_pnl=realized_pnl or 0,
                 )
         else:
             # Calculate new average price
@@ -159,8 +159,8 @@ class PositionManager(PositionManagerProtocol):
                 "Position updated",
                 symbol=trade.symbol.value,
                 exchange=trade.exchange,
-                new_size=float(abs(new_quantity)),
-                avg_price=float(new_avg_price),
+                new_size=abs(new_quantity),
+                avg_price=new_avg_price,
             )
 
         # Update state timestamp and save
@@ -327,9 +327,9 @@ class PositionManager(PositionManagerProtocol):
 
     async def reconcile_positions(
         self,
-        exchange_positions: dict[str, Any],
+        exchange_positions: list[DerivativePosition],
         exchange: ExchangeName,
-    ) -> dict[str, Any]:
+    ) -> ReconciliationReport:
         """Reconcile local positions with exchange data.
 
         Args:
@@ -337,25 +337,30 @@ class PositionManager(PositionManagerProtocol):
             exchange: Exchange name
 
         Returns:
-            Reconciliation results
+            Typed reconciliation results
         """
-        discrepancies: list[dict[str, Any]] = []
+        position_discrepancies: list[str] = []
         updated = 0
 
         state = await self._state_manager.get_state()
         if not state:
-            return {"error": "No portfolio state"}
+            return ReconciliationReport(
+                reconciliation_timestamp=datetime.now(UTC),
+                reconciliation_successful=False,
+                total_discrepancies=0,
+                exchange_results={exchange.value: False},
+                balance_discrepancies=[],
+                position_discrepancies=[],
+                error_messages=["No portfolio state available"],
+            )
 
         # Process each exchange position
-        for symbol_str, position_data in exchange_positions.items():
-            # Create Symbol object using service
-            symbol = _symbol_service.create_symbol(symbol_str, exchange)
-            key = f"{exchange.value}:{symbol_str}"
+        for exchange_position in exchange_positions:
+            symbol = exchange_position.symbol
+            key = f"{exchange.value}:{symbol.value}"
 
             # Get exchange position data
-            exchange_size = abs(Decimal(str(position_data.get("size", 0))))
-            exchange_side = position_data.get("side", "").upper()
-            exchange_entry = Decimal(str(position_data.get("entry_price", 0)))
+            exchange_size = abs(exchange_position.size)
 
             # Get local position
             local_position = state.positions.get(key)
@@ -364,43 +369,24 @@ class PositionManager(PositionManagerProtocol):
                 # Check for discrepancy
                 size_diff = abs(local_position.size - exchange_size)
                 if size_diff > self._position_tolerance:
-                    discrepancies.append({
-                        "symbol": symbol_str,
-                        "local_size": float(local_position.size),
-                        "exchange_size": float(exchange_size),
-                        "difference": float(size_diff),
-                    })
+                    position_discrepancies.append(
+                        f"{symbol.value}: local={local_position.size}, "
+                        f"exchange={exchange_size}, diff={size_diff}"
+                    )
 
                     # Update to match exchange
                     if self.config.state.reconciliation_enabled and exchange_size > 0:
-                        state.positions[key] = DerivativePosition(
-                            exchange=exchange,
-                            symbol=symbol,
-                            side=OrderSide[exchange_side] if exchange_side else OrderSide.BUY,
-                            size=exchange_size,
-                            entry_price=(
-                                exchange_entry if exchange_entry > 0 else local_position.entry_price
-                            ),
-                            timestamp=datetime.now(UTC),
-                            unrealized_pnl=Decimal(0),
-                        )
+                        # Use the exchange position directly
+                        state.positions[key] = exchange_position
                         updated += 1
             elif exchange_size > 0:
-                # New position from exchange
-                state.positions[key] = DerivativePosition(
-                    exchange=exchange,
-                    symbol=symbol,
-                    side=OrderSide[exchange_side] if exchange_side else OrderSide.BUY,
-                    size=exchange_size,
-                    entry_price=exchange_entry,
-                    timestamp=datetime.now(UTC),
-                    unrealized_pnl=Decimal(0),
-                )
+                # New position from exchange - use the exchange position directly
+                state.positions[key] = exchange_position
                 updated += 1
 
         # Remove positions that don't exist on exchange
         local_keys = [k for k in state.positions if k.startswith(f"{exchange.value}:")]
-        exchange_keys = [f"{exchange.value}:{s}" for s in exchange_positions]
+        exchange_keys = [f"{exchange.value}:{pos.symbol.value}" for pos in exchange_positions]
 
         for key in local_keys:
             if key not in exchange_keys and self.config.state.reconciliation_enabled:
@@ -412,14 +398,15 @@ class PositionManager(PositionManagerProtocol):
             state.timestamp = datetime.now(UTC)
             await self._state_manager.save_state()
 
-        return {
-            "discrepancies": discrepancies,
-            "updated": updated,
-            "total_checked": len(exchange_positions),
-            "removed": (
-                len(local_keys) - len(exchange_keys) if len(local_keys) > len(exchange_keys) else 0
-            ),
-        }
+        return ReconciliationReport(
+            reconciliation_timestamp=datetime.now(UTC),
+            reconciliation_successful=len(position_discrepancies) == 0,
+            total_discrepancies=len(position_discrepancies),
+            exchange_results={exchange.value: len(position_discrepancies) == 0},
+            balance_discrepancies=[],
+            position_discrepancies=position_discrepancies,
+            error_messages=None,
+        )
 
     async def get_exchange_positions(self, exchange: ExchangeName) -> dict[str, DerivativePosition]:
         """Get all positions for a specific exchange.
@@ -475,8 +462,8 @@ class PositionManager(PositionManagerProtocol):
                 exchange=exchange.value,
                 symbol=symbol.value,
                 side=new_position.side.value,
-                size=float(new_position.size),
-                entry_price=float(new_position.entry_price) if new_position.entry_price else None,
+                size=new_position.size,
+                entry_price=new_position.entry_price or None,
             )
 
         state.timestamp = datetime.now(UTC)

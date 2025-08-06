@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.models.market.order import Order
+from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 
 
 logger = get_logger(__name__)
@@ -153,22 +153,26 @@ class OrderTracker:
         """
         return self._active_orders.copy()
 
-    def get_statistics(self) -> dict[str, Any]:
+    def get_statistics(self) -> OrderTrackerStatistics:
         """Get tracking statistics.
 
         Returns:
-            Dictionary with tracking metrics
+            Typed tracking metrics for order tracking only
         """
-        return {
-            "active_orders": len(self._active_orders),
-            "total_orders": self._order_count,
-            "success_count": self._success_count,
-            "error_count": self._error_count,
-            "last_activity": self._last_activity.isoformat() if self._last_activity else None,
-            "success_rate": (
-                self._success_count / self._order_count if self._order_count > 0 else 0.0
-            ),
-        }
+        success_rate = (
+            Decimal(self._success_count) / Decimal(self._order_count)
+            if self._order_count > 0
+            else Decimal(0)
+        )
+
+        return OrderTrackerStatistics(
+            active_orders=len(self._active_orders),
+            total_orders=self._order_count,
+            success_count=self._success_count,
+            error_count=self._error_count,
+            success_rate=success_rate,
+            last_activity_timestamp=self._last_activity,
+        )
 
     def update_order_filled_quantity(self, order_id: str, filled_quantity: Decimal) -> bool:
         """Update the filled quantity of a tracked order.
@@ -192,9 +196,9 @@ class OrderTracker:
         logger.info(
             "order_filled_quantity_updated",
             order_id=order_id,
-            old_filled=float(old_filled),
-            new_filled=float(filled_quantity),
-            quantity_requested=float(order.quantity_requested),
+            old_filled=old_filled,
+            new_filled=filled_quantity,
+            quantity_requested=order.quantity_requested,
         )
 
         self._last_activity = datetime.now(UTC)
