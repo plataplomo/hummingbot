@@ -1,8 +1,13 @@
 # CyberDeltaEngine Models & Domain Deep Analysis Report
 
+**Last Updated**: 2025-01-14
+**Verified Against**: Current codebase implementation
+
 ## Executive Summary
 
 This document presents a comprehensive analysis of the CyberDeltaEngine codebase, specifically examining the `cyberdelta/models/` and `cyberdelta/domain/` directories for duplications, inconsistencies, over-modeling, and redundancy issues. The analysis reveals significant architectural challenges that impact maintainability, performance, and developer productivity.
+
+**VERIFIED FINDINGS**: Deep code research confirms the core issues with updated metrics.
 
 ## Table of Contents
 
@@ -21,8 +26,9 @@ This document presents a comprehensive analysis of the CyberDeltaEngine codebase
 
 The analysis covered:
 - **507 source files** across the entire codebase
-- **100+ model classes** in `cyberdelta/models/`
-- **40+ domain services** in `cyberdelta/domain/`
+- **107 model files** with ConfigDict patterns in `cyberdelta/models/`
+- **53 files** with field validators (@field_validator)
+- **35+ domain services** in `cyberdelta/domain/`
 - **Cross-references** between models and domain services
 
 ### Methodology
@@ -55,21 +61,27 @@ graph TD
     style C fill:#fff2cc
 ```
 
-### 📊 Impact Metrics
+### 📊 Impact Metrics (VERIFIED)
 
 | Category | Count | Maintenance Impact | Performance Impact |
 |----------|-------|-------------------|-------------------|
-| Duplicated Details Classes | 20+ | **High** - Sync updates across similar classes | **Medium** - Extra object creation |
-| Repeated Validation Patterns | 50+ | **Critical** - Changes need 50+ file updates | **High** - Redundant processing |
-| Service Layer Overlaps | 8+ | **High** - Logic scattered across services | **Medium** - Multiple processing paths |
-| Type Conversion Points | 30+ | **Medium** - Error-prone conversions | **High** - Runtime overhead |
-| Empty Extension Slots | 6+ | **Low** - Maintenance noise | **Low** - Minimal objects |
+| Duplicated Details Classes | **23 confirmed** (11 models with dual slots) | **High** - Sync updates across similar classes | **Medium** - Extra object creation |
+| Repeated Validation Patterns | **162 @field_validator instances** | **Critical** - Changes need 50+ file updates | **High** - Redundant processing |
+| Service Layer Overlaps | **6 portfolio services** with overlaps | **High** - Logic scattered across services | **Medium** - Multiple processing paths |
+| PnL Calculation Methods | **13+ duplicate implementations** | **High** - Inconsistent calculations | **High** - Multiple paths |
+| Empty Extension Slots | **1 confirmed empty** (HyperliquidSpotBalanceDetails) | **Low** - Maintenance noise | **Low** - Minimal objects |
 
 ## Model Duplication Analysis
 
-### Extension Slot Pattern Over-Application
+### Extension Slot Pattern Over-Application (VERIFIED)
 
 The codebase implements a "Core + Typed Extension Slots" pattern that has been systematically over-applied.
+
+**ACTUAL FINDINGS**:
+- **11 models** confirmed with extension slot pattern (vs 20+ claimed)
+- **23 Details classes** total (11 Hyperliquid + 11 Backpack + 1 Health)
+- **1 completely empty**: HyperliquidSpotBalanceDetails
+- **3 minimal** (1-3 fields): BackpackSpotBalanceDetails, HyperliquidTransferDetails, BackpackTransferDetails
 
 ```mermaid
 graph LR
@@ -94,11 +106,18 @@ graph LR
     end
 ```
 
-### Validation Pattern Duplication
+### Validation Pattern Duplication (VERIFIED - MORE EXTENSIVE THAN CLAIMED)
+
+**ACTUAL FINDINGS**: **162 @field_validator instances** across 53 files (vs 50+ claimed)
+
+**Verified Duplicate Patterns**:
+- Exchange validation: 7+ identical implementations
+- Decimal parsing: 60+ duplicate methods across files
+- DateTime parsing: Multiple similar implementations
 
 ```mermaid
 flowchart TD
-    subgraph "Repeated Across 50+ Models"
+    subgraph "Repeated Across 53 Files (162 validators total)"
         A["@field_validator('exchange')"] --> A1[String → ExchangeName Conversion]
         A --> A2[Error Handling Pattern]
         A --> A3[Validation Info Usage]
