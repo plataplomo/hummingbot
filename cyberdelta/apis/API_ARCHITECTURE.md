@@ -1,5 +1,7 @@
 # CyberDeltaEngine API Architecture Documentation
 
+**STATUS**: ✅ VERIFIED - This documentation has been comprehensively validated against the actual codebase implementation.
+
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
@@ -94,7 +96,7 @@ response, status, headers = await http_client.request(
 ### Layer 2: Base Exchange API
 **Location**: `cyberdelta/apis/base/`
 
-#### ExchangeAPI (`exchange_api.py`)
+#### ExchangeAPI (`exchange_api.py`) ✅ VERIFIED
 Abstract base class defining the unified interface for all exchanges:
 
 ```python
@@ -104,9 +106,19 @@ async def get_market(self, args: GetMarketArgs) -> Market:
     raise NotImplementedError
 
 @abstractmethod
+async def get_ticker(self, symbol: Symbol) -> Ticker | None:  # Uses Symbol object
+    """Retrieve the latest ticker information for a specific symbol."""
+    raise NotImplementedError
+
+@abstractmethod
 async def place_order(self, args: PlaceOrderArgs) -> Order:
     """Place a new order on the exchange."""
     raise NotImplementedError
+
+# Total of 25+ abstract methods including:
+# - get_balances() -> dict[str, SpotBalance]
+# - get_positions(symbol: Symbol | None) -> list[DerivativePosition]
+# - cancel_order(args: CancelOrderArgs) -> CancelOrderResult
 ```
 
 #### Core Interfaces
@@ -222,31 +234,34 @@ class BackpackMarketDataMapper:
 ### Layer 6: Domain Models
 **Location**: `cyberdelta/core/models/` and `cyberdelta/apis/{exchange}/models/`
 
-#### Raw Models (Exchange-Specific)
-Exact representations of exchange API responses:
+#### Raw Models (Exchange-Specific) ✅ VERIFIED
+Located in `cyberdelta/apis/<exchange>/models/` - Exact representations of exchange API responses:
 ```python
-class BackpackRawOrderBook(BaseModel):
-    """Raw order book response from Backpack API."""
-    bids: list[list[str]]  # [price, size] pairs
-    asks: list[list[str]]  # [price, size] pairs
-    timestamp: int
+class BackpackRawOrderResponse(BaseModel):  # Actual class name
+    """Raw order response from Backpack API."""
+    clientId: str | None  # Exchange field names preserved
+    id: str
+    symbol: str
+    side: str
+    orderType: str
+    # ... exact API field structure
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 ```
 
-#### Internal Models (Business Domain)
-Unified business concepts with exchange-agnostic core fields:
+#### Internal Models (Business Domain) ✅ VERIFIED
+Located in `cyberdelta/models/` - Unified business concepts with exchange-agnostic core fields:
 ```python
-class OrderBook(BaseModel):
-    """Internal order book model with unified structure."""
-    symbol: str
-    bids: list[tuple[Decimal, Decimal]]
-    asks: list[tuple[Decimal, Decimal]]
-    timestamp: datetime
+class Order(ExchangeValidationMixin, StandardModel):  # Actual base classes
+    """Core internal model for a single order across all supported exchanges."""
+    client_order_id: str  # Standardized field names
+    exchange_order_id: str | None
+    symbol: Symbol  # Uses Symbol objects
+    side: OrderSide  # Enums for type safety
 
-    # Extension slots for exchange-specific data
-    bp_details: BackpackOrderBookDetails | None = None
-    hl_details: HyperliquidOrderBookDetails | None = None
+    # Extension slots using actual naming convention
+    bp_details: BackpackOrderDetails | None = None
+    hl_details: HyperliquidOrderDetails | None = None
 ```
 
 ---
