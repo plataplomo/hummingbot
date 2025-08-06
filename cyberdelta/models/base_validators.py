@@ -27,7 +27,6 @@ from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
     FieldNameMissingError,
     InvalidExchangeNameError,
-    RequiredFieldNoneError,
     TypeFieldError,
 )
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
@@ -143,15 +142,13 @@ class DecimalValidationMixin:
 
         Raises:
             FieldNameMissingError: If field name is None
-            RequiredFieldNoneError: If parsed value is None
             DecimalFiniteError: If parsed value is not finite
         """
         field_name = info.field_name
         if field_name is None:
             raise FieldNameMissingError
-        parsed = parse_decimal_value(v, field_name=field_name)
-        if parsed is None:
-            raise RequiredFieldNoneError(field_name)
+        parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
+        # When allow_none=False, parse_decimal_value never returns None
         if not parsed.is_finite():
             raise DecimalFiniteError(field_name, parsed)
         return parsed

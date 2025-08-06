@@ -20,18 +20,17 @@ from pydantic import (
 
 from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.field_validation import (
-    DecimalFiniteError,
-    FillLogicError,
-)
+from cyberdelta.exceptions.field_validation import FillLogicError
 from cyberdelta.models.base_validators import (
     ExchangeValidationMixin,
     ExtensionSlotModel,
     ImmutableModel,
+    optional_decimal_validator,
     required_datetime_validator,
+    required_decimal_validator,
 )
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import validate_str_field
 
 
 class Fill(ExchangeValidationMixin, ImmutableModel):
@@ -94,31 +93,7 @@ class Fill(ExchangeValidationMixin, ImmutableModel):
     # Exchange validation provided by ExchangeValidationMixin
 
     _validate_executed_at = required_datetime_validator("executed_at")
-
-    @field_validator("price", "quantity", "fee", mode="before")
-    @classmethod
-    def parse_decimal_fields(
-        cls,
-        raw_value: str | float | Decimal | None,
-        info: object,
-    ) -> Decimal:
-        """Parse and validate decimal fields for financial precision.
-
-        Returns:
-            Validated finite Decimal object
-
-        Raises:
-            DecimalFiniteError: If value cannot be parsed to finite Decimal
-        """
-        field_name = getattr(info, "field_name", None)
-        d = parse_decimal_value(raw_value, allow_none=False, field_name=str(field_name))
-        if not d.is_finite():
-            raise DecimalFiniteError(
-                field_name=str(field_name),
-                value=d,
-                context="for fill financial calculations",
-            )
-        return d
+    _validate_required_decimals = required_decimal_validator("price", "quantity", "fee")
 
     @field_validator("client_order_id", "fee_asset", mode="before")
     @classmethod
@@ -208,6 +183,11 @@ class HyperliquidFillDetails(ExtensionSlotModel):
     start_position: Decimal | None = None
     dir: str | None = None
 
+    # Use centralized validators
+    _validate_optional_decimals = optional_decimal_validator(
+        "liquidation_mark_px", "start_position"
+    )
+
     @field_validator("fill_hash", mode="before")
     @classmethod
     def validate_fill_hash(cls, v: str, info: object) -> str:
@@ -246,33 +226,6 @@ class HyperliquidFillDetails(ExtensionSlotModel):
             return None
         # TODO: Replace with enum validation if/when values are known
         return validate_str_field(v, field_name="dir", max_length=32)
-
-    @field_validator("liquidation_mark_px", "start_position", mode="before")
-    @classmethod
-    def validate_decimals(
-        cls,
-        v: str | float | Decimal | None,
-        info: object,
-    ) -> Decimal | None:
-        """Validate and parse Hyperliquid decimal fields to ensure financial precision.
-
-        Returns:
-            Validated finite Decimal or None if not provided
-
-        Raises:
-            DecimalFiniteError: If value cannot be parsed to finite Decimal
-        """
-        if v is None:
-            return None
-        field_name = getattr(info, "field_name", "unknown")
-        d = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        if not d.is_finite():
-            raise DecimalFiniteError(
-                field_name=str(field_name),
-                value=d,
-                context="for Hyperliquid fill details",
-            )
-        return d
 
 
 class BackpackFillDetails(ExtensionSlotModel):
