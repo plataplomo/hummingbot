@@ -18,6 +18,7 @@ from cyberdelta.config.secrets_models import (
     SecretsConfig,
     TelegramSecrets,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
@@ -252,24 +253,25 @@ class TestTelegramSecrets:
             )
         assert "chat_id" in str(exc_info.value)
 
-        # Non-string chat_id - should be converted to string and validated
-        with pytest.raises(ValidationError):
+        # Non-string chat_id (raises TypeFieldError)
+        with pytest.raises(TypeFieldError) as exc_info_type:
             TelegramSecrets.model_validate(
                 {
                     "bot_token": "test_token",
                     "chat_id": 123456789,
                 },
             )
+        assert "chat_id" in str(exc_info_type.value)
 
-        # Too long chat_id
-        with pytest.raises(ValidationError) as exc_info_val2:
+        # Too long chat_id (raises TypeFieldError)
+        with pytest.raises(TypeFieldError) as exc_info_length:
             TelegramSecrets.model_validate(
                 {
                     "bot_token": "test_token",
                     "chat_id": "x" * 101,  # Exceeds max_length=100
                 },
             )
-        assert "chat_id" in str(exc_info_val2.value)
+        assert "chat_id" in str(exc_info_length.value)
 
     def test_missing_required_fields(self) -> None:
         """Test missing required fields."""
@@ -426,16 +428,16 @@ class TestSecretsConfig:
             SecretsConfig.model_validate(data)
         assert "exchanges" in str(exc_info.value)
 
-        # Test too long exchange name (raises ValidationError)
+        # Test too long exchange name (raises TypeFieldError)
         data = self.create_valid_secrets_data()
         data["exchanges"]["x" * 51] = {
             "auth_type": "api_key",
             "api_key": "key",
             "api_secret": "secret",
         }
-        with pytest.raises(ValidationError) as exc_info_validation:
+        with pytest.raises(TypeFieldError) as exc_info_long:
             SecretsConfig.model_validate(data)
-        assert "exchanges" in str(exc_info_validation.value)
+        assert "exchanges" in str(exc_info_long.value)
 
     def test_hyperliquid_wrong_auth_type(self) -> None:
         """Test Hyperliquid validation when wrong auth_type is provided."""
