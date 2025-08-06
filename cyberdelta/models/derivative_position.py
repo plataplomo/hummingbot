@@ -11,31 +11,33 @@ from decimal import Decimal
 from typing import Self
 
 from pydantic import (
-    BaseModel,
-    ConfigDict,
     Field,
+    ValidationInfo,
     field_validator,
     model_validator,
 )
-from pydantic_core.core_schema import ValidationInfo
 
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import (
-    DecimalFiniteError,
     FieldNameMissingError,
     PositionLogicError,
     RequiredFieldNoneError,
     TypeFieldError,
 )
-from cyberdelta.exceptions.field_validation import InvalidExchangeNameError
+from cyberdelta.models.base_validators import (
+    ExchangeValidationMixin,
+    ExtensionSlotModel,
+    StandardModel,
+    optional_decimal_validator,
+    required_datetime_validator,
+    required_decimal_validator,
+)
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import (
-    parse_datetime_utc,
-    parse_decimal_value,
     validate_enum_field,
     validate_str_field,
 )
@@ -44,7 +46,7 @@ from cyberdelta.utils.parsing import (
 # --- Derivative Position Core Model ---
 
 
-class DerivativePosition(BaseModel):
+class DerivativePosition(ExchangeValidationMixin, StandardModel):
     """Represents the mutable state of a single derivative position on a specific exchange.
 
     This model tracks the core aspects of a leveraged position, allowing for updates
@@ -97,46 +99,13 @@ class DerivativePosition(BaseModel):
     hl_details: HyperliquidPositionDetails | None = Field(default=None)
     bp_details: BackpackPositionDetails | None = Field(default=None)
 
-    # IMPORTANT: MUTABLE MODEL - DO NOT SET frozen=True
-    model_config = ConfigDict(extra="forbid", validate_assignment=True)
+    # Config: Mutable (inherited from StandardModel with validate_assignment=True)
+    # Exchange validation: ExchangeValidationMixin provides validate_exchange()
 
     # --- Field Validators ---
 
-    @field_validator("exchange", mode="before")
-    @classmethod
-    def validate_exchange_string(cls, v: object, info: ValidationInfo) -> ExchangeName:
-        """Validate exchange field is a valid ExchangeName.
-
-        Args:
-            v: The value to validate
-            info: Validation context containing field information
-
-        Returns:
-            Validated ExchangeName value
-
-        Raises:
-            InvalidExchangeNameError: If not a valid exchange name
-            TypeFieldError: If value is not a string or ExchangeName enum
-        """
-        if isinstance(v, ExchangeName):
-            return v
-        if isinstance(v, str):
-            try:
-                return ExchangeName(v.lower())
-            except ValueError:
-                raise InvalidExchangeNameError(
-                    value=v,
-                    valid_exchanges=[e.value for e in ExchangeName],
-                ) from None
-        raise TypeFieldError(
-            field_name="exchange",
-            expected_type="string or ExchangeName",
-            actual_type=type(v).__name__,
-            actual_value=v,
-        )
-
+    # Exchange validation provided by ExchangeValidationMixin
     # Symbol validation is handled by Pydantic's type system
-    # No need for a custom validator since Symbol is always valid
 
     @field_validator("strategy_name", "signal_id", mode="before")
     @classmethod
@@ -166,106 +135,12 @@ class DerivativePosition(BaseModel):
             raise FieldNameMissingError
         return validate_str_field(v, field_name=field_name, max_length=128)
 
-    @field_validator("size", mode="before")
-    @classmethod
-    def parse_required_decimal(
-        cls,
-        v: str | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal:
-        """Parse required decimal ('size'), ensuring finite.
-
-        Args:
-            v: The value to parse (string, float, Decimal, or None)
-            info: Validation context containing field information
-
-        Returns:
-            Parsed finite decimal value
-
-        Raises:
-            FieldNameMissingError: If field name is None
-            RequiredFieldNoneError: If parsed value is None
-            DecimalFiniteError: If parsed value is not finite
-        """
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
-        field_name = info.field_name
-        if field_name is None:
-            raise FieldNameMissingError
-        parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Explicitly require non-None and finite values post-parse.
-        if parsed is None:
-            raise RequiredFieldNoneError(field_name)
-        # DEFENSIVE CHECK: Ensure value is finite. Mypy=[possibly-undefined]
-        if not parsed.is_finite():
-            raise DecimalFiniteError(field_name, parsed)
-        return parsed
-
-    @field_validator(
-        "entry_price",
-        "mark_price",
-        "liquidation_price",
-        "unrealized_pnl",
-        "realized_pnl",
-        mode="before",
+    # Validation using convenience validators from base_validators.py
+    _validate_size = required_decimal_validator("size")
+    _validate_optional_decimals = optional_decimal_validator(
+        "entry_price", "mark_price", "liquidation_price", "unrealized_pnl", "realized_pnl"
     )
-    @classmethod
-    def parse_optional_decimal(
-        cls,
-        v: str | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal | None:
-        """Parse optional decimals, ensuring finite if present.
-
-        Args:
-            v: The value to parse (string, float, Decimal, or None)
-            info: Validation context containing field information
-
-        Returns:
-            Parsed finite decimal value or None if not provided
-
-        Raises:
-            FieldNameMissingError: If field name is None
-            DecimalFiniteError: If parsed value is not finite
-        """
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
-        field_name = info.field_name
-        if field_name is None:
-            raise FieldNameMissingError
-        parsed = parse_decimal_value(v, field_name=field_name)
-        # DEFENSIVE CHECK: Ensure finite if not None. Mypy=[redundant-expr]
-        if parsed is not None and not parsed.is_finite():
-            raise DecimalFiniteError(field_name, parsed, context="if provided")
-        return parsed
-
-    @field_validator("timestamp", mode="before")
-    @classmethod
-    def parse_required_datetime(
-        cls,
-        v: str | float | datetime | None,
-        info: ValidationInfo,
-    ) -> datetime:
-        """Parse required datetime, ensuring UTC.
-
-        Args:
-            v: The value to parse (string, float, datetime, or None)
-            info: Validation context containing field information
-
-        Returns:
-            Parsed UTC datetime
-
-        Raises:
-            FieldNameMissingError: If field name is None
-            RequiredFieldNoneError: If parsed datetime is None
-        """
-        # DEFENSIVE CHECK: Explicitly validate field_name is not None before use.
-        field_name = info.field_name
-        if field_name is None:
-            raise FieldNameMissingError
-        dt = parse_datetime_utc(v, field_name=field_name)
-        # DEFENSIVE CHECK: Explicitly require non-None. Mypy=[unreachable]
-        if dt is None:
-            raise RequiredFieldNoneError(field_name, "Required datetime parsed as None or invalid")
-        return dt
+    _validate_timestamp = required_datetime_validator("timestamp")
 
     # --- Instance Methods ---
 
@@ -383,16 +258,13 @@ class DerivativePosition(BaseModel):
 # --- Derivative Position Details & Sub-Models (INTERNAL) ---
 
 
-class HyperliquidPositionDetails(BaseModel):
+class HyperliquidPositionDetails(ExtensionSlotModel):
     """Immutable exchange-specific details for a Hyperliquid position (Internal)."""
 
     leverage_type: str = Field(...)  # 'cross' or 'isolated'
     leverage_value: int = Field(..., ge=0)
     max_leverage: int = Field(..., ge=0)
     margin_used: Decimal | None = Field(default=None, ge=Decimal(0))
-
-    # Config: Immutable, ignore extra fields during creation
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
 
     @field_validator("leverage_type", mode="before")
     @classmethod
@@ -444,37 +316,10 @@ class HyperliquidPositionDetails(BaseModel):
             raise RequiredFieldNoneError(field_name, "Must be non-negative")
         return v
 
-    @field_validator("margin_used", mode="before")
-    @classmethod
-    def parse_optional_decimal_finite(  # Renamed for clarity
-        cls,
-        v: str | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present.
-
-        Args:
-            v: The value to parse (string, float, Decimal, or None)
-            info: Validation context containing field information
-
-        Returns:
-            Parsed finite decimal value or None if not provided
-
-        Raises:
-            FieldNameMissingError: If field name is None
-            DecimalFiniteError: If parsed value is not finite
-        """
-        field_name = info.field_name
-        if field_name is None:
-            raise FieldNameMissingError
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
-        # Check finiteness if not None. ge=0 handled by Field constraint.
-        if parsed is not None and not parsed.is_finite():
-            raise DecimalFiniteError(field_name, parsed, context="if provided")
-        return parsed
+    _validate_margin_used = optional_decimal_validator("margin_used")
 
 
-class BackpackPositionDetails(BaseModel):
+class BackpackPositionDetails(ExtensionSlotModel):
     """Immutable exchange-specific details for a Backpack position (Internal)."""
 
     leverage: int | None = Field(default=None, ge=0)  # Current leverage value
@@ -484,42 +329,6 @@ class BackpackPositionDetails(BaseModel):
     mmf_factor: Decimal | None = Field(default=None)
     cumulative_funding: Decimal | None = Field(default=None)
 
-    # Config: Immutable, ignore extra fields during creation
-    model_config = ConfigDict(extra="ignore", frozen=True, validate_assignment=False)
-
-    # Use single validator for all optional decimals
-    @field_validator(
-        "imf_base",
-        "imf_factor",
-        "mmf_base",
-        "mmf_factor",
-        "cumulative_funding",
-        mode="before",
+    _validate_optional_decimals = optional_decimal_validator(
+        "imf_base", "imf_factor", "mmf_base", "mmf_factor", "cumulative_funding"
     )
-    @classmethod
-    def parse_optional_decimal_finite(  # Renamed for clarity and consistency
-        cls,
-        v: str | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal | None:
-        """Parse optional decimal, ensuring finite if present.
-
-        Args:
-            v: The value to parse (string, float, Decimal, or None)
-            info: Validation context containing field information
-
-        Returns:
-            Parsed finite decimal value or None if not provided
-
-        Raises:
-            FieldNameMissingError: If field name is None
-            DecimalFiniteError: If parsed value is not finite
-        """
-        field_name = info.field_name
-        if field_name is None:
-            raise FieldNameMissingError
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=True)
-        # Check finiteness if not None
-        if parsed is not None and not parsed.is_finite():
-            raise DecimalFiniteError(field_name, parsed, context="if provided")
-        return parsed

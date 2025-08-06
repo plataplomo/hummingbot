@@ -14,16 +14,21 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
 from cyberdelta.core.enums import InternalTransferStatus, InternalWithdrawalStatus
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models.base_validators import (
+    ExchangeValidationMixin,
+    ExtensionSlotModel,
+    ImmutableModel,
+)
 
 
 # --- Transfer Details Models (Immutable) ---
 
 
-class HyperliquidTransferDetails(BaseModel):
+class HyperliquidTransferDetails(ExtensionSlotModel):
     """Hyperliquid-specific transfer enrichment fields. Immutable."""
 
     from_user: str | None = Field(default=None, description="Source user for Hyperliquid transfer.")
@@ -32,10 +37,10 @@ class HyperliquidTransferDetails(BaseModel):
         description="Destination user for Hyperliquid transfer.",
     )
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Extension slot (inherited from ExtensionSlotModel)
 
 
-class BackpackTransferDetails(BaseModel):
+class BackpackTransferDetails(ExtensionSlotModel):
     """Backpack-specific transfer enrichment fields. Immutable."""
 
     client_id: str | None = Field(
@@ -51,13 +56,13 @@ class BackpackTransferDetails(BaseModel):
         description="Account type transferred to (Backpack specific).",
     )
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Extension slot (inherited from ExtensionSlotModel)
 
 
 # --- Core Transfer Model (Immutable) ---
 
 
-class Transfer(BaseModel):
+class Transfer(ExchangeValidationMixin, ImmutableModel):
     """Core internal model for a funds transfer operation. Immutable.
 
     Represents the state or result of a transfer.
@@ -81,13 +86,13 @@ class Transfer(BaseModel):
     hl_details: HyperliquidTransferDetails | None = Field(default=None)
     bp_details: BackpackTransferDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", frozen=True, validate_assignment=True)
+    # Config: Immutable (inherited from ImmutableModel)
 
 
 # --- Withdrawal Details Models (Immutable) ---
 
 
-class HyperliquidWithdrawalDetails(BaseModel):
+class HyperliquidWithdrawalDetails(ExtensionSlotModel):
     """Hyperliquid-specific withdrawal enrichment fields. Immutable."""
 
     usd_value: Decimal | None = Field(
@@ -95,10 +100,10 @@ class HyperliquidWithdrawalDetails(BaseModel):
         description="USD value of the withdrawal on Hyperliquid.",
     )
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Extension slot (inherited from ExtensionSlotModel)
 
 
-class BackpackWithdrawalDetails(BaseModel):
+class BackpackWithdrawalDetails(ExtensionSlotModel):
     """Backpack-specific withdrawal enrichment fields. Immutable."""
 
     blockchain: str | None = Field(
@@ -150,13 +155,13 @@ class BackpackWithdrawalDetails(BaseModel):
         description="Account identifier for Backpack fiat withdrawals.",
     )
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Extension slot (inherited from ExtensionSlotModel)
 
 
 # --- Core Withdrawal Model (Immutable) ---
 
 
-class Withdrawal(BaseModel):
+class Withdrawal(ExchangeValidationMixin, ImmutableModel):
     """Core internal model for a withdrawal operation. Immutable.
 
     Represents the state or result of a withdrawal.
@@ -188,7 +193,7 @@ class Withdrawal(BaseModel):
     hl_details: HyperliquidWithdrawalDetails | None = Field(default=None)
     bp_details: BackpackWithdrawalDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", frozen=True, validate_assignment=True)
+    # Config: Immutable (inherited from ImmutableModel)
 
 
 __all__ = [

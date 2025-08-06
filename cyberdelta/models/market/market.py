@@ -16,19 +16,25 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import Field, ValidationInfo, field_validator
 
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.exceptions.field_validation import DecimalFiniteError
+from cyberdelta.models.base_validators import (
+    ExtensionSlotModel,
+    ImmutableModel,
+    optional_datetime_validator,
+    optional_decimal_validator,
+    required_decimal_validator,
+)
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import validate_str_field
 
 
 # Instantiate logger for this module
 logger = get_logger(__name__)
 
 
-class Market(BaseModel):
+class Market(ImmutableModel):
     """Represents an immutable, validated snapshot of market metadata for a trading symbol.
 
     Provides core market configuration including tick sizes, trading limits, and status,
@@ -71,7 +77,13 @@ class Market(BaseModel):
     bp_details: BackpackMarketDetails | None = Field(default=None)
     hl_details: HyperliquidMarketDetails | None = Field(default=None)
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
+    # Config: Immutable (inherited from ImmutableModel)
+    # Use centralized validators
+    _validate_required_decimals = required_decimal_validator("tick_size", "step_size")
+    _validate_optional_decimals = optional_decimal_validator(
+        "min_price", "max_price", "min_quantity", "max_quantity"
+    )
+    _validate_created_at = optional_datetime_validator("created_at")
 
     # Symbol validation is handled by Pydantic's type system
     # No need for a custom validator since Symbol is always valid
@@ -91,75 +103,8 @@ class Market(BaseModel):
         field_name = info.field_name if info.field_name is not None else "unknown_field"
         return validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
 
-    @field_validator("created_at", mode="before")
-    @classmethod
-    def validate_created_at(cls, v: datetime | float | str | None) -> datetime | None:
-        """Validate and parse the 'created_at' field to an optional UTC datetime object.
 
-        Returns:
-            Parsed datetime in UTC or None if input is None.
-        """
-        if v is None:
-            return None
-        return parse_datetime_utc(v, field_name="created_at")
-
-    @field_validator(
-        "tick_size",
-        "step_size",
-        "min_price",
-        "max_price",
-        "min_quantity",
-        "max_quantity",
-        mode="before",
-    )
-    @classmethod
-    def validate_and_parse_decimal_fields(
-        cls,
-        v: str | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal | None:
-        """Validate, parse, and check finiteness for Decimal fields.
-
-        Args:
-            v: The raw input value (can be various numeric types or None).
-            info: Pydantic validation context. Used for field name in error messages.
-
-        Returns:
-            The parsed Decimal value if input is valid, None if input is None for optional fields.
-
-        Raises:
-            DecimalFiniteError: If input cannot be parsed to a finite Decimal.
-
-        """
-        field_name = info.field_name if info.field_name is not None else "unknown_field"
-        parsed_decimal: Decimal | None
-
-        # tick_size and step_size are required, others are optional
-        if field_name in {"tick_size", "step_size"}:
-            # For required fields, ensure we get a non-None Decimal
-            parsed_decimal = parse_decimal_value(v, allow_none=False, field_name=field_name)
-            # Ensure required field results are finite
-            if not parsed_decimal.is_finite():
-                raise DecimalFiniteError(
-                    field_name=field_name,
-                    value=parsed_decimal,
-                    context="for market configuration",
-                )
-            return parsed_decimal
-        parsed_decimal = parse_decimal_value(v, allow_none=True, field_name=field_name)
-
-        # Ensure non-None results are finite
-        if parsed_decimal is not None and not parsed_decimal.is_finite():
-            raise DecimalFiniteError(
-                field_name=field_name,
-                value=parsed_decimal,
-                context="for market configuration",
-            )
-
-        return parsed_decimal
-
-
-class BackpackMarketDetails(BaseModel):
+class BackpackMarketDetails(ExtensionSlotModel):
     """Backpack-specific market enrichment fields for extension slot on Market.
 
     Preserves additional market configuration provided by Backpack's API
@@ -173,10 +118,10 @@ class BackpackMarketDetails(BaseModel):
     order_book_state: str | None = Field(default=None)
     created_at_raw: str | None = Field(default=None)
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Extension slot (inherited from ExtensionSlotModel)
 
 
-class HyperliquidMarketDetails(BaseModel):
+class HyperliquidMarketDetails(ExtensionSlotModel):
     """Hyperliquid-specific market enrichment fields for extension slot on Market.
 
     Contains Hyperliquid-specific trading rules and current market state.
@@ -195,4 +140,4 @@ class HyperliquidMarketDetails(BaseModel):
     mark_price: Decimal | None = Field(default=None, ge=Decimal(0))
     funding_rate: Decimal | None = Field(default=None)
 
-    model_config = ConfigDict(extra="ignore", frozen=True)
+    # Config: Extension slot (inherited from ExtensionSlotModel)

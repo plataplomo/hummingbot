@@ -3,13 +3,14 @@
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.models.base_validators import ExchangeValidationMixin, StandardModel
 from cyberdelta.symbols.models import Symbol
 
 
-class MidPrices(BaseModel):
+class MidPrices(ExchangeValidationMixin, StandardModel):
     """Mid prices for multiple symbols from an exchange.
 
     Represents a collection of mid prices (best bid + best ask / 2)

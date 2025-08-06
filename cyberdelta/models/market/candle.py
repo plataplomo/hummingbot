@@ -18,25 +18,24 @@ from decimal import Decimal
 from typing import Self
 
 from pydantic import (
-    BaseModel,
-    ConfigDict,
     Field,
-    ValidationInfo,
     field_validator,
     model_validator,
 )
 
 from cyberdelta.exceptions.field_validation import (
-    DateTimeFieldError,
-    DecimalFiniteError,
     OHLCConsistencyError,
-    RequiredFieldNoneError,
+)
+from cyberdelta.models.base_validators import (
+    ImmutableModel,
+    required_datetime_validator,
+    required_decimal_validator,
 )
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import validate_str_field
 
 
-class Candle(BaseModel):
+class Candle(ImmutableModel):
     """Represents an immutable, validated OHLCV candlestick bar for a specific symbol and interval.
 
     This model ensures data integrity for historical or interval-based market data through
@@ -72,7 +71,10 @@ class Candle(BaseModel):
     # Volume can be zero
     volume: Decimal = Field(ge=Decimal(0))
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
+    # Config: Immutable (inherited from ImmutableModel)
+    # Use centralized validators
+    _validate_open_time = required_datetime_validator("open_time")
+    _validate_decimals = required_decimal_validator("open", "high", "low", "close", "volume")
 
     # Symbol validation is handled by Pydantic's type system
     # No need for a custom validator since Symbol is always valid
@@ -87,71 +89,6 @@ class Candle(BaseModel):
         """
         # Basic validation for now, consider adding regex for common patterns if needed.
         return validate_str_field(v, field_name="interval", max_length=16, allow_empty=False)
-
-    @field_validator("open_time", mode="before")
-    @classmethod
-    def validate_open_time(cls, v: datetime | float | str | None) -> datetime:
-        """Validate and parse the 'open_time' field to a required UTC datetime object.
-
-        Returns:
-            datetime: The parsed UTC datetime object.
-
-        Raises:
-            DateTimeFieldError: If open_time is missing or invalid.
-        """
-        dt = parse_datetime_utc(v, field_name="open_time")
-        if dt is None:
-            raise DateTimeFieldError(
-                field_name="open_time",
-                value=v,
-                reason="must not be None and must be a valid format",
-            )
-        return dt
-
-    @field_validator("open", "high", "low", "close", "volume", mode="before")
-    @classmethod
-    def validate_and_parse_decimal_required(
-        cls,
-        v: str | float | Decimal | None,
-        info: ValidationInfo,
-    ) -> Decimal:
-        """Validate, parse, and check finiteness for required Decimal fields (OHLCV).
-
-        Uses `parse_decimal_value`. Ensures the result is non-None and finite.
-        Positive/Non-negative constraints (`gt=0`/`ge=0`) are handled by `Field`.
-
-        Args:
-            v: The raw input value (can be various numeric types).
-            info: Pydantic validation context. Used for field name in error messages.
-
-        Returns:
-            The parsed, finite Decimal value.
-
-        Raises:
-            RequiredFieldNoneError: If input is None.
-            DecimalFiniteError: If value is not finite (NaN or Infinity).
-
-        """
-        field_name = info.field_name if info.field_name is not None else "unknown_decimal_field"
-        # Ensure value is not None
-        if v is None:
-            raise RequiredFieldNoneError(
-                field_name=field_name,
-                reason="Required OHLCV field cannot be None",
-            )
-
-        parsed_decimal = parse_decimal_value(v, allow_none=False, field_name=field_name)
-        # allow_none=False ensures parsed_decimal is never None
-
-        # Ensure non-None results are finite. NaN/Infinity are invalid for candle data.
-        if not parsed_decimal.is_finite():
-            raise DecimalFiniteError(
-                field_name=field_name,
-                value=parsed_decimal,
-                context="(NaN/Infinity are invalid for candle data)",
-            )
-
-        return parsed_decimal
 
     @model_validator(mode="after")
     def check_ohlc_consistency(self) -> Self:

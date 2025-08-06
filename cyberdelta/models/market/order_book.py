@@ -17,8 +17,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TypeGuard, cast
 
-from pydantic import BaseModel, ConfigDict, field_validator
-from pydantic_core.core_schema import ValidationInfo
+from pydantic import ValidationInfo, field_validator
 
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
@@ -28,15 +27,16 @@ from cyberdelta.exceptions.field_validation import (
     RequiredFieldNoneError,
     TypeFieldError,
 )
+from cyberdelta.models.base_validators import ImmutableModel, required_datetime_validator
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_value
 
 
 # Order book structure constants
 LEVEL_PAIR_LENGTH = 2  # Expected length for price/quantity pairs in order book levels
 
 
-class OrderBook(BaseModel):
+class OrderBook(ImmutableModel):
     """Represents an immutable, validated snapshot of the L2 order book for a specific symbol.
 
     This model enforces strict validation for structure and data types during initialization,
@@ -69,34 +69,12 @@ class OrderBook(BaseModel):
     bids: list[tuple[Decimal, Decimal]]
     asks: list[tuple[Decimal, Decimal]]
 
-    model_config = ConfigDict(extra="forbid", validate_assignment=True, frozen=True)
+    # Config: Immutable (inherited from ImmutableModel)
+    # Use centralized validators
+    _validate_timestamp = required_datetime_validator("timestamp")
 
     # Symbol validation is handled by Pydantic's type system
     # No need for a custom validator since Symbol is always valid
-
-    @field_validator("timestamp", mode="before")
-    @classmethod
-    def validate_timestamp(cls, v: datetime | float | str | None) -> datetime:
-        """Validate and parse the 'timestamp' field to a required UTC datetime object.
-
-        Handles various input types (datetime, int/float ms epoch, ISO string)
-            via `parse_datetime_utc`.
-
-        Args:
-            v: The raw input value for the timestamp.
-
-        Returns:
-            The validated, timezone-aware (UTC) datetime object.
-
-        Raises:
-            RequiredFieldNoneError: If the input is None after parsing.
-        """
-        dt = parse_datetime_utc(v, field_name="timestamp")
-        if dt is None:
-            # This path should ideally not be hit if the field is required by Pydantic's schema
-            # validation for non-optional fields, but this check provides explicit runtime safety.
-            raise RequiredFieldNoneError("timestamp")
-        return dt
 
     @field_validator("bids", "asks", mode="before")
     @classmethod
