@@ -2,7 +2,14 @@
 
 ## Executive Summary
 
-This report analyzes the current retry patterns in the CyberDeltaEngine codebase and provides recommendations for migrating to the Tenacity library. Our analysis found **177 files** containing retry-related patterns, with most implementing custom retry logic that could be significantly simplified using Tenacity.
+This report analyzes the current retry patterns in the CyberDeltaEngine codebase and provides recommendations for migrating to the Tenacity library.
+
+### Current State (December 2024)
+- **Tenacity is already installed**: Version 9.1.2 is included in pyproject.toml dependencies
+- **Minimal usage**: Only 1 file uses tenacity (test file: `test_hl_message_serialization.py`)
+- **50+ files** contain custom retry implementations across APIs, connectivity, and safety modules
+- **No centralized retry patterns library** exists - each module implements its own retry logic
+- **Circuit breaker pattern** is implemented separately in the safety domain without tenacity
 
 ## Architecture Overview
 
@@ -13,44 +20,58 @@ graph TB
         A --> C[WebSocket Manager]
         A --> D[Resilience Service]
         A --> E[Order Management]
-        
+
         B --> F[Manual Exponential Backoff]
         C --> G[Circuit Breaker + Jitter]
         D --> H[Configurable Retries]
         E --> I[Polling Logic]
     end
-    
+
     subgraph "Target State with Tenacity"
         J[Tenacity Library] --> K[Unified Retry Patterns]
         K --> L[HTTP Retry Decorator]
         K --> M[WS Reconnection Decorator]
         K --> N[Resilience Decorator Factory]
         K --> O[Polling Decorator]
-        
+
         P[Common Patterns Library] --> K
     end
-    
+
     A -.->|Migration| J
-    
+
     style A fill:#f96,stroke:#333,stroke-width:2px
     style J fill:#6f9,stroke:#333,stroke-width:2px
 ```
 
-## Current State Analysis
+## Current State Analysis (Verified December 2024)
 
-### Retry Pattern Distribution
+### Actual Retry Pattern Distribution
 
-1. **Custom retry implementations**: 30+ modules
-2. **While loops with try/except**: 153 files
-3. **Sleep patterns (asyncio.sleep)**: 106 files
-4. **No external retry libraries** in production code
+Based on deep code analysis:
 
-### Key Findings
+1. **Custom retry implementations found in**:
+   - `cyberdelta/apis/connectivity/http_client.py`: Manual exponential backoff with `max_retries` and `retry_delay_seconds`
+   - `cyberdelta/apis/connectivity/ws_manager.py`: Custom reconnection logic with jitter
+   - `cyberdelta/apis/websocket/ws_error_recovery.py`: Full error recovery system with backoff strategies
+   - `cyberdelta/domain/safety/circuit_breaker.py`: Circuit breaker pattern without tenacity
+   - Test helpers in `tests/integration/apis/hyperliquid/shared/hl_test_helpers.py`: Polling patterns
 
-- **Fragmented Implementation**: Each module implements its own retry logic, leading to code duplication and inconsistent behavior
-- **Complex Maintenance**: Custom implementations require more code and are harder to test
-- **Missing Features**: Many implementations lack advanced features like jitter, circuit breakers, or comprehensive logging
-- **Error-Prone**: Manual implementation of exponential backoff calculations and state management
+2. **Tenacity usage**:
+   - **Only 1 file uses tenacity**: `tests/integration/apis/hyperliquid/websockets/test_hl_message_serialization.py`
+   - Used only for test retry logic, not production code
+   - Demonstrates the library is available but underutilized
+
+3. **No Resilience Service Found**:
+   - The document mentions `cyberdelta/core/portfolio/services/resilience/resilience_service.py` but this file doesn't exist
+   - No centralized retry configuration or patterns library exists
+
+### Key Verified Findings
+
+- **Tenacity Already Available**: Version 9.1.2 is installed but barely used
+- **Manual Implementations Dominate**: Each component has its own retry logic
+- **Complex WebSocket Recovery**: `ws_error_recovery.py` has 600+ lines implementing custom recovery strategies
+- **Circuit Breaker Exists**: But uses custom implementation without tenacity integration
+- **Rate Limiting Strategies**: Backpack and Hyperliquid have separate rate limit handling without tenacity
 
 ## Priority Refactoring Targets
 
@@ -62,10 +83,10 @@ sequenceDiagram
     participant HTTPClient
     participant Tenacity
     participant Server
-    
+
     Client->>HTTPClient: request(endpoint, data)
     HTTPClient->>Tenacity: @retry decorated method
-    
+
     loop Retry Loop (max 3 attempts)
         Tenacity->>Server: HTTP Request
         alt Success
@@ -83,24 +104,34 @@ sequenceDiagram
             Tenacity->>Tenacity: Sleep(delay)
         end
     end
-    
+
     Tenacity-->>HTTPClient: RetryError (exhausted)
     HTTPClient-->>Client: Final Exception
 ```
 
-### 1. HTTP Client (HIGH PRIORITY)
+### 1. HTTP Client (HIGH PRIORITY) ✅ VERIFIED
 **Location**: `cyberdelta/apis/connectivity/http_client.py`
 
-**Current Implementation**:
+**Current Implementation (Lines 674-714)**:
 ```python
 while current_attempt <= self.max_retries:
     current_attempt += 1
     try:
         return await self._execute_single_request(...)
-    except HttpRequestFailedError as e:
-        if self._should_fail_fast(e):
+    except HttpRequestFailedError as e_http:
+        last_exception = e_http
+        if self._should_fail_fast(e_http):
             raise
-        # Manual exponential backoff
+    except (TimeoutError, aiohttp.ClientError) as e_client:
+        # Log and continue
+        last_exception = e_client
+
+    # Check if we should retry
+    if current_attempt > self.max_retries:
+        return self._handle_final_failure(last_exception, full_url, endpoint_path)
+
+    # Apply retry delay (line 893-904)
+    if last_exception and not self._should_skip_retry_delay(last_exception):
         delay = self.retry_delay_seconds * (2 ** (current_attempt - 1))
         await asyncio.sleep(delay)
 ```
@@ -135,7 +166,7 @@ async def _execute_request_with_tenacity(self, ...):
 - Built-in logging support
 - Cleaner exception handling
 
-### 2. WebSocket Manager (HIGH PRIORITY)
+### 2. WebSocket Manager (HIGH PRIORITY) ✅ VERIFIED
 **Location**: `cyberdelta/apis/connectivity/ws_manager.py`
 
 #### WebSocket Reconnection State Machine
@@ -144,29 +175,29 @@ async def _execute_request_with_tenacity(self, ...):
 stateDiagram-v2
     [*] --> Connected: Initial Connection
     Connected --> Disconnected: Connection Lost
-    
+
     Disconnected --> Reconnecting: Should Reconnect = True
     Disconnected --> [*]: Should Reconnect = False
-    
+
     Reconnecting --> CircuitBreakerCheck: Check Circuit
     CircuitBreakerCheck --> CircuitOpen: Breaker Open
     CircuitBreakerCheck --> AttemptConnection: Breaker Closed
-    
+
     CircuitOpen --> [*]: Stop Retrying
-    
+
     AttemptConnection --> Connected: Success
     AttemptConnection --> ExponentialBackoff: Failed
-    
+
     ExponentialBackoff --> JitterCalculation: Calculate Delay
     JitterCalculation --> Sleep: delay + jitter
     Sleep --> Reconnecting: Next Attempt
-    
+
     state ExponentialBackoff {
         [*] --> CalculateBase
         CalculateBase --> ApplyMultiplier: base * 2^attempt
         ApplyMultiplier --> [*]
     }
-    
+
     state JitterCalculation {
         [*] --> RandomJitter
         RandomJitter --> ApplyBounds: ±20% of base
@@ -174,18 +205,18 @@ stateDiagram-v2
     }
 ```
 
-**Current Implementation**:
+**Current Implementation (Lines 350-389)**:
 ```python
-while self._should_reconnect and current_attempt < self._max_reconnect_attempts:
-    if self._is_circuit_breaker_open():
-        break
-    
-    if current_attempt > 0:
-        # Manual exponential backoff with jitter
-        backoff_base = self._reconnect_delay * (2 ** (attempt - 1))
-        jitter = backoff_base * 0.2 * (random() - 0.5)
-        actual_delay = max(1.0, backoff_base + jitter)
-        await asyncio.sleep(actual_delay)
+# From ws_manager.py line 360-389
+if current_attempt > 0:
+    await self._apply_reconnect_delay(current_attempt)
+
+async def _apply_reconnect_delay(self, attempt: int) -> None:
+    """Apply exponential backoff delay before reconnection attempt."""
+    backoff_base = self._reconnect_delay * (2 ** (attempt - 1))
+    jitter = backoff_base * 0.2 * (secrets.SystemRandom().random() - 0.5)
+    actual_delay = max(1.0, backoff_base + jitter)
+    await asyncio.sleep(actual_delay)
 ```
 
 **Proposed Tenacity Implementation**:
@@ -219,26 +250,39 @@ async def _establish_connection_with_tenacity(self):
 - Custom stop conditions for circuit breaker
 - Cleaner separation of retry logic from business logic
 
-### 3. Resilience Service (MEDIUM PRIORITY)
-**Location**: `cyberdelta/core/portfolio/services/resilience/resilience_service.py`
+### 3. WebSocket Error Recovery (MEDIUM PRIORITY) ✅ VERIFIED
+**Location**: `cyberdelta/apis/websocket/ws_error_recovery.py`
 
-**Current Implementation**:
+**Current Implementation (Lines 567-614)**:
 ```python
-for attempt in range(self.config.max_attempts):
-    try:
-        return await func(*args, **kwargs)
-    except self.config.retriable_exceptions as e:
-        if attempt == self.config.max_attempts - 1:
+# Complex recovery loop with custom backoff
+async def _recovery_loop(self) -> None:
+    """Recovery loop with backoff strategy."""
+    while self.retry_count < self.config.backoff.max_retries:
+        # Check circuit breaker
+        if self.state == ConnectionState.CIRCUIT_OPEN:
+            if self._should_close_circuit():
+                self.state = ConnectionState.DISCONNECTED
+            else:
+                await asyncio.sleep(self.config.health_check_interval)
+                continue
+
+        # Apply backoff delay
+        if self.retry_count > 0:
+            delay = self._calculate_backoff_delay()
+            await asyncio.sleep(delay)
+
+        self.state = ConnectionState.RECONNECTING
+        self.retry_count += 1
+
+        # Attempt reconnection
+        if await self._attempt_reconnection():
+            await self._replay_messages()
+            await self._synchronize_state()
             break
-        
-        # Manual jitter calculation
-        actual_delay = delay
-        if self.config.jitter:
-            actual_delay *= 0.5 + random() * 0.5
-        
-        await asyncio.sleep(actual_delay)
-        delay = min(delay * self.config.backoff_multiplier, self.config.max_delay)
 ```
+
+**Note**: This is a 600+ line file with complex recovery logic that would benefit significantly from tenacity
 
 **Proposed Tenacity Implementation**:
 ```python
@@ -269,18 +313,37 @@ async def execute_with_retry(self, func, *args, **kwargs):
 - Reusable retry decorators
 - Better testability
 
-### 4. Order Management Service (MEDIUM PRIORITY)
-**Location**: `cyberdelta/core/services/order_management.py`
+### 4. Test Helper Polling Patterns (LOW PRIORITY) ✅ VERIFIED
+**Location**: `tests/integration/apis/hyperliquid/shared/hl_test_helpers.py`
 
-**Current Implementation**:
+**Current Implementation (Lines 837-948)**:
 ```python
-start_time = time.time()
-while time.time() - start_time < timeout_seconds:
-    status = await self._check_order_status(order_id)
-    if status in final_states:
-        return status
-    await asyncio.sleep(poll_interval_seconds)
+# Example from wait_for_order_placement
+async def wait_for_order_placement(
+    api: HyperliquidAPI,
+    order_id: str,
+    timeout_seconds: int = 30,
+) -> None:
+    attempt = 0
+    async with asyncio.timeout(timeout_seconds):
+        while True:
+            open_orders = await api.get_open_orders()
+            if any(order.exchange_order_id == order_id for order in open_orders):
+                return  # Order found
+
+            # Adaptive polling interval
+            attempt += 1
+            if attempt <= 3:
+                interval = 0.5  # Fast initial checks
+            elif attempt <= 10:
+                interval = 1.0  # Standard polling
+            else:
+                interval = 2.0  # Slower polling
+
+            await asyncio.sleep(interval)
 ```
+
+**Note**: Multiple similar polling patterns exist for order cancellation, condition checking, etc.
 
 **Proposed Tenacity Implementation**:
 ```python
@@ -305,34 +368,20 @@ async def wait_for_order_completion(self, order_id):
 
 ## Implementation Strategy
 
-### Installation with UV Package Manager
+### ✅ Installation Status (ALREADY COMPLETE)
 
-```bash
-# Add tenacity to project dependencies
-uv add tenacity
-
-# Or add to pyproject.toml
-uv add --optional tenacity  # for optional dependency
-
-# Sync dependencies
-uv sync
-```
-
-### pyproject.toml Configuration
-
+**Tenacity is already installed in pyproject.toml:**
 ```toml
-[project]
-dependencies = [
-    "tenacity>=8.2.0",
-    # other dependencies...
-]
-
-[project.optional-dependencies]
-test = [
-    "pytest-asyncio>=0.21.0",
-    "pytest-mock>=3.12.0",
-]
+# Line 58 of pyproject.toml
+"tenacity==9.1.2",
 ```
+
+### Next Steps Required
+
+1. **Create the missing retry patterns library** (`cyberdelta/core/utils/retry_patterns.py`)
+2. **Migrate existing implementations** starting with high-priority targets
+3. **Integrate with existing circuit breaker** in `cyberdelta/domain/safety/`
+4. **Update test files** to use centralized patterns instead of custom tenacity decorators
 
 ### Migration Timeline
 
@@ -345,19 +394,19 @@ gantt
     Create Patterns Library    :a2, after a1, 3d
     Write Unit Tests          :a3, after a2, 4d
     Documentation             :a4, after a3, 3d
-    
+
     section Phase 2: Critical
     HTTP Client Migration     :b1, 2024-01-29, 5d
     WebSocket Manager         :b2, after b1, 5d
     Integration Tests         :b3, after b2, 3d
     Performance Benchmark     :b4, after b3, 2d
-    
+
     section Phase 3: Services
     Resilience Service        :c1, 2024-02-19, 4d
     Order Management          :c2, after c1, 3d
     Remaining Services        :c3, after c2, 5d
     Full Integration Tests    :c4, after c3, 3d
-    
+
     section Phase 4: Cleanup
     Remove Old Code           :d1, 2024-03-11, 3d
     Update Documentation      :d2, after d1, 2d
@@ -389,30 +438,32 @@ gantt
 3. Team training
 4. Code review
 
-## Common Patterns Library
+## Common Patterns Library (TO BE CREATED)
+
+**Status**: ❌ Does not exist yet - needs to be created at `cyberdelta/core/utils/retry_patterns.py`
 
 ### Retry Strategy Decision Flow
 
 ```mermaid
 flowchart TD
     Start([Operation Type]) --> A{Is it an API call?}
-    
+
     A -->|Yes| B{Is it idempotent?}
     B -->|Yes| C[Use api_retry pattern]
     B -->|No| D[Use cautious_retry pattern]
-    
+
     A -->|No| E{Is it a WebSocket?}
     E -->|Yes| F{Has circuit breaker?}
     F -->|Yes| G[Use ws_retry + circuit_breaker]
     F -->|No| H[Use standard ws_retry]
-    
+
     E -->|No| I{Is it polling?}
     I -->|Yes| J[Use polling_retry pattern]
     I -->|No| K{Is it a database operation?}
-    
+
     K -->|Yes| L[Use db_retry pattern]
     K -->|No| M[Use generic_retry pattern]
-    
+
     style C fill:#9f9,stroke:#333,stroke-width:2px
     style D fill:#9f9,stroke:#333,stroke-width:2px
     style G fill:#9f9,stroke:#333,stroke-width:2px
@@ -487,10 +538,10 @@ def polling_retry(timeout: float, interval: float, success_condition: Callable[[
 # Circuit breaker integration
 class CircuitBreakerRetry:
     """Custom stop condition that integrates with circuit breakers."""
-    
+
     def __init__(self, circuit_breaker):
         self.circuit_breaker = circuit_breaker
-    
+
     def __call__(self, retry_state: RetryCallState) -> bool:
         """Stop retrying if circuit breaker is open."""
         if self.circuit_breaker.is_open():
@@ -517,7 +568,7 @@ def retry_with_fallback(
                 if fallback_exception:
                     raise fallback_exception(f"Retry exhausted: {str(e)}") from e
                 return fallback_value
-        
+
         @wraps(func)
         def sync_wrapper(*args, **kwargs) -> T:
             try:
@@ -526,14 +577,14 @@ def retry_with_fallback(
                 if fallback_exception:
                     raise fallback_exception(f"Retry exhausted: {str(e)}") from e
                 return fallback_value
-        
+
         return async_wrapper if asyncio.iscoroutinefunction(func) else sync_wrapper
     return decorator
 
 # Dynamic retry configuration
 class RetryConfig:
     """Configuration class for dynamic retry behavior."""
-    
+
     def __init__(
         self,
         max_attempts: int = 3,
@@ -549,7 +600,7 @@ class RetryConfig:
         self.exponential_base = exponential_base
         self.jitter = jitter
         self.retriable_exceptions = retriable_exceptions
-    
+
     def create_retry_decorator(self):
         """Create a retry decorator from this configuration."""
         wait_strategy = (
@@ -564,7 +615,7 @@ class RetryConfig:
                 exp_base=self.exponential_base
             )
         )
-        
+
         return retry(
             stop=stop_after_attempt(self.max_attempts),
             wait=wait_strategy,
@@ -584,7 +635,7 @@ from tenacity import RetryError
 @pytest.mark.asyncio
 async def test_http_client_retry():
     client = HttpClient()
-    
+
     # Mock failing then succeeding
     with patch.object(client, '_execute_single_request') as mock:
         mock.side_effect = [
@@ -592,7 +643,7 @@ async def test_http_client_retry():
             HttpRequestFailedError(http_status_code=503),
             {'data': 'success'}
         ]
-        
+
         result = await client._execute_request_with_tenacity(...)
         assert result == {'data': 'success'}
         assert mock.call_count == 3
@@ -600,10 +651,10 @@ async def test_http_client_retry():
 @pytest.mark.asyncio
 async def test_retry_exhaustion():
     client = HttpClient()
-    
+
     with patch.object(client, '_execute_single_request') as mock:
         mock.side_effect = HttpRequestFailedError(http_status_code=500)
-        
+
         with pytest.raises(RetryError):
             await client._execute_request_with_tenacity(...)
 ```
@@ -625,14 +676,14 @@ graph LR
         G1 -->|Yes| H1[Raise Error]
         C1 -->|Yes| I1[Return Result]
     end
-    
+
     subgraph "Tenacity Implementation"
         A2[Function Call] --> B2[@retry Decorator]
         B2 --> C2[Tenacity Engine]
         C2 --> D2[Automated Retry Logic]
         D2 --> E2[Return Result/Error]
     end
-    
+
     style A1 fill:#f96,stroke:#333,stroke-width:2px
     style A2 fill:#6f9,stroke:#333,stroke-width:2px
 ```
@@ -655,11 +706,12 @@ graph LR
 
 ## Risk Mitigation
 
-1. **Gradual Migration**: Start with non-critical components
+1. **Gradual Migration**: Start with test helpers first (already have tenacity example)
 2. **Feature Flags**: Toggle between old and new implementations
 3. **Comprehensive Testing**: Unit, integration, and load tests
 4. **Monitoring**: Track retry metrics and success rates
 5. **Rollback Plan**: Keep old implementation for 2 releases
+6. **Leverage Existing Installation**: Tenacity is already available, reducing deployment risk
 
 ## Expected Benefits
 
@@ -677,13 +729,19 @@ graph LR
 
 ## Conclusion
 
-Migrating to Tenacity will significantly improve the CyberDeltaEngine codebase by:
-1. Reducing complexity and code duplication
-2. Providing consistent retry behavior
-3. Enabling advanced retry patterns
-4. Improving testability and maintainability
+### Current Reality (December 2024)
+- Tenacity is installed but severely underutilized (only 1 test file uses it)
+- Custom retry implementations are scattered across 50+ files
+- No centralized retry patterns library exists
+- Circuit breaker and error recovery systems use custom implementations
 
-The investment in migration will pay dividends through reduced bugs, easier maintenance, and access to battle-tested retry patterns used by the Python community.
+### Recommended Actions
+1. **Immediate**: Create `cyberdelta/core/utils/retry_patterns.py` with common patterns
+2. **Short-term**: Migrate HTTP client and WebSocket manager to use tenacity
+3. **Medium-term**: Refactor WebSocket error recovery to leverage tenacity
+4. **Long-term**: Integrate tenacity with circuit breaker and create unified retry strategy
+
+The investment in migration will pay dividends through reduced bugs, easier maintenance, and access to battle-tested retry patterns. The fact that tenacity is already installed removes a major barrier to adoption.
 
 ## Monitoring and Observability
 
@@ -694,22 +752,22 @@ graph TB
     subgraph "Tenacity Metrics Collection"
         A[Retry Decorator] --> B[Statistics Collector]
         B --> C{Metrics}
-        
+
         C --> D[Attempt Count]
         C --> E[Success Rate]
         C --> F[Failure Reasons]
         C --> G[Retry Delays]
         C --> H[Total Duration]
-        
+
         D --> I[Prometheus Exporter]
         E --> I
         F --> I
         G --> I
         H --> I
-        
+
         I --> J[Grafana Dashboard]
     end
-    
+
     subgraph "Alert Rules"
         J --> K{Threshold Check}
         K -->|High Failure Rate| L[PagerDuty Alert]
@@ -776,26 +834,20 @@ def track_retry_metrics(service: str, operation: str):
 
 ## Appendix: Quick Reference
 
-### Installation with UV
+### Current Installation Status ✅
 ```bash
-# Add to project
-uv add tenacity
+# Already installed in pyproject.toml:
+tenacity==9.1.2
 
-# Install with extras
-uv add "tenacity[async]"
-
-# Development dependencies
-uv add --dev pytest-asyncio pytest-mock
-
-# Sync all dependencies
-uv sync
+# To verify installation:
+python -c "import tenacity; print(tenacity.__version__)"
 ```
 
 ### Common Patterns
 ```python
 # Import common patterns
 from cyberdelta.core.utils.retry_patterns import (
-    api_retry, cautious_retry, ws_retry, 
+    api_retry, cautious_retry, ws_retry,
     polling_retry, db_retry, RetryConfig
 )
 
@@ -839,12 +891,42 @@ async def get_service_status():
 
 ### Migration Checklist
 
-- [ ] Install Tenacity using `uv add tenacity`
-- [ ] Create retry patterns library
-- [ ] Identify high-priority retry implementations
+- [x] ~~Install Tenacity~~ (Already installed: v9.1.2)
+- [ ] Create retry patterns library at `cyberdelta/core/utils/retry_patterns.py`
+- [x] Identify high-priority retry implementations (HTTP Client, WS Manager, WS Error Recovery)
 - [ ] Write comprehensive tests for each pattern
-- [ ] Migrate one component at a time
+- [ ] Migrate HTTP Client (`cyberdelta/apis/connectivity/http_client.py`)
+- [ ] Migrate WebSocket Manager (`cyberdelta/apis/connectivity/ws_manager.py`)
+- [ ] Migrate WebSocket Error Recovery (`cyberdelta/apis/websocket/ws_error_recovery.py`)
+- [ ] Integrate with Circuit Breaker (`cyberdelta/domain/safety/circuit_breaker.py`)
+- [ ] Update test helpers to use centralized patterns
 - [ ] Monitor retry metrics in production
 - [ ] Remove old retry code after validation
 - [ ] Update team documentation
 - [ ] Conduct knowledge sharing session
+
+### Key Files Identified for Migration
+
+| Priority | File | Current State | Lines of Retry Code |
+|----------|------|--------------|-------------------|
+| HIGH | `http_client.py` | Manual exponential backoff | ~50 lines |
+| HIGH | `ws_manager.py` | Custom reconnection with jitter | ~40 lines |
+| MEDIUM | `ws_error_recovery.py` | Complex recovery system | 600+ lines |
+| MEDIUM | `circuit_breaker.py` | Custom implementation | ~100 lines |
+| LOW | `hl_test_helpers.py` | Polling patterns | ~100 lines |
+
+### Existing Tenacity Usage Example
+
+Found in `tests/integration/apis/hyperliquid/websockets/test_hl_message_serialization.py`:
+```python
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=10),
+    retry=retry_if_exception_type((ConnectionError, OSError)),
+)
+async def _setup_websocket_connection(self, api: HyperliquidAPI) -> None:
+    """Set up WebSocket connection with retry for network issues only."""
+    await api.connect_websocket()
+```
+
+This demonstrates tenacity is working and can be used as a reference for migration.
