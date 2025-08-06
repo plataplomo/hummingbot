@@ -14,7 +14,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.models.app_config import AppSettings
-from cyberdelta.domain.trading.safe_mode_wrapper import SafeModeWrapper
+from cyberdelta.domain.trading.simulation import SafeModeWrapper
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.symbols import exchanges
 

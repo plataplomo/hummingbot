@@ -16,7 +16,7 @@ from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.monitoring.health_monitor import ServiceType
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
-from cyberdelta.domain.trading.execution_engine import ExecutionEngine
+from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.events import (
@@ -303,7 +303,11 @@ class TradingService(HealthCheckable):
                     symbol=order.symbol,
                     executed_at=order.updated_at or datetime.now(UTC),
                     side=order.side,
-                    order_id=order.exchange_order_id or "",
+                    order_id=(
+                        order.exchange_order_id
+                        if order.exchange_order_id is not None
+                        else "pending"
+                    ),
                     exchange=order.exchange.value,
                     price=order.average_fill_price or order.price or Decimal(0),
                     quantity=order.quantity_filled,
@@ -345,7 +349,9 @@ class TradingService(HealthCheckable):
 
             # Publish order executed event
             order_event = OrderExecutedEvent(
-                order_id=order.exchange_order_id or "",
+                order_id=(
+                    order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
+                ),
                 symbol=order.symbol,
                 exchange=order.exchange,
                 side=order.side,
@@ -367,7 +373,9 @@ class TradingService(HealthCheckable):
 
             signal_event = SignalProcessedEvent(
                 signal_id=original_signal.signal_id,
-                order_id=order.exchange_order_id or "",
+                order_id=(
+                    order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
+                ),
                 symbol=original_signal.symbol,
                 exchange=signal_exchange,
                 success=order.status.value in {"OPEN", "FILLED", "PARTIALLY_FILLED"},

@@ -653,8 +653,12 @@ class SafeModeWrapper:
         fee = order.quantity_requested * fill_price * fee_rate
 
         # Create simulated fill
+        if order.exchange_order_id is None:
+            # For simulation, generate an order ID if not present
+            order.exchange_order_id = f"SIM-{order.client_order_id}"
+
         fill = SimulatedFill(
-            order_id=order.exchange_order_id or "",
+            order_id=order.exchange_order_id,
             symbol=order.symbol,
             side=order.side,
             price=fill_price,
