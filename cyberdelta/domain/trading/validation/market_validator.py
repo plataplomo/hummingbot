@@ -82,7 +82,9 @@ class MarketValidator:
 
     @staticmethod
     def _check_price_deviation(
-        order: Order, ticker: Ticker, exchange_config: ExchangeSpecificConfig,
+        order: Order,
+        ticker: Ticker,
+        exchange_config: ExchangeSpecificConfig,
     ) -> list[str]:
         """Check order price deviation from market.
 
@@ -122,7 +124,9 @@ class MarketValidator:
             if order_book:
                 violations.extend(
                     MarketValidator._validate_book_depth(
-                        order, order_book, exchange_config.min_order_book_depth,
+                        order,
+                        order_book,
+                        exchange_config.min_order_book_depth,
                     ),
                 )
 

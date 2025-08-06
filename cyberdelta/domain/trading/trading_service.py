@@ -204,7 +204,9 @@ class TradingService(HealthCheckable):
         - Proper logging for each execution
         """
         logger.info(
-            "bulk_signal_execution_started", signal_count=len(signals), safe_mode=self._safe_mode,
+            "bulk_signal_execution_started",
+            signal_count=len(signals),
+            safe_mode=self._safe_mode,
         )
 
         orders: list[Order] = []
@@ -423,12 +425,16 @@ class TradingService(HealthCheckable):
             await self._portfolio_service.save_state()
 
             logger.debug(
-                "order_persisted", order_id=order.exchange_order_id, symbol=order.symbol.value,
+                "order_persisted",
+                order_id=order.exchange_order_id,
+                symbol=order.symbol.value,
             )
 
         except Exception as e:
             logger.exception(
-                "order_persistence_failed", order_id=order.exchange_order_id, error=str(e),
+                "order_persistence_failed",
+                order_id=order.exchange_order_id,
+                error=str(e),
             )
             # Don't re-raise - persistence failure shouldn't cancel trade
 

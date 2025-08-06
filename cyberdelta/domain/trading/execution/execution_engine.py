@@ -244,13 +244,16 @@ class ExecutionEngine(HealthCheckable):
             timeout = exchange_config.request_timeout_seconds
 
             success = await asyncio.wait_for(
-                self._cancel_order_via_api(api_client, order), timeout=timeout,
+                self._cancel_order_via_api(api_client, order),
+                timeout=timeout,
             )
 
             if success:
                 self._order_tracker.update_order_status(order_id, OrderStatus.CANCELED)
                 logger.info(
-                    "order_cancelled_success", order_id=order_id, exchange=order.exchange.value,
+                    "order_cancelled_success",
+                    order_id=order_id,
+                    exchange=order.exchange.value,
                 )
 
         except Exception as e:
@@ -372,7 +375,10 @@ class ExecutionEngine(HealthCheckable):
         return order_type, price
 
     async def _create_and_validate_order(
-        self, request: ExecutionRequest, order_type: OrderType, price: Decimal | None,
+        self,
+        request: ExecutionRequest,
+        order_type: OrderType,
+        price: Decimal | None,
     ) -> Order:
         """Create order and validate if validator available.
 
@@ -494,7 +500,9 @@ class ExecutionEngine(HealthCheckable):
             raise ValueError(msg)
 
     def _calculate_limit_price(
-        self, side: OrderSide, market_price: Decimal | None,
+        self,
+        side: OrderSide,
+        market_price: Decimal | None,
     ) -> Decimal | None:
         """Calculate limit price with configured offset.
 
@@ -611,7 +619,8 @@ class ExecutionEngine(HealthCheckable):
                 )
 
                 exchange_order = await asyncio.wait_for(
-                    self._place_order_via_api(api_client, order), timeout=timeout,
+                    self._place_order_via_api(api_client, order),
+                    timeout=timeout,
                 )
 
                 # Update order with exchange response
@@ -705,7 +714,9 @@ class ExecutionEngine(HealthCheckable):
 
         except Exception as e:
             logger.exception(
-                "api_cancel_order_error", order_id=order.exchange_order_id, error=str(e),
+                "api_cancel_order_error",
+                order_id=order.exchange_order_id,
+                error=str(e),
             )
             return False
 

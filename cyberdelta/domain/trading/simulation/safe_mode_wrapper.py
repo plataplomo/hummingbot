@@ -101,7 +101,10 @@ class SafeModeWrapper:
     """
 
     def __init__(
-        self, config: AppSettings, real_api: ExchangeAPI, exchange_name: ExchangeName,
+        self,
+        config: AppSettings,
+        real_api: ExchangeAPI,
+        exchange_name: ExchangeName,
     ) -> None:
         """Initialize safe mode wrapper with real ExchangeAPI.
 
@@ -364,7 +367,8 @@ class SafeModeWrapper:
         return await self._real_api.get_funding_rates(args)
 
     async def get_historical_funding_rates(
-        self, args: GetHistoricalFundingRatesArgs,
+        self,
+        args: GetHistoricalFundingRatesArgs,
     ) -> list[FundingRate]:
         """Get historical funding rates - always use real market data.
 
@@ -556,7 +560,8 @@ class SafeModeWrapper:
         return results
 
     async def cancel_batch_orders(
-        self, cancel_args: list[CancelOrderArgs],
+        self,
+        cancel_args: list[CancelOrderArgs],
     ) -> list[CancelOrderResult]:
         """Cancel batch orders - simulated in safe mode, real in normal mode.
 

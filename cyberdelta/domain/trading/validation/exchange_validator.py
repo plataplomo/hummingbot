@@ -63,7 +63,8 @@ class ExchangeValidator:
 
     @staticmethod
     def _check_order_value_constraints(
-        order: Order, exchange_config: ExchangeSpecificConfig,
+        order: Order,
+        exchange_config: ExchangeSpecificConfig,
     ) -> list[str]:
         """Check order value against min/max constraints.
 
@@ -147,7 +148,8 @@ class ExchangeValidator:
 
     @staticmethod
     def _check_quantity_alignment(
-        order: Order, exchange_config: ExchangeSpecificConfig,
+        order: Order,
+        exchange_config: ExchangeSpecificConfig,
     ) -> list[str]:
         """Check quantity alignment against lot size.
 

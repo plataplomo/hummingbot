@@ -61,7 +61,10 @@ class FeeCalculator:
 
         # Calculate base fee amount
         fee_amount = FeeCalculator._calculate_base_fee(
-            fee_structure, fill_price, fill_quantity, fee_rate,
+            fee_structure,
+            fill_price,
+            fill_quantity,
+            fee_rate,
         )
 
         # Apply fee limits
@@ -85,7 +88,8 @@ class FeeCalculator:
 
     @staticmethod
     def _get_fee_structure(
-        exchange_config: ExchangeSpecificConfig, exchange: ExchangeName,
+        exchange_config: ExchangeSpecificConfig,
+        exchange: ExchangeName,
     ) -> FeeStructureConfig:
         """Get fee structure from exchange config.
 
@@ -147,7 +151,9 @@ class FeeCalculator:
 
     @staticmethod
     def _apply_fee_limits(
-        fee_structure: FeeStructureConfig, fee_amount: Decimal, exchange: ExchangeName,
+        fee_structure: FeeStructureConfig,
+        fee_amount: Decimal,
+        exchange: ExchangeName,
     ) -> Decimal:
         """Apply minimum and maximum fee limits.
 

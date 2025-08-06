@@ -56,13 +56,17 @@ class OrderModificationValidator:
         # Check modification-specific constraints
         violations.extend(
             OrderModificationValidator._check_price_change(
-                original_order, modified_order, exchange_config,
+                original_order,
+                modified_order,
+                exchange_config,
             ),
         )
 
         violations.extend(
             OrderModificationValidator._check_quantity_change(
-                original_order, modified_order, exchange_config,
+                original_order,
+                modified_order,
+                exchange_config,
             ),
         )
 

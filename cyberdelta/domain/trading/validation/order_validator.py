@@ -110,7 +110,9 @@ class OrderValidator:
             market_snapshot = await self._market_service.get_market_snapshot()
             if market_snapshot:
                 market_violations = await MarketValidator.validate(
-                    order, market_snapshot, exchange_config,
+                    order,
+                    market_snapshot,
+                    exchange_config,
                 )
                 violations.extend(market_violations)
             else:
@@ -145,14 +147,18 @@ class OrderValidator:
 
         except Exception as e:
             logger.exception(
-                "order_validation_error", order_id=order.exchange_order_id, error=str(e),
+                "order_validation_error",
+                order_id=order.exchange_order_id,
+                error=str(e),
             )
             raise
 
         return violations
 
     async def validate_order_modification(
-        self, original_order: Order, modified_order: Order,
+        self,
+        original_order: Order,
+        modified_order: Order,
     ) -> list[str]:
         """Validate order modification request.
 
@@ -177,7 +183,9 @@ class OrderValidator:
 
         # Check modification-specific constraints
         modification_violations = await OrderModificationValidator.validate_modification(
-            original_order, modified_order, exchange_config,
+            original_order,
+            modified_order,
+            exchange_config,
         )
         violations.extend(modification_violations)
 
@@ -202,7 +210,8 @@ class OrderValidator:
 
         # Check cancellation constraints
         cancellation_violations = OrderModificationValidator.validate_cancellation(
-            order, exchange_config,
+            order,
+            exchange_config,
         )
         violations.extend(cancellation_violations)
 

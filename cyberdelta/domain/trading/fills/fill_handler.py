@@ -100,12 +100,21 @@ class FillHandler:
 
             # Calculate fees using exchange configuration
             fee_amount, fee_asset = FeeCalculator.calculate_fee(
-                order, fill_price, fill_quantity, fill_data, exchange_config,
+                order,
+                fill_price,
+                fill_quantity,
+                fill_data,
+                exchange_config,
             )
 
             # Create Trade object with all calculated values
             trade = FillProcessor.process_fill(
-                order, fill_price, fill_quantity, fee_amount, fee_asset, fill_data,
+                order,
+                fill_price,
+                fill_quantity,
+                fee_amount,
+                fee_asset,
+                fill_data,
             )
 
             # Update portfolio with trade
@@ -118,7 +127,9 @@ class FillHandler:
 
         except Exception as e:
             logger.exception(
-                "fill_processing_failed", order_id=order.exchange_order_id, error=str(e),
+                "fill_processing_failed",
+                order_id=order.exchange_order_id,
+                error=str(e),
             )
             raise
 
@@ -169,7 +180,9 @@ class FillHandler:
         return trade
 
     async def process_bulk_fills(
-        self, order: Order, fill_list: list[dict[str, object]],
+        self,
+        order: Order,
+        fill_list: list[dict[str, object]],
     ) -> list[Trade]:
         """Process multiple fills for an order efficiently.
 
