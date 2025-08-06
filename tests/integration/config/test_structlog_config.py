@@ -221,14 +221,20 @@ class TestGetLogger:
         """Test that get_logger binds context correctly."""
         # Configure structlog for testing
         cap = structlog.testing.LogCapture()
-        structlog.configure(processors=[structlog.processors.dict_tracebacks], logger_factory=lambda *args: cap)
+        structlog.configure(
+            processors=[structlog.processors.dict_tracebacks],
+            logger_factory=lambda *args: cap,
+        )
 
         logger = get_logger("test_module", request_id="123", user="test_user")
         assert isinstance(logger, TraceLevelLogger)
 
         # Context binding should work
         cap = structlog.testing.LogCapture()
-        structlog.configure(processors=[structlog.processors.dict_tracebacks], logger_factory=lambda *args: cap)
+        structlog.configure(
+            processors=[structlog.processors.dict_tracebacks],
+            logger_factory=lambda *args: cap,
+        )
 
         logger = get_logger("test_module", request_id="123", user="test_user")
         logger.info("test_event", action="test")
@@ -249,7 +255,10 @@ class TestGetLogger:
         assert isinstance(logger2, TraceLevelLogger)
         # Both should be functional - set up new capture for this test
         test_cap = structlog.testing.LogCapture()
-        structlog.configure(processors=[structlog.processors.dict_tracebacks], logger_factory=lambda *args: test_cap)
+        structlog.configure(
+            processors=[structlog.processors.dict_tracebacks],
+            logger_factory=lambda *args: test_cap,
+        )
 
         logger1 = get_logger("module1")
         logger2 = get_logger("module2")
@@ -266,7 +275,10 @@ class TestStructuredLogging:
     def test_structured_logging_format(self) -> None:
         """Test that structured logging produces expected format."""
         cap = structlog.testing.LogCapture()
-        structlog.configure(processors=[structlog.processors.dict_tracebacks], logger_factory=lambda *args: cap)
+        structlog.configure(
+            processors=[structlog.processors.dict_tracebacks],
+            logger_factory=lambda *args: cap,
+        )
 
         logger = get_logger("test_module")
         logger.info(
@@ -290,7 +302,10 @@ class TestStructuredLogging:
     def test_logging_levels(self) -> None:
         """Test that different logging levels work correctly."""
         cap = structlog.testing.LogCapture()
-        structlog.configure(processors=[structlog.processors.dict_tracebacks], logger_factory=lambda *args: cap)
+        structlog.configure(
+            processors=[structlog.processors.dict_tracebacks],
+            logger_factory=lambda *args: cap,
+        )
 
         logger = get_logger("test_module")
 
@@ -313,7 +328,10 @@ class TestStructuredLogging:
     def test_context_propagation(self) -> None:
         """Test that context propagates correctly through bound loggers."""
         cap = structlog.testing.LogCapture()
-        structlog.configure(processors=[structlog.processors.dict_tracebacks], logger_factory=lambda *args: cap)
+        structlog.configure(
+            processors=[structlog.processors.dict_tracebacks],
+            logger_factory=lambda *args: cap,
+        )
 
         base_logger = get_logger("test_module")
         bound_logger = base_logger.bind(request_id="req_123", session="sess_456")
@@ -336,7 +354,10 @@ class TestStructuredLogging:
                 verification.
         """
         cap = structlog.testing.LogCapture()
-        structlog.configure(processors=[structlog.processors.dict_tracebacks], logger_factory=lambda *args: cap)
+        structlog.configure(
+            processors=[structlog.processors.dict_tracebacks],
+            logger_factory=lambda *args: cap,
+        )
 
         logger = get_logger("test_module")
 

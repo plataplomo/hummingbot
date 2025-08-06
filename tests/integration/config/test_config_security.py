@@ -29,6 +29,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.secrets_manager import SecretsManager
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets, PrivateKeyAuthSecrets
+from cyberdelta.exceptions.field_validation import TypeFieldError
 
 
 @pytest.fixture
@@ -159,7 +160,6 @@ def test_config_validation_failure(
     secure_config_manager_setup: tuple[ConfigManager, str, str],
 ) -> None:
     """Test that an invalid config fails validation."""
-    from cyberdelta.config.validation import TypeFieldError
     _, _, invalid_config_path = secure_config_manager_setup
     with pytest.raises(TypeFieldError):
         ConfigManager(invalid_config_path)

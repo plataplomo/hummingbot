@@ -11,7 +11,6 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.config.models.app_config import AppSettings
-from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.models.execution_config import (
     ExecutionCompensationSettings,
@@ -29,6 +28,7 @@ from cyberdelta.config.models.safety_config import (
     CircuitBreakerSettings,
     SafetySystemsSettings,
 )
+from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 class TestGeneralSettings:
@@ -111,10 +111,9 @@ class TestGeneralSettings:
         assert "module_log_levels" in str(exc_info.value)
 
         # Empty module name (raises EmptyStringError)
-        from cyberdelta.config.validation import EmptyStringError
-        with pytest.raises(EmptyStringError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info_empty:
             GeneralSettings.model_validate({"module_log_levels": {"": "DEBUG"}})
-        assert "module_log_levels" in str(exc_info.value)
+        assert "module_log_levels" in str(exc_info_empty.value)
 
     def test_positive_integer_constraints(self) -> None:
         """Test positive integer field constraints."""
@@ -259,9 +258,9 @@ class TestExchangeSpecificConfig:
 
         # Non-dict symbols
         base_data["symbols"] = ["BTC", "ETH"]
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info_validation:
             ExchangeSpecificConfig.model_validate(base_data)
-        assert "symbols" in str(exc_info.value)
+        assert "symbols" in str(exc_info_validation.value)
 
 
 class TestStrategyParamsHLPerpBPSpot:
@@ -532,7 +531,7 @@ class TestRiskSettings:
         # Valid fraction (equal to 1 - allowed by le=1)
         base_data["sizing"]["simple_fixed_fraction"] = "1"
         settings = RiskSettings.model_validate(base_data)
-        assert settings.sizing.simple_fixed_fraction == Decimal("1")
+        assert settings.sizing.simple_fixed_fraction == Decimal(1)
 
         # Invalid fraction (greater than 1)
         base_data["sizing"]["simple_fixed_fraction"] = "1.5"
@@ -597,22 +596,22 @@ class TestBalanceMonitoringSettings:
         assert "min_balance_thresholds_usd" in str(exc_info.value)
 
         # Zero threshold (should fail)
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info_validation:
             BalanceMonitoringSettings.model_validate(
                 {
                     "min_balance_thresholds_usd": {"exchange": "0"},
                 },
             )
-        assert "min_balance_thresholds_usd" in str(exc_info.value)
+        assert "min_balance_thresholds_usd" in str(exc_info_validation.value)
 
         # Negative threshold (should fail)
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(ValidationError) as exc_info_validation2:
             BalanceMonitoringSettings.model_validate(
                 {
                     "min_balance_thresholds_usd": {"exchange": "-100"},
                 },
             )
-        assert "min_balance_thresholds_usd" in str(exc_info.value)
+        assert "min_balance_thresholds_usd" in str(exc_info_validation2.value)
 
 
 class TestMonitoringSettings:
@@ -651,10 +650,10 @@ class TestMonitoringSettings:
             MonitoringSettings.model_validate({"alert_methods": ["invalid"]})
         assert "alert_methods" in str(exc_info.value)
 
-        # Non-list alert_methods (raises TypeError for type mismatch)
-        with pytest.raises(TypeError) as exc_info:
+        # Non-list alert_methods (raises ValidationError for type mismatch)
+        with pytest.raises(ValidationError) as exc_info_validation:
             MonitoringSettings.model_validate({"alert_methods": "log"})
-        assert "alert_methods" in str(exc_info.value)
+        assert "alert_methods" in str(exc_info_validation.value)
 
 
 class TestAppSettings:
@@ -766,13 +765,12 @@ class TestAppSettings:
             AppSettings.model_validate(data)
         assert "exchanges" in str(exc_info.value)
 
-
     def test_missing_required_sections(self) -> None:
         """Test that sections have appropriate defaults when missing."""
         # All sections have defaults, so empty config should still work
         data: dict[str, Any] = {}
         settings = AppSettings.model_validate(data)
-        
+
         # Verify defaults are applied
         assert settings.general is not None
         assert settings.exchanges is not None
