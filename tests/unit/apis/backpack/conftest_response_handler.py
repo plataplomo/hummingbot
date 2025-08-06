@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 
 
 @pytest.fixture

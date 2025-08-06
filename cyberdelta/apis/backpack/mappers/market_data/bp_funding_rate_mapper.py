@@ -22,9 +22,9 @@ from cyberdelta.apis.exceptions import (
     FundingRateTransformationError,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.funding_rate import BackpackFundingDetails, FundingRate
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

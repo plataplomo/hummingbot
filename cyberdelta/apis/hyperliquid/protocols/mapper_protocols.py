@@ -58,7 +58,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.models.margin_account import MarginAccountSummary
@@ -71,6 +70,7 @@ from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
 from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.spot_balance import SpotBalance
+from cyberdelta.symbols.models import Symbol
 
 
 if TYPE_CHECKING:

@@ -34,9 +34,9 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import (
     BTC_USDC_BP as TEST_SYMBOL_BTC_USDC,
     SOL_USDC_BP,

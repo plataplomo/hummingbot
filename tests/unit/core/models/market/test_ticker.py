@@ -12,7 +12,6 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.core.symbols.api import symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.models.market.ticker import (
@@ -20,6 +19,7 @@ from cyberdelta.models.market.ticker import (
     HyperliquidTickerDetails,
     Ticker,
 )
+from cyberdelta.symbols.api import symbol
 from tests.common_symbols import BTC_BP, BTC_HL, ETH_HL
 
 

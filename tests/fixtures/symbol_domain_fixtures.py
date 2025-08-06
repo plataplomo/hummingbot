@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from cyberdelta.core.symbols import Symbol, exchanges, symbols
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import Symbol, exchanges, symbols
 
 
 if TYPE_CHECKING:
-    from cyberdelta.core.symbols.service import SymbolService
+    from cyberdelta.symbols.service import SymbolService
 
 
 @dataclass

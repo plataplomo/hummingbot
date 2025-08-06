@@ -25,10 +25,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
 )
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import BalanceMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import HyperliquidSpotBalanceDetails, SpotBalance
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

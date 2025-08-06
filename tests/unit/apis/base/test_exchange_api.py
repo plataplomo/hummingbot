@@ -40,7 +40,6 @@ from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus
-from cyberdelta.core.symbols.models import BackpackMetadata, BaseSymbol, HyperliquidMetadata
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.models import (
     AccountSettings,
@@ -61,6 +60,7 @@ from cyberdelta.models.market import Candle
 from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.models.operations import Transfer, Withdrawal
+from cyberdelta.symbols.models import BackpackMetadata, BaseSymbol, HyperliquidMetadata
 from tests.common_symbols import BTC_HL
 
 
@@ -811,7 +811,7 @@ class TestExchangeAPIWebSocketOperations:
 
             async def get_all_mids(self) -> MidPrices:
                 """Get all mid prices for efficient market order pricing.
-                
+
                 Returns:
                     MidPrices: Mock mid prices data
                 """

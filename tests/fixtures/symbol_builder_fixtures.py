@@ -9,8 +9,8 @@ from typing import Any
 
 import pytest
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols.models import Symbol
 from tests.builders.symbol_builders import (
     ArbitrageSymbolBuilder,
     MarketDataSymbolBuilder,

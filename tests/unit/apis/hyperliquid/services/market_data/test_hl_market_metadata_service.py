@@ -33,8 +33,8 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_market_metadata_service
     HyperliquidMarketMetadataService,
 )
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market import Market
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 

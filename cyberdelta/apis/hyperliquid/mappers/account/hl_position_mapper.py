@@ -34,10 +34,10 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 )
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import PositionMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, HyperliquidPositionDetails
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

@@ -25,10 +25,10 @@ from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Order, Trade
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.parsing import parse_decimal_value
 
 

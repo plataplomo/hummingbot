@@ -16,9 +16,9 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     MarketOrderParameterError,
     PriceDeviationError,
 )
-from cyberdelta.core.symbols import Symbol, exchanges
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import OrderBook
+from cyberdelta.symbols import Symbol, exchanges
 
 
 logger = get_logger(__name__)

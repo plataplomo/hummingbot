@@ -14,7 +14,7 @@ from cyberdelta.apis.backpack.request_builders.bp_account_request_builder import
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
 )
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import BTC_BP, BTC_USDT_BP, ETH_BP, SOL_BP, SOL_USDC_BP
 
 

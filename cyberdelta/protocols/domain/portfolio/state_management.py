@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, SpotBalance, Trade
 from cyberdelta.models.portfolio.state import PortfolioState
+from cyberdelta.symbols.models import Symbol
 
 
 class PortfolioStateManagerProtocol(Protocol):

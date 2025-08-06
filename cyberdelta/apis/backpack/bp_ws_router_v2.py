@@ -31,7 +31,7 @@ from cyberdelta.apis.websocket.ws_processor import (
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
-from cyberdelta.core.symbols import exchanges
+from cyberdelta.symbols import exchanges
 
 
 # Type alias for envelope that can be either validated model or dict

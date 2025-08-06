@@ -42,8 +42,8 @@ from cyberdelta.apis.models.service_args.internal import (
     GetMaxOrderQuantityArgs,
     GetMaxWithdrawalQuantityArgs,
 )
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.symbols.models import Symbol
 
 
 __all__ = [

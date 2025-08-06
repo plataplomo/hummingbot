@@ -6,7 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.core.execution.orders.market_order_config import MarketOrderConfig
-from cyberdelta.core.symbols import exchanges
+from cyberdelta.symbols import exchanges
 
 
 class TestMarketOrderConfig:

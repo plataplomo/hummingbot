@@ -6,14 +6,14 @@ needed by all Symbol-aware tests.
 
 import pytest
 
-from cyberdelta.core.symbols import exchanges, get_registry, get_symbol_service
-from cyberdelta.core.symbols.handlers.backpack import BackpackHandler
-from cyberdelta.core.symbols.handlers.hyperliquid import HyperliquidHandler
-from cyberdelta.core.symbols.models import BackpackMetadata, HyperliquidMetadata
-from cyberdelta.core.symbols.protocols import ExchangeHandler
-from cyberdelta.core.symbols.registry import SymbolRegistry
-from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import exchanges, get_registry, get_symbol_service
+from cyberdelta.symbols.handlers.backpack import BackpackHandler
+from cyberdelta.symbols.handlers.hyperliquid import HyperliquidHandler
+from cyberdelta.symbols.models import BackpackMetadata, HyperliquidMetadata
+from cyberdelta.symbols.protocols import ExchangeHandler
+from cyberdelta.symbols.registry import SymbolRegistry
+from cyberdelta.symbols.service import SymbolService
 
 
 @pytest.fixture

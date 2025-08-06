@@ -22,10 +22,10 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.models.market.order import CancelOrderResult, Order
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

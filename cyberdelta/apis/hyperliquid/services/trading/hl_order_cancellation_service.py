@@ -59,9 +59,9 @@ from cyberdelta.apis.hyperliquid.services.utils.status_processing import (
 )
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models import Order
 from cyberdelta.models.market.order import CancelOrderResult
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
 

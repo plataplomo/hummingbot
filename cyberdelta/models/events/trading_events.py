@@ -8,9 +8,9 @@ from __future__ import annotations
 from decimal import Decimal
 
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType
 from cyberdelta.models.events.base_event import DomainEvent
+from cyberdelta.symbols.models import Symbol
 
 
 class OrderExecutedEvent(DomainEvent):

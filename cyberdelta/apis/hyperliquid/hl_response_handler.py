@@ -52,7 +52,7 @@ from cyberdelta.apis.hyperliquid.response_handlers.hl_trading_response_handler i
     HyperliquidTradingResponseHandler,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

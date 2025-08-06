@@ -9,7 +9,7 @@ from typing import Any
 from cyberdelta.apis.common import APIError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 
 
 async def get_available_symbols(api: HyperliquidAPI, market_type: str = "perp") -> list[Symbol]:

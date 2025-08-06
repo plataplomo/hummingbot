@@ -16,10 +16,6 @@ from cyberdelta.config.models.exchange_config import (
     ExchangeSpecificConfig,
 )
 from cyberdelta.core.enums import SignalType
-
-# PortfolioStateManager import removed - replaced by modular portfolio system
-from cyberdelta.core.symbols import Symbol, exchanges
-from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
@@ -37,6 +33,10 @@ from cyberdelta.models import (
     TradeSignal,
 )
 from cyberdelta.models.market.candle import Candle
+
+# PortfolioStateManager import removed - replaced by modular portfolio system
+from cyberdelta.symbols import Symbol, exchanges
+from cyberdelta.symbols.service import SymbolService
 from tests.common_symbols import BTC_BP, BTC_HL, ETH_BP, ETH_HL, SOL_BP, SOL_HL
 from tests.fixtures.symbol_domain_fixtures import SymbolSet
 

@@ -62,10 +62,6 @@ from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
-
-# Removed SymbolError import - no longer needed with new Symbol system
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import HyperliquidMetadata, Symbol
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import (
     AccountSettings,
@@ -83,6 +79,10 @@ from cyberdelta.models.market.order import (
     Order,
 )
 from cyberdelta.models.operations import Transfer, Withdrawal
+
+# Removed SymbolError import - no longer needed with new Symbol system
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import HyperliquidMetadata, Symbol
 
 
 # Create instances of the new domain-specific mappers

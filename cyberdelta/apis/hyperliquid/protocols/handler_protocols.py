@@ -39,7 +39,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_usd_transfer_response import (
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import HyperliquidRawUserFillsResponse
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import HyperliquidRawClearinghouseState
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

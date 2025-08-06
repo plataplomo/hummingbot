@@ -46,10 +46,10 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_placement_service imp
 )
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Order
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USD_HL, ETH_USD_HL
 
 

@@ -15,9 +15,9 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import MarketMapperProt
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import MarketTransformationError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market import Market
 from cyberdelta.models.market.market import BackpackMarketDetails
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
 

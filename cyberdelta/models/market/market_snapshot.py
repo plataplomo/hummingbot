@@ -10,10 +10,10 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
+from cyberdelta.symbols.models import Symbol
 
 
 class MarketSnapshot(BaseModel):

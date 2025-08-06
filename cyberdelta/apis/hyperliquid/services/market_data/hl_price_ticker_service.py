@@ -37,9 +37,9 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
 )
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models import FundingRate, Ticker
 from cyberdelta.models.market.mid_prices import MidPrices
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

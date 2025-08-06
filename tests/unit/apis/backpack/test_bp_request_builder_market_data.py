@@ -16,8 +16,8 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
 )
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_USDC_BP,

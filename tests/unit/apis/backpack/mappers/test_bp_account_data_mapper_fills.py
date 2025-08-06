@@ -26,12 +26,12 @@ from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.exceptions.data_transformation import (
     DataTransformationError,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.models import DerivativePosition, Trade
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.parsing import parse_decimal_value
 from tests.common_symbols import SOL_USDC_BP
 

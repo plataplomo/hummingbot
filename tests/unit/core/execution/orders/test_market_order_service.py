@@ -14,11 +14,11 @@ from cyberdelta.core.execution.orders.market_order_errors import (
     PriceDeviationError,
 )
 from cyberdelta.core.execution.orders.market_order_service import MarketOrderService
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderBook
 from cyberdelta.models.market.mid_prices import MidPrices
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
 
 

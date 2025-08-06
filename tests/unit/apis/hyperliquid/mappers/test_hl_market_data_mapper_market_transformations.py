@@ -30,8 +30,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawMetaAndAssetCtxsResponse,
     HyperliquidRawMetaResponse,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models.market.market import HyperliquidMarketDetails, Market
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import (
     ADA_HL,
     AVAX_HL,

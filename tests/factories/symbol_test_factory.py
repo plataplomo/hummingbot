@@ -7,13 +7,13 @@ with full metadata support, equivalence relationships, and arbitrage scenarios.
 from typing import Any
 
 from cyberdelta.core.enums.enums import MarketType
-from cyberdelta.core.symbols import Symbol, symbol
-from cyberdelta.core.symbols.models import (
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import Symbol, symbol
+from cyberdelta.symbols.models import (
     BackpackMetadata,
     HyperliquidMetadata,
     SymbolComponents,
 )
-from cyberdelta.enums.exchange_names import ExchangeName
 
 
 # Type alias for metadata keyword arguments

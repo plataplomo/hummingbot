@@ -12,7 +12,6 @@ from decimal import Decimal
 from typing import Any, cast
 
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.core.symbols import Symbol, exchanges, symbols
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
@@ -22,6 +21,7 @@ from cyberdelta.models import (
     SpotBalance,
     Ticker,
 )
+from cyberdelta.symbols import Symbol, exchanges, symbols
 
 
 @dataclass

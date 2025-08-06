@@ -21,7 +21,7 @@ from cyberdelta.apis.common import APIError
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import Symbol
+from cyberdelta.symbols import Symbol
 from tests.integration.apis.backpack.shared.bp_test_helpers import wait_for_condition
 
 

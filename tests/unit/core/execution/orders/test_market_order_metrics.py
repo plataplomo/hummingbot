@@ -14,8 +14,8 @@ from cyberdelta.core.execution.orders.market_order_metrics import (
     MarketOrderExecutionMetric,
     MarketOrderMetrics,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

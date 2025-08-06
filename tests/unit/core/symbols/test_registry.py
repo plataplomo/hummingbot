@@ -2,9 +2,9 @@
 
 import pytest
 
-from cyberdelta.core.symbols import exchanges, get_registry, symbol, symbols
-from cyberdelta.core.symbols.models import BackpackMetadata, BaseSymbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import exchanges, get_registry, symbol, symbols
+from cyberdelta.symbols.models import BackpackMetadata, BaseSymbol
 from tests.common_symbols import AVAX_HL
 
 

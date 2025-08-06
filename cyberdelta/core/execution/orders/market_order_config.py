@@ -9,7 +9,7 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.core.execution.orders.market_order_errors import MarketOrderParameterError
-from cyberdelta.core.symbols import Symbol
+from cyberdelta.symbols import Symbol
 from cyberdelta.utils.parsing import parse_decimal_value
 
 

@@ -18,9 +18,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market import Market, OrderBook, Ticker, Trade
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

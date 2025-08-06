@@ -11,7 +11,7 @@ Usage:
     symbol_value = BTC_HL.value
 """
 
-from cyberdelta.core.symbols import exchanges, symbols
+from cyberdelta.symbols import exchanges, symbols
 
 
 # Hyperliquid symbols

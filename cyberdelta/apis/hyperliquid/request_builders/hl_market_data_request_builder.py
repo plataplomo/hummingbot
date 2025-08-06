@@ -41,7 +41,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetRecentTradesArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 
 
 logger = get_logger(__name__)

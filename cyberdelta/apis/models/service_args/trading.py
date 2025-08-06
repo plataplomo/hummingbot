@@ -14,7 +14,6 @@ from cyberdelta.apis.exceptions.field_validation import (
     TypeFieldError,
 )
 from cyberdelta.apis.models.service_args.common import validate_api_str_field
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
@@ -27,6 +26,7 @@ from cyberdelta.exceptions.service_validation import (
     PostOnlyLimitError,
     TimeRangeError,
 )
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 from cyberdelta.utils.typing import PotentialDecimalInput, is_potential_decimal_input
 

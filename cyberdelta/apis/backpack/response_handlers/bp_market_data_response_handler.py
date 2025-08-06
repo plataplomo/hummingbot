@@ -40,7 +40,7 @@ from cyberdelta.apis.utils.response_validation import (
     ensure_list_response,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 

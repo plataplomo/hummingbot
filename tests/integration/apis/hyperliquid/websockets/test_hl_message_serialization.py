@@ -29,7 +29,7 @@ from cyberdelta.apis.exceptions import UnsupportedWebSocketTopicError, WebSocket
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import Symbol
+from cyberdelta.symbols import Symbol
 
 # Import WebSocket test helpers
 from .ws_test_helpers import (

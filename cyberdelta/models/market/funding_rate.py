@@ -17,8 +17,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.exceptions.field_validation import DecimalFiniteError, RequiredFieldNoneError
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
 
 

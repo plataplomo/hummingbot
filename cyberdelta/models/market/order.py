@@ -32,7 +32,6 @@ from cyberdelta.core.enums import (
     SelfTradePrevention,
     TriggerType,
 )
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import (
     OrderSide,
     OrderType,
@@ -47,6 +46,7 @@ from cyberdelta.exceptions import (
 )
 from cyberdelta.exceptions.field_validation import InvalidExchangeNameError, TypeFieldError
 from cyberdelta.models.market.trade import Trade
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value, validate_str_field
 
 

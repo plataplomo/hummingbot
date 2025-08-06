@@ -45,8 +45,8 @@ from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.models import AccountSettings, MarginAccountSummary
+from cyberdelta.symbols import exchanges
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response, is_list_response
 
 

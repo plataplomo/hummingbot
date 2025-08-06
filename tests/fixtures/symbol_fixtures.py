@@ -10,9 +10,9 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from cyberdelta.core.symbols import Symbol, exchanges
-from cyberdelta.core.symbols.models import BaseSymbol
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import Symbol, exchanges
+from cyberdelta.symbols.models import BaseSymbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,

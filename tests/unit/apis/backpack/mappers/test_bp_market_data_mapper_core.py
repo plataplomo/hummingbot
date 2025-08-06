@@ -48,14 +48,14 @@ from cyberdelta.apis.exceptions.data_transformation import (
     TickerTransformationError,
     TradeTransformationError,
 )
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import DecimalFieldError
 from cyberdelta.models import OrderBook, Ticker, Trade
 from cyberdelta.models.market import Candle, Market
 from cyberdelta.models.market.funding_rate import FundingRate
 from cyberdelta.models.market.market import BackpackMarketDetails
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP, SOL_USDC_PERP_BP
 from tests.fixtures.time_fixtures import FreezerProtocol
 

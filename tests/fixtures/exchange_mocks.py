@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
@@ -25,6 +24,7 @@ from cyberdelta.models import (
     Ticker,
     TimeInForce,
 )
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL
 
 

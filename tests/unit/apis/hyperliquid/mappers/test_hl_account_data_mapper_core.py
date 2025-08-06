@@ -33,7 +33,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
     HyperliquidRawPositionInfo,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     HyperliquidMarginDetails,
@@ -41,6 +40,7 @@ from cyberdelta.models import (
     MarginAccountSummary,
     SpotBalance,
 )
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import ETH_HL
 
 

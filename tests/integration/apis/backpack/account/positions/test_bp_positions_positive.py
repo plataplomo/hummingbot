@@ -17,10 +17,10 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import BackpackPositionDetails, DerivativePosition
+from cyberdelta.symbols.models import Symbol
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     BREAK_EVEN_PRICE_TOLERANCE_PERCENT,
     DEFAULT_TEST_SYMBOL_PERP,

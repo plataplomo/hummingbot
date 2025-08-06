@@ -11,12 +11,12 @@ from typing import Any, Self, cast
 from unittest.mock import Mock
 
 from cyberdelta.core.enums.enums import MarketType
-from cyberdelta.core.symbols import Symbol, symbol
-from cyberdelta.core.symbols.models import BackpackMetadata, HyperliquidMetadata, SymbolComponents
-from cyberdelta.core.symbols.protocols import ExchangeHandler
-from cyberdelta.core.symbols.registry import SymbolRegistry
-from cyberdelta.core.symbols.service import SymbolService
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.symbols import Symbol, symbol
+from cyberdelta.symbols.models import BackpackMetadata, HyperliquidMetadata, SymbolComponents
+from cyberdelta.symbols.protocols import ExchangeHandler
+from cyberdelta.symbols.registry import SymbolRegistry
+from cyberdelta.symbols.service import SymbolService
 
 
 class MockSymbolService:

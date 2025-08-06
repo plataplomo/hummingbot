@@ -17,7 +17,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
-from cyberdelta.core.symbols import exchanges
+from cyberdelta.symbols import exchanges
 
 
 # Removed create_test_exchange_config function - now using active_hl_config fixture

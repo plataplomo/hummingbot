@@ -31,11 +31,11 @@ logger = get_logger(__name__)
 
 class ExchangeAPIFactory:
     """Factory for creating exchange API clients dynamically.
-    
+
     This factory creates API clients for any supported exchange without
     hardcoded imports or exchange-specific logic. It scales to 20+ exchanges
     by using dynamic imports and configuration-driven creation.
-    
+
     IMPORTANT: Following CODING_STANDARDS.md:
     - NO hardcoded exchange names or imports
     - ALL exchange information from configuration
@@ -51,7 +51,7 @@ class ExchangeAPIFactory:
             "class": "HyperliquidAPI",
         },
         ExchangeName.BACKPACK: {
-            "module": "cyberdelta.apis.backpack.bp_api", 
+            "module": "cyberdelta.apis.backpack.bp_api",
             "class": "BackpackAPI",
         },
     }
@@ -64,15 +64,15 @@ class ExchangeAPIFactory:
         exchange_secrets: AnyExchangeSecrets,
     ) -> ExchangeAPI:
         """Create API client for specified exchange.
-        
+
         Args:
             exchange_name: Name of exchange (from configuration)
             exchange_config: Exchange-specific configuration
             exchange_secrets: Exchange-specific secrets
-            
+
         Returns:
             ExchangeAPI: Initialized API client instance
-            
+
         Raises:
             ConfigurationError: If exchange is not supported or creation fails
         """
@@ -105,30 +105,23 @@ class ExchangeAPIFactory:
         # Dynamic import and instantiation
         try:
             # Import the exchange module
-            api_module = cls._import_exchange_module(
-                module_info["module"], 
-                exchange_name
-            )
-            
+            api_module = cls._import_exchange_module(module_info["module"], exchange_name)
+
             # Get the API class from the module
-            api_class = cls._get_api_class(
-                api_module, 
-                module_info["class"], 
-                exchange_name
-            )
-            
+            api_class = cls._get_api_class(api_module, module_info["class"], exchange_name)
+
             # Create API instance
             api_instance = api_class(
                 exchange_config=exchange_config,
                 exchange_secrets=exchange_secrets,
             )
-            
+
             logger.info(
                 "exchange_api_client_created",
                 exchange_name=exchange_name,
                 api_class=module_info["class"],
             )
-            
+
         except (ImportError, AttributeError, TypeError) as e:
             msg = f"Failed to create API client for '{exchange_name}': {e}"
             raise ConfigurationError(msg) from e
@@ -138,7 +131,7 @@ class ExchangeAPIFactory:
     @classmethod
     def get_supported_exchanges(cls) -> list[str]:
         """Get list of all supported exchange names.
-        
+
         Returns:
             List of supported exchange names
         """
@@ -147,10 +140,10 @@ class ExchangeAPIFactory:
     @classmethod
     def is_exchange_supported(cls, exchange_name: str) -> bool:
         """Check if exchange is supported by the factory.
-        
+
         Args:
             exchange_name: Name of exchange to check
-            
+
         Returns:
             True if exchange is supported, False otherwise
         """
@@ -164,14 +157,14 @@ class ExchangeAPIFactory:
     @classmethod
     def _import_exchange_module(cls, module_path: str, exchange_name: str) -> ModuleType:
         """Import exchange module dynamically.
-        
+
         Args:
             module_path: Python module path to import
             exchange_name: Exchange name for error context
-            
+
         Returns:
             Imported module
-            
+
         Raises:
             ConfigurationError: If module import fails
         """
@@ -179,11 +172,11 @@ class ExchangeAPIFactory:
             # Dynamic import using __import__
             module_parts = module_path.split(".")
             module = __import__(module_path)
-            
+
             # Navigate to the actual module (handle nested imports)
             for part in module_parts[1:]:
                 module = getattr(module, part)
-                
+
         except (ImportError, AttributeError) as e:
             msg = (
                 f"Failed to import module '{module_path}' for exchange '{exchange_name}'. "
@@ -194,28 +187,23 @@ class ExchangeAPIFactory:
             return module
 
     @classmethod
-    def _get_api_class(
-        cls, 
-        module: ModuleType, 
-        class_name: str, 
-        exchange_name: str
-    ) -> type[Any]:
+    def _get_api_class(cls, module: ModuleType, class_name: str, exchange_name: str) -> type[Any]:
         """Get API class from imported module.
-        
+
         Args:
             module: Imported module containing the API class
             class_name: Name of API class to extract
             exchange_name: Exchange name for error context
-            
+
         Returns:
             API class type
-            
+
         Raises:
             ConfigurationError: If class extraction fails
         """
         try:
             api_class = getattr(module, class_name)
-            
+
             # Validate it's a proper ExchangeAPI subclass
             if not issubclass(api_class, ExchangeAPI):
                 msg = (
@@ -223,7 +211,7 @@ class ExchangeAPIFactory:
                     f"is not a subclass of ExchangeAPI"
                 )
                 raise ConfigurationError(msg)
-                
+
         except (AttributeError, TypeError) as e:
             msg = (
                 f"Failed to get class '{class_name}' from module for exchange '{exchange_name}'. "

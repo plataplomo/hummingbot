@@ -27,10 +27,10 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTradeEvent
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderBook, Ticker, Trade
+from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_BP, DOGE_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 

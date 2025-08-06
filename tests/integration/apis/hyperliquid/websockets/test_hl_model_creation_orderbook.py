@@ -26,9 +26,9 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols import exchanges
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market.order_book import OrderBook
+from cyberdelta.symbols import exchanges
+from cyberdelta.symbols.models import Symbol
 
 
 pytestmark = [

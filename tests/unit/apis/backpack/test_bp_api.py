@@ -30,7 +30,6 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
-from cyberdelta.core.symbols import exchanges
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
@@ -42,6 +41,7 @@ from cyberdelta.models import (
     Trade,
 )
 from cyberdelta.models.market.order import CancelOrderResult, Order
+from cyberdelta.symbols import exchanges
 
 
 # Removed hardcoded test constants - now using active fixtures from conftest.py

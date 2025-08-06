@@ -34,8 +34,8 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.core.symbols.models import Symbol
 from cyberdelta.models.market import OrderBook
+from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
