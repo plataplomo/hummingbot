@@ -452,6 +452,24 @@ def _display_credentials_status(app_settings: AppSettings, secrets_config: Secre
 
 def main() -> None:
     """Main function to demonstrate configuration loading."""
+    # Parse arguments first to check if we're just creating examples
+    args = _parse_arguments()
+
+    if args.create_example:
+        # Don't initialize config system for creating examples
+        # Use a minimal fallback logging setup for examples
+        structlog.configure(
+            processors=[
+                structlog.stdlib.add_log_level,
+                structlog.dev.ConsoleRenderer(colors=True),
+            ],
+            wrapper_class=structlog.stdlib.BoundLogger,
+            logger_factory=structlog.stdlib.LoggerFactory(),
+            cache_logger_on_first_use=True,
+        )
+        create_example_files()
+        return
+
     # Initialize structlog for consistent logging
     try:
         app_settings = get_app_settings()
@@ -469,12 +487,6 @@ def main() -> None:
             logger_factory=structlog.stdlib.LoggerFactory(),
             cache_logger_on_first_use=True,
         )
-
-    args = _parse_arguments()
-
-    if args.create_example:
-        create_example_files()
-        return
 
     config_path = Path(args.config).resolve()
     secrets_path = Path(args.secrets).resolve()

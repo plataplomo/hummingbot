@@ -241,8 +241,9 @@ class TestTelegramSecrets:
 
     def test_chat_id_validation_failures(self) -> None:
         """Test chat_id validation failures."""
-        # Empty chat_id
-        with pytest.raises(ValidationError) as exc_info:
+        # Empty chat_id (raises EmptyStringError)
+        from cyberdelta.config.validation import EmptyStringError
+        with pytest.raises(EmptyStringError) as exc_info:
             TelegramSecrets.model_validate(
                 {
                     "bot_token": "test_token",
@@ -420,13 +421,14 @@ class TestSecretsConfig:
         """Test exchanges field validation."""
         data = self.create_valid_secrets_data()
 
-        # Test empty exchange name
+        # Test empty exchange name (raises EmptyStringError)
+        from cyberdelta.config.validation import EmptyStringError
         data["exchanges"][""] = {"auth_type": "api_key", "api_key": "key", "api_secret": "secret"}
-        with pytest.raises(ValidationError) as exc_info:
+        with pytest.raises(EmptyStringError) as exc_info:
             SecretsConfig.model_validate(data)
         assert "exchanges" in str(exc_info.value)
 
-        # Test too long exchange name
+        # Test too long exchange name (raises ValidationError)
         data = self.create_valid_secrets_data()
         data["exchanges"]["x" * 51] = {
             "auth_type": "api_key",

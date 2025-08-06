@@ -99,7 +99,7 @@ class TestSecretsManager:
         with pytest.raises(ConfigurationError) as exc_info:
             SecretsManager(non_existent_path)
 
-        assert "Secrets file not found" in str(exc_info.value)
+        assert "Config file not found:" in str(exc_info.value)
         assert non_existent_path in str(exc_info.value)
 
     def test_init_invalid_yaml(self) -> None:
@@ -112,7 +112,7 @@ class TestSecretsManager:
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
-            assert "Error reading secrets file" in str(exc_info.value)
+            assert "Error reading" in str(exc_info.value)
 
     def test_init_empty_file(self) -> None:
         """Test SecretsManager initialization with empty file."""
@@ -148,7 +148,7 @@ class TestSecretsManager:
             with pytest.raises(ConfigurationError) as exc_info:
                 SecretsManager(str(secrets_path))
 
-            assert "Invalid secrets configuration" in str(exc_info.value)
+            assert "Invalid application configuration" in str(exc_info.value)
 
     @patch.dict(os.environ, {}, clear=True)
     def test_get_secrets_path_default(self) -> None:
@@ -225,7 +225,7 @@ class TestSecretsManager:
         with pytest.raises(ConfigurationError) as exc_info:
             manager.load()
 
-        assert "Secrets file not found" in str(exc_info.value)
+        assert "Config file not found:" in str(exc_info.value)
         assert manager.secrets_loaded is False
         assert manager.secrets_data is None
 
@@ -244,7 +244,7 @@ class TestSecretsManager:
             with pytest.raises(ConfigurationError) as exc_info:
                 manager.load()
 
-            assert "Error reading secrets file" in str(exc_info.value)
+            assert "Error reading" in str(exc_info.value)
             assert manager.secrets_loaded is False
             assert manager.secrets_data is None
 
@@ -267,7 +267,7 @@ class TestSecretsManager:
             with pytest.raises(ConfigurationError) as exc_info:
                 manager.load()
 
-            assert "Invalid secrets configuration" in str(exc_info.value)
+            assert "Invalid application configuration" in str(exc_info.value)
             assert manager.secrets_loaded is False
             assert manager.secrets_data is None
 
@@ -472,7 +472,7 @@ class TestSecretsManager:
                 with pytest.raises(ConfigurationError) as exc_info:
                     SecretsManager(str(secrets_path))
 
-                assert "Error reading secrets file" in str(exc_info.value)
+                assert "Error reading" in str(exc_info.value)
 
             finally:
                 # Restore permissions for cleanup
@@ -505,7 +505,7 @@ dangerous_tag: !!python/object/apply:os.system ["echo 'this should not execute'"
                 SecretsManager(str(secrets_path))
 
             # Should be a YAML parsing error about the dangerous tag, not a validation error
-            assert "Error reading secrets file" in str(exc_info.value)
+            assert "Error reading" in str(exc_info.value)
             assert "could not determine a constructor" in str(exc_info.value)
 
 

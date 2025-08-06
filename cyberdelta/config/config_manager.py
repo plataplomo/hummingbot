@@ -132,25 +132,28 @@ class ConfigManager:
         Returns:
             Path: Path to the configuration file
 
+        Raises:
+            ConfigFileNotFoundError: If no config file is found in any location
+
         """
         # Check environment variable first
         env_path = os.environ.get("CYBERDELTA_CONFIG_PATH")
         if env_path:
             return Path(env_path)
 
-        # Look in standard locations
+        # Look in standard locations (current directory and config subdirectory)
         cwd = Path.cwd()
         default_paths = [
             cwd / "config.yaml",
             cwd / "config" / "config.yaml",
-            Path(__file__).parent / "config.yaml",
         ]
 
         for path in default_paths:
             if path.exists():
                 return path
 
-        return default_paths[0]  # Return first default as fallback
+        # No config file found - raise error instead of using fallback
+        raise ConfigFileNotFoundError("config.yaml")
 
     def reload(self) -> None:
         """Reload configuration from file."""

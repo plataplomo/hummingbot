@@ -113,7 +113,7 @@ class TestBackpackSpotTrades:
                     f"BTC trade price seems too high: {trade.price}"
                 )
 
-    @pytest.mark.parametrize("symbol", [s.value for s in COMMON_SPOT_SYMBOLS_BP])
+    @pytest.mark.parametrize("symbol", COMMON_SPOT_SYMBOLS_BP)
     @pytest.mark.parametrize(
         "custom_vcr_cassette_dir",
         ["apis/backpack/spot/trades"],
