@@ -33,7 +33,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
-from cyberdelta.models import Order, Trade
+from cyberdelta.models import Fill, Order
 from tests.common_symbols import BTC_USDC_BP, INVALID_SPOT_BP
 
 
@@ -203,13 +203,13 @@ def mock_raw_fill() -> BackpackRawFillResponse:
 
 
 @pytest.fixture
-def mock_trade() -> Trade:
+def mock_trade() -> Fill:
     """Create a mock trade.
 
     Returns:
-        Trade instance with sample data matching the mock_raw_fill.
+        Fill instance with sample data matching the mock_raw_fill.
     """
-    return Trade(
+    return Fill(
         id="trade_456",
         order_id="order_123",
         symbol=BTC_USDC_BP,
@@ -457,7 +457,7 @@ class TestBackpackTransactionHistoryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_raw_fill: BackpackRawFillResponse,
-        mock_trade: Trade,
+        mock_trade: Fill,
     ) -> None:
         """Test successful trade history retrieval."""
         # Arrange
@@ -512,7 +512,7 @@ class TestBackpackTransactionHistoryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_raw_fill: BackpackRawFillResponse,
-        mock_trade: Trade,
+        mock_trade: Fill,
     ) -> None:
         """Test trade history with some fills failing to map."""
         # Arrange
@@ -569,7 +569,7 @@ class TestBackpackTransactionHistoryService:
         mock_response_handler: MagicMock,
         mock_mapper: MagicMock,
         mock_raw_fill: BackpackRawFillResponse,
-        mock_trade: Trade,
+        mock_trade: Fill,
     ) -> None:
         """Test trade history when mapper returns None for some fills."""
         # Arrange

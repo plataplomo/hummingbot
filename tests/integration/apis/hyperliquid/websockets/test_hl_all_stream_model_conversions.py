@@ -32,9 +32,9 @@ from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName, OrderSide
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.mid_prices import MidPrices
 from cyberdelta.models.market.order_book import OrderBook
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.symbols import Symbol, exchanges
 from cyberdelta.symbols.models import BaseSymbol
 
@@ -66,13 +66,13 @@ class SupportsIteration(Protocol):
 class TestHyperliquidAllStreamModelConversions:
     """Test comprehensive stream-to-model conversions for all WebSocket data types."""
 
-    def _is_trade(self, obj: object) -> TypeGuard[Trade]:
-        """Type guard for Trade objects.
+    def _is_trade(self, obj: object) -> TypeGuard[Fill]:
+        """Type guard for Fill objects.
 
         Returns:
-            TypeGuard[Trade]: True if obj is a Trade instance.
+            TypeGuard[Fill]: True if obj is a Fill instance.
         """
-        return isinstance(obj, Trade)
+        return isinstance(obj, Fill)
 
     def _is_hyperliquid_order_or_fill(
         self, obj: object
@@ -84,13 +84,13 @@ class TestHyperliquidAllStreamModelConversions:
         """
         return isinstance(obj, (HyperliquidRawWsOrderUpdate, HyperliquidRawWsFillEvent))
 
-    def _extract_trades(self, items: SupportsIteration) -> list[Trade]:
-        """Extract Trade objects from iterable with proper typing.
+    def _extract_trades(self, items: SupportsIteration) -> list[Fill]:
+        """Extract Fill objects from iterable with proper typing.
 
         Returns:
-            list[Trade]: List of Trade objects filtered from the input iterable.
+            list[Fill]: List of Fill objects filtered from the input iterable.
         """
-        result: list[Trade] = [item for item in items if self._is_trade(item)]
+        result: list[Fill] = [item for item in items if self._is_trade(item)]
         return result
 
     def _extract_orders_and_fills(
@@ -236,7 +236,7 @@ class TestHyperliquidAllStreamModelConversions:
             message="✓ OrderBook model validation passed",
         )
 
-    async def _create_hl_trades_handler(self, received_trades: list[Trade]) -> MessageHandler:
+    async def _create_hl_trades_handler(self, received_fills: list[Fill]) -> MessageHandler:
         """Create handler for Hyperliquid trades stream messages.
 
         Returns:
@@ -250,46 +250,46 @@ class TestHyperliquidAllStreamModelConversions:
             if hasattr(context, "domain_model") and context.domain_model:
                 domain_model = context.domain_model
 
-                # Handle single Trade or list of Trades
-                if isinstance(domain_model, Trade):
-                    received_trades.append(domain_model)
+                # Handle single Fill or list of Fills
+                if isinstance(domain_model, Fill):
+                    received_fills.append(domain_model)
                     logger.info(
                         "trade_model_received_from_stream",
                         symbol=domain_model.symbol,
                         side=domain_model.side.value if domain_model.side else None,
                         price=str(domain_model.price) if domain_model.price else None,
                         quantity=str(domain_model.quantity) if domain_model.quantity else None,
-                        message="✓ Single Trade model received from context.domain_model",
+                        message="✓ Single Fill model received from context.domain_model",
                     )
                 elif isinstance(domain_model, list):
-                    # Handle list of trades - use cast for type safety
-                    trades_found = False
-                    trade_list = cast(list[object], domain_model)
-                    for item in trade_list:
-                        if isinstance(item, Trade):
-                            received_trades.append(item)
-                            trades_found = True
+                    # Handle list of fills - use cast for type safety
+                    fills_found = False
+                    fill_list = cast(list[object], domain_model)
+                    for item in fill_list:
+                        if isinstance(item, Fill):
+                            received_fills.append(item)
+                            fills_found = True
                             logger.info(
                                 "trade_model_received_from_list",
                                 symbol=item.symbol,
                                 side=item.side.value if item.side else None,
                                 price=str(item.price) if item.price else None,
                                 quantity=str(item.quantity) if item.quantity else None,
-                                message="✓ Trade model received from list in context.domain_model",
+                                message="✓ Fill model received from list in context.domain_model",
                             )
-                    if not trades_found:
+                    if not fills_found:
                         logger.info(
-                            "trades_stream_no_trade_models_in_list",
-                            list_length=len(trade_list),
-                            list_types=[type(item).__name__ for item in trade_list[:3]],
-                            message="No Trade models found in domain_model list",
+                            "trades_stream_no_fill_models_in_list",
+                            list_length=len(fill_list),
+                            list_types=[type(item).__name__ for item in fill_list[:3]],
+                            message="No Fill models found in domain_model list",
                         )
                 else:
                     logger.info(
                         "trades_stream_model_analysis",
                         domain_model_type=type(domain_model).__name__,
                         message=(
-                            f"Trades stream received {type(domain_model).__name__} instead of Trade"
+                            f"Trades stream received {type(domain_model).__name__} instead of Fill"
                         ),
                     )
             else:
@@ -302,80 +302,78 @@ class TestHyperliquidAllStreamModelConversions:
 
         return trades_handler
 
-    def _log_hl_trade_received(self, trade: Trade, key: str) -> None:
+    def _log_hl_fill_received(self, fill: Fill, key: str) -> None:
         """Log information about received Hyperliquid trade."""
         logger.info(
             "trade_model_received_from_stream",
-            symbol=trade.symbol,
-            price=str(trade.price),
-            quantity=str(trade.quantity),
+            symbol=fill.symbol,
+            price=str(fill.price),
+            quantity=str(fill.quantity),
             key_used=key,
-            message=f"✓ Trade model received from {key}",
+            message=f"✓ Fill model received from {key}",
         )
 
     def _process_hl_trade_list(
         self,
-        potential_trades: list[Trade],
-        received_trades: list[Trade],
+        potential_fills: list[Fill],
+        received_fills: list[Fill],
         key: str,
     ) -> bool:
-        """Process a list of potential Hyperliquid trade objects.
+        """Process a list of potential Hyperliquid fill objects.
 
         Returns:
-            bool: True if any trades were found and processed.
+            bool: True if any fills were found and processed.
         """
-        trades_found = False
-        for trade in potential_trades:
-            received_trades.append(trade)
-            trades_found = True
+        fills_found = False
+        for fill in potential_fills:
+            received_fills.append(fill)
+            fills_found = True
             logger.info(
-                "trade_model_received_from_list",
-                symbol=trade.symbol,
-                price=str(trade.price),
-                quantity=str(trade.quantity),
+                "fill_model_received_from_list",
+                symbol=fill.symbol,
+                price=str(fill.price),
+                quantity=str(fill.quantity),
                 key_used=key,
-                message=f"✓ Trade model received from {key} list",
+                message=f"✓ Fill model received from {key} list",
             )
-        return trades_found
+        return fills_found
 
-    def _validate_hl_received_trades(
-        self, received_trades: list[Trade], test_symbol: Symbol
-    ) -> None:
-        """Validate received Hyperliquid trade models and log results."""
-        if received_trades:
-            for trade in received_trades[:3]:
-                self._validate_trade_model(trade, test_symbol)
+    def _validate_hl_received_fills(self, received_fills: list[Fill], test_symbol: Symbol) -> None:
+        """Validate received Hyperliquid fill models and log results."""
+        if received_fills:
+            for fill in received_fills[:3]:
+                self._validate_fill_model(fill, test_symbol)
             logger.info(
-                "trades_stream_conversion_success",
+                "fills_stream_conversion_success",
                 symbol=test_symbol.value,
-                trades_received=len(received_trades),
-                message=f"✓ Successfully converted {len(received_trades)} trades to Trade models",
+                fills_received=len(received_fills),
+                message=f"✓ Successfully converted {len(received_fills)} fills to Fill models",
             )
         else:
             # Rule #2: Use pytest.fail for errors instead of logger.warning
             pytest.fail(
-                f"No Trade models received from trades stream for {test_symbol}. "
+                f"No Fill models received from trades stream for {test_symbol}. "
                 "Check conversion pipeline - stream-to-model conversion not working."
             )
 
     @pytest.mark.asyncio
-    async def test_trades_stream_to_trade_models(
+    async def test_trades_stream_to_fill_models(
         self,
         hl_api_for_test_env: HyperliquidAPI,
     ) -> None:
-        """Test trades stream conversion to Trade models."""
+        """Test trades stream conversion to Fill models."""
         await self._setup_hl_websocket_connection(hl_api_for_test_env)
         test_symbol = await self._get_hl_test_symbol(hl_api_for_test_env)
         try:
-            received_trades: list[Trade] = []
+            received_fills: list[Fill] = []
 
-            trades_handler = await self._create_hl_trades_handler(received_trades)
+            trades_handler = await self._create_hl_trades_handler(received_fills)
             await hl_api_for_test_env.subscribe(f"trades:{test_symbol}", trades_handler)
             # Rule #4: Use proper wait condition with extended timeout for BTC trades
             # on testnet (5 minutes)
-            await wait_for_websocket_data(received_trades, min_count=1, timeout_seconds=300.0)
+            await wait_for_websocket_data(received_fills, min_count=1, timeout_seconds=300.0)
 
-            self._validate_hl_received_trades(received_trades, test_symbol)
+            self._validate_hl_received_fills(received_fills, test_symbol)
 
         except (ValidationError, ValueError, TypeError, KeyError, AttributeError) as e:
             pytest.fail(
@@ -389,29 +387,29 @@ class TestHyperliquidAllStreamModelConversions:
                 "The WebSocket connection and subscription are working correctly."
             )
 
-    def _validate_trade_model(self, trade: Trade, expected_symbol: Symbol) -> None:
-        """Validate Trade model structure and data."""
-        assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
-        assert trade.symbol == expected_symbol, (
-            f"Expected symbol {expected_symbol}, got {trade.symbol}"
+    def _validate_fill_model(self, fill: Fill, expected_symbol: Symbol) -> None:
+        """Validate Fill model structure and data."""
+        assert isinstance(fill, Fill), f"Expected Fill, got {type(fill)}"
+        assert fill.symbol == expected_symbol, (
+            f"Expected symbol {expected_symbol}, got {fill.symbol}"
         )
-        assert isinstance(trade.price, Decimal), f"Price should be Decimal, got {type(trade.price)}"
-        assert isinstance(trade.quantity, Decimal), (
-            f"Quantity should be Decimal, got {type(trade.quantity)}"
+        assert isinstance(fill.price, Decimal), f"Price should be Decimal, got {type(fill.price)}"
+        assert isinstance(fill.quantity, Decimal), (
+            f"Quantity should be Decimal, got {type(fill.quantity)}"
         )
-        assert trade.price > Decimal(0), f"Price should be positive, got {trade.price}"
-        assert trade.quantity > Decimal(0), f"Quantity should be positive, got {trade.quantity}"
+        assert fill.price > Decimal(0), f"Price should be positive, got {fill.price}"
+        assert fill.quantity > Decimal(0), f"Quantity should be positive, got {fill.quantity}"
 
-        if trade.executed_at:
-            assert trade.executed_at.tzinfo is not None, "Trade timestamp should be timezone-aware"
+        if fill.executed_at:
+            assert fill.executed_at.tzinfo is not None, "Fill timestamp should be timezone-aware"
 
         logger.info(
-            "trade_model_validation_passed",
-            symbol=trade.symbol,
-            price=str(trade.price),
-            quantity=str(trade.quantity),
-            side=trade.side if hasattr(trade, "side") else "unknown",
-            message="✓ Trade model validation passed",
+            "fill_model_validation_passed",
+            symbol=fill.symbol,
+            price=str(fill.price),
+            quantity=str(fill.quantity),
+            side=fill.side if hasattr(fill, "side") else "unknown",
+            message="✓ Fill model validation passed",
         )
 
     @pytest.mark.asyncio
@@ -851,7 +849,7 @@ class TestHyperliquidAllStreamModelConversions:
             raw_trade = HyperliquidRawWsTradeEvent.model_validate(raw_trades_data)
 
             # Test transformation to domain model
-            domain_trade = Trade(
+            domain_fill = Fill(
                 id="test_trade_id",  # Would come from actual trade data
                 symbol=exchanges.hyperliquid(raw_trade.coin),
                 executed_at=datetime.now(UTC),  # Would be set by transformer
@@ -862,20 +860,20 @@ class TestHyperliquidAllStreamModelConversions:
                 quantity=Decimal(raw_trade.sz),
             )
 
-            self._validate_trade_model(domain_trade, exchanges.hyperliquid("ETH"))
+            self._validate_fill_model(domain_fill, exchanges.hyperliquid("ETH"))
 
             logger.info(
                 "trade_transformation_success",
                 raw_coin=raw_trade.coin,
                 raw_price=raw_trade.px,
-                domain_symbol=domain_trade.symbol,
-                domain_price=str(domain_trade.price),
-                message="✓ Trade transformation from raw to domain model successful",
+                domain_symbol=domain_fill.symbol,
+                domain_price=str(domain_fill.price),
+                message="✓ Fill transformation from raw to domain model successful",
             )
 
         except (ValidationError, ValueError, TypeError, KeyError, AttributeError) as e:
             pytest.fail(
-                f"Trade transformation test failed: {e}. "
+                f"Fill transformation test failed: {e}. "
                 "Raw to domain model transformation not working."
             )
 
@@ -1071,7 +1069,7 @@ class TestHyperliquidAllStreamModelConversions:
 
     def _handle_single_model_with_symbol(
         self,
-        domain_model: OrderBook | Trade,
+        domain_model: OrderBook | Fill,
         stream_type: str,
         model_data: dict[str, dict[str, Any]],
     ) -> None:
@@ -1136,7 +1134,7 @@ class TestHyperliquidAllStreamModelConversions:
                 model_data[stream_type] = {}
 
             # Handle different domain model types for different streams
-            if isinstance(domain_model, (OrderBook, Trade)):
+            if isinstance(domain_model, (OrderBook, Fill)):
                 self._handle_single_model_with_symbol(domain_model, stream_type, model_data)
             elif isinstance(domain_model, MidPrices):
                 self._handle_mid_prices_model(domain_model, stream_type, model_data)

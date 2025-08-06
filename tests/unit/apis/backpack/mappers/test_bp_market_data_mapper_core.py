@@ -25,7 +25,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
-from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
     BackpackRawFundingIntervalRate,
     BackpackRawFundingRateResponse,
@@ -42,15 +42,15 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.exceptions.data_transformation import (
     CandleTransformationError,
+    FillTransformationError,
     FundingRateTransformationError,
     MarketTransformationError,
     OrderBookTransformationError,
     TickerTransformationError,
-    TradeTransformationError,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import DecimalFieldError
-from cyberdelta.models import OrderBook, Ticker, Trade
+from cyberdelta.models import Fill, OrderBook, Ticker
 from cyberdelta.models.market import Candle, Market
 from cyberdelta.models.market.funding_rate import FundingRate
 from cyberdelta.models.market.market import BackpackMarketDetails
@@ -68,7 +68,7 @@ class CompositeMarketDataMapper:
         self.ticker_mapper = BackpackTickerMapper()
         self.market_mapper = BackpackMarketMapper()
         self.order_book_mapper = BackpackOrderBookMapper()
-        self.trade_mapper = BackpackTradeMapper()
+        self.trade_mapper = BackpackFillMapper()
         self.funding_rate_mapper = BackpackFundingRateMapper()
         self.candle_mapper = BackpackCandleMapper()
 
@@ -112,16 +112,16 @@ class CompositeMarketDataMapper:
         """
         return self.order_book_mapper.transform_raw_order_book_to_internal(symbol, raw_order_book)
 
-    def transform_raw_trade_to_internal(self, raw_trade: BackpackRawPublicTrade) -> Trade:
+    def transform_raw_trade_to_internal(self, raw_trade: BackpackRawPublicTrade) -> Fill:
         """Transform raw trade to internal format.
 
         Args:
             raw_trade: Raw trade data from Backpack API.
 
         Returns:
-            Trade: Transformed trade with execution details.
+            Fill: Transformed fill with execution details.
         """
-        return self.trade_mapper.transform_raw_trade_to_internal(raw_trade)
+        return self.trade_mapper.transform_raw_fill_to_internal(raw_trade)
 
     def transform_raw_funding_rate_to_internal(
         self, raw_funding_rate: BackpackRawFundingRateResponse
@@ -888,7 +888,7 @@ class TestOrderBookTransformation:
         assert result.symbol == test_symbol
 
 
-class TestTradeTransformation:
+class TestFillTransformation:
     """Test cases for trade transformation functionality."""
 
     def test_transform_raw_trade_to_internal_happy_path(
@@ -896,7 +896,7 @@ class TestTradeTransformation:
         mapper: CompositeMarketDataMapper,
         test_timestamp: str,
     ) -> None:
-        """Test successful transformation of BackpackRawPublicTrade to internal Trade."""
+        """Test successful transformation of BackpackRawPublicTrade to internal Fill."""
         raw_trade = create_raw_trade(
             trade_id="trade123",
             symbol="SOL-USDC",
@@ -908,7 +908,7 @@ class TestTradeTransformation:
 
         result = mapper.transform_raw_trade_to_internal(raw_trade)
 
-        assert isinstance(result, Trade)
+        assert isinstance(result, Fill)
         assert result.id == "trade123"
         assert result.symbol == exchanges.backpack("SOL_USDC")
         assert result.price == Decimal("100.50")
@@ -933,8 +933,8 @@ class TestTradeTransformation:
             mock_parse.return_value = None
 
             with pytest.raises(
-                TradeTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to Trade",
+                FillTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to Fill",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -964,8 +964,8 @@ class TestTradeTransformation:
             mock_parse.side_effect = mock_parse_side_effect
 
             with pytest.raises(
-                TradeTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to Trade",
+                FillTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to Fill",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 
@@ -1015,8 +1015,8 @@ class TestTradeTransformation:
             )
 
             with pytest.raises(
-                TradeTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to Trade",
+                FillTransformationError,
+                match="Failed to transform BackpackRawPublicTrade to Fill",
             ):
                 mapper.transform_raw_trade_to_internal(raw_trade)
 

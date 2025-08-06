@@ -53,17 +53,17 @@ from cyberdelta.apis.websocket.ws_transformer import (
 )
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
-from cyberdelta.models import DerivativePosition, Order, Ticker, Trade
+from cyberdelta.models import DerivativePosition, Fill, Order, Ticker
 
 
 if TYPE_CHECKING:
     from cyberdelta.apis.backpack.protocols.mapper_protocols import (
         BalanceMapperProtocol,
+        FillMapperProtocol,
         OrderBookMapperProtocol,
         OrderMapperProtocol,
         PositionMapperProtocol,
         TickerMapperProtocol,
-        TradeMapperProtocol,
         TransactionMapperProtocol,
     )
     from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
@@ -100,7 +100,7 @@ class BackpackWebSocketRouter(
         typed_processor: TypeSafeWebSocketProcessor,
         order_book_mapper: OrderBookMapperProtocol,
         ticker_mapper: TickerMapperProtocol,
-        trade_mapper: TradeMapperProtocol,
+        trade_mapper: FillMapperProtocol,
         balance_mapper: BalanceMapperProtocol,
         position_mapper: PositionMapperProtocol,
         order_mapper: OrderMapperProtocol,
@@ -113,7 +113,7 @@ class BackpackWebSocketRouter(
             typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book transformations.
             ticker_mapper: Mapper for ticker transformations.
-            trade_mapper: Mapper for trade transformations.
+            trade_mapper: Mapper for fill transformations.
             balance_mapper: Mapper for balance transformations.
             position_mapper: Mapper for position transformations.
             order_mapper: Mapper for order transformations.
@@ -160,8 +160,8 @@ class BackpackWebSocketRouter(
         # Register under both "trade" and "trades" for compatibility
         trade_processor = PydanticWebSocketProcessor(
             raw_model=BackpackRawPublicTradeEvent,
-            transformer=MapperTransformer[BackpackRawPublicTradeEvent, Trade](
-                mapper_method=self.trade_mapper.transform_ws_trade_event_to_internal,
+            transformer=MapperTransformer[BackpackRawPublicTradeEvent, Fill](
+                mapper_method=self.trade_mapper.transform_ws_fill_event_to_internal_fill,
             ),
             error_handler=self.error_handler,
             processor_name="backpack_trades",
@@ -191,8 +191,8 @@ class BackpackWebSocketRouter(
         # Account fills processor (different transformer than public trades)
         self.processors["fills"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawFillResponse,
-            transformer=MapperTransformer[BackpackRawFillResponse, Trade](
-                mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal_trade,
+            transformer=MapperTransformer[BackpackRawFillResponse, Fill](
+                mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal_fill,
             ),
             error_handler=self.error_handler,
             processor_name="backpack_fills",

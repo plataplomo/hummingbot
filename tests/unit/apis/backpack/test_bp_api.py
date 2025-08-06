@@ -34,11 +34,11 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
+    Fill,
     FundingRate,
     MarginAccountSummary,
     SpotBalance,
     Ticker,
-    Trade,
 )
 from cyberdelta.models.market.order import CancelOrderResult, Order
 from cyberdelta.symbols import exchanges
@@ -408,7 +408,7 @@ class TestBackpackAPIAccountOperations:
         api = bp_api_with_di()
 
         # Configure mock account service
-        expected_trades: list[Trade] = []  # Empty trades list
+        expected_trades: list[Fill] = []  # Empty trades list
         mock_bp_account_service.get_trade_history.return_value = expected_trades
 
         # Test delegation

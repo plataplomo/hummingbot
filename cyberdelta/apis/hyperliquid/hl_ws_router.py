@@ -54,7 +54,7 @@ from cyberdelta.apis.websocket.ws_transformer import (
 )
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
-from cyberdelta.models import DerivativePosition, Order, OrderBook, Trade
+from cyberdelta.models import DerivativePosition, Fill, Order, OrderBook
 from cyberdelta.models.market import Candle
 from cyberdelta.models.market.mid_prices import MidPrices
 
@@ -144,9 +144,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         self.transaction_mapper = transaction_mapper
         self.historical_data_mapper = historical_data_mapper
 
-        # Track active trades subscriptions to handle empty trades lists
+        # Track active fill subscriptions to handle empty fills lists
         # Maps channel -> set of coins we're subscribed to
-        self._trades_subscriptions: dict[str, set[str]] = {"trades": set()}
+        self._fill_subscriptions: dict[str, set[str]] = {"trades": set()}
 
         # Track active candle subscriptions to handle candle messages (which don't include coin)
         self._candle_subscriptions: dict[str, set[str]] = {"candle": set()}
@@ -206,21 +206,21 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         # Delegate to historical data mapper for WebSocket candle transformation
         return self.historical_data_mapper.transform_ws_candle_to_internal(validated)
 
-    def _transform_trades_list(self, validated: HyperliquidRawWsTradeEventsList) -> list[Trade]:
-        """Transform WebSocket trades list to internal Trade models.
+    def _transform_fills_list(self, validated: HyperliquidRawWsTradeEventsList) -> list[Fill]:
+        """Transform WebSocket fills list to internal Fill models.
 
         Args:
-            validated: Validated trades list (RootModel).
+            validated: Validated fills list (RootModel).
 
         Returns:
-            List of internal Trade objects.
+            List of internal Fill objects.
         """
-        trades: list[Trade] = []
-        for trade_event in validated.root:  # Access RootModel's root
-            # Transform each individual trade using the existing mapper method
-            trade: Trade = self.order_book_mapper.transform_ws_trade_event_to_internal(trade_event)
-            trades.append(trade)
-        return trades
+        fills: list[Fill] = []
+        for fill_event in validated.root:  # Access RootModel's root
+            # Transform each individual fill using the order book mapper method
+            fill: Fill = self.order_book_mapper.transform_ws_trade_event_to_internal(fill_event)
+            fills.append(fill)
+        return fills
 
     def _setup_processors(self) -> None:
         """Setup Hyperliquid-specific message processors for all message types."""
@@ -236,11 +236,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         self.processors["trades"] = PydanticWebSocketProcessor(
             raw_model=HyperliquidRawWsTradeEventsList,
-            transformer=BatchMapperTransformer[HyperliquidRawWsTradeEventsList, Trade](
-                mapper_method=self._transform_trades_list,
+            transformer=BatchMapperTransformer[HyperliquidRawWsTradeEventsList, Fill](
+                mapper_method=self._transform_fills_list,
             ),
             error_handler=self.error_handler,
-            processor_name="hyperliquid_trades",
+            processor_name="hyperliquid_fills",
         )
 
         # Account/user data processors (position updates)
@@ -266,11 +266,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         # Fill events (typically part of userEvents but can be separate)
         self.processors["fills"] = PydanticWebSocketProcessor(
             raw_model=HyperliquidRawWsFillEvent,
-            transformer=MapperTransformer[HyperliquidRawWsFillEvent, Trade](
+            transformer=MapperTransformer[HyperliquidRawWsFillEvent, Fill](
                 mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal,
             ),
             error_handler=self.error_handler,
-            processor_name="hyperliquid_fills",
+            processor_name="hyperliquid_fill_events",
         )
 
         # AllMids channel - provides real-time mid prices for all assets
@@ -506,18 +506,18 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         if coin:
             return coin
 
-        # Handle empty trades lists using subscription tracking
+        # Handle empty fills lists using subscription tracking
         if envelope.channel == "trades" and isinstance(envelope.data, list) and not envelope.data:
-            subscribed_coins = self._trades_subscriptions.get("trades", set())
+            subscribed_coins = self._fill_subscriptions.get("trades", set())
             if len(subscribed_coins) == 1:
                 coin_from_subscription = next(iter(subscribed_coins))
                 self.logger.debug(
-                    "empty_trades_using_subscription",
+                    "empty_fills_using_subscription",
                     channel="trades",
                     exchange=self.exchange_name,
                     coin=coin_from_subscription,
                     message=(
-                        f"Empty trades list routed to {coin_from_subscription} via subscription"
+                        f"Empty fills list routed to {coin_from_subscription} via subscription"
                     ),
                 )
                 return coin_from_subscription
@@ -614,10 +614,10 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         # Step 3: Get the appropriate handler
         handler = handlers.get(routing_key)
         if not handler:
-            # Special handling for trades channel when we can't determine the coin
+            # Special handling for fills channel when we can't determine the coin
             if routing_key == "trades" and validated_envelope.channel == "trades":
-                # Route to all trades:* handlers
-                await self._route_trades_to_all_handlers(validated_envelope, handlers, message)
+                # Route to all fills:* handlers
+                await self._route_fills_to_all_handlers(validated_envelope, handlers, message)
                 return
             await self._handle_missing_handler(message, routing_key, handlers)
             return
@@ -691,9 +691,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
                 method_name="construct_trades_subscription_payload",
             )
 
-        # Track this subscription for routing empty trades lists
+        # Track this subscription for routing empty fills lists
         clean_coin = coin.strip()
-        self._trades_subscriptions["trades"].add(clean_coin)
+        self._fill_subscriptions["trades"].add(clean_coin)
 
         payload = HyperliquidRawWsTradesSubscriptionPayload(type="trades", coin=clean_coin)
 
@@ -891,16 +891,16 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             return self._handle_candle_topic(topic)
         raise UnsupportedTopicFormatError(topic)
 
-    async def _route_trades_to_all_handlers(
+    async def _route_fills_to_all_handlers(
         self,
         validated_envelope: HyperliquidWebSocketMessage,
         handlers: dict[str, MessageHandler],
         message: dict[str, Any],
     ) -> None:
-        """Route trades messages to all trades:* handlers when coin can't be determined.
+        """Route fills messages to all fills:* handlers when coin can't be determined.
 
-        This handles the case where trades data is empty (common on testnet) and we
-        can't determine which coin the trades are for.
+        This handles the case where fills data is empty (common on testnet) and we
+        can't determine which coin the fills are for.
 
         Args:
             validated_envelope: The validated envelope
@@ -908,15 +908,15 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             message: The original message
         """
         # Find all handlers that start with "trades:"
-        trades_handlers = {
+        fill_handlers = {
             key: handler for key, handler in handlers.items() if key.startswith("trades:")
         }
 
-        if not trades_handlers:
+        if not fill_handlers:
             self.logger.debug(
-                "no_trades_handlers_found",
+                "no_fill_handlers_found",
                 exchange=self.exchange_name,
-                message="No trades:* handlers found for empty trades message",
+                message="No fills:* handlers found for empty fills message",
             )
             return
 
@@ -932,8 +932,8 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             await self._handle_missing_processor("trades", payload, error_context)
             return
 
-        # Route to each trades handler
-        for routing_key, handler in trades_handlers.items():
+        # Route to each fill handler
+        for routing_key, handler in fill_handlers.items():
             # Create typed context for this specific handler
             message_id = str(uuid.uuid4())
             typed_context = self._create_typed_context(validated_envelope, routing_key, message_id)

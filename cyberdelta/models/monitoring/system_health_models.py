@@ -17,6 +17,29 @@ from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 
 
+class OperationalThresholds(BaseModel):
+    """Type-safe operational thresholds for monitoring.
+
+    This model provides specific threshold values used during monitoring operations.
+    Different from HealthCheckThresholds (config) which are service-level ratios.
+
+    IMPORTANT: Following CODING_STANDARDS.md:
+    - All thresholds use appropriate numeric types
+    """
+
+    response_time_ms: float = Field(description="Response time threshold in milliseconds")
+
+    error_rate: float = Field(description="Error rate threshold as decimal")
+
+    stale_data_sec: float = Field(description="Data staleness threshold in seconds")
+
+    class Config:
+        """Pydantic configuration."""
+
+        frozen = True  # Immutable for thread safety
+        validate_assignment = True
+
+
 class HealthCheckDetails(BaseModel):
     """Type-safe health check details.
 
@@ -80,21 +103,21 @@ class MonitoringConfiguration(BaseModel):
         validate_assignment = True
 
 
-class OperationalThresholds(BaseModel):
-    """Type-safe operational thresholds for monitoring.
+class CircuitBreakerConfiguration(BaseModel):
+    """Type-safe circuit breaker configuration.
 
-    This model provides specific threshold values used during monitoring operations.
-    Different from HealthCheckThresholds (config) which are service-level ratios.
+    This model replaces nested dict[str, Any] patterns in circuit breaker configuration
+    to ensure type safety for safety system settings.
 
     IMPORTANT: Following CODING_STANDARDS.md:
-    - All thresholds use appropriate numeric types
+    - Type-safe configuration data
     """
 
-    response_time_ms: float = Field(description="Response time threshold in milliseconds")
+    global_failure_threshold: int = Field(description="Global consecutive failure threshold")
 
-    error_rate: float = Field(description="Error rate threshold as decimal")
+    cooldown_period_sec: int = Field(description="Cooldown period in seconds")
 
-    stale_data_sec: float = Field(description="Data staleness threshold in seconds")
+    per_service_enabled: bool = Field(description="Whether per-service breakers are enabled")
 
     class Config:
         """Pydantic configuration."""
@@ -128,29 +151,6 @@ class CircuitBreakerSystemHealth(BaseModel):
     enabled: bool = Field(description="Whether circuit breaker system is enabled")
 
     configuration: CircuitBreakerConfiguration = Field(description="Circuit breaker configuration")
-
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable for thread safety
-        validate_assignment = True
-
-
-class CircuitBreakerConfiguration(BaseModel):
-    """Type-safe circuit breaker configuration.
-
-    This model replaces nested dict[str, Any] patterns in circuit breaker configuration
-    to ensure type safety for safety system settings.
-
-    IMPORTANT: Following CODING_STANDARDS.md:
-    - Type-safe configuration data
-    """
-
-    global_failure_threshold: int = Field(description="Global consecutive failure threshold")
-
-    cooldown_period_sec: int = Field(description="Cooldown period in seconds")
-
-    per_service_enabled: bool = Field(description="Whether per-service breakers are enabled")
 
     class Config:
         """Pydantic configuration."""
@@ -215,6 +215,47 @@ class ServiceHealthStatus(BaseModel):
         validate_assignment = True
 
 
+class SystemMetrics(BaseModel):
+    """Type-safe system-level performance metrics.
+
+    This model replaces dict[str, Any] patterns in system metrics collection
+    to ensure type safety for performance monitoring.
+
+    IMPORTANT: Following CODING_STANDARDS.md:
+    - NO default values for critical fields
+    - All metrics use Decimal type for precision
+    """
+
+    cpu_usage_percent: Decimal = Field(description="CPU usage as percentage")
+
+    memory_usage_percent: Decimal = Field(description="Memory usage as percentage")
+
+    disk_usage_percent: Decimal = Field(description="Disk usage as percentage")
+
+    uptime_seconds: int = Field(description="System uptime in seconds")
+
+    metrics_collection_timestamp: datetime = Field(description="When metrics were collected")
+
+    # Optional detailed metrics
+    load_average_1min: Decimal | None = Field(default=None, description="1-minute load average")
+
+    load_average_5min: Decimal | None = Field(default=None, description="5-minute load average")
+
+    available_memory_mb: Decimal | None = Field(
+        default=None, description="Available memory in megabytes"
+    )
+
+    network_connections: int | None = Field(
+        default=None, description="Number of active network connections"
+    )
+
+    class Config:
+        """Pydantic configuration."""
+
+        frozen = True  # Immutable for thread safety
+        validate_assignment = True
+
+
 class SystemHealthReport(BaseModel):
     """Type-safe comprehensive system health report.
 
@@ -258,47 +299,6 @@ class SystemHealthReport(BaseModel):
 
     critical_issues: list[str] | None = Field(
         default=None, description="List of critical issues requiring attention"
-    )
-
-    class Config:
-        """Pydantic configuration."""
-
-        frozen = True  # Immutable for thread safety
-        validate_assignment = True
-
-
-class SystemMetrics(BaseModel):
-    """Type-safe system-level performance metrics.
-
-    This model replaces dict[str, Any] patterns in system metrics collection
-    to ensure type safety for performance monitoring.
-
-    IMPORTANT: Following CODING_STANDARDS.md:
-    - NO default values for critical fields
-    - All metrics use Decimal type for precision
-    """
-
-    cpu_usage_percent: Decimal = Field(description="CPU usage as percentage")
-
-    memory_usage_percent: Decimal = Field(description="Memory usage as percentage")
-
-    disk_usage_percent: Decimal = Field(description="Disk usage as percentage")
-
-    uptime_seconds: int = Field(description="System uptime in seconds")
-
-    metrics_collection_timestamp: datetime = Field(description="When metrics were collected")
-
-    # Optional detailed metrics
-    load_average_1min: Decimal | None = Field(default=None, description="1-minute load average")
-
-    load_average_5min: Decimal | None = Field(default=None, description="5-minute load average")
-
-    available_memory_mb: Decimal | None = Field(
-        default=None, description="Available memory in megabytes"
-    )
-
-    network_connections: int | None = Field(
-        default=None, description="Number of active network connections"
     )
 
     class Config:

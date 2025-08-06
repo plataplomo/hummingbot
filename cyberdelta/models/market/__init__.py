@@ -11,23 +11,23 @@ exchange-specific enrichment data.
 """
 
 from .candle import Candle
+from .fill import Fill
 from .funding_rate import FundingRate
 from .market import Market
 from .mid_prices import MidPrices
 from .order import CancelOrderResult, Order
 from .order_book import OrderBook
 from .ticker import Ticker
-from .trade import Trade
 
 
 __all__ = [
     "CancelOrderResult",
     "Candle",
+    "Fill",
     "FundingRate",
     "Market",
     "MidPrices",
     "Order",
     "OrderBook",
     "Ticker",
-    "Trade",
 ]

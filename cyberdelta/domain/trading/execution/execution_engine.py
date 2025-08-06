@@ -22,8 +22,8 @@ from cyberdelta.domain.trading.fills.fill_handler import FillHandler
 from cyberdelta.domain.trading.validation.order_validator import OrderValidator
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType
 from cyberdelta.enums.monitoring import ServiceType
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.trading.execution_request import ExecutionRequest
 from cyberdelta.models.trading.fill_statistics import FillStatistics, OrderUpdateData
@@ -131,7 +131,7 @@ class ExecutionEngine(HealthCheckable):
 
         return order
 
-    async def handle_order_update(self, order_id: str, update: OrderUpdateData) -> Trade | None:
+    async def handle_order_update(self, order_id: str, update: OrderUpdateData) -> Fill | None:
         """Handle order status updates from exchange.
 
         Args:
@@ -139,7 +139,7 @@ class ExecutionEngine(HealthCheckable):
             update: Typed update data from exchange
 
         Returns:
-            Trade object if order was filled, None otherwise
+            Fill object if order was filled, None otherwise
         """
         order = self._order_tracker.get_order(order_id)
         if not order:
@@ -165,7 +165,7 @@ class ExecutionEngine(HealthCheckable):
                 # Use FillHandler for comprehensive fill processing
                 trade = await self._fill_handler.process_fill(order, update.fill)
             else:
-                # Fallback: update.fill is already a Trade object
+                # Fallback: update.fill is already a Fill object
                 trade = update.fill
 
             # Update order filled quantity through tracker to avoid direct mutation
@@ -319,14 +319,14 @@ class ExecutionEngine(HealthCheckable):
             last_fill_timestamp=None,
         )
 
-    def get_recent_fills(self, limit: int = 10) -> list[Trade]:
+    def get_recent_fills(self, limit: int = 10) -> list[Fill]:
         """Get recent fills processed by the FillHandler.
 
         Args:
             limit: Maximum number of fills to return
 
         Returns:
-            List of recent Trade objects
+            List of recent Fill objects
         """
         if self._fill_handler:
             return self._fill_handler.get_recent_fills(limit)

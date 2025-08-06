@@ -29,9 +29,9 @@ from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.symbols.models import Symbol
 
 # Import WebSocket test helpers
@@ -77,13 +77,13 @@ def is_any_list(obj: object) -> TypeGuard[list[Any]]:
 class TestBackpackAllStreamModelConversions:
     """Test comprehensive stream-to-model conversions for all WebSocket data types."""
 
-    def _is_trade(self, obj: object) -> TypeGuard[Trade]:
-        """Type guard for Trade objects.
+    def _is_trade(self, obj: object) -> TypeGuard[Fill]:
+        """Type guard for Fill objects.
 
         Returns:
-            TypeGuard[Trade]: True if obj is a Trade instance.
+            TypeGuard[Fill]: True if obj is a Fill instance.
         """
-        return isinstance(obj, Trade)
+        return isinstance(obj, Fill)
 
     def _is_backpack_fill(self, obj: object) -> TypeGuard[BackpackRawFillResponse]:
         """Type guard for BackpackRawFillResponse objects.
@@ -130,13 +130,13 @@ class TestBackpackAllStreamModelConversions:
             return list(model_dict.keys())
         return "NOT_A_DICT"
 
-    def _extract_trades(self, items: SupportsIteration) -> list[Trade]:
-        """Extract Trade objects from iterable with proper typing.
+    def _extract_trades(self, items: SupportsIteration) -> list[Fill]:
+        """Extract Fill objects from iterable with proper typing.
 
         Returns:
-            list[Trade]: List of Trade objects filtered from the input iterable.
+            list[Fill]: List of Fill objects filtered from the input iterable.
         """
-        result: list[Trade] = [item for item in items if self._is_trade(item)]
+        result: list[Fill] = [item for item in items if self._is_trade(item)]
         return result
 
     def _extract_fills(self, items: SupportsIteration) -> list[BackpackRawFillResponse]:
@@ -324,7 +324,7 @@ class TestBackpackAllStreamModelConversions:
             message="✓ Ticker model validation passed",
         )
 
-    async def _create_trades_handler(self, received_trades: list[Trade]) -> MessageHandler:
+    async def _create_trades_handler(self, received_trades: list[Fill]) -> MessageHandler:
         """Create handler for trades stream messages.
 
         Returns:
@@ -337,8 +337,8 @@ class TestBackpackAllStreamModelConversions:
             # The domain model is stored directly on the context (same as ticker handler)
             if hasattr(context, "domain_model") and context.domain_model is not None:
                 domain_model = context.domain_model
-                # Check if it's a Trade instance
-                if isinstance(domain_model, Trade):
+                # Check if it's a Fill instance
+                if isinstance(domain_model, Fill):
                     received_trades.append(domain_model)
                     logger.info(
                         "trade_model_received_from_stream",
@@ -364,8 +364,8 @@ class TestBackpackAllStreamModelConversions:
 
         return trades_handler
 
-    def _log_trade_received(self, trade: Trade, key: str) -> None:
-        """Log information about received trade."""
+    def _log_trade_received(self, trade: Fill, key: str) -> None:
+        """Log information about received fill."""
         logger.info(
             "trade_model_received_from_stream",
             symbol=trade.symbol,
@@ -376,17 +376,17 @@ class TestBackpackAllStreamModelConversions:
         )
 
     def _process_trade_list(
-        self, potential_trades: list[Trade], received_trades: list[Trade], key: str
+        self, potential_trades: list[Fill], received_trades: list[Fill], key: str
     ) -> bool:
-        """Process a list of potential trade objects.
+        """Process a list of potential fill objects.
 
         Args:
-            potential_trades: List of potential trade objects to process
-            received_trades: List to append processed trades to
+            potential_trades: List of potential fill objects to process
+            received_trades: List to append processed fills to
             key: Key identifier for logging
 
         Returns:
-            bool: True if any trades were found and processed
+            bool: True if any fills were found and processed
         """
         trades_found = False
         for trade in potential_trades:
@@ -411,11 +411,11 @@ class TestBackpackAllStreamModelConversions:
             message="Trades stream context (no Trade models found)",
         )
 
-    def _validate_received_trades(self, received_trades: list[Trade], test_symbol: Symbol) -> None:
-        """Validate received trade models and log results."""
+    def _validate_received_trades(self, received_trades: list[Fill], test_symbol: Symbol) -> None:
+        """Validate received fill models and log results."""
         if received_trades:
             for trade in received_trades[:3]:
-                self._validate_trade_model(trade, test_symbol)
+                self._validate_fill_model(trade, test_symbol)
             logger.info(
                 "trades_stream_conversion_success",
                 symbol=test_symbol,
@@ -438,7 +438,7 @@ class TestBackpackAllStreamModelConversions:
         try:
             await self._setup_websocket_connection(bp_api_for_test_env)
             test_symbol = await self._get_test_symbol(bp_api_for_test_env)
-            received_trades: list[Trade] = []
+            received_trades: list[Fill] = []
 
             trades_handler = await self._create_trades_handler(received_trades)
             # NOTE: Backpack uses "trade" (singular) not "trades" for the stream name
@@ -461,9 +461,9 @@ class TestBackpackAllStreamModelConversions:
                 "Test requires stable WebSocket connection for real-time data."
             )
 
-    def _validate_trade_model(self, trade: Trade, expected_symbol: Symbol) -> None:
-        """Validate Trade model structure and data."""
-        assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
+    def _validate_fill_model(self, trade: Fill, expected_symbol: Symbol) -> None:
+        """Validate Fill model structure and data."""
+        assert isinstance(trade, Fill), f"Expected Fill, got {type(trade)}"
         assert trade.symbol.value == expected_symbol.value, (
             f"Expected symbol {expected_symbol.value}, got {trade.symbol.value}"
         )
@@ -579,7 +579,11 @@ class TestBackpackAllStreamModelConversions:
         """Validate received fill models and log results."""
         if received_fills:
             for fill in received_fills[:3]:
-                self._validate_fill_model(fill)
+                # For generic fills stream, validate with the fill's own symbol
+                if hasattr(fill, "symbol"):
+                    self._validate_fill_model(fill, fill.symbol)
+                else:
+                    self._validate_raw_fill_model(fill)
             logger.info(
                 "fills_stream_conversion_success",
                 fills_received=len(received_fills),
@@ -628,7 +632,7 @@ class TestBackpackAllStreamModelConversions:
                 "Fills stream conversion testing not working."
             )
 
-    def _validate_fill_model(self, fill: BackpackRawFillResponse | object) -> None:
+    def _validate_raw_fill_model(self, fill: BackpackRawFillResponse | object) -> None:
         """Validate fill/order model structure and data."""
         model_type = type(fill).__name__
 

@@ -11,13 +11,13 @@ from cyberdelta.apis.backpack.mappers import (
     BackpackBalanceMapper,
     BackpackCandleMapper,
     BackpackCommonMappers,
+    BackpackFillMapper,
     BackpackFundingRateMapper,
     BackpackMarketMapper,
     BackpackOrderBookMapper,
     BackpackOrderMapper,
     BackpackPositionMapper,
     BackpackTickerMapper,
-    BackpackTradeMapper,
     BackpackTransactionMapper,
     BackpackTransferMapper,
 )
@@ -35,13 +35,13 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import (
     AccountSummaryMapperProtocol,
     BalanceMapperProtocol,
     CandleMapperProtocol,
+    FillMapperProtocol,
     FundingRateMapperProtocol,
     MarketMapperProtocol,
     OrderBookMapperProtocol,
     OrderMapperProtocol,
     PositionMapperProtocol,
     TickerMapperProtocol,
-    TradeMapperProtocol,
     TransactionMapperProtocol,
     TransferMapperProtocol,
 )
@@ -106,9 +106,9 @@ class TestMapperProtocolCompliance:
         assert isinstance(mapper, CandleMapperProtocol)
 
     def test_trade_mapper_implements_protocol(self) -> None:
-        """Test that BackpackTradeMapper implements TradeMapperProtocol."""
-        mapper = BackpackTradeMapper()
-        assert isinstance(mapper, TradeMapperProtocol)
+        """Test that BackpackFillMapper implements FillMapperProtocol."""
+        mapper = BackpackFillMapper()
+        assert isinstance(mapper, FillMapperProtocol)
 
     def test_market_mapper_implements_protocol(self) -> None:
         """Test that BackpackMarketMapper implements MarketMapperProtocol."""
@@ -186,7 +186,7 @@ class TestProtocolIntegration:
             BackpackTickerMapper(),
             BackpackOrderBookMapper(),
             BackpackCandleMapper(),
-            BackpackTradeMapper(),
+            BackpackFillMapper(),
             BackpackMarketMapper(),
             BackpackFundingRateMapper(),
             BackpackCommonMappers(),

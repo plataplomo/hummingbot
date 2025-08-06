@@ -37,10 +37,10 @@ from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     DerivativePosition,
+    Fill,
     HyperliquidPositionDetails,
-    Trade,
 )
-from cyberdelta.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.models.market.fill import HyperliquidFillDetails
 from tests.common_symbols import BTC_HL, ETH_HL
 
 
@@ -502,12 +502,12 @@ class TestTransformRawFillToInternal:
         self,
         hyperliquid_raw_fill_buy_fixture: HyperliquidRawFill,
     ) -> None:
-        """Test transforming a raw BUY TAKER fill to an internal Trade model."""
+        """Test transforming a raw BUY TAKER fill to an internal Fill model."""
         raw_fill = hyperliquid_raw_fill_buy_fixture
         transaction_mapper = TransactionMapper()
         trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
-        assert isinstance(trade, Trade)
+        assert isinstance(trade, Fill)
         assert trade.id == str(raw_fill.tid)
         assert trade.symbol.value == raw_fill.coin
         assert isinstance(trade.executed_at, datetime)
@@ -523,8 +523,8 @@ class TestTransformRawFillToInternal:
         assert trade.is_maker == raw_fill.is_maker
 
         assert trade.hl_details is not None
-        assert isinstance(trade.hl_details, HyperliquidTradeDetails)
-        assert trade.hl_details.trade_hash == raw_fill.hash
+        assert isinstance(trade.hl_details, HyperliquidFillDetails)
+        assert trade.hl_details.fill_hash == raw_fill.hash
         assert trade.hl_details.liquidation_mark_px is None
         assert trade.hl_details.start_position == Decimal(raw_fill.start_position)
         assert trade.hl_details.dir == raw_fill.dir
@@ -534,12 +534,12 @@ class TestTransformRawFillToInternal:
         self,
         hyperliquid_raw_fill_sell_maker_fixture: HyperliquidRawFill,
     ) -> None:
-        """Test transforming a raw SELL MAKER fill to an internal Trade model."""
+        """Test transforming a raw SELL MAKER fill to an internal Fill model."""
         raw_fill = hyperliquid_raw_fill_sell_maker_fixture
         transaction_mapper = TransactionMapper()
         trade = transaction_mapper.transform_raw_fill_to_internal(raw_fill)
 
-        assert isinstance(trade, Trade)
+        assert isinstance(trade, Fill)
         assert trade.id == str(raw_fill.tid)
         assert trade.symbol.value == raw_fill.coin
         assert isinstance(trade.executed_at, datetime)
@@ -555,8 +555,8 @@ class TestTransformRawFillToInternal:
         assert trade.is_maker == raw_fill.is_maker
 
         assert trade.hl_details is not None
-        assert isinstance(trade.hl_details, HyperliquidTradeDetails)
-        assert trade.hl_details.trade_hash == raw_fill.hash
+        assert isinstance(trade.hl_details, HyperliquidFillDetails)
+        assert trade.hl_details.fill_hash == raw_fill.hash
         assert raw_fill.liquidation_mark_px is not None
         assert trade.hl_details.liquidation_mark_px == Decimal(raw_fill.liquidation_mark_px)
         assert trade.hl_details.start_position == Decimal(raw_fill.start_position)
@@ -710,7 +710,7 @@ class TestTransformRawFillToInternal:
 # --- Integration tests for complex scenarios ---
 
 
-class TestPositionAndTradeIntegration:
+class TestPositionAndFillIntegration:
     """Integration tests combining position and trade transformations."""
 
     def test_position_and_trade_consistency(

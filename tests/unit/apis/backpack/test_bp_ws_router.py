@@ -14,7 +14,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
-from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.exceptions import UnsupportedWebSocketTopicError
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
@@ -57,9 +57,9 @@ class TestBackpackWebSocketRouter:
         """Create mock trade mapper.
 
         Returns:
-            MagicMock: Mock BackpackTradeMapper instance for testing.
+            MagicMock: Mock BackpackFillMapper instance for testing.
         """
-        return MagicMock(spec=BackpackTradeMapper)
+        return MagicMock(spec=BackpackFillMapper)
 
     @pytest.fixture
     def balance_mapper(self) -> MagicMock:

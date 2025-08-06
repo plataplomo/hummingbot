@@ -20,8 +20,8 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers import (
     BackpackCandleMapper,
+    BackpackFillMapper,
     BackpackFundingRateMapper,
-    BackpackTradeMapper,
 )
 from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineResponse
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawRecentPublicTrade
@@ -45,7 +45,7 @@ from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.models.market import Trade
+from cyberdelta.models.market import Fill
 from cyberdelta.models.market.candle import Candle
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -95,7 +95,7 @@ class BackpackHistoricalDataService:
         response_handler: BackpackMarketDataResponseHandler,
         authenticator: IAuthenticator | None,
         exchange_name: str = "backpack",
-        trade_mapper: BackpackTradeMapper | None = None,
+        trade_mapper: BackpackFillMapper | None = None,
         candle_mapper: BackpackCandleMapper | None = None,
         funding_rate_mapper: BackpackFundingRateMapper | None = None,
     ) -> None:
@@ -116,11 +116,11 @@ class BackpackHistoricalDataService:
         self._response_handler = response_handler
         self._authenticator = authenticator
         self._exchange_name = exchange_name
-        self._trade_mapper = trade_mapper or BackpackTradeMapper()
+        self._trade_mapper = trade_mapper or BackpackFillMapper()
         self._candle_mapper = candle_mapper or BackpackCandleMapper()
         self._funding_rate_mapper = funding_rate_mapper or BackpackFundingRateMapper()
 
-    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 100) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 100) -> list[Fill]:
         """Retrieves recent trades for a specific symbol.
 
         Args:
@@ -128,7 +128,7 @@ class BackpackHistoricalDataService:
             limit: Maximum number of trades to retrieve (default: 100)
 
         Returns:
-            list[Trade]: List of recent trades
+            list[Fill]: List of recent trades
 
         Raises:
             APIError: If trade retrieval fails or processing fails
@@ -336,7 +336,7 @@ class BackpackHistoricalDataService:
         symbol: Symbol,
         status_code: int,
         headers: Mapping[str, str],
-    ) -> list[Trade]:
+    ) -> list[Fill]:
         """Process the recent trades response.
 
         Args:
@@ -346,7 +346,7 @@ class BackpackHistoricalDataService:
             headers: Response headers
 
         Returns:
-            list[Trade]: Processed trades
+            list[Fill]: Processed trades
         """
         validated_list = ensure_list_response(
             raw_data_list,
@@ -364,7 +364,7 @@ class BackpackHistoricalDataService:
         )
 
         return [
-            self._trade_mapper.transform_raw_recent_trade_to_internal(raw_trade, symbol)
+            self._trade_mapper.transform_raw_recent_fill_to_internal(raw_trade, symbol)
             for raw_trade in raw_trades_list
         ]
 

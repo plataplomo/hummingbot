@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.trading import OrderSide
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.market.fill import Fill
 
 
 if TYPE_CHECKING:
@@ -126,7 +126,7 @@ class PerformanceTracker:
 
         # Cache for historical data
         self._equity_curve: list[tuple[datetime, Decimal]] = []
-        self._trade_history: list[Trade] = []
+        self._fill_history: list[Fill] = []
 
         logger.info(
             "performance_tracker_initialized",
@@ -214,21 +214,19 @@ class PerformanceTracker:
         - Returns Decimal, NOT float
         - Uses configured base currency for conversion
         """
-        # Get trades in period
-        trades = await self._get_trades_in_period(period_start, period_end)
+        # Get fills in period
+        fills = await self._get_fills_in_period(period_start, period_end)
 
         # Calculate realized PnL
         realized_pnl = Decimal(0)
-        for trade in trades:
-            trade_pnl = trade.quantity * (
-                trade.price if trade.side == OrderSide.SELL else -trade.price
-            )
+        for fill in fills:
+            fill_pnl = fill.quantity * (fill.price if fill.side == OrderSide.SELL else -fill.price)
 
             # Include fees if configured
             if self._include_fees:
-                trade_pnl -= trade.fee
+                fill_pnl -= fill.fee
 
-            realized_pnl += trade_pnl
+            realized_pnl += fill_pnl
 
         # Calculate unrealized PnL from current positions
         portfolio_state = await self._portfolio_service.get_state()
@@ -375,67 +373,67 @@ class PerformanceTracker:
         - All calculations use Decimal, NOT float
         - Returns explicit statistics, no derived metrics
         """
-        trades = await self._get_trades_in_period(period_start, period_end)
+        fills = await self._get_fills_in_period(period_start, period_end)
 
-        if not trades:
+        if not fills:
             return {
-                "total_trades": 0,
-                "winning_trades": 0,
-                "losing_trades": 0,
+                "total_fills": 0,
+                "winning_fills": 0,
+                "losing_fills": 0,
                 "win_rate": Decimal(0),
                 "average_win": Decimal(0),
                 "average_loss": Decimal(0),
                 "profit_factor": Decimal(0),
             }
 
-        # Group trades by position (simplified - would use position tracking in practice)
-        winning_trades: list[Decimal] = []
-        losing_trades: list[Decimal] = []
+        # Group fills by position (simplified - would use position tracking in practice)
+        winning_fills: list[Decimal] = []
+        losing_fills: list[Decimal] = []
 
-        for trade in trades:
-            # Calculate trade PnL (simplified)
-            trade_pnl = (
-                trade.quantity
-                * trade.price
-                * (Decimal(1) if trade.side == OrderSide.SELL else Decimal(-1))
+        for fill in fills:
+            # Calculate fill PnL (simplified)
+            fill_pnl = (
+                fill.quantity
+                * fill.price
+                * (Decimal(1) if fill.side == OrderSide.SELL else Decimal(-1))
             )
 
             if self._include_fees:
-                trade_pnl -= trade.fee
+                fill_pnl -= fill.fee
 
-            if trade_pnl > Decimal(0):
-                winning_trades.append(trade_pnl)
-            elif trade_pnl < Decimal(0):
-                losing_trades.append(trade_pnl)
+            if fill_pnl > Decimal(0):
+                winning_fills.append(fill_pnl)
+            elif fill_pnl < Decimal(0):
+                losing_fills.append(fill_pnl)
 
         # Calculate statistics
-        total_trades = len(trades)
-        num_winners = len(winning_trades)
-        num_losers = len(losing_trades)
+        total_fills = len(fills)
+        num_winners = len(winning_fills)
+        num_losers = len(losing_fills)
 
         win_rate = (
-            (Decimal(num_winners) / Decimal(total_trades) * Decimal(100))
-            if total_trades > 0
+            (Decimal(num_winners) / Decimal(total_fills) * Decimal(100))
+            if total_fills > 0
             else Decimal(0)
         )
 
         average_win = (
-            sum(winning_trades) / Decimal(len(winning_trades)) if winning_trades else Decimal(0)
+            sum(winning_fills) / Decimal(len(winning_fills)) if winning_fills else Decimal(0)
         )
         average_loss = (
-            sum(losing_trades) / Decimal(len(losing_trades)) if losing_trades else Decimal(0)
+            sum(losing_fills) / Decimal(len(losing_fills)) if losing_fills else Decimal(0)
         )
 
         # Profit factor
-        total_wins = sum(winning_trades) if winning_trades else Decimal(0)
-        total_loss_sum = sum(losing_trades) if losing_trades else Decimal(0)
+        total_wins = sum(winning_fills) if winning_fills else Decimal(0)
+        total_loss_sum = sum(losing_fills) if losing_fills else Decimal(0)
         total_losses = total_loss_sum if total_loss_sum >= Decimal(0) else -total_loss_sum
         profit_factor = total_wins / total_losses if total_losses > Decimal(0) else Decimal(0)
 
         return {
-            "total_trades": total_trades,
-            "winning_trades": num_winners,
-            "losing_trades": num_losers,
+            "total_fills": total_fills,
+            "winning_fills": num_winners,
+            "losing_fills": num_losers,
             "win_rate": win_rate,
             "average_win": average_win,
             "average_loss": average_loss,
@@ -469,35 +467,35 @@ class PerformanceTracker:
             curve_length=len(self._equity_curve),
         )
 
-    async def add_trade(self, trade: Trade) -> None:
-        """Add trade to history for metrics calculation.
+    async def add_fill(self, fill: Fill) -> None:
+        """Add fill to history for metrics calculation.
 
         Args:
-            trade: Trade to add to history
+            fill: Fill to add to history
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Maintains history based on configured retention
         - NO modifications to trade data
-        - Uses Trade model as-is
+        - Uses Fill model as-is
         """
-        self._trade_history.append(trade)
+        self._fill_history.append(fill)
 
-        # Trim old trades based on calculation period to prevent unbounded growth
+        # Trim old fills based on calculation period to prevent unbounded growth
         max_days = self._calculation_period * 3  # Keep 3x calculation period
         cutoff = datetime.now(UTC) - timedelta(days=max_days)
-        self._trade_history = [t for t in self._trade_history if t.executed_at >= cutoff]
+        self._fill_history = [f for f in self._fill_history if f.executed_at >= cutoff]
 
     # Helper methods (private)
 
-    async def _get_trades_in_period(
+    async def _get_fills_in_period(
         self, period_start: datetime, period_end: datetime
-    ) -> list[Trade]:
-        """Get trades within specified period.
+    ) -> list[Fill]:
+        """Get fills within specified period.
 
         Returns:
-            List of trades in the specified period
+            List of fills in the specified period
         """
-        return [t for t in self._trade_history if period_start <= t.executed_at <= period_end]
+        return [f for f in self._fill_history if period_start <= f.executed_at <= period_end]
 
     async def _get_equity_at_time(self, timestamp: datetime) -> Decimal | None:
         """Get equity value at specific time.
@@ -614,19 +612,19 @@ class PerformanceTracker:
             Realized PnL as Decimal
         """
         # Placeholder - would track closed positions
-        trades = await self._get_trades_in_period(period_start, period_end)
+        fills = await self._get_fills_in_period(period_start, period_end)
 
         realized_pnl = Decimal(0)
-        for trade in trades:
+        for fill in fills:
             # Simplified - would match buys/sells
-            trade_pnl = (
-                trade.quantity
-                * trade.price
-                * (Decimal(1) if trade.side == OrderSide.SELL else Decimal(-1))
+            fill_pnl = (
+                fill.quantity
+                * fill.price
+                * (Decimal(1) if fill.side == OrderSide.SELL else Decimal(-1))
             )
             if self._include_fees:
-                trade_pnl -= trade.fee
-            realized_pnl += trade_pnl
+                fill_pnl -= fill.fee
+            realized_pnl += fill_pnl
 
         return realized_pnl
 
@@ -743,7 +741,7 @@ class PerformanceTracker:
             "sharpe_method": self._sharpe_method,
             "drawdown_method": self._drawdown_method,
             "equity_curve_length": len(self._equity_curve),
-            "trade_history_length": len(self._trade_history),
+            "fill_history_length": len(self._fill_history),
         }
 
     async def _calculate_pnl_metrics(
@@ -798,9 +796,9 @@ class PerformanceTracker:
             trading_stats = await self._calculate_trading_statistics(period_start, period_end)
 
             if "win_rate" in self._enabled_metrics:
-                metrics.total_trades = trading_stats["total_trades"]
-                metrics.winning_trades = trading_stats["winning_trades"]
-                metrics.losing_trades = trading_stats["losing_trades"]
+                metrics.total_trades = trading_stats["total_fills"]
+                metrics.winning_trades = trading_stats["winning_fills"]
+                metrics.losing_trades = trading_stats["losing_fills"]
                 metrics.win_rate_pct = trading_stats["win_rate"]
                 metrics.average_win = trading_stats["average_win"]
                 metrics.average_loss = trading_stats["average_loss"]

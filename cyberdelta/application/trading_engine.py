@@ -27,7 +27,7 @@ from cyberdelta.domain.strategy.strategy_service import StrategyService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
 from cyberdelta.enums.signals import SignalType
-from cyberdelta.models import Trade, TradeSignal
+from cyberdelta.models import Fill, TradeSignal
 from cyberdelta.models.events.base_event import DomainEvent
 from cyberdelta.models.events.portfolio_events import PositionUpdatedEvent
 from cyberdelta.models.events.risk_events import RiskLimitViolationEvent
@@ -482,7 +482,7 @@ class TradingEngine:
                 error_type=type(e).__name__,
             )
 
-    async def _handle_trade_executed(self, trade: Trade) -> None:
+    async def _handle_trade_executed(self, trade: Fill) -> None:
         """Handle trade execution completion.
 
         Args:
@@ -506,7 +506,7 @@ class TradingEngine:
 
             # Notify strategy service about trade completion with circuit breaker protection
             await self._circuit_breakers.protect(
-                "strategy_service", "handle_trade", self._strategy.handle_trade, trade
+                "strategy_service", "handle_fill", self._strategy.handle_fill, trade
             )
 
         except Exception as e:
@@ -1315,8 +1315,8 @@ class TradingEngine:
 
     async def _process_order_filled_event(self, event: OrderFilledEvent) -> None:
         """Process order filled event."""
-        # Create Trade instance with proper fields
-        trade = Trade(
+        # Create Fill instance with proper fields
+        fill = Fill(
             id=event.order_id,
             symbol=event.symbol,
             executed_at=event.timestamp,
@@ -1328,7 +1328,7 @@ class TradingEngine:
             fee=event.commission,
             is_maker=event.is_partial,  # Use partial flag as proxy for maker
         )
-        await self._handle_trade_executed(trade)
+        await self._handle_trade_executed(fill)
 
     async def _process_market_data_event(self, event: MarketDataUpdatedEvent) -> None:
         """Process market data event."""

@@ -39,7 +39,7 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import 
 from cyberdelta.apis.models.service_args.trading import GetOrderArgs
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
-from cyberdelta.models import Order, Trade
+from cyberdelta.models import Fill, Order
 from tests.common_symbols import BTC_HL, ETH_HL
 
 
@@ -189,13 +189,13 @@ def mock_filled_order() -> Order:
 
 
 @pytest.fixture
-def mock_trade() -> Trade:
+def mock_trade() -> Fill:
     """Create a mock trade.
 
     Returns:
-        Trade: A mock trade for BTC-USD.
+        Fill: A mock fill for BTC-USD.
     """
-    return Trade(
+    return Fill(
         id="trade_123",
         order_id="12345",
         symbol=BTC_HL,

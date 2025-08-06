@@ -444,17 +444,17 @@ class AbstractOrderBookMapperProtocol(Protocol):
 
 
 @runtime_checkable
-class AbstractTradeMapperProtocol(Protocol):
-    """Abstract protocol for trade transformation mappers.
+class AbstractFillMapperProtocol(Protocol):
+    """Abstract protocol for fill transformation mappers.
 
     Combines shared parsing utilities with the conceptual interface for
-    transforming exchange-specific trade data into internal Trade models.
+    transforming exchange-specific fill data into internal Fill models.
 
     Expected Transformations:
-    - Raw trade/fill data -> Trade
-    - WebSocket trade events -> Trade
-    - Public trade data -> Trade
-    - Trade history -> Trade
+    - Raw fill/trade data -> Fill
+    - WebSocket fill events -> Fill
+    - Public fill data -> Fill
+    - Fill history -> Fill
 
     Shared Utilities:
     - parse_timestamp(): Parse various timestamp formats
@@ -522,13 +522,13 @@ __all__ = [
     "AbstractAccountSummaryMapperProtocol",
     "AbstractBalanceMapperProtocol",
     "AbstractCandleMapperProtocol",
+    "AbstractFillMapperProtocol",
     "AbstractFundingRateMapperProtocol",
     "AbstractMarketMapperProtocol",
     "AbstractOrderBookMapperProtocol",
     "AbstractOrderMapperProtocol",
     "AbstractPositionMapperProtocol",
     "AbstractTickerMapperProtocol",
-    "AbstractTradeMapperProtocol",
     # Mixin classes with shared utilities
     "BalanceMapperMixin",
     "CommonDataParserMixin",

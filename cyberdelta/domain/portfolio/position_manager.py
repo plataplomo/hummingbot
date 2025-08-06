@@ -14,7 +14,7 @@ import structlog
 from cyberdelta.config import AppSettings
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import DerivativePosition
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
 from cyberdelta.protocols.domain.portfolio import (
     PortfolioStateManagerProtocol,
@@ -101,11 +101,11 @@ class PositionManager(PositionManagerProtocol):
             return {k: v for k, v in state.positions.items() if k.startswith(f"{exchange.value}:")}
         return state.positions.copy()
 
-    async def update_position_from_trade(self, trade: Trade) -> Decimal | None:
-        """Update position based on trade execution.
+    async def update_position_from_fill(self, fill: Fill) -> Decimal | None:
+        """Update position based on fill execution.
 
         Args:
-            trade: Executed trade
+            fill: Executed fill
 
         Returns:
             Realized PnL if position was closed/reduced, None otherwise
@@ -114,15 +114,15 @@ class PositionManager(PositionManagerProtocol):
         if not state:
             return None
 
-        # Trade.exchange is a string, use directly for key
-        position_key = f"{trade.exchange}:{trade.symbol.value}"
+        # Fill.exchange is a string, use directly for key
+        position_key = f"{fill.exchange}:{fill.symbol.value}"
         position = state.positions.get(position_key)
 
         # Calculate new position
         if position:
-            new_quantity, realized_pnl = self._calculate_position_change(position, trade)
+            new_quantity, realized_pnl = self._calculate_position_change(position, fill)
         else:
-            new_quantity = trade.quantity if trade.side == OrderSide.BUY else -trade.quantity
+            new_quantity = fill.quantity if fill.side == OrderSide.BUY else -fill.quantity
             realized_pnl = None
 
         # Update or create position
@@ -131,23 +131,23 @@ class PositionManager(PositionManagerProtocol):
                 del state.positions[position_key]
                 logger.info(
                     "Position closed",
-                    symbol=trade.symbol.value,
-                    exchange=trade.exchange,
+                    symbol=fill.symbol.value,
+                    exchange=fill.exchange,
                     realized_pnl=realized_pnl or 0,
                 )
         else:
             # Calculate new average price
             if position:
-                new_avg_price = self._calculate_average_price(position, trade, new_quantity)
+                new_avg_price = self._calculate_average_price(position, fill, new_quantity)
             else:
-                new_avg_price = trade.price
+                new_avg_price = fill.price
 
             # Create/update position
-            # Convert trade.exchange string to ExchangeName
-            exchange_enum = ExchangeName(trade.exchange)
+            # Convert fill.exchange string to ExchangeName
+            exchange_enum = ExchangeName(fill.exchange)
             state.positions[position_key] = DerivativePosition(
                 exchange=exchange_enum,
-                symbol=trade.symbol,
+                symbol=fill.symbol,
                 side=OrderSide.BUY if new_quantity > 0 else OrderSide.SELL,
                 size=abs(new_quantity),
                 entry_price=new_avg_price,
@@ -157,8 +157,8 @@ class PositionManager(PositionManagerProtocol):
 
             logger.info(
                 "Position updated",
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,
+                symbol=fill.symbol.value,
+                exchange=fill.exchange,
                 new_size=abs(new_quantity),
                 avg_price=new_avg_price,
             )
@@ -172,13 +172,13 @@ class PositionManager(PositionManagerProtocol):
     def _calculate_position_change(
         self,
         position: DerivativePosition,
-        trade: Trade,
+        fill: Fill,
     ) -> tuple[Decimal, Decimal | None]:
-        """Calculate position change from trade.
+        """Calculate position change from fill.
 
         Args:
             position: Current position
-            trade: New trade
+            fill: New fill
 
         Returns:
             Tuple of (new_quantity, realized_pnl)
@@ -188,13 +188,13 @@ class PositionManager(PositionManagerProtocol):
         if position.side == OrderSide.SELL:
             current_qty = -current_qty
 
-        # Trade quantity (signed)
-        trade_qty = trade.quantity
-        if trade.side == OrderSide.SELL:
-            trade_qty = -trade_qty
+        # Fill quantity (signed)
+        fill_qty = fill.quantity
+        if fill.side == OrderSide.SELL:
+            fill_qty = -fill_qty
 
         # New position quantity
-        new_qty = current_qty + trade_qty
+        new_qty = current_qty + fill_qty
 
         # Calculate realized PnL if reducing/closing position
         realized_pnl = None
@@ -203,23 +203,23 @@ class PositionManager(PositionManagerProtocol):
             reduced_qty = abs(current_qty) - abs(new_qty)
             if position.entry_price:
                 if current_qty > 0:  # Was long
-                    realized_pnl = reduced_qty * (trade.price - position.entry_price)
+                    realized_pnl = reduced_qty * (fill.price - position.entry_price)
                 else:  # Was short
-                    realized_pnl = reduced_qty * (position.entry_price - trade.price)
+                    realized_pnl = reduced_qty * (position.entry_price - fill.price)
 
         return new_qty, realized_pnl
 
     def _calculate_average_price(
         self,
         position: DerivativePosition,
-        trade: Trade,
+        fill: Fill,
         new_quantity: Decimal,
     ) -> Decimal:
-        """Calculate new average price after trade.
+        """Calculate new average price after fill.
 
         Args:
             position: Current position
-            trade: New trade
+            fill: New fill
             new_quantity: New position quantity (signed)
 
         Returns:
@@ -231,19 +231,19 @@ class PositionManager(PositionManagerProtocol):
             old_signed_qty = -old_signed_qty
 
         if (old_signed_qty > 0 and new_quantity < 0) or (old_signed_qty < 0 and new_quantity > 0):
-            return trade.price
+            return fill.price
 
-        # Calculate weighted average for same-side trades
+        # Calculate weighted average for same-side fills
         if not position.entry_price:
-            return trade.price
+            return fill.price
 
         old_value = abs(old_signed_qty) * position.entry_price
-        trade_value = trade.quantity * trade.price
-        total_value = old_value + trade_value
-        total_quantity = abs(old_signed_qty) + trade.quantity
+        fill_value = fill.quantity * fill.price
+        total_value = old_value + fill_value
+        total_quantity = abs(old_signed_qty) + fill.quantity
 
         if total_quantity == 0:
-            return trade.price
+            return fill.price
 
         return total_value / total_quantity
 

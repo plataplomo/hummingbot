@@ -15,7 +15,7 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_account_request_builder imp
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
 from cyberdelta.enums import ExchangeName, OrderSide
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.utils.typing import ParsedJsonResponse
 from tests.common_symbols import BTC_HL
 
@@ -161,13 +161,13 @@ def hyperliquid_account_service(
 
 
 @pytest.fixture
-def mock_trade() -> Trade:
+def mock_trade() -> Fill:
     """Create a mock trade for testing.
 
     Returns:
-        Trade instance with sample data for testing
+        Fill instance with sample data for testing
     """
-    return Trade(
+    return Fill(
         id="trade_12345",
         symbol=BTC_HL,
         executed_at=datetime.now(UTC),

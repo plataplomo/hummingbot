@@ -20,7 +20,7 @@ from cyberdelta.exceptions.portfolio import (
     PortfolioNotInitializedError,
     PortfolioStateNotInitializedError,
 )
-from cyberdelta.models import DerivativePosition, SpotBalance, Trade
+from cyberdelta.models import DerivativePosition, Fill, SpotBalance
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.symbols.models import BaseSymbol, HyperliquidMetadata, Symbol
 
@@ -224,17 +224,17 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 total_equity_usd=self._cached_state.total_equity_usd,
             )
 
-    async def update_from_trade(self, trade: Trade) -> None:
-        """Update portfolio state from trade execution.
+    async def update_from_fill(self, fill: Fill) -> None:
+        """Update portfolio state from fill execution.
 
         Following CODING_STANDARDS.md:
-        - Uses Trade object with Symbol/ExchangeName types
+        - Uses Fill object with Symbol/ExchangeName types
         - All calculations use Decimal
-        - NO assumptions about trade validity
+        - NO assumptions about fill validity
         - Atomic state updates with persistence
 
         Args:
-            trade: Trade object containing execution details
+            fill: Fill object containing execution details
 
         Raises:
             PortfolioNotInitializedError: If portfolio is not initialized
@@ -244,21 +244,21 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 raise PortfolioNotInitializedError
 
             logger.info(
-                "portfolio_update_from_trade_starting",
-                trade_id=trade.id,
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,  # exchange is str in Trade model
-                side=trade.side.value,
-                quantity=trade.quantity,
-                price=trade.price,
+                "portfolio_update_from_fill_starting",
+                fill_id=fill.id,
+                symbol=fill.symbol.value,
+                exchange=fill.exchange,  # exchange is str in Fill model
+                side=fill.side.value,
+                quantity=fill.quantity,
+                price=fill.price,
             )
 
             try:
-                # Update position from trade
-                await self._update_position_from_trade(trade)
+                # Update position from fill
+                await self._update_position_from_fill(fill)
 
-                # Update balance from trade
-                await self._update_balance_from_trade(trade)
+                # Update balance from fill
+                await self._update_balance_from_fill(fill)
 
                 # Update state timestamp
                 self._cached_state.timestamp = datetime.now(UTC)
@@ -268,19 +268,17 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                     await self._storage.save_state(self._cached_state)
 
                 logger.info(
-                    "portfolio_update_from_trade_completed",
-                    trade_id=trade.id,
+                    "portfolio_update_from_fill_completed",
+                    fill_id=fill.id,
                     atomic_save=self._atomic_updates,
                 )
 
             except Exception as e:
-                logger.exception(
-                    "portfolio_update_from_trade_failed", trade_id=trade.id, error=str(e)
-                )
+                logger.exception("portfolio_update_from_fill_failed", fill_id=fill.id, error=str(e))
                 raise
 
-    async def _update_position_from_trade(self, trade: Trade) -> None:
-        """Update position based on trade execution.
+    async def _update_position_from_fill(self, fill: Fill) -> None:
+        """Update position based on fill execution.
 
         Following CODING_STANDARDS.md:
         - All position calculations use Decimal
@@ -288,7 +286,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         - Proper handling of position opening/closing
 
         Args:
-            trade: Trade execution details
+            fill: Fill execution details
 
         Raises:
             PortfolioStateNotInitializedError: If portfolio state is not initialized
@@ -297,19 +295,19 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         if self._cached_state is None:
             raise PortfolioStateNotInitializedError
 
-        position_key = f"{trade.exchange}:{trade.symbol.value}"
+        position_key = f"{fill.exchange}:{fill.symbol.value}"
         current_position = self._cached_state.positions.get(position_key)
 
         if current_position is None:
             # Opening new position - convert exchange string to ExchangeName
-            exchange_enum = ExchangeName(trade.exchange)
+            exchange_enum = ExchangeName(fill.exchange)
             new_position = DerivativePosition(
                 exchange=exchange_enum,
-                symbol=trade.symbol,
-                side=trade.side,
-                size=trade.quantity,
-                entry_price=trade.price,
-                timestamp=trade.executed_at,
+                symbol=fill.symbol,
+                side=fill.side,
+                size=fill.quantity,
+                entry_price=fill.price,
+                timestamp=fill.executed_at,
                 unrealized_pnl=Decimal(0),  # Start with zero unrealized PnL
             )
 
@@ -317,27 +315,27 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
 
             logger.info(
                 "position_opened",
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,
+                symbol=fill.symbol.value,
+                exchange=fill.exchange,
                 size=new_position.size,
                 entry_price=new_position.entry_price or 0.0,
             )
 
         else:
             # Updating existing position
-            quantity_change = trade.quantity if trade.side == OrderSide.BUY else -trade.quantity
+            quantity_change = fill.quantity if fill.side == OrderSide.BUY else -fill.quantity
 
             new_size = current_position.size + quantity_change
 
             if new_size == Decimal(0):
                 # Position closed
-                realized_pnl = self._calculate_realized_pnl(current_position, trade)
+                realized_pnl = self._calculate_realized_pnl(current_position, fill)
                 self._cached_state.positions.pop(position_key, None)
 
                 logger.info(
                     "position_closed",
-                    symbol=trade.symbol.value,
-                    exchange=trade.exchange,
+                    symbol=fill.symbol.value,
+                    exchange=fill.exchange,
                     realized_pnl=realized_pnl or None,
                 )
 
@@ -349,9 +347,9 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 new_avg_price = self._calculate_average_price(
                     current_position.size,
                     current_position.entry_price,
-                    trade.quantity,
-                    trade.price,
-                    trade.side,
+                    fill.quantity,
+                    fill.price,
+                    fill.side,
                 )
 
                 # Create updated position
@@ -361,7 +359,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                     side=current_position.side,
                     size=new_size,
                     entry_price=new_avg_price,
-                    timestamp=trade.executed_at,
+                    timestamp=fill.executed_at,
                     unrealized_pnl=current_position.unrealized_pnl,  # Preserve until recalculation
                 )
 
@@ -369,23 +367,23 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
 
                 logger.info(
                     "position_updated",
-                    symbol=trade.symbol.value,
-                    exchange=trade.exchange,
+                    symbol=fill.symbol.value,
+                    exchange=fill.exchange,
                     old_size=current_position.size,
                     new_size=new_size,
                     new_avg_price=new_avg_price,
                 )
 
-    async def _update_balance_from_trade(self, trade: Trade) -> None:
-        """Update balance based on trade execution.
+    async def _update_balance_from_fill(self, fill: Fill) -> None:
+        """Update balance based on fill execution.
 
         Following CODING_STANDARDS.md:
         - Balance calculations use Decimal
         - NO assumptions about quote asset
-        - Proper fee handling from trade data
+        - Proper fee handling from fill data
 
         Args:
-            trade: Trade execution details
+            fill: Fill execution details
 
         Raises:
             PortfolioStateNotInitializedError: If portfolio state is not initialized
@@ -395,7 +393,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
 
         # Get quote asset from symbol - simplified for now
         # TODO: This will be enhanced when symbol service integration is added
-        quote_asset_str = self._extract_quote_asset(trade.symbol)
+        quote_asset_str = self._extract_quote_asset(fill.symbol)
 
         # For now, create a basic Symbol object for the quote asset
         # This will be improved when the symbol service is integrated
@@ -405,34 +403,34 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
             metadata=HyperliquidMetadata(),
         )
 
-        balance_key = f"{trade.exchange}:{quote_asset.value}"
+        balance_key = f"{fill.exchange}:{quote_asset.value}"
         current_balance = self._cached_state.balances.get(balance_key)
 
         if current_balance is None:
             # Create new balance entry with zero starting balance
             # In production, this should trigger a reconciliation
-            exchange_enum = ExchangeName(trade.exchange)
+            exchange_enum = ExchangeName(fill.exchange)
             current_balance = SpotBalance(
                 exchange=exchange_enum,
                 asset=quote_asset,
-                timestamp=trade.executed_at,
+                timestamp=fill.executed_at,
                 total_quantity=Decimal(0),
                 available_quantity=Decimal(0),
             )
 
             logger.warning(
-                "balance_created_from_trade",
+                "balance_created_from_fill",
                 asset=quote_asset.value,
-                exchange=trade.exchange,
+                exchange=fill.exchange,
                 reason="no_existing_balance",
             )
 
-        # Calculate balance change from trade
-        trade_cost = trade.quantity * trade.price
-        balance_change = -trade_cost if trade.side == OrderSide.BUY else trade_cost
+        # Calculate balance change from fill
+        fill_cost = fill.quantity * fill.price
+        balance_change = -fill_cost if fill.side == OrderSide.BUY else fill_cost
 
         # Subtract fees
-        balance_change -= trade.fee
+        balance_change -= fill.fee
 
         # Create updated balance
         new_total = current_balance.total_quantity + balance_change
@@ -441,7 +439,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         updated_balance = SpotBalance(
             exchange=current_balance.exchange,
             asset=current_balance.asset,
-            timestamp=trade.executed_at,
+            timestamp=fill.executed_at,
             total_quantity=new_total,
             available_quantity=new_available,
         )
@@ -449,12 +447,12 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         self._cached_state.balances[balance_key] = updated_balance
 
         logger.info(
-            "balance_updated_from_trade",
+            "balance_updated_from_fill",
             asset=quote_asset.value,
-            exchange=trade.exchange,
+            exchange=fill.exchange,
             balance_change=balance_change,
             new_total=new_total,
-            fee_paid=trade.fee,
+            fee_paid=fill.fee,
         )
 
     def _calculate_average_price(
@@ -495,12 +493,12 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
 
         return (existing_value + new_value) / total_size
 
-    def _calculate_realized_pnl(self, position: DerivativePosition, trade: Trade) -> Decimal | None:
-        """Calculate realized PnL from position closing trade.
+    def _calculate_realized_pnl(self, position: DerivativePosition, fill: Fill) -> Decimal | None:
+        """Calculate realized PnL from position closing fill.
 
         Args:
             position: Position being closed
-            trade: Trade that closes the position
+            fill: Fill that closes the position
 
         Returns:
             Realized PnL in quote currency, None if cannot calculate
@@ -517,15 +515,15 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
 
         entry_price = position.entry_price
 
-        if trade.side == OrderSide.BUY:
+        if fill.side == OrderSide.BUY:
             # Closing short position
             if position.side == OrderSide.SELL:
-                return (entry_price - trade.price) * trade.quantity
+                return (entry_price - fill.price) * fill.quantity
         # Closing long position
         elif position.side == OrderSide.BUY:
-            return (trade.price - entry_price) * trade.quantity
+            return (fill.price - entry_price) * fill.quantity
 
-        # Cannot calculate - position and trade sides don't match for closing
+        # Cannot calculate - position and fill sides don't match for closing
         return None
 
     def _extract_quote_asset(self, symbol: Symbol) -> str:

@@ -77,13 +77,13 @@ from cyberdelta.config.secrets_models import AnyExchangeSecrets as ExchangeSecre
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
+    Fill,
     FundingRate,
     MarginAccountSummary,
     MidPrices,
     Order,
     SpotBalance,
     Ticker,
-    Trade,
 )
 from cyberdelta.models.market import Candle, Market, OrderBook
 from cyberdelta.models.market.order import CancelOrderResult
@@ -335,7 +335,7 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.market_data_service.get_order_book(symbol, depth)
 
-    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 50) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = 50) -> list[Fill]:
         """Get recent trades for a specific symbol.
 
         Args:
@@ -598,7 +598,7 @@ class BackpackAPI(ExchangeAPI):
         """
         return await self.account_service.get_order_history(args)
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Get recent trade history.
 
         Args:

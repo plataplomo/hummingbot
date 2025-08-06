@@ -14,7 +14,7 @@ import structlog
 from cyberdelta.config import AppSettings
 from cyberdelta.enums import ExchangeName
 from cyberdelta.models import SpotBalance
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
 from cyberdelta.protocols.domain.portfolio import (
     BalanceManagerProtocol,
@@ -106,34 +106,34 @@ class BalanceManager(BalanceManagerProtocol):
 
         return total
 
-    async def update_balance_from_trade(self, trade: Trade) -> None:
-        """Update balance based on trade execution.
+    async def update_balance_from_fill(self, fill: Fill) -> None:
+        """Update balance based on fill execution.
 
         Args:
-            trade: Executed trade
+            fill: Executed fill
         """
-        # Get quote asset from trade symbol
-        quote_asset = self._get_quote_asset(trade.symbol)
+        # Get quote asset from fill symbol
+        quote_asset = self._get_quote_asset(fill.symbol)
         if not quote_asset:
             logger.warning(
                 "Could not determine quote asset",
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,
+                symbol=fill.symbol.value,
+                exchange=fill.exchange,
             )
             return
 
         # Calculate cost impact
-        cost = trade.quantity * trade.price
-        if trade.side.value == "BUY":
+        cost = fill.quantity * fill.price
+        if fill.side.value == "BUY":
             cost = -cost  # Buying costs money
 
         # Update balance
-        # Convert trade.exchange string to ExchangeName
-        exchange_enum = ExchangeName(trade.exchange)
+        # fill.exchange is already an ExchangeName enum
+        exchange_enum = fill.exchange
         await self._update_balance(
             exchange=exchange_enum,
             asset=quote_asset,
-            delta=cost - trade.fee,
+            delta=cost - (fill.fee or Decimal(0)),
         )
 
     async def _update_balance(

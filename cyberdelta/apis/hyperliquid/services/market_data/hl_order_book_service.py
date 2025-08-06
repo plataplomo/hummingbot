@@ -32,7 +32,7 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderBookMapperProtocol
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.models import OrderBook, Trade
+from cyberdelta.models import Fill, OrderBook
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -263,7 +263,7 @@ class HyperliquidOrderBookService:
         else:
             return order_book
 
-    async def get_recent_trades(self, symbol: Symbol) -> list[Trade]:
+    async def get_recent_fills(self, symbol: Symbol) -> list[Fill]:
         """Retrieve recent public trades for a specific symbol using a POST request to /info.
 
         Uses payload: {"type": "recentTrades", "coin": "SYMBOL"} to get recent public trades.
@@ -272,7 +272,7 @@ class HyperliquidOrderBookService:
             symbol: The Symbol domain object
 
         Returns:
-            List of Trade objects. The number of trades is determined by the Hyperliquid API
+            List of Fill objects. The number of fills is determined by the Hyperliquid API
 
         Raises:
             APIError: If the API request fails or the response is invalid
@@ -322,7 +322,7 @@ class HyperliquidOrderBookService:
                 headers,
             )
 
-            internal_trades = self._map_recent_trades_to_internal(
+            internal_fills = self._map_recent_trades_to_internal(
                 validated_raw_trades,
                 symbol.value,
             )
@@ -332,7 +332,7 @@ class HyperliquidOrderBookService:
                 exchange=self._exchange_name,
                 method=current_method,
                 symbol=symbol,
-                trade_count=len(internal_trades),
+                trade_count=len(internal_fills),
                 message="Successfully retrieved recent trades",
             )
 
@@ -367,7 +367,7 @@ class HyperliquidOrderBookService:
             )
             raise  # Re-raise after handling
         else:
-            return internal_trades
+            return internal_fills
 
     async def _fetch_recent_trades_data(
         self,
@@ -478,25 +478,25 @@ class HyperliquidOrderBookService:
         self,
         validated_raw_trades: list[HyperliquidRawPublicTrade],
         symbol: str,
-    ) -> list[Trade]:
-        """Map validated raw trades to internal Trade objects.
+    ) -> list[Fill]:
+        """Map validated raw trades to internal Fill objects.
 
         Args:
             validated_raw_trades: List of validated raw trade data
             symbol: Trading symbol for context
 
         Returns:
-            List of internal Trade objects
+            List of internal Fill objects
 
         Raises:
             None - This method handles errors internally and returns partial results
         """
-        internal_trades: list[Trade] = []
+        internal_trades: list[Fill] = []
         for raw_trade in validated_raw_trades:
             try:
-                trade = self._mapper.transform_raw_public_trade_to_internal(raw_trade)
-                if trade:
-                    internal_trades.append(trade)
+                fill = self._mapper.transform_raw_public_trade_to_internal(raw_trade)
+                if fill:
+                    internal_trades.append(fill)
             except (ValidationError, ValueError) as e_map_item:
                 logger.warning(
                     "recent_trade_mapping_skipped",

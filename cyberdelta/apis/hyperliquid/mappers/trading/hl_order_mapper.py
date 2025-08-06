@@ -50,7 +50,8 @@ from cyberdelta.enums import (
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import Order, Trade
+from cyberdelta.models import Order
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -96,14 +97,14 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
         """
         return self._transform_raw_order_to_internal_impl(raw_order, trigger=None)
 
-    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
-        """Transform raw fill data to internal trade model.
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Fill:
+        """Transform raw fill data to internal fill model.
 
         Args:
             raw_fill: Raw fill data from API
 
         Returns:
-            Trade domain model
+            Fill domain model
         """
         transaction_mapper = HyperliquidTransactionMapper()
         return transaction_mapper.transform_raw_user_fill_to_internal(raw_fill)

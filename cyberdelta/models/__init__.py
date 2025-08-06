@@ -38,7 +38,7 @@ from .margin_account import (
     HyperliquidMarginDetails,
     MarginAccountSummary,
 )
-from .market import CancelOrderResult, FundingRate, Market, MidPrices, OrderBook, Ticker, Trade
+from .market import CancelOrderResult, Fill, FundingRate, Market, MidPrices, OrderBook, Ticker
 from .market.order import (
     BackpackOrderDetails,
     HyperliquidOrderDetails,
@@ -72,6 +72,7 @@ __all__ = [
     "CancelOrderResult",
     "DerivativePosition",
     "ExecutionRequest",
+    "Fill",
     "FundingRate",
     "HyperliquidAccountSettingsDetails",  # Account Settings Detail
     "HyperliquidMarginDetails",  # Margin Account Detail
@@ -99,7 +100,6 @@ __all__ = [
     "SpotBalance",
     "Ticker",
     "TimeInForce",
-    "Trade",
     # Strategy Models
     "TradeSignal",
     # New Operation Models

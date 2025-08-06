@@ -35,7 +35,7 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_order_book_service impo
 )
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
 from cyberdelta.enums import ExchangeName, OrderSide
-from cyberdelta.models import OrderBook, Trade
+from cyberdelta.models import Fill, OrderBook
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import ETH_HL
 
@@ -165,13 +165,13 @@ def mock_raw_public_trade() -> HyperliquidRawPublicTrade:
 
 
 @pytest.fixture
-def mock_trade() -> Trade:
+def mock_trade() -> Fill:
     """Create a mock trade.
 
     Returns:
-        Trade: A mock trade for ETH.
+        Fill: A mock fill for ETH.
     """
-    return Trade(
+    return Fill(
         id="trade_123",
         order_id="order_123",
         symbol=ETH_HL,
@@ -307,7 +307,7 @@ class TestHyperliquidOrderBookService:
         assert "Failed to process/transform" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_success(
+    async def test_get_recent_fills_success(
         self,
         order_book_service: HyperliquidOrderBookService,
         mock_http_requester: AsyncMock,
@@ -315,7 +315,7 @@ class TestHyperliquidOrderBookService:
         mock_response_handler: Mock,
         mock_mapper: Mock,
         mock_raw_public_trade: HyperliquidRawPublicTrade,
-        mock_trade: Trade,
+        mock_trade: Fill,
     ) -> None:
         """Test successful recent trades retrieval."""
         # Arrange
@@ -333,7 +333,7 @@ class TestHyperliquidOrderBookService:
         mock_mapper.transform_raw_public_trade_to_internal.return_value = mock_trade
 
         # Act
-        result = await order_book_service.get_recent_trades(symbol)
+        result = await order_book_service.get_recent_fills(symbol)
 
         # Assert
         assert len(result) == 1
@@ -344,7 +344,7 @@ class TestHyperliquidOrderBookService:
         assert call_args[0][0].symbol == symbol
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_empty_list(
+    async def test_get_recent_fills_empty_list(
         self,
         order_book_service: HyperliquidOrderBookService,
         mock_http_requester: AsyncMock,
@@ -360,13 +360,13 @@ class TestHyperliquidOrderBookService:
         mock_response_handler.handle_info_recent_trades_response.return_value = []
 
         # Act
-        result = await order_book_service.get_recent_trades(symbol)
+        result = await order_book_service.get_recent_fills(symbol)
 
         # Assert
         assert result == []
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_invalid_symbol(
+    async def test_get_recent_fills_invalid_symbol(
         self,
         order_book_service: HyperliquidOrderBookService,
     ) -> None:
@@ -375,10 +375,10 @@ class TestHyperliquidOrderBookService:
         # Test validation for invalid symbols
         with pytest.raises((ValueError, ValidationError)):
             empty_symbol = exchanges.hyperliquid("")
-            await order_book_service.get_recent_trades(empty_symbol)
+            await order_book_service.get_recent_fills(empty_symbol)
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_partial_mapping_failure(
+    async def test_get_recent_fills_partial_mapping_failure(
         self,
         order_book_service: HyperliquidOrderBookService,
         mock_http_requester: AsyncMock,
@@ -386,7 +386,7 @@ class TestHyperliquidOrderBookService:
         mock_response_handler: Mock,
         mock_mapper: Mock,
         mock_raw_public_trade: HyperliquidRawPublicTrade,
-        mock_trade: Trade,
+        mock_trade: Fill,
     ) -> None:
         """Test recent trades with some trades failing to map."""
         # Arrange
@@ -430,14 +430,14 @@ class TestHyperliquidOrderBookService:
         ]
 
         # Act
-        result = await order_book_service.get_recent_trades(symbol)
+        result = await order_book_service.get_recent_fills(symbol)
 
         # Assert - Only successful mapping returned
         assert len(result) == 1
         assert result[0] == mock_trade
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_none_response(
+    async def test_get_recent_fills_none_response(
         self,
         order_book_service: HyperliquidOrderBookService,
         mock_http_requester: AsyncMock,
@@ -451,13 +451,13 @@ class TestHyperliquidOrderBookService:
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
-            await order_book_service.get_recent_trades(symbol)
+            await order_book_service.get_recent_fills(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "No content received" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_validation_error(
+    async def test_get_recent_fills_validation_error(
         self,
         order_book_service: HyperliquidOrderBookService,
         mock_http_requester: AsyncMock,
@@ -486,13 +486,13 @@ class TestHyperliquidOrderBookService:
 
         # Act & Assert
         with pytest.raises(APIError) as exc_info:
-            await order_book_service.get_recent_trades(symbol)
+            await order_book_service.get_recent_fills(symbol)
 
         assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
         assert "Internal data validation failed" in exc_info.value.message
 
     @pytest.mark.asyncio
-    async def test_get_recent_trades_mapper_returns_none(
+    async def test_get_recent_fills_mapper_returns_none(
         self,
         order_book_service: HyperliquidOrderBookService,
         mock_http_requester: AsyncMock,
@@ -515,7 +515,7 @@ class TestHyperliquidOrderBookService:
         mock_mapper.transform_raw_public_trade_to_internal.return_value = None
 
         # Act
-        result = await order_book_service.get_recent_trades(symbol)
+        result = await order_book_service.get_recent_fills(symbol)
 
         # Assert
         assert result == []

@@ -19,7 +19,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError
 from cyberdelta.enums import OrderSide
-from cyberdelta.models import Trade
+from cyberdelta.models import Fill
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_PERP_BP, ETH_USDC_PERP_BP, SOL_USDC_PERP_BP
 
@@ -49,7 +49,7 @@ class TestBackpackPerpTrades:
 
         if len(trades) > 0:
             for i, trade in enumerate(trades):
-                assert isinstance(trade, Trade), (
+                assert isinstance(trade, Fill), (
                     f"Trade {i} should be Trade model, got {type(trade)}"
                 )
 
@@ -94,7 +94,7 @@ class TestBackpackPerpTrades:
 
         if len(trades) > 0:
             for i, trade in enumerate(trades):
-                assert isinstance(trade, Trade), (
+                assert isinstance(trade, Fill), (
                     f"Trade {i} should be Trade model, got {type(trade)}"
                 )
                 assert trade.symbol.value == BTC_USDC_PERP_BP.value, (

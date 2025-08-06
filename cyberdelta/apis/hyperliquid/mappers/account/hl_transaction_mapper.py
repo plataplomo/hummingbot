@@ -4,7 +4,7 @@ This mapper handles transformations for transaction-related data from the Hyperl
 extracted from the monolithic account data mapper to improve maintainability and testability.
 
 Focused on:
-- Trade transformations from user fills and fill data
+- Fill transformations from user fills and fill data
 - WebSocket fill event transformations
 - Trade-specific validation and error handling
 - Side mapping and trade data processing
@@ -14,7 +14,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
-from cyberdelta.apis.exceptions import TradeTransformationError
+from cyberdelta.apis.exceptions import FillTransformationError
 from cyberdelta.apis.hyperliquid.mappers.utils.common_mappers import (
     map_side_to_internal,
     validate_trade_data,
@@ -27,8 +27,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import TransactionMapperProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import Trade
-from cyberdelta.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.models.market.fill import Fill, HyperliquidFillDetails
 from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -45,19 +44,19 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
 
     # Protocol-specific methods - TransactionMapperProtocol focuses on user fills
 
-    def transform_raw_user_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
-        """Transforms a HyperliquidRawUserFill to an Internal Trade model.
+    def transform_raw_user_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Fill:
+        """Transforms a HyperliquidRawUserFill to an Internal Fill model.
 
-        Converts user fill data from Hyperliquid into an internal Trade domain model.
+        Converts user fill data from Hyperliquid into an internal Fill domain model.
 
         Args:
             raw_fill: Validated raw user fill from Hyperliquid
 
         Returns:
-            Trade: Internal domain model with HL details populated
+            Fill: Internal domain model with HL details populated
 
         Raises:
-            TradeTransformationError: If transformation fails
+            FillTransformationError: If transformation fails
         """
         try:
             logger.debug(
@@ -67,7 +66,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 px=raw_fill.px,
                 sz=raw_fill.sz,
                 time=raw_fill.time,
-                message="Transforming HyperliquidRawUserFill to Trade",
+                message="Transforming HyperliquidRawUserFill to Fill",
             )
 
             # Map side
@@ -93,8 +92,8 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
             if trade_hash is None:
                 trade_hash = f"unknown_hash_{raw_fill.time}_{raw_fill.coin}"
 
-            details = HyperliquidTradeDetails(
-                trade_hash=str(trade_hash),
+            details = HyperliquidFillDetails(
+                fill_hash=str(trade_hash),
                 liquidation_mark_px=self.parse_decimal_safely(
                     getattr(raw_fill, "liquidationMarkPx", None), default=None
                 ),
@@ -129,7 +128,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
 
             trade = secure_transform(
                 data=trade_data,
-                model_class=Trade,
+                model_class=Fill,
                 context="hyperliquid_user_fill_transform",
                 source_exchange="hyperliquid",
             )
@@ -141,8 +140,8 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 price=str(price),
                 quantity=str(quantity),
                 fee=str(fee),
-                trade_hash=str(trade_hash),
-                message="Successfully transformed HyperliquidRawUserFill to Trade",
+                fill_hash=str(trade_hash),
+                message="Successfully transformed HyperliquidRawUserFill to Fill",
             )
 
         except Exception as e:
@@ -152,10 +151,10 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 side=getattr(raw_fill, "side", None),
                 raw_fill=raw_fill.model_dump() if raw_fill else None,
                 error=str(e),
-                message="Failed to transform HyperliquidRawUserFill to Trade",
+                message="Failed to transform HyperliquidRawUserFill to Fill",
             )
-            raise TradeTransformationError(
-                trade_source="HyperliquidRawUserFill",
+            raise FillTransformationError(
+                fill_source="HyperliquidRawUserFill",
                 reason=str(e),
                 symbol=raw_fill.coin,
                 original_error=e,
@@ -163,19 +162,19 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
         else:
             return trade
 
-    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawFill) -> Trade:
-        """Transforms a HyperliquidRawFill to an Internal Trade model.
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawFill) -> Fill:
+        """Transforms a HyperliquidRawFill to an Internal Fill model.
 
-        Converts fill data from Hyperliquid into an internal Trade domain model.
+        Converts fill data from Hyperliquid into an internal Fill domain model.
 
         Args:
             raw_fill: Validated raw fill from Hyperliquid
 
         Returns:
-            Trade: Internal domain model with HL details populated
+            Fill: Internal domain model with HL details populated
 
         Raises:
-            TradeTransformationError: If transformation fails
+            FillTransformationError: If transformation fails
         """
         try:
             logger.debug(
@@ -186,7 +185,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 sz=raw_fill.sz,
                 tid=raw_fill.tid,
                 oid=raw_fill.oid,
-                message="Transforming HyperliquidRawFill to Trade",
+                message="Transforming HyperliquidRawFill to Fill",
             )
 
             # Map side
@@ -208,8 +207,8 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
             fee = self.parse_decimal_safely(getattr(raw_fill, "fee", "0"), default=Decimal(0))
 
             # Create HL-specific details
-            details = HyperliquidTradeDetails(
-                trade_hash=raw_fill.hash,
+            details = HyperliquidFillDetails(
+                fill_hash=raw_fill.hash,
                 liquidation_mark_px=self.parse_decimal_safely(
                     getattr(raw_fill, "liquidation_mark_px", None), default=None
                 ),
@@ -244,7 +243,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
 
             trade = secure_transform(
                 data=trade_data,
-                model_class=Trade,
+                model_class=Fill,
                 context="hyperliquid_fill_transform",
                 source_exchange="hyperliquid",
             )
@@ -256,11 +255,11 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 price=str(price),
                 quantity=str(quantity),
                 fee=str(fee),
-                trade_id=str(raw_fill.tid),
+                fill_id=str(raw_fill.tid),
                 order_id=str(raw_fill.oid),
                 client_order_id=raw_fill.cloid,
                 is_maker=raw_fill.is_maker,
-                message="Successfully transformed HyperliquidRawFill to Trade",
+                message="Successfully transformed HyperliquidRawFill to Fill",
             )
 
         except Exception as e:
@@ -271,31 +270,31 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 oid=getattr(raw_fill, "oid", None),
                 raw_fill=raw_fill.model_dump() if raw_fill else None,
                 error=str(e),
-                message="Failed to transform HyperliquidRawFill to Trade",
+                message="Failed to transform HyperliquidRawFill to Fill",
             )
-            raise TradeTransformationError(
-                trade_source="HyperliquidRawFill",
+            raise FillTransformationError(
+                fill_source="HyperliquidRawFill",
                 reason=str(e),
                 symbol=raw_fill.coin,
-                trade_id=str(raw_fill.tid),
+                fill_id=str(raw_fill.tid),
                 original_error=e,
             ) from e
         else:
             return trade
 
-    def transform_ws_fill_event_to_internal(self, raw_fill: HyperliquidRawWsFillEvent) -> Trade:
-        """Transforms a WebSocket fill event to an Internal Trade model.
+    def transform_ws_fill_event_to_internal(self, raw_fill: HyperliquidRawWsFillEvent) -> Fill:
+        """Transforms a WebSocket fill event to an Internal Fill model.
 
-        Converts WebSocket fill event data from Hyperliquid into an internal Trade domain model.
+        Converts WebSocket fill event data from Hyperliquid into an internal Fill domain model.
 
         Args:
             raw_fill: Validated raw WebSocket fill event from Hyperliquid
 
         Returns:
-            Trade: Internal domain model with HL details populated
+            Fill: Internal domain model with HL details populated
 
         Raises:
-            TradeTransformationError: If transformation fails
+            FillTransformationError: If transformation fails
         """
         try:
             logger.debug(
@@ -307,7 +306,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 time=raw_fill.time,
                 hash=raw_fill.hash,
                 oid=raw_fill.oid,
-                message="Transforming HyperliquidRawWsFillEvent to Trade",
+                message="Transforming HyperliquidRawWsFillEvent to Fill",
             )
 
             # Map side
@@ -324,8 +323,8 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
             executed_at = datetime.fromtimestamp(raw_fill.time / 1000, tz=UTC)
 
             # Create HL-specific details
-            details = HyperliquidTradeDetails(
-                trade_hash=raw_fill.hash,
+            details = HyperliquidFillDetails(
+                fill_hash=raw_fill.hash,
                 liquidation_mark_px=None,
                 start_position=None,
                 dir=None,
@@ -356,7 +355,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
 
             trade = secure_transform(
                 data=trade_data,
-                model_class=Trade,
+                model_class=Fill,
                 context="hyperliquid_ws_fill_transform",
                 source_exchange="hyperliquid",
             )
@@ -367,11 +366,11 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 side=side.value,
                 price=str(price),
                 quantity=str(quantity),
-                trade_hash=raw_fill.hash,
+                fill_hash=raw_fill.hash,
                 order_id=str(raw_fill.oid),
                 client_order_id=raw_fill.cloid,
                 is_maker=raw_fill.is_maker,
-                message="Successfully transformed HyperliquidRawWsFillEvent to Trade",
+                message="Successfully transformed HyperliquidRawWsFillEvent to Fill",
             )
 
         except Exception as e:
@@ -382,13 +381,13 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 oid=getattr(raw_fill, "oid", None),
                 raw_fill=raw_fill.model_dump() if raw_fill else None,
                 error=str(e),
-                message="Failed to transform HyperliquidRawWsFillEvent to Trade",
+                message="Failed to transform HyperliquidRawWsFillEvent to Fill",
             )
-            raise TradeTransformationError(
-                trade_source="HyperliquidRawWsFillEvent",
+            raise FillTransformationError(
+                fill_source="HyperliquidRawWsFillEvent",
                 reason=str(e),
                 symbol=raw_fill.coin,
-                trade_id=raw_fill.hash,
+                fill_id=raw_fill.hash,
                 original_error=e,
             ) from e
         else:

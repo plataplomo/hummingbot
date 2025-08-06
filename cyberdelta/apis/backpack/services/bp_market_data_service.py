@@ -11,11 +11,11 @@ from collections.abc import Awaitable, Callable, Mapping
 
 from cyberdelta.apis.backpack.mappers import (
     BackpackCandleMapper,
+    BackpackFillMapper,
     BackpackFundingRateMapper,
     BackpackMarketMapper,
     BackpackOrderBookMapper,
     BackpackTickerMapper,
-    BackpackTradeMapper,
 )
 from cyberdelta.apis.backpack.request_builders.bp_market_data_request_builder import (
     BackpackMarketDataRequestBuilder,
@@ -45,12 +45,12 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models import (
+    Fill,
     FundingRate,
     Market,
     Market as MarketInfo,
     OrderBook,
     Ticker,
-    Trade,
 )
 from cyberdelta.models.market.candle import Candle
 from cyberdelta.symbols.models import Symbol
@@ -86,7 +86,7 @@ class BackpackMarketDataService:
         # Optional mapper injection for testability
         ticker_mapper: BackpackTickerMapper | None = None,
         order_book_mapper: BackpackOrderBookMapper | None = None,
-        trade_mapper: BackpackTradeMapper | None = None,
+        trade_mapper: BackpackFillMapper | None = None,
         candle_mapper: BackpackCandleMapper | None = None,
         market_mapper: BackpackMarketMapper | None = None,
         funding_rate_mapper: BackpackFundingRateMapper | None = None,
@@ -116,7 +116,7 @@ class BackpackMarketDataService:
         # Create mappers if not provided (following Hyperliquid pattern)
         self._ticker_mapper = ticker_mapper or BackpackTickerMapper()
         self._order_book_mapper = order_book_mapper or BackpackOrderBookMapper()
-        self._trade_mapper = trade_mapper or BackpackTradeMapper()
+        self._trade_mapper = trade_mapper or BackpackFillMapper()
         self._candle_mapper = candle_mapper or BackpackCandleMapper()
         self._market_mapper = market_mapper or BackpackMarketMapper()
         self._funding_rate_mapper = funding_rate_mapper or BackpackFundingRateMapper()
@@ -221,7 +221,7 @@ class BackpackMarketDataService:
 
     # Historical Data Operations
 
-    async def get_recent_trades(self, symbol: Symbol, limit: int | None = None) -> list[Trade]:
+    async def get_recent_trades(self, symbol: Symbol, limit: int | None = None) -> list[Fill]:
         """Get recent trades for a symbol.
 
         Delegates to the historical data service component.

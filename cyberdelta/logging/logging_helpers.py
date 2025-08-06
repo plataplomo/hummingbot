@@ -7,15 +7,15 @@ from pydantic import BaseModel
 
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.models.margin_account import MarginAccountSummary
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.trade_signal import TradeSignal
 
 
 # Define sensitive fields to exclude per model type
 SENSITIVE_FIELDS: dict[type[BaseModel], set[str]] = {
     Order: {"trades", "hl_details", "bp_details"},
-    Trade: {"hl_details", "bp_details"},
+    Fill: {"hl_details", "bp_details"},
     TradeSignal: {"metadata"},  # May contain strategy-specific sensitive data
     DerivativePosition: {"hl_details", "bp_details"},
     MarginAccountSummary: {"total_equity", "available_equity", "hl_details", "bp_details"},

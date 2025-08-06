@@ -23,9 +23,9 @@ from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import OrderSide
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.symbols.models import Symbol
 
 
@@ -266,7 +266,7 @@ class TestBackpackWebSocketDataFlow:
             pytest.fail(f"OrderBook data flow test failed: {e}")
 
     def _create_trades_handler(
-        self, received_trades: list[Trade]
+        self, received_trades: list[Fill]
     ) -> Callable[[WebSocketContextProtocol], Coroutine[Any, Any, None]]:
         """Create trades handler to reduce complexity.
 
@@ -283,8 +283,8 @@ class TestBackpackWebSocketDataFlow:
                 # Use getattr to avoid direct Any access for better type inference
                 domain_model = getattr(context, "domain_model", None)
 
-                # Handle single Trade instance
-                if isinstance(domain_model, Trade):
+                # Handle single Fill instance
+                if isinstance(domain_model, Fill):
                     received_trades.append(domain_model)
 
                     logger.info(
@@ -305,7 +305,7 @@ class TestBackpackWebSocketDataFlow:
                     trade_count = 0
                     try:
                         for item in domain_model:
-                            if isinstance(item, Trade):
+                            if isinstance(item, Fill):
                                 received_trades.append(item)
                                 trade_count += 1
 
@@ -321,10 +321,10 @@ class TestBackpackWebSocketDataFlow:
 
         return trades_handler
 
-    def _validate_trade_data(self, received_trades: list[Trade], test_symbol: Symbol) -> None:
+    def _validate_trade_data(self, received_trades: list[Fill], test_symbol: Symbol) -> None:
         """Validate trade data to reduce complexity."""
         for trade in received_trades[:5]:  # Check first 5 trades
-            assert isinstance(trade, Trade), f"Expected Trade, got {type(trade)}"
+            assert isinstance(trade, Fill), f"Expected Fill, got {type(trade)}"
             assert trade.symbol == test_symbol, (
                 f"Expected symbol {test_symbol.value}, got {trade.symbol}"
             )
@@ -347,7 +347,7 @@ class TestBackpackWebSocketDataFlow:
 
         Tests: raw message -> envelope -> raw model -> domain model -> handler.
         """
-        received_trades: list[Trade] = []
+        received_trades: list[Fill] = []
         trades_handler = self._create_trades_handler(received_trades)
 
         try:
@@ -412,7 +412,7 @@ class TestBackpackWebSocketDataFlow:
                     received_models["ticker"].append(domain_model)
                 elif isinstance(domain_model, OrderBook) and stream_type == "orderbook":
                     received_models["orderbook"].append(domain_model)
-                elif isinstance(domain_model, Trade) and stream_type == "trades":
+                elif isinstance(domain_model, Fill) and stream_type == "trades":
                     received_models["trades"].append(domain_model)
                 elif (
                     domain_model is not None
@@ -423,7 +423,7 @@ class TestBackpackWebSocketDataFlow:
                     # Handle batch trades - safely iterate without direct list access
                     try:
                         for item in domain_model:
-                            if isinstance(item, Trade):
+                            if isinstance(item, Fill):
                                 received_models["trades"].append(item)
                     except TypeError:
                         # Not iterable, ignore
@@ -493,7 +493,7 @@ class TestBackpackWebSocketDataFlow:
                 "OrderBook stream contaminated"
             )
         if received_models["trades"]:
-            assert all(isinstance(m, Trade) for m in received_models["trades"]), (
+            assert all(isinstance(m, Fill) for m in received_models["trades"]), (
                 "Trades stream contaminated"
             )
 

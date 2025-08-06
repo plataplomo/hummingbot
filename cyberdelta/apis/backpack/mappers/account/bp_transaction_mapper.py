@@ -39,8 +39,8 @@ from cyberdelta.enums import (
     TimeInForce,
 )
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import BackpackOrderDetails, Order, Trade
-from cyberdelta.models.market.trade import BackpackTradeDetails
+from cyberdelta.models import BackpackOrderDetails, Order
+from cyberdelta.models.market.fill import BackpackFillDetails, Fill
 from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -318,16 +318,16 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             ),
         }
 
-    def transform_raw_fill_to_internal(self, raw_fill: BackpackRawFillResponse) -> Trade | None:
-        """Transform a BackpackRawFillResponse to an Internal Trade model.
+    def transform_raw_fill_to_internal(self, raw_fill: BackpackRawFillResponse) -> Fill | None:
+        """Transform a BackpackRawFillResponse to an Internal Fill model.
 
-        Converts fill data from Backpack order execution into an internal Trade domain model.
+        Converts fill data from Backpack order execution into an internal Fill domain model.
 
         Args:
             raw_fill: Validated raw fill from Backpack
 
         Returns:
-            Trade | None: Internal domain model with BP details populated, or None if
+            Fill | None: Internal domain model with BP details populated, or None if
                          price or quantity is zero
 
         Raises:
@@ -341,7 +341,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 side=raw_fill.side,
                 price=raw_fill.price,
                 quantity=raw_fill.quantity,
-                message="Transforming BackpackRawFillResponse to Trade",
+                message="Transforming BackpackRawFillResponse to Fill",
             )
 
             # Map side
@@ -355,7 +355,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             price_typed = self.ensure_decimal_not_none(price, "price", "trade")
             quantity_typed = self.ensure_decimal_not_none(quantity, "quantity", "trade")
 
-            # Check if price or quantity is zero - Trade model requires positive values
+            # Check if price or quantity is zero - Fill model requires positive values
             if price_typed <= Decimal(0) or quantity_typed <= Decimal(0):
                 logger.warning(
                     "trade_zero_price_or_quantity",
@@ -376,7 +376,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             fee = self.parse_decimal_safely(raw_fill.fee, default=Decimal(0))
 
             # Create BP-specific details
-            details = BackpackTradeDetails(
+            details = BackpackFillDetails(
                 system_order_type=None,  # Not available in fill data
             )
 
@@ -405,7 +405,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
 
             trade = secure_transform(
                 data=trade_data,
-                model_class=Trade,
+                model_class=Fill,
                 context="backpack_fill_transform",
                 source_exchange="backpack",
             )
@@ -419,7 +419,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 quantity=str(quantity_typed),
                 fee=str(fee),
                 is_maker=raw_fill.is_maker,
-                message="Successfully transformed BackpackRawFillResponse to Trade",
+                message="Successfully transformed BackpackRawFillResponse to Fill",
             )
 
         except Exception as e:
@@ -429,11 +429,11 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 symbol=getattr(raw_fill, "symbol", None),
                 raw_fill=raw_fill.model_dump() if raw_fill else None,
                 error=str(e),
-                message="Failed to transform BackpackRawFillResponse to Trade",
+                message="Failed to transform BackpackRawFillResponse to Fill",
             )
             raise DataTransformationError(
                 source_model="BackpackRawFillResponse",
-                target_model="Trade",
+                target_model="Fill",
                 reason=str(e),
                 original_error=e,
                 source_data=raw_fill.model_dump() if raw_fill else None,
@@ -569,8 +569,8 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
         else:
             return order
 
-    def transform_raw_trade_to_internal(self, raw: BackpackRawPublicTrade) -> Trade | None:
-        """Transform a validated BackpackRawPublicTrade into an internal Trade model.
+    def transform_raw_fill_to_internal_public(self, raw: BackpackRawPublicTrade) -> Fill | None:
+        """Transform a validated BackpackRawPublicTrade into an internal Fill model.
 
         Note: Backpack REST API for trades typically lacks side information.
         Returns None if essential information cannot be determined.
@@ -579,7 +579,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             raw: The validated raw trade data from Backpack
 
         Returns:
-            Trade | None: The corresponding internal Trade object, or None if essential
+            Fill | None: The corresponding internal Fill object, or None if essential
                          information (like side) cannot be determined
 
         Raises:
@@ -592,7 +592,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 symbol=raw.symbol,
                 price=raw.price,
                 quantity=raw.quantity,
-                message="Attempting to transform BackpackRawPublicTrade to Trade",
+                message="Attempting to transform BackpackRawPublicTrade to Fill",
             )
 
             price_dec = self.parse_decimal_safely(raw.price)
@@ -626,7 +626,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 symbol=getattr(raw, "symbol", None),
                 raw_trade=raw.model_dump() if raw else None,
                 error=str(e),
-                message="Failed to transform BackpackRawPublicTrade to Trade",
+                message="Failed to transform BackpackRawPublicTrade to Fill",
             )
             raise DataTransformationError(
                 source_model="BackpackRawPublicTrade",
@@ -649,11 +649,11 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             context="BackpackRawPublicTrade",
         )
 
-    def transform_ws_fill_event_to_internal_trade(
+    def transform_ws_fill_event_to_internal_fill(
         self,
         raw_fill: BackpackRawFillResponse,
-    ) -> Trade | None:
-        """Transform a WebSocket fill event (BackpackRawFillResponse) to an Internal Trade model.
+    ) -> Fill | None:
+        """Transform a WebSocket fill event (BackpackRawFillResponse) to an Internal Fill model.
 
         This is an alias for transform_raw_fill_to_internal for consistency with WebSocket naming.
 
@@ -661,7 +661,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
             raw_fill: Validated raw fill event from Backpack WebSocket
 
         Returns:
-            Trade | None: Internal domain model with BP details populated, or None if
+            Fill | None: Internal domain model with BP details populated, or None if
                          price or quantity is zero
         """
         return self.transform_raw_fill_to_internal(raw_fill)

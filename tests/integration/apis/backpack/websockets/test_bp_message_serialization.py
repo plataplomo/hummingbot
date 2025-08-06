@@ -26,10 +26,10 @@ from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketE
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.symbols.models import Symbol
 
 # Import WebSocket test helpers
@@ -154,7 +154,7 @@ class TestBackpackWebSocketIntegration:
                     received_messages["ticker"].append(domain_model)
                 elif isinstance(domain_model, OrderBook):
                     received_messages["depth"].append(domain_model)
-                elif isinstance(domain_model, Trade):
+                elif isinstance(domain_model, Fill):
                     received_messages["trade"].append(domain_model)
             else:
                 pipeline_stats["dicts_received"] += 1
@@ -485,7 +485,7 @@ class TestBackpackWebSocketIntegration:
                 has_cost_field=has_cost,
                 cost=str(getattr(trade, "cost", "N/A")) if has_cost else "N/A",
                 type=type(trade).__name__,
-                message="Received Trade object",
+                message="Received Fill object",
             )
 
     def _process_trade_dict_item(
@@ -499,7 +499,7 @@ class TestBackpackWebSocketIntegration:
             "trade_dict_received",
             has_cost="cost" in domain_model,
             symbol=domain_model.get("symbol"),
-            message="Received dict instead of Trade - computed fields problem!",
+            message="Received dict instead of Fill - computed fields problem!",
         )
         # This is the computed field serialization issue
         if "cost" in domain_model:
@@ -507,8 +507,8 @@ class TestBackpackWebSocketIntegration:
             trade_data = domain_model.copy()
             trade_data.pop("cost", None)
             try:
-                trade = Trade.model_validate(trade_data)
-                received_trades.append(trade)
+                fill = Fill.model_validate(trade_data)
+                received_trades.append(fill)
                 computed_field_checks.append(True)  # We know it had cost
             except ValidationError:
                 logger.exception("trade_reconstruction_failed")
@@ -516,31 +516,31 @@ class TestBackpackWebSocketIntegration:
     def _validate_trade_data(self, received_trades: list[Any], test_symbol: Symbol) -> None:
         """Validate the received trade data."""
         # Check trade quality and computed fields
-        for i, trade in enumerate(received_trades[:5]):
-            assert hasattr(trade, "symbol"), "Trade should have symbol"
-            assert hasattr(trade, "price"), "Trade should have price"
-            assert hasattr(trade, "quantity"), "Trade should have quantity"
-            assert hasattr(trade, "side"), "Trade should have side"
-            assert getattr(trade, "symbol", "") == test_symbol.value
-            assert getattr(trade, "price", 0) > 0
-            assert getattr(trade, "quantity", 0) > 0
+        for i, fill in enumerate(received_trades[:5]):
+            assert hasattr(fill, "symbol"), "Fill should have symbol"
+            assert hasattr(fill, "price"), "Fill should have price"
+            assert hasattr(fill, "quantity"), "Fill should have quantity"
+            assert hasattr(fill, "side"), "Fill should have side"
+            assert getattr(fill, "symbol", "") == test_symbol.value
+            assert getattr(fill, "price", 0) > 0
+            assert getattr(fill, "quantity", 0) > 0
 
             # Check computed field
-            if hasattr(trade, "cost"):
-                expected_cost = getattr(trade, "price", 0) * getattr(trade, "quantity", 0)
-                trade_cost = getattr(trade, "cost", 0)
-                assert abs(trade_cost - expected_cost) < 0.01, "Cost should be price * quantity"
+            if hasattr(fill, "cost"):
+                expected_cost = getattr(fill, "price", 0) * getattr(fill, "quantity", 0)
+                fill_cost = getattr(fill, "cost", 0)
+                assert abs(fill_cost - expected_cost) < 0.01, "Cost should be price * quantity"
 
             logger.info(
                 "trade_quality_verified",
                 index=i,
-                symbol=getattr(trade, "symbol", "unknown"),
-                price=str(getattr(trade, "price", 0)),
-                quantity=str(getattr(trade, "quantity", 0)),
-                side=getattr(trade, "side", "unknown"),
-                has_cost=hasattr(trade, "cost"),
-                cost=str(getattr(trade, "cost", "N/A")) if hasattr(trade, "cost") else "N/A",
-                message=f"Trade {i + 1} quality verified",
+                symbol=getattr(fill, "symbol", "unknown"),
+                price=str(getattr(fill, "price", 0)),
+                quantity=str(getattr(fill, "quantity", 0)),
+                side=getattr(fill, "side", "unknown"),
+                has_cost=hasattr(fill, "cost"),
+                cost=str(getattr(fill, "cost", "N/A")) if hasattr(fill, "cost") else "N/A",
+                message=f"Fill {i + 1} quality verified",
             )
 
     @pytest.mark.asyncio
@@ -740,24 +740,24 @@ class TestBackpackWebSocketIntegration:
                     )
 
                     # Try to reconstruct
-                    if "cost" in domain_model and context_data.get("model_type") == "Trade":
+                    if "cost" in domain_model and context_data.get("model_type") == "Fill":
                         reconstruction_needed = True
                         # Create a new dict with explicit type annotation
                         domain_model_copy = dict(domain_model)
                         domain_model_copy.pop("cost", None)
                         try:
-                            trade = Trade.model_validate(domain_model_copy)
+                            fill = Fill.model_validate(domain_model_copy)
                             logger.info(
                                 "reconstruction_successful",
-                                symbol=trade.symbol,
-                                has_cost_after=hasattr(trade, "cost"),
-                                message="Had to reconstruct Trade from dict",
+                                symbol=fill.symbol,
+                                has_cost_after=hasattr(fill, "cost"),
+                                message="Had to reconstruct Fill from dict",
                             )
                         except ValidationError as e:
                             logger.exception(
                                 "reconstruction_failed",
                                 error=str(e),
-                                message="Failed to reconstruct Trade from dict",
+                                message="Failed to reconstruct Fill from dict",
                             )
                 else:
                     handler_receives_object = True
@@ -1060,8 +1060,8 @@ class TestBackpackWebSocketIntegration:
             if had_cost:
                 pipeline_stats["computed_fields_lost"] += 1
                 trade_data.pop("cost", None)
-            trade = Trade.model_validate(trade_data)
-            received_messages["trade"].append(trade)
+            fill = Fill.model_validate(trade_data)
+            received_messages["trade"].append(fill)
             pipeline_stats["objects_created"] += 1
         except ValidationError as e:
             pipeline_stats["reconstruction_failures"] += 1
@@ -1106,7 +1106,7 @@ class TestBackpackWebSocketIntegration:
                 # It's an OrderBook
                 received_messages["depth"].append(domain_model)
             elif hasattr(domain_model, "quantity") and hasattr(domain_model, "side"):
-                # It's a Trade
+                # It's a Fill
                 received_messages["trade"].append(domain_model)
                 if hasattr(domain_model, "cost"):
                     pipeline_stats["computed_fields_preserved"] += 1
@@ -1181,7 +1181,7 @@ class TestBackpackWebSocketIntegration:
         # Assertions
         assert pipeline_stats["messages_received"] > 0, "Should receive some messages"
         assert len(received_messages["ticker"]) > 0, "Should receive ticker updates"
-        # Trade messages might be less frequent
+        # Fill messages might be less frequent
 
         # Calculate MessageHandler impact
         if pipeline_stats["messages_received"] > 0:

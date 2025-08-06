@@ -19,8 +19,8 @@ from cyberdelta.domain.monitoring.audit_logger import (
     AuditSeverity,
 )
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, SignalType, TimeInForce
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.trade_signal import TradeSignal
 from cyberdelta.symbols import exchanges
 
@@ -90,13 +90,13 @@ def sample_order() -> Order:
 
 
 @pytest.fixture
-def sample_trade() -> Trade:
-    """Create sample trade for testing.
+def sample_fill() -> Fill:
+    """Create sample fill for testing.
 
     Returns:
-        Trade: Sample trade for testing.
+        Fill: Sample fill for testing.
     """
-    return Trade(
+    return Fill(
         id="trade_123",
         symbol=exchanges.hyperliquid("BTC"),
         executed_at=datetime.now(UTC),
@@ -196,10 +196,10 @@ class TestAuditLogger:
         # This is acceptable as we're testing the public interface behavior
 
     @pytest.mark.asyncio
-    async def test_log_trade_event(self, audit_logger: AuditLogger, sample_trade: Trade) -> None:
-        """Test trade event logging."""
-        await audit_logger.log_trade_event(
-            sample_trade, AuditEventType.ORDER_FILLED, "Trade executed", slippage=0.01
+    async def test_log_fill_event(self, audit_logger: AuditLogger, sample_fill: Fill) -> None:
+        """Test fill event logging."""
+        await audit_logger.log_fill_event(
+            sample_fill, AuditEventType.ORDER_FILLED, "Fill executed", slippage=0.01
         )
 
         stats = audit_logger.get_session_stats()

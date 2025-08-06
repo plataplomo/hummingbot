@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMar
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.enums import ExchangeName
-from cyberdelta.models.market import OrderBook, Ticker, Trade
+from cyberdelta.models.market import Fill, OrderBook, Ticker
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import ETH_USDC_BP, SOL_USDC_BP
 
@@ -375,7 +375,7 @@ class TestBackpackMarketDataServicePublicData:
         with patch.object(
             backpack_market_data_service, "_historical_data_service"
         ) as mock_historical_service:
-            mock_internal_trades = [MagicMock(spec=Trade), MagicMock(spec=Trade)]
+            mock_internal_trades = [MagicMock(spec=Fill), MagicMock(spec=Fill)]
             mock_historical_service.get_recent_trades = AsyncMock(return_value=mock_internal_trades)
 
             result = await backpack_market_data_service.get_recent_trades(symbol, limit=limit)

@@ -43,18 +43,19 @@ from cyberdelta.apis.base.protocols.mapper_protocols import (
     AbstractAccountSummaryMapperProtocol,
     AbstractBalanceMapperProtocol,
     AbstractCandleMapperProtocol,
+    AbstractFillMapperProtocol,
     AbstractFundingRateMapperProtocol,
     AbstractMarketMapperProtocol,
     AbstractOrderBookMapperProtocol,
     AbstractOrderMapperProtocol,
     AbstractPositionMapperProtocol,
     AbstractTickerMapperProtocol,
-    AbstractTradeMapperProtocol,
 )
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
+    Fill,
     FundingRate,
     MarginAccountSummary,
     Market,
@@ -62,7 +63,6 @@ from cyberdelta.models import (
     OrderBook,
     SpotBalance,
     Ticker,
-    Trade,
     Transfer,
     Withdrawal,
 )
@@ -180,23 +180,23 @@ class TransactionMapperProtocol(MapperProtocol, Protocol):
     Inherits from MapperProtocol to ensure compliance with base mapper interface.
     """
 
-    def transform_raw_fill_to_internal(self, raw_fill: BackpackRawFillResponse) -> Trade | None:
-        """Transform fill data to internal Trade model."""
+    def transform_raw_fill_to_internal(self, raw_fill: BackpackRawFillResponse) -> Fill | None:
+        """Transform fill data to internal Fill model."""
         ...
 
     def transform_raw_order_to_internal(self, raw: BackpackRawOrderResponse) -> Order:
         """Comprehensive order transformation with all fields."""
         ...
 
-    def transform_raw_trade_to_internal(self, raw: BackpackRawPublicTrade) -> Trade | None:
-        """Transform public trade data to Trade model."""
+    def transform_raw_fill_to_internal_public(self, raw: BackpackRawPublicTrade) -> Fill | None:
+        """Transform public fill data to Fill model."""
         ...
 
-    def transform_ws_fill_event_to_internal_trade(
+    def transform_ws_fill_event_to_internal_fill(
         self,
         raw_fill: BackpackRawFillResponse,
-    ) -> Trade | None:
-        """Transform WebSocket fill events to Trade."""
+    ) -> Fill | None:
+        """Transform WebSocket fill events to Fill."""
         ...
 
 
@@ -328,27 +328,29 @@ class OrderBookMapperProtocol(MarketDataMapperProtocol, AbstractOrderBookMapperP
 
 
 @runtime_checkable
-class TradeMapperProtocol(MarketDataMapperProtocol, AbstractTradeMapperProtocol, Protocol):
-    """Backpack-specific trade mapper protocol.
+class FillMapperProtocol(MarketDataMapperProtocol, AbstractFillMapperProtocol, Protocol):
+    """Backpack-specific fill mapper protocol.
 
     Inherits from MarketDataMapperProtocol (for market data consistency),
-    AbstractTradeMapperProtocol (for conceptual interface) and Protocol.
+    AbstractFillMapperProtocol (for conceptual interface) and Protocol.
     """
 
-    def transform_raw_trade_to_internal(self, raw_trade: BackpackRawPublicTrade) -> Trade:
-        """Transform public trade data with default BUY side."""
+    def transform_raw_fill_to_internal(self, raw_fill: BackpackRawPublicTrade) -> Fill:
+        """Transform public fill data with default BUY side."""
         ...
 
-    def transform_raw_recent_trade_to_internal(
+    def transform_raw_recent_fill_to_internal(
         self,
-        raw_trade: BackpackRawRecentPublicTrade,
+        raw_fill: BackpackRawRecentPublicTrade,
         symbol: Symbol,
-    ) -> Trade:
-        """Transform recent trades with side determination."""
+    ) -> Fill:
+        """Transform recent fills with side determination."""
         ...
 
-    def transform_ws_trade_event_to_internal(self, raw_trade: BackpackRawPublicTradeEvent) -> Trade:
-        """Transform WebSocket trade events."""
+    def transform_ws_fill_event_to_internal_fill(
+        self, raw_fill: BackpackRawPublicTradeEvent
+    ) -> Fill:
+        """Transform WebSocket fill events."""
         ...
 
 

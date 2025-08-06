@@ -11,18 +11,18 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 
 
 logger = get_logger(__name__)
 
 
 class FillProcessor:
-    """Processes order fills and creates Trade objects.
+    """Processes order fills and creates Fill objects.
 
     IMPORTANT: Following CODING_STANDARDS.md:
-    - Uses typed Trade model
+    - Uses typed Fill model
     - All monetary values as Decimal
     - NO assumptions about fill data structure
     - Explicit validation with clear error messages
@@ -37,8 +37,8 @@ class FillProcessor:
         fee_asset: str,
         trade_id: str | None = None,
         timestamp: datetime | None = None,
-    ) -> Trade:
-        """Process order fill and create Trade object.
+    ) -> Fill:
+        """Process order fill and create Fill object.
 
         Args:
             order: Order that was filled
@@ -50,13 +50,13 @@ class FillProcessor:
             timestamp: Optional timestamp, will use current time if not provided
 
         Returns:
-            Trade object representing the fill
+            Fill object representing the fill
 
         Raises:
             ValueError: If order missing exchange_order_id
 
         Note:
-        - Uses typed Trade model
+        - Uses typed Fill model
         - All monetary values as Decimal
         - NO assumptions about fill data structure
         """
@@ -72,7 +72,7 @@ class FillProcessor:
         # Use provided timestamp or current time
         fill_timestamp = timestamp or datetime.now(UTC)
 
-        trade = Trade(
+        trade = Fill(
             id=trade_id,
             symbol=order.symbol,
             executed_at=fill_timestamp,
@@ -103,7 +103,7 @@ class FillProcessor:
         return trade
 
     @staticmethod
-    def get_fill_sequence_number(order: Order, processed_fills: list[Trade]) -> int:
+    def get_fill_sequence_number(order: Order, processed_fills: list[Fill]) -> int:
         """Get sequence number for this fill within the order.
 
         Args:

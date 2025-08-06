@@ -11,8 +11,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
-# Import Trade at top to avoid E402
-from cyberdelta.models.market.trade import Trade
+# Import Fill at top to avoid E402
+from cyberdelta.models.market.fill import Fill
 
 
 class OrderUpdateData(BaseModel):
@@ -26,7 +26,7 @@ class OrderUpdateData(BaseModel):
 
     update_type: str | None = Field(default=None, description="Type of update")
 
-    fill: Trade | None = Field(default=None, description="Fill data if order was filled")
+    fill: Fill | None = Field(default=None, description="Fill data if order was filled")
 
     timestamp: datetime | None = Field(default=None, description="Update timestamp")
 

@@ -14,8 +14,8 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.fills.fee_calculator import FeeCalculator
 from cyberdelta.domain.trading.fills.fill_processor import FillProcessor
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.trading.fill_statistics import FillStatistics
 
 
@@ -27,7 +27,7 @@ class FillHandler:
 
     This handler processes order fills by:
     - Calculating fees using exchange-specific fee structures from configuration
-    - Converting fill data to typed Trade objects
+    - Converting fill data to typed Fill objects
     - Coordinating portfolio updates through PortfolioService
     - Maintaining fill history and audit trail
 
@@ -54,7 +54,7 @@ class FillHandler:
         self._portfolio_service = portfolio_service
 
         # Fill tracking
-        self._processed_fills: list[Trade] = []
+        self._processed_fills: list[Fill] = []
         self._fill_count = 0
         self._total_fees_usd = Decimal(0)
 
@@ -64,15 +64,15 @@ class FillHandler:
             portfolio_service_available=True,
         )
 
-    async def process_fill(self, order: Order, trade: Trade) -> Trade:
+    async def process_fill(self, order: Order, trade: Fill) -> Fill:
         """Process an order fill with comprehensive fee calculation.
 
         Args:
             order: Order that was filled
-            trade: Trade object from exchange with fill data
+            trade: Fill object from exchange with fill data
 
         Returns:
-            Processed Trade object (may be the same object or updated copy)
+            Processed Fill object (may be the same object or updated copy)
 
         Note:
         - Fee calculation from config.exchanges[exchange].fee_structure
@@ -106,7 +106,7 @@ class FillHandler:
                 exchange_config,
             )
 
-            # Create Trade object with all calculated values
+            # Create Fill object with all calculated values
             processed_trade = FillProcessor.process_fill(
                 order,
                 fill_price,
@@ -118,7 +118,7 @@ class FillHandler:
             )
 
             # Update portfolio with processed trade
-            await self._portfolio_service.update_from_trade(processed_trade)
+            await self._portfolio_service.update_from_fill(processed_trade)
 
             # Track fill statistics
             self._processed_fills.append(processed_trade)
@@ -135,15 +135,15 @@ class FillHandler:
 
         return processed_trade
 
-    async def process_partial_fill(self, order: Order, trade: Trade) -> Trade:
+    async def process_partial_fill(self, order: Order, trade: Fill) -> Fill:
         """Process a partial fill of an order.
 
         Args:
             order: Order that was partially filled
-            trade: Trade object from exchange
+            trade: Fill object from exchange
 
         Returns:
-            Trade object representing the partial fill
+            Fill object representing the partial fill
 
         Note:
         - Same validation and fee calculation as full fills
@@ -213,17 +213,17 @@ class FillHandler:
             last_fill_timestamp=last_fill_timestamp,
         )
 
-    def get_recent_fills(self, limit: int = 10) -> list[Trade]:
+    def get_recent_fills(self, limit: int = 10) -> list[Fill]:
         """Get most recent processed fills.
 
         Args:
             limit: Maximum number of fills to return
 
         Returns:
-            List of recent Trade objects
+            List of recent Fill objects
 
         Note:
-        - Returns actual Trade objects, not summaries
+        - Returns actual Fill objects, not summaries
         - Limit parameter explicit, no default assumptions
         """
         return self._processed_fills[-limit:] if self._processed_fills else []

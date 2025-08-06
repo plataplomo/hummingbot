@@ -24,7 +24,8 @@ from cyberdelta.exceptions.portfolio import (
     PortfolioNotInitializedError,
     ReconciliationError,
 )
-from cyberdelta.models import DerivativePosition, SpotBalance, Trade
+from cyberdelta.models import DerivativePosition, SpotBalance
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.portfolio.pnl_report import (
     PnLReport,
@@ -251,47 +252,47 @@ class PortfolioService(HealthCheckable):
         """
         await self._state_manager.update_position(exchange, symbol, new_position)
 
-    # Trade updates (coordinated across managers)
+    # Fill updates (coordinated across managers)
 
-    async def update_from_trade(self, trade: Trade) -> None:
-        """Update portfolio state from trade execution.
+    async def update_from_fill(self, fill: Fill) -> None:
+        """Update portfolio state from fill execution.
 
         This coordinates updates across position and balance managers.
 
         Args:
-            trade: Executed trade
+            fill: Executed fill
         """
         try:
             self._operation_count += 1
 
             # Update position
-            realized_pnl = await self._position_manager.update_position_from_trade(trade)
+            realized_pnl = await self._position_manager.update_position_from_fill(fill)
 
             # Update balance
-            await self._balance_manager.update_balance_from_trade(trade)
+            await self._balance_manager.update_balance_from_fill(fill)
 
-            # Track trade for performance if enabled
-            await self.track_trade_for_performance(trade)
+            # Track fill for performance if enabled
+            await self.track_fill_for_performance(fill)
 
             self._success_count += 1
             self._last_activity = datetime.now(UTC)
 
             logger.info(
-                "portfolio_updated_from_trade",
-                trade_id=trade.id,
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,
-                side=trade.side.value,
-                quantity=trade.quantity,
-                price=trade.price,
+                "portfolio_updated_from_fill",
+                fill_id=fill.id,
+                symbol=fill.symbol.value,
+                exchange=fill.exchange,
+                side=fill.side.value,
+                quantity=fill.quantity,
+                price=fill.price,
                 realized_pnl=realized_pnl or None,
             )
 
         except Exception as e:
             self._error_count += 1
             logger.exception(
-                "portfolio_update_from_trade_failed",
-                trade_id=trade.id,
+                "portfolio_update_from_fill_failed",
+                fill_id=fill.id,
                 error=str(e),
             )
             raise
@@ -456,29 +457,29 @@ class PortfolioService(HealthCheckable):
             logger.exception("performance_metrics_calculation_failed", error=str(e))
             return None
 
-    async def track_trade_for_performance(self, trade: Trade) -> None:
-        """Track a trade for performance metrics calculation.
+    async def track_fill_for_performance(self, fill: Fill) -> None:
+        """Track a fill for performance metrics calculation.
 
         Args:
-            trade: Trade to track for performance metrics
+            fill: Fill to track for performance metrics
         """
         if self._performance_tracker is None:
             return
 
         try:
-            await self._performance_tracker.add_trade(trade)
+            await self._performance_tracker.add_fill(fill)
 
             logger.debug(
-                "trade_tracked_for_performance",
-                trade_id=trade.id,
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,
+                "fill_tracked_for_performance",
+                fill_id=fill.id,
+                symbol=fill.symbol.value,
+                exchange=fill.exchange,
             )
 
         except Exception as e:
             logger.exception(
-                "trade_performance_tracking_failed",
-                trade_id=trade.id,
+                "fill_performance_tracking_failed",
+                fill_id=fill.id,
                 error=str(e),
             )
 
@@ -510,13 +511,13 @@ class PortfolioService(HealthCheckable):
 
     # Compatibility methods for existing code
 
-    async def _update_position_from_trade(self, trade: Trade) -> None:
-        """Update position from trade (compatibility wrapper)."""
-        await self._position_manager.update_position_from_trade(trade)
+    async def _update_position_from_fill(self, fill: Fill) -> None:
+        """Update position from fill (compatibility wrapper)."""
+        await self._position_manager.update_position_from_fill(fill)
 
-    async def _update_balance_from_trade(self, trade: Trade) -> None:
-        """Update balance from trade (compatibility wrapper)."""
-        await self._balance_manager.update_balance_from_trade(trade)
+    async def _update_balance_from_fill(self, fill: Fill) -> None:
+        """Update balance from fill (compatibility wrapper)."""
+        await self._balance_manager.update_balance_from_fill(fill)
 
     def _calculate_average_price(
         self,
@@ -546,7 +547,7 @@ class PortfolioService(HealthCheckable):
     def _calculate_realized_pnl(
         self,
         position: DerivativePosition,
-        trade: Trade,
+        fill: Fill,
     ) -> Decimal | None:
         """Calculate realized PnL (compatibility wrapper).
 
@@ -563,11 +564,11 @@ class PortfolioService(HealthCheckable):
 
         entry_price = position.entry_price
 
-        if trade.side == OrderSide.BUY:
+        if fill.side == OrderSide.BUY:
             if position.side == OrderSide.SELL:
-                return (entry_price - trade.price) * trade.quantity
+                return (entry_price - fill.price) * fill.quantity
         elif position.side == OrderSide.BUY:
-            return (trade.price - entry_price) * trade.quantity
+            return (fill.price - entry_price) * fill.quantity
 
         return None
 

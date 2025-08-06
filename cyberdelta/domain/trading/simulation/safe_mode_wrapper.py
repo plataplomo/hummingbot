@@ -53,12 +53,12 @@ from cyberdelta.models.account_settings import AccountSettings
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.market.candle import Candle
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.funding_rate import FundingRate
 from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.order import CancelOrderResult, Order
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.operations import Transfer, Withdrawal
 from cyberdelta.models.spot_balance import SpotBalance
 from cyberdelta.symbols import bp_symbol, hl_symbol
@@ -423,19 +423,19 @@ class SafeModeWrapper:
 
         return orders
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Get trade history - simulated in safe mode, real in normal mode.
 
         Returns:
-            list[Trade]: List of historical trades
+            list[Fill]: List of historical trades
         """
         if not self._safe_mode:
             return await self._real_api.get_trade_history(args)
 
-        # Convert simulated fills to Trade objects
-        trades: list[Trade] = []
+        # Convert simulated fills to Fill objects
+        trades: list[Fill] = []
         for fill in self._simulated_fills:
-            trade = Trade(
+            trade = Fill(
                 id=f"trade_{uuid.uuid4().hex[:8]}",
                 symbol=fill.symbol,
                 executed_at=fill.timestamp,

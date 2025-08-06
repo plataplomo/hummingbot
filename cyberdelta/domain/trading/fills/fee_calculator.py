@@ -12,8 +12,8 @@ from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.models.fee_config import FeeStructureConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 
 
 logger = get_logger(__name__)
@@ -34,7 +34,7 @@ class FeeCalculator:
         order: Order,
         fill_price: Decimal,
         fill_quantity: Decimal,
-        trade: Trade,
+        fill: Fill,
         exchange_config: ExchangeSpecificConfig,
     ) -> tuple[Decimal, str]:
         """Calculate fee for order fill using exchange configuration.
@@ -43,7 +43,7 @@ class FeeCalculator:
             order: Order that was filled
             fill_price: Price at which order was filled
             fill_quantity: Quantity that was filled
-            trade: Trade object from exchange
+            fill: Fill object from exchange
             exchange_config: Exchange configuration from AppSettings
 
         Returns:
@@ -58,7 +58,7 @@ class FeeCalculator:
         fee_structure = FeeCalculator._get_fee_structure(exchange_config, order.exchange)
 
         # Get fee rate based on liquidity
-        fee_rate = FeeCalculator._get_fee_rate(fee_structure, trade)
+        fee_rate = FeeCalculator._get_fee_rate(fee_structure, fill)
 
         # Calculate base fee amount
         fee_amount = FeeCalculator._calculate_base_fee(
@@ -76,7 +76,7 @@ class FeeCalculator:
 
         FeeCalculator._log_fee_calculation(
             order.exchange,
-            trade,
+            fill,
             fee_rate,
             fee_structure,
             fill_price,
@@ -112,15 +112,15 @@ class FeeCalculator:
     @staticmethod
     def _get_fee_rate(
         fee_structure: FeeStructureConfig,
-        trade: Trade,
+        fill: Fill,
     ) -> Decimal:
         """Get appropriate fee rate based on liquidity.
 
         Returns:
             Decimal: Fee rate as Decimal
         """
-        # Trade model doesn't have maker_taker field, default to taker
-        is_maker = False
+        # Use is_maker field from Fill model, default to taker if not specified
+        is_maker = fill.is_maker if fill.is_maker is not None else False
 
         if is_maker:
             return Decimal(str(fee_structure.maker_fee_rate))
@@ -185,7 +185,7 @@ class FeeCalculator:
     @staticmethod
     def _log_fee_calculation(
         exchange: ExchangeName,
-        trade: Trade,
+        fill: Fill,
         fee_rate: Decimal,
         fee_structure: FeeStructureConfig,
         fill_price: Decimal,
@@ -195,7 +195,8 @@ class FeeCalculator:
     ) -> None:
         """Log fee calculation details."""
         exchange_name = exchange.value
-        liquidity = "taker"  # Trade model doesn't have maker_taker field
+        # Use is_maker field from Fill model to determine liquidity type
+        liquidity = "maker" if fill.is_maker else "taker"
         fee_method = fee_structure.fee_calculation_method
 
         logger.debug(

@@ -34,7 +34,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.apis.utils import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.models import Order, Trade
+from cyberdelta.models import Fill, Order
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -205,7 +205,7 @@ class BackpackTransactionHistoryService:
         else:
             return internal_orders
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Retrieves historical trade data (fills) with filtering options.
 
         Fetches trade execution history from the fills endpoint with symbol
@@ -215,7 +215,7 @@ class BackpackTransactionHistoryService:
             args: Trade history query parameters including symbol and limit
 
         Returns:
-            List of historical Trade objects
+            List of historical Fill objects
 
         Raises:
             APIError: If API request fails or data transformation fails
@@ -441,7 +441,7 @@ class BackpackTransactionHistoryService:
         raw_data: ParsedJsonResponse,
         args: GetTradeHistoryArgs,
         status_code: int,
-    ) -> list[Trade]:
+    ) -> list[Fill]:
         """Process and transform trade history response.
 
         Since we're using /wapi/v1/history/fills endpoint, we get BackpackRawFill format.
@@ -452,7 +452,7 @@ class BackpackTransactionHistoryService:
             status_code: HTTP status code
 
         Returns:
-            List of transformed Trade objects
+            List of transformed Fill objects
         """
         # Use fills handler since we're calling /wapi/v1/history/fills
         raw_fills_list = self._response_handler.handle_get_fills_response(
@@ -462,7 +462,7 @@ class BackpackTransactionHistoryService:
         )
 
         # Transform raw fills to internal trade models
-        internal_trades: list[Trade] = []
+        internal_trades: list[Fill] = []
         for raw_fill_model in raw_fills_list:
             try:
                 trade = self._mapper.transform_raw_fill_to_internal(raw_fill_model)

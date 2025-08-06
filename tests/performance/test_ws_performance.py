@@ -20,7 +20,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
-from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawDepthUpdateEvent
 from cyberdelta.apis.common import MessageHandler
@@ -163,7 +163,7 @@ class TestMessageRoutingPerformance:
             typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
-            trade_mapper=BackpackTradeMapper(),
+            trade_mapper=BackpackFillMapper(),
             balance_mapper=BackpackBalanceMapper(),
             position_mapper=BackpackPositionMapper(),
             order_mapper=BackpackOrderMapper(),
@@ -291,7 +291,7 @@ class TestMemoryEfficiency:
             typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
-            trade_mapper=BackpackTradeMapper(),
+            trade_mapper=BackpackFillMapper(),
             balance_mapper=BackpackBalanceMapper(),
             position_mapper=BackpackPositionMapper(),
             order_mapper=BackpackOrderMapper(),
@@ -328,7 +328,7 @@ class TestConcurrentProcessing:
             typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
-            trade_mapper=BackpackTradeMapper(),
+            trade_mapper=BackpackFillMapper(),
             balance_mapper=BackpackBalanceMapper(),
             position_mapper=BackpackPositionMapper(),
             order_mapper=BackpackOrderMapper(),

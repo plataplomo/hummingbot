@@ -60,10 +60,10 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
+    Fill,
     MarginAccountSummary,
     Order,
     SpotBalance,
-    Trade,
 )
 from cyberdelta.models.operations import Transfer, Withdrawal
 from cyberdelta.symbols.models import Symbol
@@ -272,7 +272,7 @@ class BackpackAccountService:
 
     # Trade History Operations
 
-    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Trade]:
+    async def get_trade_history(self, args: GetTradeHistoryArgs) -> list[Fill]:
         """Retrieve historical trades based on the provided arguments.
 
         Delegates to the transaction history service component.
@@ -281,7 +281,7 @@ class BackpackAccountService:
             args: Trade history query parameters
 
         Returns:
-            List of Trade objects
+            List of Fill objects
         """
         return await self._transaction_history_service.get_trade_history(args)
 

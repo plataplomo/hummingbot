@@ -23,8 +23,8 @@ from cyberdelta.models.events import (
     SignalExecutionFailedEvent,
     SignalProcessedEvent,
 )
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.risk.assessment import PositionSize
 from cyberdelta.models.trading.execution_request import ExecutionRequest
@@ -294,12 +294,12 @@ class TradingService(HealthCheckable):
         """
         try:
             # Create a simplified Trade object from the Order for portfolio update
-            # This is a temporary bridge until full Trade events are available
+            # This is a temporary bridge until full Fill events are available
             # Imports already available at top level
 
             if order.quantity_filled and order.quantity_filled > 0:
-                # Create trade from filled order
-                trade = Trade(
+                # Create fill from filled order
+                trade = Fill(
                     id=f"trade_{uuid.uuid4().hex[:8]}",
                     symbol=order.symbol,
                     executed_at=order.updated_at or datetime.now(UTC),
@@ -318,7 +318,7 @@ class TradingService(HealthCheckable):
                 )
 
                 # Update portfolio with the trade
-                await self._portfolio_service.update_from_trade(trade)
+                await self._portfolio_service.update_from_fill(trade)
 
             logger.debug(
                 "portfolio_updated_from_order",

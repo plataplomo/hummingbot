@@ -14,7 +14,7 @@ from cyberdelta.domain.monitoring.performance_tracker import PerformanceMetrics,
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.enums import ExchangeName
 from cyberdelta.enums.trading import OrderSide
-from cyberdelta.models.market.trade import Trade
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.symbols import exchanges
 
 
@@ -74,13 +74,13 @@ def performance_tracker(
 
 
 @pytest.fixture
-def sample_trade() -> Trade:
+def sample_trade() -> Fill:
     """Create sample trade for testing.
 
     Returns:
-        Trade: Sample trade for testing.
+        Fill: Sample trade for testing.
     """
-    return Trade(
+    return Fill(
         id="trade_123",
         symbol=exchanges.hyperliquid("BTC"),
         executed_at=datetime.now(UTC),
@@ -118,11 +118,11 @@ class TestPerformanceTracker:
         assert summary["drawdown_method"] == "peak_to_trough"
 
     @pytest.mark.asyncio
-    async def test_add_trade(
-        self, performance_tracker: PerformanceTracker, sample_trade: Trade
+    async def test_add_fill(
+        self, performance_tracker: PerformanceTracker, sample_trade: Fill
     ) -> None:
-        """Test adding trade to history."""
-        await performance_tracker.add_trade(sample_trade)
+        """Test adding fill to history."""
+        await performance_tracker.add_fill(sample_trade)
 
         summary = performance_tracker.get_metrics_summary()
         assert summary["trade_history_length"] == 1
@@ -196,7 +196,7 @@ class TestPerformanceTracker:
         # Add some trades
         now = datetime.now(UTC)
         trades = [
-            Trade(
+            Fill(
                 id="trade_1",
                 symbol=exchanges.hyperliquid("BTC"),
                 executed_at=now - timedelta(days=5),
@@ -208,7 +208,7 @@ class TestPerformanceTracker:
                 fee=Decimal(5),
                 fee_asset="USD",
             ),
-            Trade(
+            Fill(
                 id="trade_2",
                 symbol=exchanges.hyperliquid("BTC"),
                 executed_at=now - timedelta(days=3),
@@ -220,7 +220,7 @@ class TestPerformanceTracker:
                 fee=Decimal("5.2"),
                 fee_asset="USD",
             ),
-            Trade(
+            Fill(
                 id="trade_3",
                 symbol=exchanges.hyperliquid("ETH"),
                 executed_at=now - timedelta(days=1),
@@ -235,7 +235,7 @@ class TestPerformanceTracker:
         ]
 
         for trade in trades:
-            await performance_tracker.add_trade(trade)
+            await performance_tracker.add_fill(trade)
 
         # Calculate metrics
         metrics = await performance_tracker.calculate_metrics(10)

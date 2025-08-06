@@ -17,13 +17,13 @@ from cyberdelta.apis.base.protocols.mapper_protocols import (
     # Abstract protocols
     AbstractBalanceMapperProtocol,
     AbstractCandleMapperProtocol,
+    AbstractFillMapperProtocol,
     AbstractFundingRateMapperProtocol,
     AbstractMarketMapperProtocol,
     AbstractOrderBookMapperProtocol,
     AbstractOrderMapperProtocol,
     AbstractPositionMapperProtocol,
     AbstractTickerMapperProtocol,
-    AbstractTradeMapperProtocol,
 )
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import HyperliquidRawAllMids
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
@@ -62,13 +62,13 @@ from cyberdelta.enums import OrderSide, OrderType
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.market.candle import Candle
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.funding_rate import FundingRate
 from cyberdelta.models.market.market import Market
 from cyberdelta.models.market.mid_prices import MidPrices
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.spot_balance import SpotBalance
 from cyberdelta.symbols.models import Symbol
 
@@ -224,14 +224,14 @@ class OrderMapperProtocol(MapperProtocol, AbstractOrderMapperProtocol, Protocol)
         """
         ...
 
-    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
-        """Transform raw fill data to internal trade model.
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Fill:
+        """Transform raw fill data to internal fill model.
 
         Args:
             raw_fill: Raw fill data from API
 
         Returns:
-            Trade domain model
+            Fill domain model
         """
         ...
 
@@ -328,14 +328,14 @@ class OrderBookMapperProtocol(MapperProtocol, AbstractOrderBookMapperProtocol, P
     def transform_raw_public_trade_to_internal(
         self,
         raw_trade: HyperliquidRawPublicTrade,
-    ) -> Trade | None:
+    ) -> Fill | None:
         """Transform raw public trade data to internal model.
 
         Args:
             raw_trade: Raw public trade data from API
 
         Returns:
-            Trade domain model or None if invalid
+            Fill domain model or None if invalid
         """
         ...
 
@@ -350,35 +350,35 @@ class OrderBookMapperProtocol(MapperProtocol, AbstractOrderBookMapperProtocol, P
         """
         ...
 
-    def transform_ws_trade_event_to_internal(self, raw: HyperliquidRawWsTradeEvent) -> Trade:
+    def transform_ws_trade_event_to_internal(self, raw: HyperliquidRawWsTradeEvent) -> Fill:
         """Transform WebSocket trade event to internal model.
 
         Args:
             raw: Validated raw WebSocket trade event from Hyperliquid
 
         Returns:
-            Trade domain model
+            Fill domain model
         """
         ...
 
 
 @runtime_checkable
-class TradeMapperProtocol(MapperProtocol, AbstractTradeMapperProtocol, Protocol):
-    """Hyperliquid-specific trade mapper protocol.
+class FillMapperProtocol(MapperProtocol, AbstractFillMapperProtocol, Protocol):
+    """Hyperliquid-specific fill mapper protocol.
 
     Inherits from both MapperProtocol (for utility methods) and
-    AbstractTradeMapperProtocol (for conceptual interface) to ensure
+    AbstractFillMapperProtocol (for conceptual interface) to ensure
     compliance with base mapper interface and transformation patterns.
     """
 
-    def transform_raw_trade_to_internal(self, raw_trade: HyperliquidRawPublicTrade) -> Trade:
-        """Transform raw trade data to internal model.
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawPublicTrade) -> Fill:
+        """Transform raw fill data to internal model.
 
         Args:
-            raw_trade: Raw trade data from API
+            raw_fill: Raw fill data from API
 
         Returns:
-            Trade domain model
+            Fill domain model
         """
         ...
 
@@ -545,31 +545,31 @@ class OrderResponseMapperProtocol(MapperProtocol, Protocol):
 
 @runtime_checkable
 class TransactionMapperProtocol(MapperProtocol, Protocol):
-    """Protocol for transaction/trade mapping operations.
+    """Protocol for transaction/fill mapping operations.
 
     This protocol defines the interface for transforming raw transaction data
-    from the Hyperliquid API into internal Trade models.
+    from the Hyperliquid API into internal Fill models.
     """
 
-    def transform_raw_user_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Trade:
+    def transform_raw_user_fill_to_internal(self, raw_fill: HyperliquidRawUserFill) -> Fill:
         """Transform raw user fill data to internal model.
 
         Args:
             raw_fill: Raw user fill data from API
 
         Returns:
-            Trade domain model
+            Fill domain model
         """
         ...
 
-    def transform_ws_fill_event_to_internal(self, raw_fill: HyperliquidRawWsFillEvent) -> Trade:
+    def transform_ws_fill_event_to_internal(self, raw_fill: HyperliquidRawWsFillEvent) -> Fill:
         """Transform WebSocket fill event to internal model.
 
         Args:
             raw_fill: Validated raw WebSocket fill event from Hyperliquid
 
         Returns:
-            Trade domain model
+            Fill domain model
         """
         ...
 

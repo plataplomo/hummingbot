@@ -21,7 +21,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
 )
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
-from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackTradeMapper
+from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawOrderBook,
     BackpackRawTickerResponse,
@@ -55,13 +55,13 @@ def order_book_mapper() -> BackpackOrderBookMapper:
 
 
 @pytest.fixture
-def trade_mapper() -> BackpackTradeMapper:
-    """Fixture providing a BackpackTradeMapper instance.
+def trade_mapper() -> BackpackFillMapper:
+    """Fixture providing a BackpackFillMapper instance.
 
     Returns:
-        BackpackTradeMapper: A mapper instance for testing trade transformations.
+        BackpackFillMapper: A mapper instance for testing trade transformations.
     """
-    return BackpackTradeMapper()
+    return BackpackFillMapper()
 
 
 @pytest.fixture
@@ -279,7 +279,7 @@ class TestBoundaryValueHandling:
 
     def test_maximum_string_length_handling(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         ticker_mapper: BackpackTickerMapper,
         test_timestamp: str,
     ) -> None:
@@ -290,7 +290,7 @@ class TestBoundaryValueHandling:
             trade_id=max_trade_id,
         )
 
-        result = trade_mapper.transform_raw_trade_to_internal(raw_trade)
+        result = trade_mapper.transform_raw_fill_to_internal(raw_trade)
 
         assert result.id == max_trade_id
 
@@ -332,7 +332,7 @@ class TestUnicodeAndEncodingSupport:
 
     def test_unicode_in_trade_ids(
         self,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp: str,
     ) -> None:
         """Test unicode characters in trade IDs."""
@@ -347,7 +347,7 @@ class TestUnicodeAndEncodingSupport:
                 trade_id=trade_id,
             )
 
-            result = trade_mapper.transform_raw_trade_to_internal(raw_trade)
+            result = trade_mapper.transform_raw_fill_to_internal(raw_trade)
             assert result.id == trade_id
 
     def test_mixed_unicode_ascii_handling(
@@ -554,7 +554,7 @@ class TestPerformanceAndMemoryConsiderations:
     def test_concurrent_transformation_safety(
         self,
         ticker_mapper: BackpackTickerMapper,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         test_timestamp: str,
     ) -> None:
         """Test that transformations are safe for concurrent usage."""
@@ -577,9 +577,9 @@ class TestPerformanceAndMemoryConsiderations:
 
         # Transform in interleaved pattern
         result_ticker1 = ticker_mapper.transform_raw_ticker_to_internal(ticker1)
-        result_trade1 = trade_mapper.transform_raw_trade_to_internal(trade1)
+        result_trade1 = trade_mapper.transform_raw_fill_to_internal(trade1)
         result_ticker2 = ticker_mapper.transform_raw_ticker_to_internal(ticker2)
-        result_trade2 = trade_mapper.transform_raw_trade_to_internal(trade2)
+        result_trade2 = trade_mapper.transform_raw_fill_to_internal(trade2)
 
         # Verify no cross-contamination
         assert result_ticker1.symbol == BTC_USDC_BP
@@ -617,7 +617,7 @@ class TestDataConsistencyAndValidation:
     def test_timestamp_consistency(
         self,
         ticker_mapper: BackpackTickerMapper,
-        trade_mapper: BackpackTradeMapper,
+        trade_mapper: BackpackFillMapper,
         order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Test timestamp consistency across transformations."""
@@ -633,7 +633,7 @@ class TestDataConsistencyAndValidation:
         start_time = datetime.now(UTC)
 
         ticker_result = ticker_mapper.transform_raw_ticker_to_internal(ticker)
-        trade_result = trade_mapper.transform_raw_trade_to_internal(trade)
+        trade_result = trade_mapper.transform_raw_fill_to_internal(trade)
         book_result = order_book_mapper.transform_raw_order_book_to_internal(
             SOL_USDC_BP, order_book
         )

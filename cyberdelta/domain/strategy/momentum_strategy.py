@@ -19,8 +19,8 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums.trading import OrderSide
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.derivative_position import DerivativePosition
+from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
-from cyberdelta.models.market.trade import Trade
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.symbols import get_symbol_service
 
@@ -509,19 +509,19 @@ class MomentumStrategy(BaseStrategy):
         msg = f"Failed to fetch or process historical data: {error}"
         raise StrategyConfigurationError(msg) from error
 
-    async def handle_trade(self, trade: Trade) -> None:
-        """Handle trade execution feedback.
+    async def handle_fill(self, fill: Fill) -> None:
+        """Handle fill execution feedback.
 
-        For momentum strategy, we can update our internal state based on trade results.
+        For momentum strategy, we can update our internal state based on fill results.
 
         Args:
-            trade: Executed trade information
+            fill: Executed fill information
         """
         logger.info(
-            "momentum_strategy_trade_handled",
+            "momentum_strategy_fill_handled",
             strategy_name=self.name,
-            trade_id=trade.id,
-            symbol=trade.symbol.value if trade.symbol else None,
-            side=trade.side.value if trade.side else None,
-            quantity=float(trade.quantity) if trade.quantity else None,
+            fill_id=fill.id,
+            symbol=fill.symbol.value if fill.symbol else None,
+            side=fill.side.value if fill.side else None,
+            quantity=float(fill.quantity) if fill.quantity else None,
         )

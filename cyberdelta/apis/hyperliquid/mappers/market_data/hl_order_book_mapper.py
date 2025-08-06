@@ -30,13 +30,13 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsTradeEvent,
 )
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
+    FillMapperProtocol,
     OrderBookMapperProtocol,
-    TradeMapperProtocol,
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.models import OrderBook, Trade
-from cyberdelta.models.market.trade import HyperliquidTradeDetails
+from cyberdelta.models import Fill, OrderBook
+from cyberdelta.models.market.fill import HyperliquidFillDetails
 from cyberdelta.symbols import exchanges
 from cyberdelta.utils.secure_transformation import secure_transform
 
@@ -48,7 +48,7 @@ class HyperliquidOrderBookMapper(
     CommonDataParserMixin,
     ValidationMixin,
     OrderBookMapperProtocol,
-    TradeMapperProtocol,
+    FillMapperProtocol,
 ):
     """Focused mapper for Hyperliquid order book and trade data transformations.
 
@@ -71,26 +71,26 @@ class HyperliquidOrderBookMapper(
         # Create HyperliquidRawL2Book from dict and delegate to existing method
         return self.transform_raw_l2_book_to_internal(raw_order_book)
 
-    # Protocol-specific methods from TradeMapperProtocol
-    def transform_raw_trade_to_internal(self, raw_trade: HyperliquidRawPublicTrade) -> Trade:
-        """Transform raw trade data to internal model.
+    # Protocol-specific methods from FillMapperProtocol
+    def transform_raw_fill_to_internal(self, raw_fill: HyperliquidRawPublicTrade) -> Fill:
+        """Transform raw fill data to internal model.
 
         Args:
-            raw_trade: Raw trade data from API
+            raw_fill: Raw fill data from API
 
         Returns:
-            Trade: Trade domain model
+            Fill: Fill domain model
 
         Raises:
             TradeTransformationError: If transformation fails
         """
         # Delegate to existing method with typed model
-        result = self.transform_raw_public_trade_to_internal(raw_trade)
+        result = self.transform_raw_public_trade_to_internal(raw_fill)
         if result is None:
             raise TradeTransformationError(
                 trade_source="HyperliquidRawPublicTrade",
-                reason="Trade transformation returned None",
-                symbol=str(raw_trade.coin),
+                reason="Fill transformation returned None",
+                symbol=str(raw_fill.coin),
                 original_error=None,
             )
         return result
@@ -242,14 +242,14 @@ class HyperliquidOrderBookMapper(
     def transform_raw_public_trade_to_internal(
         self,
         raw_trade: HyperliquidRawPublicTrade,
-    ) -> Trade | None:
-        """Transforms a HyperliquidRawPublicTrade to an Internal Trade model.
+    ) -> Fill | None:
+        """Transforms a HyperliquidRawPublicTrade to an Internal Fill model.
 
         Args:
             raw_trade: Validated raw public trade data from Hyperliquid
 
         Returns:
-            Trade | None: Internal domain model with HL details populated, or None if invalid
+            Fill | None: Internal domain model with HL details populated, or None if invalid
 
         Raises:
             TradeTransformationError: If transformation fails
@@ -264,7 +264,7 @@ class HyperliquidOrderBookMapper(
                 sz=raw_trade.sz,
                 time=raw_trade.time,
                 hash=raw_trade.hash,
-                message="Transforming HyperliquidRawPublicTrade to Trade",
+                message="Transforming HyperliquidRawPublicTrade to Fill",
             )
 
             # Map side
@@ -305,8 +305,8 @@ class HyperliquidOrderBookMapper(
             )
 
             # Create HL-specific details
-            details = HyperliquidTradeDetails(
-                trade_hash=raw_trade.hash,
+            details = HyperliquidFillDetails(
+                fill_hash=raw_trade.hash,
                 liquidation_mark_px=None,  # Not available in public trades
                 start_position=None,
                 dir=None,
@@ -330,9 +330,9 @@ class HyperliquidOrderBookMapper(
                 "bp_details": None,
             }
 
-            trade = secure_transform(
+            fill = secure_transform(
                 data=trade_data,
-                model_class=Trade,
+                model_class=Fill,
                 context="hyperliquid_public_trade_transform",
                 source_exchange="hyperliquid",
             )
@@ -345,7 +345,7 @@ class HyperliquidOrderBookMapper(
                 quantity=str(quantity),
                 trade_hash=raw_trade.hash,
                 executed_at=executed_at.isoformat(),
-                message="Successfully transformed HyperliquidRawPublicTrade to Trade",
+                message="Successfully transformed HyperliquidRawPublicTrade to Fill",
             )
         except TransformationError:
             # Re-raise TransformationError as-is
@@ -357,7 +357,7 @@ class HyperliquidOrderBookMapper(
                 trade_hash=raw_trade.hash,
                 raw_trade=raw_trade.model_dump() if raw_trade else None,
                 error=str(e),
-                message="Failed to transform HyperliquidRawPublicTrade to Trade",
+                message="Failed to transform HyperliquidRawPublicTrade to Fill",
             )
             raise TradeTransformationError(
                 trade_source="HyperliquidRawPublicTrade",
@@ -367,16 +367,16 @@ class HyperliquidOrderBookMapper(
                 original_error=e,
             ) from e
         else:
-            return trade
+            return fill
 
-    def transform_ws_trade_event_to_internal(self, raw: HyperliquidRawWsTradeEvent) -> Trade:
-        """Transforms a WebSocket trade event to an Internal Trade model.
+    def transform_ws_trade_event_to_internal(self, raw: HyperliquidRawWsTradeEvent) -> Fill:
+        """Transforms a WebSocket trade event to an Internal Fill model.
 
         Args:
             raw: Validated raw WebSocket trade event from Hyperliquid
 
         Returns:
-            Trade: Internal domain model with HL details populated
+            Fill: Internal domain model with HL details populated
 
         Raises:
             TradeTransformationError: If transformation fails
@@ -390,7 +390,7 @@ class HyperliquidOrderBookMapper(
                 sz=raw.sz,
                 time=raw.time,
                 hash=raw.hash,
-                message="Transforming HyperliquidRawWsTradeEvent to Trade",
+                message="Transforming HyperliquidRawWsTradeEvent to Fill",
             )
 
             # Map side
@@ -412,8 +412,8 @@ class HyperliquidOrderBookMapper(
             )
 
             # Create HL-specific details
-            details = HyperliquidTradeDetails(
-                trade_hash=raw.hash,
+            details = HyperliquidFillDetails(
+                fill_hash=raw.hash,
                 liquidation_mark_px=None,
                 start_position=None,
                 dir=None,
@@ -437,9 +437,9 @@ class HyperliquidOrderBookMapper(
                 "bp_details": None,
             }
 
-            trade = secure_transform(
+            fill = secure_transform(
                 data=trade_data,
-                model_class=Trade,
+                model_class=Fill,
                 context="hyperliquid_ws_trade_transform",
                 source_exchange="hyperliquid",
             )
@@ -452,7 +452,7 @@ class HyperliquidOrderBookMapper(
                 quantity=str(quantity),
                 trade_hash=raw.hash,
                 executed_at=executed_at.isoformat(),
-                message="Successfully transformed HyperliquidRawWsTradeEvent to Trade",
+                message="Successfully transformed HyperliquidRawWsTradeEvent to Fill",
             )
         except Exception as e:
             logger.exception(
@@ -461,7 +461,7 @@ class HyperliquidOrderBookMapper(
                 trade_hash=raw.hash,
                 raw_trade=raw.model_dump() if raw else None,
                 error=str(e),
-                message="Failed to transform HyperliquidRawWsTradeEvent to Trade",
+                message="Failed to transform HyperliquidRawWsTradeEvent to Fill",
             )
             raise TradeTransformationError(
                 trade_source="HyperliquidRawWsTradeEvent",
@@ -471,7 +471,7 @@ class HyperliquidOrderBookMapper(
                 original_error=e,
             ) from e
         else:
-            return trade
+            return fill
 
     def transform_ws_book_update_to_internal(self, raw: HyperliquidRawWsBookUpdate) -> OrderBook:
         """Transforms a WebSocket order book update to an Internal OrderBook model.
@@ -567,15 +567,15 @@ class HyperliquidOrderBookMapper(
     def transform_raw_trades(
         raw_public_trades: list[HyperliquidRawPublicTrade],
         limit: int | None = None,
-    ) -> list[Trade]:
-        """Transforms a list of HyperliquidRawPublicTrade to Internal Trade models.
+    ) -> list[Fill]:
+        """Transforms a list of HyperliquidRawPublicTrade to Internal Fill models.
 
         Args:
             raw_public_trades: List of validated raw public trade data from Hyperliquid
-            limit: Optional limit on number of trades to return
+            limit: Optional limit on number of fills to return
 
         Returns:
-            list[Trade]: List of internal domain models
+            list[Fill]: List of internal domain models
 
         Raises:
             TradeTransformationError: If transformation fails
@@ -585,32 +585,32 @@ class HyperliquidOrderBookMapper(
                 "transforming_raw_trades",
                 trades_count=len(raw_public_trades),
                 limit=limit,
-                message="Transforming list of HyperliquidRawPublicTrade to Trades",
+                message="Transforming list of HyperliquidRawPublicTrade to Fills",
             )
 
-            trades: list[Trade] = []
+            fills: list[Fill] = []
 
             for raw_trade in raw_public_trades:
                 try:
                     mapper = HyperliquidOrderBookMapper()
-                    trade = mapper.transform_raw_public_trade_to_internal(raw_trade)
-                    if trade is not None:
-                        trades.append(trade)
+                    fill = mapper.transform_raw_public_trade_to_internal(raw_trade)
+                    if fill is not None:
+                        fills.append(fill)
                     else:
                         logger.warning(
-                            "trade_transformation_skipped",
+                            "fill_transformation_skipped",
                             symbol=str(raw_trade.coin),
-                            trade_hash=raw_trade.hash,
-                            message="Trade transformation returned None",
+                            fill_hash=raw_trade.hash,
+                            message="Fill transformation returned None",
                         )
                 except Exception as e:
                     logger.exception(
-                        "trade_transformation_failed",
+                        "fill_transformation_failed",
                         symbol=str(raw_trade.coin),
-                        trade_hash=raw_trade.hash,
+                        fill_hash=raw_trade.hash,
                         raw_data=raw_trade.model_dump(),
                         error=str(e),
-                        message="Failed to transform individual trade, continuing with others",
+                        message="Failed to transform individual fill, continuing with others",
                     )
                     continue
 
@@ -618,14 +618,14 @@ class HyperliquidOrderBookMapper(
             if limit is not None:
                 if limit <= 0:
                     return []
-                trades = trades[:limit]
+                fills = fills[:limit]
 
             logger.debug(
                 "raw_trades_transformed",
                 input_count=len(raw_public_trades),
-                output_count=len(trades),
+                output_count=len(fills),
                 limit=limit,
-                message="Successfully transformed list of HyperliquidRawPublicTrade to Trades",
+                message="Successfully transformed list of HyperliquidRawPublicTrade to Fills",
             )
         except Exception as e:
             logger.exception(
@@ -633,7 +633,7 @@ class HyperliquidOrderBookMapper(
                 trades_count=len(raw_public_trades) if raw_public_trades else 0,
                 limit=limit,
                 error=str(e),
-                message="Failed to transform list of HyperliquidRawPublicTrade to Trades",
+                message="Failed to transform list of HyperliquidRawPublicTrade to Fills",
             )
             raise TradeTransformationError(
                 trade_source="list[HyperliquidRawPublicTrade]",
@@ -642,4 +642,4 @@ class HyperliquidOrderBookMapper(
                 original_error=e,
             ) from e
         else:
-            return trades
+            return fills
