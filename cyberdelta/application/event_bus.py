@@ -153,7 +153,17 @@ class EventBus:
             - NO retry logic - handlers must implement their own
             - Errors are propagated to caller for logging
         """
-        await handler(event)
+        try:
+            await handler(event)
+        except Exception as exc:
+            logger.exception(
+                "event_handler_failed",
+                event_type=event.event_type.value if hasattr(event, "event_type") else None,
+                event_id=event.event_id if hasattr(event, "event_id") else None,
+                handler=getattr(handler, "__name__", repr(handler)),
+                error=str(exc),
+            )
+            raise
 
     async def shutdown(self) -> None:
         """Shutdown the event bus gracefully.

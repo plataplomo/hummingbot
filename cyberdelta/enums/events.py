@@ -43,6 +43,7 @@ class EventType(StrEnum):
 
     # Strategy events
     SIGNAL_GENERATED = "strategy.signal_generated"
+    SIGNAL_PROCESSED = "strategy.signal_processed"
     STRATEGY_STARTED = "strategy.started"
     STRATEGY_STOPPED = "strategy.stopped"
     STRATEGY_ERROR = "strategy.error"

@@ -1298,15 +1298,141 @@ class TradingEngine:
             task = asyncio.create_task(self._process_risk_limit_event(event))
             self._tasks.append(task)
 
-    async def _process_strategy_signal_event(self, event: DomainEvent) -> None:
-        """Process strategy signal event."""
-        # Create TradeSignal from event data
-        if not event.symbol or not event.exchange:
+    def _validate_event_required_fields(self, event: DomainEvent) -> bool:
+        """Validate required fields are present in the event.
+
+        Args:
+            event: Domain event to validate
+
+        Returns:
+            True if all required fields are present, False otherwise
+        """
+        if not event.symbol:
             logger.error(
-                "strategy_signal_event_missing_data",
+                "strategy_signal_event_missing_symbol",
                 event_id=event.event_id,
-                symbol=event.symbol,
-                exchange=event.exchange,
+                message="Signal events must include valid symbol",
+            )
+            return False
+
+        if not event.exchange:
+            logger.error(
+                "strategy_signal_event_missing_exchange",
+                event_id=event.event_id,
+                message="Signal events must include valid exchange",
+            )
+            return False
+
+        return True
+
+    def _extract_and_validate_price(self, event: DomainEvent) -> Decimal | None:
+        """Extract and validate price from event payload.
+
+        Args:
+            event: Domain event containing price data
+
+        Returns:
+            Validated Decimal price, or None if invalid
+        """
+        # Use typed getter from DomainEvent
+        price = event.get_decimal("price")
+        if price is None:
+            logger.error(
+                "strategy_signal_event_missing_price",
+                event_id=event.event_id,
+                message="Signal events must include valid price data",
+            )
+            return None
+
+        if price <= Decimal(0):
+            logger.error(
+                "strategy_signal_event_invalid_price",
+                event_id=event.event_id,
+                price=str(price),
+                message="Price must be positive",
+            )
+            return None
+
+        return price
+
+    def _extract_signal_side(self, event: DomainEvent) -> OrderSide:
+        """Extract order side from event payload with type safety.
+
+        Args:
+            event: Domain event containing side data
+
+        Returns:
+            Validated OrderSide enum value
+        """
+        side_str = event.get_str("side")
+        if side_str is None:
+            return OrderSide.BUY  # Safe default from enum
+
+        try:
+            return OrderSide(side_str)
+        except ValueError:
+            logger.warning(
+                "strategy_signal_event_invalid_side",
+                event_id=event.event_id,
+                side=side_str,
+                message="Invalid side value, using BUY as default",
+            )
+            return OrderSide.BUY
+
+    def _extract_signal_type(self, event: DomainEvent) -> SignalType:
+        """Extract signal type from event payload with type safety.
+
+        Args:
+            event: Domain event containing signal type data
+
+        Returns:
+            Validated SignalType enum value
+        """
+        signal_type_str = event.get_str("signal_type")
+        if signal_type_str is None:
+            return SignalType.ENTER_LONG  # Safe default from enum
+
+        try:
+            return SignalType(signal_type_str)
+        except ValueError:
+            logger.warning(
+                "strategy_signal_event_invalid_signal_type",
+                event_id=event.event_id,
+                signal_type=signal_type_str,
+                message="Invalid signal type, using ENTER_LONG as default",
+            )
+            return SignalType.ENTER_LONG
+
+    async def _process_strategy_signal_event(self, event: DomainEvent) -> None:
+        """Process strategy signal event with full type safety.
+
+        Validates all event data using typed methods and creates TradeSignal
+        for processing. Returns early if any validation fails.
+        """
+        # Validate required fields using typed validation
+        if not self._validate_event_required_fields(event):
+            return
+
+        # Extract and validate price using typed method
+        price = self._extract_and_validate_price(event)
+        if price is None:
+            return
+
+        # Extract enum values with type safety
+        side = self._extract_signal_side(event)
+        signal_type = self._extract_signal_type(event)
+
+        # Extract other fields with defaults
+        confidence = float(event.payload.get("confidence", 0.5))
+        source_strategy = event.get_str("strategy_name") or "unknown"
+
+        # Create TradeSignal with all validated data
+        # Additional type safety check (should never trigger due to validation above)
+        if event.symbol is None or event.exchange is None:
+            logger.error(
+                "strategy_signal_event_validation_inconsistency",
+                event_id=event.event_id,
+                message="Validated fields became None after validation",
             )
             return
 
@@ -1314,13 +1440,13 @@ class TradingEngine:
             signal_id=event.entity_id,
             symbol=event.symbol,
             exchange=event.exchange,
-            side=OrderSide(event.payload.get("side", OrderSide.BUY.value)),
-            signal_type=SignalType(event.payload.get("signal_type", "ENTER_LONG")),
-            # Placeholder price per requirements
-            price=Decimal(str(event.payload.get("price", "0.01"))),
-            confidence=float(event.payload.get("confidence", 0.5)),
-            source_strategy=event.payload.get("strategy_name", "unknown"),
+            side=side,  # Type-safe enum
+            signal_type=signal_type,  # Type-safe enum
+            price=price,  # Validated Decimal
+            confidence=confidence,
+            source_strategy=source_strategy,
         )
+
         await self._handle_trading_signal(signal)
 
     async def _process_order_filled_event(self, event: DomainEvent) -> None:

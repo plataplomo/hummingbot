@@ -390,7 +390,7 @@ class TradingService(HealthCheckable):
                 )
 
             signal_event = DomainEvent(
-                event_type=EventType.SIGNAL_GENERATED,
+                event_type=EventType.SIGNAL_PROCESSED,
                 entity_type=EntityType.STRATEGY,
                 entity_id=original_signal.signal_id,
                 exchange=signal_exchange,
