@@ -34,6 +34,10 @@ from cyberdelta.infrastructure.exchange_api_factory import ExchangeAPIFactory
 from cyberdelta.infrastructure.persistence.file_repository import FilePortfolioStorage
 
 
+# Module-level logger
+logger = get_logger(__name__)
+
+
 class TradingEngineBootstrap:
     """Bootstrap class for initializing the trading engine with dependency injection."""
 
@@ -68,7 +72,6 @@ class TradingEngineBootstrap:
 
             # Setup structured logging based on configuration
             setup_structlog(self.config)
-            logger = get_logger(__name__)
 
             logger.info(
                 "configuration_loaded_successfully",
@@ -78,10 +81,10 @@ class TradingEngineBootstrap:
             )
 
         except ConfigurationError as e:
-            print(f"Configuration error: {e}")  # noqa: T201
+            logger.critical("Configuration error", error=str(e))
             sys.exit(1)
         except (ImportError, ValueError, OSError) as e:
-            print(f"Fatal configuration error: {e}")  # noqa: T201
+            logger.critical("Fatal configuration error", error=str(e))
             sys.exit(1)
 
     async def initialize_exchange_apis(self) -> dict[str, Any]:
@@ -97,7 +100,6 @@ class TradingEngineBootstrap:
             msg = "Configuration must be initialized first"
             raise RuntimeError(msg)
 
-        logger = get_logger(__name__)
         api_clients: dict[str, Any] = {}
 
         # Initialize ALL enabled exchanges dynamically using factory
@@ -163,7 +165,6 @@ class TradingEngineBootstrap:
             msg = "Configuration must be initialized first"
             raise RuntimeError(msg)
 
-        logger = get_logger(__name__)
         services: dict[str, Any] = {}
 
         # Initialize file storage for portfolio state persistence
@@ -243,8 +244,6 @@ class TradingEngineBootstrap:
             msg = "Configuration must be initialized first"
             raise RuntimeError(msg)
 
-        logger = get_logger(__name__)
-
         # Initialize trading engine with all services
         trading_engine = TradingEngine(
             config=self.config,
@@ -270,7 +269,6 @@ class TradingEngineBootstrap:
 
     def setup_signal_handlers(self) -> None:
         """Setup signal handlers for graceful shutdown."""
-        logger = get_logger(__name__)
 
         def signal_handler(signum: int, _: object) -> None:
             signal_name = signal.Signals(signum).name
@@ -287,12 +285,10 @@ class TradingEngineBootstrap:
     async def run(self, config_path: str | None = None, safe_mode: bool = False) -> None:
         """Main execution method with proper error handling and cleanup."""
         trading_engine: TradingEngine | None = None
-        logger = None
 
         try:
             # Step 1: Initialize configuration and logging
             await self.initialize_configuration(config_path)
-            logger = get_logger(__name__)
 
             # Override safe mode if specified
             if safe_mode and self.config:
@@ -407,8 +403,8 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        print("Shutdown complete.")  # noqa: T201
+        logger.info("Application shutdown complete")
         sys.exit(0)
     except (ConfigurationError, ValueError, OSError) as e:
-        print(f"Fatal error: {e}")  # noqa: T201
+        logger.critical("Fatal error", error=str(e))
         sys.exit(1)

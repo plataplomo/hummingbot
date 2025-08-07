@@ -453,7 +453,7 @@ class TradingEngine:
                 symbol=signal.symbol.value,
                 exchange=str(signal.exchange),
                 side=signal.side.value,
-                price=float(signal.price) if signal.price else None,
+                price=signal.price,
             )
 
             # Route signal to trading service for execution with circuit breaker protection
@@ -501,8 +501,8 @@ class TradingEngine:
                 symbol=trade.symbol.value,
                 exchange=trade.exchange,
                 side=trade.side.value,
-                quantity=float(trade.quantity),
-                price=float(trade.price),
+                quantity=trade.quantity,
+                price=trade.price,
             )
 
             # Notify strategy service about trade completion with circuit breaker protection

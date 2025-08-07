@@ -12,10 +12,11 @@ Responsibilities:
   and validated APIError exceptions, suitable for consistent handling throughout the application.
 """
 
-import json
 import re
 from http import HTTPStatus
 from typing import Any
+
+import orjson
 
 from cyberdelta.apis.common import APIError, APIErrorCode, APIErrorResponse, IErrorMapper
 from cyberdelta.apis.connectivity.json_security import secure_json_loads
@@ -525,7 +526,7 @@ class HyperliquidErrorMapper(IErrorMapper):
                 and isinstance(potential_list[0], str)
             ):
                 return potential_list[0]
-        except (json.JSONDecodeError, TypeError, ValueError):
+        except (orjson.JSONDecodeError, TypeError, ValueError):
             pass
         return error_body
 

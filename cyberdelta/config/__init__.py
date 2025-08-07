@@ -68,11 +68,33 @@ def _get_secrets_file_path() -> Path:
     return Path.home() / ".cyberdelta" / "secrets.yaml"
 
 
-# Global variables for lazy initialization
-_config_manager: ConfigManager | None = None
-_secrets_manager: SecretsManager | None = None
-_app_settings: AppSettings | None = None
-_secrets_config: SecretsConfig | None = None
+class _ConfigurationState:
+    """Internal configuration state management."""
+
+    def __init__(self) -> None:
+        self.config_manager: ConfigManager | None = None
+        self.secrets_manager: SecretsManager | None = None
+        self.app_settings: AppSettings | None = None
+        self.secrets_config: SecretsConfig | None = None
+
+    def is_initialized(self) -> bool:
+        """Check if configuration is initialized.
+
+        Returns:
+            True if configuration is initialized, False otherwise.
+        """
+        return self.config_manager is not None
+
+    def reset(self) -> None:
+        """Reset configuration state for testing."""
+        self.config_manager = None
+        self.secrets_manager = None
+        self.app_settings = None
+        self.secrets_config = None
+
+
+# Configuration state singleton
+_config_state = _ConfigurationState()
 
 
 def _initialize_config() -> None:
@@ -84,9 +106,7 @@ def _initialize_config() -> None:
         SecretsNotLoadedError: If secrets configuration cannot be loaded
 
     """
-    global _config_manager, _secrets_manager, _app_settings, _secrets_config  # noqa: PLW0603
-
-    if _config_manager is not None:
+    if _config_state.is_initialized():
         return  # Already initialized
 
     # Check if we're in a testing environment
@@ -105,8 +125,8 @@ def _initialize_config() -> None:
 
     try:
         # Create manager instances (they load automatically and raise ConfigurationError on failure)
-        _config_manager = ConfigManager(str(config_file_path))
-        _secrets_manager = SecretsManager(str(secrets_file_path))
+        _config_state.config_manager = ConfigManager(str(config_file_path))
+        _config_state.secrets_manager = SecretsManager(str(secrets_file_path))
     except ConfigurationError as e:
         logger.critical(
             "configuration_system_initialization_failed",
@@ -119,29 +139,29 @@ def _initialize_config() -> None:
         raise ConfigurationInitializationError(str(e), e) from e
 
     # Validate that configuration loaded successfully
-    if _config_manager.settings is None:
+    if _config_state.config_manager.settings is None:
         logger.critical(
             "app_settings_not_loaded",
-            config_path=str(_config_manager.config_path),
-            config_loaded=_config_manager.loaded,
+            config_path=str(_config_state.config_manager.config_path),
+            config_loaded=_config_state.config_manager.loaded,
             action="raising_runtime_error",
             message=(
                 f"CRITICAL: AppSettings not loaded by ConfigManager from "
-                f"{_config_manager.config_path}. Application cannot proceed safely "
+                f"{_config_state.config_manager.config_path}. Application cannot proceed safely "
                 f"without configuration."
             ),
         )
         raise AppSettingsNotLoadedError(
-            config_path=str(_config_manager.config_path),
-            config_loaded=_config_manager.loaded,
+            config_path=str(_config_state.config_manager.config_path),
+            config_loaded=_config_state.config_manager.loaded,
         )
 
     # Validate that secrets loaded successfully
-    if _secrets_manager.secrets_data is None:
+    if _config_state.secrets_manager.secrets_data is None:
         logger.critical(
             "secrets_config_not_loaded",
-            secrets_path=str(_secrets_manager.secrets_path),
-            secrets_loaded=_secrets_manager.secrets_loaded,
+            secrets_path=str(_config_state.secrets_manager.secrets_path),
+            secrets_loaded=_config_state.secrets_manager.secrets_loaded,
             env_path_set=os.environ.get("CYBERDELTA_SECRETS_PATH") is not None,
             action="raising_runtime_error",
             message=(
@@ -151,13 +171,13 @@ def _initialize_config() -> None:
             ),
         )
         raise SecretsNotLoadedError(
-            secrets_path=str(_secrets_manager.secrets_path),
-            secrets_loaded=_secrets_manager.secrets_loaded,
+            secrets_path=str(_config_state.secrets_manager.secrets_path),
+            secrets_loaded=_config_state.secrets_manager.secrets_loaded,
             env_path_set=os.environ.get("CYBERDELTA_SECRETS_PATH") is not None,
         )
 
-    _app_settings = _config_manager.settings
-    _secrets_config = _secrets_manager.secrets_data
+    _config_state.app_settings = _config_state.config_manager.settings
+    _config_state.secrets_config = _config_state.secrets_manager.secrets_data
 
 
 def get_app_settings() -> AppSettings:
@@ -171,9 +191,9 @@ def get_app_settings() -> AppSettings:
 
     """
     _initialize_config()
-    if _app_settings is None:
+    if _config_state.app_settings is None:
         raise ConfigurationNotInitializedError("Configuration")
-    return _app_settings
+    return _config_state.app_settings
 
 
 def get_secrets_config() -> SecretsConfig:
@@ -187,9 +207,9 @@ def get_secrets_config() -> SecretsConfig:
 
     """
     _initialize_config()
-    if _secrets_config is None:
+    if _config_state.secrets_config is None:
         raise ConfigurationNotInitializedError("Secrets")
-    return _secrets_config
+    return _config_state.secrets_config
 
 
 def get_config_manager() -> ConfigManager:
@@ -203,9 +223,9 @@ def get_config_manager() -> ConfigManager:
 
     """
     _initialize_config()
-    if _config_manager is None:
+    if _config_state.config_manager is None:
         raise ConfigurationNotInitializedError("Configuration")
-    return _config_manager
+    return _config_state.config_manager
 
 
 def get_secrets_manager() -> SecretsManager:
@@ -219,9 +239,18 @@ def get_secrets_manager() -> SecretsManager:
 
     """
     _initialize_config()
-    if _secrets_manager is None:
+    if _config_state.secrets_manager is None:
         raise ConfigurationNotInitializedError("Secrets")
-    return _secrets_manager
+    return _config_state.secrets_manager
+
+
+def reset_configuration() -> None:
+    """Reset configuration state for testing purposes.
+
+    This function clears all cached configuration and forces reinitialization
+    on the next access. Should only be used in testing contexts.
+    """
+    _config_state.reset()
 
 
 # Export the primary interfaces for configuration access

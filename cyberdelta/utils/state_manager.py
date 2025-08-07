@@ -6,12 +6,13 @@ and recovery in the CyberDeltaEngine trading system.
 
 from __future__ import annotations
 
-import json
 import shutil
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
+
+import orjson
 
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -71,8 +72,8 @@ class StateManager:
                 return False
 
             # Read state file
-            with Path(self.state_file).open(encoding="utf-8") as file:
-                state_data = json.load(file)
+            with Path(self.state_file).open("rb") as file:
+                state_data = orjson.loads(file.read())
 
             # Verify state integrity
             if not self._verify_state_integrity(state_data):
@@ -97,7 +98,7 @@ class StateManager:
                 message=f"Successfully loaded state from {self.state_file}",
             )
 
-        except json.JSONDecodeError as e:
+        except orjson.JSONDecodeError as e:
             logger.exception(
                 "state_file_decode_error",
                 state_file=self.state_file,
@@ -158,8 +159,8 @@ class StateManager:
 
             # Write state to a temporary file first
             temp_file: str = f"{self.state_file}.tmp"
-            with Path(temp_file).open("w", encoding="utf-8") as file:
-                json.dump(state_data, file, indent=2)
+            with Path(temp_file).open("wb") as file:
+                file.write(orjson.dumps(state_data, option=orjson.OPT_INDENT_2))
 
             # Atomically replace the state file
             shutil.move(temp_file, self.state_file)
@@ -337,7 +338,7 @@ class StateManager:
                 try:
                     # Read backup file
                     with Path(backup_path).open(encoding="utf-8") as file:
-                        state_data = json.load(file)
+                        state_data = orjson.loads(file.read())
 
                     # Verify state integrity
                     if self._verify_state_integrity(state_data):
@@ -357,7 +358,7 @@ class StateManager:
                         )
                         return True
 
-                except (json.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
+                except (orjson.JSONDecodeError, FileNotFoundError, PermissionError, OSError) as e:
                     logger.warning(
                         "backup_loading_error",
                         backup_path=backup_path,
@@ -460,8 +461,9 @@ class StateManager:
         """
         # For simplicity, we're using a JSON hash as the checksum
         # In a production system, you might want to use a more robust algorithm
-        state_json: str = json.dumps(state, sort_keys=True)
-        return str(hash(state_json))
+        # orjson is deterministic and sorts keys by default
+        state_bytes = orjson.dumps(state, option=orjson.OPT_SORT_KEYS)
+        return str(hash(state_bytes))
 
 
 def load_state_manager(config: AppSettings) -> StateManager:

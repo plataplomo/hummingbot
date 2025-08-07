@@ -13,10 +13,10 @@ Focused on:
 
 from __future__ import annotations
 
-import json
 from collections.abc import Mapping
 from typing import Any, TypeGuard
 
+import orjson
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
@@ -64,8 +64,8 @@ def _safe_json_repr(value: object) -> str:
         JSON string representation or string fallback
     """
     try:
-        return json.dumps(value)
-    except (TypeError, ValueError):
+        return orjson.dumps(value).decode("utf-8")
+    except (TypeError, orjson.JSONEncodeError):
         # Fallback for non-JSON-serializable objects
         return repr(value)
 

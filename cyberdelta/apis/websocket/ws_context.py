@@ -6,12 +6,12 @@ Exchange-specific contexts are in their respective packages.
 
 from __future__ import annotations
 
-import json
 import time
 from datetime import datetime
 from enum import StrEnum
 from typing import Any, TypeVar
 
+import orjson
 from pydantic import BaseModel, Field, computed_field
 
 
@@ -105,9 +105,11 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
                 "topic",
                 "is_private_message",
             }
-            data = self.model_dump(mode="python", exclude=excluded_fields)
-            return len(json.dumps(data, default=str).encode("utf-8"))
-        except (TypeError, ValueError, UnicodeEncodeError):
+            data = self.model_dump(mode="json", exclude=excluded_fields)
+            # Optimized: Use orjson for fast serialization (5-10x faster)
+            # mode="json" ensures proper serialization of Decimal/datetime types
+            return len(orjson.dumps(data))
+        except (TypeError, ValueError, orjson.JSONEncodeError):
             # If serialization fails, return 0
             return 0
 

@@ -6,11 +6,11 @@ protocol using JSON serialization.
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime
 from pathlib import Path
 
 import aiofiles
+import orjson
 
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
@@ -97,8 +97,9 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             state_data = state.model_dump(mode="json")
 
             # Write to temporary file first
-            async with aiofiles.open(temp_file, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(state_data, indent=2, ensure_ascii=False))
+            async with aiofiles.open(temp_file, "wb") as f:
+                # orjson returns bytes, write in binary mode for better performance
+                await f.write(orjson.dumps(state_data, option=orjson.OPT_INDENT_2))
 
             # Atomic move to final location
             temp_file.replace(self._state_file)
@@ -129,9 +130,9 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             return None
 
         try:
-            async with aiofiles.open(self._state_file, encoding="utf-8") as f:
+            async with aiofiles.open(self._state_file, "rb") as f:
                 content = await f.read()
-                state_data = json.loads(content)
+                state_data = orjson.loads(content)
 
             # Validate and create PortfolioState
             state = PortfolioState.model_validate(state_data)
@@ -144,7 +145,7 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
                 position_count=len(state.positions),
             )
 
-        except (OSError, json.JSONDecodeError, ValueError) as e:
+        except (OSError, orjson.JSONDecodeError, ValueError) as e:
             msg = f"Failed to load portfolio state: {e}"
             raise StorageError(msg, operation="load_state", original_error=e) from e
         else:
@@ -175,8 +176,8 @@ class FilePortfolioStorage(PortfolioStorageProtocol):
             }
 
             # Write snapshot
-            async with aiofiles.open(snapshot_file, "w", encoding="utf-8") as f:
-                await f.write(json.dumps(snapshot_data, indent=2, ensure_ascii=False))
+            async with aiofiles.open(snapshot_file, "wb") as f:
+                await f.write(orjson.dumps(snapshot_data, option=orjson.OPT_INDENT_2))
 
             # Rotate backups based on config
             await self._rotate_snapshots()
