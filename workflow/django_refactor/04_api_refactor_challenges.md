@@ -1,8 +1,22 @@
 # Django Refactor: API Gateway via FastAPI (Wrapper Pattern)
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed FastAPI gateway** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No FastAPI implementation exists
+> - No REST API gateway exists
+> - No external API endpoints exist
+> - No API key management system exists
+> - No Redis pub/sub bridge exists for external API communication
+> - CyberDeltaEngine operates as a command-line application only
+
 ## Overview
 
 This document outlines how to create a FastAPI gateway that provides external REST API access to CyberDeltaEngine without modifying the core async trading engine. The gateway acts as a translation layer between REST requests and core engine commands.
+
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. No external API exists.**
 
 ## Current API Architecture Analysis
 

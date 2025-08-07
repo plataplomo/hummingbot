@@ -1,50 +1,69 @@
 # Django Refactor: Architecture Overview
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed architecture** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No Django implementation exists
+> - No web dashboard exists (Dash dependency present but unused)
+> - No FastAPI gateway exists
+> - No HTMX implementation exists
+> - CyberDeltaEngine is a pure command-line trading engine
+> - Uses file-based storage via `FilePortfolioStorage`
+> - No database persistence layer exists
+> - No multi-user support exists
+> - No web interface of any kind exists
+
 ## Current CyberDeltaEngine Architecture (Production-Ready)
 
-### Core Components Analysis
+### Core Components Analysis (Actual Current Architecture)
 
-CyberDeltaEngine is a **mature, production-ready** cryptocurrency trading engine with sophisticated arbitrage capabilities:
+CyberDeltaEngine is a **command-line trading engine** with the following actual architecture:
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Dashboard     │    │    Main App     │    │   Config Mgmt   │
-│   (Dash/React)  │    │   (main.py)     │    │   (YAML files)  │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                       │                       │
-         └───────────────────────┼───────────────────────┘
+                        ┌─────────────────┐
+                        │     main.py     │
+                        │   (CLI Entry)   │
+                        └─────────────────┘
                                  │
                     ┌─────────────────┐
-                    │   Core Engine   │
-                    │   (engine.py)   │
+                    │ TradingEngine   │
+                    │ Bootstrap       │
                     └─────────────────┘
                                  │
          ┌───────────────────────┼───────────────────────┐
          │                       │                       │
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│  Strategy Mgmt  │    │  Data Handler   │    │ Portfolio Track │
-│ (strategies/)   │    │ (data_handler)  │    │(portfolio_track)│
+│ ExchangeAPI     │    │ Business Logic  │    │   Config        │
+│ Factory         │    │   Services      │    │ (AppSettings)   │
+│(Hyperliquid/BP) │    │(Portfolio/Risk) │    │ (YAML based)    │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
          │                       │                       │
          └───────────────────────┼───────────────────────┘
                                  │
                     ┌─────────────────┐
-                    │  Risk Manager   │
-                    │ (risk_manager)  │
-                    └─────────────────┘
-                                 │
-                    ┌─────────────────┐
-                    │ Execution Layer │
-                    │(execution_hdlr) │
+                    │   Event Bus     │
+                    │ (Async Comms)   │
                     └─────────────────┘
                                  │
          ┌───────────────────────┼───────────────────────┐
          │                       │                       │
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Hyperliquid   │    │    Backpack     │    │   Future APIs   │
-│     API         │    │      API        │    │   (Binance?)    │
+│ ExecutionEngine │    │  SignalService  │    │ StrategyService │
+│   (Trading)     │    │  (Generation)   │    │  (Management)   │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │FilePortfolio    │
+                    │   Storage       │
+                    │  (No Database)  │
+                    └─────────────────┘
 ```
+
+**NO WEB INTERFACE EXISTS** - This is a pure command-line application.
 
 ### Current Strengths (Must Preserve)
 - **Production-tested**: Battle-tested API integrations with sophisticated error handling

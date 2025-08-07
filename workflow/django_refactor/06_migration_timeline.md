@@ -1,8 +1,24 @@
 # Django Refactor: Migration Timeline & Implementation Plan (Wrapper Pattern)
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed architecture** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No Django implementation exists
+> - No web dashboard exists (Dash dependency present but unused)
+> - No FastAPI gateway exists
+> - No HTMX implementation exists
+> - CyberDeltaEngine is a pure command-line trading engine
+> - Uses file-based storage, no database persistence
+> - No multi-user support
+> - No web interface of any kind
+
 ## Executive Summary
 
 This document provides a detailed timeline for implementing Django + HTMX wrappers around the existing CyberDeltaEngine without modifying the core trading system. The project is structured as an 8-week implementation focused on building external layers that read from and command the unchanged core engine.
+
+**⚠️ IMPLEMENTATION STATUS: This entire proposal requires implementation from scratch.**
 
 ## Migration Philosophy: Wrapper Pattern
 

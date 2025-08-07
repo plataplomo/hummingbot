@@ -1,8 +1,23 @@
 # Django Refactor: Database Models Design (Wrapper Pattern)
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes **proposed Django models** that do not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No Django implementation exists
+> - No database models exist
+> - No PostgreSQL or TimescaleDB integration
+> - CyberDeltaEngine uses `FilePortfolioStorage` (file-based storage)
+> - No database persistence layer exists
+> - All data is in-memory or file-based
+> - No synchronization services exist
+
 ## Overview
 
 This document outlines the Django model design for the **wrapper layer** that provides persistence without modifying the core CyberDeltaEngine. These models mirror the existing Pydantic models and are populated via background synchronization from the running core engine.
+
+**⚠️ IMPLEMENTATION STATUS: None of these models exist. This is a design proposal only.**
 
 ## Core Model Categories
 

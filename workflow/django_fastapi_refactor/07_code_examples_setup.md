@@ -1,8 +1,20 @@
 # Code Examples & Complete Setup Guide
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document provides code examples for a **proposed migration** that has not been implemented.
+>
+> **Actual Current State:**
+> - No Django/FastAPI/HTMX code exists
+> - No adapter layer or service architecture
+> - No database integration
+> - Single monolithic command-line application
+
 ## Overview (Updated June 2025)
 
 This document provides complete code examples, project structure, and setup instructions for implementing the minimal migration to Django + FastAPI + HTMX architecture. All examples preserve existing CyberDelta functionality (including sophisticated features like auto-lending and margin support) while adding modern interfaces. The timeline has been optimized to 8-9 weeks with a 2-person team based on the production-ready state of the current codebase.
+
+**⚠️ IMPLEMENTATION STATUS: These are proposed code examples. None of this code has been written.**
 
 ## Complete Project Structure
 
@@ -15,7 +27,7 @@ CyberDeltaEngine/
 │   ├── validation/                # ✅ Keep exactly as-is (Circuit breakers)
 │   ├── config/                    # ✅ Keep exactly as-is (YAML-based config)
 │   ├── utils/                     # ✅ Keep exactly as-is (State management)
-│   └── monitoring/                # ✅ Keep exactly as-is (Working dashboard logic)
+│   └── domain/monitoring/         # ✅ Keep exactly as-is (Monitoring services only)
 ├── shared/                        # NEW - Adapter layer
 │   ├── adapters/
 │   │   ├── __init__.py

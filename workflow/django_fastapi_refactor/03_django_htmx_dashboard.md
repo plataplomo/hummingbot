@@ -1,22 +1,36 @@
 # Django HTMX Dashboard: Replacing Dash with Modern Web UI
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed Django + HTMX dashboard** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - **NO DASH DASHBOARD EXISTS** - The file `real_time_dashboard.py` mentioned does not exist
+> - No Django implementation exists
+> - No HTMX implementation exists
+> - Dash is installed as a dependency but no dashboard implementation found
+> - CyberDeltaEngine has no web UI of any kind
+
 ## Overview (Updated June 2025)
 
 This document details the complete replacement of the current Dash/React dashboard with a Django + HTMX solution within the 8-9 week timeline. The existing Dash dashboard is fully functional with comprehensive features (performance tracking, strategy comparison, funding rate heatmaps, etc.) but lacks persistence and multi-user support. The goal is to preserve all existing functionality while adding database persistence, eliminating JavaScript build complexity, and providing superior performance.
 
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. No dashboard currently exists to replace.**
+
 ## Current Dashboard Analysis
 
-### Existing Dash Implementation Problems
+### Proposed Dash Implementation Problems (DOESN'T EXIST)
 ```python
-# Current: cyberdelta/monitoring/real_time_dashboard.py
-class RealTimeDashboard:
+# DOES NOT EXIST: cyberdelta/monitoring/real_time_dashboard.py
+# This file is referenced but does not exist in the codebase
+class RealTimeDashboard:  # PROPOSED ONLY
     def __init__(self):
         self.app = dash.Dash(__name__)  # 200MB+ React dependencies
         self.setup_layout()             # Limited component customization
         self.setup_callbacks()          # Complex callback chains
 ```
 
-**Issues with Current Approach:**
+**Theoretical Issues with Dash Approach (if implemented):**
 - **Bundle Size**: 200MB+ React ecosystem vs 14KB HTMX
 - **Build Complexity**: Hidden webpack/babel configuration
 - **Development Speed**: Slow hot reloading and debugging
@@ -24,7 +38,7 @@ class RealTimeDashboard:
 - **Performance**: React virtual DOM overhead for simple interactions
 - **Mobile Support**: Poor responsive design capabilities
 
-### Current Dashboard Features to Preserve (All Working)
+### Proposed Dashboard Features (NOT IMPLEMENTED)
 1. Real-time performance monitoring with multiple timeframes (1h, 1d, 1w, 1m, all)
 2. Strategy selection and comparison interface
 3. Funding rate heatmaps for arbitrage visualization

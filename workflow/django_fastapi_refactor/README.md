@@ -1,8 +1,24 @@
 # CyberDeltaEngine: Minimal Migration to Django + FastAPI + HTMX
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This directory contains a **proposed migration plan** to add Django, FastAPI, and HTMX to CyberDeltaEngine. These technologies do not currently exist in the codebase.
+>
+> **Actual Current State:**
+> - No Django implementation exists
+> - No FastAPI implementation exists
+> - No HTMX implementation exists
+> - No web dashboard exists (Dash dependency installed but unused)
+> - No REST API or service wrappers exist
+> - No database integration (PostgreSQL/TimescaleDB) exists
+> - CyberDeltaEngine is a pure command-line trading application
+> - Uses file-based storage via `FilePortfolioStorage`
+
 ## Overview (Updated December 2024)
 
 This directory contains an **updated minimal migration plan** that preserves 90% of your existing CyberDeltaEngine codebase while modernizing the user interface and adding service APIs. The plan has been revised to reflect the current production-ready state of the codebase, including sophisticated features like auto-lending support and comprehensive testing infrastructure.
+
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. None of these features have been implemented.**
 
 **Timeline: 6-8 weeks** (reduced significantly due to mature codebase) | **Budget: $25,000-30,000** (reduced due to enterprise-grade foundation) | **Team: 1.5-2 people** (reduced due to existing sophistication)
 
