@@ -33,6 +33,7 @@ from cyberdelta.models.base_validators import (
     required_datetime_validator,
     required_decimal_validator,
 )
+from cyberdelta.models.market.fill import Fill
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)
@@ -151,6 +152,119 @@ class DerivativePosition(ExchangeValidationMixin, StandardModel):
             True if position size is non-zero, False otherwise
         """
         return self.size != Decimal(0)
+
+    def apply_fill(self, fill: Fill) -> tuple[Decimal | None, Decimal]:
+        """Apply a fill to this position and calculate realized PnL.
+
+        This method encapsulates the business logic for updating a position based on a fill,
+        including calculating realized PnL when reducing/closing positions and updating
+        the average entry price.
+
+        Args:
+            fill: The fill to apply to this position
+
+        Returns:
+            Tuple of (realized_pnl, new_average_price)
+            - realized_pnl: Realized PnL if position was reduced/closed, None otherwise
+            - new_average_price: Updated average entry price after the fill
+
+        Note:
+            This method calculates but does not update the position. The caller is responsible
+            for updating the position fields based on the returned values.
+        """
+        # Calculate position change and realized PnL
+        new_quantity, realized_pnl = self._calculate_position_change(fill)
+
+        # Calculate new average price
+        new_average_price = self._calculate_average_price(fill, new_quantity)
+
+        return realized_pnl, new_average_price
+
+    def _calculate_position_change(self, fill: Fill) -> tuple[Decimal, Decimal | None]:
+        """Calculate position change from fill.
+
+        Args:
+            fill: New fill to apply
+
+        Returns:
+            Tuple of (new_quantity, realized_pnl)
+            - new_quantity: New position quantity (signed)
+            - realized_pnl: Realized PnL if reducing/closing, None otherwise
+        """
+        # Current position quantity (signed)
+        current_qty = self.size
+        if self.side == OrderSide.SELL:
+            current_qty = -current_qty
+
+        # Fill quantity (signed)
+        fill_qty = fill.quantity
+        if fill.side == OrderSide.SELL:
+            fill_qty = -fill_qty
+
+        # New position quantity
+        new_qty = current_qty + fill_qty
+
+        # Calculate realized PnL if reducing/closing position
+        realized_pnl = None
+        if current_qty != 0 and abs(new_qty) < abs(current_qty):
+            # Position is being reduced
+            reduced_qty = abs(current_qty) - abs(new_qty)
+            if self.entry_price:
+                if current_qty > 0:  # Was long
+                    realized_pnl = reduced_qty * (fill.price - self.entry_price)
+                else:  # Was short
+                    realized_pnl = reduced_qty * (self.entry_price - fill.price)
+
+        return new_qty, realized_pnl
+
+    def _calculate_average_price(self, fill: Fill, new_quantity: Decimal) -> Decimal:
+        """Calculate new average price after fill.
+
+        Args:
+            fill: New fill
+            new_quantity: New position quantity (signed)
+
+        Returns:
+            New average price
+        """
+        # If position flipped sides, use trade price
+        old_signed_qty = self.size
+        if self.side == OrderSide.SELL:
+            old_signed_qty = -old_signed_qty
+
+        if (old_signed_qty > 0 and new_quantity < 0) or (old_signed_qty < 0 and new_quantity > 0):
+            return fill.price
+
+        # Calculate weighted average for same-side fills
+        if not self.entry_price:
+            return fill.price
+
+        old_value = abs(old_signed_qty) * self.entry_price
+        fill_value = fill.quantity * fill.price
+        total_value = old_value + fill_value
+        total_quantity = abs(old_signed_qty) + fill.quantity
+
+        if total_quantity == 0:
+            return fill.price
+
+        return total_value / total_quantity
+
+    def calculate_unrealized_pnl(self, mark_price: Decimal) -> Decimal | None:
+        """Calculate current unrealized PnL based on mark price.
+
+        Args:
+            mark_price: Current mark price
+
+        Returns:
+            Unrealized PnL or None if position is flat
+        """
+        if self.size == Decimal(0) or not self.entry_price:
+            return None
+
+        if self.side == OrderSide.BUY:
+            return self.size * (mark_price - self.entry_price)
+        # SELL
+        return abs(self.size) * (self.entry_price - mark_price)
 
     # --- Model Validators ---
 

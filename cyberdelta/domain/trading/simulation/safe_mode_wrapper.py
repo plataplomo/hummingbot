@@ -20,8 +20,6 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
-from pydantic import BaseModel
-
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.account import (
     TransferArgs,
@@ -68,16 +66,7 @@ from cyberdelta.symbols.models import Symbol
 logger = get_logger(__name__)
 
 
-class SimulatedFill(BaseModel):
-    """Simulated fill for paper trading."""
-
-    order_id: str
-    symbol: Symbol
-    side: OrderSide
-    price: Decimal
-    quantity: Decimal
-    fee: Decimal
-    timestamp: datetime
+# SimulatedFill removed - using proper Fill model from cyberdelta.models.market.fill
 
 
 class SafeModeWrapper:
@@ -144,7 +133,7 @@ class SafeModeWrapper:
         self._simulated_orders: dict[str, Order] = {}
         self._simulated_balances: dict[str, SpotBalance] = {}
         self._simulated_positions: dict[str, DerivativePosition] = {}
-        self._simulated_fills: list[SimulatedFill] = []
+        self._simulated_fills: list[Fill] = []
 
         # Initialize simulated balances with configured amounts
         self._initialize_balances()
@@ -438,7 +427,7 @@ class SafeModeWrapper:
             trade = Fill(
                 id=f"trade_{uuid.uuid4().hex[:8]}",
                 symbol=fill.symbol,
-                executed_at=fill.timestamp,
+                executed_at=fill.executed_at,
                 side=fill.side,
                 order_id=fill.order_id,
                 exchange=self._exchange_name,
@@ -662,14 +651,18 @@ class SafeModeWrapper:
             # For simulation, generate an order ID if not present
             order.exchange_order_id = f"SIM-{order.client_order_id}"
 
-        fill = SimulatedFill(
+        fill = Fill(
+            id=f"SIM_FILL_{uuid.uuid4().hex[:8]}",
             order_id=order.exchange_order_id,  # Now guaranteed to be non-None
+            client_order_id=order.client_order_id,
             symbol=order.symbol,
             side=order.side,
+            exchange=self._exchange_name,
             price=fill_price,
             quantity=order.quantity_requested,
             fee=fee,
-            timestamp=datetime.now(UTC),
+            fee_asset="USD" if fee > Decimal(0) else None,
+            executed_at=datetime.now(UTC),
         )
 
         self._simulated_fills.append(fill)
@@ -706,7 +699,7 @@ class SafeModeWrapper:
         if order.status == OrderStatus.OPEN:
             await self._simulate_fill(order)
 
-    async def _update_balance_from_fill(self, fill: SimulatedFill) -> None:
+    async def _update_balance_from_fill(self, fill: Fill) -> None:
         """Update simulated balance after fill."""
         base_currency = self.app_config.calculation.base_currency
 
@@ -758,7 +751,7 @@ class SafeModeWrapper:
             change=-cost if fill.side == OrderSide.BUY else proceeds,
         )
 
-    async def _update_position_from_fill(self, fill: SimulatedFill) -> None:
+    async def _update_position_from_fill(self, fill: Fill) -> None:
         """Update simulated position after fill."""
         symbol_key = fill.symbol.value
 

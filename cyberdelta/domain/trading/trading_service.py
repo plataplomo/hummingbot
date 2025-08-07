@@ -16,13 +16,11 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
+from cyberdelta.enums.events import EntityType, EventType
 from cyberdelta.enums.monitoring import ServiceType
+from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import TradeSignal
-from cyberdelta.models.events import (
-    OrderExecutedEvent,
-    SignalExecutionFailedEvent,
-    SignalProcessedEvent,
-)
+from cyberdelta.models.events import DomainEvent
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
@@ -223,6 +221,69 @@ class TradingService(HealthCheckable):
 
         return orders
 
+    def _calculate_fee_from_config(
+        self, exchange: ExchangeName, price: Decimal, quantity: Decimal
+    ) -> tuple[Decimal, str | None]:
+        """Calculate fee amount and asset from exchange configuration.
+
+        Args:
+            exchange: Exchange name for fee structure lookup
+            price: Fill price for fee calculation
+            quantity: Fill quantity for fee calculation
+
+        Returns:
+            Tuple of (fee_amount, fee_asset)
+
+        Raises:
+            RequiredParameterError: If exchange fee configuration is not found
+
+        Note:
+            Following CODING_STANDARDS.md:
+            - ALL fees from configuration, NO hardcoded values
+            - Fail fast if configuration missing
+        """
+        # Get exchange configuration
+        if exchange not in self.config.exchanges:
+            raise RequiredParameterError(
+                parameter="exchange",
+                context="TradingService fee calculation",
+                exchange=exchange.value,
+            )
+
+        exchange_config = self.config.exchanges[exchange]
+
+        # Fee structure is required for real trading
+        if exchange_config.fee_structure is None:
+            raise RequiredParameterError(
+                parameter="fee_structure",
+                context="TradingService fee calculation",
+                exchange=exchange.value,
+            )
+
+        fee_structure = exchange_config.fee_structure
+
+        # Calculate notional value
+        notional_value = price * quantity
+
+        # Use taker fee rate (more conservative assumption for market orders)
+        fee_rate = Decimal(str(fee_structure.taker_fee_rate))
+        fee_amount = notional_value * fee_rate
+
+        # Determine fee asset (quote currency if not specified)
+        fee_asset = fee_structure.fee_asset
+
+        # Apply minimum fee if configured
+        if fee_structure.minimum_fee is not None:
+            minimum_fee = Decimal(str(fee_structure.minimum_fee))
+            fee_amount = max(fee_amount, minimum_fee)
+
+        # Apply maximum fee if configured
+        if fee_structure.maximum_fee is not None:
+            maximum_fee = Decimal(str(fee_structure.maximum_fee))
+            fee_amount = min(fee_amount, maximum_fee)
+
+        return fee_amount, fee_asset
+
     def _create_execution_request(self, signal: TradeSignal) -> ExecutionRequest:
         """Convert trading signal to execution request.
 
@@ -298,11 +359,43 @@ class TradingService(HealthCheckable):
             # Imports already available at top level
 
             if order.quantity_filled and order.quantity_filled > 0:
+                # Require valid fill price - fail fast if missing
+                if order.average_fill_price is not None:
+                    fill_price = order.average_fill_price
+                elif order.price is not None:
+                    fill_price = order.price
+                else:
+                    logger.error(
+                        "cannot_create_fill_no_price_data",
+                        order_id=order.client_order_id,
+                        exchange_order_id=order.exchange_order_id,
+                        message="Order has no price data - cannot create fill",
+                    )
+                    return
+
+                if fill_price <= Decimal(0):
+                    logger.warning(
+                        "cannot_create_fill_without_valid_price",
+                        order_id=order.client_order_id,
+                        exchange_order_id=order.exchange_order_id,
+                        average_fill_price=order.average_fill_price,
+                        order_price=order.price,
+                        message="Skipping portfolio update - no valid price available for fill",
+                    )
+                    return
+
+                # Calculate fee from exchange configuration
+                fee_amount, fee_asset = self._calculate_fee_from_config(
+                    order.exchange, fill_price, order.quantity_filled
+                )
+
                 # Create fill from filled order
                 trade = Fill(
                     id=f"trade_{uuid.uuid4().hex[:8]}",
                     symbol=order.symbol,
-                    executed_at=order.updated_at or datetime.now(UTC),
+                    executed_at=(
+                        order.updated_at if order.updated_at is not None else datetime.now(UTC)
+                    ),
                     side=order.side,
                     order_id=(
                         order.exchange_order_id
@@ -310,10 +403,10 @@ class TradingService(HealthCheckable):
                         else "pending"
                     ),
                     exchange=order.exchange,
-                    price=order.average_fill_price or order.price or Decimal(0),
+                    price=fill_price,
                     quantity=order.quantity_filled,
-                    fee=Decimal(0),  # Fee would come from exchange response
-                    fee_asset=None,
+                    fee=fee_amount,
+                    fee_asset=fee_asset,
                     client_order_id=order.client_order_id,
                 )
 
@@ -351,18 +444,21 @@ class TradingService(HealthCheckable):
             # Create domain events for order execution
 
             # Publish order executed event
-            order_event = OrderExecutedEvent(
-                order_id=(
+            order_event = DomainEvent(
+                event_type=EventType.ORDER_EXECUTED,
+                entity_type=EntityType.ORDER,
+                entity_id=(
                     order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
                 ),
-                symbol=order.symbol,
                 exchange=order.exchange,
-                side=order.side,
-                order_type=order.order_type,
-                price=order.price,
-                quantity=order.quantity_requested,
-                status=order.status,
-                timestamp=datetime.now(UTC),
+                symbol=order.symbol,
+                payload={
+                    "side": order.side.value,
+                    "order_type": order.order_type.value,
+                    "price": str(order.price) if order.price else None,
+                    "quantity": str(order.quantity_requested),
+                    "status": order.status.value,
+                },
             )
             await self._event_bus.publish(order_event)
 
@@ -374,15 +470,20 @@ class TradingService(HealthCheckable):
                     signal_exchange[0] if signal_exchange else ExchangeName.HYPERLIQUID
                 )
 
-            signal_event = SignalProcessedEvent(
-                signal_id=original_signal.signal_id,
-                order_id=(
-                    order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
-                ),
-                symbol=original_signal.symbol,
+            signal_event = DomainEvent(
+                event_type=EventType.SIGNAL_PROCESSED,
+                entity_type=EntityType.STRATEGY,
+                entity_id=original_signal.signal_id,
                 exchange=signal_exchange,
-                success=order.status.value in {"OPEN", "FILLED", "PARTIALLY_FILLED"},
-                timestamp=datetime.now(UTC),
+                symbol=original_signal.symbol,
+                payload={
+                    "order_id": (
+                        order.exchange_order_id
+                        if order.exchange_order_id is not None
+                        else "cancelled"
+                    ),
+                    "success": order.status.value in {"OPEN", "FILLED", "PARTIALLY_FILLED"},
+                },
             )
             await self._event_bus.publish(signal_event)
 
@@ -452,13 +553,16 @@ class TradingService(HealthCheckable):
             if isinstance(error_exchange, list):
                 error_exchange = error_exchange[0] if error_exchange else ExchangeName.HYPERLIQUID
 
-            error_event = SignalExecutionFailedEvent(
-                signal_id=signal.signal_id,
-                symbol=signal.symbol,
+            error_event = DomainEvent(
+                event_type=EventType.STRATEGY_ERROR,
+                entity_type=EntityType.STRATEGY,
+                entity_id=signal.signal_id,
                 exchange=error_exchange,
-                error_message=str(error),
-                error_type=type(error).__name__,
-                timestamp=datetime.now(UTC),
+                symbol=signal.symbol,
+                payload={
+                    "error_message": str(error),
+                    "error_type": type(error).__name__,
+                },
             )
             await self._event_bus.publish(error_event)
 

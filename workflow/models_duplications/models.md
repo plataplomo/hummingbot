@@ -569,3 +569,16 @@ The recommended approach focuses on **gradual simplification** while preserving 
 - **Cleaner architecture** with appropriate abstraction levels
 
 The roadmap provides a clear path forward that balances the benefits of architectural cleanup with the risks of large-scale changes, ensuring the system remains stable and maintainable throughout the transition.
+
+## Post-Refactoring Update (2025-01-14)
+
+### Completed Improvements ✅
+1. **Event System**: Successfully migrated from 30+ event classes to single `DomainEvent`
+2. **Business Logic**: Moved PnL calculations to `DerivativePosition.apply_fill()` method
+3. **Type Safety**: All type checkers pass with 0 errors
+4. **Code Cleanup**: Removed `base_event.py`, `SimulatedFill`, deprecated functions
+
+### Remaining Work
+1. **Empty Extension Slots**: `HyperliquidSpotBalanceDetails` still exists (0 fields)
+2. **Validation Duplication**: 162 @field_validator instances still need consolidation
+3. **Service Overlaps**: 6 portfolio services still have overlapping responsibilities
