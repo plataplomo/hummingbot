@@ -1,7 +1,7 @@
 # CyberDeltaEngine Domain Models Analysis Report
 
-**Last Updated**: 2025-01-14
-**Verified Against**: Current codebase implementation
+**Last Updated**: 2025-01-14 (Post-Refactoring Update)
+**Verified Against**: Current codebase implementation after event system and business logic refactoring
 
 ## Executive Summary
 
@@ -9,16 +9,29 @@ This focused analysis examines the relationship between domain models (`cyberdel
 
 **VERIFIED FINDINGS**: Deep code research confirms service overlaps and model-domain consistency issues.
 
+## ⚠️ IMPORTANT UPDATE: Significant Refactoring Completed
+
+### Completed Improvements ✅
+- **Event System**: Migrated from 30+ classes to single `DomainEvent` (80% code reduction)
+- **Business Logic Migration**: `DerivativePosition` now contains `apply_fill()` and PnL calculation methods
+- **Code Cleanup**: Removed `base_event.py`, `SimulatedFill`, `create_order_event()` function
+- **Type Safety**: All type checkers (mypy, ruff, pyright) pass with 0 errors
+
+### Still To Address
+- **Validation Duplication**: 162 @field_validator instances remain
+- **Service Overlaps**: 6 portfolio services still need consolidation
+- **Empty Extension Slots**: `HyperliquidSpotBalanceDetails` still exists
+
 ### Key Findings (VERIFIED)
 - **162 @field_validator instances** across 53 files (more than estimated)
 - **11 models** with extension slot pattern can be consolidated
 - **6 portfolio services** with confirmed overlapping responsibilities
 - **13+ PnL calculation methods** duplicated across services
-- **5+ domain services** creating local model-like classes (SimulatedFill, PerformanceMetrics, etc.)
+- **4+ domain services** creating local model-like classes (~~SimulatedFill removed~~, PerformanceMetrics, etc.)
 
 ## 1. Model Duplications
 
-### 1.1 Validation Pattern Duplication (Critical) - VERIFIED
+### 1.1 Validation Pattern Duplication (Critical) - VERIFIED ⚠️ NOT YET ADDRESSED
 
 **Issue**: Identical validation logic repeated across **162 @field_validator instances in 53 files**
 
@@ -72,9 +85,9 @@ def parse_decimal(cls, v, info):
 - `models/market/trade.py:152-184` (6 methods)
 - `models/derivative_position.py:169-238` (8 methods)
 
-### 1.2 Empty Extension Slots - VERIFIED
+### 1.2 Empty Extension Slots - VERIFIED ⚠️ STILL PRESENT
 
-**Completely Empty Models** (should be removed):
+**Completely Empty Models** (should be removed) ⚠️ STILL EXISTS:
 ```python
 # models/spot_balance.py:39-44 ✅ CONFIRMED
 class HyperliquidSpotBalanceDetails(BaseModel):
@@ -104,9 +117,9 @@ model_config = ConfigDict(extra="ignore", frozen=True)
 
 ## 2. Model-Domain Service Consistency
 
-### 2.1 Services Creating Ad-Hoc Models ⚠️ - VERIFIED
+### 2.1 Services Creating Ad-Hoc Models - PARTIALLY RESOLVED
 
-**TradingService** creates Fill objects with defaults:
+**TradingService** creates Fill objects with defaults ⚠️ STILL AN ISSUE:
 ```python
 # domain/trading/trading_service.py:302-318 ✅ CONFIRMED
 trade = Fill(
@@ -117,30 +130,20 @@ trade = Fill(
 )
 ```
 
-**SafeModeWrapper** duplicates Fill model:
+**SafeModeWrapper** ~~duplicates Fill model~~ ✅ RESOLVED:
 ```python
-# domain/trading/simulation/safe_mode_wrapper.py:71-81 ✅ CONFIRMED
-class SimulatedFill(BaseModel):  # ❌ Should use Fill model
-    order_id: str
-    symbol: Symbol
-    side: OrderSide
-    price: Decimal
-    quantity: Decimal
-    fee: Decimal
-    timestamp: datetime
+# SimulatedFill class has been REMOVED
+# Now properly uses the Fill model from cyberdelta.models.market.fill
 ```
 
-### 2.2 Business Logic in Wrong Layer - VERIFIED
+### 2.2 Business Logic in Wrong Layer - ✅ RESOLVED
 
-**PositionManager** implements model logic:
+**PositionManager** ~~implements~~ now delegates to model logic ✅:
 ```python
 # domain/portfolio/position_manager.py:172-248 ✅ CONFIRMED
-def _calculate_position_change(self, position: DerivativePosition, fill: Fill) -> tuple[Decimal, Decimal | None]:
-    # Complex business logic that should be in DerivativePosition model
-    current_qty = position.size
-    if position.side == OrderSide.SELL:
-        current_qty = -current_qty
-    # ... 70+ lines of financial calculations
+# NOW CORRECTLY USES:
+realized_pnl, new_avg_price = position.apply_fill(fill)
+# Business logic has been moved to DerivativePosition.apply_fill() method
 ```
 
 **Should be**:
@@ -175,11 +178,11 @@ class MetricValue:  # Local model
 
 3. **AlertService**: Creates `Alert` and `AlertRule`
 4. **AuditLogger**: Creates `AuditEvent`
-5. **SafeModeWrapper**: Creates `SimulatedFill`
+5. ~~**SafeModeWrapper**: Creates `SimulatedFill`~~ ✅ REMOVED
 
 ## 3. Service Overlap Analysis - VERIFIED
 
-### 3.1 Portfolio Management (6 overlapping services confirmed)
+### 3.1 Portfolio Management (6 overlapping services confirmed) ⚠️ NOT YET ADDRESSED
 
 **Services with overlapping responsibilities (CONFIRMED)**:
 - `PortfolioService` - Orchestration and state updates ✅
@@ -199,7 +202,7 @@ PositionManager.calculate_position_pnl()
 # ... 9 more duplicate implementations
 ```
 
-### 3.2 Risk Management (3 overlapping services)
+### 3.2 Risk Management (3 overlapping services) ⚠️ NOT YET ADDRESSED
 
 **Services**:
 - `RiskService` - Orchestration
@@ -211,7 +214,7 @@ PositionManager.calculate_position_pnl()
 - Drawdown limits
 - Exposure limits
 
-### 3.3 Trading Execution (2 overlapping services)
+### 3.3 Trading Execution (2 overlapping services) ⚠️ NOT YET ADDRESSED
 
 **Services**:
 - `TradingService` - Creates ExecutionRequest
@@ -386,17 +389,20 @@ This is a significant strength that should be preserved during consolidation.
 
 ## 9. Critical Issues to Address
 
-### Issue 1: Invalid Model Creation in TradingService
+### Issue 1: Invalid Model Creation in TradingService ⚠️ STILL PRESENT
 **Severity**: High
 **Fix**: Use proper defaults or make fields optional
+**Status**: NOT YET ADDRESSED
 
-### Issue 2: Service Overlap in Portfolio Management
+### Issue 2: Service Overlap in Portfolio Management ⚠️ STILL PRESENT
 **Severity**: Medium
 **Fix**: Consolidate into single service with clear responsibilities
+**Status**: NOT YET ADDRESSED
 
-### Issue 3: Business Logic in Domain Services
+### Issue 3: Business Logic in Domain Services ✅ RESOLVED
 **Severity**: Medium
 **Fix**: Move to model methods for better encapsulation
+**Status**: COMPLETED - Business logic moved to DerivativePosition.apply_fill()
 
 ## 10. Success Metrics
 
@@ -427,6 +433,8 @@ The phased migration approach ensures stability while delivering immediate value
 ---
 
 *Report Generated: 2025-01-08*
+*Updated: 2025-01-14 (Post-Refactoring)*
 *Codebase Version: CyberDeltaEngine v2.0.0*
 *Analysis Scope: 74 domain models, 35 domain services*
 *Validation: Zero bypassed validations found ✅*
+*Type Checking: All type checkers pass with 0 errors ✅*

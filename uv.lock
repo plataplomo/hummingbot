@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "platform_python_implementation != 'PyPy'",
@@ -355,7 +355,6 @@ dependencies = [
     { name = "simplejson" },
     { name = "structlog" },
     { name = "tenacity" },
-    { name = "types-aiofiles" },
     { name = "web3" },
     { name = "websockets" },
 ]
@@ -435,7 +434,6 @@ requires-dist = [
     { name = "simplejson", specifier = "==3.20.1" },
     { name = "structlog", specifier = "==25.3.0" },
     { name = "tenacity", specifier = "==9.1.2" },
-    { name = "types-aiofiles", specifier = ">=24.1.0.20250801" },
     { name = "types-aiofiles", marker = "extra == 'dev'", specifier = ">=24.1.0.20250801" },
     { name = "types-cachetools", marker = "extra == 'dev'", specifier = ">=6.0.0.20250525" },
     { name = "types-jsonschema", marker = "extra == 'dev'", specifier = "==4.23.0.20241208,<4.30.0" },

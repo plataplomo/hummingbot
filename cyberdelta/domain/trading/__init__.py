@@ -12,7 +12,7 @@ from cyberdelta.domain.trading.execution import ExecutionEngine, OrderTracker
 from cyberdelta.domain.trading.fills import FeeCalculator, FillHandler, FillProcessor
 
 # Simulation components
-from cyberdelta.domain.trading.simulation import SafeModeWrapper, SimulatedFill
+from cyberdelta.domain.trading.simulation import SafeModeWrapper
 from cyberdelta.domain.trading.trading_service import TradingService
 
 # Validation components
@@ -39,6 +39,5 @@ __all__ = [
     "PortfolioValidator",
     "RiskValidator",
     "SafeModeWrapper",
-    "SimulatedFill",
     "TradingService",
 ]

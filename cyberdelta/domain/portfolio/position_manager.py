@@ -118,12 +118,19 @@ class PositionManager(PositionManagerProtocol):
         position_key = f"{fill.exchange}:{fill.symbol.value}"
         position = state.positions.get(position_key)
 
-        # Calculate new position
+        # Calculate new position using model's business logic
         if position:
-            new_quantity, realized_pnl = self._calculate_position_change(position, fill)
+            # Use the model's apply_fill method for business logic
+            realized_pnl, new_avg_price = position.apply_fill(fill)
+
+            # Calculate new quantity (signed)
+            current_qty = position.size if position.side == OrderSide.BUY else -position.size
+            fill_qty = fill.quantity if fill.side == OrderSide.BUY else -fill.quantity
+            new_quantity = current_qty + fill_qty
         else:
             new_quantity = fill.quantity if fill.side == OrderSide.BUY else -fill.quantity
             realized_pnl = None
+            new_avg_price = fill.price
 
         # Update or create position
         if abs(new_quantity) < self._position_closure_threshold:  # Position closed
@@ -136,12 +143,6 @@ class PositionManager(PositionManagerProtocol):
                     realized_pnl=realized_pnl or 0,
                 )
         else:
-            # Calculate new average price
-            if position:
-                new_avg_price = self._calculate_average_price(position, fill, new_quantity)
-            else:
-                new_avg_price = fill.price
-
             # Create/update position
             # Convert fill.exchange string to ExchangeName
             exchange_enum = ExchangeName(fill.exchange)
@@ -168,84 +169,6 @@ class PositionManager(PositionManagerProtocol):
         await self._state_manager.save_state()
 
         return realized_pnl
-
-    def _calculate_position_change(
-        self,
-        position: DerivativePosition,
-        fill: Fill,
-    ) -> tuple[Decimal, Decimal | None]:
-        """Calculate position change from fill.
-
-        Args:
-            position: Current position
-            fill: New fill
-
-        Returns:
-            Tuple of (new_quantity, realized_pnl)
-        """
-        # Current position quantity (signed)
-        current_qty = position.size
-        if position.side == OrderSide.SELL:
-            current_qty = -current_qty
-
-        # Fill quantity (signed)
-        fill_qty = fill.quantity
-        if fill.side == OrderSide.SELL:
-            fill_qty = -fill_qty
-
-        # New position quantity
-        new_qty = current_qty + fill_qty
-
-        # Calculate realized PnL if reducing/closing position
-        realized_pnl = None
-        if current_qty != 0 and abs(new_qty) < abs(current_qty):
-            # Position is being reduced
-            reduced_qty = abs(current_qty) - abs(new_qty)
-            if position.entry_price:
-                if current_qty > 0:  # Was long
-                    realized_pnl = reduced_qty * (fill.price - position.entry_price)
-                else:  # Was short
-                    realized_pnl = reduced_qty * (position.entry_price - fill.price)
-
-        return new_qty, realized_pnl
-
-    def _calculate_average_price(
-        self,
-        position: DerivativePosition,
-        fill: Fill,
-        new_quantity: Decimal,
-    ) -> Decimal:
-        """Calculate new average price after fill.
-
-        Args:
-            position: Current position
-            fill: New fill
-            new_quantity: New position quantity (signed)
-
-        Returns:
-            New average price
-        """
-        # If position flipped sides, use trade price
-        old_signed_qty = position.size
-        if position.side == OrderSide.SELL:
-            old_signed_qty = -old_signed_qty
-
-        if (old_signed_qty > 0 and new_quantity < 0) or (old_signed_qty < 0 and new_quantity > 0):
-            return fill.price
-
-        # Calculate weighted average for same-side fills
-        if not position.entry_price:
-            return fill.price
-
-        old_value = abs(old_signed_qty) * position.entry_price
-        fill_value = fill.quantity * fill.price
-        total_value = old_value + fill_value
-        total_quantity = abs(old_signed_qty) + fill.quantity
-
-        if total_quantity == 0:
-            return fill.price
-
-        return total_value / total_quantity
 
     async def calculate_position_pnl(
         self,

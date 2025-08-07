@@ -26,17 +26,11 @@ from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
-from cyberdelta.enums import MakerTaker
+from cyberdelta.enums import MakerTaker, OrderSide
+from cyberdelta.enums.events import EventType
 from cyberdelta.enums.signals import SignalType
 from cyberdelta.models import Fill, TradeSignal
-from cyberdelta.models.events.base_event import DomainEvent
-from cyberdelta.models.events.portfolio_events import PositionUpdatedEvent
-from cyberdelta.models.events.risk_events import RiskLimitViolationEvent
-from cyberdelta.models.events.strategy_events import (
-    MarketDataUpdatedEvent,
-    StrategySignalGeneratedEvent,
-)
-from cyberdelta.models.events.trading_events import OrderFilledEvent
+from cyberdelta.models.events import DomainEvent
 from cyberdelta.models.monitoring.system_health_models import CircuitBreakerSystemHealth
 
 
@@ -342,20 +336,26 @@ class TradingEngine:
         """
         # Subscribe to strategy signal events
         await self._event_bus.subscribe(
-            "StrategySignalGeneratedEvent", self._handle_strategy_signal_event
+            EventType.SIGNAL_GENERATED, self._handle_strategy_signal_event
         )
 
         # Subscribe to order execution events
-        await self._event_bus.subscribe("OrderFilledEvent", self._handle_order_filled_event)
+        await self._event_bus.subscribe(EventType.ORDER_FILLED, self._handle_order_filled_event)
 
-        # Subscribe to market data updates
-        await self._event_bus.subscribe("MarketDataUpdatedEvent", self._handle_market_data_event)
+        # Subscribe to market data events
+        await self._event_bus.subscribe(
+            EventType.MARKET_DATA_UPDATED, self._handle_market_data_event
+        )
 
-        # Subscribe to portfolio events
-        await self._event_bus.subscribe("PositionUpdatedEvent", self._handle_position_updated_event)
+        # Subscribe to position events
+        await self._event_bus.subscribe(
+            EventType.POSITION_UPDATED, self._handle_position_updated_event
+        )
 
-        # Subscribe to risk violations
-        await self._event_bus.subscribe("RiskLimitViolationEvent", self._handle_risk_limit_event)
+        # Subscribe to risk events
+        await self._event_bus.subscribe(
+            EventType.RISK_LIMIT_BREACHED, self._handle_risk_limit_event
+        )
 
         logger.info("event_handlers_configured", handler_count=5)
 
@@ -1267,109 +1267,148 @@ class TradingEngine:
             ],
         }
 
-    def _handle_strategy_signal_event(self, event: DomainEvent) -> None:
+    async def _handle_strategy_signal_event(self, event: DomainEvent) -> None:
         """Handle strategy signal generation events."""
-        if isinstance(event, StrategySignalGeneratedEvent):
+        if event.event_type == EventType.SIGNAL_GENERATED:
             # Convert to TradeSignal and process
             task = asyncio.create_task(self._process_strategy_signal_event(event))
             self._tasks.append(task)
 
-    def _handle_order_filled_event(self, event: DomainEvent) -> None:
+    async def _handle_order_filled_event(self, event: DomainEvent) -> None:
         """Handle order filled events."""
-        if isinstance(event, OrderFilledEvent):
+        if event.event_type == EventType.ORDER_FILLED:
             task = asyncio.create_task(self._process_order_filled_event(event))
             self._tasks.append(task)
 
-    def _handle_market_data_event(self, event: DomainEvent) -> None:
+    async def _handle_market_data_event(self, event: DomainEvent) -> None:
         """Handle market data updated events."""
-        if isinstance(event, MarketDataUpdatedEvent):
+        if event.event_type == EventType.MARKET_DATA_UPDATED:
             task = asyncio.create_task(self._process_market_data_event(event))
             self._tasks.append(task)
 
-    def _handle_position_updated_event(self, event: DomainEvent) -> None:
+    async def _handle_position_updated_event(self, event: DomainEvent) -> None:
         """Handle position updated events."""
-        if isinstance(event, PositionUpdatedEvent):
+        if event.event_type == EventType.POSITION_UPDATED:
             task = asyncio.create_task(self._process_position_updated_event(event))
             self._tasks.append(task)
 
-    def _handle_risk_limit_event(self, event: DomainEvent) -> None:
+    async def _handle_risk_limit_event(self, event: DomainEvent) -> None:
         """Handle risk limit exceeded events."""
-        if isinstance(event, RiskLimitViolationEvent):
+        if event.event_type == EventType.RISK_LIMIT_BREACHED:
             task = asyncio.create_task(self._process_risk_limit_event(event))
             self._tasks.append(task)
 
-    async def _process_strategy_signal_event(self, event: StrategySignalGeneratedEvent) -> None:
+    async def _process_strategy_signal_event(self, event: DomainEvent) -> None:
         """Process strategy signal event."""
         # Create TradeSignal from event data
-        # Use a placeholder price per TradeSignal requirements
+        if not event.symbol or not event.exchange:
+            logger.error(
+                "strategy_signal_event_missing_data",
+                event_id=event.event_id,
+                symbol=event.symbol,
+                exchange=event.exchange,
+            )
+            return
+
         signal = TradeSignal(
-            signal_id=event.signal_id,
+            signal_id=event.entity_id,
             symbol=event.symbol,
             exchange=event.exchange,
-            side=event.side,
-            signal_type=SignalType.ENTER_LONG,  # Default signal type
-            price=Decimal("0.01"),  # Placeholder price per requirements
-            confidence=event.confidence,
-            source_strategy=event.strategy_name,
+            side=OrderSide(event.payload.get("side", "BUY")),
+            signal_type=SignalType(event.payload.get("signal_type", "ENTER_LONG")),
+            # Placeholder price per requirements
+            price=Decimal(str(event.payload.get("price", "0.01"))),
+            confidence=float(event.payload.get("confidence", 0.5)),
+            source_strategy=event.payload.get("strategy_name", "unknown"),
         )
         await self._handle_trading_signal(signal)
 
-    async def _process_order_filled_event(self, event: OrderFilledEvent) -> None:
+    async def _process_order_filled_event(self, event: DomainEvent) -> None:
         """Process order filled event."""
-        # Create Fill instance with proper fields
-        # Convert partial flag to MakerTaker enum
-        maker_taker = MakerTaker.MAKER if event.is_partial else MakerTaker.TAKER
+        # Extract data from unified event payload
+        is_partial = event.payload.get("is_partial", False)
+        maker_taker = MakerTaker.MAKER if is_partial else MakerTaker.TAKER
+
+        # Create Fill instance from event data
+        if not event.symbol or not event.exchange:
+            logger.error(
+                "order_filled_event_missing_data",
+                event_id=event.event_id,
+                symbol=event.symbol,
+                exchange=event.exchange,
+            )
+            return
 
         fill = Fill(
-            id=event.order_id,
+            id=event.entity_id,  # order_id is the entity_id
             symbol=event.symbol,
             executed_at=event.timestamp,
-            side=event.side,
-            order_id=event.order_id,
+            side=OrderSide(event.payload.get("side", "BUY")),
+            order_id=event.entity_id,
             exchange=event.exchange,
-            price=event.fill_price,
-            quantity=event.fill_quantity,
-            fee=event.commission,
-            maker_taker=maker_taker,  # Use partial flag as proxy for maker
+            price=Decimal(str(event.payload.get("fill_price", "0"))),
+            quantity=Decimal(str(event.payload.get("fill_quantity", "0"))),
+            fee=Decimal(str(event.payload.get("commission", "0"))),
+            fee_asset=event.payload.get("fee_asset"),
+            maker_taker=maker_taker,
         )
         await self._handle_trade_executed(fill)
 
-    async def _process_market_data_event(self, event: MarketDataUpdatedEvent) -> None:
+    async def _process_market_data_event(self, event: DomainEvent) -> None:
         """Process market data event."""
         update_dict = {
-            "type": event.data_type,
-            "symbol": str(event.symbol),
-            "exchange": str(event.exchange),
-            "last_price": float(event.last_price) if event.last_price else None,
-            "bid_price": float(event.bid_price) if event.bid_price else None,
-            "ask_price": float(event.ask_price) if event.ask_price else None,
-            "volume_24h": float(event.volume_24h) if event.volume_24h else None,
+            "type": event.payload.get("data_type", "ticker"),
+            "symbol": str(event.symbol) if event.symbol else "unknown",
+            "exchange": str(event.exchange) if event.exchange else "unknown",
+            "last_price": (
+                float(event.payload["last_price"])
+                if "last_price" in event.payload and event.payload["last_price"] is not None
+                else None
+            ),
+            "bid_price": (
+                float(event.payload["bid_price"])
+                if "bid_price" in event.payload and event.payload["bid_price"] is not None
+                else None
+            ),
+            "ask_price": (
+                float(event.payload["ask_price"])
+                if "ask_price" in event.payload and event.payload["ask_price"] is not None
+                else None
+            ),
+            "volume_24h": (
+                float(event.payload["volume_24h"])
+                if "volume_24h" in event.payload and event.payload["volume_24h"] is not None
+                else None
+            ),
             "timestamp": event.timestamp,
             "event_id": event.event_id,
         }
         await self._handle_market_data_update(update_dict)
 
-    async def _process_position_updated_event(self, event: PositionUpdatedEvent) -> None:
+    async def _process_position_updated_event(self, event: DomainEvent) -> None:
         """Process position updated event."""
         update_dict = {
             "type": "position_update",
-            "symbol": str(event.symbol),
-            "exchange": str(event.exchange),
-            "previous_value": None,  # Position events should have this data
-            "new_value": None,  # Position events should have this data
+            "symbol": str(event.symbol) if event.symbol else "unknown",
+            "exchange": str(event.exchange) if event.exchange else "unknown",
+            "previous_value": event.payload.get("previous_value"),
+            "new_value": event.payload.get("new_value"),
             "timestamp": event.timestamp,
             "event_id": event.event_id,
         }
         await self._handle_portfolio_updated(update_dict)
 
-    async def _process_risk_limit_event(self, event: RiskLimitViolationEvent) -> None:
+    async def _process_risk_limit_event(self, event: DomainEvent) -> None:
         """Process risk limit exceeded event."""
+        limit_type = event.payload.get("limit_type", "unknown")
+        current_value = event.payload.get("current_value", 0)
+        limit_value = event.payload.get("limit_value", 0)
         violation_dict = {
-            "type": event.limit_type,
-            "signal_id": None,  # Risk events should have signal context
-            "details": f"Limit {event.limit_type}: {event.current_value} > {event.limit_value}",
-            "current_exposure": float(event.current_value),
-            "limit_value": float(event.limit_value),
+            "type": limit_type,
+            "signal_id": event.payload.get("signal_id"),
+            "details": f"Limit {limit_type}: {current_value} > {limit_value}",
+            "current_exposure": float(current_value),
+            "limit_value": float(limit_value),
             "timestamp": event.timestamp,
             "event_id": event.event_id,
         }

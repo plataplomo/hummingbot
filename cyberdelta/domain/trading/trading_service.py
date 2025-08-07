@@ -16,13 +16,10 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
+from cyberdelta.enums.events import EntityType, EventType
 from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.models import TradeSignal
-from cyberdelta.models.events import (
-    OrderExecutedEvent,
-    SignalExecutionFailedEvent,
-    SignalProcessedEvent,
-)
+from cyberdelta.models.events import DomainEvent
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
@@ -298,6 +295,19 @@ class TradingService(HealthCheckable):
             # Imports already available at top level
 
             if order.quantity_filled and order.quantity_filled > 0:
+                # Only create fill if we have valid price data
+                fill_price = order.average_fill_price or order.price
+                if not fill_price or fill_price <= Decimal(0):
+                    logger.warning(
+                        "cannot_create_fill_without_valid_price",
+                        order_id=order.client_order_id,
+                        exchange_order_id=order.exchange_order_id,
+                        average_fill_price=order.average_fill_price,
+                        order_price=order.price,
+                        message="Skipping portfolio update - no valid price available for fill",
+                    )
+                    return
+
                 # Create fill from filled order
                 trade = Fill(
                     id=f"trade_{uuid.uuid4().hex[:8]}",
@@ -310,9 +320,11 @@ class TradingService(HealthCheckable):
                         else "pending"
                     ),
                     exchange=order.exchange,
-                    price=order.average_fill_price or order.price or Decimal(0),
+                    price=fill_price,
                     quantity=order.quantity_filled,
-                    fee=Decimal(0),  # Fee would come from exchange response
+                    # Fee is set to 0 with no fee_asset (valid per Fill model validation)
+                    # Real fee data would come from exchange fill events
+                    fee=Decimal(0),
                     fee_asset=None,
                     client_order_id=order.client_order_id,
                 )
@@ -351,18 +363,21 @@ class TradingService(HealthCheckable):
             # Create domain events for order execution
 
             # Publish order executed event
-            order_event = OrderExecutedEvent(
-                order_id=(
+            order_event = DomainEvent(
+                event_type=EventType.ORDER_EXECUTED,
+                entity_type=EntityType.ORDER,
+                entity_id=(
                     order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
                 ),
-                symbol=order.symbol,
                 exchange=order.exchange,
-                side=order.side,
-                order_type=order.order_type,
-                price=order.price,
-                quantity=order.quantity_requested,
-                status=order.status,
-                timestamp=datetime.now(UTC),
+                symbol=order.symbol,
+                payload={
+                    "side": order.side.value,
+                    "order_type": order.order_type.value,
+                    "price": str(order.price) if order.price else None,
+                    "quantity": str(order.quantity_requested),
+                    "status": order.status.value,
+                },
             )
             await self._event_bus.publish(order_event)
 
@@ -374,15 +389,20 @@ class TradingService(HealthCheckable):
                     signal_exchange[0] if signal_exchange else ExchangeName.HYPERLIQUID
                 )
 
-            signal_event = SignalProcessedEvent(
-                signal_id=original_signal.signal_id,
-                order_id=(
-                    order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
-                ),
-                symbol=original_signal.symbol,
+            signal_event = DomainEvent(
+                event_type=EventType.SIGNAL_GENERATED,
+                entity_type=EntityType.STRATEGY,
+                entity_id=original_signal.signal_id,
                 exchange=signal_exchange,
-                success=order.status.value in {"OPEN", "FILLED", "PARTIALLY_FILLED"},
-                timestamp=datetime.now(UTC),
+                symbol=original_signal.symbol,
+                payload={
+                    "order_id": (
+                        order.exchange_order_id
+                        if order.exchange_order_id is not None
+                        else "cancelled"
+                    ),
+                    "success": order.status.value in {"OPEN", "FILLED", "PARTIALLY_FILLED"},
+                },
             )
             await self._event_bus.publish(signal_event)
 
@@ -452,13 +472,16 @@ class TradingService(HealthCheckable):
             if isinstance(error_exchange, list):
                 error_exchange = error_exchange[0] if error_exchange else ExchangeName.HYPERLIQUID
 
-            error_event = SignalExecutionFailedEvent(
-                signal_id=signal.signal_id,
-                symbol=signal.symbol,
+            error_event = DomainEvent(
+                event_type=EventType.STRATEGY_ERROR,
+                entity_type=EntityType.STRATEGY,
+                entity_id=signal.signal_id,
                 exchange=error_exchange,
-                error_message=str(error),
-                error_type=type(error).__name__,
-                timestamp=datetime.now(UTC),
+                symbol=signal.symbol,
+                payload={
+                    "error_message": str(error),
+                    "error_type": type(error).__name__,
+                },
             )
             await self._event_bus.publish(error_event)
 
