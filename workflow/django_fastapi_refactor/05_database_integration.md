@@ -1,8 +1,22 @@
 # Database Integration: PostgreSQL + TimescaleDB for Persistence
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed database integration** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No PostgreSQL integration exists
+> - No TimescaleDB integration exists
+> - No database layer of any kind
+> - Uses file-based storage via `FilePortfolioStorage`
+> - No Redis integration exists
+> - All state management is in-memory or file-based
+
 ## Overview (Updated June 2025)
 
 This document outlines the database integration strategy that adds persistent storage to CyberDeltaEngine while preserving all existing in-memory state management and business logic within the 8-9 week timeline. The current system uses file-based persistence for some components but lacks comprehensive historical data storage. The approach uses PostgreSQL with TimescaleDB extension for efficient time-series data storage while maintaining compatibility with existing state management and supporting the reduced team structure.
+
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. No database integration has been implemented.**
 
 ## Current State Management Analysis
 

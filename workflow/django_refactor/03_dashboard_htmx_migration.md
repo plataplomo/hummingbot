@@ -1,8 +1,23 @@
 # Django Refactor: Dashboard HTMX Migration (Wrapper Pattern)
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed Django + HTMX dashboard** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No Django dashboard exists
+> - No HTMX implementation exists
+> - No Django Channels WebSocket proxy exists
+> - Dash is installed (`dash==3.0.4`) but appears unused in production
+> - No multi-user dashboard exists
+> - No service bridge exists for dashboard commands
+> - CyberDeltaEngine has a command-line interface only
+
 ## Overview
 
 This document outlines how to create a new Django + HTMX dashboard that wraps around the existing CyberDeltaEngine without modifying the core. The dashboard reads from the synchronized database and sends commands to the core engine via the service bridge.
+
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. No dashboard implementation exists.**
 
 ## Current Dashboard Analysis
 

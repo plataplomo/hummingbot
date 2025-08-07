@@ -1,8 +1,22 @@
 # Django Refactor: Real-time WebSocket Strategy (Wrapper Pattern)
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed Django Channels WebSocket proxy** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No Django Channels implementation exists
+> - No WebSocket proxy layer exists
+> - No Redis pub/sub bridge exists
+> - No multi-user WebSocket support exists
+> - CyberDeltaEngine WebSocket connections are internal to the core engine only
+> - No external WebSocket endpoints exist for clients
+
 ## Overview
 
 This document outlines how to create a WebSocket proxy layer that forwards real-time data from the core CyberDeltaEngine to Django Channels clients, without modifying the core's existing WebSocket connections. The core maintains all exchange connections while Django provides multi-user WebSocket access.
+
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. No WebSocket proxy implementation exists.**
 
 ## Current Real-time Architecture
 

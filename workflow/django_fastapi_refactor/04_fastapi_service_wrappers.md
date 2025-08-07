@@ -1,8 +1,22 @@
 # FastAPI Service Wrappers: Exposing Existing APIs and Trading Logic
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes **proposed FastAPI service wrappers** that do not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No FastAPI implementation exists
+> - No service wrappers exist
+> - No REST APIs exist
+> - No service-oriented architecture - single monolithic main.py
+> - No external API endpoints
+> - CyberDeltaEngine runs as a single command-line process
+
 ## Overview (Updated June 2025)
 
 This document details how to create FastAPI service wrappers around your existing CyberDelta components within the 8-9 week timeline. These services expose your production-ready trading infrastructure (including sophisticated features like auto-lending detection and margin support) through modern REST APIs while preserving all existing logic unchanged. The wrapper approach ensures zero risk to proven trading algorithms and supports the reduced 2-person team structure.
+
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. No FastAPI services have been implemented.**
 
 ## Service Architecture
 

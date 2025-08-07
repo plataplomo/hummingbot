@@ -1,8 +1,23 @@
 # Minimal Architecture Design: Adapter Pattern Strategy
 
+> **🚨 CURRENT STATUS: PROPOSAL ONLY - NOT IMPLEMENTED**
+>
+> This document describes a **proposed adapter pattern architecture** that does not currently exist in the CyberDeltaEngine codebase.
+>
+> **Actual Current State:**
+> - No adapter layer exists
+> - No Django web application exists
+> - No FastAPI services exist
+> - No service-oriented architecture - single monolithic main.py
+> - No database layer (PostgreSQL/TimescaleDB)
+> - No Redis message broker
+> - CyberDeltaEngine runs as a single command-line process
+
 ## Overview (Updated June 2025)
 
 This document outlines the minimal architecture that preserves all existing CyberDeltaEngine components while adding modern interfaces through the adapter pattern. The core principle is **wrapping, not replacing** your production-ready trading infrastructure that now includes sophisticated features like auto-lending detection, margin/collateral support, and comprehensive testing. The architecture supports an 8-9 week migration timeline with a 2-person team.
+
+**⚠️ IMPLEMENTATION STATUS: This is a design proposal. No adapter architecture has been implemented.**
 
 ## Architecture Philosophy
 
@@ -32,7 +47,7 @@ Instead of rewriting components, we create thin adapters that expose existing fu
 │ • cyberdelta.validation (Circuit breakers & reconciliation)│
 │ • cyberdelta.config (YAML-based configuration)            │
 │ • cyberdelta.utils (State management & utilities)         │
-│ • cyberdelta.monitoring (Working Dash dashboard)          │
+│ • cyberdelta.domain.monitoring (Monitoring services only)  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
