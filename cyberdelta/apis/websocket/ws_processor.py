@@ -7,11 +7,11 @@ messages with Pydantic validation and transformation capabilities.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
+import orjson
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
@@ -181,7 +181,9 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
 
         """
         start_time = time.perf_counter()
-        message_size = len(json.dumps(payload)) if payload else 0
+        # Optimized: Use orjson for fast serialization when calculating message size
+        # This is 5-10x faster than standard json.dumps()
+        message_size = len(orjson.dumps(payload)) if payload else 0
         message_type = context.routing_key or "unknown"
         result = MessageProcessingResult.FAILURE
 
