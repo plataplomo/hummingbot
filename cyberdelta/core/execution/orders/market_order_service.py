@@ -227,9 +227,9 @@ class MarketOrderService:
                 logger.debug(
                     "price_rounded_tick_size",
                     symbol=symbol,
-                    tick_size=float(tick_size),
-                    original_price=float(price),
-                    rounded_price=float(rounded),
+                    tick_size=tick_size,
+                    original_price=price,
+                    rounded_price=rounded,
                     message="Rounded price using tick_size",
                 )
                 return rounded
@@ -237,7 +237,7 @@ class MarketOrderService:
                 "no_tick_size_found",
                 action="round_price",
                 symbol=symbol,
-                price=float(price),
+                price=price,
                 message=f"No tick size found for {symbol}, returning original price",
             )
             return price
@@ -290,9 +290,9 @@ class MarketOrderService:
                 logger.debug(
                     "quantity_rounded_step_size",
                     symbol=symbol,
-                    step_size=float(step_size),
-                    original_quantity=float(quantity),
-                    rounded_quantity=float(rounded),
+                    step_size=step_size,
+                    original_quantity=quantity,
+                    rounded_quantity=rounded,
                     message="Rounded quantity using step_size",
                 )
                 return rounded
@@ -300,7 +300,7 @@ class MarketOrderService:
                 "no_step_size_found",
                 action="round_quantity",
                 symbol=symbol,
-                quantity=float(quantity),
+                quantity=quantity,
                 message="No step size found, returning original quantity",
             )
             return quantity

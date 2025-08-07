@@ -50,10 +50,6 @@ def parse_datetime_utc(
     Returns:
         A timezone-aware UTC datetime object, or None if value is None and allowed.
 
-    Raises:
-        TimestampFormatError: If the value cannot be parsed as a datetime. The error message
-            will include the field name if provided.
-
     """
     prefix = f"{field_name}: " if field_name else ""
 
@@ -63,14 +59,8 @@ def parse_datetime_utc(
         return _ensure_utc_timezone(value)
     if isinstance(value, int | float):
         return _parse_numeric_timestamp(value, prefix)
-    if isinstance(value, str):  # pyright: ignore[reportUnnecessaryIsInstance]
-        return _parse_string_datetime(value, prefix)
-    raise TimestampFormatError(
-        field_name=field_name or "timestamp",
-        value=value,
-        expected_format="datetime, int, float, or str",
-        details=f"Unsupported datetime type: {type(value)}",
-    )
+    # At this point, value must be str (based on type annotation)
+    return _parse_string_datetime(value, prefix)
 
 
 def _ensure_utc_timezone(dt: datetime) -> datetime:

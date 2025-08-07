@@ -6,6 +6,7 @@ import logging
 import re
 import sys
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -17,6 +18,9 @@ from structlog.typing import EventDict, Processor
 
 if TYPE_CHECKING:
     from cyberdelta.config.models.app_config import AppSettings
+
+# Type alias for JSON-serializable values
+type JSONSerializable = str | int | float | bool | dict[str, Any] | list[Any] | None
 
 
 # Add TRACE level below DEBUG
@@ -41,6 +45,46 @@ def add_timestamp(_: object, __: str, event_dict: EventDict) -> EventDict:
     """
     event_dict["timestamp"] = datetime.now(UTC).isoformat()
     return event_dict
+
+
+def serialize_decimals(_: object, __: str, event_dict: EventDict) -> EventDict:
+    """Convert Decimal values to strings for proper serialization.
+
+    This preserves the exact precision of Decimal values in logs without
+    converting them to floats.
+
+    Args:
+        _: Logger instance (unused)
+        __: Event name (unused)
+        event_dict: The event dictionary to process
+
+    Returns:
+        EventDict: Modified event dictionary with Decimals converted to strings
+    """
+
+    def convert_value(
+        value: JSONSerializable | Decimal | tuple[Any, ...],
+    ) -> JSONSerializable | tuple[Any, ...]:
+        """Recursively convert Decimal values to strings.
+
+        Args:
+            value: Any value from the event dictionary
+
+        Returns:
+            The value with Decimals converted to strings
+        """
+        if isinstance(value, Decimal):
+            # Convert to string to preserve exact precision
+            return str(value)
+        if isinstance(value, dict):
+            return {k: convert_value(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [convert_value(v) for v in value]
+        if isinstance(value, tuple):
+            return tuple(convert_value(v) for v in value)
+        return value
+
+    return {key: convert_value(value) for key, value in event_dict.items()}
 
 
 def censor_sensitive_data(_: object, __: str, event_dict: EventDict) -> EventDict:
@@ -134,6 +178,8 @@ def setup_structlog(app_settings: AppSettings) -> None:
             ],
             additional_ignores=["structlog", "logging"],
         ),
+        # Serialize Decimal values to preserve precision
+        serialize_decimals,
         # Censor sensitive data
         censor_sensitive_data,
         # Process positional arguments
@@ -152,6 +198,8 @@ def setup_structlog(app_settings: AppSettings) -> None:
     structlog.configure(
         processors=[
             *base_processors,
+            # Serialize Decimals one more time before console rendering
+            serialize_decimals,
             # Render as colored console output
             structlog.dev.ConsoleRenderer(colors=True),
         ],
@@ -187,6 +235,8 @@ def setup_file_logging(log_file: str, level: int) -> None:
         processors=[
             # Extract from structlog's context and remove meta
             structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            # Serialize Decimals before JSON rendering
+            serialize_decimals,
             # Strip ANSI codes before JSON rendering
             strip_ansi_codes,
             # Render as clean JSON
@@ -197,6 +247,7 @@ def setup_file_logging(log_file: str, level: int) -> None:
             structlog.stdlib.add_log_level,
             structlog.stdlib.add_logger_name,
             add_timestamp,
+            serialize_decimals,
             censor_sensitive_data,
             strip_ansi_codes,
         ],

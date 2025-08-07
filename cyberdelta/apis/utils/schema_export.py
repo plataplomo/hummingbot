@@ -6,10 +6,10 @@ for API documentation, client SDK generation, and contract testing.
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
+import orjson
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
@@ -75,7 +75,8 @@ class SchemaExporter:
             filename = f"{model.__name__}.json"
 
         output_path = self.output_dir / filename
-        output_path.write_text(json.dumps(schema, indent=2), encoding="utf-8")
+        # Use orjson for pretty-printed schema export
+        output_path.write_bytes(orjson.dumps(schema, option=orjson.OPT_INDENT_2))
         return schema
 
     def export_all_websocket_schemas(self) -> dict[str, dict[str, Any]]:
@@ -110,7 +111,7 @@ class SchemaExporter:
         }
 
         index_path = self.output_dir / "index.json"
-        index_path.write_text(json.dumps(index, indent=2), encoding="utf-8")
+        index_path.write_bytes(orjson.dumps(index, option=orjson.OPT_INDENT_2))
 
         return schemas
 
@@ -192,7 +193,7 @@ if __name__ == "__main__":
 
     # Save OpenAPI spec
     openapi_path = exporter.output_dir / "openapi.json"
-    openapi_path.write_text(json.dumps(openapi_spec, indent=2), encoding="utf-8")
+    openapi_path.write_bytes(orjson.dumps(openapi_spec, option=orjson.OPT_INDENT_2))
 
     # Schema export completed successfully
     # Generated OpenAPI specification
