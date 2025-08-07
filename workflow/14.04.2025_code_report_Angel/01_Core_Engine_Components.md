@@ -6,59 +6,53 @@
 **Version Target:** v0.0.1
 **Updated:** 2025-07-01
 
-## UPDATE (2025-07-01): Current State of Core Components
+## UPDATE (2025-01-07): ACTUAL Current State of Core Components
 
-### Key Changes and Current Status:
+### Architecture Restructure - Domain-Driven Design:
 
-1. **Engine Component** (613 lines):
-   - ✅ Clean design as central message bus
-   - ✅ Proper integration with StrategyManager
-   - ✅ Clear separation of concerns maintained
-   - Line count reasonable and manageable
+The codebase has been completely restructured from monolithic core components to a clean domain-driven architecture:
 
-2. **DataHandler** (1699 lines):
-   - ✅ Successfully integrated with refactored API architecture
-   - ✅ Proper WebSocketManager integration
-   - ✅ Improved symbol mapping with SymbolMapper
-   - ⚠️ Still quite large, but manageable
+1. **TradingEngine** (application/trading_engine.py - 1376 lines):
+   - ✅ Central orchestrator with proper service dependency injection
+   - ✅ Event-driven with EventBus integration
+   - ✅ Proper async/await patterns throughout
+   - ✅ Configuration-driven initialization
 
-3. **ExecutionHandler** (2233 lines):
-   - ❌ Still too complex - needs refactoring
-   - ✅ Better structured for cross-exchange execution
-   - ✅ Proper circuit breaker integration
-   - ⚠️ execute_opportunity method still very long
+2. **Domain Services (Modularized)**:
+   - **Market Service**: data_fetcher.py, cache_manager.py, market_aggregator.py
+   - **Portfolio Service**: balance_manager.py, position_manager.py, pnl_calculator.py, state_manager.py
+   - **Risk Service**: risk_checker.py, position_sizer.py, limit_checker.py, drawdown_monitor.py
+   - **Trading Service**: execution_engine.py, order_tracker.py, fill_processor.py
+   - **Strategy Service**: strategy_registry.py, strategy_base.py, momentum_strategy.py
+   - **Signal Service**: signal_service.py
+   - **Safety Systems**: circuit_breaker.py, failure_tracker.py
 
-4. **PortfolioTracker** (2652 lines):
-   - ❌ Largest component - needs splitting
-   - ✅ Improved state management
-   - ✅ Configurable data freshness
-   - ✅ Better persistence via StateManager
+3. **Event-Driven Architecture**:
+   - **EventBus** (application/event_bus.py - 179 lines): Clean pub/sub implementation
+   - **ServiceRegistry** (application/service_registry.py): Dependency injection container
 
-5. **RiskManager** (2392 lines):
-   - ❌ Too large - needs modularization
-   - ✅ Kelly and simple sizing strategies implemented
-   - ✅ Fixed fraction and fixed USD sizing
-   - ✅ Proper Decimal usage throughout
+### Component Analysis (ACTUAL):
 
-6. **SignalQueue** (1335 lines):
-   - ✅ PrioritySignalQueue with async support
-   - ✅ Proper cancellation token handling
-   - ✅ Clean implementation
+**Trading Execution**:
+- execution/execution_engine.py: Order execution with exchange abstraction
+- fills/fill_processor.py: Fill handling and reconciliation
+- validation/: Comprehensive validators for orders, risk, portfolio
 
-7. **NEW: StrategyManager** (487 lines):
-   - ✅ Clean implementation
-   - ✅ Proper lifecycle management
-   - ✅ Good size and complexity
+**Risk Management**:
+- position_sizer.py: Multiple sizing strategies (Kelly, fixed fraction, etc.)
+- risk_checker.py: Pre-trade risk validation
+- drawdown_monitor.py: Real-time drawdown tracking
 
-8. **NEW: BalanceMonitor** (375 lines):
-   - ✅ Basic implementation exists
-   - 🚧 Needs enhancement for production
+**Portfolio Management**:
+- position_manager.py: Position tracking across exchanges
+- balance_manager.py: Multi-currency balance management
+- reconciliation_engine.py: Position/balance reconciliation
 
-### Static Analysis Results:
-- **Total Core Module Lines**: 13,884
-- **Mypy Errors**: 0 in core modules
-- **Ruff Errors**: 0 in core modules
-- **Test Syntax Error**: Previously reported error in test_signal_queue.py:433 NOT FOUND
+### Static Analysis Results (ACTUAL):
+- **Mypy Errors**: 1 (missing aiofiles type stubs)
+- **Ruff Errors**: 0 - All checks passed!
+- **Test Files**: 428 test files
+- **Module Organization**: Clean domain boundaries with no circular dependencies
 
 ## 1. Overview
 

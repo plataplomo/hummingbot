@@ -6,34 +6,33 @@
 **Version Target:** v0.0.1 (Stable Funding Rate Arbitrage Bot - Hyperliquid/Backpack)
 **Updated:** 2025-07-01
 
-## UPDATE (2025-07-01): Current Architecture State
+## UPDATE (2025-01-07): ACTUAL Current Architecture State
 
-### Major Architectural Achievements:
+### Verified Architectural Achievements:
 
-1. **Configuration System Complete Overhaul:**
-   - ✅ Migrated from simple YAML to Pydantic-based configuration models
-   - ✅ Type-safe AppSettings and SecretsConfig with comprehensive validation
-   - ✅ Proper config.yaml structure with all required sections
-   - ✅ Support for mainnet/testnet environments with environment flags
+1. **Configuration System:**
+   - ✅ CONFIRMED: Pydantic-based configuration models in cyberdelta/config/models/
+   - ✅ CONFIRMED: AppSettings and SecretsConfig with comprehensive validation
+   - ✅ CONFIRMED: Funding strategy models (StrategyParamsHLPerpBPSpot) for HyperLiquid Perp vs Backpack Spot
+   - ✅ CONFIRMED: Support for multiple environments via environment variables
 
-2. **API Client Architecture - Complete Redesign:**
-   - ✅ 6-layer architecture: Connectivity → Base API → Components → Services → Mappers → Models
-   - ✅ Dedicated HttpClient and WebSocketManager with proper lifecycle management
-   - ✅ Strategy patterns for rate limiting, error mapping, and serialization
-   - ✅ Component factory pattern ensuring consistency across exchanges
-   - ✅ Full Pydantic model coverage for all API requests/responses
+2. **API Client Architecture:**
+   - ✅ CONFIRMED: Full service layer implementation (55+ service files for Hyperliquid alone)
+   - ✅ CONFIRMED: Mapper layer with dedicated mappers for account/market_data/trading domains
+   - ✅ CONFIRMED: WebSocket infrastructure with ws_router.py and type-safe message handling
+   - ✅ CONFIRMED: Component separation with request builders, response handlers, auth managers
 
-3. **New Components Successfully Integrated:**
-   - ✅ **StrategyManager**: Centralized strategy lifecycle management
-   - ✅ **Service Layer**: AccountService, MarketDataService, TradingService per exchange
-   - ✅ **Mapper Layer**: Clean separation between raw API models and internal domain models
-   - ✅ **WebSocketManager**: Robust reconnection, error recovery, and message handling
+3. **Core Components:**
+   - ✅ CONFIRMED: TradingEngine in application/trading_engine.py
+   - ✅ CONFIRMED: EventBus in application/event_bus.py for event-driven architecture
+   - ✅ CONFIRMED: Domain services for Market, Portfolio, Risk, Signal, Strategy, Trading
+   - ✅ CONFIRMED: ExchangeAPIFactory for exchange abstraction
 
-4. **Type Safety and Code Quality:**
-   - ✅ Mypy errors reduced from 676 to 3 (only minor export issues)
-   - ✅ Ruff errors: 0 in core modules
-   - ✅ 100% Decimal compliance for financial calculations
-   - ✅ Proper import organization with TYPE_CHECKING usage
+4. **Type Safety and Code Quality (ACTUAL):**
+   - ✅ Mypy errors: 1 (only missing aiofiles type stubs)
+   - ✅ Ruff: 0 errors - "All checks passed!"
+   - ✅ 100% Decimal compliance verified for financial calculations
+   - ✅ 428 test files providing comprehensive coverage
 
 ## 1. Project Overview
 
