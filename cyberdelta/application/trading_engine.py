@@ -1449,33 +1449,177 @@ class TradingEngine:
 
         await self._handle_trading_signal(signal)
 
-    async def _process_order_filled_event(self, event: DomainEvent) -> None:
-        """Process order filled event."""
-        # Extract data from unified event payload
-        is_partial = event.payload.get("is_partial", False)
-        maker_taker = MakerTaker.MAKER if is_partial else MakerTaker.TAKER
+    def _validate_fill_event_data(self, event: DomainEvent) -> bool:
+        """Validate required fields for fill event processing.
 
-        # Create Fill instance from event data
-        if not event.symbol or not event.exchange:
+        Args:
+            event: Domain event to validate
+
+        Returns:
+            True if all required fields are present, False otherwise
+        """
+        if not event.symbol:
             logger.error(
-                "order_filled_event_missing_data",
+                "order_filled_event_missing_symbol",
                 event_id=event.event_id,
-                symbol=event.symbol,
-                exchange=event.exchange,
+                message="Fill events must include valid symbol",
+            )
+            return False
+
+        if not event.exchange:
+            logger.error(
+                "order_filled_event_missing_exchange",
+                event_id=event.event_id,
+                message="Fill events must include valid exchange",
+            )
+            return False
+
+        return True
+
+    def _extract_fill_price(self, event: DomainEvent) -> Decimal | None:
+        """Extract and validate fill price from event payload.
+
+        Args:
+            event: Domain event containing fill price data
+
+        Returns:
+            Validated Decimal price, or None if invalid
+        """
+        price = event.get_decimal("fill_price")
+        if price is None:
+            logger.error(
+                "order_filled_event_missing_price",
+                event_id=event.event_id,
+                message="Fill events must include valid fill_price",
+            )
+            return None
+
+        if price <= Decimal(0):
+            logger.error(
+                "order_filled_event_invalid_price",
+                event_id=event.event_id,
+                price=str(price),
+                message="Fill price must be positive",
+            )
+            return None
+
+        return price
+
+    def _extract_fill_quantity(self, event: DomainEvent) -> Decimal | None:
+        """Extract and validate fill quantity from event payload.
+
+        Args:
+            event: Domain event containing fill quantity data
+
+        Returns:
+            Validated Decimal quantity, or None if invalid
+        """
+        quantity = event.get_decimal("fill_quantity")
+        if quantity is None:
+            logger.error(
+                "order_filled_event_missing_quantity",
+                event_id=event.event_id,
+                message="Fill events must include valid fill_quantity",
+            )
+            return None
+
+        if quantity <= Decimal(0):
+            logger.error(
+                "order_filled_event_invalid_quantity",
+                event_id=event.event_id,
+                quantity=str(quantity),
+                message="Fill quantity must be positive",
+            )
+            return None
+
+        return quantity
+
+    def _extract_fill_side(self, event: DomainEvent) -> OrderSide:
+        """Extract order side from fill event payload with type safety.
+
+        Args:
+            event: Domain event containing side data
+
+        Returns:
+            Validated OrderSide enum value
+        """
+        side_str = event.get_str("side")
+        if side_str is None:
+            logger.warning(
+                "order_filled_event_missing_side",
+                event_id=event.event_id,
+                message="Fill event missing side, using BUY as default",
+            )
+            return OrderSide.BUY
+
+        try:
+            return OrderSide(side_str)
+        except ValueError:
+            logger.warning(
+                "order_filled_event_invalid_side",
+                event_id=event.event_id,
+                side=side_str,
+                message="Invalid side value, using BUY as default",
+            )
+            return OrderSide.BUY
+
+    async def _process_order_filled_event(self, event: DomainEvent) -> None:
+        """Process order filled event with full type safety.
+
+        Validates all event data using typed methods and creates Fill
+        for processing. Returns early if any validation fails.
+        """
+        # Validate required fields using typed validation
+        if not self._validate_fill_event_data(event):
+            return
+
+        # Extract and validate critical fill data
+        fill_price = self._extract_fill_price(event)
+        if fill_price is None:
+            return
+
+        fill_quantity = self._extract_fill_quantity(event)
+        if fill_quantity is None:
+            return
+
+        # Extract side with type safety
+        side = self._extract_fill_side(event)
+
+        # Extract other fields - commission is required for trading fills
+        is_partial = event.get_bool("is_partial", False)
+        maker_taker = MakerTaker.MAKER if is_partial else MakerTaker.TAKER
+        fee = event.get_decimal("commission")
+        if fee is None:
+            logger.error(
+                "fill_event_missing_fee",
+                event_id=event.event_id,
+                symbol=event.symbol.value if event.symbol else None,
+                exchange=event.exchange.value if event.exchange else None,
+                message="Commission field required for fill events",
+            )
+            return
+        fee_asset = event.get_str("fee_asset")
+
+        # Additional type safety check (should never trigger due to validation above)
+        if event.symbol is None or event.exchange is None:
+            logger.error(
+                "order_filled_event_validation_inconsistency",
+                event_id=event.event_id,
+                message="Validated fields became None after validation",
             )
             return
 
         fill = Fill(
-            id=event.entity_id,  # order_id is the entity_id
+            id=event.entity_id,
             symbol=event.symbol,
             executed_at=event.timestamp,
-            side=OrderSide(event.payload.get("side", OrderSide.BUY.value)),
+            side=side,  # Type-safe enum
             order_id=event.entity_id,
             exchange=event.exchange,
-            price=Decimal(str(event.payload.get("fill_price", "0"))),
-            quantity=Decimal(str(event.payload.get("fill_quantity", "0"))),
-            fee=Decimal(str(event.payload.get("commission", "0"))),
-            fee_asset=event.payload.get("fee_asset"),
+            price=fill_price,  # Validated Decimal > 0
+            quantity=fill_quantity,  # Validated Decimal > 0
+            fee=fee,  # Safe Decimal or 0
+            fee_asset=fee_asset,  # Optional string
             maker_taker=maker_taker,
         )
         await self._handle_trade_executed(fill)

@@ -125,6 +125,7 @@ class EventBus:
             tasks.append(task)
 
         # Wait for all handlers to complete
+        # asyncio.gather with return_exceptions=True returns results or exceptions
         results: list[BaseException | None] = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Log any failures
