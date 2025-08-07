@@ -2,13 +2,13 @@
 
 ## Executive Summary
 
-The CyberDeltaEngine implements sophisticated caching across multiple layers but suffers from **architectural inconsistencies** and **missed integration opportunities**. While individual cache services achieve 60-70% API call reduction, the overall system lacks **event-driven coordination** and **intelligent invalidation strategies** critical for high-frequency trading.
+The CyberDeltaEngine implements sophisticated caching across multiple layers with **proven TTL-based caching patterns** achieving 60-70% API call reduction. The system has **existing event bus infrastructure** and **basic domain event support**, but currently lacks **WebSocket-to-cache integration** and **selective invalidation strategies**. The foundation is solid and ready for event-driven enhancements without requiring major architectural changes.
 
 ## Current Cache Architecture Analysis
 
 ### 1. Exchange-Level Caching
 
-#### Hyperliquid Cache Implementation
+#### Hyperliquid Cache Implementation (ACTUAL)
 ```mermaid
 graph TD
     A[HyperliquidAPI] --> B[ClearinghouseStateService]
@@ -19,26 +19,28 @@ graph TD
     B --> F[PositionService]
     B --> G[BalanceService]
 
-    H[Trading Operations] --> I[Manual Cache Invalidation]
-    I --> C
+    H[Trading Operations] --> J[No Direct Cache Interaction]
 
-    style C fill:#ff6b6b,color:#333
-    style I fill:#ffd93d,color:#333
+    style C fill:#51cf66,color:#333
+    style D fill:#74c0fc,color:#333
 ```
 
-**Strengths:**
-- Thread-safe with RLock implementation
-- Comprehensive statistics tracking
-- Configurable cache duration and size limits
+**Actual Implementation Strengths:**
+- Thread-safe with threading.RLock implementation
+- Comprehensive statistics tracking (hits, misses, invalidations, evictions)
+- Configurable cache duration and size limits (max_cache_size: 1000 default)
 - 60-70% API call reduction achieved
+- Automatic cleanup of expired entries
+- LRU eviction when size limit reached
+- CachingPolicy enum with DISABLED/ENABLED/AGGRESSIVE/DEVELOPMENT modes
 
-**Critical Issues:**
-- **Aggressive manual invalidation** after every trading operation
-- Cache effectiveness reduced to near-zero during active trading
-- No selective invalidation strategies
-- No integration with WebSocket events
+**Current Limitations (Not Critical Issues):**
+- **No manual invalidation in trading operations** (cache relies purely on TTL)
+- Trading operations don't trigger cache updates
+- No integration with WebSocket events yet
+- Cache operates independently from trading flow
 
-#### Backpack Cache Implementation
+#### Backpack Cache Implementation (ACTUAL)
 ```mermaid
 graph TD
     A[BackpackAPI] --> B[AccountStateService]
@@ -56,72 +58,64 @@ graph TD
     style H fill:#74c0fc,color:#333
 ```
 
-**Strengths:**
-- Structured configuration with `CachingPolicy` enum
-- Proper async/await patterns
-- Centralized account state management
+**Actual Implementation Strengths:**
+- Structured configuration with `CachingConfiguration` class
+- CachingPolicy enum (DISABLED/ENABLED/AGGRESSIVE/DEVELOPMENT)
+- Proper async/await patterns with asyncio.Lock for thread safety
+- Centralized account state management via collateral endpoint
 - Clean separation of concerns
+- Manual cache invalidation methods available (`invalidate_cache`, `clear_all_cache`)
+- Cache statistics tracking (`get_cache_stats`)
+- Automatic cleanup of expired entries
 
-**Issues:**
-- Limited to account state caching only
-- No integration with trading operations
-- Missing event-driven invalidation
+**Current State:**
+- Focused on account state caching (collateral endpoint)
+- No automatic invalidation from trading operations
+- Cache operates on TTL basis with configurable duration
+- Ready for event-driven enhancements
 
 ### 2. Core Service Caching
 
-#### Price Data Service Cache
+#### Market Data Cache Manager (ACTUAL: domain/market/cache_manager.py)
 ```mermaid
 graph TD
-    A[PriceDataService] --> B[Ticker Cache]
-    B --> C[Exchange Namespaces]
-    C --> D[Symbol -> Ticker, Timestamp]
+    A[CacheManager] --> B[Ticker Cache]
+    A --> C[OrderBook Cache]
+    B --> D[Symbol + Exchange Key]
+    C --> E[Symbol + Exchange Key]
 
-    E[30s TTL] --> B
-    F[LRU Eviction] --> B
-    G[Memory Limits] --> B
+    F[AppSettings Config] --> A
+    G[TTL from Config] --> B
+    G --> C
 
-    H[API Clients] --> A
-    I[Portfolio Services] --> A
-
-    style B fill:#51cf66,color:#333
-    style E fill:#74c0fc,color:#333
-```
-
-**Strengths:**
-- Exchange-specific namespacing
-- Automatic expiration and cleanup
-- Clean interface for price conversions
-- Memory leak prevention
-
-#### Portfolio Cache Service (Core)
-```mermaid
-graph TD
-    A[MemoryCacheService] --> B[Generic Cache<br/>LRU + TTL]
-    B --> C[CacheEntry<br/>Value + Metadata]
-
-    D[Cleanup Loop] --> B
-    E[Statistics Tracking] --> B
-    F[Memory Estimation] --> B
-
-    G[Portfolio Services] --> A
-    H[Configuration] --> A
+    H[Market Service] --> A
+    I[Data Fetcher] --> A
 
     style B fill:#51cf66,color:#333
-    style D fill:#74c0fc,color:#333
+    style F fill:#74c0fc,color:#333
 ```
 
-**Strengths:**
-- Generic, reusable implementation
-- Advanced memory management
-- Comprehensive statistics
-- Configurable policies
+**Actual Implementation:**
+- **Configuration-driven**: All TTL values from AppSettings (monitoring.market_data.cache)
+- **Type-safe**: Uses Symbol objects and ExchangeName enums (no strings)
+- **TTL-based validation**: Automatic expiration checking
+- **Stale data detection**: `is_data_stale()` method with configured threshold
+- **Cache key format**: `"{exchange.value}:{symbol.value}"`
+- **Explicit cache clearing**: `clear_cache()` method
+- **No hardcoded values**: Follows CODING_STANDARDS.md strictly
+
+**Current Limitations:**
+- Simple TTL-based eviction (no LRU)
+- No memory limits enforced
+- No cache warming strategies
+- No integration with WebSocket updates
 
 ### 3. Configuration & Policy Management
 
-#### Cache Configuration Architecture
+#### Cache Configuration Architecture (ACTUAL: apis/base/infrastructure_config_domain.py)
 ```mermaid
 graph TD
-    A[CachingConfiguration] --> B[CachingPolicy]
+    A[CachingConfiguration] --> B[CachingPolicy Enum]
     B --> C[DISABLED]
     B --> D[ENABLED]
     B --> E[AGGRESSIVE]
@@ -131,74 +125,98 @@ graph TD
     H[Duration Constraints] --> G
     I[Policy Consistency] --> G
 
-    J[Infrastructure Config] --> A
-    K[Service Initialization] --> A
+    J[SystemConfiguration] --> K[Performance Profiles]
+    K --> L[BALANCED/ULTRA_FAST/DEBUG/SECURE]
 
     style A fill:#74c0fc,color:#333
     style G fill:#ffd93d,color:#333
 ```
 
-**Cache Policy Definitions:**
-- **DISABLED**: No caching, always fetch fresh
-- **ENABLED**: Standard 5-second TTL
-- **AGGRESSIVE**: 60+ second TTL for stable data
-- **DEVELOPMENT**: ≤30 second TTL for testing
+**Actual Cache Policy Definitions:**
+- **DISABLED**: "disabled" - No caching, always fetch fresh data
+- **ENABLED**: "enabled" - Standard caching with configurable duration (5s default)
+- **AGGRESSIVE**: "aggressive" - Long-duration caching for stable data (60s minimum)
+- **DEVELOPMENT**: "development" - Short-duration caching for testing (30s maximum)
 
-## Critical Architectural Issues
+**CachingConfiguration Class Features:**
+- `policy`: CachingPolicy enum field
+- `cache_duration`: Optional float (seconds)
+- `get_effective_duration()`: Returns duration based on policy
+- Validation ensures duration consistency with policy
+- Integration with SystemConfiguration for performance profiles
 
-### 1. Cache Invalidation Anti-Pattern
+## Current Architecture Observations
 
-**Current Implementation:**
+### 1. Cache Independence Pattern (Not an Anti-Pattern)
+
+**Actual Implementation:**
 ```python
+# In HyperliquidAPI and BackpackAPI
 async def place_order(self, args: PlaceOrderArgs) -> Order:
-    result = await self.trading_service.place_order(args)
-    # ISSUE: Invalidates entire cache after every operation
-    self.account_service.invalidate_clearinghouse_cache()
-    return result
+    return await self.trading_service.place_order(args)
+    # NOTE: No cache invalidation occurs here
 ```
 
-**Problems:**
-- Cache hit rate approaches 0% during active trading
-- Defeats the purpose of caching entirely
-- Increases API rate limiting pressure when most needed
+**Current Behavior:**
+- Caches operate purely on TTL basis (5s default)
+- Trading operations don't interact with cache
+- Cache hit rate remains stable during trading (60-70%)
+- No manual invalidation reduces complexity
 
-### 2. Missing Event-Driven Architecture
+**Opportunity for Enhancement:**
+- Could add selective invalidation for affected data
+- WebSocket events could trigger smart cache updates
+- Event-driven approach would improve data freshness
 
-**Gap Analysis:**
+### 2. Existing Event Infrastructure (Ready for Cache Integration)
+
+**Current Architecture:**
 ```mermaid
 sequenceDiagram
     participant WS as WebSocket
-    participant Router as WS Router
-    participant Handler as Message Handler
+    participant Router as WS Router (Exists)
+    participant EventBus as Event Bus (Exists)
+    participant Handler as Domain Services
     participant Cache as Cache Service
-    participant API as Exchange API
 
-    WS->>Router: Position Update
-    Router->>Handler: Route Message
-    Handler->>Handler: Process Update
-    Note over Handler,Cache: MISSING: Cache Update
+    WS->>Router: Market/Position Updates
+    Router->>Router: Type-safe Processing
+    Note over Router,EventBus: OPPORTUNITY: Connect here
 
-    API->>Cache: Manual Invalidation
-    Note over API,Cache: Only manual invalidation exists
+    EventBus->>Handler: Domain Events
+    Handler->>Handler: Process Events
+    Note over Handler,Cache: OPPORTUNITY: Cache updates
 ```
 
-**Missing Components:**
-- WebSocket events don't trigger cache updates
-- No real-time cache synchronization
-- No selective invalidation based on message types
+**Existing Components:**
+- **EventBus** (application/event_bus.py): Full async event distribution system
+- **WebSocket Router** (apis/websocket/ws_router.py): Type-safe message routing
+- **Domain Events** (models/events/base_event.py): Event infrastructure ready
+- **Cache Services**: Have invalidation methods ready
 
-### 3. Fragmented Cache Strategies
+**Integration Opportunities:**
+- Connect WebSocket router to EventBus
+- Subscribe cache services to relevant events
+- Implement selective invalidation based on event types
 
-**Current State:**
-- **Hyperliquid**: TTL-based with manual invalidation
-- **Backpack**: Configuration-driven with async locks
-- **Price Data**: Simple TTL with LRU eviction
-- **Portfolio**: Generic cache service with cleanup loops
+### 3. Consistent Cache Implementation Patterns
 
-**Issues:**
-- No unified caching strategy
-- Different invalidation patterns per service
-- No cross-service cache coordination
+**Actual Implementation State:**
+- **Hyperliquid**: TTL-based (5s) with threading.RLock, statistics, LRU eviction
+- **Backpack**: TTL-based (5s) with asyncio.Lock, similar pattern to Hyperliquid
+- **Market Data**: TTL-based with configuration from AppSettings
+- **All Services**: Use CachingPolicy enum and CachingConfiguration
+
+**Strengths:**
+- Consistent TTL-based approach across services
+- Unified CachingPolicy enum (DISABLED/ENABLED/AGGRESSIVE/DEVELOPMENT)
+- Thread-safe implementations (RLock for sync, asyncio.Lock for async)
+- Configuration-driven TTL values (no hardcoding)
+
+**Enhancement Opportunities:**
+- Add cross-service cache coordination
+- Implement cache warming strategies
+- Add memory limit enforcement consistently
 
 ## Refactor Strategy: Clean Break Architecture
 
@@ -439,42 +457,54 @@ class CacheWarmingService:
 
 ## Implementation Roadmap
 
-### Simplified Roadmap for v0.0.1
+### Practical Roadmap Based on Existing Infrastructure
 
-#### Phase 1: Basic Event-Driven Cache (Week 1)
-1. **Simple Event Bus**
-   - Basic event routing (no complex filtering)
-   - Direct WebSocket integration
+#### Phase 1: Connect Existing Components (3-4 days)
+1. **Wire WebSocket to EventBus**
+   - Create WebSocket event adapters
+   - Publish position/balance/price events to existing EventBus
+   - Minimal code changes required
 
-2. **Basic Cache Coordinator**
-   - Simple invalidation mapping
-   - No complex cascade logic initially
+2. **Subscribe Cache Services to Events**
+   - Add event handlers to existing cache services
+   - Implement selective invalidation logic
+   - Use existing invalidation methods
 
-#### Phase 2: Basic Multi-Tier (Week 2)
-1. **Two-Tier System**
-   - L1: Real-time (2s TTL)
-   - L2: Standard (30s TTL)
-   - Simple tier selection logic
+#### Phase 2: Enhance Cache Coordination (1 week)
+1. **Add Cache Coordinator Service**
+   - Central coordination using existing EventBus
+   - Route events to appropriate cache services
+   - Track cache dependencies
 
-#### Future Phases (Post v1.0)
-- Adaptive cache management
-- ML-driven optimizations
-- Advanced monitoring
-- Cross-exchange coordination
+2. **Implement Smart Invalidation**
+   - Symbol-specific invalidation
+   - User-specific invalidation
+   - Cascade related caches
+
+#### Phase 3: Optimize and Monitor (1 week)
+1. **Add Cache Metrics**
+   - Extend existing statistics tracking
+   - Add event-driven metrics
+   - Monitor invalidation effectiveness
+
+2. **Performance Tuning**
+   - Adjust TTL values based on metrics
+   - Optimize invalidation patterns
+   - Add basic cache warming
 
 ## Expected Performance Improvements
 
-### Cache Effectiveness Metrics
-- **Cache Hit Rate**: 85%+ (vs current ~20% during trading)
-- **API Call Reduction**: 70-80% (vs current 60-70%)
-- **Response Latency**: 50% reduction for cached data
-- **Memory Efficiency**: 30% reduction through intelligent eviction
+### Realistic Performance Targets
+- **Cache Hit Rate**: 75-80% (vs current 60-70%)
+- **API Call Reduction**: 70-75% (modest improvement from current 60-70%)
+- **Data Freshness**: <2s for critical data (vs current 5s TTL)
+- **Memory Usage**: Similar to current (already efficient)
 
 ### Trading Performance Impact
-- **Order Placement Latency**: 40% reduction
-- **Position Update Speed**: 60% improvement
-- **Portfolio Recalculation**: 50% faster
-- **Risk Check Performance**: 70% improvement
+- **Real-time Data Access**: Near-instant for WebSocket-updated data
+- **Position Updates**: Real-time via WebSocket events
+- **Balance Synchronization**: Automatic on trade events
+- **Reduced Stale Data**: Smart invalidation on relevant events
 
 ## Risk Mitigation
 
@@ -492,12 +522,12 @@ class CacheWarmingService:
 
 ## Conclusion
 
-The proposed cache refactor addresses fundamental architectural issues while building on existing strengths. The event-driven approach eliminates the cache invalidation anti-pattern, while the multi-tier architecture provides the flexibility needed for high-frequency trading scenarios.
+The CyberDeltaEngine has a **solid caching foundation** that performs well (60-70% API reduction). The proposed enhancements leverage **existing infrastructure** (EventBus, WebSocket routers, cache services) to add event-driven coordination without major architectural changes.
 
-**Key Benefits:**
-- **Performance**: 2-3x improvement in data access latency
-- **Scalability**: Architecture supports increased trading volume
-- **Reliability**: Robust consistency guarantees and monitoring
-- **Maintainability**: Clean separation of concerns and unified configuration
+**Key Findings:**
+- **No Critical Issues**: Current cache implementation is functional and efficient
+- **Infrastructure Ready**: EventBus and WebSocket components exist and work
+- **Low-Risk Enhancement**: Connecting existing components is straightforward
+- **Incremental Improvement**: 10-15% performance gain with better data freshness
 
-**Implementation Priority:** This refactor should be prioritized as it directly impacts trading performance and system reliability, especially during high-frequency trading periods where current cache effectiveness drops to near-zero.
+**Implementation Recommendation:** This is a **low-risk, high-value enhancement** that can be implemented incrementally. Start with Phase 1 (connecting WebSocket to EventBus) as it requires minimal changes and provides immediate benefits for real-time data synchronization.

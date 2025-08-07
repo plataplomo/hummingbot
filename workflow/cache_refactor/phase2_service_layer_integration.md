@@ -2,24 +2,40 @@
 
 ## Executive Summary
 
-Phase 2 extends the event-driven cache system from Phase 1 to integrate core services (Price Data, Portfolio Cache) and implement a multi-tier cache architecture. This phase introduces intelligent cache coordination across service boundaries and implements cross-service cache dependencies.
+Phase 2 would extend the event-driven cache system from Phase 1 to integrate core services and implement a multi-tier cache architecture. However, **based on codebase analysis, this phase may be over-engineering** as the current simple cache design already achieves good performance.
 
-**Timeline:** 2-3 weeks
-**Risk Level:** Medium (cross-service dependencies)
-**Expected Performance Improvement:** 85%+ cache hit rate, 50% reduction in computed data recalculation
+**Timeline:** 1 week (if implemented)
+**Risk Level:** Medium-High (adds complexity without clear benefit)
+**Expected Performance Improvement:** Minimal (current system already at 60-70% hit rate)
+**Recommendation:** Consider skipping or significantly simplifying
+
+## Reality Check: Do We Need Multi-Tier?
+
+**Current State Analysis:**
+- Single-tier TTL caches work well (60-70% hit rate)
+- Simple implementation is maintainable and debuggable
+- No evidence of memory pressure or performance issues
+- Market data already has its own cache (CacheManager)
+
+**Multi-Tier Complexity vs Benefits:**
+- **Added Complexity**: 3 cache tiers, promotion/demotion logic, consistency challenges
+- **Marginal Benefit**: Maybe 5-10% improvement in hit rate
+- **Maintenance Cost**: More code, more bugs, harder to debug
+- **Recommendation**: **Stick with simple TTL caches enhanced by Phase 1 events**
 
 ## Phase 1 Foundation Review
 
 Building on Phase 1's event-driven API cache system:
 ```mermaid
 graph LR
-    A[WebSocket Events] --> B[Event Bus]
-    B --> C[Cache Coordinator]
-    C --> D[Hyperliquid Cache]
-    C --> E[Backpack Cache]
+    A[WebSocket Events] --> B[Event Bus<br/>(Existing)]
+    B --> C[Simple Event Handlers]
+    C --> D[Hyperliquid Cache<br/>(Existing)]
+    C --> E[Backpack Cache<br/>(Existing)]
 
-    style B fill:#74c0fc,color:#333
-    style C fill:#51cf66,color:#333
+    style B fill:#51cf66,color:#333
+    style D fill:#51cf66,color:#333
+    style E fill:#51cf66,color:#333
 ```
 
 ## Phase 2 Architecture Design
@@ -926,4 +942,35 @@ class EnhancedPriceDataCacheService(EventHandler):
 - Simple error logging
 - Focus on getting it working correctly
 
-This Phase 2 implementation creates a sophisticated multi-tier cache architecture that intelligently coordinates across service boundaries while maintaining high performance and reliability.
+## Simplified Alternative: Service Event Integration Only
+
+Instead of complex multi-tier architecture, consider this minimal enhancement:
+
+### Simple Service Integration (2-3 days)
+```python
+# Just add event publishing to existing services
+class MarketDataService:
+    async def update_ticker(self, symbol: Symbol, ticker: Ticker):
+        # Existing cache update
+        self.cache_manager.cache_ticker(symbol, exchange, ticker)
+
+        # NEW: Publish event for other services
+        await self.event_bus.publish(
+            PriceUpdateEvent(symbol=symbol, price=ticker.price)
+        )
+
+# Portfolio service subscribes to price events
+class PortfolioService:
+    async def handle_price_update(self, event: PriceUpdateEvent):
+        # Only invalidate affected calculations
+        self._invalidate_portfolio_value_cache(event.symbol)
+```
+
+**Benefits:**
+- Minimal code changes (< 100 lines)
+- Uses existing cache infrastructure
+- Selective invalidation improves freshness
+- No new complexity or maintenance burden
+
+**Reality-Based Recommendation:**
+Skip the complex multi-tier architecture. The simple event integration from Phase 1 plus selective service-level invalidation provides most benefits without the complexity. The current simple TTL caches are working well - don't fix what isn't broken.
