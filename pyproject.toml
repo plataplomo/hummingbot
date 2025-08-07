@@ -58,7 +58,6 @@ dependencies = [
     "tenacity==9.1.2",
     "psutil>=7.0.0, <7.1.0",
     "aiofiles==24.1.0",
-    "types-aiofiles>=24.1.0.20250801",
 ]
 
 [project.optional-dependencies]
