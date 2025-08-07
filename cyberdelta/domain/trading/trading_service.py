@@ -359,9 +359,21 @@ class TradingService(HealthCheckable):
             # Imports already available at top level
 
             if order.quantity_filled and order.quantity_filled > 0:
-                # Only create fill if we have valid price data
-                fill_price = order.average_fill_price or order.price
-                if not fill_price or fill_price <= Decimal(0):
+                # Require valid fill price - fail fast if missing
+                if order.average_fill_price is not None:
+                    fill_price = order.average_fill_price
+                elif order.price is not None:
+                    fill_price = order.price
+                else:
+                    logger.error(
+                        "cannot_create_fill_no_price_data",
+                        order_id=order.client_order_id,
+                        exchange_order_id=order.exchange_order_id,
+                        message="Order has no price data - cannot create fill",
+                    )
+                    return
+
+                if fill_price <= Decimal(0):
                     logger.warning(
                         "cannot_create_fill_without_valid_price",
                         order_id=order.client_order_id,
@@ -381,7 +393,9 @@ class TradingService(HealthCheckable):
                 trade = Fill(
                     id=f"trade_{uuid.uuid4().hex[:8]}",
                     symbol=order.symbol,
-                    executed_at=order.updated_at or datetime.now(UTC),
+                    executed_at=(
+                        order.updated_at if order.updated_at is not None else datetime.now(UTC)
+                    ),
                     side=order.side,
                     order_id=(
                         order.exchange_order_id

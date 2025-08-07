@@ -1422,9 +1422,24 @@ class TradingEngine:
         side = self._extract_signal_side(event)
         signal_type = self._extract_signal_type(event)
 
-        # Extract other fields with defaults
-        confidence = float(event.payload.get("confidence", 0.5))
-        source_strategy = event.get_str("strategy_name") or "unknown"
+        # Extract other fields - fail fast if missing required data
+        confidence_value = event.payload.get("confidence")
+        if confidence_value is None:
+            logger.error(
+                "strategy_signal_event_missing_confidence",
+                event_id=event.event_id,
+                message="Signal events must include confidence value",
+            )
+            return
+        confidence = float(confidence_value)
+        source_strategy = event.get_str("strategy_name")
+        if source_strategy is None:
+            logger.error(
+                "strategy_signal_event_missing_strategy_name",
+                event_id=event.event_id,
+                message="Signal events must include strategy_name",
+            )
+            return
 
         # Create TradeSignal with all validated data
         # Additional type safety check (should never trigger due to validation above)
@@ -1485,6 +1500,7 @@ class TradingEngine:
         Returns:
             Validated Decimal price, or None if invalid
         """
+        # Require 'fill_price' - fail fast if missing
         price = event.get_decimal("fill_price")
         if price is None:
             logger.error(
