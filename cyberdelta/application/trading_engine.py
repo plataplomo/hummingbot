@@ -1314,7 +1314,7 @@ class TradingEngine:
             signal_id=event.entity_id,
             symbol=event.symbol,
             exchange=event.exchange,
-            side=OrderSide(event.payload.get("side", "BUY")),
+            side=OrderSide(event.payload.get("side", OrderSide.BUY.value)),
             signal_type=SignalType(event.payload.get("signal_type", "ENTER_LONG")),
             # Placeholder price per requirements
             price=Decimal(str(event.payload.get("price", "0.01"))),
@@ -1343,7 +1343,7 @@ class TradingEngine:
             id=event.entity_id,  # order_id is the entity_id
             symbol=event.symbol,
             executed_at=event.timestamp,
-            side=OrderSide(event.payload.get("side", "BUY")),
+            side=OrderSide(event.payload.get("side", OrderSide.BUY.value)),
             order_id=event.entity_id,
             exchange=event.exchange,
             price=Decimal(str(event.payload.get("fill_price", "0"))),

@@ -8,11 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Self
-
-
-if TYPE_CHECKING:
-    from cyberdelta.models.market.fill import Fill
+from typing import Self
 
 from pydantic import (
     Field,
@@ -37,6 +33,7 @@ from cyberdelta.models.base_validators import (
     required_datetime_validator,
     required_decimal_validator,
 )
+from cyberdelta.models.market.fill import Fill
 
 # Correctly import the Raw model ONLY for transformation logic, not direct use in internal models
 # (Although for Details, we usually transform *before* creating Details)

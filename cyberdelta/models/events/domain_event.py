@@ -215,6 +215,8 @@ class DomainEvent(StandardModel):
                 "limit_type": limit_type,
                 "current_value": str(current_value),
                 "limit_value": str(limit_value),
-                "breach_percentage": str((current_value / limit_value - 1) * 100),
+                "breach_percentage": (
+                    str((current_value / limit_value - 1) * 100) if limit_value != 0 else None
+                ),
             },
         )
