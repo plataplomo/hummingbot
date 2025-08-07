@@ -453,7 +453,7 @@ class TradingEngine:
                 symbol=signal.symbol.value,
                 exchange=str(signal.exchange),
                 side=signal.side.value,
-                price=float(signal.price) if signal.price else None,
+                price=signal.price,
             )
 
             # Route signal to trading service for execution with circuit breaker protection
@@ -501,8 +501,8 @@ class TradingEngine:
                 symbol=trade.symbol.value,
                 exchange=trade.exchange,
                 side=trade.side.value,
-                quantity=float(trade.quantity),
-                price=float(trade.price),
+                quantity=trade.quantity,
+                price=trade.price,
             )
 
             # Notify strategy service about trade completion with circuit breaker protection
@@ -1340,10 +1340,10 @@ class TradingEngine:
             "type": event.data_type,
             "symbol": str(event.symbol),
             "exchange": str(event.exchange),
-            "last_price": float(event.last_price) if event.last_price else None,
-            "bid_price": float(event.bid_price) if event.bid_price else None,
-            "ask_price": float(event.ask_price) if event.ask_price else None,
-            "volume_24h": float(event.volume_24h) if event.volume_24h else None,
+            "last_price": event.last_price,
+            "bid_price": event.bid_price,
+            "ask_price": event.ask_price,
+            "volume_24h": event.volume_24h,
             "timestamp": event.timestamp,
             "event_id": event.event_id,
         }
@@ -1368,8 +1368,8 @@ class TradingEngine:
             "type": event.limit_type,
             "signal_id": None,  # Risk events should have signal context
             "details": f"Limit {event.limit_type}: {event.current_value} > {event.limit_value}",
-            "current_exposure": float(event.current_value),
-            "limit_value": float(event.limit_value),
+            "current_exposure": event.current_value,
+            "limit_value": event.limit_value,
             "timestamp": event.timestamp,
             "event_id": event.event_id,
         }

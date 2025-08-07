@@ -159,8 +159,8 @@ class StateManager:
 
             # Write state to a temporary file first
             temp_file: str = f"{self.state_file}.tmp"
-            with Path(temp_file).open("w", encoding="utf-8") as file:
-                file.write(orjson.dumps(state_data, option=orjson.OPT_INDENT_2).decode("utf-8"))
+            with Path(temp_file).open("wb") as file:
+                file.write(orjson.dumps(state_data, option=orjson.OPT_INDENT_2))
 
             # Atomically replace the state file
             shutil.move(temp_file, self.state_file)
