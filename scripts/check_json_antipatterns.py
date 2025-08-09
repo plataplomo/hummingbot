@@ -204,9 +204,11 @@ class JSONAntiPatternChecker(ast.NodeVisitor):
             True if node is inside an async function
         """
         # Walk up the AST to find if we're in an async function
-        current = node
+        current: ast.AST = node
         while hasattr(current, "parent"):
-            parent = current.parent
+            parent = getattr(current, "parent", None)
+            if parent is None:
+                break
             if isinstance(parent, ast.AsyncFunctionDef):
                 return True
             current = parent
@@ -235,7 +237,7 @@ def check_regex_patterns(file_path: Path, content: str) -> list[JSONViolation]:
     Returns:
         List of violations found
     """
-    violations = []
+    violations: list[JSONViolation] = []
     lines = content.splitlines()
 
     patterns = [
