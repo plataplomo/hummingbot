@@ -3,64 +3,13 @@
 Note: Trading enums (OrderType, OrderSide) are now sourced from cyberdelta.models.enums.
 """
 
-from enum import Enum, auto
+from enum import Enum
 
 
 # System constants
 DEFAULT_CONFIG_PATH = "cyberdelta/config/config.yaml"
 DEFAULT_SECRETS_PATH = "cyberdelta/config/secrets.yaml"
 DEFAULT_STATE_FILE = "state.json"
-
-
-# Exchange identifiers
-class Exchange(Enum):
-    """Exchange identifier enumeration."""
-
-    HYPERLIQUID = "hyperliquid"
-    BACKPACK = "backpack"
-
-
-# Position status
-class PositionStatus(Enum):
-    """Position status enumeration."""
-
-    OPEN = auto()
-    CLOSED = auto()
-    PENDING_OPEN = auto()
-    PENDING_CLOSE = auto()
-    ERROR = auto()
-
-
-# Position side
-class PositionSide(Enum):
-    """Position side enumeration."""
-
-    LONG = "long"
-    SHORT = "short"
-    NONE = "none"
-
-
-# Event types
-class EventType(Enum):
-    """Event type enumeration."""
-
-    MARKET_DATA = auto()
-    ORDER_UPDATE = auto()
-    POSITION_UPDATE = auto()
-    BALANCE_UPDATE = auto()
-    ERROR = auto()
-    SYSTEM = auto()
-
-
-# Market data types
-class MarketDataType(Enum):
-    """Market data type enumeration."""
-
-    TRADE = auto()
-    ORDERBOOK = auto()
-    TICKER = auto()
-    FUNDING = auto()
-    CANDLE = auto()
 
 
 # Timeframes
@@ -76,16 +25,6 @@ class Timeframe(Enum):
     HOUR_8 = "8h"
     DAY_1 = "1d"
     WEEK_1 = "1w"
-
-
-# Strategy signals
-class Signal(Enum):
-    """Strategy signal enumeration."""
-
-    BUY = auto()
-    SELL = auto()
-    HOLD = auto()
-    CLOSE = auto()
 
 
 # Default HTTP headers

@@ -22,6 +22,7 @@ from cyberdelta.apis.exceptions import (
     FundingRateTransformationError,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.funding_rate import BackpackFundingDetails, FundingRate
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
@@ -95,7 +96,7 @@ class BackpackFundingRateMapper(CommonDataParserMixin, ValidationMixin, FundingR
                 data=funding_data,
                 model_class=FundingRate,
                 context="backpack_funding_rate_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
         except Exception as e:
@@ -161,7 +162,7 @@ class BackpackFundingRateMapper(CommonDataParserMixin, ValidationMixin, FundingR
                 data=funding_data,
                 model_class=FundingRate,
                 context="backpack_funding_interval_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
         except Exception as e:

@@ -95,7 +95,7 @@ def test_derivative_position_successful_creation(
     """Test successful creation with valid core data, no details."""
     btc_symbol = BTC_HL
     pos = DerivativePosition(**base_derivative_position_data)
-    assert pos.exchange == "hyperliquid"
+    assert pos.exchange == ExchangeName.HYPERLIQUID
     assert pos.symbol == btc_symbol
     assert pos.side == OrderSide.BUY
     assert pos.size == Decimal("1.5")

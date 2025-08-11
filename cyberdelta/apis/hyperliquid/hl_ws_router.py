@@ -39,9 +39,6 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsTradesSubscriptionPayload,
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
-
-# Type safety imports for future enhancement
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
 )
@@ -53,6 +50,9 @@ from cyberdelta.apis.websocket.ws_transformer import (
     MapperTransformer,
 )
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+
+# Type safety imports for future enhancement
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.models import DerivativePosition, Fill, Order, OrderBook
 from cyberdelta.models.market import Candle
@@ -152,8 +152,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         self._candle_subscriptions: dict[str, set[str]] = {"candle": set()}
 
         super().__init__(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=error_handler,
             typed_processor=typed_processor,
             envelope_validator=validate_hyperliquid_envelope,
@@ -340,7 +339,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             if isinstance(envelope, HyperliquidSubscriptionResponse):
                 self.logger.info(
                     "hyperliquid_subscription_confirmed",
-                    exchange=self.exchange_name,
+                    exchange=self.exchange_name.value,
                     subscription_type=envelope.subscription_type,
                     subscription_coin=envelope.subscription_coin,
                     is_successful=envelope.is_successful,
@@ -353,7 +352,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             else:
                 self.logger.warning(
                     "unexpected_subscription_response_type",
-                    exchange=self.exchange_name,
+                    exchange=self.exchange_name.value,
                     envelope_type=type(envelope).__name__,
                     message="Unexpected envelope type for subscriptionResponse",
                 )
@@ -372,7 +371,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         self.logger.warning(
             "unknown_hyperliquid_channel",
             channel=channel,
-            exchange=self.exchange_name,
+            exchange=self.exchange_name.value,
         )
         return None
 
@@ -394,7 +393,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         self.logger.warning(
             "missing_coin_in_market_data",
             channel=channel,
-            exchange=self.exchange_name,
+            exchange=self.exchange_name.value,
             message=f"No coin found in {channel} message, using channel-only routing",
         )
         return channel
@@ -514,7 +513,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
                 self.logger.debug(
                     "empty_fills_using_subscription",
                     channel="trades",
-                    exchange=self.exchange_name,
+                    exchange=self.exchange_name.value,
                     coin=coin_from_subscription,
                     message=(
                         f"Empty fills list routed to {coin_from_subscription} via subscription"
@@ -915,7 +914,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         if not fill_handlers:
             self.logger.debug(
                 "no_fill_handlers_found",
-                exchange=self.exchange_name,
+                exchange=self.exchange_name.value,
                 message="No fills:* handlers found for empty fills message",
             )
             return

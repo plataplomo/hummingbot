@@ -30,6 +30,7 @@ from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetUserFi
 from cyberdelta.apis.models.service_args.trading import GetTradeHistoryArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Fill
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -59,7 +60,7 @@ class HyperliquidTradeHistoryService:
         response_handler: AccountResponseHandlerProtocol,
         mapper: TransactionMapperProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
         wallet_address: str | None = None,
     ) -> None:
         """Initialize the trade history service.

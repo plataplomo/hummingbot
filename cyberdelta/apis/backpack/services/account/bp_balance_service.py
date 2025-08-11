@@ -35,6 +35,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import SpotBalance
 from cyberdelta.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.symbols import exchanges
@@ -67,7 +68,7 @@ class BackpackBalanceService:
         request_builder: AccountRequestBuilderProtocol,
         response_handler: AccountResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         # Optional dependency injection for shared state service (Hyperliquid pattern)
         account_state_service: BackpackAccountStateService | None = None,
         # Optional dependency injection for mapper

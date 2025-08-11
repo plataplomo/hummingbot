@@ -237,13 +237,11 @@ class HyperliquidAPI(ExchangeAPI):
             self._hl_authenticator.wallet_address if self._hl_authenticator else None
         )
 
-        self.exchange_name = "hyperliquid"
-
         # Create Hyperliquid-specific rate limit strategy
         hl_strategy = HyperliquidRateLimitStrategy(exchange_config)
 
         super().__init__(
-            exchange_name=exchange_config.exchange_name.value,
+            exchange_name=exchange_config.exchange_name,
             config=exchange_config,
             secrets=exchange_secrets,
             authenticator=self._hl_authenticator,
@@ -274,7 +272,9 @@ class HyperliquidAPI(ExchangeAPI):
             http_client_config_obj = HttpClientConfig.model_validate(
                 http_client_config_data_cleaned,
             )
-            self._http_client = HttpClient(self.exchange_name, http_client_config_obj)
+            self._http_client = HttpClient(
+                exchange_config.exchange_name.value, http_client_config_obj
+            )
 
         # Initialize asset index resolver with concrete instances
         # The asset indexer needs concrete implementations
@@ -285,7 +285,7 @@ class HyperliquidAPI(ExchangeAPI):
             requester=self._request,
             response_handler=market_data_response_handler,
             request_builder=market_data_request_builder,
-            exchange_name_for_log=self.exchange_name,
+            exchange_name_for_log=exchange_config.exchange_name.value,
             environment_type=exchange_config.environment_type,
         )
 
@@ -361,7 +361,7 @@ class HyperliquidAPI(ExchangeAPI):
         self._is_connected = False
 
         # Initialize enhanced WebSocket router with new architecture
-        error_handler = BaseErrorHandler(exchange_name="hyperliquid")
+        error_handler = BaseErrorHandler(exchange_name=exchange_config.exchange_name)
 
         # Create registry using Hyperliquid-specific builder
         builder = HyperliquidRegistryBuilder()
@@ -409,8 +409,8 @@ class HyperliquidAPI(ExchangeAPI):
                 path=path,
                 action="authentication_failed",
                 message=(
-                    f"[{self.exchange_name}] Attempt to call signed endpoint ({method} {path}) "
-                    "without configured HL authenticator."
+                    f"[{self.exchange_name.value}] Attempt to call signed endpoint "
+                    f"({method} {path}) without configured HL authenticator."
                 ),
             )
             auth_not_initialized_msg = (
@@ -447,7 +447,7 @@ class HyperliquidAPI(ExchangeAPI):
                 error=str(e),
                 action="authentication_failed",
                 message="[%s] Unexpected error during authentication preparation for %s %s: %s",
-                message_args=(self.exchange_name, method, path, str(e)),
+                message_args=(self.exchange_name.value, method, path, str(e)),
             )
             auth_prep_failed_msg = f"Authentication preparation failed: {e}"
             raise APIError(
@@ -547,7 +547,7 @@ class HyperliquidAPI(ExchangeAPI):
             headers_count=len(headers) if headers else 0,
             action="rate_limit_noop",
             message=(
-                f"[{self.exchange_name}] _update_rate_limit_from_headers called "
+                f"[{self.exchange_name.value}] _update_rate_limit_from_headers called "
                 f"(no-op for Hyperliquid). Headers: {headers}, Method: {method}, Path: {path}"
             ),
         )
@@ -936,8 +936,8 @@ class HyperliquidAPI(ExchangeAPI):
             topic=topic,
             subscription_type="l2Book",
             message=(
-                f"[{self.exchange_name}] Preparing subscription for order book (l2Book) topic: "
-                f"{topic}"
+                f"[{self.exchange_name.value}] Preparing subscription for order book "
+                f"(l2Book) topic: {topic}"
             ),
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
@@ -962,7 +962,7 @@ class HyperliquidAPI(ExchangeAPI):
             alternative_streams=["allMids", f"l2Book:{symbol.value}"],
             recommendation="use_allmids_or_orderbook",
             message=(
-                f"[{self.exchange_name}] Hyperliquid does not have a direct "
+                f"[{self.exchange_name.value}] Hyperliquid does not have a direct "
                 f"'ticker:{symbol.value}' "
                 f"stream. Consider subscribing to 'allMids' for all mid prices, or "
                 f"'l2Book:{symbol.value}' and derive ticker data."
@@ -988,7 +988,8 @@ class HyperliquidAPI(ExchangeAPI):
             topic=topic,
             subscription_type="trades",
             message=(
-                f"[{self.exchange_name}] Preparing subscription for public trades topic: {topic}"
+                f"[{self.exchange_name.value}] Preparing subscription for public trades "
+                f"topic: {topic}"
             ),
         )
         # Actual subscription is initiated by the caller using self.subscribe(topic, handler)
@@ -1009,7 +1010,7 @@ class HyperliquidAPI(ExchangeAPI):
             topic=topic,
             subscription_type="userEvents",
             message=(
-                f"[{self.exchange_name}] Preparing subscription for user account updates "
+                f"[{self.exchange_name.value}] Preparing subscription for user account updates "
                 f"(userEvents) topic: {topic}"
             ),
         )
@@ -1036,8 +1037,8 @@ class HyperliquidAPI(ExchangeAPI):
             exchange=self.exchange_name,
             action="triggering_resubscription",
             message=(
-                f"[{self.exchange_name}] WebSocket connected. Triggering resubscription via base "
-                f"ExchangeAPI."
+                f"[{self.exchange_name.value}] WebSocket connected. "
+                f"Triggering resubscription via base ExchangeAPI."
             ),
         )
         await super()._on_ws_connected()
@@ -1053,7 +1054,8 @@ class HyperliquidAPI(ExchangeAPI):
             exchange=self.exchange_name,
             action="delegating_to_base_api",
             message=(
-                f"[{self.exchange_name}] Resubscribing to topics. Delegating to base ExchangeAPI."
+                f"[{self.exchange_name.value}] Resubscribing to topics. "
+                f"Delegating to base ExchangeAPI."
             ),
         )
         await super()._resubscribe()

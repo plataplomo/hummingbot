@@ -115,6 +115,7 @@ from cyberdelta.apis.hyperliquid.utils.component_registry import HyperliquidComp
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, PrivateKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -943,7 +944,7 @@ class HyperliquidAPIComponentsFactory:
         mapper: OrderBookMapperProtocol,
         request_builder: MarketDataRequestBuilderProtocol,
         response_handler: MarketDataResponseHandlerProtocol,
-        exchange_name: str,
+        exchange_name: ExchangeName,
     ) -> HyperliquidOrderBookService:
         """Create a HyperliquidOrderBookService instance.
 
@@ -970,7 +971,7 @@ class HyperliquidAPIComponentsFactory:
         http_client_requester: HttpClientRequesterSig,
         request_builder: MarketDataRequestBuilderProtocol,
         response_handler: MarketDataResponseHandlerProtocol,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         order_book_service: HyperliquidOrderBookService | None = None,
         # Optional dependency injection following Backpack pattern
         order_book_mapper: OrderBookMapperProtocol | None = None,
@@ -1021,7 +1022,7 @@ class HyperliquidAPIComponentsFactory:
         authenticator: HyperliquidEip712Authenticator | None,
         request_builder: AccountRequestBuilderProtocol,
         response_handler: AccountResponseHandlerProtocol,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         wallet_address: str | None,
         get_asset_index_callable: Callable[[str], Awaitable[int | None]],
         # Optional dependency injection following Backpack pattern
@@ -1074,7 +1075,7 @@ class HyperliquidAPIComponentsFactory:
         self,
         http_client_requester: HttpClientRequesterSig,
         authenticator: HyperliquidEip712Authenticator | None,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         wallet_address: str | None,
         get_asset_index_callable: GetAssetIndexCallableSig,
         order_book_service: HyperliquidOrderBookService | None = None,

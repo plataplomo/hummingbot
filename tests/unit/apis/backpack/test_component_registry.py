@@ -314,7 +314,7 @@ class TestFactoryRegistryIntegration:
         account_service = factory.create_account_service(
             http_client_requester=http_client,
             authenticator=authenticator,
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
         )
 
         # Service should exist (actual mapper injection verified in service tests)

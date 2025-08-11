@@ -197,7 +197,7 @@ class HyperliquidPriceTickerMapper(
                 data=ticker_data,
                 model_class=Ticker,
                 context="hyperliquid_asset_ctx_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(

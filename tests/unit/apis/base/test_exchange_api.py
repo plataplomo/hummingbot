@@ -40,6 +40,7 @@ from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import AnyExchangeSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus
+from cyberdelta.enums import ExchangeName
 from cyberdelta.enums.environment import EnvironmentType
 from cyberdelta.models import (
     AccountSettings,
@@ -80,7 +81,7 @@ class ConcreteTestExchangeAPI(ExchangeAPI):
 
     def __init__(
         self,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         config: ExchangeSpecificConfig | dict[str, Any],
         secrets: AnyExchangeSecrets | dict[str, str | None],
         error_mapper: IErrorMapper,
@@ -528,7 +529,7 @@ def exchange_api_with_di(
     """
 
     def _create_api(
-        exchange_name: str = "test_exchange",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         config: dict[str, Any] | None = None,
         secrets: dict[str, str | None] | None = None,
         **overrides: MagicMock,
@@ -603,8 +604,8 @@ class TestExchangeAPIInitialization:
         exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test API creation with custom exchange name."""
-        api = exchange_api_with_di(exchange_name="custom_exchange")
-        assert api.exchange_name == "custom_exchange"
+        api = exchange_api_with_di(exchange_name=ExchangeName.HYPERLIQUID)
+        assert api.exchange_name == ExchangeName.HYPERLIQUID
 
 
 class TestExchangeAPIWebSocketOperations:
@@ -782,7 +783,7 @@ class TestExchangeAPIWebSocketOperations:
         class PayloadTrackingAPI(ConcreteTestExchangeAPI):
             def __init__(
                 self,
-                exchange_name: str,
+                exchange_name: ExchangeName,
                 config: dict[str, Any],
                 secrets: dict[str, str | None],
                 error_mapper: IErrorMapper,
@@ -824,7 +825,7 @@ class TestExchangeAPIWebSocketOperations:
                 return MagicMock(spec=Withdrawal)
 
         api = PayloadTrackingAPI(
-            exchange_name="test_exchange",
+            exchange_name=ExchangeName.BACKPACK,
             config={
                 "rest_endpoint": "https://test.endpoint",
                 "ws_endpoint": "wss://test.ws",
@@ -976,8 +977,8 @@ class TestExchangeAPIDependencyIsolation:
         exchange_api_with_di: Callable[..., ConcreteTestExchangeAPI],
     ) -> None:
         """Test that multiple API instances don't share dependencies."""
-        api1 = exchange_api_with_di(exchange_name="exchange1")
-        api2 = exchange_api_with_di(exchange_name="exchange2")
+        api1 = exchange_api_with_di(exchange_name=ExchangeName.BACKPACK)
+        api2 = exchange_api_with_di(exchange_name=ExchangeName.HYPERLIQUID)
 
         # Verify instances are different
         assert api1 is not api2

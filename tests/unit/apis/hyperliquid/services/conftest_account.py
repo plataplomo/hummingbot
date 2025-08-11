@@ -150,7 +150,7 @@ def hyperliquid_account_service(
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
-        exchange_name="hyperliquid_test_account",
+        exchange_name=ExchangeName.HYPERLIQUID,
         wallet_address="0xTestWalletAddress",
         balance_mapper=mock_hl_account_mapper,  # For balance tests
         position_mapper=mock_hl_account_mapper,  # For position tests

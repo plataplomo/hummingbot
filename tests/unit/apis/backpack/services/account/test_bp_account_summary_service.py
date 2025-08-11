@@ -127,7 +127,7 @@ def account_summary_service(
         response_handler=mock_response_handler,
         mapper=mock_mapper,
         authenticator=mock_authenticator,
-        exchange_name="backpack",
+        exchange_name=ExchangeName.BACKPACK,
         account_state_service=mock_account_state_service,
     )
 
@@ -777,7 +777,7 @@ class TestBackpackAccountSummaryService:
             response_handler=mock_response_handler,
             mapper=mock_mapper,
             authenticator=None,  # No authenticator
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             account_state_service=mock_account_state_service,
         )
 

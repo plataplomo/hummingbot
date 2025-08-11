@@ -29,6 +29,7 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import (
     MarketMetadataMapperProtocol,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market import Market
 from cyberdelta.models.market.market import HyperliquidMarketDetails
 from cyberdelta.symbols import exchanges
@@ -274,7 +275,7 @@ class HyperliquidMarketMetadataMapper(
                 data=market_data,
                 model_class=Market,
                 context="hyperliquid_asset_def_market_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(

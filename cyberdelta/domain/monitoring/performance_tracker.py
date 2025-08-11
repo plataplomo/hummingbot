@@ -16,6 +16,7 @@ from pydantic import BaseModel
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.trading import OrderSide
+from cyberdelta.exceptions.monitoring import MetricCalculationError
 from cyberdelta.models.market.fill import Fill
 
 
@@ -640,8 +641,14 @@ class PerformanceTracker:
     async def _calculate_period_return(self, days: int) -> Decimal:
         """Calculate return for specific period.
 
+        Args:
+            days: Number of days in the period
+
         Returns:
             Period return percentage as Decimal
+
+        Raises:
+            MetricCalculationError: If end equity is missing for the period.
         """
         period_end = datetime.now(UTC)
         period_start = period_end - timedelta(days=days)
@@ -652,7 +659,9 @@ class PerformanceTracker:
         if not start_equity or start_equity == Decimal(0):
             return Decimal(0)
 
-        return ((end_equity or Decimal(0)) - start_equity) / start_equity * Decimal(100)
+        if end_equity is None:
+            raise MetricCalculationError("return", f"end equity missing for period {period_end}")
+        return (end_equity - start_equity) / start_equity * Decimal(100)
 
     async def _calculate_sortino_ratio(
         self, period_start: datetime, period_end: datetime

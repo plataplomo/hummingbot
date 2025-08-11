@@ -15,6 +15,7 @@ from decimal import Decimal
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.spot_balance import SpotBalance
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
@@ -44,7 +45,7 @@ class TestBackpackMarginBalancesZero:
         account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
 
         # Even with zero balance, these fields should be present
         assert account_summary.total_equity >= Decimal(0)

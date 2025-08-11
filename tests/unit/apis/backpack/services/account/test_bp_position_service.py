@@ -108,7 +108,7 @@ def position_service(
         response_handler=mock_response_handler,
         mapper=mock_mapper,
         authenticator=mock_authenticator,
-        exchange_name="backpack",
+        exchange_name=ExchangeName.BACKPACK,
     )
 
 

@@ -13,6 +13,7 @@ from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceRes
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -47,7 +48,7 @@ class TestBackpackAccountServiceBalances:
         result = await bp_account_service.get_balances()
 
         # The mapper transforms to exchange="backpack" not "backpack_test_account"
-        assert result["USDC"].exchange == "backpack"
+        assert result["USDC"].exchange == ExchangeName.BACKPACK
         assert result["USDC"].asset.value == "USDC"
         assert isinstance(result["USDC"].timestamp, datetime)
         assert result["USDC"].timestamp.tzinfo == UTC
@@ -96,7 +97,9 @@ class TestBackpackAccountServiceBalances:
 
         # Check USDC balance
         usdc_balance = result_balances["USDC"]
-        assert usdc_balance.exchange == "backpack"  # Mapper returns "backpack"
+        assert (
+            usdc_balance.exchange == ExchangeName.BACKPACK
+        )  # Mapper returns ExchangeName.BACKPACK
         assert usdc_balance.asset.value == "USDC"
         assert isinstance(usdc_balance.timestamp, datetime)
         assert usdc_balance.timestamp.tzinfo == UTC
@@ -105,7 +108,7 @@ class TestBackpackAccountServiceBalances:
 
         # Check SOL balance
         sol_balance = result_balances["SOL"]
-        assert sol_balance.exchange == "backpack"  # Mapper returns "backpack"
+        assert sol_balance.exchange == ExchangeName.BACKPACK  # Mapper returns ExchangeName.BACKPACK
         assert sol_balance.asset.value == "SOL"
         assert isinstance(sol_balance.timestamp, datetime)
         assert sol_balance.timestamp.tzinfo == UTC

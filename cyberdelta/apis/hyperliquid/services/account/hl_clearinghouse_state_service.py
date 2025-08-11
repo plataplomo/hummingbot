@@ -34,6 +34,7 @@ from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_cache_service
 )
 from cyberdelta.apis.models.service_args.hyperliquid import HyperliquidGetUserStateArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -65,7 +66,7 @@ class HyperliquidClearinghouseStateService:
         request_builder: AccountRequestBuilderProtocol,
         response_handler: AccountResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
         wallet_address: str | None = None,
         cache_service: HyperliquidClearinghouseCacheService | None = None,
     ) -> None:

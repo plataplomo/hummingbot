@@ -28,6 +28,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetOrderArgs,
     GetOrderHistoryArgs,
 )
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market.order import Order
 
 
@@ -122,7 +123,7 @@ class TestHyperliquidSpotOrdersZero:
             # Validate spot orders when they become available
             for order in spot_orders:
                 assert isinstance(order, Order)
-                assert order.exchange == "hyperliquid"
+                assert order.exchange == ExchangeName.HYPERLIQUID
 
         except (NotImplementedError, APIError):
             # Expected for now since spot trading isn't implemented

@@ -28,6 +28,7 @@ from cyberdelta.config.models.safety_config import (
     CircuitBreakerSettings,
     SafetySystemsSettings,
 )
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
@@ -289,8 +290,8 @@ class TestStrategyParamsHLPerpBPSpot:
         assert params.check_interval == 60
         assert params.risk_aversion == Decimal("1.0")
         assert params.rebalance_threshold == Decimal("0.1")
-        assert params.perp_exchange == "hyperliquid"
-        assert params.spot_exchange == "backpack"
+        assert params.perp_exchange == ExchangeName.HYPERLIQUID
+        assert params.spot_exchange == ExchangeName.BACKPACK
 
     def test_decimal_conversion(self) -> None:
         """Test Decimal conversion from various input types."""

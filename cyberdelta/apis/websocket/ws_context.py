@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
-from enum import StrEnum
 from typing import Any, TypeVar
 
 import orjson
 from pydantic import BaseModel, Field, computed_field
+
+from cyberdelta.enums import ExchangeName
 
 
 # Import UTC timezone
@@ -21,11 +22,7 @@ from pydantic import BaseModel, Field, computed_field
 EnvelopeType = TypeVar("EnvelopeType", bound="BaseModel")
 
 
-class ExchangeType(StrEnum):
-    """Enum for exchange types with type safety."""
-
-    BACKPACK = "backpack"
-    HYPERLIQUID = "hyperliquid"
+# Using unified ExchangeName enum from cyberdelta.enums
 
 
 class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
@@ -45,7 +42,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
     # Core strongly typed fields
     validated_envelope: EnvelopeType
-    exchange_type: ExchangeType
+    exchange_type: ExchangeName
     routing_key: str
     timestamp: datetime
     message_id: str = Field(min_length=1, max_length=64)
@@ -62,6 +59,15 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     # Type is Any because it varies based on the transformer used
     domain_model: Any = Field(default=None, exclude=True)
 
+    @property
+    def exchange_name(self) -> str:
+        """Get exchange name string from ExchangeName enum.
+
+        Returns:
+            str: Exchange name string derived from exchange_type enum.
+        """
+        return self.exchange_type.value
+
     @computed_field
     def topic(self) -> str | None:
         """Extract topic with proper typing based on exchange.
@@ -69,7 +75,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         Returns:
             str | None: Topic/stream name from message envelope, or None if not available.
         """
-        if self.exchange_type == ExchangeType.BACKPACK:
+        if self.exchange_type == ExchangeName.BACKPACK:
             return getattr(self.validated_envelope, "stream", None)
         # HYPERLIQUID
         return getattr(self.validated_envelope, "channel", None)
@@ -141,11 +147,6 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
             float: Time elapsed since processing started, in milliseconds.
         """
         return (time.perf_counter() - self.processing_start_time) * 1000
-
-    @property
-    def exchange_name(self) -> str:
-        """Get exchange name for compatibility with BaseContextProtocol."""
-        return str(self.exchange_type)
 
     @property
     def raw_model(self) -> object | None:

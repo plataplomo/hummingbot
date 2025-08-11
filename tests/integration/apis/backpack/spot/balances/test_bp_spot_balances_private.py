@@ -15,6 +15,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.spot_balance import SpotBalance
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
@@ -53,7 +54,7 @@ class TestBackpackSpotBalancesPrivate:
         for asset_symbol, balance in balances.items():
             assert isinstance(balance, SpotBalance)
             assert balance.asset.value == asset_symbol
-            assert balance.exchange == "backpack"
+            assert balance.exchange == ExchangeName.BACKPACK
 
             # Validate timestamp recency (within 1 hour for active environment)
             assert balance.timestamp is not None

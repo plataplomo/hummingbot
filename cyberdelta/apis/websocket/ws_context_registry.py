@@ -10,11 +10,12 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from cyberdelta.apis.exceptions.request_validation import MissingRequiredParameterError
-from cyberdelta.apis.websocket.ws_context import ExchangeType, WebSocketMessageContext
+from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 from cyberdelta.apis.websocket.ws_protocols import (
     WebSocketContextProtocol,
     WebSocketEnvelopeProtocol,
 )
+from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -36,12 +37,12 @@ class WebSocketContextRegistry:
 
     def __init__(self) -> None:
         """Initialize the registry."""
-        self._context_types: dict[ExchangeType, type[WebSocketMessageContext[Any]]] = {}
-        self._envelope_validators: dict[ExchangeType, Callable[[dict[str, Any]], BaseModel]] = {}
+        self._context_types: dict[ExchangeName, type[WebSocketMessageContext[Any]]] = {}
+        self._envelope_validators: dict[ExchangeName, Callable[[dict[str, Any]], BaseModel]] = {}
 
     def register_context_type(
         self,
-        exchange_type: ExchangeType,
+        exchange_type: ExchangeName,
         context_class: type[WebSocketMessageContext[Any]],
         envelope_validator: Callable[[dict[str, Any]], BaseModel],
     ) -> None:
@@ -57,7 +58,7 @@ class WebSocketContextRegistry:
 
     def get_context_type(
         self,
-        exchange_type: ExchangeType,
+        exchange_type: ExchangeName,
     ) -> type[WebSocketMessageContext[Any]] | None:
         """Get the context type for an exchange.
 
@@ -71,7 +72,7 @@ class WebSocketContextRegistry:
 
     def get_envelope_validator(
         self,
-        exchange_type: ExchangeType,
+        exchange_type: ExchangeName,
     ) -> Callable[[dict[str, Any]], BaseModel] | None:
         """Get the envelope validator for an exchange.
 
@@ -85,7 +86,7 @@ class WebSocketContextRegistry:
 
     def create_context(
         self,
-        exchange_type: ExchangeType,
+        exchange_type: ExchangeName,
         raw_message: dict[str, Any],
         connection_id: str,
         message_id: str,
@@ -154,7 +155,7 @@ class WebSocketContextRegistry:
             timestamp=datetime.now(UTC),
         )
 
-    def is_registered(self, exchange_type: ExchangeType) -> bool:
+    def is_registered(self, exchange_type: ExchangeName) -> bool:
         """Check if an exchange type is registered.
 
         Args:

@@ -411,7 +411,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 data=trade_data,
                 model_class=Fill,
                 context="backpack_fill_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(
@@ -539,7 +539,7 @@ class BackpackTransactionMapper(CommonDataParserMixin, ValidationMixin, Transact
                 data=order_data,
                 model_class=Order,
                 context="backpack_order_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(

@@ -26,7 +26,7 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models import BackpackOrderDetails, Order
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
     DEFAULT_TEST_SYMBOL_SPOT,
@@ -66,7 +66,7 @@ class TestBackpackOrdersPositive:
             # Verify each order
             for order in orders:
                 assert isinstance(order, Order)
-                assert order.exchange == "backpack"
+                assert order.exchange == ExchangeName.BACKPACK
                 # Open orders can have various statuses including TRIGGER_PENDING for stop orders
                 assert order.status in [OrderStatus.OPEN, OrderStatus.TRIGGER_PENDING]
 
@@ -141,7 +141,7 @@ class TestBackpackOrdersPositive:
         order = await bp_api_for_test_env.place_order(args)
 
         assert isinstance(order, Order)
-        assert order.exchange == "backpack"
+        assert order.exchange == ExchangeName.BACKPACK
         assert order.symbol == symbol
         assert order.side == OrderSide.BUY
         assert order.order_type == OrderType.LIMIT
@@ -185,7 +185,7 @@ class TestBackpackOrdersPositive:
         order = await bp_api_for_test_env.place_order(args)
 
         assert isinstance(order, Order)
-        assert order.exchange == "backpack"
+        assert order.exchange == ExchangeName.BACKPACK
         assert order.symbol == symbol
         assert order.side == OrderSide.SELL
         assert order.order_type == OrderType.LIMIT

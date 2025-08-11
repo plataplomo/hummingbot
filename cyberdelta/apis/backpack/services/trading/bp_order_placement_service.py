@@ -37,6 +37,7 @@ from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import (
+    ExchangeName,
     OrderType,
     TimeInForce,
 )
@@ -65,7 +66,7 @@ class BackpackOrderPlacementService(SymbolAwareMixin):
         request_builder: TradingRequestBuilderProtocol,
         response_handler: TradingResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         # Optional dependency injection for mapper
         mapper: OrderMapperProtocol | None = None,
     ) -> None:

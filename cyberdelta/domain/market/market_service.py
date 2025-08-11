@@ -10,7 +10,6 @@ import asyncio
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
-from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.market.cache_manager import CacheManager
@@ -18,8 +17,10 @@ from cyberdelta.domain.market.data_fetcher import DataFetcher
 from cyberdelta.domain.market.exchange_connector import ExchangeConnector
 from cyberdelta.domain.market.market_aggregator import MarketAggregator
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models.market.candle import Candle
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
+from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
 from cyberdelta.symbols.models import Symbol
 
@@ -150,7 +151,7 @@ class MarketDataService:
             return cached_ticker
 
         # Fetch fresh data
-        api_client = self._exchange_connector.get_api_client(exchange.value)
+        api_client = self._exchange_connector.get_api_client(exchange)
         if not api_client:
             logger.warning(
                 "ticker_fetch_no_api_client", symbol=symbol.value, exchange=exchange.value
@@ -158,7 +159,7 @@ class MarketDataService:
             return None
 
         # Check if exchange is enabled
-        if not self._exchange_connector.is_exchange_enabled(exchange.value):
+        if not self._exchange_connector.is_exchange_enabled(exchange):
             logger.warning(
                 "ticker_fetch_exchange_disabled", symbol=symbol.value, exchange=exchange.value
             )
@@ -221,7 +222,7 @@ class MarketDataService:
         - NO hardcoded values
         - Proper error handling with context
         """
-        api_client = self._exchange_connector.get_api_client(exchange.value)
+        api_client = self._exchange_connector.get_api_client(exchange)
         if not api_client:
             logger.warning(
                 "historical_data_no_api_client",
@@ -231,7 +232,7 @@ class MarketDataService:
             return None
 
         # Check if exchange is enabled
-        if not self._exchange_connector.is_exchange_enabled(exchange.value):
+        if not self._exchange_connector.is_exchange_enabled(exchange):
             logger.warning(
                 "historical_data_exchange_disabled",
                 symbol=symbol.value,
@@ -276,3 +277,43 @@ class MarketDataService:
         - Structured logging of operation
         """
         self._cache_manager.clear_cache()
+
+    async def update_ticker(self, ticker: Ticker) -> None:
+        """Update ticker data in cache.
+
+        Args:
+            ticker: Ticker data to store
+
+        IMPORTANT: Following CODING_STANDARDS.md:
+        - Uses typed Ticker object, not dict
+        - Structured logging for cache operations
+        """
+        self._cache_manager.cache_ticker(ticker.symbol, ticker.exchange, ticker)
+
+        logger.debug(
+            "ticker_updated",
+            symbol=ticker.symbol.value,
+            exchange=ticker.exchange.value,
+            price=float(ticker.price) if ticker.price is not None else None,
+        )
+
+    async def update_orderbook(self, orderbook: OrderBook, exchange: ExchangeName) -> None:
+        """Update orderbook data in cache.
+
+        Args:
+            orderbook: OrderBook data to store
+            exchange: Exchange where the orderbook is from
+
+        IMPORTANT: Following CODING_STANDARDS.md:
+        - Uses typed OrderBook object, not dict
+        - Structured logging for cache operations
+        """
+        self._cache_manager.cache_order_book(orderbook.symbol, exchange, orderbook)
+
+        logger.debug(
+            "orderbook_updated",
+            symbol=orderbook.symbol.value,
+            exchange=exchange.value,
+            bids_count=len(orderbook.bids),
+            asks_count=len(orderbook.asks),
+        )

@@ -22,12 +22,10 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.common import APIError, MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
-from cyberdelta.apis.websocket.ws_context import (
-    ExchangeType,
-    WebSocketMessageContext,
-)
+from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
@@ -468,7 +466,7 @@ class TestBackpackErrorHandlingArchitecture:
                 )
                 test_context = WebSocketMessageContext(
                     validated_envelope=test_envelope,
-                    exchange_type=ExchangeType.BACKPACK,
+                    exchange_type=ExchangeName.BACKPACK,
                     routing_key="ticker",
                     timestamp=datetime.now(UTC),
                     message_id="test-msg-123",

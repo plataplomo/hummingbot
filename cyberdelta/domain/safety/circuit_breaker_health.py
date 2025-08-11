@@ -12,16 +12,17 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.domain.safety.models import (
-    HEALTH_RATIO_DEGRADED_THRESHOLD,
-    HEALTH_RATIO_IMPAIRED_THRESHOLD,
-    CircuitBreakerState,
-)
+from cyberdelta.enums.safety.circuit_breaker import CircuitBreakerState
 from cyberdelta.models.monitoring.system_health_models import (
     CircuitBreakerConfiguration,
     CircuitBreakerStatistics,
     CircuitBreakerSystemHealth,
 )
+
+
+# Health ratio thresholds for system status determination
+HEALTH_RATIO_DEGRADED_THRESHOLD = 0.8
+HEALTH_RATIO_IMPAIRED_THRESHOLD = 0.5
 
 
 if TYPE_CHECKING:

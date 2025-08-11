@@ -7,6 +7,7 @@ import pytest
 from cyberdelta.apis.backpack.bp_rate_limit_strategy import BackpackRateLimitStrategy
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.enums import ExchangeName
 
 
 class TestBackpackRateLimitStrategy:
@@ -46,7 +47,7 @@ class TestBackpackRateLimitStrategy:
         # Arrange
         duration_seconds = 10.5
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/orders",
             action_payload=None,
@@ -93,7 +94,7 @@ class TestBackpackRateLimitStrategy:
         """Test that prepare_and_acquire works as inherited from SimpleTokenBucketStrategy."""
         # Arrange
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/markets",
             action_payload=None,
@@ -119,7 +120,7 @@ class TestBackpackRateLimitStrategy:
         """Test prepare_and_acquire with default weight when not specified in context."""
         # Arrange
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/markets",
             action_payload=None,

@@ -12,6 +12,7 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_historical_data_mapper i
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import Candle
 from tests.common_symbols import BTC_HL
 
@@ -72,7 +73,7 @@ class TestHyperliquidMarketDataService:
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             historical_data_mapper=mock_historical_data_mapper,
         )
 

@@ -277,17 +277,20 @@ class SafeModeWrapper:
             return await self._real_api.get_account_summary()
 
         # Calculate simulated account summary from balances and positions
-        total_equity = sum(balance.total_quantity for balance in self._simulated_balances.values())
+        total_equity = sum(
+            (balance.total_quantity for balance in self._simulated_balances.values()), Decimal(0)
+        )
         available_equity = sum(
-            balance.available_quantity for balance in self._simulated_balances.values()
+            (balance.available_quantity for balance in self._simulated_balances.values()),
+            Decimal(0),
         )
 
         # Create simulated account summary
         return MarginAccountSummary(
             exchange=self._exchange_name,
             timestamp=datetime.now(UTC),
-            total_equity=total_equity or Decimal(0),
-            available_equity=available_equity or Decimal(0),
+            total_equity=total_equity,
+            available_equity=available_equity,
         )
 
     async def get_open_orders(self, symbol: Symbol | None = None) -> list[Order]:

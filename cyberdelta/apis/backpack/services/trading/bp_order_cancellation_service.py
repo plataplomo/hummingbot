@@ -31,6 +31,7 @@ from cyberdelta.apis.exceptions import MissingRequiredFieldError
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -57,7 +58,7 @@ class BackpackOrderCancellationService:
         request_builder: TradingRequestBuilderProtocol,
         response_handler: TradingResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         mapper: OrderMapperProtocol | None = None,
     ) -> None:
         """Initialize the order cancellation service.

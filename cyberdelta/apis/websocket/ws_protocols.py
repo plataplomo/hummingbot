@@ -12,7 +12,7 @@ from cyberdelta.apis.common.base_types import BaseContextProtocol
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_context import ExchangeType
+    from cyberdelta.enums import ExchangeName
 
 
 @runtime_checkable
@@ -53,7 +53,7 @@ class WebSocketContextProtocol(BaseContextProtocol, Protocol):
         ...
 
     # Additional WebSocket-specific attributes
-    exchange_type: ExchangeType
+    exchange_type: ExchangeName
     connection_id: str
     message_id: str
     timestamp: Any  # datetime in implementation

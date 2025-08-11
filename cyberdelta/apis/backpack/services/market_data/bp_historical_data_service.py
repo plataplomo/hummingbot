@@ -45,6 +45,7 @@ from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import Fill
 from cyberdelta.models.market.candle import Candle
 from cyberdelta.symbols.models import Symbol
@@ -94,7 +95,7 @@ class BackpackHistoricalDataService:
         request_builder: BackpackMarketDataRequestBuilder,
         response_handler: BackpackMarketDataResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         trade_mapper: BackpackFillMapper | None = None,
         candle_mapper: BackpackCandleMapper | None = None,
         funding_rate_mapper: BackpackFundingRateMapper | None = None,

@@ -41,7 +41,6 @@ from cyberdelta.apis.exceptions import (
     UnsupportedWebSocketTopicError,
     WebSocketSubscriptionError,
 )
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
 )
@@ -52,6 +51,7 @@ from cyberdelta.apis.websocket.ws_transformer import (
     MapperTransformer,
 )
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.models import DerivativePosition, Fill, Order, Ticker
 
@@ -129,8 +129,7 @@ class BackpackWebSocketRouter(
         self.transaction_mapper = transaction_mapper
 
         super().__init__(
-            exchange_name="backpack",
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_name=ExchangeName.BACKPACK,
             error_handler=error_handler,
             typed_processor=typed_processor,
             envelope_validator=validate_backpack_envelope,
@@ -268,7 +267,7 @@ class BackpackWebSocketRouter(
             self.logger.warning(
                 "invalid_backpack_stream_format",
                 stream=stream_or_topic,
-                exchange=self.exchange_name,
+                exchange=self.exchange_name.value,
             )
             return None
         else:

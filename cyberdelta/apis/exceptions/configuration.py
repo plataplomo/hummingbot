@@ -6,6 +6,7 @@ and inherit from APIError to maintain proper error handling hierarchy.
 
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 class TestnetConfigurationError(APIError):
@@ -79,7 +80,7 @@ class HyperliquidRateLimitConfigError(APIError):
             code=APIErrorCode.INVALID_REQUEST.value,
             exchange_code="HL_RATE_LIMIT_CONFIG_ERROR",
             metadata={
-                "exchange": "hyperliquid",
+                "exchange": ExchangeName.HYPERLIQUID.value,
                 "missing_fields": missing_fields,
                 "error_type": "rate_limit_configuration",
             },

@@ -9,6 +9,7 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_market_data_request_builder
     HyperliquidMarketDataRequestBuilder,
 )
 from cyberdelta.apis.hyperliquid.services.hl_market_data_service import HyperliquidMarketDataService
+from cyberdelta.enums import ExchangeName
 
 
 @pytest.fixture
@@ -71,5 +72,5 @@ def hyperliquid_market_data_service(
         order_book_mapper=mock_hl_mapper,
         historical_data_mapper=mock_hl_mapper,
         market_metadata_mapper=mock_hl_mapper,
-        exchange_name="hyperliquid_test",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )

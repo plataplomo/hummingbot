@@ -17,6 +17,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionR
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from tests.common_symbols import BTC_USDC_BP, SOL_BP, SOL_USDC_BP
 
 
@@ -82,7 +83,7 @@ class TestBackpackAccountServicePositions:
 
         # Business logic returns positions with exchange="backpack"
         assert len(result_no_symbol) == 1
-        assert result_no_symbol[0].exchange == "backpack"
+        assert result_no_symbol[0].exchange == ExchangeName.BACKPACK
         assert result_no_symbol[0].symbol == symbol_arg
         assert isinstance(result_no_symbol[0].timestamp, datetime)
         assert result_no_symbol[0].timestamp.tzinfo == UTC
@@ -111,7 +112,7 @@ class TestBackpackAccountServicePositions:
 
         # Business logic returns positions with exchange="backpack"
         assert len(result_with_symbol) == 1
-        assert result_with_symbol[0].exchange == "backpack"
+        assert result_with_symbol[0].exchange == ExchangeName.BACKPACK
         assert result_with_symbol[0].symbol == symbol_arg
         assert isinstance(result_with_symbol[0].timestamp, datetime)
         assert result_with_symbol[0].timestamp.tzinfo == UTC
@@ -235,7 +236,7 @@ class TestBackpackAccountServicePositions:
 
         # Business logic returns positions with exchange="backpack"
         assert len(result) == 1
-        assert result[0].exchange == "backpack"
+        assert result[0].exchange == ExchangeName.BACKPACK
         assert result[0].symbol == SOL_USDC_BP
 
     @pytest.mark.asyncio
@@ -284,7 +285,7 @@ class TestBackpackAccountServicePositions:
 
         # Business logic returns positions with exchange="backpack"
         assert len(result) == 1
-        assert result[0].exchange == "backpack"
+        assert result[0].exchange == ExchangeName.BACKPACK
         assert result[0].symbol == SOL_USDC_BP
 
     @pytest.mark.asyncio

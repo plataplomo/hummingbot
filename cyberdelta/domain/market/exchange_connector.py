@@ -12,6 +12,7 @@ from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.config.models import AppSettings, ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 
 
 logger = get_logger(__name__)
@@ -38,7 +39,7 @@ class ExchangeConnector:
 
         Args:
             config: Application settings containing exchange configuration
-            api_clients: Dictionary of exchange API clients
+            api_clients: Dict of exchange API clients (keyed by string for config compat)
         """
         self.config = config
         self._api_clients = api_clients
@@ -133,7 +134,7 @@ class ExchangeConnector:
 
         Args:
             api_client: Exchange API client instance
-            exchange_name: Name of the exchange
+            exchange_name: Name of the exchange (string for logging compatibility)
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - NO assumptions about API client interface
@@ -162,7 +163,7 @@ class ExchangeConnector:
         """
         return self._enabled_exchanges.copy()
 
-    def get_api_client(self, exchange_name: str) -> ExchangeAPI | None:
+    def get_api_client(self, exchange_name: ExchangeName) -> ExchangeAPI | None:
         """Get API client for specific exchange.
 
         Args:
@@ -171,9 +172,9 @@ class ExchangeConnector:
         Returns:
             API client if available, None otherwise
         """
-        return self._api_clients.get(exchange_name)
+        return self._api_clients.get(exchange_name.value)
 
-    def is_exchange_enabled(self, exchange_name: str) -> bool:
+    def is_exchange_enabled(self, exchange_name: ExchangeName) -> bool:
         """Check if exchange is enabled.
 
         Args:
@@ -182,4 +183,4 @@ class ExchangeConnector:
         Returns:
             True if exchange is enabled, False otherwise
         """
-        return exchange_name in self._enabled_exchanges
+        return exchange_name.value in self._enabled_exchanges

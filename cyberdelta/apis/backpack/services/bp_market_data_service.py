@@ -44,6 +44,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketsArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import (
     Fill,
     FundingRate,
@@ -82,7 +83,7 @@ class BackpackMarketDataService:
         http_client_requester: HttpClientRequesterSig,
         request_builder: BackpackMarketDataRequestBuilder,
         response_handler: BackpackMarketDataResponseHandler,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         # Optional mapper injection for testability
         ticker_mapper: BackpackTickerMapper | None = None,
         order_book_mapper: BackpackOrderBookMapper | None = None,

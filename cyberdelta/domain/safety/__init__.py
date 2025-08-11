@@ -8,11 +8,8 @@ from cyberdelta.domain.safety.circuit_breaker import (
     CircuitBreaker,
     CircuitBreakerManager,
 )
-from cyberdelta.domain.safety.models import (
-    CircuitBreakerState,
-    CircuitBreakerViolationError,
-    FailureType,
-)
+from cyberdelta.enums.safety.circuit_breaker import CircuitBreakerState, FailureType
+from cyberdelta.models.exceptions.circuit_breaker import CircuitBreakerViolationError
 
 
 __all__ = [

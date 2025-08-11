@@ -9,6 +9,7 @@ from .app_config import AppSettings
 
 # Import new modular configs
 from .config_types import ConfigDecimal, NonEmptyConfigString, StringForLiteral
+from .event_system_config import EventSystemSettings
 from .exchange_config import AddressActionSafetyNetConfig, ExchangeSpecificConfig
 from .execution_config import ExecutionCompensationSettings, ExecutionSettings
 from .fee_config import FeeStructureConfig
@@ -58,6 +59,7 @@ __all__ = [
     "CircuitBreakerSettings",
     "ConfigDecimal",
     "EnhancedRiskSettings",
+    "EventSystemSettings",
     # New modular exports
     "ExchangeSpecificConfig",
     "ExecutionCompensationSettings",

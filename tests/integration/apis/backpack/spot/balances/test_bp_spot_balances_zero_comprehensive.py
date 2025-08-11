@@ -31,6 +31,7 @@ from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.spot_balance import SpotBalance
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
@@ -83,7 +84,7 @@ class TestBackpackSpotBalancesZeroComprehensive:
             assert balance.asset.value == asset_symbol, (
                 f"SpotBalance.asset ({balance.asset.value}) should match dict key ({asset_symbol})"
             )
-            assert balance.exchange == "backpack", (
+            assert balance.exchange == ExchangeName.BACKPACK, (
                 f"SpotBalance.exchange should be 'backpack', got {balance.exchange}"
             )
 

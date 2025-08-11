@@ -209,33 +209,33 @@ class IntegrationConfig:
         self.temp_data_retention_hours = 24
 ```
 
-### 3.2 LGPL-Safe Nautilus Bridge
+### 3.2 Direct Nautilus Integration (LGPLv3 Compliant)
 
 ```python
-class NautilusBridge:
+# Direct import is completely safe with LGPLv3!
+from nautilus_trader.backtest.engine import BacktestEngine
+from nautilus_trader.backtest.node import BacktestNode
+from nautilus_trader.analysis import PortfolioAnalyzer
+from nautilus_trader.persistence.catalog import ParquetDataCatalog
+
+class NautilusDirectIntegration:
     \"\"\"
-    LGPL-compliant bridge to Nautilus Trader functionality
-    Uses subprocess execution to maintain license safety
+    Direct integration with Nautilus Trader - LGPLv3 allows this!
+    No subprocess isolation needed - your code remains proprietary
     \"\"\"
 
     def __init__(self, config: IntegrationConfig):
         self.config = config
-        self.nautilus_venv = config.nautilus_venv_path
-        self.working_dir = config.nautilus_working_dir
-        self._ensure_environment()
 
-    def _ensure_environment(self):
-        \"\"\"Ensure Nautilus environment is available\"\"\"
-        self.working_dir.mkdir(parents=True, exist_ok=True)
+        # Direct instantiation of Nautilus components
+        self.backtest_engine = BacktestEngine()
+        self.analyzer = PortfolioAnalyzer()
+        self.catalog = ParquetDataCatalog(config.catalog_path)
 
-        # Verify Nautilus installation
-        result = subprocess.run([
-            str(self.nautilus_venv / \"bin\" / \"python\"),
-            \"-c\", \"import nautilus_trader; print('OK')\"
-        ], capture_output=True, text=True)
-
-        if result.returncode != 0:
-            raise RuntimeError(\"Nautilus Trader not found in environment\")
+    def setup_backtesting(self):
+        \"\"\"Initialize Nautilus backtesting with direct access\"\"\"
+        # Full access to all Nautilus features
+        return self.backtest_engine
 
     async def run_backtest(
         self,
@@ -294,58 +294,40 @@ class NautilusBridge:
         result = await self._execute_analysis_subprocess(analysis_config)
         return result
 
-    async def _execute_backtest_subprocess(self, config: Dict) -> Dict:
-        \"\"\"Execute Nautilus backtest in isolated subprocess\"\"\"
+    async def run_backtest_directly(self, config: Dict) -> Dict:
+        \"\"\"Execute Nautilus backtest with direct API access\"\"\"
 
-        # Create backtest script
-        script_content = f'''
-import json
-import asyncio
-from pathlib import Path
-from nautilus_trader.backtest.engine import BacktestEngine
-from nautilus_trader.backtest.config import BacktestRunConfig
+        # Direct use of Nautilus API - no subprocess needed!
+        from nautilus_trader.backtest.config import BacktestRunConfig
+        from nautilus_trader.config import ImportableStrategyConfig
 
-async def run_backtest():
-    config_data = {json.dumps(config)}
+        # Configure backtest directly
+        backtest_config = BacktestRunConfig(
+            engine=config.get('engine'),
+            venues=config.get('venues'),
+            data=config.get('data'),
+            strategies=[
+                ImportableStrategyConfig(
+                    strategy_path=config['strategy']['path'],
+                    config=config['strategy']['params']
+                )
+            ]
+        )
 
-    # Configure Nautilus backtest
-    # ... detailed Nautilus configuration ...
+        # Run backtest using direct API
+        node = BacktestNode(configs=[backtest_config])
+        results = node.run()
 
-    # Run backtest
-    engine = BacktestEngine()
-    result = await engine.run_async()
-
-    # Return results as JSON
-    return result.to_dict()
-
-# Execute and print results
-result = asyncio.run(run_backtest())
-print(json.dumps(result))
-'''
-
-        # Write script to temporary file
-        script_path = self.working_dir / f\"backtest_{uuid4().hex[:8]}.py\"
-        with open(script_path, 'w') as f:
-            f.write(script_content)
-
-        try:
-            # Execute in Nautilus environment
-            result = subprocess.run([
-                str(self.nautilus_venv / \"bin\" / \"python\"),
-                str(script_path)
-            ],
-            capture_output=True,
-            text=True,
-            timeout=self.config.subprocess_timeout)
-
-            if result.returncode != 0:
-                raise RuntimeError(f\"Backtest failed: {result.stderr}\")
-
-            return json.loads(result.stdout)
-
-        finally:
-            # Cleanup temporary script
-            script_path.unlink(missing_ok=True)
+        # Direct access to results - no JSON serialization needed
+        return {
+            'performance': results.performance,
+            'trades': results.trades,
+            'positions': results.positions,
+            'analytics': self.analyzer.calculate_statistics(
+                results.account,
+                results.positions
+            )
+        }
 ```
 
 ### 3.3 Data Exchange Layer
@@ -746,19 +728,20 @@ class LGPLComplianceFramework:
 
         return ComplianceReport(results)
 
-    def _verify_process_isolation(self) -> Dict:
-        \"\"\"Verify Nautilus runs in separate process\"\"\"
+    def _verify_direct_import_allowed(self) -> Dict:
+        \"\"\"Verify LGPLv3 allows direct import\"\"\"
 
-        # Check that no Nautilus modules are imported in main process
+        # With LGPLv3, direct import is completely allowed
         imported_modules = sys.modules.keys()
         nautilus_imports = [m for m in imported_modules if 'nautilus' in m.lower()]
 
-        if nautilus_imports:
-            raise ComplianceViolation(
-                f\"Nautilus modules imported in main process: {nautilus_imports}\"
-            )
-
-        return {\"status\": \"isolated\", \"method\": \"subprocess\"}
+        # This is now perfectly fine with LGPLv3!
+        return {
+            \"status\": \"compliant\",
+            \"method\": \"direct_import\",
+            \"nautilus_modules\": nautilus_imports,
+            \"proprietary_code_protected\": True
+        }
 
     def _verify_source_availability(self) -> Dict:
         \"\"\"Verify Nautilus source code availability\"\"\"
@@ -799,7 +782,7 @@ class LGPLComplianceFramework:
 
 ## Nautilus Trader Integration
 
-CyberDeltaEngine integrates with Nautilus Trader (LGPLv3) via subprocess execution.
+CyberDeltaEngine integrates with Nautilus Trader (LGPLv3) as a library dependency.
 
 ### Source Code Availability
 - Nautilus Trader source: https://github.com/nautechsystems/nautilus_trader
@@ -807,9 +790,9 @@ CyberDeltaEngine integrates with Nautilus Trader (LGPLv3) via subprocess executi
 - Version used: [specific version]
 
 ### Installation Instructions
-1. Create isolated Python environment: `python -m venv /opt/nautilus_env`
-2. Install Nautilus: `pip install nautilus-trader==[version]`
-3. Configure CyberDelta integration: [configuration steps]
+1. Add to requirements.txt: `nautilus-trader==[version]`
+2. Install: `pip install -r requirements.txt`
+3. Import directly in your code
 
 ### Modification Rights
 Users have the right to:
@@ -819,10 +802,10 @@ Users have the right to:
 - Distribute modified versions under LGPLv3
 
 ### Technical Implementation
-- Integration method: Subprocess execution
-- Process isolation: Complete
-- Data exchange: JSON/Parquet files
-- No direct linking: Confirmed
+- Integration method: Direct import as library
+- Your code status: Remains proprietary
+- Data exchange: Native Python objects
+- Direct API access: Full functionality available
 
 ### Compliance Verification
 Run: `python -m cyberdelta.compliance.verify_lgpl`

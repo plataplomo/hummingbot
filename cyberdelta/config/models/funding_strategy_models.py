@@ -10,6 +10,7 @@ from typing import Self
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator, model_validator
 
 from cyberdelta.config.models.config_types import ConfigDecimal, NonEmptyConfigString
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.field_validation import EnumFieldError, OrderLogicError, RangeFieldError
 
 
@@ -22,11 +23,11 @@ MAX_PRICE_SPREAD_PCT = Decimal("0.05")  # 5% maximum price spread for arbitrage
 MIN_CHECK_INTERVAL_SECONDS = 1  # Minimum check interval
 
 # Supported exchanges for strategy validation
-SUPPORTED_EXCHANGES = {"hyperliquid", "backpack"}
+SUPPORTED_EXCHANGES = {ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK}
 
 # Expected exchange configuration for HL Perp BP Spot strategy
-EXPECTED_PERP_EXCHANGE = "hyperliquid"
-EXPECTED_SPOT_EXCHANGE = "backpack"
+EXPECTED_PERP_EXCHANGE = ExchangeName.HYPERLIQUID
+EXPECTED_SPOT_EXCHANGE = ExchangeName.BACKPACK
 
 
 class StrategyParamsHLPerpBPSpot(BaseModel):

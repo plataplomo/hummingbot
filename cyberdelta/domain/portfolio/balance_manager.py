@@ -26,11 +26,6 @@ from cyberdelta.symbols.models import Symbol
 
 logger = structlog.get_logger(__name__)
 
-# Module-level symbol service initialization
-# Following the pattern from momentum_strategy.py - initialize once at module level
-# This avoids repeated calls to get_symbol_service() in methods
-_symbol_service = get_symbol_service()
-
 
 class BalanceManager(BalanceManagerProtocol):
     """Manages balance operations for the portfolio service.
@@ -127,13 +122,14 @@ class BalanceManager(BalanceManagerProtocol):
         if fill.side.value == "BUY":
             cost = -cost  # Buying costs money
 
-        # Update balance
+        # Update balance - fee is always available (defaults to Decimal(0))
+
         # fill.exchange is already an ExchangeName enum
         exchange_enum = fill.exchange
         await self._update_balance(
             exchange=exchange_enum,
             asset=quote_asset,
-            delta=cost - (fill.fee or Decimal(0)),
+            delta=cost - fill.fee,
         )
 
     async def _update_balance(
@@ -310,7 +306,7 @@ class BalanceManager(BalanceManagerProtocol):
             if symbol_str.endswith(quote):
                 # Create quote asset symbol using the same exchange as the trading symbol
                 # This is a simplification - ideally would have explicit exchange info
-                return _symbol_service.create_symbol(quote, ExchangeName.BACKPACK)
+                return get_symbol_service().create_symbol(quote, ExchangeName.BACKPACK)
 
         # Try splitting by underscore or dash
         for separator in ["_", "-"]:
@@ -318,7 +314,7 @@ class BalanceManager(BalanceManagerProtocol):
                 parts = symbol_str.split(separator)
                 parts_count = 2
                 if len(parts) == parts_count:
-                    return _symbol_service.create_symbol(parts[1], ExchangeName.BACKPACK)
+                    return get_symbol_service().create_symbol(parts[1], ExchangeName.BACKPACK)
 
         return None
 

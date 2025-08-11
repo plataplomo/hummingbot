@@ -91,9 +91,10 @@ class SmartSymbolGenerator:
         mappings: list[SymbolMappingConfig] = []
 
         # Iterate over supported exchanges
-        supported_exchanges = ["hyperliquid", "backpack"]  # Extensible list
+        supported_exchanges = [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]  # Extensible list
 
-        for exchange_name_str in supported_exchanges:
+        for exchange_name_enum in supported_exchanges:
+            exchange_name_str = exchange_name_enum.value
             if not hasattr(self.patterns, exchange_name_str):
                 logger.debug(
                     "exchange_pattern_not_found", exchange=exchange_name_str, symbol=symbol
@@ -102,7 +103,7 @@ class SmartSymbolGenerator:
 
             try:
                 exchange_patterns = getattr(self.patterns, exchange_name_str)
-                ExchangeName(exchange_name_str)  # Validate enum exists
+                # Enum is already validated since we're using the enum directly
 
                 # Check for custom override first
                 if symbol in self.overrides and exchange_name_str in self.overrides[symbol]:

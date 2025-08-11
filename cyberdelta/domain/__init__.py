@@ -9,4 +9,12 @@ This package contains all the business logic modules including:
 - signal: Signal processing and validation
 - monitoring: Health monitoring and alerting
 - safety: Circuit breakers and safety systems
+- base_event_handler: Base class for all event handlers (new event system)
 """
+
+from cyberdelta.domain.base_event_handler import EventHandlerActor
+
+
+__all__ = [
+    "EventHandlerActor",
+]

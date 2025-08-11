@@ -11,6 +11,8 @@ from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from cyberdelta.config.models.event_system_config import EventSystemSettings
+
 # Import all configuration components
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.models.execution_config import (
@@ -45,6 +47,7 @@ from cyberdelta.config.models.safety_config import (
 from cyberdelta.config.models.simulation_config import SimulationSettings
 from cyberdelta.config.models.smart_symbol_generator import SmartSymbolGenerator
 from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
+from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -74,8 +77,8 @@ class AppSettings(BaseModel):
     strategies: StrategiesSettings = Field(
         default_factory=lambda: StrategiesSettings(
             hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
-                long_exchange="hyperliquid",
-                short_exchange="backpack",
+                long_exchange=ExchangeName.HYPERLIQUID.value,
+                short_exchange=ExchangeName.BACKPACK.value,
                 symbol_long="BTC-PERP",
                 symbol_short="BTC_USDC",
                 params=StrategyParamsHLPerpBPSpot(
@@ -86,8 +89,8 @@ class AppSettings(BaseModel):
                     check_interval=300,
                     risk_aversion=Decimal("0.5"),
                     rebalance_threshold=Decimal("0.05"),
-                    perp_exchange="hyperliquid",
-                    spot_exchange="backpack",
+                    perp_exchange=ExchangeName.HYPERLIQUID.value,
+                    spot_exchange=ExchangeName.BACKPACK.value,
                 ),
             )
         ),
@@ -154,13 +157,19 @@ class AppSettings(BaseModel):
         description="Smart symbol configuration",
     )
 
+    # Event system configuration
+    event_system: EventSystemSettings = Field(
+        default_factory=EventSystemSettings,
+        description="Event system configuration for high-performance event architecture",
+    )
+
     @property
     @computed_field
     def symbol_generator(self) -> SmartSymbolGenerator:
         """Get the symbol generator for this configuration."""
         return SmartSymbolGenerator(self.symbols)
 
-    def get_exchange_config(self, exchange_name: str) -> ExchangeSpecificConfig | None:
+    def get_exchange_config(self, exchange_name: ExchangeName) -> ExchangeSpecificConfig | None:
         """Get configuration for a specific exchange.
 
         Args:
@@ -169,7 +178,7 @@ class AppSettings(BaseModel):
         Returns:
             Exchange configuration if found, None otherwise
         """
-        return self.exchanges.get(exchange_name.lower())
+        return self.exchanges.get(exchange_name.value)
 
     def get_enabled_exchanges(self) -> list[str]:
         """Get list of enabled exchange names.

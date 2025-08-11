@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.models.bp_raw_collateral import BackpackRawCollate
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetAccountInfoParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 class TestBackpackAccountServiceAccountInfo:
@@ -88,7 +89,7 @@ class TestBackpackAccountServiceAccountInfo:
         result = await bp_account_service.get_account_summary()
 
         # Verify the result
-        assert result.exchange == "backpack"  # Mapper hardcodes this
+        assert result.exchange == ExchangeName.BACKPACK  # Mapper hardcodes this
         assert isinstance(result.timestamp, datetime)
         assert result.timestamp.tzinfo == UTC
         assert result.total_equity == Decimal("10000.00")  # From collateral netEquity

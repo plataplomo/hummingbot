@@ -285,7 +285,7 @@ class HyperliquidAccountSummaryMapper(
                 data=margin_data,
                 model_class=MarginAccountSummary,
                 context="hyperliquid_margin_summary_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(
@@ -377,7 +377,7 @@ class HyperliquidAccountSummaryMapper(
                 data=settings_data,
                 model_class=AccountSettings,
                 context="hyperliquid_account_settings_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(

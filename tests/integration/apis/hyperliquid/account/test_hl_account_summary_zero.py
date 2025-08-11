@@ -26,6 +26,7 @@ import pytest
 
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.margin_account import MarginAccountSummary
 
 
@@ -67,7 +68,7 @@ class TestHyperliquidAccountSummaryZero:
         )
 
         # Validate core fields
-        assert account_summary.exchange == "hyperliquid", (
+        assert account_summary.exchange == ExchangeName.HYPERLIQUID, (
             f"MarginAccountSummary.exchange should be 'hyperliquid', got {account_summary.exchange}"
         )
 

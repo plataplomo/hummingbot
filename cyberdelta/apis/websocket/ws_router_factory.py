@@ -9,7 +9,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_error_recovery import ErrorRecoveryConfig
 from cyberdelta.apis.websocket.ws_memory_config import (
     MemoryOptimizationConfig,
@@ -20,6 +19,7 @@ from cyberdelta.apis.websocket.ws_memory_config import (
 from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
 from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -34,8 +34,7 @@ class RouterConfiguration:
 
     def __init__(self) -> None:
         """Initialize router configuration builder."""
-        self.exchange_name: str | None = None
-        self.exchange_type: ExchangeType | None = None
+        self.exchange_name: ExchangeName | None = None
         self.error_handler: BaseErrorHandler | None = None
         self.envelope_validator: Callable[[dict[str, Any]], Any] | None = None
         self.payload_validator: WebSocketPayloadValidators | None = None
@@ -44,18 +43,16 @@ class RouterConfiguration:
         self.memory_config: MemoryOptimizationConfig | None = None
         self.performance_mode: PerformanceMode = PerformanceMode.STANDARD
 
-    def with_exchange(self, name: str, exchange_type: ExchangeType) -> RouterConfiguration:
+    def with_exchange(self, exchange_name: ExchangeName) -> RouterConfiguration:
         """Configure exchange information.
 
         Args:
-            name: Exchange name
-            exchange_type: Type of exchange (backpack/hyperliquid)
+            exchange_name: ExchangeName enum
 
         Returns:
             Updated configuration builder
         """
-        self.exchange_name = name
-        self.exchange_type = exchange_type
+        self.exchange_name = exchange_name
         return self
 
     def with_error_handler(self, error_handler: BaseErrorHandler) -> RouterConfiguration:
@@ -135,10 +132,6 @@ class RouterConfiguration:
             msg = "Exchange name is required"
             raise ValueError(msg)
 
-        if not self.exchange_type:
-            msg = "Exchange type is required"
-            raise ValueError(msg)
-
         if not self.error_handler:
             msg = "Error handler is required"
             raise ValueError(msg)
@@ -155,7 +148,6 @@ class RouterConfiguration:
 
         kwargs = {
             "exchange_name": self.exchange_name,
-            "exchange_type": self.exchange_type,
             "error_handler": self.error_handler,
             "envelope_validator": self.envelope_validator,
             "payload_validator": self.payload_validator,
@@ -171,16 +163,14 @@ class RouterConfiguration:
 
 
 def create_standard_router(
-    exchange_name: str,
-    exchange_type: ExchangeType,
+    exchange_name: ExchangeName,
     error_handler: BaseErrorHandler,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
 ) -> RouterConfiguration:
     """Create a standard router configuration for regular trading scenarios.
 
     Args:
-        exchange_name: Name of the exchange
-        exchange_type: Type of exchange
+        exchange_name: Exchange name string
         error_handler: Error handler instance
         envelope_validator: Optional envelope validator
 
@@ -189,7 +179,7 @@ def create_standard_router(
     """
     config = (
         RouterConfiguration()
-        .with_exchange(exchange_name, exchange_type)
+        .with_exchange(exchange_name)
         .with_error_handler(error_handler)
         .with_performance_mode(PerformanceMode.STANDARD)
     )
@@ -207,8 +197,7 @@ def create_standard_router(
 
 
 def create_high_frequency_router(
-    exchange_name: str,
-    exchange_type: ExchangeType,
+    exchange_name: ExchangeName,
     error_handler: BaseErrorHandler,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     message_rate_per_second: int | None = None,
@@ -216,8 +205,7 @@ def create_high_frequency_router(
     """Create a high-frequency trading router configuration.
 
     Args:
-        exchange_name: Name of the exchange
-        exchange_type: Type of exchange
+        exchange_name: Exchange name string
         error_handler: Error handler instance
         envelope_validator: Optional envelope validator
         message_rate_per_second: Expected message rate for pool sizing
@@ -233,7 +221,7 @@ def create_high_frequency_router(
 
     config = (
         RouterConfiguration()
-        .with_exchange(exchange_name, exchange_type)
+        .with_exchange(exchange_name)
         .with_error_handler(error_handler)
         .with_performance_mode(PerformanceMode.HIGH_FREQUENCY)
         .with_custom_memory_config(memory_config)
@@ -254,16 +242,14 @@ def create_high_frequency_router(
 
 
 def create_ultra_low_latency_router(
-    exchange_name: str,
-    exchange_type: ExchangeType,
+    exchange_name: ExchangeName,
     error_handler: BaseErrorHandler,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
 ) -> RouterConfiguration:
     """Create an ultra-low latency router configuration for market making.
 
     Args:
-        exchange_name: Name of the exchange
-        exchange_type: Type of exchange
+        exchange_name: ExchangeName enum
         error_handler: Error handler instance
         envelope_validator: Optional envelope validator
 
@@ -272,7 +258,7 @@ def create_ultra_low_latency_router(
     """
     config = (
         RouterConfiguration()
-        .with_exchange(exchange_name, exchange_type)
+        .with_exchange(exchange_name)
         .with_error_handler(error_handler)
         .with_performance_mode(PerformanceMode.ULTRA_LOW_LATENCY)
     )
@@ -290,8 +276,7 @@ def create_ultra_low_latency_router(
 
 
 def create_memory_optimized_router(
-    exchange_name: str,
-    exchange_type: ExchangeType,
+    exchange_name: ExchangeName,
     error_handler: BaseErrorHandler,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     memory_limit_mb: float | None = None,
@@ -299,8 +284,7 @@ def create_memory_optimized_router(
     """Create a memory-optimized router configuration.
 
     Args:
-        exchange_name: Name of the exchange
-        exchange_type: Type of exchange
+        exchange_name: Exchange name string
         error_handler: Error handler instance
         envelope_validator: Optional envelope validator
         memory_limit_mb: Memory limit in megabytes
@@ -317,7 +301,7 @@ def create_memory_optimized_router(
 
     config = (
         RouterConfiguration()
-        .with_exchange(exchange_name, exchange_type)
+        .with_exchange(exchange_name)
         .with_error_handler(error_handler)
         .with_performance_mode(PerformanceMode.MEMORY_OPTIMIZED)
         .with_custom_memory_config(memory_config)
@@ -338,8 +322,7 @@ def create_memory_optimized_router(
 
 
 def auto_configure_router(
-    exchange_name: str,
-    exchange_type: ExchangeType,
+    exchange_name: ExchangeName,
     error_handler: BaseErrorHandler,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     message_rate_per_second: int | None = None,
@@ -349,8 +332,7 @@ def auto_configure_router(
     """Automatically configure router based on requirements.
 
     Args:
-        exchange_name: Name of the exchange
-        exchange_type: Type of exchange
+        exchange_name: Exchange name string
         error_handler: Error handler instance
         envelope_validator: Optional envelope validator
         message_rate_per_second: Expected message processing rate
@@ -380,7 +362,6 @@ def auto_configure_router(
     if recommended_mode == PerformanceMode.HIGH_FREQUENCY:
         return create_high_frequency_router(
             exchange_name,
-            exchange_type,
             error_handler,
             envelope_validator,
             message_rate_per_second,
@@ -388,19 +369,17 @@ def auto_configure_router(
     if recommended_mode == PerformanceMode.ULTRA_LOW_LATENCY:
         return create_ultra_low_latency_router(
             exchange_name,
-            exchange_type,
             error_handler,
             envelope_validator,
         )
     if recommended_mode == PerformanceMode.MEMORY_OPTIMIZED:
         return create_memory_optimized_router(
             exchange_name,
-            exchange_type,
             error_handler,
             envelope_validator,
             memory_limit_mb,
         )
-    return create_standard_router(exchange_name, exchange_type, error_handler, envelope_validator)
+    return create_standard_router(exchange_name, error_handler, envelope_validator)
 
 
 # Example usage

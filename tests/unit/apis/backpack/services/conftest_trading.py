@@ -16,6 +16,7 @@ from cyberdelta.apis.backpack.response_handlers.bp_trading_response_handler impo
 )
 from cyberdelta.apis.backpack.services.bp_trading_service import BackpackTradingService
 from cyberdelta.apis.base.authenticator_interface import IAuthenticator
+from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -76,6 +77,6 @@ def bp_trading_service(
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
-        exchange_name="backpack_test_trading",
+        exchange_name=ExchangeName.BACKPACK,
     )
     # The service instantiates its own _order_mapper. Tests will patch this.

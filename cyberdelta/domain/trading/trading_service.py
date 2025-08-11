@@ -6,21 +6,22 @@ execution, portfolio management, and event publishing using validated AppSetting
 
 from __future__ import annotations
 
+import time
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
-from cyberdelta.enums.events import EntityType, EventType
-from cyberdelta.enums.monitoring import ServiceType
+from cyberdelta.enums.monitoring import HealthStatus, ServiceType, SystemEventType
+from cyberdelta.enums.trading import OrderEventType, TradingAction
 from cyberdelta.exceptions.base import RequiredParameterError
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models import TradeSignal
-from cyberdelta.models.events import DomainEvent
+from cyberdelta.models.events import OrderEvent, SignalEvent, SystemEvent
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
@@ -39,7 +40,6 @@ class TradingService(HealthCheckable):
     This service coordinates the flow between execution, portfolio updates,
     and event publishing. It acts as a pure orchestration layer without
     business logic, routing validated signals through the execution pipeline.
-
 
     Configuration Usage:
     - Uses config.general.safe_mode for paper trading mode
@@ -74,7 +74,6 @@ class TradingService(HealthCheckable):
         self._execution_engine = execution_engine
         self._portfolio_service = portfolio_service
         self._event_bus = event_bus
-
         # Extract trading configuration - NO hardcoded defaults
         self._safe_mode = config.general.safe_mode
         self._execution_config = config.execution
@@ -89,7 +88,6 @@ class TradingService(HealthCheckable):
         self._success_count = 0
         self._error_count = 0
         self._last_activity = datetime.now(UTC)
-
         logger.info(
             "trading_service_initialized",
             safe_mode=self._safe_mode,
@@ -104,7 +102,6 @@ class TradingService(HealthCheckable):
 
         Args:
             signal: Validated trading signal to execute
-
 
         Returns:
             Order object if execution successful, None otherwise
@@ -190,7 +187,6 @@ class TradingService(HealthCheckable):
 
         Args:
             signals: List of validated trading signals
-
 
         Returns:
             List of successful orders (may be shorter than input if some fail)
@@ -290,10 +286,8 @@ class TradingService(HealthCheckable):
         Args:
             signal: Trading signal to convert
 
-
         Returns:
             ExecutionRequest for execution engine
-
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Type-safe conversion (TradeSignal -> ExecutionRequest)
@@ -444,21 +438,14 @@ class TradingService(HealthCheckable):
             # Create domain events for order execution
 
             # Publish order executed event
-            order_event = DomainEvent(
-                event_type=EventType.ORDER_EXECUTED,
-                entity_type=EntityType.ORDER,
-                entity_id=(
-                    order.exchange_order_id if order.exchange_order_id is not None else "cancelled"
-                ),
+            order_event = OrderEvent(
+                order_id=str(order.exchange_order_id) if order.exchange_order_id else "cancelled",
+                symbol=str(order.symbol),
                 exchange=order.exchange,
-                symbol=order.symbol,
-                payload={
-                    "side": order.side.value,
-                    "order_type": order.order_type.value,
-                    "price": str(order.price) if order.price else None,
-                    "quantity": str(order.quantity_requested),
-                    "status": order.status.value,
-                },
+                event_type=OrderEventType.FILLED,  # Use valid event_type from the model
+                quantity=self._get_required_quantity(order),
+                price=order.price,
+                timestamp=time.time(),
             )
             await self._event_bus.publish(order_event)
 
@@ -470,20 +457,20 @@ class TradingService(HealthCheckable):
                     signal_exchange[0] if signal_exchange else ExchangeName.HYPERLIQUID
                 )
 
-            signal_event = DomainEvent(
-                event_type=EventType.SIGNAL_PROCESSED,
-                entity_type=EntityType.STRATEGY,
-                entity_id=original_signal.signal_id,
-                exchange=signal_exchange,
-                symbol=original_signal.symbol,
-                payload={
-                    "order_id": (
-                        order.exchange_order_id
-                        if order.exchange_order_id is not None
-                        else "cancelled"
-                    ),
-                    "success": order.status.value in {"OPEN", "FILLED", "PARTIALLY_FILLED"},
-                },
+            signal_event = SignalEvent(
+                signal_id=original_signal.signal_id,
+                strategy_name=original_signal.source_strategy or "unknown_strategy",
+                symbol=str(original_signal.symbol),
+                exchange=original_signal.exchange
+                if isinstance(original_signal.exchange, ExchangeName)
+                else original_signal.exchange[0],
+                action=(
+                    TradingAction.BUY
+                    if original_signal.side.value.lower() == "buy"
+                    else TradingAction.SELL
+                ),
+                confidence=float(original_signal.confidence) if original_signal.confidence else 0.0,
+                timestamp=time.time(),
             )
             await self._event_bus.publish(signal_event)
 
@@ -553,16 +540,15 @@ class TradingService(HealthCheckable):
             if isinstance(error_exchange, list):
                 error_exchange = error_exchange[0] if error_exchange else ExchangeName.HYPERLIQUID
 
-            error_event = DomainEvent(
-                event_type=EventType.STRATEGY_ERROR,
-                entity_type=EntityType.STRATEGY,
-                entity_id=signal.signal_id,
-                exchange=error_exchange,
-                symbol=signal.symbol,
-                payload={
-                    "error_message": str(error),
-                    "error_type": type(error).__name__,
-                },
+            error_event = SystemEvent(
+                event_type=SystemEventType.ERROR,
+                component="strategy",
+                status=HealthStatus.FAILED,  # Use valid status from the model
+                message=(
+                    f"{error} (signal_id: {signal.signal_id}, symbol: {signal.symbol}, "
+                    f"exchange: {error_exchange.value}, error_type: {type(error).__name__})"
+                ),
+                timestamp=time.time(),
             )
             await self._event_bus.publish(error_event)
 
@@ -592,7 +578,6 @@ class TradingService(HealthCheckable):
         Returns:
             True if safe mode is enabled, False otherwise
 
-
         IMPORTANT: Following CODING_STANDARDS.md:
         - Safe mode setting from config, NOT hardcoded
         """
@@ -603,7 +588,6 @@ class TradingService(HealthCheckable):
 
         Returns:
             Typed execution statistics
-
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns explicit health metrics
@@ -683,6 +667,21 @@ class TradingService(HealthCheckable):
             max_slippage_pct=Decimal(0),
             max_retries=0,
         )
+
+    def _get_required_quantity(self, order: Order) -> Decimal:
+        """Get required quantity from order.
+
+        Args:
+            order: Order object
+
+        Returns:
+            Required quantity (always available)
+
+        IMPORTANT: Following CODING_STANDARDS.md:
+        - quantity_requested is always available (non-optional Decimal field)
+        """
+        # quantity_requested is always available (non-optional Decimal field)
+        return order.quantity_requested
 
     def get_service_type(self) -> ServiceType:
         """Return service type for health monitoring."""

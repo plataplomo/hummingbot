@@ -197,7 +197,7 @@ class MarketOrderService:
 
             exchange_name = (
                 ExchangeName.HYPERLIQUID
-                if self._exchange.exchange_name == "hyperliquid"
+                if self._exchange.exchange_name == ExchangeName.HYPERLIQUID
                 else ExchangeName.BACKPACK
             )
             # Get the appropriate exchange symbol using type-safe method
@@ -260,7 +260,7 @@ class MarketOrderService:
 
             exchange_name = (
                 ExchangeName.HYPERLIQUID
-                if self._exchange.exchange_name == "hyperliquid"
+                if self._exchange.exchange_name == ExchangeName.HYPERLIQUID
                 else ExchangeName.BACKPACK
             )
             # Get the appropriate exchange symbol using type-safe method

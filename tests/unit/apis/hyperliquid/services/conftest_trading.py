@@ -16,6 +16,7 @@ from cyberdelta.apis.hyperliquid.request_builders.hl_trading_request_builder imp
     HyperliquidTradingRequestBuilder,
 )
 from cyberdelta.apis.hyperliquid.services.hl_trading_service import HyperliquidTradingService
+from cyberdelta.enums import ExchangeName
 
 
 @pytest.fixture
@@ -126,7 +127,7 @@ def make_hl_trading_service(
             request_builder=mock_hl_request_builder,
             response_handler=mock_hl_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="hyperliquid_test_trading",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address=wallet_address,
             get_asset_index_callable=mock_get_asset_index_callable,
             order_mapper=mock_hl_order_mapper,

@@ -12,13 +12,9 @@ import pytest
 
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.domain.monitoring.audit_logger import (
-    AuditEvent,
-    AuditEventType,
-    AuditLogger,
-    AuditSeverity,
-)
+from cyberdelta.domain.monitoring.audit_logger import AuditEvent, AuditLogger
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, SignalType, TimeInForce
+from cyberdelta.enums.monitoring import AuditEventType, AuditSeverity
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.trade_signal import TradeSignal

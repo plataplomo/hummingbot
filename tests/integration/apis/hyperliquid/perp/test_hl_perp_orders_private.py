@@ -35,7 +35,7 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import CancelOrderResult, Order
 from cyberdelta.symbols import exchanges
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
@@ -127,7 +127,7 @@ class TestHyperliquidPerpOrdersPrivate:
         assert isinstance(placed_order, Order), "place_order() should return Order instance"
 
         # Validate core fields
-        assert placed_order.exchange == "hyperliquid", (
+        assert placed_order.exchange == ExchangeName.HYPERLIQUID, (
             f"Order.exchange should be 'hyperliquid', got {placed_order.exchange}"
         )
 

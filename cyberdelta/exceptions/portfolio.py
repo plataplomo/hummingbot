@@ -66,3 +66,35 @@ class MissingEntryPriceError(InvalidPositionDataError):
     def __init__(self, position_key: str) -> None:
         """Initialize with position key that lacks entry price."""
         super().__init__(f"Position {position_key} has no entry price - cannot calculate PnL")
+
+
+class MissingClosePriceError(InvalidPositionDataError):
+    """Raised when a position close event is missing close price."""
+
+    def __init__(self, symbol: str) -> None:
+        """Initialize with symbol missing close price."""
+        super().__init__(
+            f"Position close event for {symbol} missing close_price - "
+            "cannot calculate accurate realized PnL"
+        )
+
+
+class MissingRealizedPnLError(InvalidPositionDataError):
+    """Raised when a position close event is missing realized PnL."""
+
+    def __init__(self, symbol: str) -> None:
+        """Initialize with symbol missing realized PnL."""
+        super().__init__(
+            f"Position close event for {symbol} missing realized_pnl - "
+            "cannot update position without accurate PnL data"
+        )
+
+
+class MissingBalanceDataError(PortfolioError):
+    """Raised when balance event is missing required data."""
+
+    def __init__(self, symbol: str, missing_field: str) -> None:
+        """Initialize with symbol and missing field."""
+        super().__init__(
+            f"Balance event for {symbol} missing {missing_field} - cannot update balance"
+        )

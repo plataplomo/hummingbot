@@ -32,6 +32,7 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import MarketMetadataMapperProtocol
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import Market
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -57,7 +58,7 @@ class HyperliquidMarketMetadataService:
         request_builder: MarketDataRequestBuilderProtocol,
         response_handler: MarketDataResponseHandlerProtocol,
         mapper: MarketMetadataMapperProtocol,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the market metadata service.
 

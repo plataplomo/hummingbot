@@ -44,6 +44,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetHistoricalFundingRatesArgs,
     GetMarketDataArgs,
 )
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import FundingRate
 from cyberdelta.models.market.candle import Candle
 from cyberdelta.symbols import exchanges
@@ -113,7 +114,7 @@ def historical_data_service(
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         mapper=mock_mapper,
-        exchange_name="hyperliquid",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )
 
 

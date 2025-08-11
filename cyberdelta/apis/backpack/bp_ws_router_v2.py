@@ -23,7 +23,6 @@ from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketE
 from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
 )
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
     PydanticWebSocketProcessor,
@@ -31,6 +30,7 @@ from cyberdelta.apis.websocket.ws_processor import (
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.enums import ExchangeName
 from cyberdelta.symbols import exchanges
 
 
@@ -240,8 +240,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         super().__init__(
-            exchange_name="backpack",
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_name=ExchangeName.BACKPACK,
             error_handler=error_handler,
             typed_processor=typed_processor,
         )

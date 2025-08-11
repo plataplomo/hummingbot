@@ -18,10 +18,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     MemoryOptimizationMode,
 )
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
-from cyberdelta.apis.websocket.ws_context import (
-    ExchangeType,
-    WebSocketMessageContext,
-)
+from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 from cyberdelta.apis.websocket.ws_error_recovery import (
     ConnectionRecovery,
     ErrorRecoveryConfig,
@@ -36,6 +33,7 @@ from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 
 
 # Type variable for context types
@@ -83,8 +81,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
     def __init__(
         self,
-        exchange_name: str,
-        exchange_type: ExchangeType,
+        exchange_name: ExchangeName,
         error_handler: BaseErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
         envelope_validator: Callable[[dict[str, Any]], EnvelopeType] | None = None,
@@ -98,8 +95,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         """Initialize the WebSocket router.
 
         Args:
-            exchange_name: Name of the exchange for logging and identification.
-            exchange_type: Type of exchange (e.g., ExchangeType.BACKPACK).
+            exchange_name: ExchangeName enum for the exchange.
             error_handler: Error handler for centralized error management.
             typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             envelope_validator: Optional envelope validator for type-safe message validation.
@@ -112,8 +108,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             memory_pool_size: Size of the memory pool for object reuse.
 
         """
-        self.exchange_name = exchange_name
-        self.exchange_type = exchange_type
+        self.exchange_name = exchange_name  # Store enum for proper typing
         self.error_handler = error_handler
         self.envelope_validator = envelope_validator
         self.payload_validator = payload_validator or WebSocketPayloadValidators()
@@ -121,7 +116,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         # Store the required typed processor
         self.typed_processor = typed_processor
-        self.logger = get_logger(f"WebSocketRouter.{exchange_name}")
+        self.logger = get_logger(f"WebSocketRouter.{exchange_name.value}")
         self._connection_id = str(uuid.uuid4())[:8]  # Short connection ID for context
 
         # Error recovery system
@@ -203,7 +198,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         # Log message info for debugging
         self.logger.debug(
             "processing_websocket_message",
-            exchange=self.exchange_name,
+            exchange=self.exchange_name.value,
             message_keys=list(validated.keys()),
             message_size=len(str(validated)),
         )
@@ -305,7 +300,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             message=message,
             reason=f"Invalid message envelope format: {error}",
             context={
-                "exchange": self.exchange_name,
+                "exchange": self.exchange_name.value,
                 "validation_error": str(error),
                 "error_type": type(error).__name__,
                 "message_keys": list(message.keys()),  # message is guaranteed to be dict
@@ -322,7 +317,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             message=message,
             reason="Unable to extract routing key from validated envelope",
             context={
-                "exchange": self.exchange_name,
+                "exchange": self.exchange_name.value,
                 "envelope_type": type(envelope).__name__,
             },
         )
@@ -336,7 +331,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         """Handle case where no handler is registered."""
         self.logger.warning(
             "no_handler_for_routing_key",
-            exchange=self.exchange_name,
+            exchange=self.exchange_name.value,
             routing_key=routing_key,
             available_handlers=list(handlers.keys()),
         )
@@ -390,7 +385,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
                     error_code=APIErrorCode.NETWORK_ISSUE,
                     original_exception=e,
                     metadata={
-                        "exchange": self.exchange_name,
+                        "exchange": self.exchange_name.value,
                         "message_keys": list(message.keys()),
                         "error_type": type(e).__name__,
                     },
@@ -461,7 +456,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         """
         return {
-            "exchange": self.exchange_name,
+            "exchange": self.exchange_name.value,
             "processors": {
                 key: {
                     "type": type(processor).__name__,
@@ -487,7 +482,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self.processors[routing_key] = processor
         self.logger.debug(
             "processor_registered",
-            exchange=self.exchange_name,
+            exchange=self.exchange_name.value,
             routing_key=routing_key,
             processor_type=type(processor).__name__,
         )
@@ -506,7 +501,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             del self.processors[routing_key]
             self.logger.debug(
                 "processor_unregistered",
-                exchange=self.exchange_name,
+                exchange=self.exchange_name.value,
                 routing_key=routing_key,
             )
             return True
@@ -522,7 +517,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             await self.error_recovery.start_recovery(connection)
             self.logger.info(
                 "error_recovery_started",
-                exchange=self.exchange_name,
+                exchange=self.exchange_name.value,
                 connection_id=self._connection_id,
             )
 
@@ -532,7 +527,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             await self.error_recovery.stop_recovery()
             self.logger.info(
                 "error_recovery_stopped",
-                exchange=self.exchange_name,
+                exchange=self.exchange_name.value,
                 connection_id=self._connection_id,
             )
 
@@ -589,7 +584,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             Complete statistics dictionary
         """
         stats = {
-            "exchange": self.exchange_name,
+            "exchange": self.exchange_name.value,
             "processors": self.get_processor_info(),
             "connection_id": self._connection_id,
         }
@@ -629,7 +624,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         self.logger.info(
             "high_frequency_mode_enabled",
-            exchange=self.exchange_name,
+            exchange=self.exchange_name.value,
             connection_id=self._connection_id,
             memory_pool_size=2000,
         )
@@ -651,7 +646,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         self.logger.info(
             "memory_optimization_disabled",
-            exchange=self.exchange_name,
+            exchange=self.exchange_name.value,
             connection_id=self._connection_id,
         )
         return True

@@ -156,7 +156,7 @@ class BackpackAccountSummaryMapper(CommonDataParserMixin, AccountSummaryMapperPr
                 data=margin_data,
                 model_class=MarginAccountSummary,
                 context="backpack_account_summary_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(
@@ -338,7 +338,7 @@ class BackpackAccountSummaryMapper(CommonDataParserMixin, AccountSummaryMapperPr
                 data=margin_data,
                 model_class=MarginAccountSummary,
                 context="backpack_enhanced_account_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(
@@ -429,7 +429,7 @@ class BackpackAccountSummaryMapper(CommonDataParserMixin, AccountSummaryMapperPr
                 data=settings_data,
                 model_class=AccountSettings,
                 context="backpack_account_settings_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(

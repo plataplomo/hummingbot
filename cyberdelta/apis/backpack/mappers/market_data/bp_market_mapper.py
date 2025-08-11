@@ -15,6 +15,7 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import MarketMapperProt
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import MarketTransformationError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market import Market
 from cyberdelta.models.market.market import BackpackMarketDetails
 from cyberdelta.symbols import exchanges
@@ -96,7 +97,7 @@ class BackpackMarketMapper(CommonDataParserMixin, MarketMapperProtocol):
                 data=market_data,
                 model_class=Market,
                 context="backpack_market_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
         except Exception as e:

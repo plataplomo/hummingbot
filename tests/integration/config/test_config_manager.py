@@ -16,6 +16,7 @@ import yaml
 
 from cyberdelta.config import ConfigManager, ConfigurationError
 from cyberdelta.config.models.app_config import AppSettings
+from cyberdelta.enums.exchange_names import ExchangeName
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
@@ -525,8 +526,8 @@ class TestConfigManager:
             # Test accessing strategy settings
             strategy_config = manager.settings.strategies.hl_perp_bp_spot
             assert strategy_config.enabled is True
-            assert strategy_config.long_exchange == "hyperliquid"
-            assert strategy_config.short_exchange == "backpack"
+            assert strategy_config.long_exchange == ExchangeName.HYPERLIQUID
+            assert strategy_config.short_exchange == ExchangeName.BACKPACK
 
             # Test accessing risk settings
             risk_config = manager.settings.risk

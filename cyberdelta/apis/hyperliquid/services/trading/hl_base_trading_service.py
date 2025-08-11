@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 
 
 logger = get_logger(__name__)
@@ -20,13 +21,13 @@ class HyperliquidBaseTradingService:
     that are used across multiple trading services.
     """
 
-    def __init__(self, exchange_name: str = "hyperliquid") -> None:
+    def __init__(self, exchange_name: ExchangeName = ExchangeName.HYPERLIQUID) -> None:
         """Initialize base trading service.
 
         Args:
-            exchange_name: Name of the exchange (default: "hyperliquid")
+            exchange_name: Name of the exchange (default: ExchangeName.HYPERLIQUID)
         """
-        self._exchange_name = exchange_name
+        self._exchange_name = exchange_name.value
 
     def _handle_service_error(
         self,

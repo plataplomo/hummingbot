@@ -15,6 +15,8 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from cyberdelta.enums.exchange_names import ExchangeName
+
 
 # Import enums directly - avoiding circular import issues
 # These enums are leaf dependencies that don't import config models
@@ -175,11 +177,10 @@ class SmartSymbolsConfig(BaseModel):
 
             for exchange_name, exchange_value in overrides.items():
                 # Basic validation - allow common exchange names
-                if exchange_name not in {"hyperliquid", "backpack"}:
-                    msg = (
-                        f"Invalid exchange '{exchange_name}'. "
-                        "Valid exchanges: hyperliquid, backpack"
-                    )
+                valid_exchanges = {ExchangeName.HYPERLIQUID.value, ExchangeName.BACKPACK.value}
+                if exchange_name not in valid_exchanges:
+                    valid_list = f"{ExchangeName.HYPERLIQUID.value}, {ExchangeName.BACKPACK.value}"
+                    msg = f"Invalid exchange '{exchange_name}'. Valid exchanges: {valid_list}"
                     raise ValueError(msg)
 
                 # Validate exchange value is non-empty

@@ -559,7 +559,9 @@ def create_test_order(
         symbol = BTC_HL
     return Order(
         client_order_id=str(uuid4()),
-        exchange=ExchangeName.HYPERLIQUID if exchange == "hyperliquid" else ExchangeName.BACKPACK,
+        exchange=ExchangeName.HYPERLIQUID
+        if exchange == ExchangeName.HYPERLIQUID
+        else ExchangeName.BACKPACK,
         symbol=symbol,
         side=side,
         order_type=OrderType.LIMIT,
@@ -593,7 +595,9 @@ def create_test_balance(
         asset=exchanges.hyperliquid(asset) if asset != "USDC" else exchanges.hyperliquid("USD"),
         total_quantity=total_quantity,
         available_quantity=available_quantity,
-        exchange=ExchangeName.HYPERLIQUID if exchange == "hyperliquid" else ExchangeName.BACKPACK,
+        exchange=ExchangeName.HYPERLIQUID
+        if exchange == ExchangeName.HYPERLIQUID
+        else ExchangeName.BACKPACK,
         timestamp=datetime.now(UTC),
     )
 
@@ -622,7 +626,9 @@ def create_test_signal(
         signal_type=signal_type,
         side=side,
         price=price,
-        exchange=ExchangeName.HYPERLIQUID if exchange == "hyperliquid" else ExchangeName.BACKPACK,
+        exchange=ExchangeName.HYPERLIQUID
+        if exchange == ExchangeName.HYPERLIQUID
+        else ExchangeName.BACKPACK,
         confidence=confidence,
         metadata=metadata,
     )

@@ -44,6 +44,7 @@ from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.enums import ExchangeName
 from tests.common_symbols import BTC_USDC_BP
 
 
@@ -154,7 +155,7 @@ class TestMessageRoutingPerformance:
     async def test_backpack_router_throughput(self) -> None:
         """Test Backpack router throughput."""
         # Setup router
-        error_handler = BaseErrorHandler(exchange_name="backpack")
+        error_handler = BaseErrorHandler(exchange_name=ExchangeName.BACKPACK)
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
@@ -200,7 +201,7 @@ class TestMessageRoutingPerformance:
     async def test_hyperliquid_router_throughput(self) -> None:
         """Test Hyperliquid router throughput."""
         # Setup router
-        error_handler = BaseErrorHandler(exchange_name="hyperliquid")
+        error_handler = BaseErrorHandler(exchange_name=ExchangeName.HYPERLIQUID)
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
@@ -282,7 +283,7 @@ class TestMemoryEfficiency:
     async def test_processor_memory_reuse(self) -> None:
         """Test that processors efficiently reuse memory."""
         # This is a simplified test - in production, you'd use memory profilers
-        error_handler = BaseErrorHandler(exchange_name="backpack")
+        error_handler = BaseErrorHandler(exchange_name=ExchangeName.BACKPACK)
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
@@ -319,7 +320,7 @@ class TestConcurrentProcessing:
     @pytest.mark.timing
     async def test_concurrent_routing(self) -> None:
         """Test routing multiple messages concurrently."""
-        error_handler = BaseErrorHandler(exchange_name="backpack")
+        error_handler = BaseErrorHandler(exchange_name=ExchangeName.BACKPACK)
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 

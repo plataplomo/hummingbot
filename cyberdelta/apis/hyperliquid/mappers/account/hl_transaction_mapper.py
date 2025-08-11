@@ -137,7 +137,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 data=trade_data,
                 model_class=Fill,
                 context="hyperliquid_user_fill_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(
@@ -255,7 +255,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 data=trade_data,
                 model_class=Fill,
                 context="hyperliquid_fill_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(
@@ -370,7 +370,7 @@ class HyperliquidTransactionMapper(CommonDataParserMixin, TransactionMapperProto
                 data=trade_data,
                 model_class=Fill,
                 context="hyperliquid_ws_fill_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(

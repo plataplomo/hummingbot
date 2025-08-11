@@ -112,7 +112,7 @@ def price_ticker_service(
         response_handler=mock_response_handler,
         mapper=mock_mapper,
         historical_data_mapper=mock_historical_data_mapper,
-        exchange_name="hyperliquid",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )
 
 

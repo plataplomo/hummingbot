@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.spot_balance import SpotBalance
 from tests.common_symbols import SOL_USDC_BP
 
@@ -52,7 +53,7 @@ class TestBackpackBalancesZero:
             # If we have balances, they should all be zero or very small
             for balance in balances.values():
                 assert isinstance(balance, SpotBalance)
-                assert balance.exchange == "backpack"
+                assert balance.exchange == ExchangeName.BACKPACK
                 assert isinstance(balance.total_quantity, Decimal)
                 assert isinstance(balance.available_quantity, Decimal)
 
@@ -81,7 +82,7 @@ class TestBackpackBalancesZero:
         else:
             assert isinstance(balance, SpotBalance)
             assert balance.asset.value == "XRP"
-            assert balance.exchange == "backpack"
+            assert balance.exchange == ExchangeName.BACKPACK
             assert balance.total_quantity == Decimal(0)
             assert balance.available_quantity == Decimal(0)
 

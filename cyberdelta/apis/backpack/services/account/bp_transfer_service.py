@@ -34,6 +34,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.account import TransferArgs, WithdrawArgs
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import (
     InvalidAccountTypeError,
     NetworkRequiredError,
@@ -90,7 +91,7 @@ class BackpackTransferService:
         request_builder: BackpackAccountRequestBuilder,
         response_handler: BackpackAccountResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         # NEW: Optional dependency injection for mapper
         mapper: BackpackTransferMapper | None = None,
     ) -> None:

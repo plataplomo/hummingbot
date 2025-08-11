@@ -31,6 +31,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.utils import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -68,7 +69,7 @@ class BackpackAccountStateService:
         request_builder: AccountRequestBuilderProtocol,
         response_handler: AccountResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         # Caching configuration
         caching_config: CachingConfiguration | None = None,
     ) -> None:

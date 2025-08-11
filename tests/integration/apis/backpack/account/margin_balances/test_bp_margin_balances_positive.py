@@ -13,6 +13,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.spot_balance import SpotBalance
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
@@ -48,7 +49,7 @@ class TestBackpackMarginBalancesPositive:
 
         # Basic validation
         assert isinstance(account_summary, MarginAccountSummary)
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
         assert account_summary.timestamp is not None
 
         # Core fields should be populated

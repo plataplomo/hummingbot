@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models import TradeSignal
 
 

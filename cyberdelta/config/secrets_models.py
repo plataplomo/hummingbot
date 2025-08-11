@@ -24,6 +24,7 @@ from pydantic import (
     model_validator,
 )
 
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import EmptySecretError, InvalidAuthTypeError
 from cyberdelta.utils.parsing import validate_str_field
 
@@ -192,7 +193,7 @@ class SecretsConfig(BaseModel):
             EmptySecretError: If required secrets are empty.
         """
         for exchange_name, secrets_config_item in self.exchanges.items():
-            if exchange_name == "hyperliquid":
+            if exchange_name == ExchangeName.HYPERLIQUID:
                 if not isinstance(secrets_config_item, PrivateKeyAuthSecrets):
                     raise InvalidAuthTypeError(
                         exchange="Hyperliquid",
@@ -210,7 +211,7 @@ class SecretsConfig(BaseModel):
                 # HyperliquidAPIComponentsFactory or HyperliquidEip712Authenticator constructor
                 # where the secret is actually used to create an auth component.
 
-            elif exchange_name == "backpack":
+            elif exchange_name == ExchangeName.BACKPACK:
                 if not isinstance(secrets_config_item, ApiKeyAuthSecrets):
                     raise InvalidAuthTypeError(
                         exchange="Backpack",

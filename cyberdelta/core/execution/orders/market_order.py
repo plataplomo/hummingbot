@@ -180,7 +180,7 @@ class MarketOrder:
                 message="Market order FILLED",
             )
         elif order.status == OrderStatus.PARTIALLY_FILLED:
-            filled = order.quantity_filled or Decimal(0)
+            filled = order.quantity_filled
             fill_rate = (
                 (filled / order.quantity_requested * 100) if order.quantity_requested > 0 else 0
             )

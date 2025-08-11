@@ -17,7 +17,7 @@ from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.symbols.models import BaseSymbol, Symbol
 from tests.common_symbols import SOL_USDC_PERP_BP
@@ -142,7 +142,7 @@ class TestBackpackPerpPositionsPrivate:
     def _validate_position_core_fields(self, position: DerivativePosition, index: int) -> None:
         """Validate core fields of a DerivativePosition."""
         assert isinstance(position, DerivativePosition)
-        assert position.exchange == "backpack"
+        assert position.exchange == ExchangeName.BACKPACK
 
         assert isinstance(position.symbol, BaseSymbol)
         assert len(position.symbol.value) > 0

@@ -67,6 +67,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetTradeHistoryArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
@@ -120,7 +121,7 @@ class HyperliquidAccountService:
         request_builder: AccountRequestBuilderProtocol,
         response_handler: AccountResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         wallet_address: str | None = None,
         # Optional dependency injection following Backpack pattern
         balance_mapper: BalanceMapperProtocol | None = None,

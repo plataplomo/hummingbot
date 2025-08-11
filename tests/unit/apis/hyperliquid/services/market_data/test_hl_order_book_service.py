@@ -97,7 +97,7 @@ def order_book_service(
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         mapper=mock_mapper,
-        exchange_name="hyperliquid",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )
 
 

@@ -8,10 +8,11 @@ from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
 from cyberdelta.apis.websocket.ws_metrics import (
     MetricPoint,
     MetricSummary,
-    MetricType,
     MetricUnit,
     WebSocketMetricsCollector,
+    WSMetricType,
 )
+from cyberdelta.enums import ExchangeName
 
 
 class TestMetricPoint:
@@ -20,14 +21,14 @@ class TestMetricPoint:
     def test_metric_point_creation(self) -> None:
         """Test MetricPoint creation with basic fields."""
         point = MetricPoint(
-            metric_type=MetricType.MESSAGE_COUNT,
+            metric_type=WSMetricType.MESSAGE_COUNT,
             metric_name="test_metric",
             value=1.0,
             unit=MetricUnit.COUNT,
             labels={"exchange": "test", "type": "depth"},
         )
 
-        assert point.metric_type == MetricType.MESSAGE_COUNT
+        assert point.metric_type == WSMetricType.MESSAGE_COUNT
         assert point.metric_name == "test_metric"
         assert point.value == 1.0
         assert point.unit == MetricUnit.COUNT
@@ -37,7 +38,7 @@ class TestMetricPoint:
     def test_metric_point_defaults(self) -> None:
         """Test MetricPoint with default values."""
         point = MetricPoint(
-            metric_type=MetricType.PROCESSING_TIME,
+            metric_type=WSMetricType.PROCESSING_TIME,
             metric_name="processing_time",
             value=5.5,
             unit=MetricUnit.MILLISECONDS,
@@ -99,7 +100,7 @@ class TestWebSocketMetricsCollector:
         Returns:
             WebSocketMetricsCollector instance configured for testing
         """
-        return WebSocketMetricsCollector("test_exchange", window_size=300)
+        return WebSocketMetricsCollector(ExchangeName.HYPERLIQUID, window_size=300)
 
     def test_collector_initialization(self, collector: WebSocketMetricsCollector) -> None:
         """Test collector initialization through public interface."""
@@ -135,9 +136,9 @@ class TestWebSocketMetricsCollector:
         # Check time series points through public interface
         points = collector.get_time_series()
         assert len(points) == 3  # message_count, processing_time, message_size
-        assert any(p.metric_type == MetricType.MESSAGE_COUNT for p in points)
-        assert any(p.metric_type == MetricType.PROCESSING_TIME for p in points)
-        assert any(p.metric_type == MetricType.MESSAGE_SIZE for p in points)
+        assert any(p.metric_type == WSMetricType.MESSAGE_COUNT for p in points)
+        assert any(p.metric_type == WSMetricType.PROCESSING_TIME for p in points)
+        assert any(p.metric_type == WSMetricType.MESSAGE_SIZE for p in points)
 
     def test_record_message_failure(self, collector: WebSocketMetricsCollector) -> None:
         """Test recording failed message processing through public interface."""
@@ -166,7 +167,7 @@ class TestWebSocketMetricsCollector:
         )
 
         # Check that error was recorded in time series
-        error_points = collector.get_time_series(MetricType.VALIDATION_ERROR)
+        error_points = collector.get_time_series(WSMetricType.VALIDATION_ERROR)
         assert len(error_points) == 1
         assert error_points[0].metric_name == "websocket_errors_total"
         assert error_points[0].labels["error_type"] == "validation"
@@ -177,7 +178,7 @@ class TestWebSocketMetricsCollector:
         collector.record_connection_event("connected")
 
         # Check through public interface
-        connection_points = collector.get_time_series(MetricType.CONNECTION_EVENT)
+        connection_points = collector.get_time_series(WSMetricType.CONNECTION_EVENT)
         assert len(connection_points) == 1
         assert connection_points[0].labels["event_type"] == "connected"
 
@@ -223,13 +224,13 @@ class TestWebSocketMetricsCollector:
         collector.record_error("validation", "depth")
 
         # Filter by metric type
-        message_points = collector.get_time_series(MetricType.MESSAGE_COUNT)
+        message_points = collector.get_time_series(WSMetricType.MESSAGE_COUNT)
         assert len(message_points) == 1
-        assert message_points[0].metric_type == MetricType.MESSAGE_COUNT
+        assert message_points[0].metric_type == WSMetricType.MESSAGE_COUNT
 
-        error_points = collector.get_time_series(MetricType.VALIDATION_ERROR)
+        error_points = collector.get_time_series(WSMetricType.VALIDATION_ERROR)
         assert len(error_points) == 1
-        assert error_points[0].metric_type == MetricType.VALIDATION_ERROR
+        assert error_points[0].metric_type == WSMetricType.VALIDATION_ERROR
 
     def test_export_prometheus(self, collector: WebSocketMetricsCollector) -> None:
         """Test Prometheus format export."""
@@ -267,7 +268,7 @@ class TestWebSocketMetricsCollector:
         assert processing_summary.p99 == 9.0  # 99th percentile
 
         # Test with empty data
-        empty_collector = WebSocketMetricsCollector("empty", 300)
+        empty_collector = WebSocketMetricsCollector(ExchangeName.BACKPACK, 300)
         empty_summary = empty_collector.get_summary("nonexistent")
         assert "processing_time" not in empty_summary
 
@@ -331,7 +332,7 @@ class TestMetricsIntegration:
         """Test metrics collection integration."""
         # This would be an integration test with actual processor
         # For now, just verify the basic flow works
-        collector = WebSocketMetricsCollector("test")
+        collector = WebSocketMetricsCollector(ExchangeName.BACKPACK)
 
         # Simulate processing flow
         processing_time_ms = 1.5

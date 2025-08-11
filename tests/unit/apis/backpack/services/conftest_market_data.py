@@ -14,6 +14,7 @@ from cyberdelta.apis.backpack.response_handlers.bp_market_data_response_handler 
     BackpackMarketDataResponseHandler,
 )
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
+from cyberdelta.enums import ExchangeName
 
 
 # Removed in refactor
@@ -60,5 +61,5 @@ def backpack_market_data_service(
         http_client_requester=mock_http_client_requester,
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
-        exchange_name="backpack_test_market_data",
+        exchange_name=ExchangeName.BACKPACK,
     )

@@ -10,6 +10,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.margin_account import MarginAccountSummary
 
 
@@ -38,7 +39,7 @@ class TestBackpackAccountSummaryZero:
         account_summary = await bp_api_for_zero_balance_test.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
 
         assert account_summary.timestamp is not None
         time_diff = datetime.now(account_summary.timestamp.tzinfo) - account_summary.timestamp
@@ -148,7 +149,7 @@ class TestBackpackAccountSummaryZero:
             assert hasattr(account_summary.bp_details, "imf_raw")
             assert hasattr(account_summary.bp_details, "mmf_raw")
 
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
 
         now = datetime.now(UTC)
         time_delta = now - account_summary.timestamp.replace(tzinfo=UTC)

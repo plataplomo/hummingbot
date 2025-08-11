@@ -24,6 +24,7 @@ from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_state_service
     HyperliquidClearinghouseStateService,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.models import DerivativePosition
 from cyberdelta.symbols.models import Symbol
@@ -49,7 +50,7 @@ class HyperliquidPositionService:
         self,
         clearinghouse_service: HyperliquidClearinghouseStateService,
         mapper: PositionMapperProtocol,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the position service.
 

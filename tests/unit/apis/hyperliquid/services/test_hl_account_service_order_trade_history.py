@@ -45,7 +45,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=MagicMock(),
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address="0x1234567890abcdef1234567890abcdef12345678",
         )
 
@@ -151,7 +151,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=mock_authenticator,
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address="0x1234567890abcdef1234567890abcdef12345678",
             order_mapper=mock_order_mapper,
         )
@@ -207,7 +207,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=MagicMock(),
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address="0x1234567890abcdef1234567890abcdef12345678",
         )
 
@@ -239,7 +239,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=None,  # Missing authenticator should cause error
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address="0x1234567890abcdef1234567890abcdef12345678",
         )
 
@@ -338,7 +338,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=mock_authenticator,
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address="0x1234567890abcdef1234567890abcdef12345678",
             transaction_mapper=mock_transaction_mapper,
         )
@@ -358,7 +358,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
                 request_builder=mock_builder,
                 response_handler=mock_handler,
                 authenticator=mock_authenticator,
-                exchange_name="hyperliquid_test",
+                exchange_name=ExchangeName.HYPERLIQUID,
                 wallet_address="0x1234567890abcdef1234567890abcdef12345678",
                 transaction_mapper=mock_transaction_mapper,
             )
@@ -399,7 +399,7 @@ class TestHyperliquidAccountServiceOrderTradeHistory:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=MagicMock(),
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address="0x1234567890abcdef1234567890abcdef12345678",
         )
 

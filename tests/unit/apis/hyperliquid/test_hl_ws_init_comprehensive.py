@@ -13,8 +13,8 @@ import pytest
 from cyberdelta.apis.hyperliquid.hl_ws_context import HyperliquidMessageContext
 from cyberdelta.apis.hyperliquid.hl_ws_init import initialize_hyperliquid_ws
 from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import validate_hyperliquid_envelope
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_context_registry import WebSocketContextRegistry
+from cyberdelta.enums import ExchangeName
 
 
 class TestInitializeHyperliquidWs:
@@ -37,7 +37,7 @@ class TestInitializeHyperliquidWs:
 
         # Check keyword arguments
         kwargs = call_args.kwargs
-        assert kwargs["exchange_type"] == ExchangeType.HYPERLIQUID
+        assert kwargs["exchange_type"] == ExchangeName.HYPERLIQUID
         assert kwargs["context_class"] == HyperliquidMessageContext
         assert kwargs["envelope_validator"] == validate_hyperliquid_envelope
 
@@ -51,8 +51,8 @@ class TestInitializeHyperliquidWs:
         call_args = mock_registry.register_context_type.call_args
         exchange_type = call_args.kwargs["exchange_type"]
 
-        assert exchange_type == ExchangeType.HYPERLIQUID
-        assert isinstance(exchange_type, ExchangeType)
+        assert exchange_type == ExchangeName.HYPERLIQUID
+        assert isinstance(exchange_type, ExchangeName)
 
     def test_initialize_hyperliquid_ws_correct_context_class(self) -> None:
         """Test that the correct context class is registered."""
@@ -140,7 +140,7 @@ class TestInitializeHyperliquidWs:
         kwargs = call_args.kwargs
 
         # Check parameter types
-        assert isinstance(kwargs["exchange_type"], ExchangeType)
+        assert isinstance(kwargs["exchange_type"], ExchangeName)
         assert callable(kwargs["context_class"])  # Should be a class (callable)
         assert callable(kwargs["envelope_validator"])  # Should be a function (callable)
 
@@ -191,8 +191,8 @@ class TestInitializeHyperliquidWs:
         # Test that components are importable and defined
         assert HyperliquidMessageContext is not None
         assert validate_hyperliquid_envelope is not None
-        assert ExchangeType is not None
-        assert ExchangeType.HYPERLIQUID is not None
+        assert ExchangeName is not None
+        assert ExchangeName.HYPERLIQUID is not None
 
     def test_initialize_hyperliquid_ws_function_signature(self) -> None:
         """Test that the function has the expected signature."""
@@ -220,7 +220,7 @@ class TestInitializeHyperliquidWs:
 
         # Verify registry interaction
         mock_registry.register_context_type.assert_called_once_with(
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_type=ExchangeName.HYPERLIQUID,
             context_class=HyperliquidMessageContext,
             envelope_validator=validate_hyperliquid_envelope,
         )

@@ -141,7 +141,9 @@ class SymbolTestScenarios:
 
         # Determine exchange from symbol
         exchange = (
-            ExchangeName.HYPERLIQUID if symbol.exchange == "hyperliquid" else ExchangeName.BACKPACK
+            ExchangeName.HYPERLIQUID
+            if symbol.exchange == ExchangeName.HYPERLIQUID.value
+            else ExchangeName.BACKPACK
         )
 
         # Create orders

@@ -59,14 +59,14 @@ class ExchangeAPIFactory:
     @classmethod
     def create_api_client(
         cls,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         exchange_config: ExchangeSpecificConfig,
         exchange_secrets: AnyExchangeSecrets,
     ) -> ExchangeAPI:
         """Create API client for specified exchange.
 
         Args:
-            exchange_name: Name of exchange (from configuration)
+            exchange_name: Exchange enum identifying the exchange
             exchange_config: Exchange-specific configuration
             exchange_secrets: Exchange-specific secrets
 
@@ -78,26 +78,15 @@ class ExchangeAPIFactory:
         """
         logger.debug(
             "creating_exchange_api_client",
-            exchange_name=exchange_name,
+            exchange_name=exchange_name.value,
             exchange_enabled=exchange_config.enabled,
         )
 
-        # Validate exchange is supported
-        try:
-            exchange_enum = ExchangeName(exchange_name)
-        except ValueError as e:
-            supported_exchanges = [ex.value for ex in ExchangeName]
-            msg = (
-                f"Unsupported exchange '{exchange_name}'. "
-                f"Supported exchanges: {supported_exchanges}"
-            )
-            raise ConfigurationError(msg) from e
-
         # Get module information for this exchange
-        module_info = cls._EXCHANGE_MODULE_MAPPING.get(exchange_enum)
+        module_info = cls._EXCHANGE_MODULE_MAPPING.get(exchange_name)
         if not module_info:
             msg = (
-                f"Exchange '{exchange_name}' is defined but not implemented. "
+                f"Exchange '{exchange_name.value}' is defined but not implemented. "
                 f"Missing module mapping in ExchangeAPIFactory."
             )
             raise ConfigurationError(msg)
@@ -105,10 +94,10 @@ class ExchangeAPIFactory:
         # Dynamic import and instantiation
         try:
             # Import the exchange module
-            api_module = cls._import_exchange_module(module_info["module"], exchange_name)
+            api_module = cls._import_exchange_module(module_info["module"], exchange_name.value)
 
             # Get the API class from the module
-            api_class = cls._get_api_class(api_module, module_info["class"], exchange_name)
+            api_class = cls._get_api_class(api_module, module_info["class"], exchange_name.value)
 
             # Create API instance
             api_instance = api_class(
@@ -118,41 +107,36 @@ class ExchangeAPIFactory:
 
             logger.info(
                 "exchange_api_client_created",
-                exchange_name=exchange_name,
+                exchange_name=exchange_name.value,
                 api_class=module_info["class"],
             )
 
         except (ImportError, AttributeError, TypeError) as e:
-            msg = f"Failed to create API client for '{exchange_name}': {e}"
+            msg = f"Failed to create API client for '{exchange_name.value}': {e}"
             raise ConfigurationError(msg) from e
         else:
             return cast(ExchangeAPI, api_instance)
 
     @classmethod
-    def get_supported_exchanges(cls) -> list[str]:
-        """Get list of all supported exchange names.
+    def get_supported_exchanges(cls) -> list[ExchangeName]:
+        """Get list of all supported exchanges.
 
         Returns:
-            List of supported exchange names
+            List of supported exchange enums
         """
-        return [exchange.value for exchange in cls._EXCHANGE_MODULE_MAPPING]
+        return list(cls._EXCHANGE_MODULE_MAPPING.keys())
 
     @classmethod
-    def is_exchange_supported(cls, exchange_name: str) -> bool:
+    def is_exchange_supported(cls, exchange_name: ExchangeName) -> bool:
         """Check if exchange is supported by the factory.
 
         Args:
-            exchange_name: Name of exchange to check
+            exchange_name: Exchange enum to check
 
         Returns:
             True if exchange is supported, False otherwise
         """
-        try:
-            exchange_enum = ExchangeName(exchange_name)
-        except ValueError:
-            return False
-        else:
-            return exchange_enum in cls._EXCHANGE_MODULE_MAPPING
+        return exchange_name in cls._EXCHANGE_MODULE_MAPPING
 
     @classmethod
     def _import_exchange_module(cls, module_path: str, exchange_name: str) -> ModuleType:

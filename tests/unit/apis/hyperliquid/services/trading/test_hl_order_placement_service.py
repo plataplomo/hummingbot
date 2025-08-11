@@ -152,7 +152,7 @@ def order_placement_service(
         authenticator=mock_authenticator,
         get_asset_index_callable=mock_get_asset_index,
         action_endpoint="/exchange",
-        exchange_name="hyperliquid",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )
 
 

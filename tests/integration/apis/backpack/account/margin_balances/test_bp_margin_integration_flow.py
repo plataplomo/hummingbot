@@ -11,6 +11,7 @@ from decimal import Decimal
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.spot_balance import SpotBalance
 from tests.integration.apis.backpack.shared.bp_test_helpers import (
@@ -41,7 +42,9 @@ class TestBackpackMarginIntegrationFlow:
 
         for symbol, balance in spot_balances.items():
             assert isinstance(balance, SpotBalance), f"{symbol} balance should be SpotBalance"
-            assert balance.exchange == "backpack", f"{symbol} should be from backpack exchange"
+            assert balance.exchange == ExchangeName.BACKPACK, (
+                f"{symbol} should be from backpack exchange"
+            )
             assert balance.asset.value == symbol, f"{symbol} asset field mismatch"
             assert balance.total_quantity >= Decimal(0), f"{symbol} total should be non-negative"
             assert balance.available_quantity >= Decimal(0), (
@@ -81,7 +84,7 @@ class TestBackpackMarginIntegrationFlow:
 
         # Basic structure validation
         assert isinstance(account_summary, MarginAccountSummary), "Should be MarginAccountSummary"
-        assert account_summary.exchange == "backpack", "Should be from backpack exchange"
+        assert account_summary.exchange == ExchangeName.BACKPACK, "Should be from backpack exchange"
         assert account_summary.timestamp is not None, "Should have timestamp"
 
         # Core financial fields

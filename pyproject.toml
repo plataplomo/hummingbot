@@ -36,7 +36,7 @@ dependencies = [
     "PyYAML==6.0.2",
     "python-dotenv==1.1.0",
     "matplotlib==3.10.3",
-    "pydantic==2.11.4",
+    "pydantic==2.11.5",
     "eth_account==0.13.7",
     "web3==7.11.1",
     "structlog==25.3.0",
@@ -324,3 +324,4 @@ reportReturnType = "error"
 reportOptionalSubscript = "error"
 reportGeneralTypeIssues = "error"
 reportAssignmentType = "error"
+

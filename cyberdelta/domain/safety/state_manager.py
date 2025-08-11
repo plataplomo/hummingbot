@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.domain.safety.models import CircuitBreakerState
+from cyberdelta.enums.safety.circuit_breaker import CircuitBreakerState
 
 
 logger = get_logger(__name__)

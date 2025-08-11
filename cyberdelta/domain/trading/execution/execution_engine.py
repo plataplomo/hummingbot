@@ -168,8 +168,8 @@ class ExecutionEngine(HealthCheckable):
                 # Fallback: update.fill is already a Fill object
                 trade = update.fill
 
-            # Update order filled quantity through tracker to avoid direct mutation
-            current_filled = order.quantity_filled or Decimal(0)
+            # Update order filled quantity - quantity_filled is always available
+            current_filled = order.quantity_filled
             new_filled = current_filled + trade.quantity
             self._order_tracker.update_order_filled_quantity(order_id, new_filled)
 

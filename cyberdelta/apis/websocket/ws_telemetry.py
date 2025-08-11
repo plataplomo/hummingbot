@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from cyberdelta.apis.websocket.websocket_states import OperationResult
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -49,7 +50,7 @@ class SpanContext(BaseModel):
     """Context information for spans."""
 
     operation_name: str
-    exchange: str | None = None
+    exchange: ExchangeName | None = None
     connection_id: str | None = None
     message_type: str | None = None
     user_id: str | None = None
@@ -59,7 +60,7 @@ class SpanContext(BaseModel):
 class MetricLabels(BaseModel):
     """Standard labels for metrics."""
 
-    exchange: str
+    exchange: ExchangeName
     connection_id: str | None = None
     message_type: str | None = None
     operation: str | None = None
@@ -182,7 +183,7 @@ class WebSocketTelemetry:
         }
 
         if context.exchange:
-            attributes["websocket.exchange"] = context.exchange
+            attributes["websocket.exchange"] = context.exchange.value
         if context.connection_id:
             attributes["websocket.connection_id"] = context.connection_id
         if context.message_type:
@@ -325,7 +326,7 @@ class WebSocketTelemetry:
             Attributes dictionary
         """
         attributes = {
-            "exchange": labels.exchange,
+            "exchange": labels.exchange.value,
         }
 
         if labels.connection_id:
@@ -418,7 +419,7 @@ class WebSocketTelemetry:
 class TelemetryMiddleware:
     """Middleware for automatic telemetry collection."""
 
-    def __init__(self, telemetry: WebSocketTelemetry, exchange_name: str) -> None:
+    def __init__(self, telemetry: WebSocketTelemetry, exchange_name: ExchangeName) -> None:
         """Initialize telemetry middleware.
 
         Args:
@@ -612,7 +613,7 @@ class TelemetryManager:
         self.middlewares: dict[str, TelemetryMiddleware] = {}
         self.logger = get_logger("TelemetryManager")
 
-    def get_middleware(self, exchange_name: str) -> TelemetryMiddleware:
+    def get_middleware(self, exchange_name: ExchangeName) -> TelemetryMiddleware:
         """Get or create telemetry middleware for exchange.
 
         Args:
@@ -621,10 +622,11 @@ class TelemetryManager:
         Returns:
             Telemetry middleware instance
         """
-        if exchange_name not in self.middlewares:
-            self.middlewares[exchange_name] = TelemetryMiddleware(self.telemetry, exchange_name)
+        exchange_name_str = exchange_name.value
+        if exchange_name_str not in self.middlewares:
+            self.middlewares[exchange_name_str] = TelemetryMiddleware(self.telemetry, exchange_name)
 
-        return self.middlewares[exchange_name]
+        return self.middlewares[exchange_name_str]
 
     def get_global_stats(self) -> dict[str, Any]:
         """Get global telemetry statistics.
@@ -675,7 +677,7 @@ def get_telemetry_manager(config: TelemetryConfig | None = None) -> TelemetryMan
     return TelemetryManagerSingleton.get_instance(config)
 
 
-def get_exchange_telemetry(exchange_name: str) -> TelemetryMiddleware:
+def get_exchange_telemetry(exchange_name: ExchangeName) -> TelemetryMiddleware:
     """Get telemetry middleware for specific exchange.
 
     Args:

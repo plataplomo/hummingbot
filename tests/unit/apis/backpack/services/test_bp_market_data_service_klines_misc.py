@@ -12,6 +12,7 @@ from cyberdelta.apis.backpack.models.bp_raw_kline import BackpackRawKlineRespons
 from cyberdelta.apis.backpack.services.bp_market_data_service import BackpackMarketDataService
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import Candle
 from tests.common_symbols import BTC_USDC_BP, SOL_USDC_BP
 
@@ -235,7 +236,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
-            exchange_name="test_exchange",
+            exchange_name=ExchangeName.BACKPACK,
             candle_mapper=mock_mapper,
         )
 
@@ -265,7 +266,7 @@ class TestBackpackMarketDataServiceKlinesMisc:
             http_client_requester=mock_http_client_requester,
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
-            exchange_name="test_exchange",
+            exchange_name=ExchangeName.BACKPACK,
             # No mapper parameters needed
         )
 

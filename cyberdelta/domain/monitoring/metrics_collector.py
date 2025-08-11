@@ -10,26 +10,17 @@ import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.monitoring import MetricType
 from cyberdelta.protocols.infrastructure.monitoring import MetricsProvider
 
 
 logger = get_logger(__name__)
-
-
-class MetricType(Enum):
-    """Types of metrics that can be collected."""
-
-    COUNTER = "counter"
-    GAUGE = "gauge"
-    HISTOGRAM = "histogram"
-    TIMER = "timer"
 
 
 @dataclass
@@ -349,8 +340,10 @@ class MetricsCollector:
                     collection_errors=self._collection_errors,
                 )
 
-                # Brief delay before retrying - could be configurable
-                await asyncio.sleep(10.0)
+                # Brief delay before retrying from configuration
+                await asyncio.sleep(
+                    self.config.monitoring.metrics_collection_interval / 10
+                )  # 1/10th of collection interval
 
         logger.info("metrics_collection_loop_ended")
 

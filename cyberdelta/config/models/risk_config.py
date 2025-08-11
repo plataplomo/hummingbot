@@ -35,6 +35,14 @@ class GlobalRiskSettings(BaseModel):
     )
     drawdown_check_interval_sec: float = Field(default=300.0, gt=0, le=3600)
 
+    # Position sizing parameters
+    expected_profit_loss_ratio: ConfigDecimal = Field(
+        default=Decimal("1.5"),
+        gt=Decimal("1.0"),
+        le=Decimal("5.0"),
+        description="Expected profit/loss ratio for Kelly criterion position sizing",
+    )
+
 
 class CheckerThresholds(BaseModel):
     """Complete strongly typed checker thresholds covering all risk module needs."""

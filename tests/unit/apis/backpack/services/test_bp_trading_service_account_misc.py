@@ -47,7 +47,7 @@ class TestBackpackTradingServiceAccountMisc:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="test_exchange",
+            exchange_name=ExchangeName.BACKPACK,
             order_mapper=mock_order_mapper,
         )
 
@@ -125,7 +125,7 @@ class TestBackpackTradingServiceAccountMisc:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="test_exchange",
+            exchange_name=ExchangeName.BACKPACK,
             order_mapper=None,
         )
 

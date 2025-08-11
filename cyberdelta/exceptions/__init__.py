@@ -45,7 +45,22 @@ from .field_validation import (
 
 # Funding exceptions - removed as they're not used anymore
 # The APIs have their own funding exceptions
-# Market data exceptions moved to cyberdelta.apis.exceptions
+# Market data exceptions
+from .market import (
+    MarketDataError,
+    MarketDataMissingPriceError,
+    MissingOrderbookError,
+    MissingQuoteError,
+    MissingVolumeError,
+)
+
+# Monitoring exceptions
+from .monitoring import (
+    InvalidMetricError,
+    MetricCalculationError,
+    MonitoringError,
+)
+
 # Parsing exceptions (core utilities only)
 from .parsing import (
     DateTimeParsingError,
@@ -57,6 +72,11 @@ from .parsing import (
 # Portfolio exceptions
 from .portfolio import (
     ExchangeNotSupportedError as PortfolioExchangeNotSupportedError,
+    InvalidPositionDataError,
+    MissingBalanceDataError,
+    MissingClosePriceError,
+    MissingEntryPriceError,
+    MissingRealizedPnLError,
     PortfolioError,
     PortfolioNotInitializedError,
     PortfolioStateError,
@@ -95,6 +115,25 @@ from .symbol_mapping import (
     SymbolNotFoundError,
 )
 
+# System exceptions
+from .system import (
+    CyberDeltaSystemError,
+    SystemHealthError,
+)
+
+# Trading exceptions
+from .trading import (
+    BalanceLockError,
+    OrderDataError,
+    PositionDataError,
+    PositionNoneError,
+    RealizedPnLNoneError,
+    RiskAssessmentError,
+    SignalDataError,
+    TotalEquityNoneError,
+    TradingError,
+)
+
 
 # Strategy exceptions moved to cyberdelta.apis.exceptions
 
@@ -106,9 +145,11 @@ from .symbol_mapping import (
 
 
 __all__ = [
+    "BalanceLockError",
     # Note: APIError, APIErrorCode, TransformationError are not exported here
     # Import them directly from cyberdelta.apis.common when needed
     "BooleanFieldError",
+    "CyberDeltaSystemError",
     "DateTimeParsingError",
     "DecimalFieldError",
     "DecimalFiniteError",
@@ -121,12 +162,26 @@ __all__ = [
     "IntegerConversionError",
     "InvalidAccountTypeError",
     "InvalidFormatError",
+    "InvalidMetricError",
+    "InvalidPositionDataError",
     "InvalidSymbolFormatError",
     "ListFieldError",
+    "MarketDataError",
+    "MarketDataMissingPriceError",
+    "MetricCalculationError",
+    "MissingBalanceDataError",
+    "MissingClosePriceError",
+    "MissingEntryPriceError",
+    "MissingOrderbookError",
     "MissingPriceError",
+    "MissingQuoteError",
+    "MissingRealizedPnLError",
     "MissingStopPriceError",
+    "MissingVolumeError",
+    "MonitoringError",
     "NegativeValueError",
     "NetworkRequiredError",
+    "OrderDataError",
     "OrderFieldError",
     "OrderLogicError",
     "OrderParameterError",
@@ -136,21 +191,29 @@ __all__ = [
     "PortfolioExchangeNotSupportedError",
     "PortfolioNotInitializedError",
     "PortfolioStateError",
+    "PositionDataError",
     "PositionLogicError",
+    "PositionNoneError",
     "PostOnlyLimitError",
     "RangeFieldError",
+    "RealizedPnLNoneError",
     "ReconciliationError",
     "RequiredFieldError",
     "RequiredFieldNoneError",
+    "RiskAssessmentError",
     "ServiceValidationError",
+    "SignalDataError",
     "SymbolMappingConfigurationError",
     "SymbolMappingError",
     "SymbolMappingErrorMessages",
     "SymbolMappingFieldError",
     "SymbolNotFoundError",
+    "SystemHealthError",
     "TimeRangeError",
     "TimestampFieldError",
     "TimestampFormatError",
+    "TotalEquityNoneError",
+    "TradingError",
     "TransferAccountError",
     "TypeFieldError",
     "UnsupportedNetworkError",

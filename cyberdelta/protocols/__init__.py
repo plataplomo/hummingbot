@@ -16,22 +16,33 @@ from .domain.portfolio import (
     ReconciliationEngineProtocol,
     StorageError,
 )
+from .domain.trading import SymbolServiceProtocol, TradingEventHandlerProtocol
+from .domain.workflows import WorkflowHandler
 
-# No external protocols - use actual base classes from cyberdelta.apis.base
 # Infrastructure protocols
-from .infrastructure.monitoring import HealthCheckable
+from .infrastructure.monitoring import HealthCheckable, MetricsProvider
+
+# Service protocols for event system
+from .services import AlertService, PortfolioService, RiskService, StateService, TradingService
 
 
 __all__ = [
-    # Portfolio domain protocols
-    "BalanceManagerProtocol",
-    # Infrastructure protocols
-    "HealthCheckable",
-    "PnLCalculatorProtocol",
-    "PortfolioStateManagerProtocol",
-    "PortfolioStorageProtocol",
-    "PositionManagerProtocol",
-    "ReconciliationEngineProtocol",
-    # Storage exceptions
-    "StorageError",
+    # All protocols and services (sorted)
+    "AlertService",  # Service protocol
+    "BalanceManagerProtocol",  # Portfolio domain protocol
+    "HealthCheckable",  # Infrastructure protocol
+    "MetricsProvider",  # Infrastructure protocol
+    "PnLCalculatorProtocol",  # Portfolio domain protocol
+    "PortfolioService",  # Service protocol
+    "PortfolioStateManagerProtocol",  # Portfolio domain protocol
+    "PortfolioStorageProtocol",  # Portfolio domain protocol
+    "PositionManagerProtocol",  # Portfolio domain protocol
+    "ReconciliationEngineProtocol",  # Portfolio domain protocol
+    "RiskService",  # Service protocol
+    "StateService",  # Service protocol
+    "StorageError",  # Storage exception
+    "SymbolServiceProtocol",  # Trading domain protocol
+    "TradingEventHandlerProtocol",  # Trading domain protocol
+    "TradingService",  # Service protocol
+    "WorkflowHandler",  # Workflow domain protocol
 ]

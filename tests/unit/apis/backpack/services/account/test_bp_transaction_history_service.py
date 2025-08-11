@@ -113,7 +113,7 @@ def transaction_history_service(
         response_handler=mock_response_handler,
         mapper=mock_mapper,
         authenticator=mock_authenticator,
-        exchange_name="backpack",
+        exchange_name=ExchangeName.BACKPACK,
     )
 
 
@@ -661,7 +661,7 @@ class TestBackpackTransactionHistoryService:
             response_handler=mock_response_handler,
             mapper=mock_mapper,
             authenticator=None,  # No authenticator
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
         )
 
         args = GetOrderHistoryArgs()

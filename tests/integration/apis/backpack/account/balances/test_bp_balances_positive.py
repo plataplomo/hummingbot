@@ -14,6 +14,7 @@ import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import BackpackSpotBalanceDetails, SpotBalance
 from cyberdelta.models.margin_account import MarginAccountSummary
 
@@ -48,7 +49,7 @@ class TestBackpackBalancesPositive:
         # Verify each balance
         for asset, balance in balances.items():
             assert isinstance(balance, SpotBalance)
-            assert balance.exchange == "backpack"
+            assert balance.exchange == ExchangeName.BACKPACK
             assert hasattr(balance.asset, "value"), (
                 f"Expected Symbol object with value attribute, got {type(balance.asset)}"
             )
@@ -117,7 +118,7 @@ class TestBackpackBalancesPositive:
         assert balance is not None, "Expected USDC balance to be present"
         assert isinstance(balance, SpotBalance)
         assert balance.asset.value == "USDC"
-        assert balance.exchange == "backpack"
+        assert balance.exchange == ExchangeName.BACKPACK
 
         # Verify quantities
         assert isinstance(balance.total_quantity, Decimal)

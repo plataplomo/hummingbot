@@ -32,6 +32,7 @@ from pydantic_core.core_schema import ValidatorFunctionWrapHandler
 from cyberdelta.apis.backpack.bp_validators import BackpackValidators
 from cyberdelta.apis.exceptions import EmptyStringError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 
 from .bp_common_raw_types import RawBpNonEmptyStringMax128
 
@@ -127,7 +128,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
                 },
             ],
             "x-ws-message-type": "market-data",
-            "x-exchange": "backpack",
+            "x-exchange": ExchangeName.BACKPACK.value,
             "x-api-version": "v1",
         },
     )
@@ -503,7 +504,7 @@ class BackpackRawWebSocketEnvelope(BaseModel):
         # Add WebSocket-specific extensions
         schema.update({
             "x-ws-protocol": "websocket",
-            "x-exchange": "backpack",
+            "x-exchange": ExchangeName.BACKPACK.value,
             "x-message-category": "envelope",
             "x-api-docs": "https://docs.backpack.exchange/api-docs#websocket-api",
             "x-validation-rules": {

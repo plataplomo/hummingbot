@@ -37,6 +37,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions import EmptyResponseError
 from cyberdelta.apis.utils import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.models import DerivativePosition
 from cyberdelta.symbols.models import Symbol
@@ -67,7 +68,7 @@ class BackpackPositionService:
         request_builder: BackpackAccountRequestBuilder,
         response_handler: BackpackAccountResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         # Optional dependency injection for shared state service (Hyperliquid pattern)
         account_state_service: BackpackAccountStateService | None = None,
         # Optional dependency injection for mapper

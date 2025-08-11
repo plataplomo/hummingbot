@@ -59,6 +59,7 @@ from cyberdelta.apis.hyperliquid.services.utils.status_processing import (
 )
 from cyberdelta.apis.models.service_args.trading import CancelOrderArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Order
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.symbols.models import Symbol
@@ -94,7 +95,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
         get_asset_index_callable: Callable[[str], Awaitable[int | None]],
         order_query_service: HyperliquidOrderQueryService,
         action_endpoint: str = "/exchange",
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the order cancellation service.
 
@@ -491,7 +492,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             raise EmptyResponseError(
                 response_type="status data",
                 operation=action_description,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID.value,
             )
 
         # Process the status using utility functions
@@ -507,7 +508,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
                 parameter="symbol",
                 issue="cannot be None at this point in processing",
                 value=cancel_args.symbol,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID.value,
                 operation="single order cancellation",
                 expected_type="non-empty string",
                 suggestion="This indicates an internal validation error",
@@ -593,7 +594,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
                 parameter="authenticator",
                 issue="is required for cancel all orders operation",
                 value=self._authenticator,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID.value,
                 operation="cancel all orders",
                 expected_type="IAuthenticator",
                 suggestion="Ensure authentication is properly configured",
@@ -677,7 +678,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             parameter="order_id",
             issue="must be a positive integer",
             value=order_id,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID.value,
             operation="order cancellation",
             expected_type="positive integer",
             suggestion="Provide an order ID greater than 0",
@@ -701,7 +702,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             parameter="order_id",
             issue="must be a valid integer",
             value=order_id,
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID.value,
             operation="order cancellation",
             expected_type="integer string",
             suggestion="Provide a valid numeric order ID",

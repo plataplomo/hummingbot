@@ -268,7 +268,7 @@ class TestTransferTransformation:
 
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=raw_response,
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             asset="USDC",
             quantity=Decimal("1000.0"),
             from_account_type_raw="spot",
@@ -278,7 +278,7 @@ class TestTransferTransformation:
 
         assert isinstance(result, Transfer)
         assert result.id == "transfer123"
-        assert result.exchange == "backpack"
+        assert result.exchange == ExchangeName.BACKPACK
         assert result.asset == "USDC"
         assert result.quantity == Decimal("1000.0")
         assert result.status == InternalTransferStatus.COMPLETED
@@ -311,7 +311,7 @@ class TestTransferTransformation:
 
             result = transfer_mapper.transform_raw_transfer_to_internal(
                 raw_response=raw_response,
-                exchange_name="backpack",
+                exchange_name=ExchangeName.BACKPACK,
                 asset="USDC",
                 quantity=Decimal("100.0"),
                 from_account_type_raw="spot",
@@ -337,7 +337,7 @@ class TestTransferTransformation:
         with pytest.raises(DataTransformationError) as exc_info:
             transfer_mapper.transform_raw_transfer_to_internal(
                 raw_response=raw_response,
-                exchange_name="backpack",
+                exchange_name=ExchangeName.BACKPACK,
                 asset="USDC",
                 quantity=Decimal("100.0"),
                 from_account_type_raw="spot",
@@ -358,7 +358,7 @@ class TestTransferTransformation:
         with pytest.raises(DataTransformationError) as exc_info:
             transfer_mapper.transform_raw_transfer_to_internal(
                 raw_response=cast("RawJsonResponse", "invalid_response"),
-                exchange_name="backpack",
+                exchange_name=ExchangeName.BACKPACK,
                 asset="USDC",
                 quantity=Decimal("100.0"),
                 from_account_type_raw="spot",
@@ -384,7 +384,7 @@ class TestTransferTransformation:
 
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=cast("RawJsonResponse", mutable_response),
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             asset="USDC",
             quantity=Decimal("100.0"),
             from_account_type_raw="spot",
@@ -403,7 +403,7 @@ class TestTransferTransformation:
 
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=raw_response,
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             asset="USDC",
             quantity=Decimal("100.0"),
             from_account_type_raw="spot",
@@ -422,7 +422,7 @@ class TestTransferTransformation:
 
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=raw_response,
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             asset="BTC",
             quantity=Decimal("999999.123456789012345"),  # Large, high-precision amount
             from_account_type_raw="margin",
@@ -969,7 +969,7 @@ class TestErrorHandling:
 
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=raw_response,
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             asset="USDC🚀",  # Unicode emoji in asset name
             quantity=Decimal("100.0"),
             from_account_type_raw="spot",
@@ -986,7 +986,7 @@ class TestErrorHandling:
 
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=raw_response,
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             asset="USDC",
             quantity=Decimal("100.0"),
             from_account_type_raw="spot",

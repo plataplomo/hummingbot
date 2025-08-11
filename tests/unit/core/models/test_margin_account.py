@@ -87,7 +87,7 @@ def test_margin_summary_creation_all_fields(
 
     summary = MarginAccountSummary(**data)
 
-    assert summary.exchange == "backpack"
+    assert summary.exchange == ExchangeName.BACKPACK
     assert isinstance(summary.timestamp, datetime)
     assert summary.total_equity == Decimal("14000.0")
     assert summary.available_equity == Decimal("12000.0")
@@ -109,7 +109,7 @@ def test_margin_summary_creation_required_only(base_margin_summary_data: dict[st
         if k in ["exchange", "timestamp", "total_equity", "available_equity"]
     }
     summary = MarginAccountSummary(**required_data)
-    assert summary.exchange == "backpack"
+    assert summary.exchange == ExchangeName.BACKPACK
     assert isinstance(summary.timestamp, datetime)
     assert summary.total_equity == Decimal("14000.0")
     assert summary.available_equity == Decimal("12000.0")

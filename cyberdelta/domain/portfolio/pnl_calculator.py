@@ -14,6 +14,7 @@ from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums.trading import OrderSide
+from cyberdelta.exceptions.portfolio import InvalidPositionDataError
 from cyberdelta.symbols.models import Symbol
 
 
@@ -345,17 +346,22 @@ class PnLCalculator(PnLCalculatorProtocol):
         Returns:
             Typed comprehensive PnL report
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Includes both realized and unrealized PnL
-        - Provides detailed breakdown by position
-        - Performance metrics from configuration
+        Raises:
+            InvalidPositionDataError: If portfolio equity data is missing.
+
+        Note:
+            Includes both realized and unrealized PnL with detailed breakdown
+            by position and performance metrics from configuration.
         """
         # Get mark-to-market calculation
         mtm_pnl = await self._calculate_mark_to_market_pnl(include_fees, base_currency)
 
         # Add additional comprehensive metrics
         portfolio_state = await self._state_manager.get_state()
-        portfolio_value = portfolio_state.total_equity_usd or Decimal(0)
+        portfolio_value = portfolio_state.total_equity_usd
+        if portfolio_value is None:
+            msg = "portfolio total_equity_usd is None - cannot calculate comprehensive PnL"
+            raise InvalidPositionDataError(msg)
 
         # Calculate return percentages if we have portfolio value
         if portfolio_value and portfolio_value > 0:

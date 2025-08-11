@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.exceptions.trading import SignalDataError
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.risk.assessment import PositionSize
 
@@ -161,17 +162,21 @@ class PositionSizer:
         Returns:
             Position value in USD
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses kelly_multiplier and kelly_max_allocation from config
-        - NO hardcoded Kelly parameters
+        Raises:
+            SignalDataError: If signal confidence data is missing
 
-        Note: This is a placeholder implementation. Full Kelly requires
-        win rate and win/loss ratio data which would come from strategy
-        backtesting or historical performance data.
+        Note:
+            Uses kelly_multiplier and kelly_max_allocation from config.
+            NO hardcoded Kelly parameters. Placeholder implementation requiring
+            win rate and win/loss ratio data from strategy backtesting or
+            historical performance data.
         """
         # Simplified Kelly implementation using signal confidence
         # In production, this would use historical win rate and profit/loss ratios
-        confidence = Decimal(str(signal.confidence)) if signal.confidence else Decimal("0.5")
+        # Require confidence for Kelly criterion - no fallbacks
+        if signal.confidence is None:
+            raise SignalDataError(signal.signal_id, "confidence")
+        confidence = Decimal(str(signal.confidence))
 
         # Kelly fraction = (bp - q) / b where:
         # b = odds received on the wager (profit/loss ratio)
@@ -180,7 +185,8 @@ class PositionSizer:
         # For now, use a conservative estimate
         win_rate = confidence  # Use signal confidence as win probability
         loss_rate = Decimal(1) - win_rate
-        profit_loss_ratio = Decimal("1.5")  # Conservative 1.5:1 ratio
+        # Get profit/loss ratio from config - no hardcoded assumptions
+        profit_loss_ratio = self.config.risk.global_risk.expected_profit_loss_ratio
 
         # Kelly fraction
         kelly_fraction = (win_rate * profit_loss_ratio - loss_rate) / profit_loss_ratio

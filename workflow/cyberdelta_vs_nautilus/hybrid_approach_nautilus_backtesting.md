@@ -2,9 +2,9 @@
 
 ## Executive Summary
 
-This report analyzes a hybrid approach where CyberDeltaEngine remains the primary live trading system while leveraging Nautilus Trader exclusively as a backtesting engine. This approach aims to combine the best of both worlds: CyberDelta's specialized delta-neutral arbitrage capabilities for live trading and Nautilus's sophisticated backtesting infrastructure for strategy validation.
+This report analyzes a hybrid approach where CyberDeltaEngine remains the primary live trading system while leveraging Nautilus Trader as a backtesting and analytics library. Since Nautilus uses **LGPLv3** (not GPL), direct integration is completely safe and your code remains proprietary.
 
-**Key Finding**: A hybrid approach is technically feasible but requires careful architectural design to avoid GPL contamination and maintain clean separation between systems.
+**Key Finding**: Direct import of Nautilus is allowed under LGPLv3 - no process separation needed, no GPL contamination risk.
 
 ---
 
@@ -23,81 +23,83 @@ This report analyzes a hybrid approach where CyberDeltaEngine remains the primar
 
 ---
 
-## 1. GPL License Analysis
+## 1. LGPLv3 License Analysis
 
-### 1.1 GPL-3.0 Implications for Hybrid Architecture
+### 1.1 LGPLv3 Enables Direct Integration
 
 ```mermaid
 graph TB
-    subgraph "GPL Risk Zones"
-        NT[Nautilus Trader<br/>GPL-3.0 Licensed]
+    subgraph "LGPLv3 Freedom"
+        NT[Nautilus Trader<br/>LGPLv3 Licensed]
 
-        subgraph "Direct Linking = GPL Contamination"
-            DL1[Import Nautilus modules]
-            DL2[Extend Nautilus classes]
-            DL3[Link at compile time]
+        subgraph "Direct Import = SAFE"
+            DL1[Import Nautilus modules ✓]
+            DL2[Extend Nautilus classes ✓]
+            DL3[Use as library dependency ✓]
         end
 
-        subgraph "Process Separation = Safe"
-            PS1[Separate processes]
-            PS2[Network communication]
-            PS3[File-based data exchange]
+        subgraph "Your Code Status"
+            PS1[Strategies remain proprietary]
+            PS2[Trading logic stays private]
+            PS3[No source code disclosure]
         end
 
         NT --> DL1
         NT --> DL2
         NT --> DL3
-        NT -.-> PS1
-        NT -.-> PS2
-        NT -.-> PS3
+        DL1 --> PS1
+        DL2 --> PS2
+        DL3 --> PS3
     end
 
-    style DL1 fill:#ff9999
-    style DL2 fill:#ff9999
-    style DL3 fill:#ff9999
+    style DL1 fill:#99ff99
+    style DL2 fill:#99ff99
+    style DL3 fill:#99ff99
     style PS1 fill:#99ff99
     style PS2 fill:#99ff99
     style PS3 fill:#99ff99
 ```
 
-### 1.2 Legal Boundaries
+### 1.2 What LGPLv3 Allows
 
-**GPL Contamination Occurs When:**
-- Directly importing Nautilus modules into CyberDelta code
-- Extending Nautilus classes in CyberDelta
-- Creating a single executable that includes both systems
-- Sharing memory space between processes
+**You CAN:**
+- Directly import Nautilus modules into CyberDelta
+- Extend Nautilus classes in your proprietary code
+- Use Nautilus as a standard Python library
+- Keep your strategies and trading logic proprietary
 
-**GPL Does NOT Apply When:**
-- Running Nautilus as a separate process
-- Communicating via network protocols (REST, gRPC, etc.)
-- Exchanging data through files (JSON, Parquet, CSV)
-- Using Nautilus as a standalone tool with clear boundaries
+**You MUST:**
+- Allow users to swap Nautilus versions (dynamic linking)
+- Share modifications to Nautilus itself (not your code)
+- Provide LGPL attribution
+- Make Nautilus source available (link to GitHub is fine)
 
-### 1.3 Recommended Legal Architecture
+### 1.3 Recommended Integration Architecture
 
 ```mermaid
 graph LR
-    subgraph "Proprietary Domain"
-        CD[CyberDeltaEngine<br/>Proprietary License]
-        CS[CyberDelta Strategies]
-        CL[Live Trading Logic]
+    subgraph "Your Proprietary Application"
+        CD[CyberDeltaEngine<br/>Proprietary]
+        CS[Trading Strategies<br/>Proprietary]
+        CL[Live Trading<br/>Proprietary]
+
+        subgraph "Direct Import (LGPL-Safe)"
+            NB[nautilus_trader.backtest]
+            NA[nautilus_trader.analysis]
+            NC[nautilus_trader.catalog]
+        end
     end
 
-    subgraph "GPL Domain"
-        NT[Nautilus Trader<br/>GPL-3.0]
-        NB[Backtesting Engine]
-        NC[Data Catalog]
-    end
+    CD --> NB
+    CS --> NA
+    CL --> NC
 
-    subgraph "Safe Communication Layer"
-        API[REST/gRPC API]
-        FS[File System<br/>JSON/Parquet]
-        MQ[Message Queue<br/>Redis/RabbitMQ]
-    end
-
-    CD --> API
-    API --> NT
+    style CD fill:#e6f3ff
+    style CS fill:#e6f3ff
+    style CL fill:#e6f3ff
+    style NB fill:#ffe6e6
+    style NA fill:#ffe6e6
+    style NC fill:#ffe6e6
     CS --> FS
     FS --> NB
     CL -.-> MQ
@@ -116,9 +118,9 @@ graph LR
 
 ---
 
-## 2. Proposed Hybrid Architecture
+## 2. Direct Integration Architecture
 
-### 2.1 System Separation Design
+### 2.1 Unified System Design (LGPL-Safe)
 
 ```mermaid
 graph TB
@@ -165,19 +167,17 @@ graph TB
         end
     end
 
-    subgraph "Interface Layer (No GPL Risk)"
-        subgraph "Data Exchange"
-            PF[Parquet Files]
-            JF[JSON Config]
-            CF[CSV Results]
+    subgraph "Direct Integration (LGPL Allows This)"
+        subgraph "No Isolation Needed"
+            DI[Direct Import<br/>from nautilus_trader]
+            NA[Native API Access]
+            PO[Python Objects]
         end
 
-        subgraph "Strategy Adapter"
-            SA[Strategy Adapter<br/>Converts CyberDelta<br/>to Nautilus format]
-        end
-
-        subgraph "Orchestration"
-            BO[Backtest Orchestrator<br/>Python subprocess]
+        subgraph "Your Code Remains"
+            PR[Proprietary]
+            PS[Private Strategies]
+            PT[Protected IP]
         end
     end
 

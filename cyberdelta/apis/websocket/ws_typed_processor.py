@@ -9,10 +9,10 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_context_registry import WebSocketContextRegistry
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_type_guards import WebSocketTypeGuards
+from cyberdelta.enums import ExchangeName
 
 
 class TypeSafeWebSocketProcessor:
@@ -65,9 +65,9 @@ class TypeSafeWebSocketProcessor:
 
         # Determine exchange type and create appropriate context
         if self.type_guards.is_backpack_message(raw_data):
-            exchange_type = ExchangeType.BACKPACK
+            exchange_type = ExchangeName.BACKPACK
         elif self.type_guards.is_hyperliquid_message(raw_data):
-            exchange_type = ExchangeType.HYPERLIQUID
+            exchange_type = ExchangeName.HYPERLIQUID
         else:
             msg = f"Unknown message format: {list(raw_data.keys())}"
             raise ValueError(msg)

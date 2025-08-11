@@ -45,6 +45,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Order
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.symbols.models import Symbol
@@ -77,7 +78,7 @@ class HyperliquidTradingService:
         request_builder: TradingRequestBuilderProtocol,
         response_handler: TradingResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         wallet_address: str | None,
         get_asset_index_callable: GetAssetIndexCallableSig,
         order_book_service: HyperliquidOrderBookService | None = None,  # Optional
@@ -113,7 +114,7 @@ class HyperliquidTradingService:
                 parameter="authenticator",
                 issue="is required for trading services",
                 value=authenticator,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID.value,
                 operation="initialize trading service",
                 expected_type="IAuthenticator",
                 suggestion="Provide a valid authenticator instance",
@@ -123,7 +124,7 @@ class HyperliquidTradingService:
                 parameter="wallet_address",
                 issue="is required for trading services",
                 value=wallet_address,
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID.value,
                 operation="initialize trading service",
                 expected_type="str",
                 suggestion="Provide a valid wallet address",

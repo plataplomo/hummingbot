@@ -20,9 +20,11 @@ from __future__ import annotations
 
 import sys
 from datetime import UTC, datetime
-from typing import Any, Literal, NotRequired, TypedDict, Unpack
+from typing import Any, Literal, NotRequired, TypedDict, Unpack, assert_never
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from cyberdelta.enums import ExchangeName
 
 
 # Import base envelope types for inheritance
@@ -314,7 +316,7 @@ memory_pool = MemoryPool()
 
 def create_memory_optimized_envelope(
     raw_data: dict[str, Any],
-    exchange_type: str,
+    exchange_type: ExchangeName,
 ) -> MemoryOptimizedBackpackEnvelope | MemoryOptimizedHyperliquidEnvelope:
     """Create memory-optimized envelope using pool allocation.
 
@@ -323,20 +325,21 @@ def create_memory_optimized_envelope(
 
     Args:
         raw_data: Raw message data
-        exchange_type: 'backpack' or 'hyperliquid'
+        exchange_type: Exchange name enum (BACKPACK or HYPERLIQUID)
 
     Returns:
         Memory-optimized envelope instance from pool
 
-    Raises:
-        ValueError: If exchange_type is not 'backpack' or 'hyperliquid'
+    Note:
+        Uses assert_never to ensure exhaustive enum handling
     """
-    if exchange_type == "backpack":
-        return memory_pool.get_backpack_envelope(**raw_data)
-    if exchange_type == "hyperliquid":
-        return memory_pool.get_hyperliquid_envelope(**raw_data)
-    msg = f"Unknown exchange type: {exchange_type}"
-    raise ValueError(msg)
+    match exchange_type:
+        case ExchangeName.BACKPACK:
+            return memory_pool.get_backpack_envelope(**raw_data)
+        case ExchangeName.HYPERLIQUID:
+            return memory_pool.get_hyperliquid_envelope(**raw_data)
+        case _:
+            assert_never(exchange_type)
 
 
 def return_envelope_to_pool(
@@ -403,7 +406,7 @@ if __name__ == "__main__":
         # Benchmark memory-optimized creation
         start = time.perf_counter()
         for _ in range(iterations):
-            envelope = create_memory_optimized_envelope(backpack_data, "backpack")
+            envelope = create_memory_optimized_envelope(backpack_data, ExchangeName.BACKPACK)
             return_envelope_to_pool(envelope)
         end = time.perf_counter()
         results["memory_optimized_ms"] = ((end - start) / iterations) * 1000

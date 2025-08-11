@@ -72,6 +72,7 @@ from cyberdelta.apis.backpack.utils.component_registry import BackpackComponentR
 from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.secrets_models import AnyExchangeSecrets, ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -767,7 +768,7 @@ class BackpackAPIComponentsFactory:
     def create_market_data_service(
         self,
         http_client_requester: HttpClientRequesterSig,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         request_builder: BackpackMarketDataRequestBuilder | None = None,
         response_handler: BackpackMarketDataResponseHandler | None = None,
         # Optional mapper parameters for dependency injection
@@ -823,7 +824,7 @@ class BackpackAPIComponentsFactory:
         self,
         http_client_requester: HttpClientRequesterSig,
         authenticator: BackpackEd25519Authenticator | None,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         request_builder: BackpackAccountRequestBuilder | None = None,
         response_handler: BackpackAccountResponseHandler | None = None,
         # NEW: Optional mapper parameters for dependency injection
@@ -883,7 +884,7 @@ class BackpackAPIComponentsFactory:
         self,
         http_client_requester: HttpClientRequesterSig,
         authenticator: BackpackEd25519Authenticator | None,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         request_builder: BackpackTradingRequestBuilder | None = None,
         response_handler: BackpackTradingResponseHandler | None = None,
         # Optional mapper parameter for dependency injection

@@ -110,11 +110,49 @@ def setup_logging(app_settings: AppSettings) -> None:
                     e,
                 )
 
+    # Configure event system logging if event system is configured
+    if hasattr(app_settings, "event_system") and app_settings.event_system:
+        _configure_event_system_logging(app_settings, log_level_map)
+
     # Log the configured log level
     root_logger.info(
         "logging_initialized: Logging initialized with level: %s",
         log_level_str,
     )
+
+
+def _configure_event_system_logging(
+    app_settings: AppSettings, log_level_map: dict[str, int]
+) -> None:
+    """Configure logging for event system components.
+
+    Args:
+        app_settings: Application configuration with event system settings
+        log_level_map: Mapping of log level strings to logging constants
+    """
+    event_config = app_settings.event_system.logging
+
+    # Set log levels for event system components
+    loggers_config = {
+        "cyberdelta.infrastructure.event_bus": event_config.event_bus_log_level,
+        "cyberdelta.domain.base_event_handler": event_config.handlers_log_level,
+        "cyberdelta.orchestration": event_config.workflows_log_level,
+        "msgspec": event_config.msgspec_log_level,
+        "bubus": event_config.bubus_log_level,
+        "tenacity": "WARNING",  # Always WARNING for tenacity
+    }
+
+    for logger_name, level_str in loggers_config.items():
+        if level_str in log_level_map:
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(log_level_map[level_str])
+
+    # Extra debug for specific components when in DEBUG mode
+    if event_config.log_level == "DEBUG":
+        logging.getLogger("cyberdelta.infrastructure.event_bus.event_bus").setLevel(logging.DEBUG)
+        logging.getLogger("cyberdelta.infrastructure.event_bus.handler_manager").setLevel(
+            logging.DEBUG
+        )
 
 
 def get_logger(name: str) -> logging.Logger:
@@ -128,6 +166,90 @@ def get_logger(name: str) -> logging.Logger:
 
     """
     return logging.getLogger(name)
+
+
+# Convenience functions for event system loggers
+def get_event_logger(name: str) -> logging.Logger:
+    """Get a logger for event system components.
+
+    Args:
+        name: Logger name (usually __name__)
+
+    Returns:
+        Configured logger instance
+    """
+    return logging.getLogger(name)
+
+
+def get_market_event_logger() -> logging.Logger:
+    """Get logger for market data events.
+
+    Returns:
+        Logger instance for market data events
+    """
+    return logging.getLogger("cyberdelta.events.market")
+
+
+def get_order_event_logger() -> logging.Logger:
+    """Get logger for order events.
+
+    Returns:
+        Logger instance for order events
+    """
+    return logging.getLogger("cyberdelta.events.orders")
+
+
+def get_risk_event_logger() -> logging.Logger:
+    """Get logger for risk events.
+
+    Returns:
+        Logger instance for risk events
+    """
+    return logging.getLogger("cyberdelta.events.risk")
+
+
+def get_system_event_logger() -> logging.Logger:
+    """Get logger for system events.
+
+    Returns:
+        Logger instance for system events
+    """
+    return logging.getLogger("cyberdelta.events.system")
+
+
+def log_event_metrics(
+    event_type: str,
+    handler_id: str,
+    processing_time_ms: float,
+    success: bool,
+    error_msg: str | None = None,
+) -> None:
+    """Log event processing metrics in a structured format.
+
+    Args:
+        event_type: Type of event processed
+        handler_id: ID of the handler that processed the event
+        processing_time_ms: Time taken to process in milliseconds
+        success: Whether processing was successful
+        error_msg: Error message if processing failed
+    """
+    logger = logging.getLogger("cyberdelta.events.metrics")
+
+    if success:
+        logger.info(
+            "Event processed: type=%s, handler=%s, time_ms=%.2f",
+            event_type,
+            handler_id,
+            processing_time_ms,
+        )
+    else:
+        logger.error(
+            "Event processing failed: type=%s, handler=%s, time_ms=%.2f, error=%s",
+            event_type,
+            handler_id,
+            processing_time_ms,
+            error_msg,
+        )
 
 
 # Create our custom MemoryHandler subclass for log capturing

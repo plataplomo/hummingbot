@@ -144,7 +144,7 @@ class BackpackPositionMapper(
                 data=position_data,
                 model_class=DerivativePosition,
                 context=f"backpack_position_transform_{raw.symbol}",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(
@@ -286,7 +286,7 @@ class BackpackPositionMapper(
                 data=position_data,
                 model_class=DerivativePosition,
                 context=f"backpack_ws_position_update_{raw_position_update.symbol}",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(

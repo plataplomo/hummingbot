@@ -18,9 +18,9 @@ import signal
 import sys
 from typing import Any, NoReturn
 
-from cyberdelta.application.event_bus import EventBus
 from cyberdelta.application.trading_engine import TradingEngine
 from cyberdelta.config import AppSettings, ConfigurationError, get_app_settings, get_secrets_config
+from cyberdelta.config.models.event_system_config import EventBusConfig
 from cyberdelta.config.secrets_models import SecretsConfig
 from cyberdelta.config.structlog_config import get_logger, setup_structlog
 from cyberdelta.domain.market.market_service import MarketDataService
@@ -30,6 +30,9 @@ from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
+from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.base import ConfigurationNotInitializedError
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.infrastructure.exchange_api_factory import ExchangeAPIFactory
 from cyberdelta.infrastructure.persistence.file_repository import FilePortfolioStorage
 
@@ -47,16 +50,16 @@ class TradingEngineBootstrap:
         self.secrets: SecretsConfig | None = None
         self.shutdown_event = asyncio.Event()
 
-    def _raise_exchange_config_error(self, exchange_name: str) -> NoReturn:
+    def _raise_exchange_config_error(self, exchange_name: ExchangeName) -> NoReturn:
         """Raise configuration error for missing exchange secrets.
 
         Args:
-            exchange_name: Name of the exchange with missing secrets
+            exchange_name: Exchange enum with missing secrets
 
         Raises:
             ConfigurationError: Always raised for missing secrets
         """
-        msg = f"{exchange_name.title()} secrets not found in configuration"
+        msg = f"{exchange_name.value.title()} secrets not found in configuration"
         raise ConfigurationError(msg)
 
     async def initialize_configuration(self, config_path: str | None = None) -> None:
@@ -103,14 +106,17 @@ class TradingEngineBootstrap:
         api_clients: dict[str, Any] = {}
 
         # Initialize ALL enabled exchanges dynamically using factory
-        for exchange_name, exchange_config in self.config.exchanges.items():
+        for exchange_name_str, exchange_config in self.config.exchanges.items():
             if not exchange_config.enabled:
-                logger.debug("exchange_disabled", exchange_name=exchange_name)
+                logger.debug("exchange_disabled", exchange_name=exchange_name_str)
                 continue
 
             try:
+                # Convert string to enum
+                exchange_name = ExchangeName(exchange_name_str)
+
                 # Extract exchange-specific secrets from SecretsConfig
-                exchange_secrets = self.secrets.exchanges.get(exchange_name)
+                exchange_secrets = self.secrets.exchanges.get(exchange_name_str)
                 if exchange_secrets is None:
                     self._raise_exchange_config_error(exchange_name)
 
@@ -121,17 +127,17 @@ class TradingEngineBootstrap:
                     exchange_secrets=exchange_secrets,
                 )
 
-                api_clients[exchange_name] = api_client
+                api_clients[exchange_name_str] = api_client
                 logger.info(
                     "exchange_api_initialized",
-                    exchange_name=exchange_name,
+                    exchange_name=exchange_name_str,
                     enabled=True,
                 )
 
             except Exception as e:
                 logger.exception(
                     "exchange_initialization_failed",
-                    exchange_name=exchange_name,
+                    exchange_name=exchange_name_str,
                     error=str(e),
                 )
                 if not self.config.general.safe_mode:
@@ -199,7 +205,11 @@ class TradingEngineBootstrap:
         services["execution"] = execution_engine
 
         # Initialize risk service with config and portfolio service
-        risk_service = RiskService(config=self.config, portfolio_service=portfolio_service)
+        risk_service = RiskService(
+            config=self.config,
+            portfolio_service=portfolio_service,
+            event_bus=event_bus,
+        )
         services["risk"] = risk_service
 
         # Initialize signal service with config and event bus
@@ -282,72 +292,103 @@ class TradingEngineBootstrap:
 
         logger.debug("signal_handlers_registered")
 
-    async def run(self, config_path: str | None = None, safe_mode: bool = False) -> None:
-        """Main execution method with proper error handling and cleanup."""
-        trading_engine: TradingEngine | None = None
+    async def _initialize_system_components(
+        self, config_path: str | None = None, safe_mode: bool = False
+    ) -> tuple[EventBus, dict[str, Any], dict[str, Any]]:
+        """Initialize system components (config, event bus, APIs, services).
+
+        Args:
+            config_path: Optional path to configuration file
+            safe_mode: Whether to run in safe mode
+
+        Returns:
+            tuple: (event_bus, api_clients, services)
+
+        Raises:
+            ConfigurationNotInitializedError: If configuration is not loaded
+        """
+        # Step 1: Initialize configuration and logging
+        await self.initialize_configuration(config_path)
+
+        # Override safe mode if specified
+        if safe_mode and self.config:
+            logger.info("safe_mode_override_enabled")
+
+        # Step 2: Validate configuration
+        if self.config and self.config.general.safe_mode:
+            logger.warning("safe_mode_enabled", message="No real trades will be executed")
+
+        # Step 3: Setup signal handlers
+        self.setup_signal_handlers()
+
+        # Step 4: Initialize event bus
+        if self.config is None:
+            raise ConfigurationNotInitializedError("AppSettings")
+        event_bus_config = EventBusConfig()
+        event_bus = EventBus(config=event_bus_config)
+
+        # Step 5: Initialize exchange APIs with configuration
+        logger.info("initializing_exchange_connections")
+        api_clients = await self.initialize_exchange_apis()
+
+        # Step 6: Initialize all services with dependency injection
+        logger.info("initializing_business_logic_services")
+        services = await self.initialize_services(api_clients, event_bus)
+
+        return event_bus, api_clients, services
+
+    async def _run_trading_engine(self, event_bus: EventBus, services: dict[str, Any]) -> None:
+        """Run the trading engine until shutdown.
+
+        Args:
+            event_bus: Event bus for communication
+            services: Business logic services
+        """
+        # Step 7: Initialize trading engine
+        logger.info("initializing_trading_engine")
+        trading_engine = await self.initialize_trading_engine(services, event_bus)
+
+        # Step 8: Start the trading engine
+        logger.info("starting_trading_engine")
+        await trading_engine.start()
+
+        # Step 9: Run until shutdown signal
+        logger.info(
+            "trading_engine_running",
+            message="Trading engine is running. Press Ctrl+C to stop.",
+            safe_mode=self.config.general.safe_mode if self.config else False,
+        )
 
         try:
-            # Step 1: Initialize configuration and logging
-            await self.initialize_configuration(config_path)
-
-            # Override safe mode if specified
-            if safe_mode and self.config:
-                logger.info("safe_mode_override_enabled")
-
-            # Step 2: Validate configuration
-            if self.config and self.config.general.safe_mode:
-                logger.warning("safe_mode_enabled", message="No real trades will be executed")
-
-            # Step 3: Setup signal handlers
-            self.setup_signal_handlers()
-
-            # Step 4: Initialize event bus
-            event_bus = EventBus()
-
-            # Step 5: Initialize exchange APIs with configuration
-            logger.info("initializing_exchange_connections")
-            api_clients = await self.initialize_exchange_apis()
-
-            # Step 6: Initialize all services with dependency injection
-            logger.info("initializing_business_logic_services")
-            services = await self.initialize_services(api_clients, event_bus)
-
-            # Step 7: Initialize trading engine
-            logger.info("initializing_trading_engine")
-            trading_engine = await self.initialize_trading_engine(services, event_bus)
-
-            # Step 8: Start the trading engine
-            logger.info("starting_trading_engine")
-            await trading_engine.start()
-
-            # Step 9: Run until shutdown signal
-            logger.info(
-                "trading_engine_running",
-                message="Trading engine is running. Press Ctrl+C to stop.",
-                safe_mode=self.config.general.safe_mode if self.config else False,
-            )
-
             # Wait for shutdown signal instead of infinite loop
             await self.shutdown_event.wait()
-
-        except KeyboardInterrupt:
-            if logger:
-                logger.info("shutdown_requested", source="keyboard_interrupt")
-        except (ConfigurationError, ValueError, OSError) as e:
-            if logger:
-                logger.exception("specific_error_in_main", error=str(e))
-            sys.exit(1)
         finally:
-            # Step 10: Graceful shutdown
-            if trading_engine and logger:
-                logger.info("shutting_down_trading_engine")
-                try:
-                    await trading_engine.stop()
-                    logger.info("shutdown_complete")
-                except Exception as e:
-                    logger.exception("shutdown_error", error=str(e))
-            elif logger:
+            # Graceful shutdown
+            logger.info("shutting_down_trading_engine")
+            try:
+                await trading_engine.stop()
                 logger.info("shutdown_complete")
+            except Exception as e:
+                logger.exception("shutdown_error", error=str(e))
+
+    async def run(self, config_path: str | None = None, safe_mode: bool = False) -> None:
+        """Main execution method with proper error handling and cleanup.
+
+        Args:
+            config_path: Optional path to configuration file
+            safe_mode: Whether to run in safe mode
+
+        """
+        try:
+            event_bus, _, services = await self._initialize_system_components(
+                config_path, safe_mode
+            )
+            await self._run_trading_engine(event_bus, services)
+        except KeyboardInterrupt:
+            logger.info("shutdown_requested", source="keyboard_interrupt")
+        except (ConfigurationError, ValueError, OSError) as e:
+            logger.exception("specific_error_in_main", error=str(e))
+            sys.exit(1)
 
 
 def parse_arguments() -> argparse.Namespace:

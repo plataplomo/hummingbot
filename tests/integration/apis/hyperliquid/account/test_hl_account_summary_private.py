@@ -35,7 +35,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models.margin_account import MarginAccountSummary
 from cyberdelta.models.market.order import Order
 from tests.integration.apis.hyperliquid.shared.hl_test_helpers import (
@@ -93,7 +93,7 @@ class TestHyperliquidAccountSummaryPrivate:
         assert isinstance(initial_summary, MarginAccountSummary), (
             "Account summary should be MarginAccountSummary instance"
         )
-        assert initial_summary.exchange == "hyperliquid", (
+        assert initial_summary.exchange == ExchangeName.HYPERLIQUID, (
             f"Exchange should be 'hyperliquid', got {initial_summary.exchange}"
         )
 
@@ -200,7 +200,7 @@ class TestHyperliquidAccountSummaryPrivate:
         assert isinstance(updated_summary, MarginAccountSummary), (
             "Updated summary should be MarginAccountSummary instance"
         )
-        assert updated_summary.exchange == "hyperliquid", (
+        assert updated_summary.exchange == ExchangeName.HYPERLIQUID, (
             f"Exchange should remain 'hyperliquid', got {updated_summary.exchange}"
         )
 
@@ -619,7 +619,7 @@ class TestHyperliquidAccountSummaryPrivate:
             )
 
             # Validate account summary structure integrity
-            assert post_op_summary.exchange == "hyperliquid", (
+            assert post_op_summary.exchange == ExchangeName.HYPERLIQUID, (
                 f"Operation {i + 1}: Exchange should remain consistent"
             )
 

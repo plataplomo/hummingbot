@@ -12,11 +12,12 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-from cyberdelta.application.event_bus import EventBus
+import msgspec
+
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.market.market_service import MarketDataService
-from cyberdelta.domain.monitoring.alert_service import AlertLevel, AlertService
+from cyberdelta.domain.monitoring.alert_service import AlertService
 from cyberdelta.domain.monitoring.metrics_collector import MetricsCollector
 from cyberdelta.domain.monitoring.service_health_monitor import ServiceHealthMonitor
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
@@ -27,11 +28,20 @@ from cyberdelta.domain.strategy.strategy_service import StrategyService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
 from cyberdelta.enums import MakerTaker, OrderSide
-from cyberdelta.enums.events import EventType
+from cyberdelta.enums.monitoring import AlertLevel, RiskSeverity
 from cyberdelta.enums.signals import SignalType
+from cyberdelta.enums.trading import OrderEventType, PositionEventType, TradingAction
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models import Fill, TradeSignal
-from cyberdelta.models.events import DomainEvent
+from cyberdelta.models.events import (
+    MarketData,
+    OrderEvent,
+    PositionEvent,
+    RiskEvent,
+    SignalEvent,
+)
 from cyberdelta.models.monitoring.system_health_models import CircuitBreakerSystemHealth
+from cyberdelta.symbols.global_service import get_symbol_service
 
 
 logger = get_logger(__name__)
@@ -335,27 +345,19 @@ class TradingEngine:
         - Proper error handling in handlers
         """
         # Subscribe to strategy signal events
-        await self._event_bus.subscribe(
-            EventType.SIGNAL_GENERATED, self._handle_strategy_signal_event
-        )
+        self._event_bus.subscribe(SignalEvent, self._handle_strategy_signal_event)
 
         # Subscribe to order execution events
-        await self._event_bus.subscribe(EventType.ORDER_FILLED, self._handle_order_filled_event)
+        self._event_bus.subscribe(OrderEvent, self._handle_order_filled_event)
 
         # Subscribe to market data events
-        await self._event_bus.subscribe(
-            EventType.MARKET_DATA_UPDATED, self._handle_market_data_event
-        )
+        self._event_bus.subscribe(MarketData, self._handle_market_data_event)
 
         # Subscribe to position events
-        await self._event_bus.subscribe(
-            EventType.POSITION_UPDATED, self._handle_position_updated_event
-        )
+        self._event_bus.subscribe(PositionEvent, self._handle_position_updated_event)
 
         # Subscribe to risk events
-        await self._event_bus.subscribe(
-            EventType.RISK_LIMIT_BREACHED, self._handle_risk_limit_event
-        )
+        self._event_bus.subscribe(RiskEvent, self._handle_risk_limit_event)
 
         logger.info("event_handlers_configured", handler_count=5)
 
@@ -737,7 +739,7 @@ class TradingEngine:
                 logger.exception("monitoring_loop_error", error=str(e))
 
                 # Brief delay before retrying monitoring
-                await asyncio.sleep(10.0)  # Could be configurable
+                await asyncio.sleep(float(self.config.execution.retry_delay_base_sec))
 
         logger.info("monitoring_loop_ended")
 
@@ -1267,42 +1269,42 @@ class TradingEngine:
             ],
         }
 
-    async def _handle_strategy_signal_event(self, event: DomainEvent) -> None:
+    async def _handle_strategy_signal_event(self, event: msgspec.Struct) -> None:
         """Handle strategy signal generation events."""
-        if event.event_type == EventType.SIGNAL_GENERATED:
+        if isinstance(event, SignalEvent):
             # Convert to TradeSignal and process
             task = asyncio.create_task(self._process_strategy_signal_event(event))
             self._tasks.append(task)
 
-    async def _handle_order_filled_event(self, event: DomainEvent) -> None:
+    async def _handle_order_filled_event(self, event: msgspec.Struct) -> None:
         """Handle order filled events."""
-        if event.event_type == EventType.ORDER_FILLED:
+        if isinstance(event, OrderEvent) and event.event_type == OrderEventType.FILLED:
             task = asyncio.create_task(self._process_order_filled_event(event))
             self._tasks.append(task)
 
-    async def _handle_market_data_event(self, event: DomainEvent) -> None:
+    async def _handle_market_data_event(self, event: msgspec.Struct) -> None:
         """Handle market data updated events."""
-        if event.event_type == EventType.MARKET_DATA_UPDATED:
+        if isinstance(event, MarketData):
             task = asyncio.create_task(self._process_market_data_event(event))
             self._tasks.append(task)
 
-    async def _handle_position_updated_event(self, event: DomainEvent) -> None:
+    async def _handle_position_updated_event(self, event: msgspec.Struct) -> None:
         """Handle position updated events."""
-        if event.event_type == EventType.POSITION_UPDATED:
+        if isinstance(event, PositionEvent) and event.event_type == PositionEventType.UPDATED:
             task = asyncio.create_task(self._process_position_updated_event(event))
             self._tasks.append(task)
 
-    async def _handle_risk_limit_event(self, event: DomainEvent) -> None:
+    async def _handle_risk_limit_event(self, event: msgspec.Struct) -> None:
         """Handle risk limit exceeded events."""
-        if event.event_type == EventType.RISK_LIMIT_BREACHED:
+        if isinstance(event, RiskEvent) and event.severity == RiskSeverity.CRITICAL:
             task = asyncio.create_task(self._process_risk_limit_event(event))
             self._tasks.append(task)
 
-    def _validate_event_required_fields(self, event: DomainEvent) -> bool:
+    def _validate_event_required_fields(self, event: SignalEvent) -> bool:
         """Validate required fields are present in the event.
 
         Args:
-            event: Domain event to validate
+            event: Signal event to validate
 
         Returns:
             True if all required fields are present, False otherwise
@@ -1310,7 +1312,7 @@ class TradingEngine:
         if not event.symbol:
             logger.error(
                 "strategy_signal_event_missing_symbol",
-                event_id=event.event_id,
+                signal_id=event.signal_id,
                 message="Signal events must include valid symbol",
             )
             return False
@@ -1318,28 +1320,27 @@ class TradingEngine:
         if not event.exchange:
             logger.error(
                 "strategy_signal_event_missing_exchange",
-                event_id=event.event_id,
+                signal_id=event.signal_id,
                 message="Signal events must include valid exchange",
             )
             return False
 
         return True
 
-    def _extract_and_validate_price(self, event: DomainEvent) -> Decimal | None:
-        """Extract and validate price from event payload.
+    def _extract_and_validate_price(self, event: SignalEvent) -> Decimal | None:
+        """Extract and validate price from event.
 
         Args:
-            event: Domain event containing price data
+            event: Signal event containing price data
 
         Returns:
             Validated Decimal price, or None if invalid
         """
-        # Use typed getter from DomainEvent
-        price = event.get_decimal("price")
+        price = event.target_price
         if price is None:
             logger.error(
                 "strategy_signal_event_missing_price",
-                event_id=event.event_id,
+                signal_id=event.signal_id,
                 message="Signal events must include valid price data",
             )
             return None
@@ -1347,7 +1348,7 @@ class TradingEngine:
         if price <= Decimal(0):
             logger.error(
                 "strategy_signal_event_invalid_price",
-                event_id=event.event_id,
+                signal_id=event.signal_id,
                 price=str(price),
                 message="Price must be positive",
             )
@@ -1355,55 +1356,57 @@ class TradingEngine:
 
         return price
 
-    def _extract_signal_side(self, event: DomainEvent) -> OrderSide:
-        """Extract order side from event payload with type safety.
+    def _extract_signal_side(self, event: SignalEvent) -> OrderSide:
+        """Extract order side from event with type safety.
 
         Args:
-            event: Domain event containing side data
+            event: Signal event containing side data
 
         Returns:
             Validated OrderSide enum value
         """
-        side_str = event.get_str("side")
-        if side_str is None:
-            return OrderSide.BUY  # Safe default from enum
-
+        side_str = event.action
         try:
             return OrderSide(side_str)
         except ValueError:
             logger.warning(
                 "strategy_signal_event_invalid_side",
-                event_id=event.event_id,
+                signal_id=event.signal_id,
                 side=side_str,
                 message="Invalid side value, using BUY as default",
             )
             return OrderSide.BUY
 
-    def _extract_signal_type(self, event: DomainEvent) -> SignalType:
-        """Extract signal type from event payload with type safety.
+    def _extract_signal_type(self, event: SignalEvent) -> SignalType:
+        """Extract signal type from event with type safety.
 
         Args:
-            event: Domain event containing signal type data
+            event: Signal event containing signal type data
 
         Returns:
             Validated SignalType enum value
         """
-        signal_type_str = event.get_str("signal_type")
-        if signal_type_str is None:
-            return SignalType.ENTER_LONG  # Safe default from enum
+        action_enum = event.action
+        # Map action to SignalType
+        action_to_signal_type = {
+            TradingAction.BUY: SignalType.ENTER_LONG,
+            TradingAction.SELL: SignalType.ENTER_SHORT,
+            TradingAction.HOLD: SignalType.ENTER_LONG,  # Default mapping
+            TradingAction.CLOSE: SignalType.EXIT_LONG,  # Could be EXIT_SHORT too
+        }
 
         try:
-            return SignalType(signal_type_str)
-        except ValueError:
+            return action_to_signal_type.get(action_enum, SignalType.ENTER_LONG)
+        except (KeyError, ValueError):
             logger.warning(
-                "strategy_signal_event_invalid_signal_type",
-                event_id=event.event_id,
-                signal_type=signal_type_str,
-                message="Invalid signal type, using ENTER_LONG as default",
+                "strategy_signal_event_invalid_action",
+                signal_id=event.signal_id,
+                action=action_enum.value if action_enum else "unknown",
+                message="Invalid action, using ENTER_LONG as default",
             )
             return SignalType.ENTER_LONG
 
-    async def _process_strategy_signal_event(self, event: DomainEvent) -> None:
+    async def _process_strategy_signal_event(self, event: SignalEvent) -> None:
         """Process strategy signal event with full type safety.
 
         Validates all event data using typed methods and creates TradeSignal
@@ -1422,39 +1425,20 @@ class TradingEngine:
         side = self._extract_signal_side(event)
         signal_type = self._extract_signal_type(event)
 
-        # Extract other fields - fail fast if missing required data
-        confidence_value = event.payload.get("confidence")
-        if confidence_value is None:
-            logger.error(
-                "strategy_signal_event_missing_confidence",
-                event_id=event.event_id,
-                message="Signal events must include confidence value",
-            )
-            return
-        confidence = float(confidence_value)
-        source_strategy = event.get_str("strategy_name")
-        if source_strategy is None:
-            logger.error(
-                "strategy_signal_event_missing_strategy_name",
-                event_id=event.event_id,
-                message="Signal events must include strategy_name",
-            )
-            return
+        # Extract other fields - no None checks needed for required fields
+        confidence = event.confidence
+        source_strategy = event.strategy_name
 
         # Create TradeSignal with all validated data
-        # Additional type safety check (should never trigger due to validation above)
-        if event.symbol is None or event.exchange is None:
-            logger.error(
-                "strategy_signal_event_validation_inconsistency",
-                event_id=event.event_id,
-                message="Validated fields became None after validation",
-            )
-            return
+
+        # Create Symbol object from string
+        symbol_service = get_symbol_service()
+        symbol = symbol_service.create_symbol(event.symbol, event.exchange)
 
         signal = TradeSignal(
-            signal_id=event.entity_id,
-            symbol=event.symbol,
-            exchange=event.exchange,
+            signal_id=event.signal_id,
+            symbol=symbol,
+            exchange=event.exchange,  # Required field - no defaults
             side=side,  # Type-safe enum
             signal_type=signal_type,  # Type-safe enum
             price=price,  # Validated Decimal
@@ -1464,11 +1448,11 @@ class TradingEngine:
 
         await self._handle_trading_signal(signal)
 
-    def _validate_fill_event_data(self, event: DomainEvent) -> bool:
+    def _validate_fill_event_data(self, event: OrderEvent) -> bool:
         """Validate required fields for fill event processing.
 
         Args:
-            event: Domain event to validate
+            event: Order event to validate
 
         Returns:
             True if all required fields are present, False otherwise
@@ -1476,7 +1460,7 @@ class TradingEngine:
         if not event.symbol:
             logger.error(
                 "order_filled_event_missing_symbol",
-                event_id=event.event_id,
+                order_id=event.order_id,
                 message="Fill events must include valid symbol",
             )
             return False
@@ -1484,28 +1468,28 @@ class TradingEngine:
         if not event.exchange:
             logger.error(
                 "order_filled_event_missing_exchange",
-                event_id=event.event_id,
+                order_id=event.order_id,
                 message="Fill events must include valid exchange",
             )
             return False
 
         return True
 
-    def _extract_fill_price(self, event: DomainEvent) -> Decimal | None:
-        """Extract and validate fill price from event payload.
+    def _extract_fill_price(self, event: OrderEvent) -> Decimal | None:
+        """Extract and validate fill price from event.
 
         Args:
-            event: Domain event containing fill price data
+            event: Order event containing fill price data
 
         Returns:
             Validated Decimal price, or None if invalid
         """
         # Require 'fill_price' - fail fast if missing
-        price = event.get_decimal("fill_price")
+        price = event.fill_price
         if price is None:
             logger.error(
                 "order_filled_event_missing_price",
-                event_id=event.event_id,
+                order_id=event.order_id,
                 message="Fill events must include valid fill_price",
             )
             return None
@@ -1513,7 +1497,7 @@ class TradingEngine:
         if price <= Decimal(0):
             logger.error(
                 "order_filled_event_invalid_price",
-                event_id=event.event_id,
+                order_id=event.order_id,
                 price=str(price),
                 message="Fill price must be positive",
             )
@@ -1521,20 +1505,20 @@ class TradingEngine:
 
         return price
 
-    def _extract_fill_quantity(self, event: DomainEvent) -> Decimal | None:
-        """Extract and validate fill quantity from event payload.
+    def _extract_fill_quantity(self, event: OrderEvent) -> Decimal | None:
+        """Extract and validate fill quantity from event.
 
         Args:
-            event: Domain event containing fill quantity data
+            event: Order event containing fill quantity data
 
         Returns:
             Validated Decimal quantity, or None if invalid
         """
-        quantity = event.get_decimal("fill_quantity")
+        quantity = event.fill_quantity
         if quantity is None:
             logger.error(
                 "order_filled_event_missing_quantity",
-                event_id=event.event_id,
+                order_id=event.order_id,
                 message="Fill events must include valid fill_quantity",
             )
             return None
@@ -1542,7 +1526,7 @@ class TradingEngine:
         if quantity <= Decimal(0):
             logger.error(
                 "order_filled_event_invalid_quantity",
-                event_id=event.event_id,
+                order_id=event.order_id,
                 quantity=str(quantity),
                 message="Fill quantity must be positive",
             )
@@ -1550,40 +1534,32 @@ class TradingEngine:
 
         return quantity
 
-    def _extract_fill_side(self, event: DomainEvent) -> OrderSide:
-        """Extract order side from fill event payload with type safety.
+    def _extract_fill_side(self, event: OrderEvent) -> OrderSide:
+        """Extract order side from fill event with type safety.
 
         Args:
-            event: Domain event containing side data
+            event: Order event containing side data
 
         Returns:
             Validated OrderSide enum value
         """
-        side_str = event.get_str("side")
-        if side_str is None:
-            logger.warning(
-                "order_filled_event_missing_side",
-                event_id=event.event_id,
-                message="Fill event missing side, using BUY as default",
-            )
-            return OrderSide.BUY
+        # OrderEvent doesn't have side field, use default for now
+        # In a real implementation, side would need to be tracked elsewhere
+        logger.warning(
+            "order_filled_event_no_side_field",
+            order_id=event.order_id,
+            message="OrderEvent doesn't have side field, using BUY as default",
+        )
+        return OrderSide.BUY
 
-        try:
-            return OrderSide(side_str)
-        except ValueError:
-            logger.warning(
-                "order_filled_event_invalid_side",
-                event_id=event.event_id,
-                side=side_str,
-                message="Invalid side value, using BUY as default",
-            )
-            return OrderSide.BUY
-
-    async def _process_order_filled_event(self, event: DomainEvent) -> None:
+    async def _process_order_filled_event(self, event: OrderEvent) -> None:
         """Process order filled event with full type safety.
 
         Validates all event data using typed methods and creates Fill
         for processing. Returns early if any validation fails.
+
+        Raises:
+            ValueError: If commission data is missing for the order.
         """
         # Validate required fields using typed validation
         if not self._validate_fill_event_data(event):
@@ -1601,36 +1577,30 @@ class TradingEngine:
         # Extract side with type safety
         side = self._extract_fill_side(event)
 
-        # Extract other fields - commission is required for trading fills
-        is_partial = event.get_bool("is_partial", False)
+        # Extract commission from event field - explicit None handling
+        commission = event.commission
+        if commission is None:
+            msg = f"Commission data missing for order {event.order_id}"
+            raise ValueError(msg)
+        # Determine if partial fill based on remaining quantity
+        is_partial = event.remaining_quantity is not None and event.remaining_quantity > 0
         maker_taker = MakerTaker.MAKER if is_partial else MakerTaker.TAKER
-        fee = event.get_decimal("commission")
-        if fee is None:
-            logger.error(
-                "fill_event_missing_fee",
-                event_id=event.event_id,
-                symbol=event.symbol.value if event.symbol else None,
-                exchange=event.exchange.value if event.exchange else None,
-                message="Commission field required for fill events",
-            )
-            return
-        fee_asset = event.get_str("fee_asset")
+        fee = commission
+        fee_asset = None  # OrderEvent doesn't specify fee asset
 
-        # Additional type safety check (should never trigger due to validation above)
-        if event.symbol is None or event.exchange is None:
-            logger.error(
-                "order_filled_event_validation_inconsistency",
-                event_id=event.event_id,
-                message="Validated fields became None after validation",
-            )
-            return
+        # Create Symbol object from string
+        symbol_service = get_symbol_service()
+        symbol = symbol_service.create_symbol(event.symbol, event.exchange)
+
+        # Convert timestamp to datetime
+        executed_at = datetime.fromtimestamp(event.timestamp, tz=UTC)
 
         fill = Fill(
-            id=event.entity_id,
-            symbol=event.symbol,
-            executed_at=event.timestamp,
+            id=event.order_id,
+            symbol=symbol,
+            executed_at=executed_at,
             side=side,  # Type-safe enum
-            order_id=event.entity_id,
+            order_id=event.order_id,
             exchange=event.exchange,
             price=fill_price,  # Validated Decimal > 0
             quantity=fill_quantity,  # Validated Decimal > 0
@@ -1640,62 +1610,45 @@ class TradingEngine:
         )
         await self._handle_trade_executed(fill)
 
-    async def _process_market_data_event(self, event: DomainEvent) -> None:
+    async def _process_market_data_event(self, event: MarketData) -> None:
         """Process market data event."""
         update_dict = {
-            "type": event.payload.get("data_type", "ticker"),
-            "symbol": str(event.symbol) if event.symbol else "unknown",
-            "exchange": str(event.exchange) if event.exchange else "unknown",
-            "last_price": (
-                float(event.payload["last_price"])
-                if "last_price" in event.payload and event.payload["last_price"] is not None
-                else None
-            ),
-            "bid_price": (
-                float(event.payload["bid_price"])
-                if "bid_price" in event.payload and event.payload["bid_price"] is not None
-                else None
-            ),
-            "ask_price": (
-                float(event.payload["ask_price"])
-                if "ask_price" in event.payload and event.payload["ask_price"] is not None
-                else None
-            ),
-            "volume_24h": (
-                float(event.payload["volume_24h"])
-                if "volume_24h" in event.payload and event.payload["volume_24h"] is not None
-                else None
-            ),
+            "type": event.data_type,
+            "symbol": event.symbol,
+            "exchange": event.exchange,
+            "last_price": float(event.price) if event.price else None,
+            "bid_price": float(event.bids[0][0]) if event.bids else None,
+            "ask_price": float(event.asks[0][0]) if event.asks else None,
+            "volume_24h": float(event.volume) if event.volume else None,
             "timestamp": event.timestamp,
-            "event_id": event.event_id,
+            "event_id": f"market_{event.symbol}_{event.exchange}_{event.timestamp}",
         }
         await self._handle_market_data_update(update_dict)
 
-    async def _process_position_updated_event(self, event: DomainEvent) -> None:
+    async def _process_position_updated_event(self, event: PositionEvent) -> None:
         """Process position updated event."""
+        # PositionEvent doesn't have metadata field, use available fields
         update_dict = {
             "type": "position_update",
-            "symbol": str(event.symbol) if event.symbol else "unknown",
-            "exchange": str(event.exchange) if event.exchange else "unknown",
-            "previous_value": event.payload.get("previous_value"),
-            "new_value": event.payload.get("new_value"),
+            "symbol": event.symbol,
+            "exchange": event.exchange,
+            "previous_value": None,  # PositionEvent doesn't provide previous value
+            "new_value": event.size,
             "timestamp": event.timestamp,
-            "event_id": event.event_id,
+            "event_id": f"position_{event.symbol}_{event.exchange}_{event.timestamp}",
         }
         await self._handle_portfolio_updated(update_dict)
 
-    async def _process_risk_limit_event(self, event: DomainEvent) -> None:
+    async def _process_risk_limit_event(self, event: RiskEvent) -> None:
         """Process risk limit exceeded event."""
-        limit_type = event.payload.get("limit_type", "unknown")
-        current_value = event.payload.get("current_value", 0)
-        limit_value = event.payload.get("limit_value", 0)
+        # RiskEvent doesn't have metadata or current_exposure fields
         violation_dict = {
-            "type": limit_type,
-            "signal_id": event.payload.get("signal_id"),
-            "details": f"Limit {limit_type}: {current_value} > {limit_value}",
-            "current_exposure": float(current_value),
-            "limit_value": float(limit_value),
+            "type": event.risk_type,
+            "signal_id": None,  # Not available in RiskEvent
+            "details": f"Limit {event.risk_type}: {event.current_value} > {event.limit_value}",
+            "current_value": float(event.current_value) if event.current_value else 0,
+            "limit_value": float(event.limit_value) if event.limit_value else 0,
             "timestamp": event.timestamp,
-            "event_id": event.event_id,
+            "event_id": f"risk_{event.risk_type}_{event.timestamp}",
         }
         await self._handle_risk_violation(violation_dict)

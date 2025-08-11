@@ -172,7 +172,7 @@ class FillHandler:
             fill_sequence=FillProcessor.get_fill_sequence_number(order, self._processed_fills),
             is_partial_fill=True,
             remaining_quantity=float(
-                order.quantity_requested - (order.quantity_filled or Decimal(0)),
+                order.quantity_requested - self._get_filled_quantity(order),
             ),
         )
 
@@ -243,3 +243,15 @@ class FillHandler:
             msg = f"No exchange configuration found for: {exchange_name}"
             raise ValueError(msg)
         return exchange_config
+
+    def _get_filled_quantity(self, order: Order) -> Decimal:
+        """Get filled quantity from order, failing fast on None.
+
+        Args:
+            order: Order to get filled quantity from
+
+        Returns:
+            Decimal: The filled quantity (always available, defaults to 0)
+        """
+        # quantity_filled is always available (Decimal with default 0)
+        return order.quantity_filled

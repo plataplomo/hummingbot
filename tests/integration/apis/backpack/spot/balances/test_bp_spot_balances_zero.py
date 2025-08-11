@@ -16,6 +16,7 @@ from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.spot_balance import SpotBalance
 from tests.integration.apis.shared.validation_helpers import assert_valid_spot_balance
 
@@ -49,7 +50,7 @@ class TestBackpackSpotBalancesZero:
         for asset_symbol, spot_balance in balances.items():
             assert isinstance(spot_balance, SpotBalance)
             assert_valid_spot_balance(spot_balance)
-            assert spot_balance.exchange == "backpack"
+            assert spot_balance.exchange == ExchangeName.BACKPACK
             logger.info(
                 "zero_balance_validated",
                 asset_symbol=asset_symbol,
@@ -145,7 +146,7 @@ class TestBackpackSpotBalancesZero:
 
             assert isinstance(spot_balance, SpotBalance)
             assert spot_balance.asset.value == asset_symbol
-            assert spot_balance.exchange == "backpack"
+            assert spot_balance.exchange == ExchangeName.BACKPACK
 
             assert spot_balance.bp_details is not None
             assert hasattr(spot_balance.bp_details, "open_order_quantity")

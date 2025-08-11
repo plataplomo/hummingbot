@@ -54,7 +54,7 @@ from cyberdelta.apis.hyperliquid.services.utils.status_processing import (
 )
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models import Order
 from cyberdelta.utils.typing import ParsedJsonResponse, is_dict_response
 
@@ -86,7 +86,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService, SymbolAwar
         get_asset_index_callable: Callable[[str], Awaitable[int | None]],
         order_book_service: HyperliquidOrderBookService | None = None,  # Optional
         action_endpoint: str = "/exchange",
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the order placement service.
 
@@ -450,7 +450,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService, SymbolAwar
                     parameter=f"orders[{i}]",
                     issue="failed validation",
                     value=order,
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID.value,
                     operation="order placement",
                     suggestion=str(e),
                 ) from e

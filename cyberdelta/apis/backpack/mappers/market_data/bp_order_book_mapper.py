@@ -21,6 +21,7 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import OrderBookMapperP
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderBook
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -96,7 +97,7 @@ class BackpackOrderBookMapper(CommonDataParserMixin, OrderBookMapperProtocol):
                 data=orderbook_data,
                 model_class=OrderBook,
                 context="backpack_orderbook_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
         except Exception as e:
@@ -169,7 +170,7 @@ class BackpackOrderBookMapper(CommonDataParserMixin, OrderBookMapperProtocol):
                 data=orderbook_data,
                 model_class=OrderBook,
                 context="backpack_ws_depth_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
         except Exception as e:

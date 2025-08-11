@@ -22,6 +22,7 @@ from cyberdelta.apis.hyperliquid.services.account.hl_clearinghouse_state_service
     HyperliquidClearinghouseStateService,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import MarginAccountSummary
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -45,7 +46,7 @@ class HyperliquidAccountSummaryService:
         self,
         clearinghouse_service: HyperliquidClearinghouseStateService,
         mapper: AccountSummaryMapperProtocol,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the account summary service.
 

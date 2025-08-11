@@ -46,6 +46,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketDataArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import FundingRate
 from cyberdelta.models.market.candle import Candle
 from cyberdelta.symbols import exchanges
@@ -74,7 +75,7 @@ class HyperliquidHistoricalDataService:
         request_builder: MarketDataRequestBuilderProtocol,
         response_handler: MarketDataResponseHandlerProtocol,
         mapper: HistoricalDataMapperProtocol,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the historical data service.
 

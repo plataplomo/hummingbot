@@ -18,7 +18,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetOrderHistoryArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models import Order
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
@@ -160,7 +160,7 @@ class TestBackpackOrdersZero:
             # If there are orders, they should be valid
             for order in orders:
                 assert isinstance(order, Order)
-                assert order.exchange == "backpack"
+                assert order.exchange == ExchangeName.BACKPACK
 
     @pytest.mark.vcr
     @pytest.mark.asyncio

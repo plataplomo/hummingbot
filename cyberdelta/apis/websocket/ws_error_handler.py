@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 
 
 class ErrorSuppressionConfig(BaseModel):
@@ -87,7 +88,7 @@ class BaseErrorHandler:
 
     def __init__(
         self,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         suppression_config: ErrorSuppressionConfig | None = None,
     ) -> None:
         """Initialize the error handler.
@@ -97,7 +98,7 @@ class BaseErrorHandler:
             suppression_config: Configuration for error suppression.
 
         """
-        self.exchange_name = exchange_name
+        self.exchange_name = exchange_name.value
         self.suppression_config = suppression_config or ErrorSuppressionConfig()
 
         # Error suppression cache

@@ -10,21 +10,23 @@ This is the main orchestrator that uses all the specialized modules:
 
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.enums.monitoring import ServiceType
-from cyberdelta.enums.trading import OrderSide
+from cyberdelta.enums.monitoring import BalanceEventType, ServiceType
+from cyberdelta.enums.trading import OrderSide, PositionEventType
 from cyberdelta.exceptions.portfolio import (
     PortfolioNotInitializedError,
     ReconciliationError,
 )
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models import DerivativePosition, SpotBalance
+from cyberdelta.models.events import BalanceEvent, PositionEvent
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.portfolio.pnl_report import (
@@ -48,7 +50,6 @@ from .state_manager import PortfolioStateManager
 if TYPE_CHECKING:
     from cyberdelta.apis.base.exchange_api import ExchangeAPI
     from cyberdelta.domain.monitoring.performance_tracker import PerformanceTracker
-
 
 logger = get_logger(__name__)
 
@@ -87,7 +88,6 @@ class PortfolioService(HealthCheckable):
         self._event_bus = event_bus
         self._api_clients = api_clients or {}
         self._performance_tracker = performance_tracker
-
         # Initialize modules
         self._state_manager = PortfolioStateManager(config, storage)
         self._balance_manager = BalanceManager(config, self._state_manager)
@@ -109,6 +109,97 @@ class PortfolioService(HealthCheckable):
             api_clients_count=len(self._api_clients),
             performance_tracking_enabled=performance_tracker is not None,
         )
+
+    async def _publish_position_update_event(
+        self, fill: Fill, realized_pnl: Decimal | None
+    ) -> None:
+        """Publish position update event from fill.
+
+        Args:
+            fill: Fill that caused the position update
+            realized_pnl: Realized PnL from position change (if any)
+        """
+        try:
+            # Get current position for the symbol
+            position = await self._position_manager.get_position(fill.symbol, fill.exchange)
+
+            position_event = PositionEvent(
+                position_id=f"{fill.symbol}_{fill.exchange.value}",
+                symbol=str(fill.symbol),
+                exchange=fill.exchange,
+                event_type=PositionEventType.UPDATED,
+                size=position.size if position else Decimal(0),
+                average_price=(
+                    position.entry_price if position and position.entry_price else fill.price
+                ),
+                realized_pnl=realized_pnl,
+                timestamp=time.time(),
+            )
+            await self._event_bus.publish(position_event)
+
+        except (ValueError, TypeError, ConnectionError, TimeoutError) as e:
+            logger.warning(
+                "position_event_publishing_failed",
+                fill_id=fill.id,
+                symbol=fill.symbol.value,
+                error=str(e),
+            )
+            # Don't re-raise - event publishing failure shouldn't cancel portfolio update
+
+    async def _publish_balance_update_event(self, fill: Fill) -> None:
+        """Publish balance update event from fill.
+
+        Args:
+            fill: Fill that caused the balance update
+        """
+        try:
+            # Determine the currency affected by the fill
+            if fill.side == OrderSide.BUY:
+                # Buying: spent quote currency, received base currency
+                affected_currency = (
+                    str(fill.symbol.quote_asset)
+                    if hasattr(fill.symbol, "quote_asset")
+                    else str(fill.symbol)
+                )
+            else:
+                # Selling: spent base currency, received quote currency
+                # Fill.symbol is a Symbol object, convert to string for now
+                affected_currency = (
+                    str(fill.symbol.base_asset)
+                    if hasattr(fill.symbol, "base_asset")
+                    else str(fill.symbol)
+                )
+
+            # Get current balance for the affected currency
+            balances = await self._balance_manager.get_exchange_balances(fill.exchange)
+            current_balance = next(
+                (b for b in balances.values() if str(b.asset) == affected_currency), None
+            )
+
+            balance_event = BalanceEvent(
+                account_id=f"portfolio_{fill.exchange.value}",
+                currency=affected_currency,
+                exchange=fill.exchange,
+                event_type=BalanceEventType.UPDATED,
+                old_balance=Decimal(0),  # We don't track old balance in fill
+                new_balance=current_balance.total_quantity if current_balance else Decimal(0),
+                locked_amount=(
+                    (current_balance.total_quantity - current_balance.available_quantity)
+                    if current_balance
+                    else Decimal(0)
+                ),
+                timestamp=time.time(),
+            )
+            await self._event_bus.publish(balance_event)
+
+        except (ValueError, TypeError, ConnectionError, TimeoutError) as e:
+            logger.warning(
+                "balance_event_publishing_failed",
+                fill_id=fill.id,
+                symbol=fill.symbol.value,
+                error=str(e),
+            )
+            # Don't re-raise - event publishing failure shouldn't cancel portfolio update
 
     async def initialize(self) -> None:
         """Initialize portfolio service by loading state."""
@@ -273,6 +364,10 @@ class PortfolioService(HealthCheckable):
 
             # Track fill for performance if enabled
             await self.track_fill_for_performance(fill)
+
+            # Publish portfolio events
+            await self._publish_position_update_event(fill, realized_pnl)
+            await self._publish_balance_update_event(fill)
 
             self._success_count += 1
             self._last_activity = datetime.now(UTC)

@@ -13,6 +13,7 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.exceptions.authentication import InvalidPrivateKeyError
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import ApiKeyAuthSecrets
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 from tests.integration.apis.backpack.shared.bp_test_helpers import SMALL_VALUE_TOLERANCE
 
@@ -40,7 +41,7 @@ class TestBackpackAccountSummaryPrivate:
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
 
         assert account_summary.timestamp is not None
         time_diff = datetime.now(account_summary.timestamp.tzinfo) - account_summary.timestamp

@@ -30,7 +30,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetOrderHistoryArgs,
 )
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models.market.order import Order
 from cyberdelta.symbols.models import BaseSymbol
 
@@ -141,7 +141,7 @@ class TestHyperliquidOrdersInfo:
             assert isinstance(sample_order, Order), "Historical order should be Order instance"
 
             # Validate exchange field
-            assert sample_order.exchange == "hyperliquid", (
+            assert sample_order.exchange == ExchangeName.HYPERLIQUID, (
                 f"Exchange should be 'hyperliquid', got {sample_order.exchange}"
             )
 
@@ -189,7 +189,7 @@ class TestHyperliquidOrdersInfo:
             assert isinstance(sample_order, Order), "Order should be Order instance"
 
             # Validate exchange field
-            assert sample_order.exchange == "hyperliquid", (
+            assert sample_order.exchange == ExchangeName.HYPERLIQUID, (
                 f"Exchange should be 'hyperliquid', got {sample_order.exchange}"
             )
 

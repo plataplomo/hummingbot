@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.margin_account import BackpackMarginDetails, MarginAccountSummary
 
 
@@ -45,7 +46,7 @@ class TestBackpackAccountSummaryEnhanced:
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
 
         # Validate enhanced data from collateral endpoint
         assert account_summary.bp_details is not None
@@ -96,7 +97,7 @@ class TestBackpackAccountSummaryEnhanced:
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
 
         # Basic implementation should still provide core fields
         assert isinstance(account_summary.total_equity, Decimal)
@@ -122,7 +123,7 @@ class TestBackpackAccountSummaryEnhanced:
         account_summary = await bp_api_for_test_env.get_account_summary()
 
         assert isinstance(account_summary, MarginAccountSummary)
-        assert account_summary.exchange == "backpack"
+        assert account_summary.exchange == ExchangeName.BACKPACK
 
         # Should return data with proper equity values
         assert isinstance(account_summary.total_equity, Decimal)

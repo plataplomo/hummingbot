@@ -36,6 +36,7 @@ from cyberdelta.apis.connectivity.ws_manager import WebSocketManager
 from cyberdelta.apis.exceptions import InvalidParameterTypeError
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
 
 
@@ -108,7 +109,7 @@ class ExchangeAPI(ABC):
 
     def __init__(
         self,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         config: ExchangeSpecificConfig,
         secrets: AnyExchangeSecrets,
         error_mapper: IErrorMapper,
@@ -122,7 +123,7 @@ class ExchangeAPI(ABC):
         """Initialize the exchange API client.
 
         Args:
-            exchange_name: Name of the exchange (e.g., 'hyperliquid', 'backpack')
+            exchange_name: Exchange name enum (e.g., ExchangeName.HYPERLIQUID)
             config: Exchange-specific configuration model
             secrets: Exchange secrets configuration model
             error_mapper: Instance of an IErrorMapper implementation.
@@ -167,7 +168,7 @@ class ExchangeAPI(ABC):
             rest_endpoint=self.rest_endpoint,
             ws_endpoint=self.ws_endpoint,
             message=(
-                f"[{self.exchange_name}] API initialized. REST: {self.rest_endpoint}, "
+                f"[{self.exchange_name.value}] API initialized. REST: {self.rest_endpoint}, "
                 f"WS: {self.ws_endpoint}"
             ),
         )
@@ -193,7 +194,7 @@ class ExchangeAPI(ABC):
                 exchange_name=self.exchange_name,
                 action="creating_new_event_loop",
                 message=(
-                    f"[{self.exchange_name}] ExchangeAPI initialized without a running "
+                    f"[{self.exchange_name.value}] ExchangeAPI initialized without a running "
                     f"event loop and no loop provided. "
                     f"Creating a new event loop. This might not be intended."
                 ),
@@ -222,7 +223,7 @@ class ExchangeAPI(ABC):
             "exchange_api_no_rate_limit",
             exchange_name=self.exchange_name,
             message=(
-                f"[{self.exchange_name}] No rate limit strategy provided and no "
+                f"[{self.exchange_name.value}] No rate limit strategy provided and no "
                 f"rate_limit_per_minute in exchange config. Rate limiting may not work."
             ),
         )
@@ -379,7 +380,7 @@ class ExchangeAPI(ABC):
                 "exchange_api_no_websocket_url",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"[{self.exchange_name}] Missing WebSocket URL in config. "
+                    f"[{self.exchange_name.value}] Missing WebSocket URL in config. "
                     f"WebSocket functionality will be disabled."
                 ),
             )
@@ -442,7 +443,7 @@ class ExchangeAPI(ABC):
                 if configured, None otherwise.
         """
         if (
-            self.exchange_name == "hyperliquid"
+            self.exchange_name == ExchangeName.HYPERLIQUID
             and exchange_config
             and exchange_config.websocket_send_rate_per_minute is not None
         ):
@@ -458,7 +459,7 @@ class ExchangeAPI(ABC):
                 exchange_name=self.exchange_name,
                 rate_per_second=ws_rate_per_second,
                 message=(
-                    f"[{self.exchange_name}] Created WebSocket outgoing message limiter: "
+                    f"[{self.exchange_name.value}] Created WebSocket outgoing message limiter: "
                     f"rate={ws_rate_per_second:.2f} msg/sec"
                 ),
             )
@@ -640,7 +641,7 @@ class ExchangeAPI(ABC):
             http_status=e_http_failed.http_status,
             exchange_message=e_http_failed.exchange_message,
             message=(
-                f"[{self.exchange_name}] HTTP request failed for "
+                f"[{self.exchange_name.value}] HTTP request failed for "
                 f"{request_url}: Status={e_http_failed.http_status}, "
                 f"Body='{e_http_failed.exchange_message}'"
             ),
@@ -678,7 +679,7 @@ class ExchangeAPI(ABC):
             error=str(e_client),
             error_type=type(e_client).__name__,
             message=(
-                f"[{self.exchange_name}] Unrecoverable client error for {method} "
+                f"[{self.exchange_name.value}] Unrecoverable client error for {method} "
                 f"{request_url}: {e_client}"
             ),
         )
@@ -709,7 +710,7 @@ class ExchangeAPI(ABC):
             error=str(e_unhandled),
             error_type=type(e_unhandled).__name__,
             message=(
-                f"[{self.exchange_name}] Unhandled exception during request {method} "
+                f"[{self.exchange_name.value}] Unhandled exception during request {method} "
                 f"{request_url}: {e_unhandled}"
             ),
             exc_info=e_unhandled,
@@ -763,7 +764,7 @@ class ExchangeAPI(ABC):
                 "exchange_api_no_error_mapper",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"[{self.exchange_name}] Error mapper not configured. "
+                    f"[{self.exchange_name.value}] Error mapper not configured. "
                     f"Falling back to generic error."
                 ),
             )
@@ -804,7 +805,8 @@ class ExchangeAPI(ABC):
                 "exchange_api_http_client_not_initialized",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"HTTP client for {self.exchange_name} was not initialized or already closed."
+                    f"HTTP client for {self.exchange_name.value} was not initialized or "
+                    f"already closed."
                 ),
             )
 
@@ -821,7 +823,7 @@ class ExchangeAPI(ABC):
                 "exchange_api_ws_manager_not_initialized",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"WebSocket manager for {self.exchange_name} was not initialized "
+                    f"WebSocket manager for {self.exchange_name.value} was not initialized "
                     f"or already closed."
                 ),
             )
@@ -866,8 +868,9 @@ class ExchangeAPI(ABC):
                     topic=topic,
                     error=str(e),
                     message=(
-                        f"[{self.exchange_name}] Could not construct/send subscription payload "
-                        f"for topic '{topic}': {e}. Not subscribing to this topic."
+                        f"[{self.exchange_name.value}] Could not construct/send "
+                        f"subscription payload for topic '{topic}': {e}. "
+                        f"Not subscribing to this topic."
                     ),
                 )
                 # Re-raise the exception so calling code can handle invalid subscriptions
@@ -878,8 +881,8 @@ class ExchangeAPI(ABC):
                 exchange_name=self.exchange_name,
                 topic=topic,
                 message=(
-                    f"[{self.exchange_name}] WebSocket not connected. Subscription to {topic} "
-                    f"will be attempted upon connection."
+                    f"[{self.exchange_name.value}] WebSocket not connected. "
+                    f"Subscription to {topic} will be attempted upon connection."
                 ),
             )
         else:
@@ -888,7 +891,7 @@ class ExchangeAPI(ABC):
                 exchange_name=self.exchange_name,
                 topic=topic,
                 message=(
-                    f"[{self.exchange_name}] WebSocket manager not initialized. "
+                    f"[{self.exchange_name.value}] WebSocket manager not initialized. "
                     f"Cannot subscribe to {topic}."
                 ),
             )
@@ -914,8 +917,8 @@ class ExchangeAPI(ABC):
                 exchange_name=self.exchange_name,
                 topics=list(self._ws_handlers.keys()),
                 message=(
-                    f"[{self.exchange_name}] WebSocket connected, attempting to resubscribe to "
-                    f"{len(self._ws_handlers)} topics."
+                    f"[{self.exchange_name.value}] WebSocket connected, "
+                    f"attempting to resubscribe to {len(self._ws_handlers)} topics."
                 ),
             )
             await self._resubscribe()
@@ -924,7 +927,7 @@ class ExchangeAPI(ABC):
                 "websocket_connected_no_resubscription",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"[{self.exchange_name}] WebSocket connected, but no topics registered "
+                    f"[{self.exchange_name.value}] WebSocket connected, but no topics registered "
                     "for resubscription. Skipping resubscription."
                 ),
             )
@@ -945,7 +948,8 @@ class ExchangeAPI(ABC):
             exchange_name=self.exchange_name,
             topics=list(self._ws_handlers.keys()),
             message=(
-                f"[{self.exchange_name}] Resubscribing to topics: {list(self._ws_handlers.keys())}"
+                f"[{self.exchange_name.value}] Resubscribing to topics: "
+                f"{list(self._ws_handlers.keys())}"
             ),
         )
         # Simply check if connected - no need for complex waiting logic
@@ -961,7 +965,7 @@ class ExchangeAPI(ABC):
                             exchange_name=self.exchange_name,
                             topic=topic,
                             message=(
-                                f"[{self.exchange_name}] Successfully re-sent subscription "
+                                f"[{self.exchange_name.value}] Successfully re-sent subscription "
                                 f"for {topic}."
                             ),
                         )
@@ -971,7 +975,7 @@ class ExchangeAPI(ABC):
                             exchange_name=self.exchange_name,
                             topic=topic,
                             message=(
-                                f"[{self.exchange_name}] Failed to re-send subscription "
+                                f"[{self.exchange_name.value}] Failed to re-send subscription "
                                 f"for {topic}."
                             ),
                         )
@@ -982,7 +986,7 @@ class ExchangeAPI(ABC):
                         topic=topic,
                         error=str(e),
                         message=(
-                            f"[{self.exchange_name}] Could not construct/send resubscription "
+                            f"[{self.exchange_name.value}] Could not construct/send resubscription "
                             f"payload for topic '{topic}': {e}. Skipping this topic."
                         ),
                     )
@@ -992,7 +996,9 @@ class ExchangeAPI(ABC):
                 exchange_name=self.exchange_name,
                 ws_manager_available=self._ws_manager is not None,
                 is_connected=self.is_connected,
-                message=(f"[{self.exchange_name}] Cannot resubscribe, WebSocket not connected."),
+                message=(
+                    f"[{self.exchange_name.value}] Cannot resubscribe, WebSocket not connected."
+                ),
             )
 
     @abstractmethod
@@ -1310,12 +1316,12 @@ class ExchangeAPI(ABC):
                 "websocket_manager_not_initialized_for_connect",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"[{self.exchange_name}] WebSocket manager not initialized. "
+                    f"[{self.exchange_name.value}] WebSocket manager not initialized. "
                     f"Cannot connect WebSocket."
                 ),
             )
             raise APIError(
-                message=f"[{self.exchange_name}] WebSocket not configured or enabled.",
+                message=f"[{self.exchange_name.value}] WebSocket not configured or enabled.",
                 code=APIErrorCode.EXCHANGE_SPECIFIC.value,  # Corrected: Use .value
             )
         try:
@@ -1344,8 +1350,8 @@ class ExchangeAPI(ABC):
                 "websocket_manager_not_active_for_close",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"[{self.exchange_name}] WebSocket manager not active or not initialized. "
-                    f"No WebSocket to close."
+                    f"[{self.exchange_name.value}] WebSocket manager not active or "
+                    f"not initialized. No WebSocket to close."
                 ),
             )
 
@@ -1358,7 +1364,7 @@ class ExchangeAPI(ABC):
                 "websocket_ping_handled_by_manager",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"[{self.exchange_name}] Standard WebSocket ping is handled by "
+                    f"[{self.exchange_name.value}] Standard WebSocket ping is handled by "
                     f"WebSocketManager if configured. Call this for custom pings."
                 ),
             )
@@ -1367,8 +1373,8 @@ class ExchangeAPI(ABC):
                 "cannot_send_custom_ping",
                 exchange_name=self.exchange_name,
                 message=(
-                    f"[{self.exchange_name}] Cannot send custom ping, WebSocket not connected "
-                    f"or manager not available."
+                    f"[{self.exchange_name.value}] Cannot send custom ping, "
+                    f"WebSocket not connected or manager not available."
                 ),
             )
 

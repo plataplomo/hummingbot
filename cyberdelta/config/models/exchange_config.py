@@ -336,7 +336,7 @@ class ExchangeSpecificConfig(BaseModel):
                     raise RequiredParameterError(
                         parameter=field_name,
                         context="ExchangeSpecificConfig for Hyperliquid",
-                        exchange="hyperliquid",
+                        exchange=ExchangeName.HYPERLIQUID.value,
                     )
         elif self.exchange_name == ExchangeName.BACKPACK:
             # Backpack requires the simple rate_limit_per_minute
@@ -344,7 +344,7 @@ class ExchangeSpecificConfig(BaseModel):
                 raise RequiredParameterError(
                     parameter="rate_limit_per_minute",
                     context="ExchangeSpecificConfig for Backpack",
-                    exchange="backpack",
+                    exchange=ExchangeName.BACKPACK.value,
                 )
 
         return self

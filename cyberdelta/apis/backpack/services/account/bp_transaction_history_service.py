@@ -34,6 +34,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs, GetTradeHistoryArgs
 from cyberdelta.apis.utils import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Fill, Order
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -62,7 +63,7 @@ class BackpackTransactionHistoryService:
         request_builder: BackpackTradingRequestBuilder,
         response_handler: BackpackTradingResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         # NEW: Optional dependency injection for mapper
         mapper: BackpackTransactionMapper | None = None,
     ) -> None:

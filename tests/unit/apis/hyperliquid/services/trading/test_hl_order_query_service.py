@@ -129,7 +129,7 @@ def order_query_service(
         authenticator=mock_authenticator,
         wallet_address="0x123...abc",
         info_endpoint="/info",
-        exchange_name="hyperliquid",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )
 
 

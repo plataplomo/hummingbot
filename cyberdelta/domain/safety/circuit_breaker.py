@@ -14,8 +14,9 @@ from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.safety.circuit_breaker_health import CircuitBreakerHealthMonitor
 from cyberdelta.domain.safety.failure_tracker import FailureTracker
-from cyberdelta.domain.safety.models import CircuitBreakerState, CircuitBreakerViolationError
 from cyberdelta.domain.safety.state_manager import StateManager
+from cyberdelta.enums.safety.circuit_breaker import CircuitBreakerState
+from cyberdelta.models.exceptions.circuit_breaker import CircuitBreakerViolationError
 from cyberdelta.models.monitoring.system_health_models import (
     CircuitBreakerStatistics,
     CircuitBreakerSystemHealth,

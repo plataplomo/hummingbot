@@ -14,6 +14,7 @@ from enum import StrEnum
 from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
+from cyberdelta.enums import ExchangeName
 
 
 # Constants for histogram buckets and cleanup intervals
@@ -22,8 +23,8 @@ HISTOGRAM_BUCKET_10_SEC = 10
 CLEANUP_INTERVAL_SECONDS = 60
 
 
-class MetricType(StrEnum):
-    """Types of metrics collected."""
+class WSMetricType(StrEnum):
+    """WebSocket-specific metric types."""
 
     MESSAGE_COUNT = "message_count"
     ERROR_COUNT = "error_count"
@@ -48,7 +49,7 @@ class MetricPoint(BaseModel):
     """A single metric data point."""
 
     timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
-    metric_type: MetricType
+    metric_type: WSMetricType
     metric_name: str
     value: float
     unit: MetricUnit
@@ -82,14 +83,14 @@ class MetricSummary(BaseModel):
 class WebSocketMetricsCollector:
     """Collects and aggregates WebSocket metrics."""
 
-    def __init__(self, exchange_name: str, window_size: int = 300) -> None:
+    def __init__(self, exchange_name: ExchangeName, window_size: int = 300) -> None:
         """Initialize the metrics collector.
 
         Args:
-            exchange_name: Name of the exchange for labeling
+            exchange_name: ExchangeName enum for labeling
             window_size: Time window in seconds for metrics aggregation
         """
-        self.exchange_name = exchange_name
+        self.exchange_name = exchange_name.value
         self.window_size = window_size
 
         # Counters
@@ -134,7 +135,7 @@ class WebSocketMetricsCollector:
         self._time_series.append(
             MetricPoint(
                 timestamp=timestamp,
-                metric_type=MetricType.MESSAGE_COUNT,
+                metric_type=WSMetricType.MESSAGE_COUNT,
                 metric_name="websocket_messages_total",
                 value=1,
                 unit=MetricUnit.COUNT,
@@ -149,7 +150,7 @@ class WebSocketMetricsCollector:
         self._time_series.append(
             MetricPoint(
                 timestamp=timestamp,
-                metric_type=MetricType.PROCESSING_TIME,
+                metric_type=WSMetricType.PROCESSING_TIME,
                 metric_name="websocket_processing_time",
                 value=processing_time_ms,
                 unit=MetricUnit.MILLISECONDS,
@@ -160,7 +161,7 @@ class WebSocketMetricsCollector:
         self._time_series.append(
             MetricPoint(
                 timestamp=timestamp,
-                metric_type=MetricType.MESSAGE_SIZE,
+                metric_type=WSMetricType.MESSAGE_SIZE,
                 metric_name="websocket_message_size",
                 value=float(message_size),
                 unit=MetricUnit.BYTES,
@@ -188,15 +189,15 @@ class WebSocketMetricsCollector:
         self._error_counts[error_key] += 1
 
         metric_type_map = {
-            "validation": MetricType.VALIDATION_ERROR,
-            "transformation": MetricType.TRANSFORMATION_ERROR,
-            "handler": MetricType.HANDLER_ERROR,
+            "validation": WSMetricType.VALIDATION_ERROR,
+            "transformation": WSMetricType.TRANSFORMATION_ERROR,
+            "handler": WSMetricType.HANDLER_ERROR,
         }
 
         self._time_series.append(
             MetricPoint(
                 timestamp=datetime.now(UTC),
-                metric_type=metric_type_map.get(error_type, MetricType.ERROR_COUNT),
+                metric_type=metric_type_map.get(error_type, WSMetricType.ERROR_COUNT),
                 metric_name="websocket_errors_total",
                 value=1,
                 unit=MetricUnit.COUNT,
@@ -218,7 +219,7 @@ class WebSocketMetricsCollector:
         self._time_series.append(
             MetricPoint(
                 timestamp=datetime.now(UTC),
-                metric_type=MetricType.CONNECTION_EVENT,
+                metric_type=WSMetricType.CONNECTION_EVENT,
                 metric_name="websocket_connection_events",
                 value=1,
                 unit=MetricUnit.COUNT,
@@ -313,7 +314,7 @@ class WebSocketMetricsCollector:
 
     def get_time_series(
         self,
-        metric_type: MetricType | None = None,
+        metric_type: WSMetricType | None = None,
         start_time: datetime | None = None,
         end_time: datetime | None = None,
     ) -> list[MetricPoint]:

@@ -10,6 +10,7 @@ import pytest
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
 from cyberdelta.apis.base.simple_rate_limit_strategy import SimpleTokenBucketStrategy
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
+from cyberdelta.enums import ExchangeName
 
 
 class TestSimpleTokenBucketStrategy:
@@ -46,7 +47,7 @@ class TestSimpleTokenBucketStrategy:
     ) -> None:
         """Test acquiring with default request weight."""
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/ticker",
             action_payload=None,
@@ -66,7 +67,7 @@ class TestSimpleTokenBucketStrategy:
     ) -> None:
         """Test acquiring with custom request weight from context."""
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="POST",
             endpoint="/api/v1/order",
             action_payload={"symbol": "BTC-USD"},
@@ -86,7 +87,7 @@ class TestSimpleTokenBucketStrategy:
     ) -> None:
         """Test acquiring with zero weight (should not call limiter)."""
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/status",
             action_payload=None,
@@ -106,7 +107,7 @@ class TestSimpleTokenBucketStrategy:
     ) -> None:
         """Test acquiring with negative weight (should not call limiter)."""
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/test",
             action_payload=None,
@@ -126,7 +127,7 @@ class TestSimpleTokenBucketStrategy:
     ) -> None:
         """Test acquiring when request_weight is missing from context."""
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/ticker",
             action_payload=None,
@@ -150,7 +151,7 @@ class TestSimpleTokenBucketStrategy:
         strategy = SimpleTokenBucketStrategy(limiter=real_limiter, default_request_weight=2)
 
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/test",
             action_payload=None,
@@ -170,7 +171,7 @@ class TestSimpleTokenBucketStrategy:
         strategy = SimpleTokenBucketStrategy(limiter=mock_limiter)
 
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/test",
             action_payload=None,
@@ -190,7 +191,7 @@ class TestSimpleTokenBucketStrategy:
         strategy = SimpleTokenBucketStrategy(limiter=mock_limiter)
 
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="GET",
             endpoint="/api/v1/test",
             action_payload=None,
@@ -209,7 +210,7 @@ class TestSimpleTokenBucketStrategy:
     ) -> None:
         """Test that strategy returns None (does not modify payload)."""
         request_context = RateLimitRequestContext(
-            exchange_name="backpack",
+            exchange_name=ExchangeName.BACKPACK,
             method="POST",
             endpoint="/api/v1/order",
             action_payload={"symbol": "BTC-USD", "side": "buy"},

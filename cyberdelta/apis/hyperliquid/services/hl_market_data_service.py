@@ -42,6 +42,7 @@ from cyberdelta.apis.models.service_args.market_data import (
     GetMarketsArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import FundingRate, OrderBook, Ticker
 from cyberdelta.models.market import Candle, Market
 from cyberdelta.models.market.fill import Fill
@@ -70,7 +71,7 @@ class HyperliquidMarketDataService:
         http_client_requester: HttpClientRequesterSig,
         request_builder: MarketDataRequestBuilderProtocol,
         response_handler: MarketDataResponseHandlerProtocol,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         price_ticker_mapper: PriceTickerMapperProtocol | None = None,
         order_book_mapper: OrderBookMapperProtocol | None = None,
         historical_data_mapper: HistoricalDataMapperProtocol | None = None,

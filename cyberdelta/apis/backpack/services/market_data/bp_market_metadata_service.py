@@ -46,6 +46,7 @@ from cyberdelta.apis.models.service_args.market_data import (
 )
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import FundingRate, Market
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
@@ -76,7 +77,7 @@ class BackpackMarketMetadataService:
         request_builder: BackpackMarketDataRequestBuilder,
         response_handler: BackpackMarketDataResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         market_mapper: BackpackMarketMapper | None = None,
         funding_rate_mapper: BackpackFundingRateMapper | None = None,
     ) -> None:

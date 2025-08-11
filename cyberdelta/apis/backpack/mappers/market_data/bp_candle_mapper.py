@@ -16,6 +16,7 @@ from cyberdelta.apis.backpack.protocols.mapper_protocols import CandleMapperProt
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin, ValidationMixin
 from cyberdelta.apis.exceptions import CandleTransformationError, MissingRequiredFieldError
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market import Candle
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.secure_transformation import secure_transform
@@ -137,7 +138,7 @@ class BackpackCandleMapper(CommonDataParserMixin, ValidationMixin, CandleMapperP
                 data=candle_data,
                 model_class=Candle,
                 context="backpack_kline_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
         except Exception as e:

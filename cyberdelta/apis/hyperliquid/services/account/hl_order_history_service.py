@@ -32,6 +32,7 @@ from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderMapperPr
 from cyberdelta.apis.models.service_args.trading import GetOrderHistoryArgs
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import Order
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -62,7 +63,7 @@ class HyperliquidOrderHistoryService:
         response_handler: AccountResponseHandlerProtocol,
         mapper: OrderMapperProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
         wallet_address: str | None = None,
     ) -> None:
         """Initialize the order history service.

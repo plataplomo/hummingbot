@@ -43,6 +43,7 @@ from pydantic.json_schema import GenerateJsonSchema, JsonSchemaMode
 from pydantic_core.core_schema import ValidatorFunctionWrapHandler
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 
 
 def _is_string_dict(obj: object) -> TypeGuard[dict[str, Any]]:
@@ -171,7 +172,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
                 {"channel": "userEvents", "data": {"fills": [], "orders": [], "positions": []}},
             ],
             "x-ws-message-type": "market-data",
-            "x-exchange": "hyperliquid",
+            "x-exchange": ExchangeName.HYPERLIQUID.value,
             "x-api-version": "v1",
         },
     )
@@ -474,7 +475,7 @@ class HyperliquidRawWebSocketEnvelope(BaseModel):
         # Add WebSocket-specific extensions
         schema.update({
             "x-ws-protocol": "websocket",
-            "x-exchange": "hyperliquid",
+            "x-exchange": ExchangeName.HYPERLIQUID.value,
             "x-message-category": "envelope",
             "x-api-docs": "https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket-api",
             "x-validation-rules": {

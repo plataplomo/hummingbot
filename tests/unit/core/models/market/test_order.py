@@ -95,7 +95,7 @@ def base_order_data() -> dict[str, Any]:
 def test_order_minimal_valid(base_order_data: dict[str, Any]) -> None:
     """Test that a minimal valid Order instance is accepted."""
     order = Order(**base_order_data)
-    assert order.exchange == "backpack"
+    assert order.exchange == ExchangeName.BACKPACK
     assert order.symbol.value == "BTC-PERP"
     assert order.side == OrderSide.BUY
     assert order.order_type == OrderType.LIMIT

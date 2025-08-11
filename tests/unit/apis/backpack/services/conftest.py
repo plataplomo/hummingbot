@@ -115,7 +115,7 @@ def bp_account_service(
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         authenticator=mock_authenticator,
-        exchange_name="backpack_test_account",
+        exchange_name=ExchangeName.BACKPACK,
     )
 
 

@@ -16,7 +16,6 @@ import asyncio
 import contextlib
 import uuid
 from datetime import UTC, datetime, timedelta
-from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +24,7 @@ from pydantic import BaseModel, Field
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
+from cyberdelta.enums.monitoring import AuditEventType, AuditSeverity
 from cyberdelta.logging.logging_helpers import SENSITIVE_FIELDS
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
@@ -33,58 +33,6 @@ from cyberdelta.symbols.models import Symbol
 
 
 logger = get_logger(__name__)
-
-
-class AuditEventType(Enum):
-    """Types of audit events tracked by the system."""
-
-    # Trading events
-    ORDER_PLACED = "order_placed"
-    ORDER_CANCELLED = "order_cancelled"
-    ORDER_FILLED = "order_filled"
-    ORDER_REJECTED = "order_rejected"
-
-    # Position events
-    POSITION_OPENED = "position_opened"
-    POSITION_CLOSED = "position_closed"
-    POSITION_UPDATED = "position_updated"
-    POSITION_LIQUIDATED = "position_liquidated"
-
-    # Risk events
-    RISK_LIMIT_EXCEEDED = "risk_limit_exceeded"
-    RISK_ASSESSMENT = "risk_assessment"
-    POSITION_SIZE_ADJUSTED = "position_size_adjusted"
-
-    # Signal events
-    SIGNAL_GENERATED = "signal_generated"
-    SIGNAL_VALIDATED = "signal_validated"
-    SIGNAL_REJECTED = "signal_rejected"
-    SIGNAL_EXECUTED = "signal_executed"
-
-    # Portfolio events
-    PORTFOLIO_UPDATED = "portfolio_updated"
-    BALANCE_CHANGED = "balance_changed"
-    PNL_CALCULATED = "pnl_calculated"
-
-    # System events
-    SYSTEM_STARTED = "system_started"
-    SYSTEM_STOPPED = "system_stopped"
-    CONFIG_CHANGED = "config_changed"
-    CIRCUIT_BREAKER_TRIGGERED = "circuit_breaker_triggered"
-
-    # Error events
-    ERROR_OCCURRED = "error_occurred"
-    CONNECTION_LOST = "connection_lost"
-    RECONCILIATION_FAILED = "reconciliation_failed"
-
-
-class AuditSeverity(Enum):
-    """Severity levels for audit events."""
-
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
 
 
 class AuditEvent(BaseModel):

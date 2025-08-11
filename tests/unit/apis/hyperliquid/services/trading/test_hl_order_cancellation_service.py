@@ -197,7 +197,7 @@ def order_cancellation_service(
         get_asset_index_callable=mock_get_asset_index,
         order_query_service=mock_order_query_service,
         action_endpoint="/exchange",
-        exchange_name="hyperliquid",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )
 
 

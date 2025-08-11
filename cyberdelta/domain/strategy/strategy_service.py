@@ -9,13 +9,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 
-from cyberdelta.application.event_bus import EventBus
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.market.market_service import MarketDataService
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_base import BaseStrategy, StrategyError
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models import TradeSignal
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.market_snapshot import MarketSnapshot

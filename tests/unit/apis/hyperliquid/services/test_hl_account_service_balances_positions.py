@@ -15,6 +15,7 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
     HyperliquidRawMarginSummary,
 )
 from cyberdelta.apis.hyperliquid.services.hl_account_service import HyperliquidAccountService
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import (
     MarginAccountSummary,
 )
@@ -56,7 +57,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=mock_authenticator,
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address="0xTest",
         )
 
@@ -141,7 +142,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
             request_builder=mock_builder,
             response_handler=mock_handler,
             authenticator=mock_authenticator,
-            exchange_name="hyperliquid_test",
+            exchange_name=ExchangeName.HYPERLIQUID,
             wallet_address=None,  # No wallet address
         )
 
@@ -334,7 +335,7 @@ class TestHyperliquidAccountServiceBalancesPositions:
         # Verify result structure (we test the public behavior, not exact values)
         assert isinstance(result, MarginAccountSummary)
         # Current business logic uses "hyperliquid" as exchange name
-        assert result.exchange == "hyperliquid"
+        assert result.exchange == ExchangeName.HYPERLIQUID
 
     @pytest.mark.asyncio
     async def test_get_account_summary_validation_error(self) -> None:

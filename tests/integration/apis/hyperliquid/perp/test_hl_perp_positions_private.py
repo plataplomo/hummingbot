@@ -26,7 +26,7 @@ import pytest
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.trading import PlaceOrderArgs
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models.derivative_position import DerivativePosition
 from cyberdelta.models.market.order import Order
 from cyberdelta.symbols import exchanges
@@ -74,7 +74,7 @@ class TestHyperliquidPerpPositionsPrivate:
         )
 
         # Validate core position fields
-        assert test_position.exchange == "hyperliquid", (
+        assert test_position.exchange == ExchangeName.HYPERLIQUID, (
             f"Position.exchange should be 'hyperliquid', got {test_position.exchange}"
         )
         assert test_position.symbol.value == test_symbol, (

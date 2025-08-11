@@ -46,6 +46,7 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 from cyberdelta.apis.utils.response_validation import ensure_dict_response, ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Order
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -77,7 +78,7 @@ class HyperliquidOrderQueryService(HyperliquidBaseTradingService):
         authenticator: IAuthenticator,
         wallet_address: str,
         info_endpoint: str = "/info",
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the order query service.
 

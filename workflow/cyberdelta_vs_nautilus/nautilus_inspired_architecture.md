@@ -61,43 +61,48 @@ graph TB
     style LGPL4 fill:#99ff99
 ```
 
-### 1.3 Integration Options Now Available
+### 1.3 Direct Integration Now Possible
 
-**LGPL-Safe Integration Patterns:**
+**LGPLv3 Allows Direct Import:**
 
-1. **Subprocess Integration**
+1. **Direct Library Import (Recommended)**
    ```python
-   # Run Nautilus in separate process - no GPL contamination
-   result = subprocess.run(['nautilus-backtest', '--config', config_path])
+   # Direct import is completely safe with LGPLv3!
+   from nautilus_trader.backtest.engine import BacktestEngine
+   from nautilus_trader.analysis import PortfolioAnalyzer
+   # Your code remains proprietary
    ```
 
-2. **Dynamic Library Loading**
+2. **Standard Dependency Management**
    ```python
-   # Load Nautilus modules dynamically at runtime
-   import importlib
-   nautilus_module = importlib.import_module('nautilus_trader.core')
+   # requirements.txt
+   nautilus-trader==1.194.0  # Direct dependency is fine
    ```
 
-3. **API Communication**
+3. **Full API Access**
    ```python
-   # Communication via REST/gRPC - no direct linking
-   response = requests.post('http://localhost:8000/backtest', json=data)
+   # Use Nautilus as any other library
+   engine = BacktestEngine()
+   analyzer = PortfolioAnalyzer()
+   # No subprocess isolation needed
    ```
 
-4. **File-Based Data Exchange**
+4. **Native Python Integration**
    ```python
-   # Exchange data via files - complete isolation
-   export_to_parquet('/tmp/market_data.parquet')
-   run_nautilus_analysis('/tmp/market_data.parquet')
-   results = import_from_parquet('/tmp/analysis_results.parquet')
+   # Your proprietary strategy using Nautilus
+   class MyProprietaryStrategy:
+       def __init__(self):
+           self.backtest = BacktestEngine()  # Direct use
    ```
 
 ### 1.4 LGPL Compliance Requirements
 
-To use Nautilus components legally:
+To use Nautilus as a library:
 
-1. **Provide LGPL Source**: Make Nautilus source code available to users
-2. **Installation Information**: Provide build instructions for Nautilus components
+1. **Provide LGPL Source Link**: Point to https://github.com/nautechsystems/nautilus_trader
+2. **Allow Relinking**: Users must be able to swap Nautilus versions
+3. **Attribution**: Include LGPL notice in documentation
+4. **Your Code**: Remains 100% proprietary
 3. **Modification Rights**: Allow users to modify and relink Nautilus libraries
 4. **Attribution**: Credit Nautilus Trader in documentation
 

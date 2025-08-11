@@ -163,6 +163,10 @@ def setup_structlog(app_settings: AppSettings) -> None:
     if app_settings.general.log_file:
         setup_file_logging(app_settings.general.log_file, log_level)
 
+    # Configure event system logging if present
+    if hasattr(app_settings, "event_system") and app_settings.event_system:
+        _configure_event_system_logging(app_settings)
+
     # Base processors
     base_processors: list[Processor] = [
         # Add timestamp
@@ -207,6 +211,50 @@ def setup_structlog(app_settings: AppSettings) -> None:
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+
+
+def _configure_event_system_logging(app_settings: AppSettings) -> None:
+    """Configure logging for event system components.
+
+    Args:
+        app_settings: Application configuration with event system settings
+    """
+    event_config = app_settings.event_system.logging
+
+    # Map string levels to logging constants
+    log_level_map = {
+        "DEBUG": logging.DEBUG,
+        "INFO": logging.INFO,
+        "WARNING": logging.WARNING,
+        "ERROR": logging.ERROR,
+        "CRITICAL": logging.CRITICAL,
+    }
+
+    # Set log levels for event system components
+    loggers_config = {
+        "cyberdelta.infrastructure.event_bus": event_config.event_bus_log_level,
+        "cyberdelta.domain.base_event_handler": event_config.handlers_log_level,
+        "cyberdelta.orchestration": event_config.workflows_log_level,
+        "cyberdelta.events": event_config.log_level,  # General event logging
+        "cyberdelta.events.metrics": event_config.log_level,  # Metrics logging
+        "msgspec": event_config.msgspec_log_level,
+        "bubus": event_config.bubus_log_level,
+        "tenacity": "WARNING",  # Always WARNING for tenacity
+    }
+
+    for logger_name, level_str in loggers_config.items():
+        if level_str in log_level_map:
+            logger = logging.getLogger(logger_name)
+            logger.setLevel(log_level_map[level_str])
+
+    # Extra debug for specific components when in DEBUG mode
+    if event_config.log_level == "DEBUG":
+        logging.getLogger("cyberdelta.infrastructure.event_bus.event_bus").setLevel(logging.DEBUG)
+        logging.getLogger("cyberdelta.infrastructure.event_bus.handler_manager").setLevel(
+            logging.DEBUG
+        )
+        logging.getLogger("cyberdelta.events.market").setLevel(logging.DEBUG)
+        logging.getLogger("cyberdelta.events.orders").setLevel(logging.DEBUG)
 
 
 def setup_file_logging(log_file: str, level: int) -> None:
@@ -376,3 +424,100 @@ def get_logger(name: str | None = None, **context: object) -> TraceLevelLogger:
     if context:
         logger = logger.bind(**context)
     return TraceLevelLogger(logger)
+
+
+# Convenience functions for event system loggers
+def get_event_logger(name: str | None = None, **context: object) -> TraceLevelLogger:
+    """Get a logger for event system components.
+
+    Args:
+        name: Logger name (usually __name__)
+        **context: Additional context to bind to logger
+
+    Returns:
+        Configured structlog logger for event system
+    """
+    return get_logger(name or "cyberdelta.events", **context)
+
+
+def get_market_event_logger(**context: object) -> TraceLevelLogger:
+    """Get logger for market data events.
+
+    Args:
+        **context: Additional context to bind to logger
+
+    Returns:
+        Configured logger for market events
+    """
+    return get_logger("cyberdelta.events.market", **context)
+
+
+def get_order_event_logger(**context: object) -> TraceLevelLogger:
+    """Get logger for order events.
+
+    Args:
+        **context: Additional context to bind to logger
+
+    Returns:
+        Configured logger for order events
+    """
+    return get_logger("cyberdelta.events.orders", **context)
+
+
+def get_risk_event_logger(**context: object) -> TraceLevelLogger:
+    """Get logger for risk events.
+
+    Args:
+        **context: Additional context to bind to logger
+
+    Returns:
+        Configured logger for risk events
+    """
+    return get_logger("cyberdelta.events.risk", **context)
+
+
+def get_system_event_logger(**context: object) -> TraceLevelLogger:
+    """Get logger for system events.
+
+    Args:
+        **context: Additional context to bind to logger
+
+    Returns:
+        Configured logger for system events
+    """
+    return get_logger("cyberdelta.events.system", **context)
+
+
+def log_event_metrics(
+    event_type: str,
+    handler_id: str,
+    processing_time_ms: float,
+    success: bool,
+    error_msg: str | None = None,
+    **context: object,
+) -> None:
+    """Log event processing metrics in a structured format.
+
+    Args:
+        event_type: Type of event processed
+        handler_id: ID of the handler that processed the event
+        processing_time_ms: Time taken to process in milliseconds
+        success: Whether processing was successful
+        error_msg: Error message if processing failed
+        **context: Additional context to include
+    """
+    logger = get_logger("cyberdelta.events.metrics")
+
+    # Bind all context
+    logger = logger.bind(
+        event_type=event_type,
+        handler_id=handler_id,
+        processing_time_ms=processing_time_ms,
+        success=success,
+        **context,
+    )
+
+    if success:
+        logger.info("event_processed")
+    else:
+        logger.error("event_processing_failed", error=error_msg)

@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.market.data_fetcher import DataFetcher
 from cyberdelta.domain.market.exchange_connector import ExchangeConnector
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
@@ -71,7 +72,8 @@ class MarketAggregator:
         # Fetch from all enabled exchanges in parallel
         tasks: list[tuple[str, asyncio.Task[tuple[dict[str, Ticker], dict[str, OrderBook]]]]] = []
         for exchange_name, exchange_config in enabled_exchanges.items():
-            api_client = self._exchange_connector.get_api_client(exchange_name)
+            exchange_name_enum = ExchangeName(exchange_name)
+            api_client = self._exchange_connector.get_api_client(exchange_name_enum)
             if api_client:
                 task = asyncio.create_task(
                     self._data_fetcher.fetch_exchange_data(

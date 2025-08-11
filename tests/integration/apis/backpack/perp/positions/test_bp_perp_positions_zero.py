@@ -33,7 +33,7 @@ from pydantic import ValidationError
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models.derivative_position import BackpackPositionDetails, DerivativePosition
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import BaseSymbol
@@ -84,7 +84,9 @@ class TestBackpackPerpPositionsZero:
                 assert isinstance(position, DerivativePosition), (
                     f"Position {i} must be DerivativePosition"
                 )
-                assert position.exchange == "backpack", f"Position {i} exchange must be 'backpack'"
+                assert position.exchange == ExchangeName.BACKPACK, (
+                    f"Position {i} exchange must be 'backpack'"
+                )
                 assert isinstance(position.symbol, BaseSymbol), (
                     f"Position {i} symbol must be Symbol"
                 )
@@ -433,7 +435,9 @@ class TestBackpackPerpPositionsZero:
         assert isinstance(position, DerivativePosition), (
             f"Position {index} must be DerivativePosition"
         )
-        assert position.exchange == "backpack", f"Position {index} exchange must be 'backpack'"
+        assert position.exchange == ExchangeName.BACKPACK, (
+            f"Position {index} exchange must be 'backpack'"
+        )
 
         # Symbol validation
         assert isinstance(position.symbol, BaseSymbol), f"Position {index} symbol must be Symbol"

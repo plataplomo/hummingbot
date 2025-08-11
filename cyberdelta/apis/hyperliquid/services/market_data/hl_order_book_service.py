@@ -32,6 +32,7 @@ from cyberdelta.apis.hyperliquid.protocols.handler_protocols import (
 from cyberdelta.apis.hyperliquid.protocols.mapper_protocols import OrderBookMapperProtocol
 from cyberdelta.apis.models.service_args.market_data import GetL2BookArgs, GetRecentTradesArgs
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Fill, OrderBook
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
@@ -59,7 +60,7 @@ class HyperliquidOrderBookService:
         request_builder: MarketDataRequestBuilderProtocol,
         response_handler: MarketDataResponseHandlerProtocol,
         mapper: OrderBookMapperProtocol,
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the order book service.
 

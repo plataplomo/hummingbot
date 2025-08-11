@@ -33,6 +33,7 @@ from cyberdelta.apis.hyperliquid.services.market_data.hl_market_metadata_service
     HyperliquidMarketMetadataService,
 )
 from cyberdelta.apis.models.service_args.market_data import GetMarketArgs, GetMarketsArgs
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import Market
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
@@ -95,7 +96,7 @@ def market_metadata_service(
         request_builder=mock_request_builder,
         response_handler=mock_response_handler,
         mapper=mock_mapper,
-        exchange_name="hyperliquid",
+        exchange_name=ExchangeName.HYPERLIQUID,
     )
 
 

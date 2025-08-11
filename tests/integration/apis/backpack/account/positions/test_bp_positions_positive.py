@@ -64,7 +64,7 @@ class TestBackpackPositionsPositive:
             # Verify each position
             for position in positions:
                 assert isinstance(position, DerivativePosition)
-                assert position.exchange == "backpack"
+                assert position.exchange == ExchangeName.BACKPACK
 
                 # Required fields
                 assert hasattr(position.symbol, "value"), (

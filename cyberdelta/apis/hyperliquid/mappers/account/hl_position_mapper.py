@@ -382,7 +382,7 @@ class HyperliquidPositionMapper(
             data=position_data,
             model_class=DerivativePosition,
             context="hyperliquid_position_transform",
-            source_exchange="hyperliquid",
+            source_exchange=ExchangeName.HYPERLIQUID.value,
         )
 
     def _create_position_details(
@@ -604,7 +604,7 @@ class HyperliquidPositionMapper(
                 data=position_data,
                 model_class=DerivativePosition,
                 context="hyperliquid_raw_position_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(

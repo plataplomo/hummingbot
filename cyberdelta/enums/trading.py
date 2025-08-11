@@ -69,3 +69,58 @@ class MakerTaker(Enum):
 
     MAKER = "MAKER"
     TAKER = "TAKER"
+
+
+class TradingAction(Enum):
+    """Enum representing trading signal actions.
+
+    Used in SignalEvent and strategy implementations to represent
+    the intended trading action based on signal analysis.
+    - BUY: Signal indicates to open or increase long position
+    - SELL: Signal indicates to open or increase short position
+    - HOLD: Signal indicates to maintain current position
+    - CLOSE: Signal indicates to close current position
+    """
+
+    BUY = "BUY"
+    SELL = "SELL"
+    HOLD = "HOLD"
+    CLOSE = "CLOSE"
+
+
+class OrderEventType(Enum):
+    """Enum representing order lifecycle event types.
+
+    Used in OrderEvent structures for type-safe event handling.
+    - PLACED: Order successfully placed on exchange
+    - FILLED: Order completely filled
+    - PARTIALLY_FILLED: Order partially filled, remaining quantity active
+    - CANCELLED: Order cancelled by user or system
+    - REJECTED: Order rejected by exchange
+    - EXPIRED: Order expired due to time constraints
+    - AMENDED: Order price/quantity amended
+    """
+
+    PLACED = "PLACED"
+    FILLED = "FILLED"
+    PARTIALLY_FILLED = "PARTIALLY_FILLED"
+    CANCELLED = "CANCELLED"
+    REJECTED = "REJECTED"
+    EXPIRED = "EXPIRED"
+    AMENDED = "AMENDED"
+
+
+class PositionEventType(Enum):
+    """Enum representing position lifecycle event types.
+
+    Used in PositionEvent structures for type-safe event handling.
+    - OPENED: New position opened
+    - UPDATED: Existing position updated (size/price changed)
+    - CLOSED: Position closed normally
+    - LIQUIDATED: Position force-closed due to margin requirements
+    """
+
+    OPENED = "OPENED"
+    UPDATED = "UPDATED"
+    CLOSED = "CLOSED"
+    LIQUIDATED = "LIQUIDATED"

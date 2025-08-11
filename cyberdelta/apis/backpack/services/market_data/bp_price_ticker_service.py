@@ -38,6 +38,7 @@ from cyberdelta.apis.exceptions.market_data_service import (
 from cyberdelta.apis.exceptions.response_validation import UnreachableCodeError
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import Ticker
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -67,7 +68,7 @@ class BackpackPriceTickerService:
         request_builder: BackpackMarketDataRequestBuilder,
         response_handler: BackpackMarketDataResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         ticker_mapper: BackpackTickerMapper | None = None,
     ) -> None:
         """Initialize the price ticker service.

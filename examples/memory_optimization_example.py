@@ -9,7 +9,6 @@ import asyncio
 import time
 from typing import Any
 
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_memory_config import (
     PerformanceMode,
     get_recommended_mode_for_scenario,
@@ -23,6 +22,7 @@ from cyberdelta.apis.websocket.ws_router_factory import (
     RouterConfiguration,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 
 
 logger = get_logger(__name__)
@@ -83,10 +83,10 @@ def demonstrate_memory_optimization() -> None:
     start_time = time.perf_counter()
     for i in range(1000):
         # Backpack envelopes
-        bp_envelope = create_memory_optimized_envelope(backpack_data, "backpack")
+        bp_envelope = create_memory_optimized_envelope(backpack_data, ExchangeName.BACKPACK)
 
         # Hyperliquid envelopes
-        hl_envelope = create_memory_optimized_envelope(hyperliquid_data, "hyperliquid")
+        hl_envelope = create_memory_optimized_envelope(hyperliquid_data, ExchangeName.HYPERLIQUID)
 
         if i % 100 == 0:
             logger.debug(
@@ -124,7 +124,7 @@ def demonstrate_router_configuration() -> None:
             "description": "Regular trading scenarios",
             "config_func": lambda: (
                 RouterConfiguration()
-                .with_exchange("backpack", ExchangeType.BACKPACK)
+                .with_exchange(ExchangeName.BACKPACK)
                 .with_performance_mode(PerformanceMode.STANDARD)
             ),
         },
@@ -133,7 +133,7 @@ def demonstrate_router_configuration() -> None:
             "description": "Algorithmic trading with 2000+ msg/sec",
             "config_func": lambda: (
                 RouterConfiguration()
-                .with_exchange("hyperliquid", ExchangeType.HYPERLIQUID)
+                .with_exchange(ExchangeName.HYPERLIQUID)
                 .with_performance_mode(PerformanceMode.HIGH_FREQUENCY)
             ),
         },
@@ -142,7 +142,7 @@ def demonstrate_router_configuration() -> None:
             "description": "Market making with sub-millisecond requirements",
             "config_func": lambda: (
                 RouterConfiguration()
-                .with_exchange("backpack", ExchangeType.BACKPACK)
+                .with_exchange(ExchangeName.BACKPACK)
                 .with_performance_mode(PerformanceMode.ULTRA_LOW_LATENCY)
             ),
         },
@@ -151,7 +151,7 @@ def demonstrate_router_configuration() -> None:
             "description": "Memory-constrained environments",
             "config_func": lambda: (
                 RouterConfiguration()
-                .with_exchange("hyperliquid", ExchangeType.HYPERLIQUID)
+                .with_exchange(ExchangeName.HYPERLIQUID)
                 .with_performance_mode(PerformanceMode.MEMORY_OPTIMIZED)
             ),
         },

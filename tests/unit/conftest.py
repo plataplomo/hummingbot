@@ -358,8 +358,8 @@ def mock_config() -> Callable[..., AppSettings]:
             strategies=StrategiesSettings(
                 hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
                     enabled=True,
-                    long_exchange="backpack",
-                    short_exchange="hyperliquid",
+                    long_exchange=ExchangeName.BACKPACK,
+                    short_exchange=ExchangeName.HYPERLIQUID,
                     symbol_long="BTC",
                     symbol_short="BTC",
                     params=StrategyParamsHLPerpBPSpot(
@@ -370,8 +370,8 @@ def mock_config() -> Callable[..., AppSettings]:
                         check_interval=10,
                         risk_aversion=Decimal("1.0"),
                         rebalance_threshold=Decimal("0.05"),
-                        perp_exchange="hyperliquid",
-                        spot_exchange="backpack",
+                        perp_exchange=ExchangeName.HYPERLIQUID,
+                        spot_exchange=ExchangeName.BACKPACK,
                     ),
                 ),
             ),
@@ -415,8 +415,8 @@ def mock_config() -> Callable[..., AppSettings]:
                     enabled=True,
                     check_interval_sec=300,
                     min_balance_thresholds_usd={
-                        "hyperliquid": Decimal("100.0"),
-                        "backpack": Decimal("100.0"),
+                        ExchangeName.HYPERLIQUID: Decimal("100.0"),
+                        ExchangeName.BACKPACK: Decimal("100.0"),
                     },
                 ),
             ),
@@ -507,8 +507,8 @@ def test_app_settings() -> AppSettings:
         strategies=StrategiesSettings(
             hl_perp_bp_spot=StrategyConfigHLPerpBPSpot(
                 enabled=True,
-                long_exchange="backpack",
-                short_exchange="hyperliquid",
+                long_exchange=ExchangeName.BACKPACK,
+                short_exchange=ExchangeName.HYPERLIQUID,
                 symbol_long="BTC",
                 symbol_short="BTC",
                 params=StrategyParamsHLPerpBPSpot(
@@ -519,8 +519,8 @@ def test_app_settings() -> AppSettings:
                     check_interval=10,
                     risk_aversion=Decimal("1.0"),
                     rebalance_threshold=Decimal("0.05"),
-                    perp_exchange="hyperliquid",
-                    spot_exchange="backpack",
+                    perp_exchange=ExchangeName.HYPERLIQUID,
+                    spot_exchange=ExchangeName.BACKPACK,
                 ),
             ),
         ),

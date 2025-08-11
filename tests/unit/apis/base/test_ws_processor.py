@@ -11,7 +11,6 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
@@ -20,6 +19,7 @@ from cyberdelta.apis.websocket.ws_processor import (
     ValidationMetrics,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.enums import ExchangeName
 
 
 class MessageModel(BaseModel):
@@ -170,7 +170,7 @@ class TestPydanticWebSocketProcessor:
         envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
             validated_envelope=envelope,
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_type=ExchangeName.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
             message_id="test-msg-123",
@@ -229,7 +229,7 @@ class TestPydanticWebSocketProcessor:
 
         context = BackpackMessageContext(
             validated_envelope=envelope,
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_type=ExchangeName.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
             message_id="test-msg-123",
@@ -276,7 +276,7 @@ class TestPydanticWebSocketProcessor:
         envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
             validated_envelope=envelope,
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_type=ExchangeName.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
             message_id="test-msg-123",
@@ -310,7 +310,7 @@ class TestPydanticWebSocketProcessor:
         envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
             validated_envelope=envelope,
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_type=ExchangeName.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
             message_id="test-msg-123",
@@ -353,7 +353,7 @@ class TestPydanticWebSocketProcessor:
         envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
             validated_envelope=envelope,
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_type=ExchangeName.BACKPACK,
             routing_key="test",
             timestamp=datetime.now(UTC),
             message_id="test-msg-123",

@@ -36,6 +36,7 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Order
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.symbols.models import Symbol
@@ -71,7 +72,7 @@ class BackpackTradingService:
         request_builder: BackpackTradingRequestBuilder,
         response_handler: BackpackTradingResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         # Optional mapper injection for testability
         order_mapper: BackpackOrderMapper | None = None,
     ) -> None:

@@ -189,7 +189,7 @@ class OrderTracker:
             logger.warning("filled_quantity_update_for_unknown_order", order_id=order_id)
             return False
 
-        old_filled = order.quantity_filled or Decimal(0)
+        old_filled = order.quantity_filled
         order.quantity_filled = filled_quantity
         order.updated_at = datetime.now(UTC)
 

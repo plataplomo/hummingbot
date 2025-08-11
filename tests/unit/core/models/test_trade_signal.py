@@ -48,7 +48,7 @@ def minimal_signal_data() -> dict[str, Any]:
         "signal_type": SignalType.ENTER_LONG,
         "side": OrderSide.BUY,
         "price": Decimal("60000.123"),
-        "exchange": "hyperliquid",
+        "exchange": ExchangeName.HYPERLIQUID,
         # quantity is optional
     }
 
@@ -67,7 +67,7 @@ def full_signal_data(minimal_signal_data: dict[str, Any]) -> dict[str, Any]:
     data.update(
         {
             "quantity": Decimal("0.5"),
-            "exchange": ["hyperliquid", "backpack"],  # Test list
+            "exchange": [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK],  # Test list
             "timestamp": now - timedelta(seconds=10),
             "confidence": 0.85,
             "source_strategy": "MomentumStratV1",
@@ -93,7 +93,7 @@ def test_tradesignal_minimal_valid(minimal_signal_data: dict[str, Any]) -> None:
     assert signal.signal_type == SignalType.ENTER_LONG
     assert signal.side == OrderSide.BUY
     assert signal.price == Decimal("60000.123")
-    assert signal.exchange == "hyperliquid"
+    assert signal.exchange == ExchangeName.HYPERLIQUID
     assert signal.quantity is None  # Check optional field default
     assert isinstance(signal.timestamp, datetime)
     assert signal.timestamp.tzinfo == UTC
@@ -119,7 +119,7 @@ def test_tradesignal_full_valid(full_signal_data: dict[str, Any]) -> None:
     assert signal.side == OrderSide.BUY
     assert signal.price == Decimal("60000.123")
     assert signal.quantity == Decimal("0.5")
-    assert signal.exchange == ["hyperliquid", "backpack"]
+    assert signal.exchange == [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]
     assert isinstance(signal.timestamp, datetime)
     assert signal.confidence == 0.85
     assert signal.source_strategy == "MomentumStratV1"
@@ -226,9 +226,9 @@ def test_tradesignal_exchange_list_validation(minimal_signal_data: dict[str, Any
     """Test validation specific to the 'exchange' field when it's a list."""
     # Valid list
     valid_data = minimal_signal_data.copy()
-    valid_data["exchange"] = ["hyperliquid", "backpack"]
+    valid_data["exchange"] = [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]
     signal = TradeSignal(**valid_data)
-    assert signal.exchange == ["hyperliquid", "backpack"]
+    assert signal.exchange == [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]
 
     # Empty list
     invalid_data_empty = minimal_signal_data.copy()
@@ -238,13 +238,13 @@ def test_tradesignal_exchange_list_validation(minimal_signal_data: dict[str, Any
 
     # List with non-string
     invalid_data_type = minimal_signal_data.copy()
-    invalid_data_type["exchange"] = ["hyperliquid", 123]
+    invalid_data_type["exchange"] = [ExchangeName.HYPERLIQUID, 123]
     with pytest.raises(ListFieldError, match="Item 1: Expected string, got int"):
         TradeSignal(**invalid_data_type)
 
     # List with empty string
     invalid_data_content = minimal_signal_data.copy()
-    invalid_data_content["exchange"] = ["hyperliquid", ""]
+    invalid_data_content["exchange"] = [ExchangeName.HYPERLIQUID, ""]
     with pytest.raises(EmptyStringError, match=r"exchange\[1\]: String cannot be empty"):
         TradeSignal(**invalid_data_content)
 

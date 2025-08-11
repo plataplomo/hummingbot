@@ -54,7 +54,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/info",
             action_payload={"type": "l2Book", "coin": "BTC"},
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -75,7 +75,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/info",
             action_payload={"type": "l2Book", "coin": "BTC"},
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -103,7 +103,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/exchange",
             action_payload={"actions": [{"type": "order", "orderType": "Limit"}]},
             method="POST",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -125,7 +125,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/exchange",
             action_payload={"actions": actions},
             method="POST",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -144,7 +144,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/info",
             action_payload={"type": "l2Book", "coin": "BTC"},
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -163,7 +163,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/info",
             action_payload={"type": "userRole", "user": "0x123"},
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -182,7 +182,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/info",
             action_payload={"type": "unknownType", "param": "value"},
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -201,7 +201,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/info",
             action_payload=None,
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -220,7 +220,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/exchange",
             action_payload={"actions": []},
             method="POST",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -239,7 +239,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/unknown",
             action_payload={"param": "value"},
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -258,7 +258,7 @@ class TestHyperliquidRateLimitStrategy:
             endpoint="/exchange",
             action_payload={"actions": [{"type": "order"}]},
             method="POST",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -301,7 +301,7 @@ class TestHyperliquidRateLimitStrategyIntegration:
             endpoint="/exchange",
             action_payload={"actions": [{"type": "order"}] * 3},  # 3 actions
             method="POST",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )
@@ -322,7 +322,7 @@ class TestHyperliquidRateLimitStrategyIntegration:
             endpoint="/info",
             action_payload={"type": "l2Book", "coin": "BTC"},
             method="GET",
-            exchange_name="hyperliquid",
+            exchange_name=ExchangeName.HYPERLIQUID,
             request_weight=1,
             endpoint_group=None,
         )

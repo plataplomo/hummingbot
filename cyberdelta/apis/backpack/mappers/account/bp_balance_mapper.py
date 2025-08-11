@@ -104,7 +104,7 @@ class BackpackBalanceMapper(
                 data=balance_data,
                 model_class=SpotBalance,
                 context="backpack_balance_from_dict",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(
@@ -211,7 +211,7 @@ class BackpackBalanceMapper(
                 data=balance_data,
                 model_class=SpotBalance,
                 context="backpack_raw_balance_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(

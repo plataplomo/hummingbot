@@ -57,6 +57,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetTradeHistoryArgs,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
@@ -99,7 +100,7 @@ class BackpackAccountService:
         request_builder: BackpackAccountRequestBuilder,
         response_handler: BackpackAccountResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str,
+        exchange_name: ExchangeName,
         # Additional builders/handlers for services that need trading endpoints
         trading_request_builder: BackpackTradingRequestBuilder | None = None,
         trading_response_handler: BackpackTradingResponseHandler | None = None,

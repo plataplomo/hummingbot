@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 from cyberdelta.models.spot_balance import (
     BackpackSpotBalanceDetails,
@@ -54,7 +55,7 @@ def base_spot_balance_data(backpack_symbol: Callable[[str], Symbol]) -> dict[str
         Dictionary containing valid SpotBalance core data.
     """
     return {
-        "exchange": "backpack",
+        "exchange": ExchangeName.BACKPACK,
         "asset": backpack_symbol("SOL"),
         "timestamp": datetime.now(UTC),
         "total_quantity": Decimal("10.5"),
@@ -68,7 +69,7 @@ def base_spot_balance_data(backpack_symbol: Callable[[str], Symbol]) -> dict[str
 def test_spot_balance_creation_required_only(base_spot_balance_data: dict[str, Any]) -> None:
     """Test successful creation with only required core fields."""
     balance = SpotBalance(**base_spot_balance_data)
-    assert balance.exchange == "backpack"
+    assert balance.exchange == ExchangeName.BACKPACK
     assert balance.asset.value == "SOL"
     assert isinstance(balance.timestamp, datetime)
     assert balance.total_quantity == Decimal("10.5")

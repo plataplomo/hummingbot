@@ -259,7 +259,7 @@ class BackpackTransferMapper(CommonDataParserMixin, ValidationMixin, TransferMap
                 data=transfer_data,
                 model_class=Transfer,
                 context=f"backpack_transfer_transform_{asset}",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(
@@ -403,7 +403,7 @@ class BackpackTransferMapper(CommonDataParserMixin, ValidationMixin, TransferMap
                 data=withdrawal_data,
                 model_class=Withdrawal,
                 context="backpack_withdrawal_transform",
-                source_exchange="backpack",
+                source_exchange=ExchangeName.BACKPACK.value,
             )
 
             logger.debug(

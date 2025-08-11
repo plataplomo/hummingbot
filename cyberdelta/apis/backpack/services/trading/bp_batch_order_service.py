@@ -32,6 +32,7 @@ from cyberdelta.apis.exceptions import MissingRequiredFieldError
 from cyberdelta.apis.utils.response_validation import ensure_list_response
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import CancelOrderResultStatus
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
@@ -59,7 +60,7 @@ class BackpackBatchOrderService:
         request_builder: TradingRequestBuilderProtocol,
         response_handler: TradingResponseHandlerProtocol,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         mapper: OrderMapperProtocol | None = None,
     ) -> None:
         """Initialize the batch order service.

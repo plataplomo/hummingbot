@@ -16,6 +16,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetTradeHistoryArgs,
 )
 from cyberdelta.enums import OrderSide
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.operations import Withdrawal
 from tests.common_symbols import SOL_USDC_BP
 
@@ -245,7 +246,7 @@ class TestBackpackAccountServiceHistoryOperations:
         assert len(result) == 1
         assert result[0].id == "123"
         assert result[0].symbol.value == SOL_USDC_BP.value
-        assert result[0].exchange == "backpack"  # Mapper hardcodes this
+        assert result[0].exchange == ExchangeName.BACKPACK  # Mapper hardcodes this
         assert result[0].order_id == "order_123"
         assert result[0].quantity == Decimal("10.0")
         assert result[0].price == Decimal("100.0")
@@ -344,7 +345,7 @@ class TestBackpackAccountServiceHistoryOperations:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="backpack_test",
+            exchange_name=ExchangeName.BACKPACK,
             transaction_mapper=custom_mapper,
         )
 
@@ -367,7 +368,7 @@ class TestBackpackAccountServiceHistoryOperations:
             request_builder=mock_request_builder,
             response_handler=mock_response_handler,
             authenticator=mock_authenticator,
-            exchange_name="backpack_test",
+            exchange_name=ExchangeName.BACKPACK,
             # No mapper parameters needed - service should create default
         )
 

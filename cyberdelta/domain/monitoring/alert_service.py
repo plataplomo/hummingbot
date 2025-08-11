@@ -9,41 +9,16 @@ from __future__ import annotations
 import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.monitoring import AlertChannel, AlertLevel, AlertStatus
 
 
 logger = get_logger(__name__)
-
-
-class AlertLevel(Enum):
-    """Alert severity levels."""
-
-    INFO = "info"
-    WARNING = "warning"
-    ERROR = "error"
-    CRITICAL = "critical"
-
-
-class AlertStatus(Enum):
-    """Alert status tracking."""
-
-    ACTIVE = "active"
-    ACKNOWLEDGED = "acknowledged"
-    RESOLVED = "resolved"
-    SUPPRESSED = "suppressed"
-
-
-class AlertChannel(Enum):
-    """Available alert channels."""
-
-    LOG = "log"
-    TELEGRAM = "telegram"
 
 
 @dataclass
@@ -564,7 +539,9 @@ class AlertService:
             except Exception as e:
                 logger.exception("alert_processing_loop_error", error=str(e))
                 # Brief delay before retrying
-                await asyncio.sleep(10.0)  # Could be configurable
+                await asyncio.sleep(
+                    self.config.monitoring.escalation_delay_seconds / 60
+                )  # 1/60th of escalation delay
 
         logger.info("alert_processing_loop_ended")
 

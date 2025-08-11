@@ -34,6 +34,7 @@ from cyberdelta.apis.common import APIError, APIErrorCode, TransformationError
 from cyberdelta.apis.exceptions.market_data_service import EmptySymbolError, InvalidLimitError
 from cyberdelta.apis.utils.response_validation import ensure_dict_response
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.market import OrderBook
 from cyberdelta.symbols.models import Symbol
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -63,7 +64,7 @@ class BackpackOrderBookService:
         request_builder: BackpackMarketDataRequestBuilder,
         response_handler: BackpackMarketDataResponseHandler,
         authenticator: IAuthenticator | None,
-        exchange_name: str = "backpack",
+        exchange_name: ExchangeName = ExchangeName.BACKPACK,
         order_book_mapper: BackpackOrderBookMapper | None = None,
     ) -> None:
         """Initialize the order book service.

@@ -190,7 +190,7 @@ class BackpackAPI(ExchangeAPI):
         )
 
         super().__init__(
-            exchange_name=exchange_config.exchange_name.value,
+            exchange_name=exchange_config.exchange_name,
             config=exchange_config,
             secrets=exchange_secrets,
             authenticator=self._bp_authenticator,
@@ -199,7 +199,7 @@ class BackpackAPI(ExchangeAPI):
         )
 
         # Initialize enhanced WebSocket router with new architecture
-        error_handler = BaseErrorHandler(exchange_name="backpack")
+        error_handler = BaseErrorHandler(exchange_name=exchange_config.exchange_name)
 
         # Create registry using Backpack-specific builder
         builder = BackpackRegistryBuilder()
@@ -543,7 +543,7 @@ class BackpackAPI(ExchangeAPI):
             symbol=symbol,
             topic=topic,
             subscription_type="depth",
-            message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
+            message=f"[{self.exchange_name.value}] Preparing subscription for topic: {topic}",
         )
 
     async def subscribe_to_ticker(self, symbol: Symbol) -> None:
@@ -555,7 +555,7 @@ class BackpackAPI(ExchangeAPI):
             symbol=symbol,
             topic=topic,
             subscription_type="ticker",
-            message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
+            message=f"[{self.exchange_name.value}] Preparing subscription for topic: {topic}",
         )
 
     async def subscribe_to_trades(self, symbol: Symbol) -> None:
@@ -568,7 +568,7 @@ class BackpackAPI(ExchangeAPI):
             symbol=symbol,
             topic=topic,
             subscription_type="trade",
-            message=f"[{self.exchange_name}] Preparing subscription for topic: {topic}",
+            message=f"[{self.exchange_name.value}] Preparing subscription for topic: {topic}",
         )
 
     async def subscribe_to_account_updates(self) -> None:
@@ -581,7 +581,7 @@ class BackpackAPI(ExchangeAPI):
             topics=[fill_topic, order_topic],
             subscription_type="account_updates",
             message=(
-                f"[{self.exchange_name}] Preparing subscription for account topics: "
+                f"[{self.exchange_name.value}] Preparing subscription for account topics: "
                 f"{fill_topic}, {order_topic}"
             ),
         )
@@ -685,7 +685,7 @@ class BackpackAPI(ExchangeAPI):
             headers_count=len(headers) if headers else 0,
             action="no_dynamic_adjustment",
             message=(
-                f"[{self.exchange_name}] No actionable rate limit headers found "
+                f"[{self.exchange_name.value}] No actionable rate limit headers found "
                 f"for dynamic adjustment. Headers: {headers}, Method: {method}, Path: {path}"
             ),
         )
@@ -730,7 +730,8 @@ class BackpackAPI(ExchangeAPI):
             exchange=self.exchange_name,
             action="triggering_resubscription",
             message=(
-                f"[{self.exchange_name}] WebSocket connected. Triggering resubscription via base."
+                f"[{self.exchange_name.value}] WebSocket connected. "
+                f"Triggering resubscription via base."
             ),
         )
         await super()._on_ws_connected()
@@ -741,7 +742,7 @@ class BackpackAPI(ExchangeAPI):
             "backpack_websocket_resubscribing",
             exchange=self.exchange_name,
             action="delegating_to_base",
-            message=f"[{self.exchange_name}] Resubscribe called. Delegating to base.",
+            message=f"[{self.exchange_name.value}] Resubscribe called. Delegating to base.",
         )
         await super()._resubscribe()
 

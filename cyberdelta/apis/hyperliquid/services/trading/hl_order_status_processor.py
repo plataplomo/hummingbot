@@ -35,6 +35,7 @@ from cyberdelta.apis.hyperliquid.services.trading.hl_order_query_service import 
 from cyberdelta.apis.models.service_args.trading import GetOrderArgs, PlaceOrderArgs
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Order
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse
@@ -61,7 +62,7 @@ class HyperliquidOrderStatusProcessor:
         mapper: OrderResponseMapperProtocol,
         error_mapper: HyperliquidErrorMapper,
         order_query_service: HyperliquidOrderQueryService | None = None,  # Injected
-        exchange_name: str = "hyperliquid",
+        exchange_name: ExchangeName = ExchangeName.HYPERLIQUID,
     ) -> None:
         """Initialize the order status processor.
 
@@ -496,7 +497,7 @@ class HyperliquidOrderStatusProcessor:
 
         # Use secure_transform to ensure validation
         order_data = {
-            "exchange": "hyperliquid",
+            "exchange": ExchangeName.HYPERLIQUID.value,
             "exchange_order_id": str(order_id),
             "symbol": args.symbol,
             "side": args.side.value,
@@ -519,7 +520,7 @@ class HyperliquidOrderStatusProcessor:
             data=order_data,
             model_class=Order,
             context=f"place_order_{status.value}_{args.symbol}",
-            source_exchange="hyperliquid",
+            source_exchange=ExchangeName.HYPERLIQUID.value,
         )
 
     def _create_filled_order(
@@ -545,7 +546,7 @@ class HyperliquidOrderStatusProcessor:
 
         # Use secure_transform to ensure validation
         order_data = {
-            "exchange": "hyperliquid",
+            "exchange": ExchangeName.HYPERLIQUID.value,
             "exchange_order_id": str(filled_oid),
             "symbol": args.symbol,
             "side": args.side.value,
@@ -570,7 +571,7 @@ class HyperliquidOrderStatusProcessor:
             data=order_data,
             model_class=Order,
             context=f"place_order_filled_{args.symbol}",
-            source_exchange="hyperliquid",
+            source_exchange=ExchangeName.HYPERLIQUID.value,
         )
 
     def handle_service_error(

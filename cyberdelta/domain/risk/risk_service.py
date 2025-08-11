@@ -6,6 +6,7 @@ using modular components for position sizing, limit checking, and validation.
 
 from __future__ import annotations
 
+import time
 from decimal import Decimal
 
 from cyberdelta.config.models import AppSettings
@@ -17,7 +18,11 @@ from cyberdelta.domain.risk.portfolio_analyzer import PortfolioAnalyzer
 from cyberdelta.domain.risk.position_sizer import PositionSizer
 from cyberdelta.domain.risk.risk_checker import RiskChecker
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums.monitoring import RiskSeverity, RiskType
+from cyberdelta.exceptions.trading import TotalEquityNoneError
+from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models import DerivativePosition, TradeSignal
+from cyberdelta.models.events import RiskEvent
 from cyberdelta.models.risk.assessment import PositionSize, RiskAssessment
 from cyberdelta.models.risk.drawdown_status import DrawdownStatus
 
@@ -47,16 +52,18 @@ class RiskService:
         self,
         config: AppSettings,
         portfolio_service: PortfolioService,
+        event_bus: EventBus,
     ) -> None:
         """Initialize risk service with configuration and dependencies.
 
         Args:
             config: Application settings containing all risk configuration
             portfolio_service: Portfolio service for state access
+            event_bus: Event bus for publishing risk events
         """
         self.config = config
         self._portfolio_service = portfolio_service
-
+        self._event_bus = event_bus
         # Initialize modular components
         self._position_sizer = PositionSizer(config)
         self._risk_checker = RiskChecker(config)
@@ -78,10 +85,8 @@ class RiskService:
         Args:
             signal: Trading signal to assess
 
-
         Returns:
             Risk assessment with approval status and calculated position size
-
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - ALL limits from config, NO hardcoded values
@@ -133,6 +138,9 @@ class RiskService:
                 max_loss_usd=max_loss_usd,
             )
 
+            # Publish risk assessment event
+            await self._publish_risk_assessment_event(signal, assessment)
+
             logger.info(
                 "risk_assessment_completed",
                 signal_id=signal.signal_id,
@@ -169,6 +177,9 @@ class RiskService:
 
         Returns:
             List of limit violations
+
+        Raises:
+            TotalEquityNoneError: If portfolio equity data is missing
         """
         limit_violations: list[str] = []
 
@@ -177,7 +188,10 @@ class RiskService:
         if not portfolio_state:
             return limit_violations
 
-        total_equity = portfolio_state.total_equity_usd or Decimal(0)
+        # Require valid equity for risk calculations - fail fast on None
+        total_equity = portfolio_state.total_equity_usd
+        if total_equity is None:
+            raise TotalEquityNoneError
         current_exposure = self._portfolio_analyzer.calculate_exposure(position, signal.price)
 
         # Basic limit checks
@@ -220,7 +234,6 @@ class RiskService:
         Args:
             portfolio_value: Current portfolio value (if None, fetches from service)
 
-
         Note:
             Following CODING_STANDARDS.md:
             - Delegates to DrawdownMonitor for calculations
@@ -229,6 +242,16 @@ class RiskService:
         """
         try:
             await self._drawdown_monitor.update_portfolio_value(portfolio_value)
+
+            # Publish drawdown monitoring event if there are changes
+            drawdown_status = self.get_drawdown_status()
+            warning_threshold = self.config.risk.global_risk.max_drawdown_pct * Decimal("0.8")
+            if (
+                drawdown_status.drawdown_violated
+                or drawdown_status.current_drawdown_pct > warning_threshold
+            ):
+                await self._publish_drawdown_event(drawdown_status)
+
         except Exception as e:
             logger.exception(
                 "drawdown_monitoring_update_failed",
@@ -255,7 +278,6 @@ class RiskService:
         Returns:
             True if drawdown exceeds configured limits
 
-
         Note:
             Following CODING_STANDARDS.md:
             - Uses DrawdownMonitor state
@@ -268,7 +290,6 @@ class RiskService:
 
         Returns:
             Maximum drawdown percentage, None if insufficient data
-
 
         Note:
             Following CODING_STANDARDS.md:
@@ -287,3 +308,82 @@ class RiskService:
         """
         logger.warning("risk_service_drawdown_reset_requested", reason="manual_intervention")
         self._drawdown_monitor.reset_drawdown_tracking()
+
+    async def _publish_risk_assessment_event(
+        self, signal: TradeSignal, assessment: RiskAssessment
+    ) -> None:
+        """Publish risk assessment event.
+
+        Args:
+            signal: Trading signal that was assessed
+            assessment: Risk assessment results
+        """
+        try:
+            # Determine exchange name for event
+            exchange_name = (
+                signal.exchange[0] if isinstance(signal.exchange, list) else signal.exchange
+            )
+
+            risk_event = RiskEvent(
+                risk_type=RiskType.EXPOSURE,
+                severity=RiskSeverity.CRITICAL if not assessment.approved else RiskSeverity.WARNING,
+                current_value=assessment.current_exposure,
+                limit_value=assessment.position_size.value_usd,
+                message=(
+                    f"Risk assessment for signal {signal.signal_id}: "
+                    f"{'REJECTED' if not assessment.approved else 'APPROVED'} - "
+                    f"side={signal.side.value}, approved={assessment.approved}, "
+                    f"position_size_quantity={assessment.position_size.quantity}, "
+                    f"max_loss_usd={assessment.max_loss_usd or 'None'}, "
+                    f"violation_count={len(assessment.limit_violations)}, "
+                    f"violations={','.join(assessment.limit_violations)}"
+                ),
+                symbol=str(signal.symbol),
+                exchange=exchange_name,
+                timestamp=time.time(),
+            )
+            await self._event_bus.publish(risk_event)
+
+        except (ValueError, TypeError, ConnectionError, TimeoutError) as e:
+            logger.warning(
+                "risk_assessment_event_publishing_failed",
+                signal_id=signal.signal_id,
+                error=str(e),
+            )
+            # Don't re-raise - event publishing failure shouldn't cancel risk assessment
+
+    async def _publish_drawdown_event(self, drawdown_status: DrawdownStatus) -> None:
+        """Publish drawdown monitoring event.
+
+        Args:
+            drawdown_status: Current drawdown status
+        """
+        try:
+            drawdown_event = RiskEvent(
+                risk_type=RiskType.DRAWDOWN,
+                severity=(
+                    RiskSeverity.CRITICAL
+                    if drawdown_status.drawdown_violated
+                    else RiskSeverity.WARNING
+                ),
+                current_value=drawdown_status.trough_value,
+                limit_value=drawdown_status.peak_value,
+                message=(
+                    f"Portfolio drawdown monitoring: "
+                    f"current_drawdown={drawdown_status.current_drawdown_pct}%, "
+                    f"max_allowed={drawdown_status.max_allowed_pct}%, "
+                    f"violated={drawdown_status.drawdown_violated}, "
+                    f"should_block_new_positions={self._drawdown_monitor.should_block_new_positions()}"
+                ),
+                symbol="PORTFOLIO",  # Portfolio-wide event
+                exchange=ExchangeName.HYPERLIQUID,  # Default exchange for portfolio events
+                timestamp=time.time(),
+            )
+            await self._event_bus.publish(drawdown_event)
+
+        except (ValueError, TypeError, ConnectionError, TimeoutError) as e:
+            logger.warning(
+                "drawdown_event_publishing_failed",
+                error=str(e),
+            )
+            # Don't re-raise - event publishing failure shouldn't cancel drawdown monitoring

@@ -17,6 +17,7 @@ from cyberdelta.apis.exceptions.configuration import HyperliquidRateLimitConfigE
 from cyberdelta.apis.hyperliquid.hl_request_weighter import HyperliquidRequestWeighter
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
 
 
@@ -66,7 +67,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             raise RequiredParameterError(
                 parameter="ip_weight_limit_per_minute",
                 context="HyperliquidRateLimitStrategy",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID.value,
             )
         ip_rate_rps = ip_rate_rpm / 60.0
         ip_bucket = max(1, int(ip_rate_rps * 2))  # 2-second bucket
@@ -87,7 +88,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             raise RequiredParameterError(
                 parameter="address_action_safety_net",
                 context="HyperliquidRateLimitStrategy",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID.value,
             )
         aa_rate_rpm = aa_config.rate_per_minute
         aa_rate_rps = aa_rate_rpm / 60.0

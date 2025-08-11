@@ -31,19 +31,26 @@ This document explores cutting-edge architectural patterns and technologies that
 
 **MAJOR UPDATE**: Nautilus Trader is licensed under **LGPLv3**, not GPL-3.0. This changes everything regarding direct integration possibilities.
 
-### 1.2 LGPL-Safe Backtesting Integration
+### 1.2 Direct Backtesting Integration (LGPLv3 Allows This!)
 
-Nautilus provides world-class backtesting capabilities that can now be integrated safely:
+Nautilus provides world-class backtesting capabilities via direct import:
 
 ```python
-class NautilusBacktestIntegration:
+# Direct import is completely safe with LGPLv3!
+from nautilus_trader.backtest.engine import BacktestEngine
+from nautilus_trader.backtest.node import BacktestNode
+from nautilus_trader.analysis import PortfolioAnalyzer
+
+class NautilusDirectIntegration:
     """
-    LGPL-safe integration with Nautilus backtesting engine
-    Uses subprocess execution to maintain license compliance
+    Direct integration with Nautilus - no subprocess needed!
+    Your code remains proprietary under LGPLv3
     """
 
     def __init__(self, config: AppSettings):
-        self.nautilus_env = Path(config.integrations.nautilus_venv_path)
+        # Direct instantiation of Nautilus components
+        self.backtest_engine = BacktestEngine()
+        self.analyzer = PortfolioAnalyzer()
         self.temp_dir = Path("/tmp/cyberdelta_nautilus")
         self.temp_dir.mkdir(exist_ok=True)
 
@@ -67,20 +74,20 @@ class NautilusBacktestIntegration:
         # 2. Generate Nautilus strategy configuration
         strategy_config = self._convert_to_nautilus_strategy(strategy_params)
 
-        # 3. Run backtest in subprocess (LGPL-safe)
-        results = await self._execute_nautilus_backtest(strategy_config, data_catalog)
+        # 3. Run backtest directly using Nautilus API
+        results = await self._execute_direct_backtest(strategy_config, data_catalog)
 
-        # 4. Parse results back to CyberDelta format
-        return self._parse_nautilus_results(results)
+        # 4. Native Python objects - no parsing needed!
+        return results
 
-    async def _execute_nautilus_backtest(
+    async def _execute_direct_backtest(
         self,
         strategy_config: Dict,
         data_catalog: Path
-    ) -> Dict:
-        """Execute Nautilus backtest in separate process"""
+    ) -> BacktestResults:
+        """Execute Nautilus backtest with direct API access"""
 
-        backtest_script = f'''
+        # Direct use of Nautilus API - no subprocess!
 import asyncio
 from nautilus_trader.backtest.engine import BacktestEngine
 from nautilus_trader.backtest.config import BacktestRunConfig, BacktestVenueConfig

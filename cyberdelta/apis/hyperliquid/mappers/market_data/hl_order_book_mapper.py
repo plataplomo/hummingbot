@@ -157,7 +157,7 @@ class HyperliquidOrderBookMapper(
                 data=orderbook_data,
                 model_class=OrderBook,
                 context="hyperliquid_orderbook_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(
@@ -334,7 +334,7 @@ class HyperliquidOrderBookMapper(
                 data=trade_data,
                 model_class=Fill,
                 context="hyperliquid_public_trade_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(
@@ -441,7 +441,7 @@ class HyperliquidOrderBookMapper(
                 data=trade_data,
                 model_class=Fill,
                 context="hyperliquid_ws_trade_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(
@@ -534,7 +534,7 @@ class HyperliquidOrderBookMapper(
                 data=orderbook_data,
                 model_class=OrderBook,
                 context="hyperliquid_ws_book_transform",
-                source_exchange="hyperliquid",
+                source_exchange=ExchangeName.HYPERLIQUID.value,
             )
 
             logger.debug(
