@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, TypeVar
 from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorMetadata
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketContextCreationError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
@@ -21,6 +22,9 @@ if TYPE_CHECKING:
 # Type variables for generic domain models
 T = TypeVar("T", bound=BaseModel)
 U = TypeVar("U", bound=BaseModel)
+
+# Constants for payload processing
+DEFAULT_CONTENT_SAMPLE_SIZE = 50  # Default sample size for content extraction
 
 
 class ProcessorErrorMetadata(ErrorMetadata):
@@ -78,6 +82,9 @@ class ProcessorErrorContextBuilder:
 
         Returns:
             Fully typed StreamErrorContext
+
+        Raises:
+            WebSocketContextCreationError: If context does not provide create_error_context method.
         """
         # Build metadata with processor-specific information
         processor_metrics = processor.get_metrics()
@@ -104,14 +111,10 @@ class ProcessorErrorContextBuilder:
                 base_context.metadata = metadata
                 return base_context
 
-        # Fallback: build context manually from protocol attributes
-        return StreamErrorContext(
-            connection_id=context.connection_id,
-            exchange=context.exchange_name,
-            channel=getattr(context, "channel", None),
-            topic=getattr(context, "routing_key", None),
-            sequence_number=getattr(context, "sequence_number", None),
-            metadata=metadata,
+        # Require StreamErrorContext - no fallback
+        raise WebSocketContextCreationError(
+            context_type=type(context).__name__,
+            protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -131,6 +134,9 @@ class ProcessorErrorContextBuilder:
 
         Returns:
             Fully typed StreamErrorContext
+
+        Raises:
+            WebSocketContextCreationError: If context does not provide create_error_context method.
         """
         # Build metadata with transformation-specific information
         processor_metrics = processor.get_metrics()
@@ -157,14 +163,10 @@ class ProcessorErrorContextBuilder:
                 base_context.metadata = metadata
                 return base_context
 
-        # Fallback: build context manually
-        return StreamErrorContext(
-            connection_id=context.connection_id,
-            exchange=context.exchange_name,
-            channel=getattr(context, "channel", None),
-            topic=getattr(context, "routing_key", None),
-            sequence_number=getattr(context, "sequence_number", None),
-            metadata=metadata,
+        # Require StreamErrorContext - no fallback
+        raise WebSocketContextCreationError(
+            context_type=type(context).__name__,
+            protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -186,14 +188,14 @@ class ProcessorErrorContextBuilder:
 
         Returns:
             Fully typed StreamErrorContext
+
+        Raises:
+            WebSocketContextCreationError: If context does not provide create_error_context method.
         """
         # Determine domain model info
         if isinstance(domain_model, list):
             # Handle batch domain models
-            if domain_model:
-                first_type = type(domain_model[0]).__name__
-            else:
-                first_type = "Unknown"
+            first_type = type(domain_model[0]).__name__ if domain_model else "Unknown"
             domain_model_name = f"list[{first_type}]"
             domain_model_count = len(domain_model)
         else:
@@ -227,14 +229,10 @@ class ProcessorErrorContextBuilder:
                 base_context.metadata = metadata
                 return base_context
 
-        # Fallback: build context manually
-        return StreamErrorContext(
-            connection_id=context.connection_id,
-            exchange=context.exchange_name,
-            channel=getattr(context, "channel", None),
-            topic=getattr(context, "routing_key", None),
-            sequence_number=getattr(context, "sequence_number", None),
-            metadata=metadata,
+        # Require StreamErrorContext - no fallback
+        raise WebSocketContextCreationError(
+            context_type=type(context).__name__,
+            protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -254,6 +252,9 @@ class ProcessorErrorContextBuilder:
 
         Returns:
             Fully typed StreamErrorContext
+
+        Raises:
+            WebSocketContextCreationError: If context does not provide create_error_context method.
         """
         # Build metadata with unexpected error information
         processor_metrics = processor.get_metrics()
@@ -285,14 +286,10 @@ class ProcessorErrorContextBuilder:
                 base_context.metadata = metadata
                 return base_context
 
-        # Fallback: build context manually
-        return StreamErrorContext(
-            connection_id=context.connection_id,
-            exchange=context.exchange_name,
-            channel=getattr(context, "channel", None),
-            topic=getattr(context, "routing_key", None),
-            sequence_number=getattr(context, "sequence_number", None),
-            metadata=metadata,
+        # Require StreamErrorContext - no fallback
+        raise WebSocketContextCreationError(
+            context_type=type(context).__name__,
+            protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -310,76 +307,31 @@ class ProcessorErrorContextBuilder:
             Safe string summary of payload
         """
         try:
-            # Handle None case
             if payload is None:
                 return "None"
 
-            # Handle dict type - most common for WebSocket payloads
+            # Handle common types directly to keep complexity low
             if isinstance(payload, dict):
-                keys_list: list[str] = []
-                dict_keys = list(payload.keys())[:5]
-                for key in dict_keys:
-                    keys_list.append(str(key))
-                base_summary = f"dict(keys={keys_list}"
-
-                max_keys_to_show = 5
-                payload_len = len(payload)
-                if payload_len > max_keys_to_show:
-                    more_text = f", +{payload_len - max_keys_to_show} more"
-                    closing = ")"
-                    # Check if the complete summary would exceed max_chars
-                    if len(base_summary + more_text + closing) <= max_chars:
-                        return base_summary + more_text + closing
-                    # Truncate the keys part but keep the "+more" info
-                    available_space = max_chars - len(more_text) - len(closing)
-                    return base_summary[:available_space] + more_text + closing
-                summary = base_summary + ")"
+                max_keys = 5  # Constant for magic number
+                keys_list = [str(key) for key in list(payload.keys())[:max_keys]]
+                summary = f"dict(keys={keys_list}"
+                if len(payload) > max_keys:
+                    summary += f", +{len(payload) - max_keys} more"
+                summary += ")"
                 return summary[:max_chars]
-
-            # Handle list type - batch payloads
+            
             if isinstance(payload, list):
-                length = len(payload)
-                if length == 0:
+                if not payload:
                     return "list(empty)"
-                # Get first item type safely
-                first_type = "Unknown"
-                if length > 0 and payload[0] is not None:
-                    first_type = type(payload[0]).__name__
-                summary = f"list(length={length}, type={first_type})"
-                return summary[:max_chars]
-
-            # Handle BaseModel instances
-            if isinstance(payload, BaseModel):
-                model_name = type(payload).__name__
-                # Try to get a few field names
-                try:
-                    # Use the class attribute instead of instance attribute (Pydantic v2)
-                    fields = list(type(payload).model_fields.keys())[:3]
-                    return f"{model_name}(fields={fields})"[:max_chars]
-                except Exception:
-                    return f"{model_name}()"[:max_chars]
-
-            # Handle primitive types
-            if isinstance(payload, bytes):
-                # Handle bytes specially to avoid mypy str-bytes-safe error
-                content = repr(payload)[:50]
-                return (
-                    f"bytes({content}...)" if len(repr(payload)) > 50 else f"bytes({payload!r})"
-                )
-
-            if isinstance(payload, str):
-                content = payload[:50]
-                return f"str({content}...)" if len(payload) > 50 else f"str({payload})"
-
-            # isinstance check for int, float, bool - these are the remaining types in our union
-            # This must be last as bool is a subclass of int
-            return f"{type(payload).__name__}({payload})"
+                first_type = type(payload[0]).__name__ if payload[0] is not None else "Unknown"
+                return f"list(length={len(payload)}, type={first_type})"[:max_chars]
+            
+            return f"{type(payload).__name__}({str(payload)[:50]})"
 
         except (ValueError, TypeError, AttributeError, KeyError, IndexError):
-            # Catch specific exceptions that could occur during summary extraction
             try:
                 type_name = type(payload).__name__ if payload is not None else "None"
-            except Exception:
+            except (AttributeError, TypeError):
                 type_name = "Unknown"
             return f"{type_name}(summary_failed)"
 

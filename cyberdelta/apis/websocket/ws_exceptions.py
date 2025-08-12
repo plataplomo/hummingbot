@@ -19,6 +19,10 @@ from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 if TYPE_CHECKING:
     from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
+# Constants for error handling
+MAX_RAW_MESSAGE_SIZE = 1000
+RAW_MESSAGE_SAMPLE_SIZE = 200
+
 
 # ============================================================================
 # Connection Errors
@@ -176,19 +180,19 @@ class WebSocketAuthExpiredError(WebSocketAuthenticationError):
     def __init__(
         self,
         context: StreamErrorContext,
-        token_type: str = "token",
+        auth_type: str = "authentication_token",
         cause: Exception | None = None,
     ) -> None:
         """Initialize auth expired error.
 
         Args:
             context: Stream error context
-            token_type: Type of token that expired
+            auth_type: Type of authentication that expired
             cause: Original exception if any
         """
-        message = f"WebSocket authentication {token_type} expired"
+        message = f"WebSocket authentication {auth_type} expired"
 
-        context.extra_context["token_type"] = token_type
+        context.extra_context["auth_type"] = auth_type
 
         super().__init__(
             message=message,
@@ -432,8 +436,8 @@ class WebSocketMessageFormatError(WebSocketValidationError):
         context.extra_context["expected_format"] = expected_format
         if actual_format:
             context.extra_context["actual_format"] = actual_format
-        if raw_message and len(raw_message) < 1000:  # Don't store huge messages
-            context.extra_context["raw_message_sample"] = raw_message[:200]
+        if raw_message and len(raw_message) < MAX_RAW_MESSAGE_SIZE:  # Don't store huge messages
+            context.extra_context["raw_message_sample"] = raw_message[:RAW_MESSAGE_SAMPLE_SIZE]
 
         super().__init__(
             message=message,
@@ -712,3 +716,226 @@ class WebSocketIPBannedError(WebSocketSecurityError):
         )
         # Override code
         self.code = WebSocketErrorCode.IP_BANNED
+
+
+# ============================================================================
+# Configuration and Validation Errors
+# ============================================================================
+
+
+class WebSocketConfigurationError(Exception):
+    """Base class for WebSocket configuration errors."""
+
+    def __init__(
+        self, component: str, issue: str, available_options: list[str] | None = None
+    ) -> None:
+        """Initialize configuration error.
+
+        Args:
+            component: The component that has configuration issues
+            issue: Description of the configuration issue
+            available_options: List of available options if applicable
+        """
+        self.component = component
+        self.issue = issue
+        self.available_options = available_options or []
+
+        message = f"Configuration error in {component}: {issue}"
+        if self.available_options:
+            message += f". Available options: {', '.join(self.available_options)}"
+
+        super().__init__(message)
+
+
+class WebSocketContextCreationError(TypeError):
+    """Error when WebSocket context cannot be created."""
+
+    def __init__(self, context_type: str, protocol_requirement: str) -> None:
+        """Initialize context creation error.
+
+        Args:
+            context_type: The context type that failed
+            protocol_requirement: The protocol requirement that was not met
+        """
+        self.context_type = context_type
+        self.protocol_requirement = protocol_requirement
+
+        message = (
+            f"Context {context_type} does not provide {protocol_requirement} method "
+            f"and is not a StreamErrorContext. Expected WebSocketContextProtocol "
+            f"with {protocol_requirement} method or StreamErrorContext instance."
+        )
+        super().__init__(message)
+
+
+class WebSocketHandlerFactoryError(ValueError):
+    """Error in WebSocket handler factory configuration."""
+
+    def __init__(self, factory_type: str, configuration_issue: str) -> None:
+        """Initialize handler factory error.
+
+        Args:
+            factory_type: The type of factory that failed
+            configuration_issue: Description of the configuration issue
+        """
+        self.factory_type = factory_type
+        self.configuration_issue = configuration_issue
+
+        message = f"WebSocket {factory_type} factory configuration error: {configuration_issue}"
+        super().__init__(message)
+
+
+class WebSocketValidationConfigError(ValueError):
+    """Error in WebSocket validation configuration."""
+
+    def __init__(self, validation_type: str, error_details: str) -> None:
+        """Initialize validation config error.
+
+        Args:
+            validation_type: The type of validation that failed
+            error_details: Details about the validation error
+        """
+        self.validation_type = validation_type
+        self.error_details = error_details
+
+        message = f"WebSocket {validation_type} validation configuration error: {error_details}"
+        super().__init__(message)
+
+
+class WebSocketTransformerError(ValueError):
+    """Error when WebSocket transformer cannot handle context parameters."""
+
+    def __init__(self, transformer_name: str, context_provided: bool) -> None:
+        """Initialize transformer error.
+
+        Args:
+            transformer_name: Name of the transformer that failed
+            context_provided: Whether context was provided to the transformer
+        """
+        self.transformer_name = transformer_name
+        self.context_provided = context_provided
+
+        if context_provided:
+            message = (
+                f"Transformer {transformer_name} does not accept context parameters "
+                f"but context was provided. Either update transformer to accept context "
+                f"or call without context."
+            )
+        else:
+            message = f"Transformer {transformer_name} failed to process payload."
+
+        super().__init__(message)
+
+
+class WebSocketMemoryPoolError(RuntimeError):
+    """Error when WebSocket memory pool is not available."""
+
+    def __init__(self, operation: str) -> None:
+        """Initialize memory pool error.
+
+        Args:
+            operation: The operation that required memory pool
+        """
+        self.operation = operation
+
+        message = (
+            f"Memory pool required for {operation} but not available. "
+            f"Check memory_optimization_mode configuration."
+        )
+        super().__init__(message)
+
+
+class WebSocketRecoveryStrategyError(ValueError):
+    """Error when no recovery strategy is available for error code."""
+
+    def __init__(self, error_code: str, category: str) -> None:
+        """Initialize recovery strategy error.
+
+        Args:
+            error_code: The error code that has no recovery strategy
+            category: The category of the error code
+        """
+        self.error_code = error_code
+        self.category = category
+
+        message = (
+            f"No recovery strategy mapped for WebSocket error code {error_code} "
+            f"in category {category}. Add explicit mapping to _STATIC_CODE_STRATEGIES."
+        )
+        super().__init__(message)
+
+
+class WebSocketSerializationError(TypeError):
+    """Error when no JSON serialization adapter is available."""
+
+    def __init__(self, model_type: str) -> None:
+        """Initialize serialization error.
+
+        Args:
+            model_type: The model type that cannot be serialized
+        """
+        self.model_type = model_type
+
+        message = (
+            f"No JSON serialization adapter available for model type {model_type}. "
+            f"Add adapter support for this model type."
+        )
+        super().__init__(message)
+
+
+class WebSocketSequenceValidationError(ValueError):
+    """Error for WebSocket sequence validation failures."""
+
+    def __init__(
+        self, validation_type: str, current_seq: int | None = None, expected_seq: int | None = None
+    ) -> None:
+        """Initialize sequence validation error.
+
+        Args:
+            validation_type: Type of validation that failed
+            current_seq: Current sequence number
+            expected_seq: Expected sequence number
+        """
+        self.validation_type = validation_type
+        self.current_seq = current_seq
+        self.expected_seq = expected_seq
+
+        if validation_type == "expected_requires_sequence":
+            message = "Expected sequence requires sequence number"
+        elif validation_type == "expected_greater_than_current":
+            message = "Expected sequence must be greater than current sequence"
+        else:
+            message = f"Sequence validation failed: {validation_type}"
+
+        super().__init__(message)
+
+
+class WebSocketFieldValidationError(ValueError):
+    """Error for WebSocket field validation failures."""
+
+    def __init__(self, field_name: str, constraint: str, value: object = None) -> None:
+        """Initialize field validation error.
+
+        Args:
+            field_name: Name of the field that failed validation
+            constraint: The constraint that was violated
+            value: The invalid value
+        """
+        self.field_name = field_name
+        self.constraint = constraint
+        self.value = value
+
+        if constraint == "non_negative":
+            message = f"{field_name} must be non-negative"
+        elif constraint == "sequence_non_negative":
+            message = "Sequence number must be non-negative"
+        elif constraint == "message_size_non_negative":
+            message = "Message size must be non-negative"
+        elif constraint == "timestamp_non_negative":
+            message = "Timestamp must be non-negative"
+        elif constraint == "timestamp_future":
+            message = f"Timestamp {value} is in the future"
+        else:
+            message = f"{field_name} violates constraint: {constraint}"
+
+        super().__init__(message)

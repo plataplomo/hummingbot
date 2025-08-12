@@ -13,7 +13,7 @@ from typing import Any
 from cachetools import TTLCache
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-# DEPRECATED IMPORTS REMOVED: APIError and APIErrorCode no longer used
+# Pure WebSocket error system - only WebSocketStreamError types used
 # This handler is being phased out in favor of ws_stream_error_handler.py
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
@@ -377,7 +377,7 @@ class BaseErrorHandler:
             suppressed_count=self._suppressed_counts.get(error_key, 0),
         )
 
-    # DEPRECATED: convert_validation_error_to_api_error has been removed
+    # Pure typed error system - validation errors handled as WebSocketStreamError
     # Use the new typed error system from ws_stream_error_handler.py instead
 
     def get_stats(self) -> dict[str, Any]:

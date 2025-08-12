@@ -64,6 +64,7 @@ class SymbolExtractionError(ValueError):
 
 if TYPE_CHECKING:
     from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+    from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
     from cyberdelta.models.market import (
         Fill,
         OrderBook,
@@ -217,6 +218,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
     def __init__(
         self,
         error_handler: BaseErrorHandler,
+        stream_error_handler: WebSocketStreamErrorHandler,
         order_book_mapper: BackpackOrderBookMapper,
         ticker_mapper: BackpackTickerMapper,
         trade_mapper: BackpackFillMapper,
@@ -225,6 +227,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
 
         Args:
             error_handler: Error handler for centralized error management.
+            stream_error_handler: Stream error handler for new architecture.
             order_book_mapper: Mapper for order book transformations.
             ticker_mapper: Mapper for ticker transformations.
             trade_mapper: Mapper for trade transformations.
@@ -242,6 +245,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         super().__init__(
             exchange_name=ExchangeName.BACKPACK,
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
         )
 
@@ -251,34 +255,34 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         self.processors["depth"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawDepthUpdateEvent,
             transformer=BackpackDepthStateTransformer(self.order_book_mapper),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_depth",
         )
 
         self.processors["ticker"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawTickerEvent,
             transformer=BackpackTickerTransformer(self.ticker_mapper),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_ticker",
         )
 
         self.processors["trade"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawPublicTradeEvent,
             transformer=BackpackFillTransformer(self.trade_mapper),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_trade",
         )
 
         # Account data processors (using simple transformers for now)
         self.processors["order"] = ProcessorFactory.create_simple_processor(
             raw_model=BackpackRawOrderUpdate,
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_order",
         )
 
         self.processors["position"] = ProcessorFactory.create_simple_processor(
             raw_model=BackpackRawPositionUpdate,
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_position",
         )
 

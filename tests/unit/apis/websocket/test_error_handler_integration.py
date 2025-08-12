@@ -22,10 +22,10 @@ from cyberdelta.apis.websocket.ws_error_events import (
 from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHandlerFactory
 from cyberdelta.apis.websocket.ws_error_handler_registry import (
     WebSocketErrorHandlerRegistry,
-    get_error_handler,
 )
 from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
 from cyberdelta.apis.websocket.ws_exceptions import (
+    WebSocketConfigurationError,
     WebSocketConnectionError,
     WebSocketSubscriptionError,
 )
@@ -39,6 +39,7 @@ from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorConfig,
     WebSocketErrorRecoveryConfig,
 )
+from cyberdelta.enums import ExchangeName
 
 
 # ============================================================================
@@ -143,7 +144,7 @@ def mock_state_manager() -> MockStateManager:
 def test_config() -> WebSocketErrorConfig:
     """Fixture for test error configuration."""
     return WebSocketErrorHandlerFactory.create_default_config(
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         environment="test",
     )
 
@@ -153,7 +154,7 @@ def error_context() -> StreamErrorContext:
     """Fixture for error context."""
     return StreamErrorContext(
         connection_id="test-conn-123",
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         channel="orderbook",
         topic="BTC-USD",
         sequence_number=42,
@@ -187,7 +188,7 @@ class TestErrorHandlerFactory:
     def test_create_minimal_handler(self) -> None:
         """Test creating a minimal error handler."""
         handler = WebSocketErrorHandlerFactory.create_minimal_handler(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         assert isinstance(handler, WebSocketStreamErrorHandler)
@@ -205,7 +206,7 @@ class TestErrorHandlerFactory:
         metrics = WebSocketErrorMetrics(config=test_config.metrics)
 
         handler = WebSocketErrorHandlerFactory.create_handler(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             config=test_config,
             metrics_collector=metrics,
             connection_manager=mock_connection_manager,
@@ -219,15 +220,21 @@ class TestErrorHandlerFactory:
 
     def test_unsupported_exchange_raises_error(self) -> None:
         """Test that unsupported exchange raises error."""
-        with pytest.raises(ValueError, match="Unsupported exchange"):
+        from unittest.mock import MagicMock
+        
+        # Create a mock exchange that's not in supported list
+        mock_exchange = MagicMock()
+        mock_exchange.value = "unsupported_exchange"
+        
+        with pytest.raises(WebSocketConfigurationError, match="Unsupported exchange"):
             WebSocketErrorHandlerFactory.create_minimal_handler(
-                exchange="unsupported_exchange",
+                exchange=mock_exchange,
             )
 
     def test_configuration_validation(self) -> None:
         """Test configuration validation."""
         config = WebSocketErrorHandlerFactory.create_default_config(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             environment="production",
         )
 
@@ -261,13 +268,13 @@ class TestErrorHandlerRegistry:
     def test_registry_caching_behavior(self, registry: WebSocketErrorHandlerRegistry) -> None:
         """Test that registry properly caches handlers."""
         # First request creates handler
-        handler1 = registry.get_handler("hyperliquid")
+        handler1 = registry.get_handler(ExchangeName.HYPERLIQUID)
         stats = registry.get_registry_statistics()
         assert stats["total_created"] == 1
         assert stats["active_handlers"] == 1
 
         # Second request uses cached handler
-        handler2 = registry.get_handler("hyperliquid")
+        handler2 = registry.get_handler(ExchangeName.HYPERLIQUID)
         assert handler1 is handler2
 
         stats = registry.get_registry_statistics()
@@ -279,8 +286,8 @@ class TestErrorHandlerRegistry:
         registry: WebSocketErrorHandlerRegistry,
     ) -> None:
         """Test that different environments create different handlers."""
-        handler_prod = registry.get_handler("hyperliquid", environment="production")
-        handler_test = registry.get_handler("hyperliquid", environment="test")
+        handler_prod = registry.get_handler(ExchangeName.HYPERLIQUID, environment="production")
+        handler_test = registry.get_handler(ExchangeName.HYPERLIQUID, environment="test")
 
         assert handler_prod is not handler_test
         assert len(registry.list_active_handlers()) == 2
@@ -294,28 +301,27 @@ class TestErrorHandlerRegistry:
     ) -> None:
         """Test handler removal from registry."""
         # Keep a reference to prevent garbage collection
-        handler = registry.get_handler("hyperliquid")
+        handler = registry.get_handler(ExchangeName.HYPERLIQUID)
         assert len(registry.list_active_handlers()) == 1
 
-        removed = registry.remove_handler("hyperliquid")
+        removed = registry.remove_handler(ExchangeName.HYPERLIQUID)
         assert removed is True
         assert len(registry.list_active_handlers()) == 0
 
         # Removing again should return False
-        removed = registry.remove_handler("hyperliquid")
+        removed = registry.remove_handler(ExchangeName.HYPERLIQUID)
         assert removed is False
 
         # Keep handler alive for the test
         del handler
 
-    def test_global_registry_convenience_functions(self) -> None:
-        """Test global registry convenience functions."""
-        # Clean start
-        from cyberdelta.apis.websocket.ws_error_handler_registry import clear_global_registry
-
-        clear_global_registry()
-
-        handler = get_error_handler("hyperliquid")
+    def test_registry_direct_factory_usage(self) -> None:
+        """Test using factory pattern directly instead of global registry."""
+        from cyberdelta.enums import ExchangeName
+        
+        handler = WebSocketErrorHandlerFactory.create_minimal_handler(
+            exchange=ExchangeName.HYPERLIQUID
+        )
         assert isinstance(handler, WebSocketStreamErrorHandler)
 
     def test_registry_health_check(self, registry: WebSocketErrorHandlerRegistry) -> None:
@@ -327,7 +333,7 @@ class TestErrorHandlerRegistry:
         assert "No active handlers registered" in health["issues"]
 
         # Add a handler - keep reference to prevent garbage collection
-        handler = registry.get_handler("hyperliquid")
+        handler = registry.get_handler(ExchangeName.HYPERLIQUID)
         health = registry.health_check()
         assert health["registry_healthy"] is True
         assert health["active_handlers"] == 1
@@ -357,7 +363,7 @@ class TestErrorHandlerIntegration:
         metrics = WebSocketErrorMetrics(config=test_config.metrics)
 
         return WebSocketErrorHandlerFactory.create_handler(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             config=test_config,
             metrics_collector=metrics,
             connection_manager=mock_connection_manager,
@@ -545,7 +551,7 @@ class TestEventPublisherIntegration:
         try:
             # Publish recovery attempt event
             await event_publisher.publish_recovery_attempt_event(
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 connection_id="test-conn-123",
                 strategy=WebSocketRecoveryStrategy.FULL_RECONNECT,
                 attempt_number=1,
@@ -737,7 +743,7 @@ class TestEndToEndIntegration:
         """Fixture for complete integrated system."""
         # Create configuration
         config = WebSocketErrorHandlerFactory.create_default_config(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             environment="test",
         )
 
@@ -752,7 +758,7 @@ class TestEndToEndIntegration:
 
         # Create error handler with all components
         handler = WebSocketErrorHandlerFactory.create_handler(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             config=config,
             metrics_collector=metrics,
             connection_manager=mock_connection_manager,

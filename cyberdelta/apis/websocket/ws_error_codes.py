@@ -9,6 +9,29 @@ from __future__ import annotations
 from enum import IntEnum
 
 
+# Error code range constants
+CONNECTION_RANGE_START = 1000
+CONNECTION_RANGE_END = 1100
+AUTH_RANGE_START = 1100
+AUTH_RANGE_END = 1200
+STREAM_RANGE_START = 1200
+STREAM_RANGE_END = 1300
+SUBSCRIPTION_RANGE_START = 1300
+SUBSCRIPTION_RANGE_END = 1400
+MESSAGE_PROCESSING_RANGE_START = 1400
+MESSAGE_PROCESSING_RANGE_END = 1500
+HEARTBEAT_RANGE_START = 1500
+HEARTBEAT_RANGE_END = 1600
+RECOVERY_RANGE_START = 1600
+RECOVERY_RANGE_END = 1700
+EXCHANGE_RANGE_START = 1700
+EXCHANGE_RANGE_END = 1800
+INTERNAL_RANGE_START = 1800
+INTERNAL_RANGE_END = 1900
+SECURITY_RANGE_START = 1900
+SECURITY_RANGE_END = 2000
+
+
 class WebSocketErrorCode(IntEnum):
     """WebSocket-specific error codes."""
 
@@ -30,9 +53,6 @@ class WebSocketErrorCode(IntEnum):
     SSL_ERROR = 1015
     MESSAGE_TIMEOUT = 1016
 
-    # ========================================================================
-    # Authentication & Authorization (1100-1199)
-    # ========================================================================
     AUTH_REQUIRED = 1100
     AUTH_FAILED = 1101
     AUTH_EXPIRED = 1102
@@ -47,9 +67,6 @@ class WebSocketErrorCode(IntEnum):
     IP_BANNED = 1121
     ACCOUNT_SUSPENDED = 1122
 
-    # ========================================================================
-    # Stream Level Errors (1200-1299)
-    # ========================================================================
     STREAM_INTERRUPTED = 1200
     STREAM_CORRUPTED = 1201
     STREAM_OVERFLOW = 1202
@@ -59,9 +76,6 @@ class WebSocketErrorCode(IntEnum):
     SEQUENCE_DUPLICATE = 1211
     SEQUENCE_OUT_OF_ORDER = 1212
 
-    # ========================================================================
-    # Subscription Errors (1300-1399)
-    # ========================================================================
     SUBSCRIPTION_FAILED = 1300
     SUBSCRIPTION_REJECTED = 1301
     SUBSCRIPTION_LIMIT_EXCEEDED = 1302
@@ -75,9 +89,6 @@ class WebSocketErrorCode(IntEnum):
     CHANNEL_CLOSED = 1320
     CHANNEL_FULL = 1321
 
-    # ========================================================================
-    # Message Processing Errors (1400-1499)
-    # ========================================================================
     MESSAGE_TOO_LARGE = 1400
     MESSAGE_MALFORMED = 1401
     MESSAGE_UNSUPPORTED = 1402
@@ -95,18 +106,12 @@ class WebSocketErrorCode(IntEnum):
     SERIALIZATION_ERROR = 1422
     DESERIALIZATION_ERROR = 1423
 
-    # ========================================================================
-    # Heartbeat & Keep-Alive (1500-1599)
-    # ========================================================================
     HEARTBEAT_TIMEOUT = 1500
     HEARTBEAT_FAILED = 1501
     PING_TIMEOUT = 1502
     PONG_TIMEOUT = 1503
     KEEP_ALIVE_FAILED = 1504
 
-    # ========================================================================
-    # Recovery & Reconnection (1600-1699)
-    # ========================================================================
     RECOVERY_FAILED = 1600
     RECOVERY_IN_PROGRESS = 1601
     RECONNECT_FAILED = 1602
@@ -116,9 +121,6 @@ class WebSocketErrorCode(IntEnum):
     SNAPSHOT_FAILED = 1611
     REPLAY_FAILED = 1612
 
-    # ========================================================================
-    # Exchange-Specific Errors (1700-1799)
-    # ========================================================================
     EXCHANGE_UNAVAILABLE = 1700
     EXCHANGE_MAINTENANCE = 1701
     EXCHANGE_OVERLOADED = 1702
@@ -127,9 +129,6 @@ class WebSocketErrorCode(IntEnum):
     SYMBOL_HALTED = 1711
     MARKET_CLOSED = 1712
 
-    # ========================================================================
-    # Internal System Errors (1800-1899)
-    # ========================================================================
     INTERNAL_ERROR = 1800
     PROCESSOR_ERROR = 1801
     ROUTER_ERROR = 1802
@@ -140,9 +139,6 @@ class WebSocketErrorCode(IntEnum):
     BUFFER_OVERFLOW = 1812
     RESOURCE_EXHAUSTED = 1813
 
-    # ========================================================================
-    # Security & Validation (1900-1999)
-    # ========================================================================
     SECURITY_VIOLATION = 1900
     INVALID_SIGNATURE = 1901
     INVALID_TIMESTAMP = 1902
@@ -159,31 +155,36 @@ class WebSocketErrorCode(IntEnum):
     UNKNOWN_ERROR = 1999
 
     def get_category(self) -> str:
-        """Get the error category based on code range."""
-        if 1000 <= self < 1100:
-            return "CONNECTION"
-        if 1100 <= self < 1200:
-            return "AUTHENTICATION"
-        if 1200 <= self < 1300:
-            return "STREAM"
-        if 1300 <= self < 1400:
-            return "SUBSCRIPTION"
-        if 1400 <= self < 1500:
-            return "MESSAGE_PROCESSING"
-        if 1500 <= self < 1600:
-            return "HEARTBEAT"
-        if 1600 <= self < 1700:
-            return "RECOVERY"
-        if 1700 <= self < 1800:
-            return "EXCHANGE"
-        if 1800 <= self < 1900:
-            return "INTERNAL"
-        if 1900 <= self < 2000:
-            return "SECURITY"
+        """Get the error category based on code range.
+        
+        Returns:
+            The category name for this error code.
+        """
+        # Define mapping for cleaner logic
+        category_ranges = [
+            (CONNECTION_RANGE_START, CONNECTION_RANGE_END, "CONNECTION"),
+            (AUTH_RANGE_START, AUTH_RANGE_END, "AUTHENTICATION"),
+            (STREAM_RANGE_START, STREAM_RANGE_END, "STREAM"),
+            (SUBSCRIPTION_RANGE_START, SUBSCRIPTION_RANGE_END, "SUBSCRIPTION"),
+            (MESSAGE_PROCESSING_RANGE_START, MESSAGE_PROCESSING_RANGE_END, "MESSAGE_PROCESSING"),
+            (HEARTBEAT_RANGE_START, HEARTBEAT_RANGE_END, "HEARTBEAT"),
+            (RECOVERY_RANGE_START, RECOVERY_RANGE_END, "RECOVERY"),
+            (EXCHANGE_RANGE_START, EXCHANGE_RANGE_END, "EXCHANGE"),
+            (INTERNAL_RANGE_START, INTERNAL_RANGE_END, "INTERNAL"),
+            (SECURITY_RANGE_START, SECURITY_RANGE_END, "SECURITY"),
+        ]
+        
+        for start, end, category in category_ranges:
+            if start <= self < end:
+                return category
         return "UNKNOWN"
 
     def is_retryable(self) -> bool:
-        """Check if error is potentially retryable."""
+        """Check if error is potentially retryable.
+        
+        Returns:
+            True if the error is retryable, False otherwise.
+        """
         # Connection errors are often retryable
         if self in {
             self.CONNECTION_LOST,
@@ -209,17 +210,17 @@ class WebSocketErrorCode(IntEnum):
             return True
 
         # Exchange temporary issues
-        if self in {
+        return self in {
             self.EXCHANGE_OVERLOADED,
             self.EXCHANGE_MAINTENANCE,
-        }:
-            return True
-
-        # Most other errors are not retryable
-        return False
+        }
 
     def is_critical(self) -> bool:
-        """Check if error is critical and requires immediate attention."""
+        """Check if error is critical and requires immediate attention.
+        
+        Returns:
+            True if the error is critical, False otherwise.
+        """
         critical_errors = {
             # Security violations are always critical
             self.SECURITY_VIOLATION,
@@ -243,25 +244,37 @@ class WebSocketErrorCode(IntEnum):
         return self in critical_errors
 
     def get_suggested_action(self) -> str:
-        """Get suggested action for this error code."""
-        if self == self.RATE_LIMITED:
-            return "Implement exponential backoff and retry"
-        if self == self.CONNECTION_LOST:
-            return "Attempt reconnection with backoff"
-        if self == self.AUTH_EXPIRED:
-            return "Refresh authentication credentials"
-        if self == self.SUBSCRIPTION_LIMIT_EXCEEDED:
-            return "Reduce number of subscriptions"
-        if self == self.MESSAGE_TOO_LARGE:
-            return "Split message into smaller chunks"
-        if self == self.HEARTBEAT_TIMEOUT:
-            return "Check network connectivity and latency"
-        if self == self.SEQUENCE_GAP:
-            return "Request missing messages or snapshot"
-        if self == self.MEMORY_LIMIT_EXCEEDED:
-            return "Reduce memory usage or increase limits"
+        """Get suggested action for this error code.
+        
+        Returns:
+            A string describing the recommended action for this error.
+        """
+        # Check specific error actions first
+        specific_action = self._get_specific_action()
+        if specific_action:
+            return specific_action
+            
+        # Fall back to general actions based on error properties
         if self.is_critical():
             return "Alert operations team immediately"
         if self.is_retryable():
             return "Retry with appropriate backoff strategy"
         return "Log error and investigate root cause"
+    
+    def _get_specific_action(self) -> str | None:
+        """Get specific action for known error codes.
+        
+        Returns:
+            Specific action string or None if no specific action defined.
+        """
+        specific_actions = {
+            self.RATE_LIMITED: "Implement exponential backoff and retry",
+            self.CONNECTION_LOST: "Attempt reconnection with backoff",
+            self.AUTH_EXPIRED: "Refresh authentication credentials",
+            self.SUBSCRIPTION_LIMIT_EXCEEDED: "Reduce number of subscriptions",
+            self.MESSAGE_TOO_LARGE: "Split message into smaller chunks",
+            self.HEARTBEAT_TIMEOUT: "Check network connectivity and latency",
+            self.SEQUENCE_GAP: "Request missing messages or snapshot",
+            self.MEMORY_LIMIT_EXCEEDED: "Reduce memory usage or increase limits",
+        }
+        return specific_actions.get(self)

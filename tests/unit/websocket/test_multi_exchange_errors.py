@@ -14,6 +14,7 @@ from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_handler_registry import WebSocketErrorHandlerRegistry
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
+from cyberdelta.enums import ExchangeName
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
@@ -42,7 +43,7 @@ class TestMultiExchangeErrors:
     ) -> None:
         """Test Hyperliquid-specific error handling."""
         # Get Hyperliquid handler
-        handler = handler_registry.get_handler("hyperliquid", error_config)
+        handler = handler_registry.get_handler(ExchangeName.HYPERLIQUID, error_config)
 
         # Create Hyperliquid-specific errors
         errors = [
@@ -79,7 +80,7 @@ class TestMultiExchangeErrors:
     ) -> None:
         """Test Backpack-specific error handling."""
         # Get Backpack handler
-        handler = handler_registry.get_handler("backpack", error_config)
+        handler = handler_registry.get_handler(ExchangeName.BACKPACK, error_config)
 
         # Create Backpack-specific errors
         errors = [
@@ -145,8 +146,8 @@ class TestMultiExchangeErrors:
     ) -> None:
         """Test correlation of errors across exchanges."""
         # Create handlers for multiple exchanges
-        hl_handler = handler_registry.get_handler("hyperliquid", error_config)
-        bp_handler = handler_registry.get_handler("backpack", error_config)
+        hl_handler = handler_registry.get_handler(ExchangeName.HYPERLIQUID, error_config)
+        bp_handler = handler_registry.get_handler(ExchangeName.BACKPACK, error_config)
 
         # Simulate correlated network issues
         network_errors = []
@@ -306,8 +307,8 @@ class TestMultiExchangeErrors:
         warning_bp.context.exchange = "backpack"
 
         # Handle both
-        hl_handler = handler_registry.get_handler("hyperliquid", error_config)
-        bp_handler = handler_registry.get_handler("backpack", error_config)
+        hl_handler = handler_registry.get_handler(ExchangeName.HYPERLIQUID, error_config)
+        bp_handler = handler_registry.get_handler(ExchangeName.BACKPACK, error_config)
 
         await hl_handler.handle_stream_error(critical_hl)
         await bp_handler.handle_stream_error(warning_bp)

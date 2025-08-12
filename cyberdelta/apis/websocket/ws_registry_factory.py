@@ -45,10 +45,10 @@ class WebSocketRegistryFactory:
 
     @staticmethod
     def create_configured_registry() -> WebSocketContextRegistry:
-        """Deprecated: Use create_registry() instead.
+        """Create registry with exchanges self-registering when needed.
 
-        This method is kept for backward compatibility but should not be used
-        in new code. Use create_registry() and let each exchange register itself.
+        Note: This method returns an empty registry. Each exchange is responsible
+        for registering itself when initialized to avoid circular imports.
 
         Returns:
             Empty WebSocketContextRegistry instance

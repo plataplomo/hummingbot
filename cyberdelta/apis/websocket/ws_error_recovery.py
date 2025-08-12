@@ -13,15 +13,13 @@ from collections import deque
 from contextlib import suppress
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel, Field
 
 from cyberdelta.apis.base.infrastructure_config_domain import ReconnectionResult
 
-
-if TYPE_CHECKING:
-    from cyberdelta.apis.common.api_error import APIError
+# Pure WebSocket error system - only WebSocketStreamError supported
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
@@ -375,7 +373,7 @@ class WebSocketErrorRecovery:
         """Handle connection error and initiate recovery.
 
         Args:
-            error: Connection error (can be WebSocketStreamError, APIError or generic Exception)
+            error: Connection error (WebSocketStreamError or generic Exception)
         """
         self.state = ConnectionState.FAILED
         self.health.state = self.state
@@ -408,24 +406,21 @@ class WebSocketErrorRecovery:
                 recovery_strategy=recovery_strategy.name,
                 retry_delay_ms=error.get_retry_delay_ms(),
             )
-        # Fallback to legacy APIError handling
-        elif isinstance(error, APIError):
-            error_details = error.message
-            error_code = error.code
-            retry_after = error.retry_after
-            # Check if the error is retryable based on the code
-            is_retryable = error.is_retryable
-
-            # Log structured error information
-            self.logger.warning(
-                "api_error_details",
+        # Pure WebSocket error system - only WebSocketStreamError supported
+        elif hasattr(error, "message") and hasattr(error, "code"):
+            # Generic error with basic error properties - log and treat as non-retryable
+            self.logger.error(
+                "unsupported_error_type_in_recovery",
                 connection_id=self.connection_id,
-                error_code=error_code,
-                exchange_code=error.exchange_code,
-                http_status=error.http_status,
-                retryable=is_retryable,
-                retry_after=retry_after,
+                error_type=type(error).__name__,
+                error_message=str(error),
+                supported_types=["WebSocketStreamError"],
             )
+            # Treat unknown error types as non-retryable
+            error_details = str(error)
+            error_code = "UNKNOWN_ERROR"
+            is_retryable = False
+            recovery_strategy = WebSocketRecoveryStrategy.NONE
 
         # Record recovery event with structured information
         event = RecoveryEvent(
@@ -458,12 +453,12 @@ class WebSocketErrorRecovery:
                 return
             # Apply recovery strategy to config
             self.config.strategy = recovery_strategy
-        # Don't retry if APIError indicates it's not retryable
-        elif isinstance(error, APIError) and not error.is_retryable:
+        # Handle all non-WebSocketStreamError types as non-retryable
+        elif not isinstance(error, WebSocketStreamError):
             self.logger.warning(
-                "non_retryable_error",
+                "non_websocket_stream_error_non_retryable",
                 connection_id=self.connection_id,
-                error_code=error_code,
+                error_type=type(error).__name__,
                 error_message=error_details,
             )
             self.state = ConnectionState.FAILED
@@ -501,7 +496,7 @@ class WebSocketErrorRecovery:
 
         Args:
             message: Failed message
-            error: Failure reason (can be WebSocketStreamError, APIError or generic Exception)
+            error: Failure reason (WebSocketStreamError or generic Exception)
         """
         # Extract structured error information if available
         error_details = str(error)
@@ -531,21 +526,19 @@ class WebSocketErrorRecovery:
                 # Message failure requires full reconnection
                 await self.handle_connection_error(error)
                 return
-        # Fallback to legacy APIError handling
-        elif isinstance(error, APIError):
-            error_details = error.message
-            should_retry = error.is_retryable
-
-            # Log structured error information
-            self.logger.warning(
-                "api_message_failure",
+        # Pure WebSocket error system - only WebSocketStreamError supported
+        elif hasattr(error, "message"):
+            # Generic error with basic error properties - log and treat as non-retryable
+            self.logger.error(
+                "unsupported_message_error_type_in_recovery",
                 connection_id=self.connection_id,
-                error_code=error.code,
-                exchange_code=error.exchange_code,
-                http_status=error.http_status,
-                retryable=should_retry,
-                retry_after=error.retry_after,
+                error_type=type(error).__name__,
+                error_message=str(error),
+                supported_types=["WebSocketStreamError"],
             )
+            # Treat unknown error types as non-retryable
+            error_details = str(error)
+            should_retry = False
 
         # Only buffer for retry if the error is retryable
         if should_retry:

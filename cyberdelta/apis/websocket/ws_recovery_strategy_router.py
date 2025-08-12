@@ -20,6 +20,12 @@ from cyberdelta.config.structlog_config import get_logger
 if TYPE_CHECKING:
     from cyberdelta.apis.websocket.ws_error_recovery import WebSocketErrorRecovery
 
+# Retry constants
+ERROR_SEVERITY_THRESHOLD = 3  # ERROR or higher severity level
+CRITICAL_MAX_RETRIES = 1  # Max retries for critical errors
+HIGH_SEVERITY_MAX_RETRIES = 3  # Max retries for high severity errors
+DEFAULT_MAX_RETRIES = 5  # Default max retries for normal errors
+
 
 class RecoveryAction(BaseModel):
     """Represents a recovery action to be taken."""
@@ -85,13 +91,21 @@ class ImmediateRetryHandler:
         self.logger = get_logger("ImmediateRetryHandler")
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
-        """Check if this handler can handle the error."""
+        """Check if this handler can handle the error.
+        
+        Returns:
+            True if this handler can handle immediate retry errors
+        """
         return error.get_recovery_strategy() == WebSocketRecoveryStrategy.IMMEDIATE_RETRY
 
     async def handle(
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
-        """Handle immediate retry recovery."""
+        """Handle immediate retry recovery.
+        
+        Returns:
+            RecoveryResult indicating immediate retry action
+        """
         self.logger.info(
             "immediate_retry_recovery",
             error_code=error.code.name,
@@ -116,13 +130,21 @@ class ExponentialBackoffHandler:
         self.logger = get_logger("ExponentialBackoffHandler")
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
-        """Check if this handler can handle the error."""
+        """Check if this handler can handle the error.
+        
+        Returns:
+            True if this handler can handle exponential backoff errors
+        """
         return error.get_recovery_strategy() == WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF
 
     async def handle(
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
-        """Handle exponential backoff recovery."""
+        """Handle exponential backoff recovery.
+        
+        Returns:
+            RecoveryResult indicating exponential backoff action with delay
+        """
         delay_ms = error.get_retry_delay_ms()
 
         self.logger.info(
@@ -152,7 +174,11 @@ class ReconnectionHandler:
         self.logger = get_logger("ReconnectionHandler")
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
-        """Check if this handler can handle the error."""
+        """Check if this handler can handle the error.
+        
+        Returns:
+            True if this handler can handle reconnection strategy errors
+        """
         return error.get_recovery_strategy() in {
             WebSocketRecoveryStrategy.RECONNECT_SAME,
             WebSocketRecoveryStrategy.RECONNECT_DIFFERENT,
@@ -162,7 +188,11 @@ class ReconnectionHandler:
     async def handle(
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
-        """Handle reconnection recovery."""
+        """Handle reconnection recovery.
+        
+        Returns:
+            RecoveryResult indicating reconnection action taken
+        """
         strategy = error.get_recovery_strategy()
 
         action = "Reconnecting to same endpoint"
@@ -200,7 +230,11 @@ class ResubscriptionHandler:
         self.logger = get_logger("ResubscriptionHandler")
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
-        """Check if this handler can handle the error."""
+        """Check if this handler can handle the error.
+        
+        Returns:
+            True if this handler can handle resubscription strategy errors
+        """
         return error.get_recovery_strategy() in {
             WebSocketRecoveryStrategy.RESUBSCRIBE_SINGLE,
             WebSocketRecoveryStrategy.RESUBSCRIBE_ALL,
@@ -209,7 +243,11 @@ class ResubscriptionHandler:
     async def handle(
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
-        """Handle resubscription recovery."""
+        """Handle resubscription recovery.
+        
+        Returns:
+            RecoveryResult indicating resubscription action taken
+        """
         strategy = error.get_recovery_strategy()
 
         if strategy == WebSocketRecoveryStrategy.RESUBSCRIBE_SINGLE:
@@ -241,13 +279,21 @@ class CircuitBreakerHandler:
         self.logger = get_logger("CircuitBreakerHandler")
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
-        """Check if this handler can handle the error."""
+        """Check if this handler can handle the error.
+        
+        Returns:
+            True if this handler can handle circuit breaker strategy errors
+        """
         return error.get_recovery_strategy() == WebSocketRecoveryStrategy.CIRCUIT_BREAKER
 
     async def handle(
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
-        """Handle circuit breaker recovery."""
+        """Handle circuit breaker recovery.
+        
+        Returns:
+            RecoveryResult indicating circuit breaker activation
+        """
         self.logger.warning(
             "circuit_breaker_activated",
             error_code=error.code.name,
@@ -271,13 +317,21 @@ class DegradeServiceHandler:
         self.logger = get_logger("DegradeServiceHandler")
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
-        """Check if this handler can handle the error."""
+        """Check if this handler can handle the error.
+        
+        Returns:
+            True if this handler can handle service degradation strategy errors
+        """
         return error.get_recovery_strategy() == WebSocketRecoveryStrategy.DEGRADE_SERVICE
 
     async def handle(
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
-        """Handle service degradation recovery."""
+        """Handle service degradation recovery.
+        
+        Returns:
+            RecoveryResult indicating service degradation action taken
+        """
         self.logger.warning(
             "service_degradation",
             error_code=error.code.name,
@@ -301,13 +355,21 @@ class NoRecoveryHandler:
         self.logger = get_logger("NoRecoveryHandler")
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
-        """Check if this handler can handle the error."""
+        """Check if this handler can handle the error.
+        
+        Returns:
+            True if this handler can handle no recovery strategy errors
+        """
         return error.get_recovery_strategy() == WebSocketRecoveryStrategy.NONE
 
     async def handle(
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
-        """Handle no recovery strategy."""
+        """Handle no recovery strategy.
+        
+        Returns:
+            RecoveryResult indicating no recovery action available
+        """
         self.logger.error(
             "no_recovery_available",
             error_code=error.code.name,
@@ -382,12 +444,6 @@ class RecoveryStrategyRouter:
                         should_continue=result.should_continue,
                     )
 
-                    # Reset attempts on success
-                    if result.success and not result.should_continue:
-                        self.recovery_attempts.pop(error_key, None)
-
-                    return result
-
                 except Exception as e:
                     self.logger.exception(
                         "recovery_handler_error",
@@ -402,6 +458,12 @@ class RecoveryStrategyRouter:
                         should_continue=False,
                         error_message=str(e),
                     )
+                else:
+                    # Reset attempts on success
+                    if result.success and not result.should_continue:
+                        self.recovery_attempts.pop(error_key, None)
+
+                    return result
 
         # No handler found (shouldn't happen)
         self.logger.error(
@@ -458,11 +520,11 @@ class RecoveryStrategyRouter:
 
         # Set max retries based on error criticality
         if error.is_critical:
-            action.max_retries = 1
-        elif error.severity.value >= 3:  # ERROR or higher
-            action.max_retries = 3
+            action.max_retries = CRITICAL_MAX_RETRIES
+        elif error.severity.value >= ERROR_SEVERITY_THRESHOLD:  # ERROR or higher
+            action.max_retries = HIGH_SEVERITY_MAX_RETRIES
         else:
-            action.max_retries = 5
+            action.max_retries = DEFAULT_MAX_RETRIES
 
         return action
 

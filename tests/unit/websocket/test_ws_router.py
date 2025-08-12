@@ -12,7 +12,6 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_exceptions import WebSocketValidationError
 from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
@@ -25,6 +24,7 @@ from cyberdelta.apis.websocket.ws_router import (
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
+from cyberdelta.enums import ExchangeName
 
 
 class TestEnvelopeModel(BaseModel):
@@ -103,8 +103,7 @@ class TestWebSocketRouter:
     ) -> TestRouterImpl:
         """Create test router."""
         return TestRouterImpl(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
         )
@@ -119,8 +118,7 @@ class TestWebSocketRouter:
     ) -> TestRouterImpl:
         """Create fully configured test router."""
         router = TestRouterImpl(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_stream_error_handler,
@@ -130,8 +128,7 @@ class TestWebSocketRouter:
 
     def test_router_initialization(self, test_router: TestRouterImpl) -> None:
         """Test router initialization."""
-        assert test_router.exchange_name == "hyperliquid"
-        assert test_router.exchange_type == ExchangeType.HYPERLIQUID
+        assert test_router.exchange_name == ExchangeName.HYPERLIQUID
         assert test_router.typed_processor is not None
         assert test_router.logger is not None
         assert len(test_router._connection_id) == 8  # Short UUID
@@ -150,8 +147,7 @@ class TestWebSocketRouter:
         payload_validator = Mock(spec=WebSocketPayloadValidators)
 
         router = TestRouterImpl(
-            exchange_name="backpack",
-            exchange_type=ExchangeType.BACKPACK,
+            exchange_name=ExchangeName.BACKPACK,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             envelope_validator=envelope_validator,
@@ -176,7 +172,7 @@ class TestWebSocketRouter:
 
         # Test processor info
         info = test_router.get_processor_info()
-        assert info["exchange"] == "hyperliquid"
+        assert info["exchange"] == ExchangeName.HYPERLIQUID
         assert "test_stream" in info["processors"]
         assert info["total_processors"] == 1
 
@@ -503,7 +499,7 @@ class TestWebSocketRouter:
         assert "exchange" in stats
         assert "processors" in stats
         assert "connection_id" in stats
-        assert stats["exchange"] == "hyperliquid"
+        assert stats["exchange"] == ExchangeName.HYPERLIQUID
         assert stats["connection_id"] == configured_router._connection_id
 
         # Verify processor info in stats

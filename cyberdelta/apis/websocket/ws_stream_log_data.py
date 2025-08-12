@@ -7,13 +7,16 @@ with full type safety and no dict conversions.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 class WebSocketStreamLogData(BaseModel):

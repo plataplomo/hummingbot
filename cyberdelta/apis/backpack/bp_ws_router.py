@@ -67,6 +67,7 @@ if TYPE_CHECKING:
         TransactionMapperProtocol,
     )
     from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 
 
 class TransformationError(ValueError):
@@ -97,6 +98,7 @@ class BackpackWebSocketRouter(
     def __init__(
         self,
         error_handler: BaseErrorHandler,
+        stream_error_handler: WebSocketStreamErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
         order_book_mapper: OrderBookMapperProtocol,
         ticker_mapper: TickerMapperProtocol,
@@ -110,6 +112,7 @@ class BackpackWebSocketRouter(
 
         Args:
             error_handler: Error handler for centralized error management.
+            stream_error_handler: Stream error handler for new architecture.
             typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book transformations.
             ticker_mapper: Mapper for ticker transformations.
@@ -132,6 +135,7 @@ class BackpackWebSocketRouter(
             exchange_name=ExchangeName.BACKPACK,
             error_handler=error_handler,
             typed_processor=typed_processor,
+            stream_error_handler=stream_error_handler,
             envelope_validator=validate_backpack_envelope,
         )
 
@@ -142,7 +146,7 @@ class BackpackWebSocketRouter(
         self.processors["depth"] = PydanticWebSocketProcessor(
             raw_model=BackpackRawDepthUpdateEvent,
             transformer=BackpackDepthStateTransformer(self.order_book_mapper),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_depth",
         )
 
@@ -151,7 +155,7 @@ class BackpackWebSocketRouter(
             transformer=MapperTransformer[BackpackRawTickerEvent, Ticker](
                 mapper_method=self.ticker_mapper.transform_ws_ticker_event_to_internal,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_ticker",
         )
 
@@ -162,7 +166,7 @@ class BackpackWebSocketRouter(
             transformer=MapperTransformer[BackpackRawPublicTradeEvent, Fill](
                 mapper_method=self.trade_mapper.transform_ws_fill_event_to_internal_fill,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_trades",
         )
         self.processors["trade"] = trade_processor
@@ -174,7 +178,7 @@ class BackpackWebSocketRouter(
             transformer=MapperTransformer[BackpackRawOrderUpdate, Order](
                 mapper_method=self.order_mapper.transform_ws_order_update_to_internal_order,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_orders",
         )
 
@@ -183,7 +187,7 @@ class BackpackWebSocketRouter(
             transformer=MapperTransformer[BackpackRawPositionUpdate, DerivativePosition](
                 mapper_method=self.position_mapper.transform_ws_position_update_to_internal_position,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_positions",
         )
 
@@ -193,7 +197,7 @@ class BackpackWebSocketRouter(
             transformer=MapperTransformer[BackpackRawFillResponse, Fill](
                 mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal_fill,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_fills",
         )
 
@@ -203,7 +207,7 @@ class BackpackWebSocketRouter(
         self.processors["subscriptionResponse"] = PydanticWebSocketProcessor(
             raw_model=BackpackSubscriptionResponse,
             transformer=ControlMessageTransformer[BackpackSubscriptionResponse](),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="backpack_subscription_response",
         )
 

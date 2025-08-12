@@ -59,8 +59,10 @@ from cyberdelta.apis.models.service_args.trading import (
     PlaceOrderArgs,
 )
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHandlerFactory
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
+from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
@@ -363,6 +365,13 @@ class HyperliquidAPI(ExchangeAPI):
 
         # Initialize enhanced WebSocket router with new architecture
         error_handler = BaseErrorHandler(exchange_name=exchange_config.exchange_name)
+        
+        # Create stream error handler for new architecture
+        default_error_config = WebSocketErrorConfig()
+        stream_error_handler = WebSocketErrorHandlerFactory.create_handler(
+            exchange=exchange_config.exchange_name,
+            config=default_error_config.get_exchange_config(exchange_config.exchange_name)
+        )
 
         # Create registry using Hyperliquid-specific builder
         builder = HyperliquidRegistryBuilder()
@@ -371,6 +380,7 @@ class HyperliquidAPI(ExchangeAPI):
 
         self._hl_ws_router = HyperliquidWebSocketRouter(
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=factory.create_order_book_mapper(),
             price_ticker_mapper=factory.create_price_ticker_mapper(),

@@ -10,13 +10,13 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel
 
-from cyberdelta.apis.websocket.ws_context import ExchangeType
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_exceptions import WebSocketValidationError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.enums import ExchangeName
 
 
 class TestEnvelopeModel(BaseModel):
@@ -91,8 +91,7 @@ class TestRouterMissingProcessorIntegration:
         """Test missing processor handling uses typed error system when available."""
         # Create router with typed error handler
         router = TestRouterImpl(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
@@ -131,8 +130,7 @@ class TestRouterMissingProcessorIntegration:
         """Test missing processor handling falls back to legacy system when no typed handler."""
         # Create router without typed error handler
         router = TestRouterImpl(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=None,  # No typed handler
@@ -166,8 +164,7 @@ class TestRouterMissingProcessorIntegration:
         """Test missing processor handling with list payload (should wrap in dict for legacy)."""
         # Create router with typed error handler
         router = TestRouterImpl(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
@@ -206,8 +203,7 @@ class TestRouterMissingProcessorIntegration:
         """Test that router error context is created correctly."""
         # Create router with typed error handler
         router = TestRouterImpl(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,

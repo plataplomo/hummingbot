@@ -6,9 +6,9 @@ with full configuration support including the new typed error system.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, TypeVar
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHandlerFactory
 from cyberdelta.apis.websocket.ws_processor import (
@@ -16,7 +16,6 @@ from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
     SimpleDictTransformer,
 )
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.models.websocket_processor_config import WebSocketProcessorConfig
 from cyberdelta.config.structlog_config import get_logger
@@ -26,7 +25,6 @@ if TYPE_CHECKING:
     from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
     from cyberdelta.config.models.app_config import AppSettings
 
-from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.enums import ExchangeName
 
 
@@ -62,7 +60,6 @@ class ConfiguredProcessorFactory:
         exchange: ExchangeName,
         processor_name: str | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
-        legacy_error_handler: BaseErrorHandler | None = None,
     ) -> PydanticWebSocketProcessor[T, T]:
         """Create a processor with no transformation and full configuration.
 
@@ -71,33 +68,27 @@ class ConfiguredProcessorFactory:
             exchange: Exchange name for configuration
             processor_name: Optional processor name
             metrics_collector: Optional metrics collector
-            legacy_error_handler: Legacy error handler for fallback
 
         Returns:
-            Configured processor instance with new error system
+            Configured processor instance with pure WebSocket error system
         """
         # Get exchange-specific configurations
         error_config = self.websocket_error_config.get_exchange_config(exchange)
-        proc_config = self.processor_config.get_exchange_config(exchange)
 
-        # Create stream error handler if typed errors are enabled
-        stream_error_handler: WebSocketStreamErrorHandler | None = None
-        if proc_config.should_use_typed_errors(exchange):
-            stream_error_handler = self.error_handler_factory.create_handler(
-                exchange=exchange,
-                config=error_config,
-            )
-            self.logger.info(
-                "Created typed error handler for processor",
-                processor=processor_name or raw_model.__name__,
-                exchange=exchange,
-            )
-
-        # Create processor with configuration
+        # Always create stream error handler (required for backwards removal architecture)
+        stream_error_handler = self.error_handler_factory.create_handler(
+            exchange=exchange,
+            config=error_config,
+        )
+        self.logger.info(
+            "Created typed error handler for processor",
+            processor=processor_name or raw_model.__name__,
+            exchange=exchange,
+        )
+        
         return PydanticWebSocketProcessor(
             raw_model=raw_model,
             transformer=SimpleDictTransformer[T](),
-            error_handler=legacy_error_handler or self._create_legacy_stub(),
             processor_name=processor_name,
             metrics_collector=metrics_collector,
             stream_error_handler=stream_error_handler,
@@ -110,7 +101,6 @@ class ConfiguredProcessorFactory:
         exchange: ExchangeName,
         processor_name: str | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
-        legacy_error_handler: BaseErrorHandler | None = None,
     ) -> PydanticWebSocketProcessor[T, U]:
         """Create a processor with custom transformation and full configuration.
 
@@ -120,103 +110,32 @@ class ConfiguredProcessorFactory:
             exchange: Exchange name for configuration
             processor_name: Optional processor name
             metrics_collector: Optional metrics collector
-            legacy_error_handler: Legacy error handler for fallback
 
         Returns:
-            Configured processor instance with new error system
+            Configured processor instance with pure WebSocket error system
         """
         # Get exchange-specific configurations
         error_config = self.websocket_error_config.get_exchange_config(exchange)
-        proc_config = self.processor_config.get_exchange_config(exchange)
 
-        # Create stream error handler if typed errors are enabled
-        stream_error_handler: WebSocketStreamErrorHandler | None = None
-        if proc_config.should_use_typed_errors(exchange):
-            stream_error_handler = self.error_handler_factory.create_handler(
-                exchange=exchange,
-                config=error_config,
-            )
-            self.logger.info(
-                "Created typed error handler for processor",
-                processor=processor_name or raw_model.__name__,
-                exchange=exchange,
-                transformer=type(transformer).__name__,
-            )
-
-        # Create processor with configuration
+        # Always create stream error handler (required for backwards removal architecture)
+        stream_error_handler = self.error_handler_factory.create_handler(
+            exchange=exchange,
+            config=error_config,
+        )
+        self.logger.info(
+            "Created typed error handler for processor",
+            processor=processor_name or raw_model.__name__,
+            exchange=exchange,
+            transformer=type(transformer).__name__,
+        )
+        
         return PydanticWebSocketProcessor(
             raw_model=raw_model,
             transformer=transformer,
-            error_handler=legacy_error_handler or self._create_legacy_stub(),
             processor_name=processor_name,
             metrics_collector=metrics_collector,
             stream_error_handler=stream_error_handler,
         )
-
-    def _create_legacy_stub(self) -> BaseErrorHandler:
-        """Create a stub legacy error handler.
-
-        This is used when no legacy handler is provided but one is required
-        by the processor constructor. It should never be called if the typed
-        error system is properly configured.
-
-        Returns:
-            Stub error handler that logs warnings
-        """
-
-        class StubErrorHandler(BaseErrorHandler):
-            """Stub error handler that logs warnings."""
-
-            def __init__(self) -> None:
-                self.logger = get_logger("StubErrorHandler")
-
-            async def handle_validation_error(
-                self,
-                error: ValidationError,
-                payload: dict[str, Any],
-                context: dict[str, Any] | None = None,
-            ) -> None:
-                self.logger.warning(
-                    "Legacy error handler called but not configured",
-                    error_type="validation",
-                    error=str(error),
-                )
-
-            async def handle_processing_error(
-                self,
-                error: Exception,
-                payload: dict[str, Any],
-                context: dict[str, Any] | None = None,
-            ) -> None:
-                self.logger.warning(
-                    "Legacy error handler called but not configured",
-                    error_type="processing",
-                    error=str(error),
-                )
-
-            async def handle_connection_error(
-                self,
-                error: Exception,
-                context: dict[str, Any],
-            ) -> None:
-                self.logger.warning(
-                    "Legacy error handler called but not configured",
-                    error_type="connection",
-                    error=str(error),
-                )
-
-        return StubErrorHandler()
-
-    def should_use_typed_errors(self, exchange: ExchangeName) -> bool:
-        """Check if typed error system should be used for an exchange.
-
-        Args:
-            exchange: Exchange name
-
-        Returns:
-            True if typed errors should be used
-        """
-        return self.processor_config.should_use_typed_errors(exchange)
 
     def get_processor_config(self, exchange: ExchangeName) -> WebSocketProcessorConfig:
         """Get processor configuration for an exchange.

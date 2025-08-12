@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from cyberdelta.apis.exceptions.request_validation import MissingRequiredParameterError
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketContextCreationError
 from cyberdelta.apis.websocket.ws_protocols import (
     WebSocketContextProtocol,
     WebSocketEnvelopeProtocol,
@@ -105,6 +106,7 @@ class WebSocketContextRegistry:
         Raises:
             MissingRequiredParameterError: If exchange type is not registered,
                 context type is missing, or envelope validator is missing.
+            WebSocketContextCreationError: If envelope does not implement WebSocketEnvelopeProtocol.
         """
         # Ensure exchange type is registered
         if not self.is_registered(exchange_type):
@@ -138,14 +140,15 @@ class WebSocketContextRegistry:
         if isinstance(validated_envelope, WebSocketEnvelopeProtocol):
             routing_key = validated_envelope.get_routing_key()
         else:
-            # Fallback for envelopes without routing key method
-            routing_key = str(exchange_type)
+            # No fallback - require routing key method
+            raise WebSocketContextCreationError(
+                context_type=type(validated_envelope).__name__,
+                protocol_requirement="get_routing_key"
+            )
 
         # Create context with standard constructor
-        # The concrete context classes inherit from WebSocketMessageContext
-        # and implement the protocol methods
-        # Since WebSocketMessageContext now implements all required protocol methods,
-        # this should be a valid WebSocketContextProtocol
+        # WebSocketMessageContext[Any] implements WebSocketContextProtocol directly
+        # No cast needed since the concrete class implements the protocol
         return context_class(
             validated_envelope=validated_envelope,
             exchange_type=exchange_type,

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from logging import Logger
 from typing import TYPE_CHECKING, Protocol
 
 from pydantic import BaseModel, ValidationError
@@ -18,7 +19,7 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
+from cyberdelta.apis.websocket.ws_error_metrics import AggregatedMetrics, WebSocketErrorMetrics
 from cyberdelta.apis.websocket.ws_exceptions import (
     WebSocketConnectionError,
     WebSocketMessageFormatError,
@@ -34,13 +35,11 @@ from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.structlog_config import get_logger
 
 
+# Constants for error handling
+RAW_MESSAGE_TRUNCATE_LENGTH = 200  # Max length for raw message in error context
+
 if TYPE_CHECKING:
     pass
-
-from logging import Logger
-
-from cyberdelta.apis.websocket.ws_error_adapter import WebSocketErrorAdapter
-from cyberdelta.apis.websocket.ws_error_metrics import AggregatedMetrics
 
 
 # ============================================================================
@@ -102,7 +101,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
     def __init__(
         self,
         config: WebSocketErrorConfig,
-        logger: Logger | None = None,
+        logger: TypedLogger[WebSocketStreamLogData] | None = None,
         metrics_collector: WebSocketErrorMetrics | None = None,
         recovery_handler: RecoveryHandlerProtocol | None = None,
     ) -> None:
@@ -115,7 +114,14 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             recovery_handler: Optional recovery handler
         """
         self.config = config
-        self._logger = logger or logging.getLogger(__name__)
+        if logger is not None:
+            self._logger = logger
+            self._python_logger = None  # Not needed when external logger provided
+        else:
+            # Use self as the logger since this class implements TypedLogger
+            self._logger = self
+            # Store the actual Python logger for basic logging operations
+            self._python_logger = logging.getLogger(__name__)
         self._structlog_logger = get_logger("ws_stream_error_handler")
 
         # Initialize metrics if enabled and not provided
@@ -123,7 +129,9 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         if metrics_collector is not None:
             self._metrics = metrics_collector
         elif config.metrics.enable_metrics_collection:
-            self._metrics = WebSocketErrorMetrics(config=config.metrics, logger=self._logger)
+            self._metrics = WebSocketErrorMetrics(
+                config=config.metrics, logger=self._logger.get_logger()
+            )
         else:
             self._metrics = None
 
@@ -151,7 +159,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         """
         if self._metrics is None:
             return EmptyMetrics()
-        
+
         # Get aggregated metrics from the collector
         aggregated = self._metrics.get_aggregated_metrics()
 
@@ -166,7 +174,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         return MetricsSnapshot(aggregated)
 
     @property
-    def logger(self) -> Logger:
+    def logger(self) -> TypedLogger[WebSocketStreamLogData]:
         """Get the logger."""
         return self._logger
 
@@ -195,7 +203,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         if self.config.logging.structured_logging:
             # Structured JSON logging
             log_dict = log_data.to_log_dict()
-            self._logger.log(
+            self._logger.get_logger().log(
                 getattr(logging, log_level.upper()),
                 log_message,
                 extra={"structured_data": log_dict},
@@ -203,7 +211,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             )
         else:
             # Standard text logging
-            self._logger.log(
+            self._logger.get_logger().log(
                 getattr(logging, log_level.upper()),
                 log_message,
                 exc_info=exc_info,
@@ -218,8 +226,15 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
 
         Returns:
             Logger instance
+
+        Raises:
+            RuntimeError: If python logger is not initialized
         """
-        return self._logger
+        if self._logger is self:
+            if self._python_logger is None:
+                raise RuntimeError
+            return self._python_logger
+        return self._logger.get_logger()
 
     # ========================================================================
     # Validation Error Handling
@@ -237,11 +252,15 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             error: Pydantic validation error
             context: WebSocket context (TYPED!)
             payload: The payload that failed validation (TYPED!)
+        
+        Raises:
+            TypeError: If context does not provide StreamErrorContext
         """
         # Create typed error context
         error_context_obj = context.create_error_context()
         # Cast to StreamErrorContext since we know the actual type
-        assert isinstance(error_context_obj, StreamErrorContext)
+        if not isinstance(error_context_obj, StreamErrorContext):
+            raise TypeError(type(error_context_obj).__name__)
         error_context = error_context_obj
 
         # Extract validation details
@@ -285,7 +304,14 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         self,
         context: WebSocketContextProtocol,
         expected_format: str,
-        actual_data: dict[str, object] | list[object] | BaseModel | str | bytes | float | bool | None,
+        actual_data: dict[str, object]
+        | list[object]
+        | BaseModel
+        | str
+        | bytes
+        | float
+        | bool
+        | None,
     ) -> None:
         """Handle message format error.
 
@@ -293,9 +319,13 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             context: WebSocket context
             expected_format: Expected message format
             actual_data: Actual data received
+        
+        Raises:
+            TypeError: If context does not provide StreamErrorContext
         """
         error_context_obj = context.create_error_context()
-        assert isinstance(error_context_obj, StreamErrorContext)
+        if not isinstance(error_context_obj, StreamErrorContext):
+            raise TypeError(type(error_context_obj).__name__)
         error_context = error_context_obj
 
         # Determine actual format
@@ -311,7 +341,11 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         raw_message: str | None = None
         if actual_data is not None:
             data_str = str(actual_data)
-            raw_message = data_str[:200] if len(data_str) > 200 else data_str
+            raw_message = (
+                data_str[:RAW_MESSAGE_TRUNCATE_LENGTH]
+                if len(data_str) > RAW_MESSAGE_TRUNCATE_LENGTH
+                else data_str
+            )
 
         ws_error = WebSocketMessageFormatError(
             context=error_context,
@@ -338,9 +372,13 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             context: WebSocket context
             expected_seq: Expected sequence number
             actual_seq: Actual sequence number received
+        
+        Raises:
+            TypeError: If context does not provide StreamErrorContext
         """
         error_context_obj = context.create_error_context()
-        assert isinstance(error_context_obj, StreamErrorContext)
+        if not isinstance(error_context_obj, StreamErrorContext):
+            raise TypeError(type(error_context_obj).__name__)
         error_context = error_context_obj
         error_context.expected_sequence = expected_seq
         error_context.sequence_number = actual_seq
@@ -372,9 +410,13 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             context: WebSocket context
             error: Original exception
             message: Optional error message
+        
+        Raises:
+            TypeError: If context does not provide StreamErrorContext
         """
         error_context_obj = context.create_error_context()
-        assert isinstance(error_context_obj, StreamErrorContext)
+        if not isinstance(error_context_obj, StreamErrorContext):
+            raise TypeError(type(error_context_obj).__name__)
         error_context = error_context_obj
 
         # Determine error code based on exception type
@@ -409,9 +451,13 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         Args:
             context: WebSocket context
             reason: Reason for interruption
+        
+        Raises:
+            TypeError: If context does not provide StreamErrorContext
         """
         error_context_obj = context.create_error_context()
-        assert isinstance(error_context_obj, StreamErrorContext)
+        if not isinstance(error_context_obj, StreamErrorContext):
+            raise TypeError(type(error_context_obj).__name__)
         error_context = error_context_obj
 
         ws_error = WebSocketStreamInterruptedError(
@@ -509,7 +555,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         """
         error_key = f"{error.context.exchange}:{error.context.channel or 'global'}"
         error_count = self._error_counts.get(error_key, 0)
-        self._logger.critical(
+        self._logger.get_logger().critical(
             "Circuit breaker triggered for %s:%s after %d errors",
             error.context.exchange,
             error.context.channel or "global",
@@ -546,7 +592,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
 
         # Check retry count
         if error.context.metadata.retry_count >= self.config.recovery.max_recovery_attempts:
-            self._logger.error(
+            self._logger.get_logger().error(
                 "Max recovery attempts (%d) exceeded for %s",
                 self.config.recovery.max_recovery_attempts,
                 error.code.name,
@@ -562,10 +608,10 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         success = await self._recovery_handler.handle_recovery(error, strategy)
 
         if success:
-            self._logger.info("Recovery successful for %s", error.code.name)
+            self._logger.get_logger().info("Recovery successful for %s", error.code.name)
         else:
             error.context.metadata.retry_count += 1
-            self._logger.warning(
+            self._logger.get_logger().warning(
                 "Recovery failed for %s, attempt %d/%d",
                 error.code.name,
                 error.context.metadata.retry_count,
@@ -615,11 +661,11 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             error: Related error
         """
         if self.config.alerting.log_alerts:
-            self._logger.log(
+            self._logger.get_logger().log(
                 getattr(logging, level.upper()),
                 "ALERT: %s",
                 message,
-                extra={"error_data": WebSocketErrorAdapter.to_api_error(error)},
+                extra={"error_data": {"ws_error_code": error.code.name, "message": error.message}},
             )
 
         if self.config.alerting.console_alerts:

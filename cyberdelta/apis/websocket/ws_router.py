@@ -87,10 +87,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         exchange_name: ExchangeName,
         error_handler: BaseErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
+        stream_error_handler: WebSocketStreamErrorHandler,
         envelope_validator: Callable[[dict[str, Any]], EnvelopeType] | None = None,
         payload_validator: WebSocketPayloadValidators | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
-        stream_error_handler: WebSocketStreamErrorHandler | None = None,
         recovery_config: ErrorRecoveryConfig | None = None,
         error_recovery_mode: ErrorRecoveryMode = ErrorRecoveryMode.ENABLED,
         memory_optimization_mode: MemoryOptimizationMode = MemoryOptimizationMode.DISABLED,
@@ -267,16 +267,12 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         Returns:
             Memory-optimized context with minimal overhead
+
+        Raises:
+            RuntimeError: If memory pool is not available but required for optimization.
         """
         if self.memory_pool is None:
-            # Fallback to direct creation if pool not available
-            return MemoryOptimizedMessageContext(
-                envelope_type=envelope_type,
-                routing_key=routing_key,
-                message_id=message_id,
-                connection_id=self._connection_id,
-                symbol=symbol,
-            )
+            raise RuntimeError("Pool")
 
         return self.memory_pool.get_context(
             envelope_type=envelope_type,
@@ -311,40 +307,27 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         message: dict[str, Any],
     ) -> None:
         """Standardized envelope validation error handling."""
-        # Try typed error system first, fallback to legacy system
-        if self.stream_error_handler:
-            # Create typed error context using RouterErrorContextBuilder
-            error_context = RouterErrorContextBuilder.from_envelope_validation_error(
-                router=self,
-                message=message,
-                validation_error=error,
-                envelope_type=type(error).__name__,
-            )
+        # Pure typed error system - stream error handler required
+        # Create typed error context using RouterErrorContextBuilder
+        error_context = RouterErrorContextBuilder.from_envelope_validation_error(
+            router=self,
+            message=message,
+            validation_error=error,
+            envelope_type=type(error).__name__,
+        )
 
-            # Create typed WebSocket error
-            ws_error = WebSocketValidationError(
-                message=f"Invalid message envelope format: {error}",
-                context=error_context,
-                field="envelope",
-                value=message,
-                code=WebSocketErrorCode.VALIDATION_FAILED,
-                cause=error,
-            )
+        # Create typed WebSocket error
+        ws_error = WebSocketValidationError(
+            message=f"Invalid message envelope format: {error}",
+            context=error_context,
+            field="envelope",
+            value=message,
+            code=WebSocketErrorCode.VALIDATION_FAILED,
+            cause=error,
+        )
 
-            # Handle with typed error system
-            await self.stream_error_handler.handle_stream_error(ws_error)
-        else:
-            # Fallback to legacy dict-based error handling
-            await self.error_handler.handle_unroutable_message(
-                message=message,
-                reason=f"Invalid message envelope format: {error}",
-                context={
-                    "exchange": self.exchange_name,
-                    "validation_error": str(error),
-                    "error_type": type(error).__name__,
-                    "message_keys": list(message.keys()),  # message is guaranteed to be dict
-                },
-            )
+        # Handle with typed error system
+        await self.stream_error_handler.handle_stream_error(ws_error)
 
     async def _handle_missing_routing_key(
         self,
@@ -352,37 +335,26 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         envelope: EnvelopeType,
     ) -> None:
         """Handle case where routing key cannot be extracted."""
-        # Try typed error system first, fallback to legacy system
-        if self.stream_error_handler:
-            # Create typed error context using RouterErrorContextBuilder
-            error_context = RouterErrorContextBuilder.from_missing_routing_key_error(
-                router=self,
-                message=message,
-                envelope=envelope,
-            )
+        # Pure typed error system - stream error handler required
+        # Create typed error context using RouterErrorContextBuilder
+        error_context = RouterErrorContextBuilder.from_missing_routing_key_error(
+            router=self,
+            message=message,
+            envelope=envelope,
+        )
 
-            # Create typed WebSocket error
-            ws_error = WebSocketValidationError(
-                message="Unable to extract routing key from validated envelope",
-                context=error_context,
-                field="routing_key",
-                value=envelope,
-                code=WebSocketErrorCode.ROUTER_ERROR,
-                cause=ValueError("No routing key found in envelope"),
-            )
+        # Create typed WebSocket error
+        ws_error = WebSocketValidationError(
+            message="Unable to extract routing key from validated envelope",
+            context=error_context,
+            field="routing_key",
+            value=envelope,
+            code=WebSocketErrorCode.ROUTER_ERROR,
+            cause=ValueError("No routing key found in envelope"),
+        )
 
-            # Handle with typed error system
-            await self.stream_error_handler.handle_stream_error(ws_error)
-        else:
-            # Fallback to legacy dict-based error handling
-            await self.error_handler.handle_unroutable_message(
-                message=message,
-                reason="Unable to extract routing key from validated envelope",
-                context={
-                    "exchange": self.exchange_name,
-                    "envelope_type": type(envelope).__name__,
-                },
-            )
+        # Handle with typed error system
+        await self.stream_error_handler.handle_stream_error(ws_error)
 
     async def _handle_missing_handler(
         self,
@@ -391,36 +363,29 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         handlers: dict[str, MessageHandler],
     ) -> None:
         """Handle case where no handler is registered."""
-        # Try typed error system first, fallback to legacy system
-        if self.stream_error_handler:
-            # Create typed error context using RouterErrorContextBuilder
-            error_context = RouterErrorContextBuilder.from_missing_handler_error(
-                router=self,
-                routing_key=routing_key,
-                message=message,
-                available_handlers=list(handlers.keys()),
-            )
+        # Pure typed error system - stream error handler required
+        # Stream error handler is always available (required parameter)
 
-            # Create typed WebSocket error
-            ws_error = WebSocketValidationError(
-                message=f"No handler found for routing key: {routing_key}",
-                context=error_context,
-                field="routing_key",
-                value=routing_key,
-                code=WebSocketErrorCode.HANDLER_ERROR,
-                cause=ValueError(f"No handler registered for routing key: {routing_key}"),
-            )
+        # Create typed error context using RouterErrorContextBuilder
+        error_context = RouterErrorContextBuilder.from_missing_handler_error(
+            router=self,
+            routing_key=routing_key,
+            message=message,
+            available_handlers=list(handlers.keys()),
+        )
 
-            # Handle with typed error system
-            await self.stream_error_handler.handle_stream_error(ws_error)
-        else:
-            # Fallback to legacy warning logging
-            self.logger.warning(
-                "no_handler_for_routing_key",
-                exchange=self.exchange_name,
-                routing_key=routing_key,
-                available_handlers=list(handlers.keys()),
-            )
+        # Create typed WebSocket error
+        ws_error = WebSocketValidationError(
+            message=f"No handler found for routing key: {routing_key}",
+            context=error_context,
+            field="routing_key",
+            value=routing_key,
+            code=WebSocketErrorCode.HANDLER_ERROR,
+            cause=ValueError(f"No handler registered for routing key: {routing_key}"),
+        )
+
+        # Handle with typed error system
+        await self.stream_error_handler.handle_stream_error(ws_error)
 
     async def _handle_missing_processor(
         self,
@@ -429,47 +394,27 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         context: WebSocketContextProtocol,
     ) -> None:
         """Handle case where no processor is found."""
-        # Try typed error system first, fallback to legacy system
-        if self.stream_error_handler:
-            # Create typed error context using RouterErrorContextBuilder
-            error_context = RouterErrorContextBuilder.from_missing_processor_error(
-                router=self,
-                routing_key=routing_key,
-                payload=payload,
-                context=context,
-            )
+        # Pure typed error system - stream error handler required
+        # Create typed error context using RouterErrorContextBuilder
+        error_context = RouterErrorContextBuilder.from_missing_processor_error(
+            router=self,
+            routing_key=routing_key,
+            payload=payload,
+            context=context,
+        )
 
-            # Create typed WebSocket error
-            error = WebSocketValidationError(
-                message=f"No processor found for routing key: {routing_key}",
-                context=error_context,
-                field="routing_key",
-                value=routing_key,
-                code=WebSocketErrorCode.PROCESSOR_ERROR,
-                cause=ValueError(f"No processor found for routing key: {routing_key}"),
-            )
+        # Create typed WebSocket error
+        error = WebSocketValidationError(
+            message=f"No processor found for routing key: {routing_key}",
+            context=error_context,
+            field="routing_key",
+            value=routing_key,
+            code=WebSocketErrorCode.PROCESSOR_ERROR,
+            cause=ValueError(f"No processor found for routing key: {routing_key}"),
+        )
 
-            # Handle with typed error system
-            await self.stream_error_handler.handle_stream_error(error)
-        else:
-            # Fallback to legacy dict-based error handling
-            # Create simple context dict for missing processor
-            context_dict = {
-                "exchange": self.exchange_name,
-                "routing_key": routing_key,
-                "connection_id": context.connection_id,
-                "error_type": "missing_processor",
-            }
-            # Ensure payload is a dict for legacy handler
-            if isinstance(payload, list):
-                payload_dict = {"data": payload}
-            else:
-                payload_dict = payload
-            await self.error_handler.handle_processing_error(
-                error=ValueError(f"No processor found for routing key: {routing_key}"),
-                payload=payload_dict,
-                context=context_dict,
-            )
+        # Handle with typed error system
+        await self.stream_error_handler.handle_stream_error(error)
 
     async def route_message(
         self,
@@ -494,31 +439,27 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             await self._route_with_envelope_validation(message, handlers)
 
         except (ValueError, TypeError, AttributeError, KeyError, RuntimeError) as e:
-            # Try typed error system first, fallback to legacy system
-            if self.stream_error_handler:
-                # Create typed error context using RouterErrorContextBuilder
-                error_context = RouterErrorContextBuilder.from_routing_error(
-                    router=self,
-                    error=e,
-                    message=message,
-                    routing_stage="message_routing",
-                )
+            # Pure typed error system - stream error handler required
+            # Create typed error context using RouterErrorContextBuilder
+            error_context = RouterErrorContextBuilder.from_routing_error(
+                router=self,
+                error=e,
+                message=message,
+                routing_stage="message_routing",
+            )
 
-                # Create typed WebSocket error
-                ws_error = WebSocketValidationError(
-                    message=f"WebSocket routing error: {e!s}",
-                    context=error_context,
-                    field="message_routing",
-                    value=message,
-                    code=WebSocketErrorCode.ROUTER_ERROR,
-                    cause=e,
-                )
+            # Create typed WebSocket error
+            ws_error = WebSocketValidationError(
+                message=f"WebSocket routing error: {e!s}",
+                context=error_context,
+                field="message_routing",
+                value=message,
+                code=WebSocketErrorCode.ROUTER_ERROR,
+                cause=e,
+            )
 
-                # Handle with typed error system
-                await self.stream_error_handler.handle_stream_error(ws_error)
-            else:
-                # Fallback to legacy dict-based error handling
-                await self.error_handler.handle_routing_error(e, message)
+            # Handle with typed error system
+            await self.stream_error_handler.handle_stream_error(ws_error)
 
             # Notify error recovery system if enabled
             if self.error_recovery:
@@ -683,30 +624,29 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             message: Failed message
             error: Failure reason
         """
-        # Try typed error system first, fallback to legacy recovery only
-        if self.stream_error_handler:
-            # Create typed error context using RouterErrorContextBuilder
-            error_context = RouterErrorContextBuilder.from_routing_error(
-                router=self,
-                error=error,
-                message=message,
-                routing_stage="message_send",
-            )
+        # Use typed error system for all error recovery
+        # Create typed error context using RouterErrorContextBuilder (always available)
+        error_context = RouterErrorContextBuilder.from_routing_error(
+            router=self,
+            error=error,
+            message=message,
+            routing_stage="message_send",
+        )
 
-            # Create typed WebSocket error
-            ws_error = WebSocketValidationError(
-                message=f"Failed to send WebSocket message: {error}",
-                context=error_context,
-                field="message_send",
-                value=message,
-                code=WebSocketErrorCode.ROUTER_ERROR,
-                cause=error,
-            )
+        # Create typed WebSocket error
+        ws_error = WebSocketValidationError(
+            message=f"Failed to send WebSocket message: {error}",
+            context=error_context,
+            field="message_send",
+            value=message,
+            code=WebSocketErrorCode.ROUTER_ERROR,
+            cause=error,
+        )
 
-            # Handle with typed error system
-            await self.stream_error_handler.handle_stream_error(ws_error)
+        # Handle with typed error system
+        await self.stream_error_handler.handle_stream_error(ws_error)
 
-        # Always use error recovery for message send failures (both typed and legacy paths)
+        # Always use error recovery for message send failures
         if self.error_recovery:
             await self.error_recovery.handle_message_failure(message, error)
 

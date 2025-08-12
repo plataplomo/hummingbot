@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any, Protocol
 
@@ -19,6 +20,10 @@ from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorRecoveryConfig,
 )
 
+
+# Recovery attempt thresholds
+EARLY_ATTEMPTS_THRESHOLD = 3  # Threshold for early recovery attempts
+MID_ATTEMPTS_THRESHOLD = 5  # Threshold for mid-stage recovery attempts
 
 if TYPE_CHECKING:
     from logging import Logger
@@ -247,13 +252,14 @@ class StreamRecoverySystem:
         # Check circuit breaker
         recovery_key = self._get_recovery_key(error.context)
         if self._is_circuit_breaker_active(recovery_key):
-            self._logger.warning(f"Circuit breaker active for {recovery_key}, skipping recovery")
+            self._logger.warning("Circuit breaker active for %s, skipping recovery", recovery_key)
             return False
 
         # Check retry limits
         if not self._check_retry_limits(error, recovery_key):
             self._logger.error(
-                f"Retry limit exceeded for {recovery_key}, activating circuit breaker"
+                "Retry limit exceeded for %s, activating circuit breaker",
+                recovery_key
             )
             self._activate_circuit_breaker(recovery_key)
             return False
@@ -287,48 +293,63 @@ class StreamRecoverySystem:
         Returns:
             True if recovery successful
         """
-        self._logger.info(f"Executing recovery strategy {strategy.name} for {error.code.name}")
+        self._logger.info("Executing recovery strategy %s for %s", strategy.name, error.code.name)
 
-        # Pattern matching on recovery strategy
-        match strategy:
-            case WebSocketRecoveryStrategy.NONE:
-                return False
+        # Handle special cases first
+        if strategy == WebSocketRecoveryStrategy.NONE:
+            return False
 
-            case WebSocketRecoveryStrategy.IMMEDIATE_RETRY:
-                return await self._immediate_retry(error)
+        if strategy == WebSocketRecoveryStrategy.FALLBACK_EXCHANGE:
+            return await self._handle_fallback_exchange_error(error)
 
-            case WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF:
-                return await self._exponential_backoff_retry(error)
+        # Use mapping for standard strategies
+        strategy_mapping = self._get_strategy_mapping()
+        if strategy in strategy_mapping:
+            handler = strategy_mapping[strategy]
+            return await handler(error)
 
-            case WebSocketRecoveryStrategy.LINEAR_BACKOFF:
-                return await self._linear_backoff_retry(error)
+        # Should not reach here with valid enum
+        self._logger.error("Unknown recovery strategy: %s", strategy)
+        return False
 
-            case WebSocketRecoveryStrategy.RECONNECT_SAME:
-                return await self._reconnect(error)
+    def _get_strategy_mapping(
+        self,
+    ) -> dict[WebSocketRecoveryStrategy, Callable[[WebSocketStreamError], Awaitable[bool]]]:
+        """Get mapping of strategies to handler methods.
+        
+        Returns:
+            Dictionary mapping strategies to handler methods
+        """
+        return {
+            WebSocketRecoveryStrategy.IMMEDIATE_RETRY: self._immediate_retry,
+            WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF: self._exponential_backoff_retry,
+            WebSocketRecoveryStrategy.LINEAR_BACKOFF: self._linear_backoff_retry,
+            WebSocketRecoveryStrategy.RECONNECT_SAME: self._reconnect,
+            WebSocketRecoveryStrategy.RECONNECT_DIFFERENT: self._reconnect_different,
+            WebSocketRecoveryStrategy.FULL_RECONNECT: self._full_reconnect,
+            WebSocketRecoveryStrategy.RESUBSCRIBE_SINGLE: self._resubscribe,
+            WebSocketRecoveryStrategy.RESUBSCRIBE_ALL: self._resubscribe_all,
+            WebSocketRecoveryStrategy.RESUBSCRIBE_SELECTIVE: self._resubscribe_selective,
+            WebSocketRecoveryStrategy.CIRCUIT_BREAKER: self._handle_circuit_breaker,
+            WebSocketRecoveryStrategy.DEGRADE_SERVICE: self._degrade_service,
+        }
 
-            case WebSocketRecoveryStrategy.RECONNECT_DIFFERENT:
-                return await self._reconnect_different(error)
-
-            case WebSocketRecoveryStrategy.FULL_RECONNECT:
-                return await self._full_reconnect(error)
-
-            case WebSocketRecoveryStrategy.RESUBSCRIBE_SINGLE:
-                return await self._resubscribe(error)
-
-            case WebSocketRecoveryStrategy.RESUBSCRIBE_ALL:
-                return await self._resubscribe_all(error)
-
-            case WebSocketRecoveryStrategy.RESUBSCRIBE_SELECTIVE:
-                return await self._resubscribe_selective(error)
-
-            case WebSocketRecoveryStrategy.CIRCUIT_BREAKER:
-                return await self._handle_circuit_breaker(error)
-
-            case WebSocketRecoveryStrategy.FALLBACK_EXCHANGE:
-                return await self._fallback_exchange(error)
-
-            case WebSocketRecoveryStrategy.DEGRADE_SERVICE:
-                return await self._degrade_service(error)
+    async def _handle_fallback_exchange_error(self, error: WebSocketStreamError) -> bool:
+        """Handle fallback exchange strategy error.
+        
+        Args:
+            error: The WebSocket stream error
+        
+        Returns:
+            False since fallback exchange is not supported
+        """
+        # No fallback exchange - raise error instead
+        self._logger.error(
+            "FALLBACK_EXCHANGE strategy not supported for %s. "
+            "This strategy requires explicit exchange fallback configuration.",
+            error.context.exchange
+        )
+        return False
 
     # ========================================================================
     # Recovery Strategies
@@ -376,7 +397,9 @@ class StreamRecoverySystem:
             self.config.max_backoff_ms,
         )
 
-        self._logger.info(f"Exponential backoff retry, attempt {attempt + 1}, delay {delay_ms}ms")
+        self._logger.info(
+            "Exponential backoff retry, attempt %d, delay %dms", attempt + 1, delay_ms
+        )
 
         await asyncio.sleep(delay_ms / 1000.0)
 
@@ -400,7 +423,7 @@ class StreamRecoverySystem:
             self.config.max_backoff_ms,
         )
 
-        self._logger.info(f"Linear backoff retry, attempt {attempt + 1}, delay {delay_ms}ms")
+        self._logger.info("Linear backoff retry, attempt %d, delay %dms", attempt + 1, delay_ms)
 
         await asyncio.sleep(delay_ms / 1000.0)
 
@@ -419,7 +442,9 @@ class StreamRecoverySystem:
             self._logger.warning("No connection manager available for reconnect")
             return False
 
-        self._logger.info(f"Reconnecting {error.context.connection_id} to {error.context.exchange}")
+        self._logger.info(
+            "Reconnecting %s to %s", error.context.connection_id, error.context.exchange
+        )
 
         return await self._connection_mgr.reconnect(
             error.context.connection_id,
@@ -441,7 +466,8 @@ class StreamRecoverySystem:
             return False
 
         self._logger.info(
-            f"Full reconnect for {error.context.connection_id} to {error.context.exchange}"
+            "Full reconnect for %s to %s",
+            error.context.connection_id, error.context.exchange
         )
 
         # Reset connection first
@@ -475,8 +501,9 @@ class StreamRecoverySystem:
             return False
 
         self._logger.info(
-            f"Resubscribing to {error.context.channel or 'all channels'} on "
-            f"{error.context.exchange}"
+            "Resubscribing to %s on %s",
+            error.context.channel or "all channels",
+            error.context.exchange,
         )
 
         return await self._subscription_mgr.resubscribe(
@@ -498,7 +525,7 @@ class StreamRecoverySystem:
             self._logger.warning("No connection manager available for reconnect")
             return False
 
-        self._logger.info(f"Reconnecting to different endpoint for {error.context.connection_id}")
+        self._logger.info("Reconnecting to different endpoint for %s", error.context.connection_id)
 
         # This would switch to a different endpoint
         # Implementation would depend on connection manager capabilities
@@ -521,7 +548,7 @@ class StreamRecoverySystem:
             self._logger.warning("No subscription manager available for resubscribe")
             return False
 
-        self._logger.info(f"Resubscribing to all channels on {error.context.exchange}")
+        self._logger.info("Resubscribing to all channels on %s", error.context.exchange)
 
         return await self._subscription_mgr.resubscribe(
             error.context.connection_id,
@@ -542,7 +569,7 @@ class StreamRecoverySystem:
             self._logger.warning("No subscription manager available for selective resubscribe")
             return False
 
-        self._logger.info(f"Selective resubscribing for {error.context.exchange}")
+        self._logger.info("Selective resubscribing for %s", error.context.exchange)
 
         # Clear existing subscriptions
         await self._subscription_mgr.clear_subscriptions(
@@ -558,20 +585,7 @@ class StreamRecoverySystem:
             error.context.channel,  # Just resubscribe to the affected channel
         )
 
-    async def _fallback_exchange(self, error: WebSocketStreamError) -> bool:
-        """Fallback to alternative exchange.
-
-        Args:
-            error: The error to recover from
-
-        Returns:
-            False (not implemented - would require exchange fallback logic)
-        """
-        self._logger.warning(
-            f"Exchange fallback requested for {error.context.exchange}, "
-            "but fallback logic not implemented"
-        )
-        return False
+    # Fallback exchange method removed - no fallback exchanges supported
 
     async def _degrade_service(self, error: WebSocketStreamError) -> bool:
         """Degrade service to essential functions only.
@@ -582,7 +596,7 @@ class StreamRecoverySystem:
         Returns:
             True if degradation successful
         """
-        self._logger.warning(f"Service degradation triggered for {error.context.exchange}")
+        self._logger.warning("Service degradation triggered for %s", error.context.exchange)
 
         # Clear non-essential subscriptions
         if self._subscription_mgr:
@@ -613,7 +627,7 @@ class StreamRecoverySystem:
             return False
 
         self._logger.info(
-            f"Requesting snapshot for {error.context.channel} on {error.context.exchange}"
+            "Requesting snapshot for %s on %s", error.context.channel, error.context.exchange
         )
 
         return await self._state_mgr.request_snapshot(
@@ -636,8 +650,9 @@ class StreamRecoverySystem:
             return False
 
         self._logger.info(
-            f"Resetting state for {error.context.channel or 'all channels'} on "
-            f"{error.context.exchange}"
+            "Resetting state for %s on %s",
+            error.context.channel or "all channels",
+            error.context.exchange,
         )
 
         await self._state_mgr.clear_state(
@@ -667,7 +682,7 @@ class StreamRecoverySystem:
         recovery_key = self._get_recovery_key(error.context)
 
         self._logger.critical(
-            f"Circuit breaker triggered for {recovery_key} due to {error.code.name}"
+            "Circuit breaker triggered for %s due to %s", recovery_key, error.code.name
         )
 
         # Activate circuit breaker
@@ -694,10 +709,10 @@ class StreamRecoverySystem:
         if attempts == 0:
             # First attempt: immediate retry
             return await self._immediate_retry(error)
-        if attempts < 3:
+        if attempts < EARLY_ATTEMPTS_THRESHOLD:
             # Early attempts: exponential backoff
             return await self._exponential_backoff_retry(error)
-        if attempts < 5:
+        if attempts < MID_ATTEMPTS_THRESHOLD:
             # Mid attempts: full reconnect
             return await self._full_reconnect(error)
         # Many attempts: degrade service or give up
@@ -728,7 +743,7 @@ class StreamRecoverySystem:
         # Check if circuit breaker should reset
         reset_time = self._circuit_breaker_reset_times.get(key)
         if reset_time and datetime.now(UTC) >= reset_time:
-            self._logger.info(f"Circuit breaker reset for {key}")
+            self._logger.info("Circuit breaker reset for %s", key)
             self._circuit_breaker_active[key] = False
             return False
 
@@ -748,7 +763,7 @@ class StreamRecoverySystem:
         )
         self._circuit_breaker_reset_times[key] = reset_time
 
-        self._logger.warning(f"Circuit breaker activated for {key}, will reset at {reset_time}")
+        self._logger.warning("Circuit breaker activated for %s, will reset at %s", key, reset_time)
 
     # ========================================================================
     # Retry Management
@@ -795,14 +810,14 @@ class StreamRecoverySystem:
         if success:
             # Reset on success
             self._recovery_attempts[key] = 0
-            self._logger.info(f"Recovery successful for {key}, resetting counter")
+            self._logger.info("Recovery successful for %s, resetting counter", key)
         else:
             # Increment on failure
             self._recovery_attempts[key] = self._recovery_attempts.get(key, 0) + 1
             self._last_recovery_times[key] = datetime.now(UTC)
             self._logger.warning(
-                f"Recovery failed for {key}, attempt "
-                f"{self._recovery_attempts[key]}/{self.config.max_recovery_attempts}"
+                "Recovery failed for %s, attempt %d/%d",
+                key, self._recovery_attempts[key], self.config.max_recovery_attempts
             )
 
     # ========================================================================
@@ -844,5 +859,5 @@ class StreamRecoverySystem:
 
     async def shutdown(self) -> None:
         """Shutdown recovery system gracefully."""
-        self._logger.info(f"Recovery system shutting down with stats: {self.get_recovery_stats()}")
+        self._logger.info("Recovery system shutting down with stats: %s", self.get_recovery_stats())
         self.reset_recovery_stats()

@@ -16,17 +16,18 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
 from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics, ProcessorMetrics
-from cyberdelta.apis.websocket.ws_processor_error_bridge import (
-    ProcessorErrorBridgeFactory,
-)
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
     from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
-    from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+
+from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+
 
 # Type variables for input and output models
 T = TypeVar("T", bound=BaseModel)  # Raw WebSocket message model
@@ -74,8 +75,8 @@ class MessageTransformer(Protocol[T_contra, U_co]):
         ...
 
 
-# Legacy ValidationMetrics class removed - replaced with typed ProcessingMetrics
-# See cyberdelta.apis.websocket.ws_processing_metrics for the new typed implementation
+# Validation metrics now implemented using typed ProcessingMetrics
+# See cyberdelta.apis.websocket.ws_processing_metrics for the typed implementation
 
 
 class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
@@ -92,36 +93,27 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         self,
         raw_model: type[T],
         transformer: MessageTransformer[T, U | list[U] | None],
-        error_handler: BaseErrorHandler,
+        stream_error_handler: WebSocketStreamErrorHandler,
         processor_name: str | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
-        stream_error_handler: WebSocketStreamErrorHandler | None = None,
     ) -> None:
         """Initialize the Pydantic processor.
 
         Args:
             raw_model: Pydantic model class for raw WebSocket messages.
             transformer: Transformer to convert raw to domain models.
-            error_handler: Error handler for centralized error management.
+            stream_error_handler: Required typed WebSocket error handler.
             processor_name: Optional name for logging (defaults to model name).
             metrics_collector: Optional metrics collector for enhanced monitoring.
-            stream_error_handler: Optional typed WebSocket error handler.
 
         """
         self.raw_model = raw_model
         self.transformer = transformer
-        self.error_handler = error_handler
         self.stream_error_handler = stream_error_handler
         self.processor_name = processor_name or raw_model.__name__
         self.metrics = ProcessingMetrics()
         self.metrics_collector = metrics_collector
         self.logger = get_logger(f"PydanticProcessor.{self.processor_name}")
-
-        # Initialize error bridge if stream error handler is available
-        self.error_bridge = ProcessorErrorBridgeFactory.create_bridge(
-            processor=self,
-            stream_error_handler=stream_error_handler,
-        )
 
     async def process(
         self,
@@ -192,17 +184,20 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("unexpected", message_type, str(e))
 
-            # Use error bridge if available, fallback to legacy
-            if self.error_bridge:
-                await self.error_bridge.handle_unexpected_error(
-                    error=e,
-                    context=context,
-                    stage="processing_pipeline",
-                )
-            else:
-                # Legacy error handling could be added here if needed
-                # For now, just log since this is a top-level catch-all
-                pass
+            # Use direct stream error handler for unexpected processing errors
+            error_context = StreamErrorContext(
+                connection_id=context.connection_id,
+                exchange=context.exchange_type.value,
+            )
+            
+            stream_error = WebSocketStreamError(
+                message=f"Unexpected processing error: {e}",
+                code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
+                context=error_context,
+                cause=e,
+            )
+            
+            await self.stream_error_handler.handle_stream_error(stream_error)
         finally:
             # Always record message metrics
             if self.metrics_collector:
@@ -232,23 +227,21 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("validation", message_type, str(e))
 
-            # Phase 2: Use typed error bridge for all validation errors
-            if self.error_bridge:
-                await self.error_bridge.handle_validation_error(
-                    error=e,
-                    payload=payload,
-                    context=context,
-                )
-            else:
-                self.logger.error(
-                    "No error bridge available for validation error handling",
-                    processor=self.processor_name,
-                    error=str(e),
-                )
-                # This should not happen in Phase 2 - all processors should have error bridges
-                raise RuntimeError(
-                    f"Processor {self.processor_name} missing error bridge for validation error handling"
-                )
+            # Pure typed error system - direct stream error handling for all validation errors
+            # Create WebSocketStreamError for validation failures
+            error_context = StreamErrorContext(
+                connection_id=context.connection_id,
+                exchange=context.exchange_type.value,
+            )
+            
+            stream_error = WebSocketStreamError(
+                message=f"Validation failed: {e}",
+                code=WebSocketErrorCode.VALIDATION_FAILED,
+                context=error_context,
+                cause=e,
+            )
+            
+            await self.stream_error_handler.handle_stream_error(stream_error)
             return None
 
         # Success case
@@ -281,23 +274,21 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("transformation", message_type, str(e))
 
-            # Phase 2: Use typed error bridge for all transformation errors
-            if self.error_bridge:
-                await self.error_bridge.handle_transformation_error(
-                    error=e,
-                    validated_payload=validated,
-                    context=context,
-                )
-            else:
-                self.logger.error(
-                    "No error bridge available for transformation error handling",
-                    processor=self.processor_name,
-                    error=str(e),
-                )
-                # This should not happen in Phase 2 - all processors should have error bridges
-                raise RuntimeError(
-                    f"Processor {self.processor_name} missing error bridge for transformation error handling"
-                )
+            # Pure typed error system - direct stream error handling for all transformation errors
+            # Create WebSocketStreamError for transformation errors
+            error_context = StreamErrorContext(
+                connection_id=context.connection_id,
+                exchange=context.exchange_type.value,
+            )
+            
+            stream_error = WebSocketStreamError(
+                message=f"Transformation failed: {e}",
+                code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
+                context=error_context,
+                cause=e,
+            )
+            
+            await self.stream_error_handler.handle_stream_error(stream_error)
             return None
 
         # Success case
@@ -343,24 +334,20 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("handler", message_type, str(e))
 
-            # Phase 2: Use typed error bridge for all handler errors
-            if self.error_bridge:
-                await self.error_bridge.handle_handler_error(
-                    error=e,
-                    domain_model=domain_model,
-                    context=context,
-                    is_unexpected=False,
-                )
-            else:
-                self.logger.error(
-                    "No error bridge available for handler error handling",
-                    processor=self.processor_name,
-                    error=str(e),
-                )
-                # This should not happen in Phase 2 - all processors should have error bridges
-                raise RuntimeError(
-                    f"Processor {self.processor_name} missing error bridge for handler error handling"
-                )
+            # Pure typed error system - direct stream error handling for all handler errors
+            error_context = StreamErrorContext(
+                connection_id=context.connection_id,
+                exchange=context.exchange_type.value,
+            )
+            
+            stream_error = WebSocketStreamError(
+                message=f"Handler error: {e}",
+                code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
+                context=error_context,
+                cause=e,
+            )
+            
+            await self.stream_error_handler.handle_stream_error(stream_error)
             return False
         except (OSError, RuntimeError, MemoryError) as e:
             # Catch any other runtime exceptions but log them as unexpected
@@ -375,24 +362,20 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 exchange=context.exchange_type,
             )
 
-            # Phase 2: Use typed error bridge for all unexpected handler errors
-            if self.error_bridge:
-                await self.error_bridge.handle_handler_error(
-                    error=e,
-                    domain_model=domain_model,
-                    context=context,
-                    is_unexpected=True,
-                )
-            else:
-                self.logger.error(
-                    "No error bridge available for unexpected handler error handling",
-                    processor=self.processor_name,
-                    error=str(e),
-                )
-                # This should not happen in Phase 2 - all processors should have error bridges
-                raise RuntimeError(
-                    f"Processor {self.processor_name} missing error bridge for unexpected handler error handling"
-                )
+            # Pure typed error system - direct stream error handling for unexpected handler errors
+            error_context = StreamErrorContext(
+                connection_id=context.connection_id,
+                exchange=context.exchange_type.value,
+            )
+            
+            stream_error = WebSocketStreamError(
+                message=f"Unexpected handler error: {e}",
+                code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
+                context=error_context,
+                cause=e,
+            )
+            
+            await self.stream_error_handler.handle_stream_error(stream_error)
             return False
         else:
             # Success case
@@ -454,14 +437,14 @@ class ProcessorFactory:
     @staticmethod
     def create_simple_processor[T: BaseModel](
         raw_model: type[T],
-        error_handler: BaseErrorHandler,
+        stream_error_handler: WebSocketStreamErrorHandler,
         processor_name: str | None = None,
     ) -> PydanticWebSocketProcessor[T, T]:
         """Create a processor with no transformation (model passed through as-is).
 
         Args:
             raw_model: The Pydantic model for validation.
-            error_handler: Error handler instance.
+            stream_error_handler: Required typed WebSocket error handler.
             processor_name: Optional processor name.
 
         Returns:
@@ -471,7 +454,7 @@ class ProcessorFactory:
         return PydanticWebSocketProcessor(
             raw_model=raw_model,
             transformer=SimpleDictTransformer[T](),
-            error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             processor_name=processor_name,
         )
 
@@ -479,7 +462,7 @@ class ProcessorFactory:
     def create_processor[T: BaseModel, U: BaseModel](
         raw_model: type[T],
         transformer: MessageTransformer[T, U],
-        error_handler: BaseErrorHandler,
+        stream_error_handler: WebSocketStreamErrorHandler,
         processor_name: str | None = None,
     ) -> PydanticWebSocketProcessor[T, U]:
         """Create a processor with custom transformation.
@@ -487,7 +470,7 @@ class ProcessorFactory:
         Args:
             raw_model: The Pydantic model for validation.
             transformer: Custom transformer instance.
-            error_handler: Error handler instance.
+            stream_error_handler: Required typed WebSocket error handler.
             processor_name: Optional processor name.
 
         Returns:
@@ -497,6 +480,6 @@ class ProcessorFactory:
         return PydanticWebSocketProcessor(
             raw_model=raw_model,
             transformer=transformer,
-            error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             processor_name=processor_name,
         )

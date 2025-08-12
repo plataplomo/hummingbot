@@ -34,14 +34,6 @@ class ProcessorMetricsConfig(BaseModel):
 class ProcessorErrorHandlingConfig(BaseModel):
     """Configuration for processor error handling."""
 
-    use_typed_error_system: bool = Field(
-        default=True, description="Use new typed WebSocket error system"
-    )
-
-    fallback_to_legacy: bool = Field(
-        default=True, description="Fall back to legacy error handling if typed system unavailable"
-    )
-
     log_validation_errors: bool = Field(default=True, description="Log validation errors")
 
     log_transformation_errors: bool = Field(default=True, description="Log transformation errors")
@@ -138,20 +130,6 @@ class WebSocketProcessorConfig(BaseModel):
         # Apply overrides recursively
         apply_config_overrides(config_dict, overrides)
         return WebSocketProcessorConfig.model_validate(config_dict)
-
-    def should_use_typed_errors(self, exchange: str | None = None) -> bool:
-        """Check if typed error system should be used.
-
-        Args:
-            exchange: Optional exchange name for specific config
-
-        Returns:
-            True if typed error system should be used
-        """
-        if exchange:
-            config = self.get_exchange_config(exchange)
-            return config.error_handling.use_typed_error_system
-        return self.error_handling.use_typed_error_system
 
     class Config:
         """Pydantic configuration."""

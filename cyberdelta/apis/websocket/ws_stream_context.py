@@ -13,6 +13,17 @@ from pydantic import BaseModel, Field, field_validator
 
 from cyberdelta.apis.common.error_foundation import ErrorChain, ErrorMetadata
 from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketFieldValidationError
+
+
+# Helper factory for type inference
+def _create_error_chain_list() -> list[ErrorChain]:
+    """Create empty ErrorChain list for field defaults.
+    
+    Returns:
+        Empty list for ErrorChain objects.
+    """
+    return []
 
 
 class StreamErrorContext(BaseModel):
@@ -89,7 +100,7 @@ class StreamErrorContext(BaseModel):
     # Error Chain & Metadata
     # ========================================================================
     error_chain: list[ErrorChain] = Field(
-        default_factory=lambda: list[ErrorChain](),
+        default_factory=_create_error_chain_list,
         description="Chain of errors leading to this error",
     )
     metadata: ErrorMetadata = Field(
@@ -113,19 +124,31 @@ class StreamErrorContext(BaseModel):
     @field_validator("connection_id")
     @classmethod
     def validate_connection_id(cls, v: str) -> str:
-        """Validate connection ID format and length."""
+        """Validate connection ID format and length.
+        
+        Returns:
+            The validated connection ID
+        """
         return StreamErrorContextValidator.validate_connection_id(v)
 
     @field_validator("exchange")
     @classmethod
     def validate_exchange(cls, v: str) -> str:
-        """Validate exchange name format and length."""
+        """Validate exchange name format and length.
+        
+        Returns:
+            The validated exchange name
+        """
         return StreamErrorContextValidator.validate_exchange(v)
 
     @field_validator("channel")
     @classmethod
     def validate_channel(cls, v: str | None) -> str | None:
-        """Validate channel name format and length."""
+        """Validate channel name format and length.
+        
+        Returns:
+            The validated channel name or None
+        """
         if v is None:
             return v
         return StreamErrorContextValidator.validate_channel(v)
@@ -133,25 +156,46 @@ class StreamErrorContext(BaseModel):
     @field_validator("sequence_number", "expected_sequence", "last_received_sequence")
     @classmethod
     def validate_positive_sequence(cls, v: int | None) -> int | None:
-        """Validate sequence numbers are positive."""
+        """Validate sequence numbers are positive.
+        
+        Returns:
+            The validated sequence number or None
+        
+        Raises:
+            WebSocketFieldValidationError: If sequence number is negative.
+        """
         if v is not None and v < 0:
-            raise ValueError("Sequence number must be non-negative")
+            raise WebSocketFieldValidationError("sequence_number", "sequence_non_negative")
         return v
 
     @field_validator("active_subscriptions", "pending_messages", "reconnect_count")
     @classmethod
     def validate_non_negative(cls, v: int) -> int:
-        """Validate non-negative integers."""
+        """Validate non-negative integers.
+        
+        Returns:
+            The validated non-negative integer
+        
+        Raises:
+            WebSocketFieldValidationError: If value is negative.
+        """
         if v < 0:
-            raise ValueError("Value must be non-negative")
+            raise WebSocketFieldValidationError("field", "non_negative")
         return v
 
     @field_validator("raw_message_size")
     @classmethod
     def validate_message_size(cls, v: int | None) -> int | None:
-        """Validate message size."""
+        """Validate message size.
+        
+        Returns:
+            The validated message size or None
+        
+        Raises:
+            WebSocketFieldValidationError: If message size is negative.
+        """
         if v is not None and v < 0:
-            raise ValueError("Message size must be non-negative")
+            raise WebSocketFieldValidationError("message_size", "message_size_non_negative")
         return v
 
     @field_validator(
@@ -162,15 +206,22 @@ class StreamErrorContext(BaseModel):
     )
     @classmethod
     def validate_timestamp(cls, v: int | None) -> int | None:
-        """Validate timestamps."""
+        """Validate timestamps.
+        
+        Returns:
+            The validated timestamp or None
+        
+        Raises:
+            WebSocketFieldValidationError: If timestamp is negative or in the future.
+        """
         if v is None:
             return v
         if v < 0:
-            raise ValueError("Timestamp must be non-negative")
+            raise WebSocketFieldValidationError("timestamp", "timestamp_non_negative")
         # Check for future timestamps (more than 5 seconds in future)
         now_ms = int(datetime.now(UTC).timestamp() * 1000)
         if v > now_ms + 5000:  # 5 seconds tolerance
-            raise ValueError(f"Timestamp {v} is in the future")
+            raise WebSocketFieldValidationError("timestamp", "timestamp_future", v)
         return v
 
     # ========================================================================
@@ -178,35 +229,59 @@ class StreamErrorContext(BaseModel):
     # ========================================================================
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary for logging."""
+        """Convert to dictionary for logging.
+        
+        Returns:
+            Dictionary representation of the context
+        """
         return self.model_dump(exclude_none=True, mode="json")
 
     def get_connection_duration_ms(self) -> int | None:
-        """Get connection duration in milliseconds."""
+        """Get connection duration in milliseconds.
+        
+        Returns:
+            Connection duration in milliseconds or None if not available
+        """
         if self.connection_started_ms is None:
             return None
         return self.error_timestamp_ms - self.connection_started_ms
 
     def get_time_since_last_message_ms(self) -> int | None:
-        """Get time since last message in milliseconds."""
+        """Get time since last message in milliseconds.
+        
+        Returns:
+            Time since last message in milliseconds or None if not available
+        """
         if self.last_message_received_ms is None:
             return None
         return self.error_timestamp_ms - self.last_message_received_ms
 
     def get_time_since_last_heartbeat_ms(self) -> int | None:
-        """Get time since last heartbeat in milliseconds."""
+        """Get time since last heartbeat in milliseconds.
+        
+        Returns:
+            Time since last heartbeat in milliseconds or None if not available
+        """
         if self.last_heartbeat_ms is None:
             return None
         return self.error_timestamp_ms - self.last_heartbeat_ms
 
     def has_sequence_gap(self) -> bool:
-        """Check if there's a sequence gap."""
+        """Check if there's a sequence gap.
+        
+        Returns:
+            True if there is a sequence gap, False otherwise
+        """
         if self.expected_sequence is None or self.sequence_number is None:
             return False
         return self.sequence_number != self.expected_sequence
 
     def get_sequence_gap_size(self) -> int | None:
-        """Get size of sequence gap."""
+        """Get size of sequence gap.
+        
+        Returns:
+            Size of the sequence gap or None if no gap
+        """
         if not self.has_sequence_gap():
             return None
         if self.expected_sequence is None or self.sequence_number is None:
@@ -214,7 +289,11 @@ class StreamErrorContext(BaseModel):
         return abs(self.sequence_number - self.expected_sequence)
 
     def is_stale_connection(self, stale_threshold_ms: int = 30000) -> bool:
-        """Check if connection is stale (no recent messages)."""
+        """Check if connection is stale (no recent messages).
+        
+        Returns:
+            True if connection is stale, False otherwise
+        """
         time_since_last = self.get_time_since_last_message_ms()
         if time_since_last is None:
             return False
@@ -225,7 +304,11 @@ class StreamErrorContext(BaseModel):
         self.error_chain.append(ErrorChain.from_exception(error, self.error_timestamp_ms))
 
     def get_summary(self) -> str:
-        """Get a summary of the error context."""
+        """Get a summary of the error context.
+        
+        Returns:
+            Human-readable summary of the error context
+        """
         parts = [
             f"Exchange: {self.exchange}",
             f"Connection: {self.connection_id[:8]}...",

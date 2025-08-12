@@ -21,6 +21,20 @@ from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 
 
+# Constants for metrics collection
+MAX_TIMING_HISTORY = 1000
+
+
+# Helper factories for type inference
+def _create_str_int_dict() -> dict[str, int]:
+    """Create empty string to int dictionary for field defaults.
+    
+    Returns:
+        Empty dictionary with string keys and int values.
+    """
+    return {}
+
+
 class MetricType(Enum):
     """Types of metrics collected."""
 
@@ -51,9 +65,9 @@ class MetricsSummary:
     """Summary of collected metrics."""
 
     total_errors: int = 0
-    errors_by_code: dict[str, int] = field(default_factory=lambda: dict[str, int]())
-    errors_by_severity: dict[str, int] = field(default_factory=lambda: dict[str, int]())
-    errors_by_exchange: dict[str, int] = field(default_factory=lambda: dict[str, int]())
+    errors_by_code: dict[str, int] = field(default_factory=_create_str_int_dict)
+    errors_by_severity: dict[str, int] = field(default_factory=_create_str_int_dict)
+    errors_by_exchange: dict[str, int] = field(default_factory=_create_str_int_dict)
     recovery_attempts: int = 0
     successful_recoveries: int = 0
     failed_recoveries: int = 0
@@ -147,13 +161,13 @@ class WebSocketErrorMetricsCollector:
         if metric.processing_time_us is not None:
             self._processing_times.append(metric.processing_time_us)
             # Keep only recent timings (last 1000)
-            if len(self._processing_times) > 1000:
+            if len(self._processing_times) > MAX_TIMING_HISTORY:
                 self._processing_times.pop(0)
 
         if metric.recovery_time_ms is not None:
             self._recovery_times.append(metric.recovery_time_ms)
             # Keep only recent timings (last 1000)
-            if len(self._recovery_times) > 1000:
+            if len(self._recovery_times) > MAX_TIMING_HISTORY:
                 self._recovery_times.pop(0)
 
     def _update_rates(self, timestamp_ms: int) -> None:
@@ -165,7 +179,11 @@ class WebSocketErrorMetricsCollector:
         self._peak_rate = max(self._peak_rate, current_rate)
 
     def _calculate_error_rate(self) -> float:
-        """Calculate current error rate per second."""
+        """Calculate current error rate per second.
+        
+        Returns:
+            Current error rate per second.
+        """
         if not self._error_timestamps_ms:
             return 0.0
 
@@ -285,7 +303,7 @@ class WebSocketErrorMetricsCollector:
                 exchange_counts[metric.exchange] += 1
 
         # Convert to per-minute rates
-        return {exchange: count for exchange, count in exchange_counts.items()}
+        return dict(exchange_counts)
 
     def get_severity_distribution(self) -> dict[str, float]:
         """Get percentage distribution by severity.

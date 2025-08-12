@@ -7,9 +7,11 @@ the appropriate configuration for different exchanges and environments.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Protocol
 
 from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketConfigurationError
 from cyberdelta.apis.websocket.ws_stream_error_handler import (
     RecoveryHandlerProtocol,
     WebSocketStreamErrorHandler,
@@ -32,6 +34,35 @@ from cyberdelta.enums import ExchangeName
 
 if TYPE_CHECKING:
     from logging import Logger
+
+
+class AppConfigProtocol(Protocol):
+    """Protocol for application configuration objects that provide WebSocket error config."""
+    
+    @property
+    def websocket_error_config(self) -> WebSocketErrorConfig:
+        """Get WebSocket error configuration with get_exchange_config method."""
+        ...
+
+
+# Constants for validation and configuration
+MAX_RETRY_COUNT = 100
+MIN_BACKOFF_MULTIPLIER = 0.5
+MAX_TIMEOUT_MS = 5000
+MIN_CIRCUIT_BREAKER_COUNT = 10
+MAX_CIRCUIT_BREAKER_TIMEOUT = 1000
+MAX_DEV_CIRCUIT_BREAKER_TIMEOUT = 30000
+MAX_PRODUCTION_RETRY_COUNT = 100
+
+# Validation constants
+MIN_INITIAL_BACKOFF_MS = 100
+MIN_JITTER_FACTOR = 0.0
+MAX_JITTER_FACTOR = 0.5
+MIN_CIRCUIT_BREAKER_TIMEOUT_MS = 5000
+MIN_METRICS_BUFFER_SIZE = 10
+MIN_METRICS_FLUSH_INTERVAL_MS = 1000
+MIN_ALERT_COOLDOWN_MS = 30000  # 30 seconds
+MIN_LOG_MESSAGE_LENGTH = 100
 
 
 # ============================================================================
@@ -72,14 +103,15 @@ class WebSocketErrorHandlerFactory:
             WebSocketStreamErrorHandler: Configured error handler
 
         Raises:
-            ValueError: If exchange is not supported
+            WebSocketConfigurationError: If exchange is not supported
         """
         # Validate supported exchanges
         supported_exchanges = {ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK}
         if exchange not in supported_exchanges:
-            raise ValueError(
-                f"Unsupported exchange '{exchange.value}'. "
-                f"Supported exchanges: {', '.join(sorted(e.value for e in supported_exchanges))}"
+            raise WebSocketConfigurationError(
+                component="ErrorHandlerFactory",
+                issue=f"Unsupported exchange '{exchange.value}'",
+                available_options=[e.value for e in supported_exchanges],
             )
 
         # Create exchange-specific logger
@@ -98,9 +130,11 @@ class WebSocketErrorHandlerFactory:
             )
 
         # Create and configure the error handler
+        # Note: Pass None for logger since WebSocketStreamErrorHandler implements TypedLogger
+        # and can create its own Python logger internally
         handler = WebSocketStreamErrorHandler(
             config=config,
-            logger=logger,
+            logger=None,
             metrics_collector=metrics_collector,
             recovery_handler=recovery_handler,
         )
@@ -130,23 +164,25 @@ class WebSocketErrorHandlerFactory:
             WebSocketErrorConfig: Default configuration for the exchange
 
         Raises:
-            ValueError: If exchange or environment is not supported
+            WebSocketConfigurationError: If exchange or environment is not supported
         """
         environment = environment.lower().strip()
 
         # Validate inputs
         supported_exchanges = {ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK}
         if exchange not in supported_exchanges:
-            raise ValueError(
-                f"Unsupported exchange '{exchange.value}'. "
-                f"Supported: {', '.join(sorted(e.value for e in supported_exchanges))}"
+            raise WebSocketConfigurationError(
+                component="ErrorHandlerFactory",
+                issue=f"Unsupported exchange '{exchange.value}'",
+                available_options=[e.value for e in supported_exchanges],
             )
 
         supported_envs = {"production", "staging", "development", "test"}
         if environment not in supported_envs:
-            raise ValueError(
-                f"Unsupported environment '{environment}'. "
-                f"Supported: {', '.join(sorted(supported_envs))}"
+            raise WebSocketConfigurationError(
+                component="ErrorHandlerFactory",
+                issue=f"Unsupported environment '{environment}'",
+                available_options=sorted(supported_envs),
             )
 
         # Create exchange-specific recovery configuration
@@ -200,7 +236,11 @@ class WebSocketErrorHandlerFactory:
 
         else:
             # This should never happen due to validation above
-            raise ValueError(f"Unsupported exchange: {exchange}")
+            raise WebSocketConfigurationError(
+                component="ErrorHandlerFactory",
+                issue=f"Unsupported exchange: {exchange}",
+                available_options=[],
+            )
 
         # Adjust settings based on environment
         if environment == "development":
@@ -300,6 +340,63 @@ class WebSocketErrorHandlerFactory:
         )
 
     @staticmethod
+    def create_handler_from_app_config(
+        exchange: ExchangeName,
+        app_config_getter: AppConfigProtocol | Callable[[ExchangeName], WebSocketErrorConfig],
+        environment: str = "production",
+        connection_manager: ConnectionManagerProtocol | None = None,
+        subscription_manager: SubscriptionManagerProtocol | None = None,
+        state_manager: StateManagerProtocol | None = None,
+        metrics_collector: WebSocketErrorMetrics | None = None,
+    ) -> WebSocketStreamErrorHandler:
+        """Create handler using application configuration.
+        
+        This method provides a higher-level interface that extracts
+        WebSocket-specific configuration from the application config.
+        
+        Args:
+            exchange: Exchange name
+            app_config_getter: AppSettings instance or callable that provides websocket config
+            environment: Environment name for configuration
+            connection_manager: Optional connection manager
+            subscription_manager: Optional subscription manager  
+            state_manager: Optional state manager
+            metrics_collector: Optional metrics collector
+            
+        Returns:
+            WebSocketStreamErrorHandler: Configured error handler
+            
+        Note:
+            Uses WebSocketErrorHandlerFactory.create_default_config() as fallback
+        """
+        # Extract WebSocket configuration from app config
+        websocket_config: WebSocketErrorConfig
+        
+        if callable(app_config_getter):
+            # Callable that returns websocket config
+            websocket_config = app_config_getter(exchange)
+        elif hasattr(app_config_getter, "websocket_error_config"):
+            # App config object with websocket_error_config attribute
+            config_obj = app_config_getter.websocket_error_config
+            websocket_config = config_obj.get_exchange_config(exchange)
+        else:
+            # Fall back to default configuration
+            websocket_config = WebSocketErrorHandlerFactory.create_default_config(
+                exchange=exchange,
+                environment=environment,
+            )
+        
+        return WebSocketErrorHandlerFactory.create_handler(
+            exchange=exchange,
+            config=websocket_config,
+            logger=None,  # Let handler create its own logger
+            metrics_collector=metrics_collector,
+            connection_manager=connection_manager,
+            subscription_manager=subscription_manager,
+            state_manager=state_manager,
+        )
+
+    @staticmethod
     def validate_configuration(config: WebSocketErrorConfig) -> list[str]:
         """Validate error handler configuration.
 
@@ -310,55 +407,120 @@ class WebSocketErrorHandlerFactory:
             List of validation error messages (empty if valid)
         """
         errors: list[str] = []
+        
+        errors.extend(WebSocketErrorHandlerFactory._validate_recovery_config(config.recovery))
+        errors.extend(WebSocketErrorHandlerFactory._validate_metrics_config(config.metrics))
+        errors.extend(WebSocketErrorHandlerFactory._validate_alerting_config(config.alerting))
+        errors.extend(WebSocketErrorHandlerFactory._validate_logging_config(config.logging))
+        
+        return errors
+    
+    @staticmethod
+    def _validate_recovery_config(config: WebSocketErrorRecoveryConfig) -> list[str]:
+        """Validate recovery configuration.
+        
+        Args:
+            config: Recovery configuration to validate
+            
+        Returns:
+            List of validation error messages.
+        """
+        errors: list[str] = []
 
-        # Validate recovery config
-        if config.recovery.max_recovery_attempts < 0:
+        if config.max_recovery_attempts < 0:
             errors.append("max_recovery_attempts must be non-negative")
 
-        if config.recovery.initial_backoff_ms < 100:
-            errors.append("initial_backoff_ms must be at least 100ms")
+        if config.initial_backoff_ms < MIN_INITIAL_BACKOFF_MS:
+            errors.append(f"initial_backoff_ms must be at least {MIN_INITIAL_BACKOFF_MS}ms")
 
-        if config.recovery.max_backoff_ms < config.recovery.initial_backoff_ms:
+        if config.max_backoff_ms < config.initial_backoff_ms:
             errors.append("max_backoff_ms must be >= initial_backoff_ms")
 
-        if config.recovery.backoff_multiplier < 1.0:
+        if config.backoff_multiplier < 1.0:
             errors.append("backoff_multiplier must be >= 1.0")
 
-        if not 0.0 <= config.recovery.jitter_factor <= 0.5:
-            errors.append("jitter_factor must be between 0.0 and 0.5")
+        if not MIN_JITTER_FACTOR <= config.jitter_factor <= MAX_JITTER_FACTOR:
+            errors.append(
+                f"jitter_factor must be between {MIN_JITTER_FACTOR} and {MAX_JITTER_FACTOR}"
+            )
 
-        if config.recovery.circuit_breaker_threshold < 1:
+        if config.circuit_breaker_threshold < 1:
             errors.append("circuit_breaker_threshold must be >= 1")
 
-        if config.recovery.circuit_breaker_timeout_ms < 5000:
-            errors.append("circuit_breaker_timeout_ms must be at least 5 seconds")
+        if config.circuit_breaker_timeout_ms < MIN_CIRCUIT_BREAKER_TIMEOUT_MS:
+            timeout_seconds = MIN_CIRCUIT_BREAKER_TIMEOUT_MS // 1000
+            errors.append(f"circuit_breaker_timeout_ms must be at least {timeout_seconds} seconds")
 
-        # Validate metrics config
-        if config.metrics.metrics_buffer_size < 10:
-            errors.append("metrics_buffer_size must be at least 10")
+        return errors
+    
+    @staticmethod
+    def _validate_metrics_config(config: WebSocketErrorMetricsConfig) -> list[str]:
+        """Validate metrics configuration.
+        
+        Args:
+            config: Metrics configuration to validate
+            
+        Returns:
+            List of validation error messages.
+        """
+        errors: list[str] = []
 
-        if config.metrics.metrics_flush_interval_ms < 1000:
-            errors.append("metrics_flush_interval_ms must be at least 1 second")
+        if config.metrics_buffer_size < MIN_METRICS_BUFFER_SIZE:
+            errors.append(f"metrics_buffer_size must be at least {MIN_METRICS_BUFFER_SIZE}")
 
-        if config.metrics.error_rate_buckets < 1:
+        if config.metrics_flush_interval_ms < MIN_METRICS_FLUSH_INTERVAL_MS:
+            flush_seconds = MIN_METRICS_FLUSH_INTERVAL_MS // 1000
+            errors.append(f"metrics_flush_interval_ms must be at least {flush_seconds} second")
+
+        if config.error_rate_buckets < 1:
             errors.append("error_rate_buckets must be at least 1")
 
-        # Validate alerting config
-        if config.alerting.critical_error_threshold < 1:
+        if config.latency_histogram_buckets < 1:
+            errors.append("latency_histogram_buckets must be at least 1")
+
+        return errors
+    
+    @staticmethod
+    def _validate_alerting_config(config: WebSocketErrorAlertingConfig) -> list[str]:
+        """Validate alerting configuration.
+        
+        Args:
+            config: Alerting configuration to validate
+            
+        Returns:
+            List of validation error messages.
+        """
+        errors: list[str] = []
+
+        if config.critical_error_threshold < 1:
             errors.append("critical_error_threshold must be at least 1")
 
-        if not 0.0 < config.alerting.error_rate_alert_threshold <= 1.0:
+        if not 0.0 < config.error_rate_alert_threshold <= 1.0:
             errors.append("error_rate_alert_threshold must be between 0.0 and 1.0")
 
-        if config.alerting.alert_cooldown_ms < 30000:
-            errors.append("alert_cooldown_ms must be at least 30 seconds")
+        if config.alert_cooldown_ms < MIN_ALERT_COOLDOWN_MS:
+            cooldown_seconds = MIN_ALERT_COOLDOWN_MS // 1000
+            errors.append(f"alert_cooldown_ms must be at least {cooldown_seconds} seconds")
 
-        # Validate logging config
+        return errors
+    
+    @staticmethod
+    def _validate_logging_config(config: WebSocketErrorLoggingConfig) -> list[str]:
+        """Validate logging configuration.
+        
+        Args:
+            config: Logging configuration to validate
+            
+        Returns:
+            List of validation error messages.
+        """
+        errors: list[str] = []
+
         valid_log_levels = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-        if config.logging.min_severity_to_log.upper() not in valid_log_levels:
+        if config.min_severity_to_log.upper() not in valid_log_levels:
             errors.append(f"min_severity_to_log must be one of: {', '.join(valid_log_levels)}")
 
-        if config.logging.max_log_message_length < 100:
-            errors.append("max_log_message_length must be at least 100")
+        if config.max_log_message_length < MIN_LOG_MESSAGE_LENGTH:
+            errors.append(f"max_log_message_length must be at least {MIN_LOG_MESSAGE_LENGTH}")
 
         return errors

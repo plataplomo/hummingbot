@@ -18,7 +18,7 @@ from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
     SimpleDictTransformer,
 )
-from cyberdelta.apis.websocket.ws_processor_error_bridge import ProcessorErrorBridge
+from cyberdelta.apis.websocket.ws_processor_error_context import ProcessorErrorContextBuilder
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
@@ -117,8 +117,9 @@ class TestTypedProcessorErrorHandling:
 
         assert processor.stream_error_handler is mock_stream_error_handler
         assert processor.processor_name == "TestProcessor"
-        assert hasattr(processor, "error_bridge")
-        assert isinstance(processor.error_bridge, ProcessorErrorBridge)
+        # Bridge pattern removed - processor uses direct stream error handler
+        assert processor.stream_error_handler is not None
+        assert isinstance(processor.stream_error_handler, WebSocketStreamErrorHandler)
 
     @pytest.mark.asyncio
     async def test_validation_error_with_typed_handler(
@@ -387,7 +388,8 @@ class TestTypedProcessorErrorHandling:
         # Verify bridge was created
         assert hasattr(processor, "error_bridge")
         assert processor.error_bridge is not None
-        assert isinstance(processor.error_bridge, ProcessorErrorBridge)
+        # Bridge pattern removed - processor uses direct stream error handler
+        assert processor.stream_error_handler is not None
 
         # Verify bridge references are correct
         assert processor.error_bridge.processor is processor

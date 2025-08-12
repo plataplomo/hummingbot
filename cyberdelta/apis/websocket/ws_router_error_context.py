@@ -7,7 +7,7 @@ eliminating dict-based error context construction in WebSocket routing.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel
 
@@ -56,11 +56,11 @@ class RouterErrorMetadata(BaseModel):
     processing_start_time_ms: int | None = None
     error_timestamp_ms: int | None = None
 
-    def model_post_init(self, __context: object) -> None:
+    def model_post_init(self, /, __context: object) -> None:
         """Set error timestamp if not provided."""
         if self.error_timestamp_ms is None:
             # Use object.__setattr__ for frozen model
-            object.__setattr__(self, "error_timestamp_ms", int(time.time() * 1000))
+            self.error_timestamp_ms = int(time.time() * 1000)
 
 
 class RouterErrorContextBuilder:

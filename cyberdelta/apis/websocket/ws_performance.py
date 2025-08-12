@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, TypeVar, cast
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.websocket.websocket_states import OperationResult
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketTransformerError
 from cyberdelta.config.structlog_config import get_logger
 
 
@@ -301,7 +302,7 @@ class OptimizedProcessor[T: BaseModel]:
 
         This method automatically selects the fastest available validation method:
         1. msgspec (if available) - 2-3x faster than Pydantic
-        2. Pydantic (fallback) - standard validation
+        2. Pydantic (strict requirement) - standard validation
 
         Args:
             payload: Payload data to validate.
@@ -329,7 +330,16 @@ class OptimizedProcessor[T: BaseModel]:
                 self._add_to_cache(payload, msgspec_result)
                 return msgspec_result
 
-            # Fallback to Pydantic
+            # Require Pydantic validation when msgspec fails
+            if not self.msgspec_available:
+                logger = get_logger("OptimizedProcessor")
+                logger.debug(
+                    "msgspec_not_available_using_pydantic",
+                    processor=self.raw_model.__name__,
+                    msgspec_encoder_available=self.msgspec_encoder is not None,
+                    msgspec_decoder_available=self.msgspec_decoder is not None,
+                )
+            
             method = "pydantic"
             validated = self._validate_with_pydantic(payload)
             success = True
@@ -356,6 +366,10 @@ class OptimizedProcessor[T: BaseModel]:
 
         Returns:
             Transformed result.
+
+        Raises:
+            WebSocketTransformerError: If transformer doesn't accept context parameters 
+                but context was provided.
         """
         total_start = time.perf_counter()
 
@@ -370,9 +384,17 @@ class OptimizedProcessor[T: BaseModel]:
                     # Try calling transformer with context if it accepts it
                     try:
                         result = transformer(validated, **context)
-                    except TypeError:
-                        # Fallback to transformer without context
-                        result = transformer(validated)
+                    except TypeError as e:
+                        # Transformer doesn't accept context - require explicit handling
+                        transformer_name = (
+                            transformer.__name__ 
+                            if hasattr(transformer, "__name__") 
+                            else type(transformer).__name__
+                        )
+                        raise WebSocketTransformerError(
+                            transformer_name=transformer_name,
+                            context_provided=True,
+                        ) from e
                 else:
                     result = transformer(validated)
 

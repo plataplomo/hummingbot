@@ -9,12 +9,14 @@ This is part of the 100-step WebSocket Type Safety refactoring plan (Step 74).
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from enum import Enum
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
@@ -63,7 +65,7 @@ class SystemHealth(BaseModel):
     """Overall system health."""
 
     overall_status: HealthStatus = Field(..., description="Overall health status")
-    components: list[ComponentStatus] = Field(default_factory=lambda: list[ComponentStatus]())
+    components: Annotated[list[ComponentStatus], Field(default_factory=list)]
     performance: PerformanceHealth | None = Field(default=None)
     error_rate: float = Field(default=0.0, description="Current error rate")
     recovery_success_rate: float = Field(default=0.0, description="Recovery success rate")
@@ -163,7 +165,7 @@ class WebSocketErrorHealthCheck:
             try:
                 status = check_func()
                 components.append(status)
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, AttributeError, OSError) as e:
                 components.append(
                     ComponentStatus(
                         name=name, status=HealthStatus.UNHEALTHY, message=f"Check failed: {e}"
@@ -233,7 +235,7 @@ class WebSocketErrorHealthCheck:
                 message="Error handler not creating errors correctly",
             )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError, AttributeError, ImportError, OSError) as e:
             return ComponentStatus(
                 name="error_handler",
                 status=HealthStatus.UNHEALTHY,
@@ -273,7 +275,7 @@ class WebSocketErrorHealthCheck:
                 message="Metrics collector ready (no errors recorded)",
             )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError, AttributeError, OSError) as e:
             return ComponentStatus(
                 name="metrics_collector",
                 status=HealthStatus.UNHEALTHY,
@@ -317,7 +319,7 @@ class WebSocketErrorHealthCheck:
                 message="Recovery system returned NONE for retryable error",
             )
 
-        except Exception as e:
+        except (RuntimeError, ValueError, TypeError, AttributeError, OSError) as e:
             return ComponentStatus(
                 name="recovery_system",
                 status=HealthStatus.UNHEALTHY,
@@ -359,8 +361,6 @@ class WebSocketErrorHealthCheck:
         handler_overhead_percent = 10.0  # Placeholder - would need actual measurement
 
         # Get memory usage (simplified)
-        import sys
-
         memory_usage_mb = sys.getsizeof(self) / (1024 * 1024)
 
         # Determine performance status
@@ -403,11 +403,10 @@ class WebSocketErrorHealthCheck:
 
             # Calculate recovery success rate (convert percentage to ratio)
             recovery_rate = self.metrics_collector.get_recovery_success_rate() / 100.0
-
-            return error_rate, recovery_rate
-
-        except Exception:
+        except (RuntimeError, ValueError, TypeError, AttributeError, OSError):
             return 0.0, 1.0
+        else:
+            return error_rate, recovery_rate
 
     def _determine_overall_status(
         self,
@@ -461,10 +460,8 @@ class WebSocketErrorHealthCheck:
             health: Current system health
         """
         for callback in self._health_callbacks:
-            try:
+            with contextlib.suppress(RuntimeError, ValueError, TypeError, AttributeError, OSError):
                 callback(health)
-            except Exception:
-                pass  # Don't let callback errors affect health checks
 
     def get_last_health(self) -> SystemHealth | None:
         """Get the last health check result.
@@ -505,10 +502,8 @@ class WebSocketErrorHealthCheck:
         interval = interval_seconds or self.config.check_interval_seconds
 
         while True:
-            try:
+            with contextlib.suppress(RuntimeError, ValueError, TypeError, AttributeError, OSError):
                 await self.check_health()
-            except Exception:
-                pass  # Continue monitoring even if check fails
 
             await asyncio.sleep(interval)
 
@@ -547,8 +542,8 @@ class WebSocketErrorHealthCheck:
             lines.extend([
                 "",
                 "Performance:",
-                f"  Error Creation: {health.performance.error_creation_us:.1f}µs",
-                f"  Context Creation: {health.performance.context_creation_us:.1f}µs",
+                f"  Error Creation: {health.performance.error_creation_us:.1f}μs",
+                f"  Context Creation: {health.performance.context_creation_us:.1f}μs",
                 f"  Handler Overhead: {health.performance.handler_overhead_percent:.1f}%",
                 f"  Memory Usage: {health.performance.memory_usage_mb:.1f}MB",
                 f"  Status: {health.performance.status.value}",

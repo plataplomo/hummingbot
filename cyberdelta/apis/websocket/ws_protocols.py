@@ -6,6 +6,7 @@ without requiring concrete imports, thus avoiding circular dependencies.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from cyberdelta.apis.common.base_types import BaseContextProtocol
@@ -56,7 +57,7 @@ class WebSocketContextProtocol(BaseContextProtocol, Protocol):
     exchange_type: ExchangeName
     connection_id: str
     message_id: str
-    timestamp: object  # datetime in implementation
+    timestamp: datetime
 
     # Optional attributes that may be None
     symbol: str | None

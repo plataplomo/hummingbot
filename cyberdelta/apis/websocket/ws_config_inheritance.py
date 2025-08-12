@@ -21,6 +21,8 @@ from typing import Any, NotRequired, TypedDict, Unpack, cast
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketConfigurationError
+
 # Import existing performance configurations
 from cyberdelta.apis.websocket.ws_performance_configs import (
     BackpackModelConfig,
@@ -199,6 +201,9 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
 
         Returns:
             ConfigDict with base configuration from hierarchy or default envelope config
+
+        Raises:
+            WebSocketConfigurationError: If no configuration is found for the model type
         """
         # Check direct mapping first
         class_name = model_type.__name__
@@ -210,8 +215,12 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
             if base_class.__name__ in self._config_hierarchy:
                 return self._config_hierarchy[base_class.__name__]
 
-        # Fallback to envelope config for unknown models
-        return EnvelopeModelConfig.model_config
+        # No fallback - require explicit configuration for all models
+        raise WebSocketConfigurationError(
+            component=f"model {model_type.__name__}",
+            issue="No configuration found",
+            available_options=list(self._config_hierarchy.keys())
+        )
 
     def _merge_configs(self, base_config: ConfigDict, modifiers: dict[str, Any]) -> ConfigDict:
         """Merge base configuration with context modifiers.
@@ -365,7 +374,7 @@ class CompositeConfigurationStrategy(ConfigurationStrategy):
     """Composite strategy that combines multiple configuration strategies.
 
     Allows layering of configuration strategies with priority-based selection
-    and fallback mechanisms.
+    with strict configuration requirements.
     """
 
     def __init__(self, strategies: list[ConfigurationStrategy]) -> None:
@@ -380,18 +389,20 @@ class CompositeConfigurationStrategy(ConfigurationStrategy):
             context: Configuration context for optimization
 
         Returns:
-            ConfigDict from first strategy that supports the context, or fallback config
+            ConfigDict from first strategy that supports the context
+
+        Raises:
+            WebSocketConfigurationError: If no strategy supports the given context
         """
         for strategy in self.strategies:
             if strategy.supports_context(context):
                 return strategy.get_config(model_type, context)
 
-        # Fallback to balanced configuration
-        return ConfigDict(
-            extra="forbid",
-            frozen=True,
-            validate_assignment=True,
-            validate_default=True,
+        # No fallback - require explicit strategy support
+        raise WebSocketConfigurationError(
+            component="configuration strategies",
+            issue=f"No strategy supports context {context}",
+            available_options=[s.__class__.__name__ for s in self.strategies]
         )
 
     def supports_context(self, context: ConfigurationContext) -> bool:
@@ -419,7 +430,7 @@ class ConfigurationManager:
         hierarchical_strategy = HierarchicalConfigurationStrategy()
         performance_strategy = PerformanceProfileStrategy()
 
-        # Create composite strategy with fallback
+        # Create composite strategy without fallback
         self.strategy = CompositeConfigurationStrategy([
             hierarchical_strategy,
             performance_strategy,

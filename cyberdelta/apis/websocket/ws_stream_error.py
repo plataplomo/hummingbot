@@ -15,8 +15,16 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_log_data import WebSocketStreamLogData
+
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+
+
+# Recovery strategy constants
+MAX_RECONNECT_ATTEMPTS_FOR_CIRCUIT_BREAKER = 5  # Max reconnects before circuit breaker
+MAX_RECONNECT_ATTEMPTS_FOR_DIFFERENT_ENDPOINT = 2  # Max reconnects before trying different endpoint
 
 
 # ============================================================================
@@ -117,48 +125,71 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
             Appropriate error severity
         """
         # Use the is_critical() method from the error code enum
-        # But map some critical codes to ERROR severity based on test requirements
         if self.code.is_critical():
-            # Some critical codes should be ERROR severity for operational reasons
-            if self.code in {
-                WebSocketErrorCode.PROTOCOL_ERROR,
-                WebSocketErrorCode.HANDSHAKE_FAILED,
-            }:
-                return ErrorSeverity.ERROR
-            # Most critical errors should be CRITICAL severity
-            return ErrorSeverity.CRITICAL
+            return self._get_critical_severity()
 
+        # Handle non-critical errors by category
         category = self.code.get_category()
-
-        # Connection errors are usually ERROR level
+        
         if category == "CONNECTION":
-            if self.code == WebSocketErrorCode.CONNECTION_LOST:
-                return ErrorSeverity.WARNING  # Can recover easily
-            if self.code == WebSocketErrorCode.CONNECTION_TIMEOUT:
-                return ErrorSeverity.ERROR
-            return ErrorSeverity.ERROR
-
-        # Authentication errors
+            return self._get_connection_severity()
         if category == "AUTHENTICATION":
-            if self.code == WebSocketErrorCode.AUTH_EXPIRED:
-                return ErrorSeverity.WARNING  # Can reauth
-            return ErrorSeverity.ERROR
-
-        # Stream errors vary
+            return self._get_auth_severity()
         if category == "STREAM":
-            if self.code in {
-                WebSocketErrorCode.SEQUENCE_GAP,
-                WebSocketErrorCode.SEQUENCE_OUT_OF_ORDER,
-                WebSocketErrorCode.SEQUENCE_DUPLICATE,
-            }:
-                return ErrorSeverity.WARNING
-            return ErrorSeverity.ERROR
-
-        # Rate limiting is WARNING
+            return self._get_stream_severity()
         if self.code == WebSocketErrorCode.RATE_LIMITED:
             return ErrorSeverity.WARNING
+        return ErrorSeverity.ERROR
 
-        # Default to ERROR
+    def _get_critical_severity(self) -> ErrorSeverity:
+        """Get severity for critical errors.
+        
+        Returns:
+            Appropriate error severity for critical errors
+        """
+        # Some critical codes should be ERROR severity for operational reasons
+        if self.code in {
+            WebSocketErrorCode.PROTOCOL_ERROR,
+            WebSocketErrorCode.HANDSHAKE_FAILED,
+        }:
+            return ErrorSeverity.ERROR
+        # Most critical errors should be CRITICAL severity
+        return ErrorSeverity.CRITICAL
+
+    def _get_connection_severity(self) -> ErrorSeverity:
+        """Get severity for connection errors.
+        
+        Returns:
+            Appropriate error severity for connection errors
+        """
+        if self.code == WebSocketErrorCode.CONNECTION_LOST:
+            return ErrorSeverity.WARNING  # Can recover easily
+        if self.code == WebSocketErrorCode.CONNECTION_TIMEOUT:
+            return ErrorSeverity.ERROR
+        return ErrorSeverity.ERROR
+
+    def _get_auth_severity(self) -> ErrorSeverity:
+        """Get severity for authentication errors.
+        
+        Returns:
+            Appropriate error severity for authentication errors
+        """
+        if self.code == WebSocketErrorCode.AUTH_EXPIRED:
+            return ErrorSeverity.WARNING  # Can reauth
+        return ErrorSeverity.ERROR
+
+    def _get_stream_severity(self) -> ErrorSeverity:
+        """Get severity for stream errors.
+        
+        Returns:
+            Appropriate error severity for stream errors
+        """
+        if self.code in {
+            WebSocketErrorCode.SEQUENCE_GAP,
+            WebSocketErrorCode.SEQUENCE_OUT_OF_ORDER,
+            WebSocketErrorCode.SEQUENCE_DUPLICATE,
+        }:
+            return ErrorSeverity.WARNING
         return ErrorSeverity.ERROR
 
     def _determine_recovery_strategy(self) -> WebSocketRecoveryStrategy:
@@ -166,6 +197,9 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
 
         Returns:
             Appropriate recovery strategy
+
+        Raises:
+            ValueError: If no recovery strategy is mapped for the error code.
         """
         # Check if the error code is retryable using the enum's method
         if not self.code.is_retryable():
@@ -188,9 +222,9 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
 
         # Connection errors: context-dependent logic
         if self.code.get_category() == "CONNECTION":
-            if self.context.reconnect_count > 5:
+            if self.context.reconnect_count > MAX_RECONNECT_ATTEMPTS_FOR_CIRCUIT_BREAKER:
                 return WebSocketRecoveryStrategy.CIRCUIT_BREAKER
-            if self.context.reconnect_count > 2:
+            if self.context.reconnect_count > MAX_RECONNECT_ATTEMPTS_FOR_DIFFERENT_ENDPOINT:
                 return WebSocketRecoveryStrategy.RECONNECT_DIFFERENT
             return WebSocketRecoveryStrategy.RECONNECT_SAME
 
@@ -198,25 +232,14 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
         if self.code in _STATIC_CODE_STRATEGIES:
             return _STATIC_CODE_STRATEGIES[self.code]
 
-        # Stream errors: fallback for unmapped codes
-        if self.code.get_category() == "STREAM":
-            return WebSocketRecoveryStrategy.IMMEDIATE_RETRY
-
-        # Subscription errors: fallback for unmapped codes
-        if self.code.get_category() == "SUBSCRIPTION":
-            return WebSocketRecoveryStrategy.RESUBSCRIBE_SINGLE
-
-        # Default strategy based on retryability
-        if self.code.is_retryable():
-            return WebSocketRecoveryStrategy.LINEAR_BACKOFF
-
-        return WebSocketRecoveryStrategy.NONE
+        # No fallback for unmapped codes - require explicit mapping
+        raise ValueError(self.code.name)
 
     def _capture_stack_trace(self) -> None:
         """Capture current stack trace for debugging."""
         try:
             self._stack_trace = "".join(traceback.format_stack())
-        except Exception:
+        except (RuntimeError, OSError, MemoryError):
             self._stack_trace = None
 
     # ========================================================================

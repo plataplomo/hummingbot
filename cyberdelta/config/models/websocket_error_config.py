@@ -92,7 +92,14 @@ class WebSocketErrorRecoveryConfig(BaseModel):
     @field_validator("sequence_gap_recovery_method")
     @classmethod
     def validate_recovery_method(cls, v: str) -> str:
-        """Validate sequence gap recovery method."""
+        """Validate sequence gap recovery method.
+        
+        Returns:
+            The validated recovery method string.
+            
+        Raises:
+            ValueError: If the recovery method is not valid.
+        """
         valid_methods = {"request_missing", "full_resync", "ignore"}
         if v not in valid_methods:
             msg = f"Invalid recovery method: {v}. Must be one of {valid_methods}"
@@ -144,6 +151,10 @@ class WebSocketErrorMetricsConfig(BaseModel):
     )
 
     track_message_latencies: bool = Field(default=True, description="Track message latency metrics")
+
+    latency_histogram_buckets: int = Field(
+        default=10, ge=1, le=100, description="Number of buckets for latency histogram metrics"
+    )
 
     # ========================================================================
     # Detailed Tracking
@@ -251,7 +262,14 @@ class WebSocketErrorLoggingConfig(BaseModel):
     @field_validator("min_severity_to_log")
     @classmethod
     def validate_severity(cls, v: str) -> str:
-        """Validate severity level."""
+        """Validate severity level.
+        
+        Returns:
+            The validated severity level string.
+            
+        Raises:
+            ValueError: If the severity level is not valid.
+        """
         valid_severities = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "FATAL"}
         if v.upper() not in valid_severities:
             msg = f"Invalid severity: {v}. Must be one of {valid_severities}"
@@ -261,24 +279,6 @@ class WebSocketErrorLoggingConfig(BaseModel):
 
 class WebSocketErrorRouterConfig(BaseModel):
     """Configuration for WebSocket router error handling."""
-
-    # ========================================================================
-    # Router Error Bridge Configuration
-    # ========================================================================
-    enable_error_bridge: bool = Field(
-        default=True, description="Enable router error bridge for typed error handling"
-    )
-
-    bridge_fallback_to_legacy: bool = Field(
-        default=True, description="Fallback to legacy error handling when bridge fails"
-    )
-
-    bridge_error_timeout_ms: int = Field(
-        default=1000,
-        ge=100,
-        le=10000,
-        description="Timeout for bridge error operations in milliseconds",
-    )
 
     # ========================================================================
     # Envelope Validation Configuration
@@ -411,11 +411,6 @@ class WebSocketErrorConfig(BaseModel):
     # Global Settings
     # ========================================================================
     enabled: bool = Field(default=True, description="Enable new error system")
-
-    use_legacy_adapter: bool = Field(
-        default=True,  # True during migration
-        description="Use legacy adapter for backward compatibility",
-    )
 
     validate_contexts: bool = Field(
         default=True, description="Validate error contexts before processing"

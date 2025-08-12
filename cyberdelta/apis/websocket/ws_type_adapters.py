@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 
 # Protocol for models that can be serialized
-from typing import Any, Protocol, TypeVar, cast
+from typing import Any, Protocol, TypeVar
 
 from pydantic import TypeAdapter
 
@@ -141,6 +141,9 @@ class WebSocketTypeAdapters:
 
         Returns:
             JSON string representation
+
+        Raises:
+            TypeError: If no serialization adapter is available for the model type.
         """
         # Use the appropriate adapter based on model type
         if isinstance(
@@ -154,8 +157,8 @@ class WebSocketTypeAdapters:
             return cls.envelope_adapter.dump_json(model).decode("utf-8")
         if isinstance(model, HyperliquidRawWsFillEvent):
             return cls.fill_event_adapter.dump_json(model).decode("utf-8")
-        # Fallback to model's built-in method
-        return cast("str", model.model_dump_json())
+        # No fallback - require explicit adapter support
+        raise TypeError(type(model).__name__)
 
 
 class StreamingValidationAdapter:

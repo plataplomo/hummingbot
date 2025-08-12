@@ -10,15 +10,12 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.common.api_error import APIError
-from cyberdelta.apis.common.api_error_codes import APIErrorCode
 from cyberdelta.apis.common.error_foundation import (
     ErrorChain,
     ErrorSeverity,
     ErrorTimestampMixin,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.ws_error_adapter import WebSocketErrorAdapter
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
 from cyberdelta.apis.websocket.ws_exceptions import (
@@ -709,117 +706,6 @@ class TestWebSocketExceptions:
 
 
 # ============================================================================
-# Test Compatibility Adapter (Step 8)
-# ============================================================================
-
-
-class TestWebSocketErrorAdapter:
-    """Test WebSocketErrorAdapter."""
-
-    @pytest.fixture
-    def sample_ws_error(self) -> WebSocketStreamError:
-        """Create sample WebSocket error."""
-        context = StreamErrorContext(
-            connection_id="test-adapter",
-            exchange="hyperliquid",
-            channel="trades",
-            sequence_number=100,
-            reconnect_count=2,
-        )
-        return WebSocketStreamError(
-            message="Test WebSocket error",
-            code=WebSocketErrorCode.CONNECTION_LOST,
-            context=context,
-        )
-
-    def test_to_api_error(self, sample_ws_error: WebSocketStreamError) -> None:
-        """Test converting WebSocket error to APIError."""
-        api_error = WebSocketErrorAdapter.to_api_error(sample_ws_error)
-
-        assert isinstance(api_error, APIError)
-        assert api_error.message == "Test WebSocket error"
-        assert (
-            api_error.code == APIErrorCode.NETWORK_ISSUE.value
-        )  # CONNECTION_LOST maps to NETWORK_ISSUE
-        assert api_error.exchange_code == WebSocketErrorCode.CONNECTION_LOST.value
-        assert api_error.retry_after is not None
-        assert api_error.metadata is not None
-        assert api_error.metadata["connection_id"] == "test-adapter"
-        assert api_error.metadata["exchange"] == "hyperliquid"
-        assert api_error.metadata["channel"] == "trades"
-
-    def test_code_mapping(self) -> None:
-        """Test WebSocket to API error code mapping."""
-        # Test some key mappings
-        assert (
-            WebSocketErrorAdapter.WS_TO_API_CODE_MAP[WebSocketErrorCode.CONNECTION_LOST]
-            == APIErrorCode.NETWORK_ISSUE
-        )
-        assert (
-            WebSocketErrorAdapter.WS_TO_API_CODE_MAP[WebSocketErrorCode.AUTH_FAILED]
-            == APIErrorCode.AUTHENTICATION_FAILED
-        )
-        assert (
-            WebSocketErrorAdapter.WS_TO_API_CODE_MAP[WebSocketErrorCode.RATE_LIMITED]
-            == APIErrorCode.RATE_LIMITED
-        )
-        assert (
-            WebSocketErrorAdapter.WS_TO_API_CODE_MAP[WebSocketErrorCode.IP_BANNED]
-            == APIErrorCode.IP_BAN_SUSPECTED
-        )
-
-    def test_legacy_monitoring_data(self, sample_ws_error: WebSocketStreamError) -> None:
-        """Test legacy monitoring data extraction."""
-        monitoring = WebSocketErrorAdapter.get_legacy_monitoring_data(sample_ws_error)
-
-        assert monitoring["error_type"] == "websocket"
-        assert monitoring["error_code"] == WebSocketErrorCode.CONNECTION_LOST.value
-        assert monitoring["error_name"] == "CONNECTION_LOST"
-        assert monitoring["connection_id"] == "test-adapter"
-        assert monitoring["exchange"] == "hyperliquid"
-        assert monitoring["reconnect_count"] == 2
-        assert "timestamp_ms" in monitoring
-        assert "error_age_seconds" in monitoring
-
-    def test_retryability_check(self, sample_ws_error: WebSocketStreamError) -> None:
-        """Test retryability checking."""
-        assert WebSocketErrorAdapter.is_retryable_ws_error(sample_ws_error) is True
-
-        # Non-retryable error
-        context = StreamErrorContext(
-            connection_id="test",
-            exchange="test",
-        )
-        non_retryable = WebSocketStreamError(
-            message="Security violation",
-            code=WebSocketErrorCode.SECURITY_VIOLATION,
-            context=context,
-        )
-        assert WebSocketErrorAdapter.is_retryable_ws_error(non_retryable) is False
-
-    def test_circuit_breaker_determination(self, sample_ws_error: WebSocketStreamError) -> None:
-        """Test circuit breaker determination."""
-        # Normal error - no circuit break
-        assert WebSocketErrorAdapter.should_circuit_break(sample_ws_error) is False
-
-        # Excessive reconnects - circuit break
-        sample_ws_error.context.reconnect_count = 15
-        assert WebSocketErrorAdapter.should_circuit_break(sample_ws_error) is True
-
-        # Critical error - circuit break
-        context = StreamErrorContext(
-            connection_id="test",
-            exchange="test",
-        )
-        critical_error = WebSocketStreamError(
-            message="Critical",
-            code=WebSocketErrorCode.STREAM_CORRUPTED,
-            context=context,
-        )
-        assert WebSocketErrorAdapter.should_circuit_break(critical_error) is True
-
-
-# ============================================================================
 # Test WebSocket Error Configuration (Step 9)
 # ============================================================================
 
@@ -885,7 +771,6 @@ class TestWebSocketErrorConfig:
         """Test complete WebSocket error configuration."""
         config = WebSocketErrorConfig()
         assert config.enabled is True
-        assert config.use_legacy_adapter is True
         assert config.validate_contexts is True
         assert config.async_error_handling is True
 
@@ -950,7 +835,7 @@ class TestFoundationIntegration:
         # Verify automatic determinations
         assert ws_error.severity == ErrorSeverity.WARNING
         assert ws_error.recovery_strategy == WebSocketRecoveryStrategy.IMMEDIATE_RETRY
-        assert ws_error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE is True
+        assert ws_error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE
         assert ws_error.is_critical is False
 
         # Convert to log data
@@ -958,16 +843,11 @@ class TestFoundationIntegration:
         assert log_data.connection_id == "integration-test"
         assert log_data.sequence_gap == 1
 
-        # Adapt to APIError
-        api_error = WebSocketErrorAdapter.to_api_error(ws_error)
-        assert api_error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE is True
-        assert api_error.metadata is not None
-        assert api_error.metadata["ws_error_code"] == "SEQUENCE_GAP"
-
-        # Get monitoring data
-        monitoring = WebSocketErrorAdapter.get_legacy_monitoring_data(ws_error)
-        assert monitoring["has_sequence_gap"] is True
-        assert monitoring["sequence_gap_size"] == 1
+        # Verify error properties without adapter
+        assert ws_error.recovery_strategy != WebSocketRecoveryStrategy.NONE
+        assert ws_error.code == WebSocketErrorCode.SEQUENCE_GAP
+        assert ws_error.context.has_sequence_gap() is True
+        assert ws_error.context.get_sequence_gap_size() == 1
 
     def test_error_with_configuration(self) -> None:
         """Test error handling with configuration."""

@@ -70,6 +70,7 @@ if TYPE_CHECKING:
         TransactionMapperProtocol,
     )
     from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 
 
 class UserAddressRequiredError(ValueError):
@@ -113,6 +114,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
     def __init__(
         self,
         error_handler: BaseErrorHandler,
+        stream_error_handler: WebSocketStreamErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
         order_book_mapper: OrderBookMapperProtocol,
         price_ticker_mapper: PriceTickerMapperProtocol,
@@ -126,6 +128,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         Args:
             error_handler: Error handler for centralized error management.
+            stream_error_handler: Stream error handler for new architecture.
             typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book and trade transformations.
             price_ticker_mapper: Mapper for price ticker transformations.
@@ -155,6 +158,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=error_handler,
             typed_processor=typed_processor,
+            stream_error_handler=stream_error_handler,
             envelope_validator=validate_hyperliquid_envelope,
         )
 
@@ -229,7 +233,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             transformer=MapperTransformer[HyperliquidRawWsBookUpdate, OrderBook](
                 mapper_method=self.order_book_mapper.transform_ws_book_update_to_internal,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_l2book",
         )
 
@@ -238,7 +242,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             transformer=BatchMapperTransformer[HyperliquidRawWsTradeEventsList, Fill](
                 mapper_method=self._transform_fills_list,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_fills",
         )
 
@@ -248,7 +252,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             transformer=MapperTransformer[HyperliquidRawWsPositionUpdateEvent, DerivativePosition](
                 mapper_method=self.position_mapper.transform_ws_position_update_to_internal_position,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_user_events",
         )
 
@@ -258,7 +262,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             transformer=MapperTransformer[HyperliquidRawWsOrderUpdate, Order](
                 mapper_method=self._transform_order_update,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_orders",
         )
 
@@ -268,7 +272,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             transformer=MapperTransformer[HyperliquidRawWsFillEvent, Fill](
                 mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_fill_events",
         )
 
@@ -279,7 +283,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             transformer=MapperTransformer[HyperliquidRawAllMidsWrapper, MidPrices](
                 mapper_method=self._transform_all_mids_wrapper,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_all_mids",
         )
 
@@ -289,7 +293,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             transformer=MapperTransformer[HyperliquidRawWsCandle, Candle](
                 mapper_method=self._transform_ws_candle,
             ),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_candles",
         )
 
@@ -299,7 +303,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         self.processors["subscriptionResponse"] = PydanticWebSocketProcessor(
             raw_model=HyperliquidSubscriptionResponse,
             transformer=ControlMessageTransformer[HyperliquidSubscriptionResponse](),
-            error_handler=self.error_handler,
+            stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_subscription_response",
         )
 

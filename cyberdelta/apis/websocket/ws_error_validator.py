@@ -10,6 +10,8 @@ import re
 from typing import TYPE_CHECKING
 
 from cyberdelta.apis.common.error_foundation import ErrorContextValidator
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketSequenceValidationError
+from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
@@ -33,6 +35,16 @@ class StreamErrorContextValidator(ErrorContextValidator):
 
     # Session ID pattern
     SESSION_ID_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-_]{15,127}$")
+
+    # Validation constants
+    MAX_TIMESTAMP_MS = 1_000_000_000  # Maximum reasonable timestamp (in milliseconds)
+    MAX_SEQUENCE_NUMBER = 10000  # Maximum sequence number in single session
+    MAX_MESSAGE_COUNT = 1000  # Maximum message count for validation
+    MAX_BACKOFF_MS = 10000  # Maximum backoff delay in milliseconds
+    MIN_BACKOFF_MS = 100  # Minimum backoff delay in milliseconds
+    MAX_FIELD_LENGTH = 256  # Maximum field length for validation
+    MAX_RAW_CONTENT_SIZE = 10_000_000  # Maximum raw content size in bytes
+    DEFAULT_SAMPLE_SIZE = 50  # Default sample size for content truncation
 
     # ========================================================================
     # Connection Validation
@@ -85,8 +97,6 @@ class StreamErrorContextValidator(ErrorContextValidator):
             raise ValueError(msg)
 
         # Check for known exchanges
-        from cyberdelta.enums import ExchangeName
-
         known_exchanges = {e.value for e in ExchangeName}
         # Add other known exchanges that might not be in our enum yet
         known_exchanges.update({"binance", "okx", "bybit"})
@@ -178,7 +188,7 @@ class StreamErrorContextValidator(ErrorContextValidator):
             raise ValueError(msg)
 
         # Warn about suspiciously large sequence numbers
-        if seq > 1_000_000_000:
+        if seq > cls.MAX_TIMESTAMP_MS:
             # Still valid but might indicate an issue
             pass
 
@@ -199,35 +209,40 @@ class StreamErrorContextValidator(ErrorContextValidator):
             last_received: Last received sequence number
 
         Raises:
-            ValueError: If sequence numbers are inconsistent
+            WebSocketSequenceValidationError: If sequence numbers are inconsistent
+            ValueError: If excessive sequence gaps or regressions are detected
         """
         # Expected sequence requires a sequence number
         if expected is not None and sequence is None:
-            raise ValueError("Expected sequence requires sequence number")
+            raise WebSocketSequenceValidationError("expected_requires_sequence")
 
         # Sequence must be less than expected if both are set
-        if sequence is not None and expected is not None:
-            if sequence >= expected:
-                raise ValueError("Expected sequence must be greater than current sequence")
+        if sequence is not None and expected is not None and sequence >= expected:
+            raise WebSocketSequenceValidationError(
+                "expected_greater_than_current", sequence, expected
+            )
 
         if sequence is not None and expected is not None:
             # Check for sequence gaps
             gap = abs(sequence - expected)
-            if gap > 10000:
+            if gap > cls.MAX_SEQUENCE_NUMBER:
                 msg = (
                     f"Excessive sequence gap detected: {gap} "
                     f"(current={sequence}, expected={expected})"
                 )
                 raise ValueError(msg)
 
-        if sequence is not None and last_received is not None:
-            # Current should be after last received (allowing for resets)
-            if sequence < last_received and (last_received - sequence) < 1000:
-                msg = (
-                    f"Sequence regression detected: current={sequence}, "
-                    f"last_received={last_received}"
-                )
-                raise ValueError(msg)
+        if (
+            sequence is not None
+            and last_received is not None
+            and sequence < last_received
+            and (last_received - sequence) < cls.MAX_MESSAGE_COUNT
+        ):
+            msg = (
+                f"Sequence regression detected: current={sequence}, "
+                f"last_received={last_received}"
+            )
+            raise ValueError(msg)
 
     # ========================================================================
     # Timestamp Validation
@@ -254,13 +269,13 @@ class StreamErrorContextValidator(ErrorContextValidator):
             raise ValueError(msg)
 
         # Check for reasonable range (between year 2000 and 2100)
-        MIN_TIMESTAMP = 946_684_800_000  # 2000-01-01
-        MAX_TIMESTAMP = 4_102_444_800_000  # 2100-01-01
+        min_timestamp = 946_684_800_000  # 2000-01-01
+        max_timestamp = 4_102_444_800_000  # 2100-01-01
 
-        if not MIN_TIMESTAMP <= timestamp_ms <= MAX_TIMESTAMP:
+        if not min_timestamp <= timestamp_ms <= max_timestamp:
             msg = (
                 f"Timestamp {timestamp_ms} outside reasonable range "
-                f"[{MIN_TIMESTAMP}, {MAX_TIMESTAMP}]"
+                f"[{min_timestamp}, {max_timestamp}]"
             )
             raise ValueError(msg)
 
@@ -285,20 +300,17 @@ class StreamErrorContextValidator(ErrorContextValidator):
         Raises:
             ValueError: If timestamps are inconsistent
         """
-        if connection_started is not None:
-            if connection_started > error_timestamp:
-                msg = f"Connection start ({connection_started}) after error ({error_timestamp})"
-                raise ValueError(msg)
+        if connection_started is not None and connection_started > error_timestamp:
+            msg = f"Connection start ({connection_started}) after error ({error_timestamp})"
+            raise ValueError(msg)
 
-        if last_message is not None:
-            if last_message > error_timestamp:
-                msg = f"Last message ({last_message}) after error ({error_timestamp})"
-                raise ValueError(msg)
+        if last_message is not None and last_message > error_timestamp:
+            msg = f"Last message ({last_message}) after error ({error_timestamp})"
+            raise ValueError(msg)
 
-        if last_heartbeat is not None:
-            if last_heartbeat > error_timestamp:
-                msg = f"Last heartbeat ({last_heartbeat}) after error ({error_timestamp})"
-                raise ValueError(msg)
+        if last_heartbeat is not None and last_heartbeat > error_timestamp:
+            msg = f"Last heartbeat ({last_heartbeat}) after error ({error_timestamp})"
+            raise ValueError(msg)
 
     # ========================================================================
     # State Validation
@@ -334,15 +346,15 @@ class StreamErrorContextValidator(ErrorContextValidator):
             raise ValueError(msg)
 
         # Warn about suspicious values
-        if active_subscriptions > 1000:
+        if active_subscriptions > cls.MAX_MESSAGE_COUNT:
             # Might be valid but worth checking
             pass
 
-        if pending_messages > 10000:
+        if pending_messages > cls.MAX_SEQUENCE_NUMBER:
             # Potential memory issue
             pass
 
-        if reconnect_count > 100:
+        if reconnect_count > cls.MIN_BACKOFF_MS:
             # Excessive reconnection attempts
             pass
 
@@ -400,8 +412,8 @@ class StreamErrorContextValidator(ErrorContextValidator):
             return None
 
         # Basic validation - non-empty and reasonable length
-        if len(user_id) > 256:
-            msg = f"User ID too long (max 256): {len(user_id)} characters"
+        if len(user_id) > cls.MAX_FIELD_LENGTH:
+            msg = f"User ID too long (max {cls.MAX_FIELD_LENGTH}): {len(user_id)} characters"
             raise ValueError(msg)
 
         return user_id
@@ -468,7 +480,7 @@ class StreamErrorContextValidator(ErrorContextValidator):
             if context.raw_message_size < 0:
                 msg = f"Message size cannot be negative: {context.raw_message_size}"
                 raise ValueError(msg)
-            if context.raw_message_size > 10_000_000:  # 10MB
+            if context.raw_message_size > cls.MAX_RAW_CONTENT_SIZE:  # 10MB
                 msg = f"Message size suspiciously large: {context.raw_message_size}"
                 # Just a warning, still valid
 
