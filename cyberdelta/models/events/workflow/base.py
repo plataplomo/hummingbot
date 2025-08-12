@@ -5,6 +5,8 @@ from datetime import UTC, datetime
 
 import msgspec
 
+from cyberdelta.enums import WorkflowStatus
+
 
 class BaseWorkflowEvent(msgspec.Struct, kw_only=True):
     """Custom workflow event base using msgspec for performance.
@@ -29,7 +31,7 @@ class BaseWorkflowEvent(msgspec.Struct, kw_only=True):
     created_at: datetime = msgspec.field(default_factory=lambda: datetime.now(UTC))
     parent_id: str | None = None
     context: dict[str, str] = {}
-    status: str = "pending"  # pending, running, completed, failed, cancelled
+    status: WorkflowStatus = WorkflowStatus.PENDING
     started_at: datetime | None = None
     completed_at: datetime | None = None
     error: str | None = None

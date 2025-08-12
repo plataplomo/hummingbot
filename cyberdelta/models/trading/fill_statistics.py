@@ -12,6 +12,7 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 
 # Import Fill at top to avoid E402
+from cyberdelta.core.enums import OrderStatus
 from cyberdelta.models.market.fill import Fill
 
 
@@ -22,7 +23,7 @@ class OrderUpdateData(BaseModel):
     ensuring type safety for order status processing.
     """
 
-    status: str | None = Field(default=None, description="New order status")
+    status: OrderStatus | None = Field(default=None, description="New order status")
 
     update_type: str | None = Field(default=None, description="Type of update")
 

@@ -17,6 +17,7 @@ from cyberdelta.models.monitoring.system_health_models import (
     CircuitBreakerConfiguration,
     CircuitBreakerStatistics,
     CircuitBreakerSystemHealth,
+    HealthStatus,
 )
 
 
@@ -118,7 +119,7 @@ class CircuitBreakerHealthMonitor:
             ),
         )
 
-    def _determine_system_status(self, open_breakers: int, health_ratio: float) -> str:
+    def _determine_system_status(self, open_breakers: int, health_ratio: float) -> HealthStatus:
         """Determine system status based on health metrics.
 
         Args:
@@ -133,12 +134,12 @@ class CircuitBreakerHealthMonitor:
         - Clear status definitions
         """
         if open_breakers == 0:
-            return "healthy"
+            return HealthStatus.HEALTHY
         if health_ratio >= HEALTH_RATIO_DEGRADED_THRESHOLD:
-            return "degraded"
+            return HealthStatus.DEGRADED
         if health_ratio >= HEALTH_RATIO_IMPAIRED_THRESHOLD:
-            return "impaired"
-        return "critical"
+            return HealthStatus.UNHEALTHY  # Map impaired to unhealthy
+        return HealthStatus.CRITICAL  # Map critical to critical
 
     def aggregate_breaker_stats(
         self, breakers: dict[str, CircuitBreaker]

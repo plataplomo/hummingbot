@@ -1,19 +1,29 @@
-"""Main trading engine orchestrator with comprehensive config integration.
+"""Main trading engine orchestrator with modular component architecture.
 
 This module provides the TradingEngine class that coordinates all services
 and manages the complete trading flow using validated AppSettings configuration.
+The engine has been decomposed into specialized components following DDD principles.
 """
 
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
-from decimal import Decimal
-from pathlib import Path
 from typing import Any
 
-import msgspec
-
+from cyberdelta.application.trading_engine_components import (
+    AlertManager,
+    BreakerManager,
+    EventProcessor,
+    EventRouter,
+    EventValidator,
+    HealthManager,
+    LoopManager,
+    MetricsManager,
+    ShutdownManager,
+    SnapshotManager,
+    StartupManager,
+    StatusReporter,
+)
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.market.market_service import MarketDataService
@@ -27,21 +37,8 @@ from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.domain.trading.trading_service import TradingService
-from cyberdelta.enums import MakerTaker, OrderSide
-from cyberdelta.enums.monitoring import AlertLevel, RiskSeverity
-from cyberdelta.enums.signals import SignalType
-from cyberdelta.enums.trading import OrderEventType, PositionEventType, TradingAction
 from cyberdelta.infrastructure.event_bus import EventBus
-from cyberdelta.models import Fill, TradeSignal
-from cyberdelta.models.events import (
-    MarketData,
-    OrderEvent,
-    PositionEvent,
-    RiskEvent,
-    SignalEvent,
-)
 from cyberdelta.models.monitoring.system_health_models import CircuitBreakerSystemHealth
-from cyberdelta.symbols.global_service import get_symbol_service
 
 
 logger = get_logger(__name__)
@@ -129,6 +126,74 @@ class TradingEngine:
         # Strategy execution settings
         self._strategy_execution_enabled = len(config.strategies.enabled_strategies) > 0
 
+        # Initialize component managers with proper dependency injection
+        self._startup_manager = StartupManager(
+            config,
+            event_bus,
+            self._circuit_breakers,
+            self._health_monitor,
+            self._alert_service,
+            self._metrics_collector,
+            self._portfolio,
+            self._market_data,
+            self._strategy,
+            self._trading,
+            self._execution,
+        )
+        self._shutdown_manager = ShutdownManager(
+            config,
+            self._circuit_breakers,
+            self._portfolio,
+            self._strategy,
+            self._market_data,
+            self._execution,
+            self._health_monitor,
+            self._alert_service,
+            self._metrics_collector,
+        )
+        self._event_validator = EventValidator()
+        self._event_processor = EventProcessor(
+            self._event_validator,
+            self._circuit_breakers,
+            self._trading,
+            self._portfolio,
+            self._risk,
+            self._alert_service,
+            self._strategy,
+            config,
+        )
+        self._event_router = EventRouter(self._event_processor)
+        self._health_manager = HealthManager(config, self._health_monitor, self._alert_service)
+        self._loop_manager = LoopManager(
+            config,
+            self._circuit_breakers,
+            self._strategy,
+            self._portfolio,
+            self._health_monitor,
+        )
+        self._alert_manager = AlertManager(self._alert_service)
+        self._metrics_manager = MetricsManager(
+            config,
+            self._metrics_collector,
+            is_running=self._running,
+            safe_mode=self._safe_mode,
+            active_tasks_count=len(self._tasks),
+            circuit_breakers_enabled=self._circuit_breakers_enabled,
+            monitoring_enabled=self._monitoring_enabled,
+            strategy_execution_enabled=self._strategy_execution_enabled,
+            reconciliation_interval=float(self._reconciliation_interval),
+        )
+        self._snapshot_manager = SnapshotManager(config, self._circuit_breakers, self._portfolio)
+        self._breaker_manager = BreakerManager(self._circuit_breakers)
+        self._status_reporter = StatusReporter(
+            config,
+            self._circuit_breakers,
+            self._health_monitor,
+            self._alert_service,
+            self._metrics_collector,
+            self._snapshot_manager,
+        )
+
         logger.info(
             "trading_engine_initialized",
             safe_mode=self._safe_mode,
@@ -139,743 +204,139 @@ class TradingEngine:
             enabled_strategies=config.strategies.enabled_strategies,
         )
 
+    # Public API for components to access engine state
+    @property
+    def is_running(self) -> bool:
+        """Check if the trading engine is running."""
+        return self._running
+
+    @property
+    def safe_mode(self) -> bool:
+        """Check if safe mode is enabled."""
+        return self._safe_mode
+
+    @property
+    def strategy_execution_enabled(self) -> bool:
+        """Check if strategy execution is enabled."""
+        return self._strategy_execution_enabled
+
+    @property
+    def monitoring_enabled(self) -> bool:
+        """Check if monitoring is enabled."""
+        return self._monitoring_enabled
+
+    @property
+    def circuit_breakers_enabled(self) -> bool:
+        """Check if circuit breakers are enabled."""
+        return self._circuit_breakers_enabled
+
+    @property
+    def reconciliation_interval(self) -> float:
+        """Get reconciliation interval in seconds."""
+        return float(self._reconciliation_interval)
+
+    @property
+    def active_tasks_count(self) -> int:
+        """Get count of active background tasks."""
+        return len(self._tasks)
+
+    # Public API for component access to services
+    @property
+    def circuit_breakers(self) -> CircuitBreakerManager:
+        """Get circuit breaker manager."""
+        return self._circuit_breakers
+
+    @property
+    def strategy_service(self) -> StrategyService:
+        """Get strategy service."""
+        return self._strategy
+
+    @property
+    def market_data_service(self) -> MarketDataService:
+        """Get market data service."""
+        return self._market_data
+
+    @property
+    def portfolio_service(self) -> PortfolioService:
+        """Get portfolio service."""
+        return self._portfolio
+
+    @property
+    def trading_service(self) -> TradingService:
+        """Get trading service."""
+        return self._trading
+
+    @property
+    def risk_service(self) -> RiskService:
+        """Get risk service."""
+        return self._risk
+
+    @property
+    def health_monitor(self) -> ServiceHealthMonitor:
+        """Get health monitor."""
+        return self._health_monitor
+
+    @property
+    def alert_service(self) -> AlertService:
+        """Get alert service."""
+        return self._alert_service
+
+    @property
+    def metrics_collector(self) -> MetricsCollector:
+        """Get metrics collector."""
+        return self._metrics_collector
+
+    @property
+    def snapshot_manager(self) -> SnapshotManager:
+        """Get snapshot manager."""
+        return self._snapshot_manager
+
+    def _set_running_state(self, running: bool) -> None:
+        """Set the running state of the trading engine."""
+        self._running = running
+
+    def _add_task(self, task: asyncio.Task[Any]) -> None:
+        """Add a task to the task list."""
+        self._tasks.append(task)
+
+    async def _cleanup_on_startup_failure(self) -> None:
+        """Cleanup services on startup failure."""
+        await self._shutdown_manager.cleanup_services(
+            self._strategy_execution_enabled, self._monitoring_enabled
+        )
+
     async def start(self) -> None:
-        """Start the trading engine and all services.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Initialization sequence follows dependencies
-        - All timeouts and intervals from config
-        - Fail fast if any service fails to start
-        """
-        if self._running:
-            logger.warning("trading_engine_already_running")
-            return
-
-        logger.info("trading_engine_starting")
-
-        try:
-            # Step 1: Initialize storage and portfolio service
-            logger.info("initializing_portfolio_service")
-            await self._circuit_breakers.protect(
-                "portfolio_service", "initialize", self._portfolio.initialize
-            )
-
-            # Step 2: Start market data service
-            logger.info("starting_market_data_service")
-            await self._circuit_breakers.protect(
-                "market_data_service", "start", self._market_data.start
-            )
-
-            # Step 3: Set up event subscriptions
-            logger.info("setting_up_event_handlers")
-            await self._setup_event_handlers()
-
-            # Step 4: Start strategy service if enabled
-            if self._strategy_execution_enabled:
-                logger.info("starting_strategy_service")
-                await self._circuit_breakers.protect(
-                    "strategy_service", "start", self._strategy.start
-                )
-
-                # Start strategy execution loop
-                self._tasks.append(asyncio.create_task(self._strategy_execution_loop()))
-            else:
-                logger.warning("strategy_execution_disabled", reason="no_enabled_strategies")
-
-            # Step 5: Start reconciliation loop if enabled
-            if self._reconciliation_interval > 0:
-                logger.info("starting_reconciliation_loop")
-                self._tasks.append(asyncio.create_task(self._reconciliation_loop()))
-
-            # Step 5.5: Start snapshot loop if enabled
-            snapshot_interval = float(self.config.general.state_save_interval)
-            if snapshot_interval > 0:
-                logger.info("starting_snapshot_loop")
-                self._tasks.append(asyncio.create_task(self._snapshot_loop()))
-
-            # Step 6: Start monitoring systems if enabled
-            if self._monitoring_enabled:
-                logger.info("starting_monitoring_systems")
-
-                # Start alert service
-                await self._alert_service.start()
-
-                # Setup and start health monitoring
-                await self._setup_health_monitoring()
-                await self._health_monitor.start()
-
-                # Start metrics collection
-                await self._metrics_collector.start()
-
-                # Register services as metrics providers
-                await self._setup_metrics_providers()
-
-                # Start monitoring loop
-                self._tasks.append(asyncio.create_task(self._monitoring_loop()))
-
-            self._running = True
-
-            logger.info(
-                "trading_engine_started", active_tasks=len(self._tasks), safe_mode=self._safe_mode
-            )
-
-        except Exception as e:
-            logger.exception("trading_engine_start_failed", error=str(e))
-            # Cleanup any started services
-            await self._cleanup_services()
-            raise
+        """Start the trading engine and all services."""
+        await self._startup_manager.start(
+            self._running,
+            self._strategy_execution_enabled,
+            self._monitoring_enabled,
+            self._safe_mode,
+            float(self._reconciliation_interval),
+            self._tasks,
+            self._loop_manager,
+            self._event_router,
+            self._set_running_state,
+            self._add_task,
+            self._cleanup_on_startup_failure,
+            self,
+        )
 
     async def stop(self) -> None:
-        """Stop the trading engine and all services.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Graceful shutdown with proper task cancellation
-        - Service cleanup in reverse order
-        - NO assumptions about task state
-        """
-        if not self._running:
-            logger.warning("trading_engine_not_running")
-            return
-
-        logger.info("trading_engine_stopping")
-
-        self._running = False
-
-        try:
-            # Step 1: Cancel active orders if configured
-            await self._cancel_orders_on_shutdown()
-
-            # Step 2: Save final portfolio state
-            await self._save_final_state()
-
-            # Step 3: Cancel all background tasks
-            logger.info("cancelling_background_tasks", task_count=len(self._tasks))
-            for task in self._tasks:
-                if not task.done():
-                    task.cancel()
-
-            # Wait for tasks to complete with timeout
-            if self._tasks:
-                try:
-                    await asyncio.wait_for(
-                        asyncio.gather(*self._tasks, return_exceptions=True),
-                        timeout=float(self.config.general.shutdown_grace_period),
-                    )
-                except TimeoutError:
-                    logger.warning(
-                        "shutdown_timeout",
-                        grace_period=float(self.config.general.shutdown_grace_period),
-                    )
-
-            # Step 4: Stop services in reverse order
-            await self._cleanup_services()
-
-            logger.info("trading_engine_stopped")
-
-        except Exception as e:
-            logger.exception("trading_engine_stop_error", error=str(e))
-            raise
-
-    async def _cancel_orders_on_shutdown(self) -> None:
-        """Cancel active orders on shutdown if configured.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Order cancellation based on config setting
-        - NO assumptions about order state
-        - Proper error handling per exchange
-        """
-        # Check if order cancellation is enabled in config
-        cancel_on_shutdown = self.config.execution.cancel_on_shutdown
-
-        if not cancel_on_shutdown:
-            logger.info("order_cancellation_disabled_on_shutdown")
-            return
-
-        logger.info("cancelling_active_orders_on_shutdown")
-
-        try:
-            # Cancel orders through execution engine
-            # ExecutionEngine doesn't have cancel_all_orders, would need to track orders
-            # For now, log that we would cancel orders
-            logger.info("order_cancellation_requested_on_shutdown")
-
-            logger.info("active_orders_cancelled_successfully")
-
-        except Exception as e:
-            logger.exception("order_cancellation_failed_on_shutdown", error=str(e))
-            # Don't raise - order cancellation failure shouldn't prevent shutdown
-
-    async def _save_final_state(self) -> None:
-        """Save final portfolio state before shutdown.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Forced state save regardless of intervals
-        - Creates final snapshot for audit trail
-        - Handles save failures gracefully
-        """
-        logger.info("saving_final_state_on_shutdown")
-
-        try:
-            # Force save current portfolio state
-            await self._circuit_breakers.protect(
-                "portfolio_service", "save_state", self._portfolio.save_state
-            )
-
-            # Create final snapshot with special naming
-            final_snapshot_name = f"shutdown_snapshot_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
-
-            await self._circuit_breakers.protect(
-                "portfolio_service",
-                "create_snapshot",
-                self._portfolio.create_snapshot,
-            )
-
-            logger.info("final_state_saved_successfully", snapshot_name=final_snapshot_name)
-
-        except Exception as e:
-            logger.exception("final_state_save_failed", error=str(e))
-            # Don't raise - state save failure shouldn't prevent shutdown
-
-    async def _setup_event_handlers(self) -> None:
-        """Set up event subscriptions for service coordination.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Explicit event handler registration
-        - NO assumptions about event structure
-        - Proper error handling in handlers
-        """
-        # Subscribe to strategy signal events
-        self._event_bus.subscribe(SignalEvent, self._handle_strategy_signal_event)
-
-        # Subscribe to order execution events
-        self._event_bus.subscribe(OrderEvent, self._handle_order_filled_event)
-
-        # Subscribe to market data events
-        self._event_bus.subscribe(MarketData, self._handle_market_data_event)
-
-        # Subscribe to position events
-        self._event_bus.subscribe(PositionEvent, self._handle_position_updated_event)
-
-        # Subscribe to risk events
-        self._event_bus.subscribe(RiskEvent, self._handle_risk_limit_event)
-
-        logger.info("event_handlers_configured", handler_count=5)
-
-    async def _setup_health_monitoring(self) -> None:
-        """Set up health monitoring for all services.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Register only services that implement HealthCheckable
-        - Use explicit service names from config
-        - No auto-discovery of services
-        """
-        # Register services that support health checking
-        # Note: Services need to implement HealthCheckable protocol
-
-        # For now, we'll register the services by name
-        # In a full implementation, these services would implement HealthCheckable
-        logger.info(
-            "health_monitoring_setup_initiated",
-            monitoring_enabled=self._monitoring_enabled,
-            health_check_interval=float(self.config.monitoring.health_check_interval_seconds),
+        """Stop the trading engine and all services."""
+        await self._shutdown_manager.stop(
+            self._running,
+            self._tasks,
+            self._strategy_execution_enabled,
+            self._monitoring_enabled,
+            self._set_running_state,
         )
-
-        # Register services that implement HealthCheckable protocol
-        self._health_monitor.register_service("trading_service", self._trading)
-        self._health_monitor.register_service("execution_engine", self._execution)
-        self._health_monitor.register_service("portfolio_service", self._portfolio)
-
-        # Remaining services need to implement HealthCheckable protocol before registration
-
-        logger.info(
-            "health_monitoring_setup_completed",
-            registered_services=len(self._health_monitor.get_registered_services()),
-        )
-
-    async def _setup_metrics_providers(self) -> None:
-        """Set up metrics providers for all services.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Register only services that implement get_metrics()
-        - No auto-discovery of providers
-        - Explicit provider registration
-        """
-        logger.info("metrics_providers_setup_initiated")
-
-        # Register services that support metrics collection
-        # Services need to implement get_metrics() method
-        providers_registered = 0
-
-        # Register trading engine itself as a metrics provider
-        self._metrics_collector.register_provider(self)
-        providers_registered += 1
-
-        # NOTE: Other services (health_monitor, alert_service, circuit_breakers)
-        # need to implement the MetricsProvider protocol (async get_metrics method)
-        # before they can be registered as providers
-
-        logger.info("metrics_providers_setup_completed", providers_registered=providers_registered)
-
-    async def get_metrics(self) -> dict[str, Any]:
-        """Get trading engine metrics for collection.
-
-        Returns:
-            Dictionary with trading engine metrics
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns explicit metrics
-        - All values from current state, no assumptions
-        """
-        return {
-            "running": 1 if self._running else 0,
-            "safe_mode": 1 if self._safe_mode else 0,
-            "active_tasks": len(self._tasks),
-            "circuit_breakers_enabled": 1 if self._circuit_breakers_enabled else 0,
-            "monitoring_enabled": 1 if self._monitoring_enabled else 0,
-            "strategy_execution_enabled": 1 if self._strategy_execution_enabled else 0,
-            "reconciliation_interval_sec": float(self._reconciliation_interval),
-            "enabled_strategies_count": len(self.config.strategies.enabled_strategies),
-        }
-
-    async def _handle_trading_signal(self, signal: TradeSignal) -> None:
-        """Handle trading signal from strategy service.
-
-        Args:
-            signal: Trading signal to process
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses typed TradeSignal input
-        - All processing through configured services
-        - NO business logic in handler
-        """
-        try:
-            logger.info(
-                "trading_signal_received",
-                signal_id=signal.signal_id,
-                symbol=signal.symbol.value,
-                exchange=str(signal.exchange),
-                side=signal.side.value,
-                price=signal.price,
-            )
-
-            # Route signal to trading service for execution with circuit breaker protection
-            trade = await self._circuit_breakers.protect(
-                "trading_service", "execute_signal", self._trading.execute_signal, signal
-            )
-
-            if trade:
-                logger.info(
-                    "signal_execution_successful", signal_id=signal.signal_id, trade_id=str(trade)
-                )
-            else:
-                logger.warning(
-                    "signal_execution_failed",
-                    signal_id=signal.signal_id,
-                    reason="trading_service_returned_none",
-                )
-
-        except Exception as e:
-            logger.exception("signal_handling_error", signal_id=signal.signal_id, error=str(e))
-
-            # Log error for monitoring instead of publishing event
-            logger.exception(
-                "signal_processing_error",
-                signal_id=signal.signal_id,
-                error=str(e),
-                error_type=type(e).__name__,
-            )
-
-    async def _handle_trade_executed(self, trade: Fill) -> None:
-        """Handle trade execution completion.
-
-        Args:
-            trade: Executed trade
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Updates portfolio state
-        - Notifies strategy service
-        - NO assumptions about trade validity
-        """
-        try:
-            logger.info(
-                "trade_executed_received",
-                trade_id=trade.id,
-                symbol=trade.symbol.value,
-                exchange=trade.exchange,
-                side=trade.side.value,
-                quantity=trade.quantity,
-                price=trade.price,
-            )
-
-            # Notify strategy service about trade completion with circuit breaker protection
-            await self._circuit_breakers.protect(
-                "strategy_service", "handle_fill", self._strategy.handle_fill, trade
-            )
-
-        except Exception as e:
-            logger.exception("trade_handling_error", trade_id=trade.id, error=str(e))
-
-    async def _handle_market_data_update(self, update: dict[str, Any]) -> None:
-        """Handle market data updates.
-
-        Args:
-            update: Market data update event
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - NO assumptions about update structure
-        - Logs market data events for monitoring
-        """
-        logger.debug(
-            "market_data_update_received",
-            update_type=update.get("type", "unknown"),
-            exchange=update.get("exchange"),
-            symbol=update.get("symbol"),
-        )
-
-        # Market data updates are primarily for monitoring
-        # Strategies get data through MarketDataService
-
-    async def _handle_portfolio_updated(self, update: dict[str, Any]) -> None:
-        """Handle portfolio state updates.
-
-        Args:
-            update: Portfolio update event
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Logs portfolio changes for audit trail
-        - NO assumptions about update structure
-        """
-        logger.info(
-            "portfolio_updated",
-            update_type=update.get("type", "unknown"),
-            exchange=update.get("exchange"),
-            symbol=update.get("symbol"),
-            previous_value=update.get("previous_value"),
-            new_value=update.get("new_value"),
-        )
-
-    async def _handle_risk_violation(self, violation: dict[str, Any]) -> None:
-        """Handle risk limit violations.
-
-        Args:
-            violation: Risk violation event
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Takes immediate action on violations
-        - Uses configured response actions
-        """
-        logger.error(
-            "risk_violation_detected",
-            violation_type=violation.get("type"),
-            signal_id=violation.get("signal_id"),
-            violation_details=violation.get("details"),
-            current_exposure=violation.get("current_exposure"),
-        )
-
-        # Risk violations should trigger immediate responses and alerts
-        # based on configured safety settings
-        if self.config.safety_systems.circuit_breakers.enabled:
-            violation_type = violation.get("type")
-            if violation_type in {"max_exposure", "max_drawdown"}:
-                logger.warning("triggering_emergency_stop", violation_type=violation_type)
-
-                # Create critical risk violation alert
-                await self._alert_service.create_alert(
-                    title=f"CRITICAL Risk Violation: {violation_type}",
-                    description=(
-                        f"Risk violation detected: "
-                        f"{violation.get('details', 'No details available')}. "
-                        f"Current exposure: {violation.get('current_exposure', 'Unknown')}"
-                    ),
-                    level=AlertLevel.CRITICAL,
-                    source="risk_service",
-                    metadata={
-                        "violation_type": violation_type,
-                        "signal_id": violation.get("signal_id"),
-                        "current_exposure": violation.get("current_exposure"),
-                        "violation_details": violation.get("details"),
-                        "emergency_stop_triggered": True,
-                    },
-                )
-
-                # In production, this would trigger emergency stop
-                # For now, just log the action
-
-    async def _strategy_execution_loop(self) -> None:
-        """Main strategy execution loop.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured execution interval
-        - Handles errors without stopping loop
-        - NO hardcoded timing
-        """
-        logger.info("strategy_execution_loop_started")
-
-        while self._running:
-            try:
-                # Strategy service handles its own execution loop
-                # This is a monitoring loop that ensures strategy service stays running
-                if not self._strategy.is_running():
-                    logger.warning("strategy_service_stopped_unexpectedly")
-                    await self._circuit_breakers.protect(
-                        "strategy_service", "start", self._strategy.start
-                    )
-
-                # Wait before next check - using general monitoring interval
-                await asyncio.sleep(float(self.config.monitoring.health_check_interval_seconds))
-
-            except asyncio.CancelledError:
-                logger.info("strategy_execution_loop_cancelled")
-                break
-            except Exception as e:
-                logger.exception("strategy_execution_loop_error", error=str(e))
-
-                # Use exponential backoff from config
-                backoff_delay = float(self.config.execution.retry_delay_base_sec) * float(
-                    self.config.execution.retry_backoff_multiplier
-                )
-                await asyncio.sleep(backoff_delay)
-
-        logger.info("strategy_execution_loop_ended")
-
-    async def _reconciliation_loop(self) -> None:
-        """Periodic reconciliation with exchanges.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured reconciliation interval
-        - Handles errors without stopping loop
-        - NO hardcoded timing
-        """
-        logger.info(
-            "reconciliation_loop_started", interval_seconds=float(self._reconciliation_interval)
-        )
-
-        while self._running:
-            try:
-                # Trigger portfolio reconciliation with exchanges with circuit breaker protection
-                await self._circuit_breakers.protect(
-                    "portfolio_service",
-                    "reconcile_with_exchanges",
-                    self._portfolio.reconcile_with_exchanges,
-                )
-
-                logger.debug("reconciliation_completed")
-
-                # Wait for next reconciliation cycle
-                await asyncio.sleep(float(self._reconciliation_interval))
-
-            except asyncio.CancelledError:
-                logger.info("reconciliation_loop_cancelled")
-                break
-            except Exception as e:
-                logger.exception("reconciliation_error", error=str(e))
-
-                # Use exponential backoff from config for errors
-                retry_delay = float(self.config.execution.retry_delay_base_sec * 2)
-                await asyncio.sleep(retry_delay)
-
-        logger.info("reconciliation_loop_ended")
-
-    async def _snapshot_loop(self) -> None:
-        """Periodic portfolio state snapshot creation.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured snapshot interval
-        - Handles errors without stopping loop
-        - NO hardcoded timing
-        """
-        snapshot_interval = float(self.config.general.state_save_interval)
-
-        logger.info("snapshot_loop_started", interval_seconds=snapshot_interval)
-
-        while self._running:
-            try:
-                # Create portfolio snapshot with circuit breaker protection
-                await self._circuit_breakers.protect(
-                    "portfolio_service", "create_snapshot", self._portfolio.create_snapshot
-                )
-
-                logger.debug("periodic_snapshot_completed")
-
-                # Wait for next snapshot cycle
-                await asyncio.sleep(snapshot_interval)
-
-            except asyncio.CancelledError:
-                logger.info("snapshot_loop_cancelled")
-                break
-            except Exception as e:
-                logger.exception("snapshot_error", error=str(e))
-
-                # Use exponential backoff from config for errors
-                retry_delay = float(self.config.execution.retry_delay_base_sec * 2)
-                await asyncio.sleep(retry_delay)
-
-        logger.info("snapshot_loop_ended")
-
-    async def _monitoring_loop(self) -> None:
-        """Health monitoring and alerting loop.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured monitoring intervals
-        - Checks health against configured thresholds
-        - NO hardcoded monitoring parameters
-        """
-        logger.info("monitoring_loop_started")
-
-        health_check_interval = float(self.config.monitoring.health_check_interval_seconds)
-
-        while self._running:
-            try:
-                # Check health of all services
-                await self._perform_health_checks()
-
-                # Wait for next monitoring cycle
-                await asyncio.sleep(health_check_interval)
-
-            except asyncio.CancelledError:
-                logger.info("monitoring_loop_cancelled")
-                break
-            except Exception as e:
-                logger.exception("monitoring_loop_error", error=str(e))
-
-                # Brief delay before retrying monitoring
-                await asyncio.sleep(float(self.config.execution.retry_delay_base_sec))
-
-        logger.info("monitoring_loop_ended")
-
-    async def _perform_health_checks(self) -> None:
-        """Perform health checks on all services using health monitor.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses configured health check thresholds via health monitor
-        - NO assumptions about service availability
-        - Delegates to centralized health monitoring system
-        """
-        try:
-            # Use health monitor for comprehensive health checking
-            health_report = await self._health_monitor.get_system_health()
-
-            logger.debug(
-                "health_check_completed",
-                overall_status=health_report.overall_health_status,
-                services_checked=len(health_report.service_statuses),
-                alerts_triggered=len(health_report.active_alerts or []),
-            )
-
-            # Log individual service health
-            for check in health_report.service_statuses.values():
-                if check.health_status.value in {"degraded", "unhealthy", "critical"}:
-                    logger.warning(
-                        "service_health_issue",
-                        service_name=check.service_name,
-                        service_type=check.service_type.value,
-                        status=check.health_status.value,
-                        response_time_ms=float(check.response_time_ms),
-                    )
-
-            # Log any system-level alerts
-            if health_report.active_alerts:
-                for alert in health_report.active_alerts:
-                    logger.warning(
-                        "system_health_alert",
-                        alert_message=alert,
-                        overall_status=health_report.overall_health_status,
-                    )
-
-            # Check for critical system health issues and create alerts
-            if health_report.overall_health_status in {"critical", "unhealthy"}:
-                critical_services = [
-                    check.service_name
-                    for check in health_report.service_statuses.values()
-                    if check.health_status.value == "critical"
-                ]
-
-                logger.error(
-                    "system_health_critical",
-                    overall_status=health_report.overall_health_status,
-                    critical_services=critical_services,
-                )
-
-                # Create critical health alert
-                await self._alert_service.create_alert(
-                    title=f"System Health {health_report.overall_health_status.upper()}",
-                    description=f"System health is {health_report.overall_health_status}. "
-                    f"Critical services: "
-                    f"{', '.join(critical_services) if critical_services else 'None'}",
-                    level=AlertLevel.CRITICAL
-                    if health_report.overall_health_status == "critical"
-                    else AlertLevel.ERROR,
-                    source="health_monitor",
-                    metadata={
-                        "overall_status": health_report.overall_health_status,
-                        "critical_services": critical_services,
-                        "total_services": len(health_report.service_statuses),
-                        "alerts_triggered": health_report.active_alerts,
-                    },
-                )
-
-        except Exception as e:
-            logger.exception("health_check_error", error=str(e))
-
-    async def _cleanup_services(self) -> None:
-        """Clean up all services in proper order.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Services stopped in reverse dependency order
-        - Continues cleanup even if individual services fail
-        """
-        logger.info("cleaning_up_services")
-
-        # Stop strategy service first
-        try:
-            if self._strategy_execution_enabled:
-                await self._circuit_breakers.protect(
-                    "strategy_service", "stop", self._strategy.stop
-                )
-        except Exception as e:
-            logger.exception("strategy_service_cleanup_error", error=str(e))
-
-        # Stop market data service
-        try:
-            await self._circuit_breakers.protect(
-                "market_data_service", "stop", self._market_data.stop
-            )
-        except Exception as e:
-            logger.exception("market_data_service_cleanup_error", error=str(e))
-
-        # Stop monitoring systems
-        try:
-            if self._monitoring_enabled:
-                # Stop metrics collection
-                await self._metrics_collector.stop()
-
-                # Stop health monitoring
-                await self._health_monitor.stop()
-
-                # Stop alert service
-                await self._alert_service.stop()
-        except Exception as e:
-            logger.exception("monitoring_systems_cleanup_error", error=str(e))
-
-        # Portfolio service cleanup is handled by its own shutdown logic
-        logger.info("service_cleanup_completed")
-
-    def is_running(self) -> bool:
-        """Check if trading engine is currently running.
-
-        Returns:
-            True if engine is running, False otherwise
-        """
-        return self._running
 
     def is_safe_mode(self) -> bool:
         """Check if trading engine is in safe mode.
 
         Returns:
-            True if safe mode is enabled, False otherwise
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Safe mode setting from config, NOT hardcoded
+            True if safe mode is enabled, False otherwise.
         """
         return self._safe_mode
 
@@ -883,164 +344,48 @@ class TradingEngine:
         """Get current trading engine status.
 
         Returns:
-            Dictionary with engine status and configuration
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns explicit configuration state
-        - NO hardcoded defaults in response
+            Dictionary containing engine status information.
         """
-        return {
-            "running": self._running,
-            "safe_mode": self._safe_mode,
-            "configuration": {
-                "circuit_breakers_enabled": self._circuit_breakers_enabled,
-                "monitoring_enabled": self._monitoring_enabled,
-                "reconciliation_interval_sec": float(self._reconciliation_interval),
-                "strategy_execution_enabled": self._strategy_execution_enabled,
-                "enabled_strategies": self.config.strategies.enabled_strategies,
-            },
-            "active_tasks": len(self._tasks),
-            "services": {
-                "portfolio_initialized": True,  # Would check actual status
-                "market_data_connected": True,  # Would check actual status
-                "strategy_service_running": self._strategy.is_running()
-                if self._strategy_execution_enabled
-                else False,
-            },
-            "circuit_breakers": self._circuit_breakers.get_system_health(),
-            "circuit_breaker_stats": self._circuit_breakers.get_all_stats(),
-            "health_monitoring": {
-                "enabled": self._monitoring_enabled,
-                "running": self._health_monitor.is_running(),
-                "registered_services": self._health_monitor.get_registered_services(),
-                "last_checks": {
-                    name: {
-                        "status": check.health_status.value,
-                        "timestamp": check.last_check_timestamp.isoformat(),
-                        "response_time_ms": check.response_time_ms,
-                    }
-                    for name, check in self._health_monitor.get_all_last_checks().items()
-                },
-            },
-            "alert_service": self._alert_service.get_alert_stats(),
-            "metrics_collection": self._metrics_collector.get_metrics_summary(),
-            "snapshot_system": self.get_snapshot_status(),
-            "shutdown_configuration": self.get_shutdown_configuration(),
-        }
+        return await self._status_reporter.get_status(self)
 
     def reset_circuit_breaker(self, service_name: str) -> bool:
         """Reset a specific circuit breaker.
 
         Args:
-            service_name: Name of service circuit breaker to reset
+            service_name: Name of the service whose circuit breaker to reset.
 
         Returns:
-            True if reset successful, False otherwise
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Explicit reset capability for operations
-        - Returns success status for caller
+            True if circuit breaker was reset, False otherwise.
         """
-        success = self._circuit_breakers.reset_breaker(service_name)
-
-        logger.info(
-            "circuit_breaker_reset_requested",
-            service_name=service_name,
-            success=success,
-            requested_by="trading_engine",
-        )
-
-        return success
+        return self._breaker_manager.reset_circuit_breaker(service_name)
 
     def reset_all_circuit_breakers(self) -> None:
-        """Reset all circuit breakers.
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Emergency reset capability
-        - Logs action for audit trail
-        """
-        logger.warning(
-            "all_circuit_breakers_reset_requested",
-            requested_by="trading_engine",
-            reason="manual_intervention",
-        )
-
-        self._circuit_breakers.reset_all()
+        """Reset all circuit breakers."""
+        self._breaker_manager.reset_all_circuit_breakers()
 
     def get_circuit_breaker_health(self) -> CircuitBreakerSystemHealth:
         """Get circuit breaker system health.
 
         Returns:
-            System health from circuit breaker perspective
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Dedicated health check method
-        - Returns structured health data
+            CircuitBreakerSystemHealth object with system health data.
         """
-        return self._circuit_breakers.get_system_health()
+        return self._breaker_manager.get_circuit_breaker_health()
 
     async def get_system_health_report(self) -> dict[str, Any]:
         """Get comprehensive system health report from health monitor.
 
         Returns:
-            System health report with all service checks
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns structured health data
-        - Uses health monitor for accurate status
+            Dictionary containing system health report data.
         """
-        try:
-            health_report = await self._health_monitor.get_system_health()
-            return {
-                "overall_status": health_report.overall_health_status,
-                "timestamp": health_report.report_timestamp.isoformat(),
-                "service_checks": [
-                    {
-                        "service_name": check.service_name,
-                        "service_type": check.service_type.value,
-                        "status": check.health_status.value,
-                        "response_time_ms": float(check.response_time_ms),
-                        "timestamp": check.last_check_timestamp.isoformat(),
-                    }
-                    for _, check in health_report.service_statuses.items()
-                ],
-                "system_metrics": health_report.system_metrics,
-                "alerts_triggered": health_report.active_alerts,
-                "configuration": health_report.monitoring_configuration,
-            }
-        except Exception as e:
-            logger.exception("get_system_health_report_error", error=str(e))
-            return {
-                "overall_status": "unknown",
-                "error": str(e),
-                "timestamp": datetime.now(UTC).isoformat(),
-            }
+        return await self._health_manager.get_system_health_report()
 
     def get_health_monitor_status(self) -> dict[str, Any]:
         """Get health monitor status and configuration.
 
         Returns:
-            Health monitor status information
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns explicit status information
-        - Configuration-driven reporting
+            Dictionary containing health monitor status.
         """
-        return {
-            "enabled": self._monitoring_enabled,
-            "running": self._health_monitor.is_running(),
-            "registered_services": self._health_monitor.get_registered_services(),
-            "configuration": {
-                "check_interval_sec": float(self.config.monitoring.health_check_interval_seconds),
-                "response_time_threshold_ms": float(
-                    self.config.monitoring.response_time_threshold_ms
-                ),
-                "error_rate_threshold": float(self.config.monitoring.error_rate_threshold),
-                "stale_data_threshold_sec": float(
-                    self.config.monitoring.stale_data_threshold_seconds
-                ),
-            },
-        }
+        return self._health_manager.get_health_monitor_status()
 
     async def create_alert(
         self,
@@ -1053,46 +398,16 @@ class TradingEngine:
         """Create an alert through the alert service.
 
         Args:
-            title: Alert title
-            description: Alert description
-            level: Alert level ("info", "warning", "error", "critical")
-            source: Alert source
-            metadata: Additional alert metadata
+            title: Alert title.
+            description: Alert description.
+            level: Alert severity level.
+            source: Source of the alert.
+            metadata: Optional metadata dictionary.
 
         Returns:
-            Alert summary if created, None if suppressed/disabled
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Converts string level to AlertLevel enum
-        - Returns structured alert data
+            Alert information dictionary or None if creation failed.
         """
-        try:
-            alert_level = AlertLevel(level.lower())
-        except ValueError:
-            logger.warning(
-                "invalid_alert_level", level=level, valid_levels=[lv.value for lv in AlertLevel]
-            )
-            return None
-
-        alert = await self._alert_service.create_alert(
-            title=title,
-            description=description,
-            level=alert_level,
-            source=source,
-            metadata=metadata,
-        )
-
-        if alert:
-            return {
-                "alert_id": alert.alert_id,
-                "title": alert.title,
-                "level": alert.level.value,
-                "status": alert.status.value,
-                "timestamp": alert.timestamp.isoformat(),
-                "channels_notified": alert.channels_notified,
-            }
-
-        return None
+        return await self._alert_manager.create_alert(title, description, level, source, metadata)
 
     async def acknowledge_alert(
         self, alert_id: str, acknowledged_by: str = "trading_engine"
@@ -1100,555 +415,92 @@ class TradingEngine:
         """Acknowledge an active alert.
 
         Args:
-            alert_id: ID of alert to acknowledge
-            acknowledged_by: Who acknowledged the alert
+            alert_id: ID of the alert to acknowledge.
+            acknowledged_by: Entity acknowledging the alert.
 
         Returns:
-            True if acknowledgment successful
+            True if alert was acknowledged, False otherwise.
         """
-        return await self._alert_service.acknowledge_alert(alert_id, acknowledged_by)
+        return await self._alert_manager.acknowledge_alert(alert_id, acknowledged_by)
 
     async def resolve_alert(self, alert_id: str, resolved_by: str = "trading_engine") -> bool:
         """Resolve an active alert.
 
         Args:
-            alert_id: ID of alert to resolve
-            resolved_by: Who resolved the alert
+            alert_id: ID of the alert to resolve.
+            resolved_by: Entity resolving the alert.
 
         Returns:
-            True if resolution successful
+            True if alert was resolved, False otherwise.
         """
-        return await self._alert_service.resolve_alert(alert_id, resolved_by)
+        return await self._alert_manager.resolve_alert(alert_id, resolved_by)
 
     def get_active_alerts(self) -> list[dict[str, Any]]:
         """Get list of currently active alerts.
 
         Returns:
-            List of active alert summaries
+            List of dictionaries containing active alert information.
         """
-        return self._alert_service.get_active_alerts()
+        return self._alert_manager.get_active_alerts()
 
     def get_alert_service_status(self) -> dict[str, Any]:
         """Get alert service status and statistics.
 
         Returns:
-            Alert service status information
+            Dictionary containing alert service status.
         """
-        return self._alert_service.get_alert_stats()
+        return self._alert_manager.get_alert_service_status()
 
     async def create_manual_snapshot(self, snapshot_name: str | None = None) -> str:
         """Create a manual portfolio snapshot.
 
         Args:
-            snapshot_name: Optional custom name for snapshot
+            snapshot_name: Optional name for the snapshot.
 
         Returns:
-            Name of created snapshot
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Snapshot naming based on timestamp if not provided
-        - Circuit breaker protection
-        - Explicit error handling
+            Name of the created snapshot.
         """
-        if snapshot_name is None:
-            # Generate timestamp-based name
-            snapshot_name = f"manual_snapshot_{datetime.now(UTC).strftime('%Y%m%d_%H%M%S')}"
-
-        try:
-            await self._circuit_breakers.protect(
-                "portfolio_service", "create_snapshot", self._portfolio.create_snapshot
-            )
-
-            logger.info(
-                "manual_snapshot_created",
-                snapshot_name=snapshot_name,
-                requested_by="trading_engine",
-            )
-
-        except Exception as e:
-            logger.exception("manual_snapshot_failed", snapshot_name=snapshot_name, error=str(e))
-            raise
-        else:
-            return snapshot_name
+        return await self._snapshot_manager.create_manual_snapshot(snapshot_name)
 
     async def list_snapshots(self) -> list[str]:
         """List all available portfolio snapshots.
 
         Returns:
-            List of snapshot names
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Delegates to portfolio service storage
-        - NO assumptions about snapshot availability
+            List of snapshot names.
         """
-        try:
-            # Portfolio service should expose a public method for listing snapshots
-            # For now, return empty list to fix type error
-            snapshots: list[str] = []
-
-            logger.debug("snapshots_listed", count=len(snapshots))
-
-        except Exception as e:
-            logger.exception("snapshot_listing_failed", error=str(e))
-            raise
-        else:
-            return snapshots
+        return await self._snapshot_manager.list_snapshots()
 
     async def delete_snapshot(self, snapshot_name: str) -> bool:
         """Delete a specific snapshot.
 
         Args:
-            snapshot_name: Name of snapshot to delete
+            snapshot_name: Name of the snapshot to delete.
 
         Returns:
-            True if deletion successful
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Explicit snapshot deletion
-        - Proper error handling with context
+            True if snapshot was deleted, False otherwise.
         """
-        try:
-            # Portfolio service should expose a public method for deleting snapshots
-            # For now, just log the request
-            logger.info("snapshot_deletion_requested", snapshot_name=snapshot_name)
-
-            logger.info(
-                "snapshot_deleted", snapshot_name=snapshot_name, deleted_by="trading_engine"
-            )
-
-        except Exception as e:
-            logger.exception("snapshot_deletion_failed", snapshot_name=snapshot_name, error=str(e))
-            return False
-        else:
-            return True
+        return await self._snapshot_manager.delete_snapshot(snapshot_name)
 
     def get_snapshot_status(self) -> dict[str, Any]:
         """Get snapshot system status.
 
         Returns:
-            Dictionary with snapshot configuration and status
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns structured status information
-        - Configuration context included
+            Dictionary containing snapshot system status.
         """
-        snapshot_interval = float(self.config.general.state_save_interval)
-
-        return {
-            "snapshot_enabled": snapshot_interval > 0,
-            "snapshot_interval_seconds": snapshot_interval,
-            "backup_directory": str(Path(self.config.general.state_backup_directory)),
-            "backup_count": self.config.general.state_backup_count,
-            "storage_type": "portfolio_storage",
-        }
+        return self._snapshot_manager.get_snapshot_status()
 
     def get_shutdown_configuration(self) -> dict[str, Any]:
         """Get shutdown configuration and settings.
 
         Returns:
-            Dictionary with shutdown-related configuration
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns ALL shutdown settings from config
-        - NO hardcoded defaults
+            Dictionary containing shutdown configuration.
         """
-        cancel_on_shutdown = self.config.execution.cancel_on_shutdown
+        return self._status_reporter.get_shutdown_configuration()
 
-        return {
-            "grace_period_seconds": float(self.config.general.shutdown_grace_period),
-            "cancel_orders_on_shutdown": cancel_on_shutdown,
-            "snapshot_on_shutdown": True,  # Always create shutdown snapshot
-            "save_final_state": True,  # Always save final portfolio state
-            "shutdown_timeout_enabled": True,
-            "cleanup_order": [
-                "cancel_orders",
-                "save_final_state",
-                "create_shutdown_snapshot",
-                "stop_services",
-                "cleanup_tasks",
-            ],
-        }
-
-    async def _handle_strategy_signal_event(self, event: msgspec.Struct) -> None:
-        """Handle strategy signal generation events."""
-        if isinstance(event, SignalEvent):
-            # Convert to TradeSignal and process
-            task = asyncio.create_task(self._process_strategy_signal_event(event))
-            self._tasks.append(task)
-
-    async def _handle_order_filled_event(self, event: msgspec.Struct) -> None:
-        """Handle order filled events."""
-        if isinstance(event, OrderEvent) and event.event_type == OrderEventType.FILLED:
-            task = asyncio.create_task(self._process_order_filled_event(event))
-            self._tasks.append(task)
-
-    async def _handle_market_data_event(self, event: msgspec.Struct) -> None:
-        """Handle market data updated events."""
-        if isinstance(event, MarketData):
-            task = asyncio.create_task(self._process_market_data_event(event))
-            self._tasks.append(task)
-
-    async def _handle_position_updated_event(self, event: msgspec.Struct) -> None:
-        """Handle position updated events."""
-        if isinstance(event, PositionEvent) and event.event_type == PositionEventType.UPDATED:
-            task = asyncio.create_task(self._process_position_updated_event(event))
-            self._tasks.append(task)
-
-    async def _handle_risk_limit_event(self, event: msgspec.Struct) -> None:
-        """Handle risk limit exceeded events."""
-        if isinstance(event, RiskEvent) and event.severity == RiskSeverity.CRITICAL:
-            task = asyncio.create_task(self._process_risk_limit_event(event))
-            self._tasks.append(task)
-
-    def _validate_event_required_fields(self, event: SignalEvent) -> bool:
-        """Validate required fields are present in the event.
-
-        Args:
-            event: Signal event to validate
+    async def get_metrics(self) -> dict[str, Any]:
+        """Get trading engine metrics for collection.
 
         Returns:
-            True if all required fields are present, False otherwise
+            Dictionary containing trading engine metrics.
         """
-        if not event.symbol:
-            logger.error(
-                "strategy_signal_event_missing_symbol",
-                signal_id=event.signal_id,
-                message="Signal events must include valid symbol",
-            )
-            return False
-
-        if not event.exchange:
-            logger.error(
-                "strategy_signal_event_missing_exchange",
-                signal_id=event.signal_id,
-                message="Signal events must include valid exchange",
-            )
-            return False
-
-        return True
-
-    def _extract_and_validate_price(self, event: SignalEvent) -> Decimal | None:
-        """Extract and validate price from event.
-
-        Args:
-            event: Signal event containing price data
-
-        Returns:
-            Validated Decimal price, or None if invalid
-        """
-        price = event.target_price
-        if price is None:
-            logger.error(
-                "strategy_signal_event_missing_price",
-                signal_id=event.signal_id,
-                message="Signal events must include valid price data",
-            )
-            return None
-
-        if price <= Decimal(0):
-            logger.error(
-                "strategy_signal_event_invalid_price",
-                signal_id=event.signal_id,
-                price=str(price),
-                message="Price must be positive",
-            )
-            return None
-
-        return price
-
-    def _extract_signal_side(self, event: SignalEvent) -> OrderSide:
-        """Extract order side from event with type safety.
-
-        Args:
-            event: Signal event containing side data
-
-        Returns:
-            Validated OrderSide enum value
-        """
-        side_str = event.action
-        try:
-            return OrderSide(side_str)
-        except ValueError:
-            logger.warning(
-                "strategy_signal_event_invalid_side",
-                signal_id=event.signal_id,
-                side=side_str,
-                message="Invalid side value, using BUY as default",
-            )
-            return OrderSide.BUY
-
-    def _extract_signal_type(self, event: SignalEvent) -> SignalType:
-        """Extract signal type from event with type safety.
-
-        Args:
-            event: Signal event containing signal type data
-
-        Returns:
-            Validated SignalType enum value
-        """
-        action_enum = event.action
-        # Map action to SignalType
-        action_to_signal_type = {
-            TradingAction.BUY: SignalType.ENTER_LONG,
-            TradingAction.SELL: SignalType.ENTER_SHORT,
-            TradingAction.HOLD: SignalType.ENTER_LONG,  # Default mapping
-            TradingAction.CLOSE: SignalType.EXIT_LONG,  # Could be EXIT_SHORT too
-        }
-
-        try:
-            return action_to_signal_type.get(action_enum, SignalType.ENTER_LONG)
-        except (KeyError, ValueError):
-            logger.warning(
-                "strategy_signal_event_invalid_action",
-                signal_id=event.signal_id,
-                action=action_enum.value if action_enum else "unknown",
-                message="Invalid action, using ENTER_LONG as default",
-            )
-            return SignalType.ENTER_LONG
-
-    async def _process_strategy_signal_event(self, event: SignalEvent) -> None:
-        """Process strategy signal event with full type safety.
-
-        Validates all event data using typed methods and creates TradeSignal
-        for processing. Returns early if any validation fails.
-        """
-        # Validate required fields using typed validation
-        if not self._validate_event_required_fields(event):
-            return
-
-        # Extract and validate price using typed method
-        price = self._extract_and_validate_price(event)
-        if price is None:
-            return
-
-        # Extract enum values with type safety
-        side = self._extract_signal_side(event)
-        signal_type = self._extract_signal_type(event)
-
-        # Extract other fields - no None checks needed for required fields
-        confidence = event.confidence
-        source_strategy = event.strategy_name
-
-        # Create TradeSignal with all validated data
-
-        # Create Symbol object from string
-        symbol_service = get_symbol_service()
-        symbol = symbol_service.create_symbol(event.symbol, event.exchange)
-
-        signal = TradeSignal(
-            signal_id=event.signal_id,
-            symbol=symbol,
-            exchange=event.exchange,  # Required field - no defaults
-            side=side,  # Type-safe enum
-            signal_type=signal_type,  # Type-safe enum
-            price=price,  # Validated Decimal
-            confidence=confidence,
-            source_strategy=source_strategy,
-        )
-
-        await self._handle_trading_signal(signal)
-
-    def _validate_fill_event_data(self, event: OrderEvent) -> bool:
-        """Validate required fields for fill event processing.
-
-        Args:
-            event: Order event to validate
-
-        Returns:
-            True if all required fields are present, False otherwise
-        """
-        if not event.symbol:
-            logger.error(
-                "order_filled_event_missing_symbol",
-                order_id=event.order_id,
-                message="Fill events must include valid symbol",
-            )
-            return False
-
-        if not event.exchange:
-            logger.error(
-                "order_filled_event_missing_exchange",
-                order_id=event.order_id,
-                message="Fill events must include valid exchange",
-            )
-            return False
-
-        return True
-
-    def _extract_fill_price(self, event: OrderEvent) -> Decimal | None:
-        """Extract and validate fill price from event.
-
-        Args:
-            event: Order event containing fill price data
-
-        Returns:
-            Validated Decimal price, or None if invalid
-        """
-        # Require 'fill_price' - fail fast if missing
-        price = event.fill_price
-        if price is None:
-            logger.error(
-                "order_filled_event_missing_price",
-                order_id=event.order_id,
-                message="Fill events must include valid fill_price",
-            )
-            return None
-
-        if price <= Decimal(0):
-            logger.error(
-                "order_filled_event_invalid_price",
-                order_id=event.order_id,
-                price=str(price),
-                message="Fill price must be positive",
-            )
-            return None
-
-        return price
-
-    def _extract_fill_quantity(self, event: OrderEvent) -> Decimal | None:
-        """Extract and validate fill quantity from event.
-
-        Args:
-            event: Order event containing fill quantity data
-
-        Returns:
-            Validated Decimal quantity, or None if invalid
-        """
-        quantity = event.fill_quantity
-        if quantity is None:
-            logger.error(
-                "order_filled_event_missing_quantity",
-                order_id=event.order_id,
-                message="Fill events must include valid fill_quantity",
-            )
-            return None
-
-        if quantity <= Decimal(0):
-            logger.error(
-                "order_filled_event_invalid_quantity",
-                order_id=event.order_id,
-                quantity=str(quantity),
-                message="Fill quantity must be positive",
-            )
-            return None
-
-        return quantity
-
-    def _extract_fill_side(self, event: OrderEvent) -> OrderSide:
-        """Extract order side from fill event with type safety.
-
-        Args:
-            event: Order event containing side data
-
-        Returns:
-            Validated OrderSide enum value
-        """
-        # OrderEvent doesn't have side field, use default for now
-        # In a real implementation, side would need to be tracked elsewhere
-        logger.warning(
-            "order_filled_event_no_side_field",
-            order_id=event.order_id,
-            message="OrderEvent doesn't have side field, using BUY as default",
-        )
-        return OrderSide.BUY
-
-    async def _process_order_filled_event(self, event: OrderEvent) -> None:
-        """Process order filled event with full type safety.
-
-        Validates all event data using typed methods and creates Fill
-        for processing. Returns early if any validation fails.
-
-        Raises:
-            ValueError: If commission data is missing for the order.
-        """
-        # Validate required fields using typed validation
-        if not self._validate_fill_event_data(event):
-            return
-
-        # Extract and validate critical fill data
-        fill_price = self._extract_fill_price(event)
-        if fill_price is None:
-            return
-
-        fill_quantity = self._extract_fill_quantity(event)
-        if fill_quantity is None:
-            return
-
-        # Extract side with type safety
-        side = self._extract_fill_side(event)
-
-        # Extract commission from event field - explicit None handling
-        commission = event.commission
-        if commission is None:
-            msg = f"Commission data missing for order {event.order_id}"
-            raise ValueError(msg)
-        # Determine if partial fill based on remaining quantity
-        is_partial = event.remaining_quantity is not None and event.remaining_quantity > 0
-        maker_taker = MakerTaker.MAKER if is_partial else MakerTaker.TAKER
-        fee = commission
-        fee_asset = None  # OrderEvent doesn't specify fee asset
-
-        # Create Symbol object from string
-        symbol_service = get_symbol_service()
-        symbol = symbol_service.create_symbol(event.symbol, event.exchange)
-
-        # Convert timestamp to datetime
-        executed_at = datetime.fromtimestamp(event.timestamp, tz=UTC)
-
-        fill = Fill(
-            id=event.order_id,
-            symbol=symbol,
-            executed_at=executed_at,
-            side=side,  # Type-safe enum
-            order_id=event.order_id,
-            exchange=event.exchange,
-            price=fill_price,  # Validated Decimal > 0
-            quantity=fill_quantity,  # Validated Decimal > 0
-            fee=fee,  # Safe Decimal or 0
-            fee_asset=fee_asset,  # Optional string
-            maker_taker=maker_taker,
-        )
-        await self._handle_trade_executed(fill)
-
-    async def _process_market_data_event(self, event: MarketData) -> None:
-        """Process market data event."""
-        update_dict = {
-            "type": event.data_type,
-            "symbol": event.symbol,
-            "exchange": event.exchange,
-            "last_price": float(event.price) if event.price else None,
-            "bid_price": float(event.bids[0][0]) if event.bids else None,
-            "ask_price": float(event.asks[0][0]) if event.asks else None,
-            "volume_24h": float(event.volume) if event.volume else None,
-            "timestamp": event.timestamp,
-            "event_id": f"market_{event.symbol}_{event.exchange}_{event.timestamp}",
-        }
-        await self._handle_market_data_update(update_dict)
-
-    async def _process_position_updated_event(self, event: PositionEvent) -> None:
-        """Process position updated event."""
-        # PositionEvent doesn't have metadata field, use available fields
-        update_dict = {
-            "type": "position_update",
-            "symbol": event.symbol,
-            "exchange": event.exchange,
-            "previous_value": None,  # PositionEvent doesn't provide previous value
-            "new_value": event.size,
-            "timestamp": event.timestamp,
-            "event_id": f"position_{event.symbol}_{event.exchange}_{event.timestamp}",
-        }
-        await self._handle_portfolio_updated(update_dict)
-
-    async def _process_risk_limit_event(self, event: RiskEvent) -> None:
-        """Process risk limit exceeded event."""
-        # RiskEvent doesn't have metadata or current_exposure fields
-        violation_dict = {
-            "type": event.risk_type,
-            "signal_id": None,  # Not available in RiskEvent
-            "details": f"Limit {event.risk_type}: {event.current_value} > {event.limit_value}",
-            "current_value": float(event.current_value) if event.current_value else 0,
-            "limit_value": float(event.limit_value) if event.limit_value else 0,
-            "timestamp": event.timestamp,
-            "event_id": f"risk_{event.risk_type}_{event.timestamp}",
-        }
-        await self._handle_risk_violation(violation_dict)
+        return await self._metrics_manager.get_metrics()

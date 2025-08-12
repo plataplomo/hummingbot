@@ -46,6 +46,16 @@ class GeneralSettings(BaseModel):
     shutdown_grace_period: float = Field(
         default=30.0, gt=0, le=300, description="Graceful shutdown timeout in seconds"
     )
+    shutdown_cleanup_order: list[str] = Field(
+        default_factory=lambda: [
+            "cancel_orders",
+            "save_final_state",
+            "create_shutdown_snapshot",
+            "stop_services",
+            "cleanup_tasks",
+        ],
+        description="Order of operations during shutdown",
+    )
     audit_log_enabled: bool = Field(default=True, description="Enable audit logging")
     log_sensitive_data: bool = Field(
         default=False, description="Enable logging of sensitive data (use with caution)"

@@ -233,6 +233,22 @@ class PortfolioService(HealthCheckable):
         """Create a backup snapshot of current portfolio state."""
         await self._state_manager.create_snapshot()
 
+    async def list_snapshots(self) -> list[str]:
+        """List all available portfolio snapshots.
+
+        Returns:
+            List of snapshot names/identifiers
+        """
+        return await self._state_manager.list_snapshots()
+
+    async def delete_snapshot(self, snapshot_name: str) -> None:
+        """Delete a named snapshot.
+
+        Args:
+            snapshot_name: Name/identifier of snapshot to delete
+        """
+        await self._state_manager.delete_snapshot(snapshot_name)
+
     async def load_from_storage(self) -> None:
         """Force reload portfolio state from storage."""
         await self._state_manager.load_from_storage()

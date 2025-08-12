@@ -736,3 +736,31 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
             )
 
         self._cached_state.timestamp = datetime.now(UTC)
+
+    async def list_snapshots(self) -> list[str]:
+        """List all available portfolio snapshots.
+
+        Returns:
+            List of snapshot names/identifiers
+        """
+        snapshots = await self._storage.list_snapshots()
+
+        logger.info(
+            "portfolio_snapshots_listed",
+            snapshot_count=len(snapshots),
+        )
+
+        return snapshots
+
+    async def delete_snapshot(self, snapshot_name: str) -> None:
+        """Delete a named snapshot.
+
+        Args:
+            snapshot_name: Name/identifier of snapshot to delete
+        """
+        await self._storage.delete_snapshot(snapshot_name)
+
+        logger.info(
+            "portfolio_snapshot_deleted",
+            snapshot_name=snapshot_name,
+        )

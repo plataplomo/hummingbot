@@ -202,3 +202,22 @@ class HealthStatus(Enum):
     HEALTHY = "HEALTHY"
     DEGRADED = "DEGRADED"
     FAILED = "FAILED"
+
+
+class WorkflowStatus(Enum):
+    """Workflow execution status levels.
+
+    Used in workflow events and workflow context for
+    standardized workflow status tracking.
+    - PENDING: Workflow queued but not yet started
+    - RUNNING: Workflow currently executing
+    - COMPLETED: Workflow finished successfully
+    - FAILED: Workflow encountered error and stopped
+    - CANCELLED: Workflow was cancelled before completion
+    """
+
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"

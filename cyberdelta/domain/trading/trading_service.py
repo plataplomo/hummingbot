@@ -15,7 +15,7 @@ from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.execution import ExecutionEngine
-from cyberdelta.enums import ExchangeName, OrderType, TimeInForce
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.monitoring import HealthStatus, ServiceType, SystemEventType
 from cyberdelta.enums.trading import OrderEventType, TradingAction
 from cyberdelta.exceptions.base import RequiredParameterError
@@ -443,6 +443,7 @@ class TradingService(HealthCheckable):
                 symbol=str(order.symbol),
                 exchange=order.exchange,
                 event_type=OrderEventType.FILLED,  # Use valid event_type from the model
+                side=order.side,  # CRITICAL: Include side for financial calculations
                 quantity=self._get_required_quantity(order),
                 price=order.price,
                 timestamp=time.time(),
@@ -466,7 +467,7 @@ class TradingService(HealthCheckable):
                 else original_signal.exchange[0],
                 action=(
                     TradingAction.BUY
-                    if original_signal.side.value.lower() == "buy"
+                    if original_signal.side == OrderSide.BUY
                     else TradingAction.SELL
                 ),
                 confidence=float(original_signal.confidence) if original_signal.confidence else 0.0,

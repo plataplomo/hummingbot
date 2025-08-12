@@ -317,3 +317,11 @@ class MarketDataService:
             bids_count=len(orderbook.bids),
             asks_count=len(orderbook.asks),
         )
+
+    def is_connected(self) -> bool:
+        """Check if market data service is connected to exchanges.
+
+        Returns:
+            True if connected to at least one exchange, False otherwise
+        """
+        return self._exchange_connector.is_connected()

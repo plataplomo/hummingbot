@@ -269,7 +269,7 @@ class ServiceHealthMonitor:
                 error_count=self._extract_health_metric(health_data, "error_count"),
                 success_count=self._extract_health_metric(health_data, "success_count"),
                 health_details=HealthCheckDetails(
-                    status=status.value,
+                    status=status,
                     thresholds_used=OperationalThresholds(
                         response_time_ms=float(self._response_time_threshold),
                         error_rate=float(self._error_rate_threshold),
@@ -395,7 +395,7 @@ class ServiceHealthMonitor:
         service_statuses = {check.service_name: check for check in service_checks}
 
         report = SystemHealthReport(
-            overall_health_status=overall_status.value,
+            overall_health_status=overall_status,
             report_timestamp=datetime.now(UTC),
             total_services_monitored=len(service_checks),
             healthy_services_count=healthy_count,

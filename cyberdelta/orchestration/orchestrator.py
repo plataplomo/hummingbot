@@ -9,6 +9,7 @@ from datetime import UTC, datetime
 
 from cyberdelta.config.models.event_system_config import EventWorkflowConfig
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import WorkflowStatus
 from cyberdelta.exceptions import ServiceValidationError
 from cyberdelta.models.events.workflow.base import BaseWorkflowEvent
 from cyberdelta.models.events.workflow_context import WorkflowContextModel
@@ -88,7 +89,7 @@ class WorkflowOrchestrator:
         self._active_workflows[event.event_id] = event
 
         # Update event status
-        event.status = "running"
+        event.status = WorkflowStatus.RUNNING
         event.started_at = datetime.now(UTC)
 
         # Log workflow start
@@ -107,7 +108,7 @@ class WorkflowOrchestrator:
                 result: WorkflowContextModel = await retryer(handler.execute, event)
 
             # Update success status
-            event.status = "completed"
+            event.status = WorkflowStatus.COMPLETED
             event.completed_at = datetime.now(UTC)
 
             # Log completion
@@ -115,7 +116,7 @@ class WorkflowOrchestrator:
 
         except Exception as error:
             # Update error status
-            event.status = "failed"
+            event.status = WorkflowStatus.FAILED
             event.error = str(error)
             event.completed_at = datetime.now(UTC)
 
@@ -162,7 +163,7 @@ class WorkflowOrchestrator:
         if event is None:
             return False
 
-        event.status = "cancelled"
+        event.status = WorkflowStatus.CANCELLED
         event.error = "Cancelled by request"
         event.completed_at = datetime.now(UTC)
 

@@ -12,7 +12,7 @@ from decimal import Decimal
 import structlog
 
 from cyberdelta.config import AppSettings
-from cyberdelta.enums import ExchangeName
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import SpotBalance
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.portfolio.pnl_report import ReconciliationReport
@@ -119,7 +119,7 @@ class BalanceManager(BalanceManagerProtocol):
 
         # Calculate cost impact
         cost = fill.quantity * fill.price
-        if fill.side.value == "BUY":
+        if fill.side == OrderSide.BUY:
             cost = -cost  # Buying costs money
 
         # Update balance - fee is always available (defaults to Decimal(0))

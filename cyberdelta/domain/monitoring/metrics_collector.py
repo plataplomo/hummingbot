@@ -184,6 +184,14 @@ class MetricsCollector:
             total_providers=len(self._metric_providers),
         )
 
+    def get_registered_provider_count(self) -> int:
+        """Get the number of registered metrics providers.
+
+        Returns:
+            Number of currently registered metrics providers
+        """
+        return len(self._metric_providers)
+
     def record_metric(
         self,
         name: str,

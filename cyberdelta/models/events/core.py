@@ -10,6 +10,7 @@ from decimal import Decimal
 
 import msgspec
 
+from cyberdelta.enums import MakerTaker
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums.monitoring import (
     BalanceEventType,
@@ -19,7 +20,7 @@ from cyberdelta.enums.monitoring import (
     RiskType,
     SystemEventType,
 )
-from cyberdelta.enums.trading import OrderEventType, PositionEventType, TradingAction
+from cyberdelta.enums.trading import OrderEventType, OrderSide, PositionEventType, TradingAction
 
 
 # 1. Market Data Event
@@ -54,12 +55,15 @@ class OrderEvent(msgspec.Struct, tag="order"):
     exchange: ExchangeName
     symbol: str
     event_type: OrderEventType
+    side: OrderSide  # CRITICAL: Required for financial calculations - NO fallbacks allowed
     price: Decimal | None = None
     quantity: Decimal | None = None
     fill_price: Decimal | None = None
     fill_quantity: Decimal | None = None
     remaining_quantity: Decimal | None = None
     commission: Decimal | None = None
+    maker_taker: MakerTaker | None = None  # Whether fill was maker or taker
+    fee_asset: str | None = None  # Asset in which fee was paid
     reason: str | None = None
     error_code: str | None = None
     timestamp: float = msgspec.field(default_factory=time.time)

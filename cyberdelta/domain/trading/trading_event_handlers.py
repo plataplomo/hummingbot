@@ -47,7 +47,9 @@ class TradingEventHandlerProtocol(Protocol):
         """Get list of active orders for cache warming."""
         ...
 
-    async def update_order_status(self, order_id: str, status: str, symbol: Symbol) -> None:
+    async def update_order_status(
+        self, order_id: str, status: OrderEventType, symbol: Symbol
+    ) -> None:
         """Update order status from order placed event."""
         ...
 
@@ -268,7 +270,9 @@ class TradingOrderEventHandler(EventHandlerActor):
         )
 
         # Update internal order tracking
-        await self.trading_service.update_order_status(event.order_id, "placed", symbol)
+        await self.trading_service.update_order_status(
+            event.order_id, OrderEventType.PLACED, symbol
+        )
 
     async def _handle_order_fill(self, event: OrderEvent, symbol: Symbol) -> None:
         """Handle order fill events.

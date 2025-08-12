@@ -52,7 +52,7 @@ class HealthCheckDetails(BaseModel):
     """
 
     # Status information
-    status: str | None = Field(default=None, description="Current status description")
+    status: HealthStatus | None = Field(default=None, description="Current status description")
 
     # Error information
     error_message: str | None = Field(
@@ -136,7 +136,7 @@ class CircuitBreakerSystemHealth(BaseModel):
     - NO default values for critical fields
     """
 
-    status: str = Field(description="System status (healthy/degraded/impaired/critical)")
+    status: HealthStatus = Field(description="System status using HealthStatus enum")
 
     health_ratio: float = Field(description="Ratio of healthy to total breakers")
 
@@ -267,8 +267,8 @@ class SystemHealthReport(BaseModel):
     - All performance metrics use Decimal type
     """
 
-    overall_health_status: str = Field(
-        description="Overall system health (healthy/degraded/unhealthy)"
+    overall_health_status: HealthStatus = Field(
+        description="Overall system health status using HealthStatus enum"
     )
 
     report_timestamp: datetime = Field(description="UTC timestamp when report was generated")

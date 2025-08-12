@@ -17,6 +17,12 @@ general:
   state_save_interval: 60
   state_backup_count: 5
   shutdown_grace_period: 10.0
+  shutdown_cleanup_order:
+    - cancel_orders
+    - save_final_state
+    - create_shutdown_snapshot
+    - stop_services
+    - cleanup_tasks
 exchanges:
   hyperliquid:
     exchange_name: hyperliquid
@@ -105,7 +111,7 @@ strategies:
   enabled_strategies: []  # Empty list means no strategies enabled
   # Strategy execution interval in seconds
   execution_interval_seconds: 10.0
-  
+
   # HyperLiquid Perp vs Backpack Spot arbitrage strategy
   hl_perp_bp_spot:
     enabled: true
@@ -123,7 +129,7 @@ strategies:
       rebalance_threshold: 0.05
       perp_exchange: hyperliquid
       spot_exchange: backpack
-  
+
   # Momentum strategy configuration (optional)
   # Uncomment and configure to enable momentum strategy
   # momentum:
@@ -212,7 +218,7 @@ monitoring:
 symbols:
   # Symbol list with automatic pattern application
   list: [BTC, ETH, SOL, SUI, HYPE, FARTCOIN, XRP, VIRTUAL, ADA]
-  
+
   # Exchange patterns for symbol mapping
   patterns:
     hyperliquid:
@@ -221,12 +227,12 @@ symbols:
     backpack:
       perp: "{symbol}_PERP"    # BTC -> BTC_PERP
       spot: "{base}_{quote}"   # Future: BTC/USDC -> BTC_USDC
-  
+
   # Default values for all symbols
   defaults:
     market_type: PERP
     enabled: true
-  
+
   # Symbol-specific overrides
   overrides: {}
 
@@ -325,7 +331,7 @@ event_system:
     max_cache_size: 10000
     batch_size: 100
     processing_timeout_sec: 30.0
-  
+
   event_bus:
     max_queue_size: 100000
     queue_timeout_sec: 1.0
@@ -337,7 +343,7 @@ event_system:
     publish_timeout_sec: 5.0
     request_timeout_sec: 10.0
     max_pending_requests: 1000
-  
+
   workflow:
     workflow_timeout_sec: 300.0
     step_timeout_sec: 60.0
@@ -351,7 +357,7 @@ event_system:
     max_audit_entries: 1000
     enable_rollback: true
     rollback_timeout_sec: 120.0
-  
+
   monitoring:
     enable_metrics: true
     metrics_interval_sec: 60
@@ -362,7 +368,7 @@ event_system:
     alert_on_handler_fault: true
     alert_on_queue_overflow: true
     alert_on_slow_processing: true
-  
+
   circuit_breaker:
     failure_threshold: 5
     recovery_timeout_sec: 60.0
@@ -370,7 +376,7 @@ event_system:
     monitor_workflows: true
     auto_degrade_on_trip: true
     alert_on_trip: true
-  
+
   websocket:
     buffer_size: 65536
     max_message_size: 1048576
@@ -381,7 +387,7 @@ event_system:
     publish_internal_updates: false
     publish_market_data: true
     publish_order_updates: true
-  
+
   # Feature flags
   enable_dual_publishing: false
   enable_legacy_adapter: false

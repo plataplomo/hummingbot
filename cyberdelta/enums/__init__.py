@@ -18,6 +18,7 @@ from .monitoring import (
     RiskType,
     ServiceType,
     SystemEventType,
+    WorkflowStatus,
 )
 from .safety import CircuitBreakerState, FailureType
 from .signals import SignalType
@@ -60,4 +61,5 @@ __all__ = [
     "SystemEventType",
     "TimeInForce",
     "TradingAction",
+    "WorkflowStatus",
 ]

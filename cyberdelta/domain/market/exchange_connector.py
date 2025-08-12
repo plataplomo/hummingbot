@@ -51,6 +51,9 @@ class ExchangeConnector:
             if exchange_config.enabled
         }
 
+        # Track actual connection states - initialize all to False
+        self._connection_states: dict[str, bool] = dict.fromkeys(self._enabled_exchanges, False)
+
         logger.debug(
             "exchange_connector_initialized",
             enabled_exchanges=list(self._enabled_exchanges.keys()),
@@ -111,19 +114,34 @@ class ExchangeConnector:
         """
         logger.info("exchange_connections_stopping")
 
-        # Close exchange connections
+        # Close actual connections for each exchange
         for exchange_name in self._enabled_exchanges:
-            try:
-                api_client = self._api_clients.get(exchange_name)
-                # ExchangeAPI doesn't have a close method, but we can check
-                if api_client:
-                    # If the API has cleanup logic, it should be in a method
-                    pass
+            api_client = self._api_clients.get(exchange_name)
+            if api_client:
+                try:
+                    # Close WebSocket connection if exists
+                    await api_client.close_websocket()
+                    # Close HTTP session and cleanup
+                    await api_client.close()
+                    logger.info(
+                        "exchange_connection_closed",
+                        exchange=exchange_name,
+                        message=f"Successfully closed connections for {exchange_name}",
+                    )
+                except (ValueError, TypeError, KeyError, AttributeError, OSError) as e:
+                    logger.warning(
+                        "exchange_connection_close_error",
+                        exchange=exchange_name,
+                        error=str(e),
+                        message=f"Error closing connections for {exchange_name}",
+                    )
 
-                logger.debug("exchange_connection_closed", exchange=exchange_name)
+            # Mark connection as closed
+            self._connection_states[exchange_name] = False
 
-            except Exception as e:
-                logger.exception("exchange_shutdown_error", exchange=exchange_name, error=str(e))
+        logger.debug(
+            "exchange_connections_marked_closed", exchanges=list(self._connection_states.keys())
+        )
 
         logger.info("exchange_connections_stopped")
 
@@ -140,20 +158,41 @@ class ExchangeConnector:
         - NO assumptions about API client interface
         - Explicit connection validation
         """
-        # Test connection by getting markets - all exchanges must support this
+        # First, establish WebSocket connection if available
+        try:
+            # Connect WebSocket for real-time data
+            await api_client.connect_websocket()
+            logger.info(
+                "exchange_websocket_connected",
+                exchange=exchange_name,
+                message=f"WebSocket connection established for {exchange_name}",
+            )
+        except (ValueError, TypeError, KeyError, AttributeError, OSError) as ws_error:
+            # WebSocket connection is optional - some operations work without it
+            logger.warning(
+                "exchange_websocket_connection_failed",
+                exchange=exchange_name,
+                error=str(ws_error),
+                message=(
+                    f"WebSocket connection failed for {exchange_name}, continuing with REST only"
+                ),
+            )
+
+        # Test REST API connection by getting markets
         try:
             await api_client.get_markets(GetMarketsArgs())
+            self._connection_states[exchange_name] = True
+            logger.debug("exchange_rest_api_tested", exchange=exchange_name)
         except (TimeoutError, ConnectionError, OSError) as e:
-            logger.warning("exchange_connection_test_failed", exchange=exchange_name, error=str(e))
-            # Continue anyway - connection might still work for other operations
+            logger.warning("exchange_rest_api_test_failed", exchange=exchange_name, error=str(e))
+            self._connection_states[exchange_name] = False
+            # Don't re-raise - continue with other exchanges
         except Exception as e:
             logger.exception(
                 "exchange_connection_unexpected_error", exchange=exchange_name, error=str(e)
             )
-            # Re-raise unexpected errors to fail fast
-            raise
-
-        logger.debug("exchange_connection_tested", exchange=exchange_name)
+            self._connection_states[exchange_name] = False
+            # Don't re-raise - let other exchanges try to connect
 
     def get_enabled_exchanges(self) -> dict[str, ExchangeSpecificConfig]:
         """Get dictionary of enabled exchanges and their configurations.
@@ -184,3 +223,28 @@ class ExchangeConnector:
             True if exchange is enabled, False otherwise
         """
         return exchange_name.value in self._enabled_exchanges
+
+    def is_connected(self) -> bool:
+        """Check if connected to at least one exchange.
+
+        Returns:
+            True if connected to at least one exchange, False otherwise
+        """
+        # Check both REST API connection state and WebSocket connection if available
+        for exchange_name, is_rest_connected in self._connection_states.items():
+            api_client = self._api_clients.get(exchange_name)
+            # Return True if either REST or WebSocket connection is active
+            if is_rest_connected or (api_client and api_client.is_connected):
+                return True
+        return False
+
+    def get_connection_status(self, exchange_name: ExchangeName) -> bool:
+        """Get connection status for a specific exchange.
+
+        Args:
+            exchange_name: Name of the exchange
+
+        Returns:
+            True if connected, False otherwise
+        """
+        return self._connection_states.get(exchange_name.value, False)
