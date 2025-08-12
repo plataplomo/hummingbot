@@ -60,30 +60,29 @@ class SystemStabilityValidator:
                 connection_id="test-connection-123",
                 exchange="hyperliquid",
                 channel="trades",
-                sequence_number=100
+                sequence_number=100,
             )
-            
+
             error = WebSocketStreamError(
                 message="Test validation error",
                 code=WebSocketErrorCode.VALIDATION_FAILED,
-                context=context
+                context=context,
             )
-            
+
             # Verify error properties
             assert error.message == "Test validation error"
             assert error.code == WebSocketErrorCode.VALIDATION_FAILED
             assert error.context.connection_id == "test-connection-123"
             assert error.severity is not None
             assert error.get_recovery_strategy() is not None
-            
+
             results["error_creation"] = True
             results["details"].append("✓ WebSocketStreamError creation successful")
 
             # Test 2: Can create error handler
             try:
                 handler = WebSocketStreamErrorHandler(
-                    metrics_collector=self.metrics_collector,
-                    enable_metrics=True
+                    metrics_collector=self.metrics_collector, enable_metrics=True
                 )
                 results["error_handler"] = True
                 results["details"].append("✓ Error handler creation successful")
@@ -132,7 +131,7 @@ class SystemStabilityValidator:
         try:
             # Scan WebSocket directory for backwards compatibility patterns
             websocket_dir = Path(__file__).parent.parent / "cyberdelta" / "apis" / "websocket"
-            
+
             if not websocket_dir.exists():
                 results["details"].append("✗ WebSocket directory not found")
                 return results
@@ -163,14 +162,18 @@ class SystemStabilityValidator:
             # Analysis summary
             results["details"].append(f"📊 Analysis Summary:")
             results["details"].append(f"  • Files analyzed: {results['files_analyzed']}")
-            results["details"].append(f"  • dict[str, Any] patterns: {results['dict_any_patterns']}")
+            results["details"].append(
+                f"  • dict[str, Any] patterns: {results['dict_any_patterns']}"
+            )
             results["details"].append(f"  • Fallback patterns: {results['fallback_patterns']}")
             results["details"].append(f"  • APIError references: {results['apikey_references']}")
 
             # Determine readiness - most patterns have been removed already
-            if (results["dict_any_patterns"] <= 30 and  # Expect some legitimate usage
-                results["fallback_patterns"] <= 5 and    # Few fallbacks acceptable
-                results["apikey_references"] <= 2):      # Minimal APIError refs
+            if (
+                results["dict_any_patterns"] <= 30  # Expect some legitimate usage
+                and results["fallback_patterns"] <= 5  # Few fallbacks acceptable
+                and results["apikey_references"] <= 2
+            ):  # Minimal APIError refs
                 results["ready_for_cleanup"] = True
                 results["details"].append("✓ Ready for final backwards compatibility cleanup")
             else:
@@ -495,43 +498,47 @@ if __name__ == "__main__":
 
         try:
             import subprocess
-            
+
             # Run mypy on WebSocket directory
             try:
-                result = subprocess.run([
-                    ".venv/bin/mypy", 
-                    "cyberdelta/apis/websocket/", 
-                    "--strict"
-                ], capture_output=True, text=True, cwd=Path(__file__).parent.parent)
-                
+                result = subprocess.run(
+                    [".venv/bin/mypy", "cyberdelta/apis/websocket/", "--strict"],
+                    capture_output=True,
+                    text=True,
+                    cwd=Path(__file__).parent.parent,
+                )
+
                 if result.returncode == 0:
                     results["mypy_passing"] = True
                     results["details"].append("✓ mypy --strict: PASSED")
                 else:
-                    error_lines = result.stdout.count('\n') + result.stderr.count('\n')
+                    error_lines = result.stdout.count("\n") + result.stderr.count("\n")
                     results["error_count"] += error_lines
                     results["details"].append(f"✗ mypy --strict: FAILED ({error_lines} errors)")
-                    results["details"].append(f"  Sample error: {result.stdout.split(chr(10))[0] if result.stdout else 'Unknown'}")
-                    
+                    results["details"].append(
+                        f"  Sample error: {result.stdout.split(chr(10))[0] if result.stdout else 'Unknown'}"
+                    )
+
             except Exception as e:
                 results["details"].append(f"⚠️ Could not run mypy: {e}")
 
             # Run ruff check
             try:
-                result = subprocess.run([
-                    ".venv/bin/ruff", 
-                    "check", 
-                    "cyberdelta/apis/websocket/"
-                ], capture_output=True, text=True, cwd=Path(__file__).parent.parent)
-                
+                result = subprocess.run(
+                    [".venv/bin/ruff", "check", "cyberdelta/apis/websocket/"],
+                    capture_output=True,
+                    text=True,
+                    cwd=Path(__file__).parent.parent,
+                )
+
                 if result.returncode == 0:
                     results["ruff_passing"] = True
                     results["details"].append("✓ ruff check: PASSED")
                 else:
-                    error_lines = result.stdout.count('\n')
+                    error_lines = result.stdout.count("\n")
                     results["error_count"] += error_lines
                     results["details"].append(f"✗ ruff check: FAILED ({error_lines} issues)")
-                    
+
             except Exception as e:
                 results["details"].append(f"⚠️ Could not run ruff: {e}")
 
@@ -539,7 +546,9 @@ if __name__ == "__main__":
             if results["mypy_passing"] and results["ruff_passing"]:
                 results["details"].append("✅ Type safety validation PASSED")
             else:
-                results["details"].append(f"❌ Type safety validation FAILED - {results['error_count']} total issues")
+                results["details"].append(
+                    f"❌ Type safety validation FAILED - {results['error_count']} total issues"
+                )
 
         except Exception as e:
             results["details"].append(f"✗ Type safety validation error: {e}")

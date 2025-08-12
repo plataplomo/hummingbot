@@ -102,6 +102,10 @@ class PortfolioValidationSettings(BaseModel):
     enable_balance_validation: bool = True
     balance_tolerance: ConfigDecimal = Field(default=Decimal("0.0001"), gt=Decimal(0))
     require_non_negative_balances: bool = True
+    skip_balance_for_reduce_only: bool = Field(
+        default=False,
+        description="Skip balance checks for reduce-only orders that close positions"
+    )
 
     # Position validation
     enable_position_validation: bool = True
@@ -138,6 +142,22 @@ class PortfolioValidationSettings(BaseModel):
     max_position_size: ConfigDecimal = Field(default=Decimal("100000.0"), gt=Decimal(0))
     max_leverage: ConfigDecimal = Field(default=Decimal("10.0"), gt=Decimal(0))
     max_position_value: ConfigDecimal = Field(default=Decimal("1000000.0"), gt=Decimal(0))
+
+    # Market liquidity validation
+    max_spread_pct: float | None = Field(
+        default=None,
+        gt=0,
+        le=100,
+        description="Default maximum allowed bid-ask spread percentage for liquidity validation.",
+    )
+    min_volume_24h: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Default minimum required 24-hour volume in quote currency "
+            "for liquidity validation."
+        ),
+    )
 
     # Other settings
     max_recent_issues: int = Field(default=100, gt=0)

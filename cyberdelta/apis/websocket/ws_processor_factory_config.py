@@ -85,7 +85,7 @@ class ConfiguredProcessorFactory:
             processor=processor_name or raw_model.__name__,
             exchange=exchange,
         )
-        
+
         return PydanticWebSocketProcessor(
             raw_model=raw_model,
             transformer=SimpleDictTransformer[T](),
@@ -128,7 +128,7 @@ class ConfiguredProcessorFactory:
             exchange=exchange,
             transformer=type(transformer).__name__,
         )
-        
+
         return PydanticWebSocketProcessor(
             raw_model=raw_model,
             transformer=transformer,

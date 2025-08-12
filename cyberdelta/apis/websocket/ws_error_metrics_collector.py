@@ -28,7 +28,7 @@ MAX_TIMING_HISTORY = 1000
 # Helper factories for type inference
 def _create_str_int_dict() -> dict[str, int]:
     """Create empty string to int dictionary for field defaults.
-    
+
     Returns:
         Empty dictionary with string keys and int values.
     """
@@ -180,7 +180,7 @@ class WebSocketErrorMetricsCollector:
 
     def _calculate_error_rate(self) -> float:
         """Calculate current error rate per second.
-        
+
         Returns:
             Current error rate per second.
         """

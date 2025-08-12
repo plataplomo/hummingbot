@@ -38,7 +38,7 @@ if TYPE_CHECKING:
 
 class AppConfigProtocol(Protocol):
     """Protocol for application configuration objects that provide WebSocket error config."""
-    
+
     @property
     def websocket_error_config(self) -> WebSocketErrorConfig:
         """Get WebSocket error configuration with get_exchange_config method."""
@@ -350,28 +350,28 @@ class WebSocketErrorHandlerFactory:
         metrics_collector: WebSocketErrorMetrics | None = None,
     ) -> WebSocketStreamErrorHandler:
         """Create handler using application configuration.
-        
+
         This method provides a higher-level interface that extracts
         WebSocket-specific configuration from the application config.
-        
+
         Args:
             exchange: Exchange name
             app_config_getter: AppSettings instance or callable that provides websocket config
             environment: Environment name for configuration
             connection_manager: Optional connection manager
-            subscription_manager: Optional subscription manager  
+            subscription_manager: Optional subscription manager
             state_manager: Optional state manager
             metrics_collector: Optional metrics collector
-            
+
         Returns:
             WebSocketStreamErrorHandler: Configured error handler
-            
+
         Note:
             Uses WebSocketErrorHandlerFactory.create_default_config() as fallback
         """
         # Extract WebSocket configuration from app config
         websocket_config: WebSocketErrorConfig
-        
+
         if callable(app_config_getter):
             # Callable that returns websocket config
             websocket_config = app_config_getter(exchange)
@@ -385,7 +385,7 @@ class WebSocketErrorHandlerFactory:
                 exchange=exchange,
                 environment=environment,
             )
-        
+
         return WebSocketErrorHandlerFactory.create_handler(
             exchange=exchange,
             config=websocket_config,
@@ -407,21 +407,21 @@ class WebSocketErrorHandlerFactory:
             List of validation error messages (empty if valid)
         """
         errors: list[str] = []
-        
+
         errors.extend(WebSocketErrorHandlerFactory._validate_recovery_config(config.recovery))
         errors.extend(WebSocketErrorHandlerFactory._validate_metrics_config(config.metrics))
         errors.extend(WebSocketErrorHandlerFactory._validate_alerting_config(config.alerting))
         errors.extend(WebSocketErrorHandlerFactory._validate_logging_config(config.logging))
-        
+
         return errors
-    
+
     @staticmethod
     def _validate_recovery_config(config: WebSocketErrorRecoveryConfig) -> list[str]:
         """Validate recovery configuration.
-        
+
         Args:
             config: Recovery configuration to validate
-            
+
         Returns:
             List of validation error messages.
         """
@@ -452,14 +452,14 @@ class WebSocketErrorHandlerFactory:
             errors.append(f"circuit_breaker_timeout_ms must be at least {timeout_seconds} seconds")
 
         return errors
-    
+
     @staticmethod
     def _validate_metrics_config(config: WebSocketErrorMetricsConfig) -> list[str]:
         """Validate metrics configuration.
-        
+
         Args:
             config: Metrics configuration to validate
-            
+
         Returns:
             List of validation error messages.
         """
@@ -479,14 +479,14 @@ class WebSocketErrorHandlerFactory:
             errors.append("latency_histogram_buckets must be at least 1")
 
         return errors
-    
+
     @staticmethod
     def _validate_alerting_config(config: WebSocketErrorAlertingConfig) -> list[str]:
         """Validate alerting configuration.
-        
+
         Args:
             config: Alerting configuration to validate
-            
+
         Returns:
             List of validation error messages.
         """
@@ -503,14 +503,14 @@ class WebSocketErrorHandlerFactory:
             errors.append(f"alert_cooldown_ms must be at least {cooldown_seconds} seconds")
 
         return errors
-    
+
     @staticmethod
     def _validate_logging_config(config: WebSocketErrorLoggingConfig) -> list[str]:
         """Validate logging configuration.
-        
+
         Args:
             config: Logging configuration to validate
-            
+
         Returns:
             List of validation error messages.
         """

@@ -258,8 +258,7 @@ class StreamRecoverySystem:
         # Check retry limits
         if not self._check_retry_limits(error, recovery_key):
             self._logger.error(
-                "Retry limit exceeded for %s, activating circuit breaker",
-                recovery_key
+                "Retry limit exceeded for %s, activating circuit breaker", recovery_key
             )
             self._activate_circuit_breaker(recovery_key)
             return False
@@ -316,7 +315,7 @@ class StreamRecoverySystem:
         self,
     ) -> dict[WebSocketRecoveryStrategy, Callable[[WebSocketStreamError], Awaitable[bool]]]:
         """Get mapping of strategies to handler methods.
-        
+
         Returns:
             Dictionary mapping strategies to handler methods
         """
@@ -336,10 +335,10 @@ class StreamRecoverySystem:
 
     async def _handle_fallback_exchange_error(self, error: WebSocketStreamError) -> bool:
         """Handle fallback exchange strategy error.
-        
+
         Args:
             error: The WebSocket stream error
-        
+
         Returns:
             False since fallback exchange is not supported
         """
@@ -347,7 +346,7 @@ class StreamRecoverySystem:
         self._logger.error(
             "FALLBACK_EXCHANGE strategy not supported for %s. "
             "This strategy requires explicit exchange fallback configuration.",
-            error.context.exchange
+            error.context.exchange,
         )
         return False
 
@@ -466,8 +465,7 @@ class StreamRecoverySystem:
             return False
 
         self._logger.info(
-            "Full reconnect for %s to %s",
-            error.context.connection_id, error.context.exchange
+            "Full reconnect for %s to %s", error.context.connection_id, error.context.exchange
         )
 
         # Reset connection first
@@ -817,7 +815,9 @@ class StreamRecoverySystem:
             self._last_recovery_times[key] = datetime.now(UTC)
             self._logger.warning(
                 "Recovery failed for %s, attempt %d/%d",
-                key, self._recovery_attempts[key], self.config.max_recovery_attempts
+                key,
+                self._recovery_attempts[key],
+                self.config.max_recovery_attempts,
             )
 
     # ========================================================================

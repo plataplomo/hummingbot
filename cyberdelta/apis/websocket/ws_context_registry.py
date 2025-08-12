@@ -143,7 +143,7 @@ class WebSocketContextRegistry:
             # No fallback - require routing key method
             raise WebSocketContextCreationError(
                 context_type=type(validated_envelope).__name__,
-                protocol_requirement="get_routing_key"
+                protocol_requirement="get_routing_key",
             )
 
         # Create context with standard constructor

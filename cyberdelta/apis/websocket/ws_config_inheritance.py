@@ -219,7 +219,7 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
         raise WebSocketConfigurationError(
             component=f"model {model_type.__name__}",
             issue="No configuration found",
-            available_options=list(self._config_hierarchy.keys())
+            available_options=list(self._config_hierarchy.keys()),
         )
 
     def _merge_configs(self, base_config: ConfigDict, modifiers: dict[str, Any]) -> ConfigDict:
@@ -402,7 +402,7 @@ class CompositeConfigurationStrategy(ConfigurationStrategy):
         raise WebSocketConfigurationError(
             component="configuration strategies",
             issue=f"No strategy supports context {context}",
-            available_options=[s.__class__.__name__ for s in self.strategies]
+            available_options=[s.__class__.__name__ for s in self.strategies],
         )
 
     def supports_context(self, context: ConfigurationContext) -> bool:

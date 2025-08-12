@@ -189,14 +189,14 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 connection_id=context.connection_id,
                 exchange=context.exchange_type.value,
             )
-            
+
             stream_error = WebSocketStreamError(
                 message=f"Unexpected processing error: {e}",
                 code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
                 context=error_context,
                 cause=e,
             )
-            
+
             await self.stream_error_handler.handle_stream_error(stream_error)
         finally:
             # Always record message metrics
@@ -233,14 +233,14 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 connection_id=context.connection_id,
                 exchange=context.exchange_type.value,
             )
-            
+
             stream_error = WebSocketStreamError(
                 message=f"Validation failed: {e}",
                 code=WebSocketErrorCode.VALIDATION_FAILED,
                 context=error_context,
                 cause=e,
             )
-            
+
             await self.stream_error_handler.handle_stream_error(stream_error)
             return None
 
@@ -280,14 +280,14 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 connection_id=context.connection_id,
                 exchange=context.exchange_type.value,
             )
-            
+
             stream_error = WebSocketStreamError(
                 message=f"Transformation failed: {e}",
                 code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
                 context=error_context,
                 cause=e,
             )
-            
+
             await self.stream_error_handler.handle_stream_error(stream_error)
             return None
 
@@ -339,14 +339,14 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 connection_id=context.connection_id,
                 exchange=context.exchange_type.value,
             )
-            
+
             stream_error = WebSocketStreamError(
                 message=f"Handler error: {e}",
                 code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
                 context=error_context,
                 cause=e,
             )
-            
+
             await self.stream_error_handler.handle_stream_error(stream_error)
             return False
         except (OSError, RuntimeError, MemoryError) as e:
@@ -367,14 +367,14 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 connection_id=context.connection_id,
                 exchange=context.exchange_type.value,
             )
-            
+
             stream_error = WebSocketStreamError(
                 message=f"Unexpected handler error: {e}",
                 code=WebSocketErrorCode.MESSAGE_VALIDATION_FAILED,
                 context=error_context,
                 cause=e,
             )
-            
+
             await self.stream_error_handler.handle_stream_error(stream_error)
             return False
         else:

@@ -252,7 +252,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             error: Pydantic validation error
             context: WebSocket context (TYPED!)
             payload: The payload that failed validation (TYPED!)
-        
+
         Raises:
             TypeError: If context does not provide StreamErrorContext
         """
@@ -319,7 +319,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             context: WebSocket context
             expected_format: Expected message format
             actual_data: Actual data received
-        
+
         Raises:
             TypeError: If context does not provide StreamErrorContext
         """
@@ -372,7 +372,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             context: WebSocket context
             expected_seq: Expected sequence number
             actual_seq: Actual sequence number received
-        
+
         Raises:
             TypeError: If context does not provide StreamErrorContext
         """
@@ -410,7 +410,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             context: WebSocket context
             error: Original exception
             message: Optional error message
-        
+
         Raises:
             TypeError: If context does not provide StreamErrorContext
         """
@@ -451,7 +451,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         Args:
             context: WebSocket context
             reason: Reason for interruption
-        
+
         Raises:
             TypeError: If context does not provide StreamErrorContext
         """

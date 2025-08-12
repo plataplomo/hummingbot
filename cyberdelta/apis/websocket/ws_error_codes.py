@@ -156,7 +156,7 @@ class WebSocketErrorCode(IntEnum):
 
     def get_category(self) -> str:
         """Get the error category based on code range.
-        
+
         Returns:
             The category name for this error code.
         """
@@ -173,7 +173,7 @@ class WebSocketErrorCode(IntEnum):
             (INTERNAL_RANGE_START, INTERNAL_RANGE_END, "INTERNAL"),
             (SECURITY_RANGE_START, SECURITY_RANGE_END, "SECURITY"),
         ]
-        
+
         for start, end, category in category_ranges:
             if start <= self < end:
                 return category
@@ -181,7 +181,7 @@ class WebSocketErrorCode(IntEnum):
 
     def is_retryable(self) -> bool:
         """Check if error is potentially retryable.
-        
+
         Returns:
             True if the error is retryable, False otherwise.
         """
@@ -217,7 +217,7 @@ class WebSocketErrorCode(IntEnum):
 
     def is_critical(self) -> bool:
         """Check if error is critical and requires immediate attention.
-        
+
         Returns:
             True if the error is critical, False otherwise.
         """
@@ -245,7 +245,7 @@ class WebSocketErrorCode(IntEnum):
 
     def get_suggested_action(self) -> str:
         """Get suggested action for this error code.
-        
+
         Returns:
             A string describing the recommended action for this error.
         """
@@ -253,17 +253,17 @@ class WebSocketErrorCode(IntEnum):
         specific_action = self._get_specific_action()
         if specific_action:
             return specific_action
-            
+
         # Fall back to general actions based on error properties
         if self.is_critical():
             return "Alert operations team immediately"
         if self.is_retryable():
             return "Retry with appropriate backoff strategy"
         return "Log error and investigate root cause"
-    
+
     def _get_specific_action(self) -> str | None:
         """Get specific action for known error codes.
-        
+
         Returns:
             Specific action string or None if no specific action defined.
         """

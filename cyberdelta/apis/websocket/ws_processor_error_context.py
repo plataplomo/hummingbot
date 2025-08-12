@@ -113,8 +113,7 @@ class ProcessorErrorContextBuilder:
 
         # Require StreamErrorContext - no fallback
         raise WebSocketContextCreationError(
-            context_type=type(context).__name__,
-            protocol_requirement="create_error_context"
+            context_type=type(context).__name__, protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -165,8 +164,7 @@ class ProcessorErrorContextBuilder:
 
         # Require StreamErrorContext - no fallback
         raise WebSocketContextCreationError(
-            context_type=type(context).__name__,
-            protocol_requirement="create_error_context"
+            context_type=type(context).__name__, protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -231,8 +229,7 @@ class ProcessorErrorContextBuilder:
 
         # Require StreamErrorContext - no fallback
         raise WebSocketContextCreationError(
-            context_type=type(context).__name__,
-            protocol_requirement="create_error_context"
+            context_type=type(context).__name__, protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -288,8 +285,7 @@ class ProcessorErrorContextBuilder:
 
         # Require StreamErrorContext - no fallback
         raise WebSocketContextCreationError(
-            context_type=type(context).__name__,
-            protocol_requirement="create_error_context"
+            context_type=type(context).__name__, protocol_requirement="create_error_context"
         )
 
     @staticmethod
@@ -319,13 +315,13 @@ class ProcessorErrorContextBuilder:
                     summary += f", +{len(payload) - max_keys} more"
                 summary += ")"
                 return summary[:max_chars]
-            
+
             if isinstance(payload, list):
                 if not payload:
                     return "list(empty)"
                 first_type = type(payload[0]).__name__ if payload[0] is not None else "Unknown"
                 return f"list(length={len(payload)}, type={first_type})"[:max_chars]
-            
+
             return f"{type(payload).__name__}({str(payload)[:50]})"
 
         except (ValueError, TypeError, AttributeError, KeyError, IndexError):

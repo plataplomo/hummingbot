@@ -130,7 +130,7 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
 
         # Handle non-critical errors by category
         category = self.code.get_category()
-        
+
         if category == "CONNECTION":
             return self._get_connection_severity()
         if category == "AUTHENTICATION":
@@ -143,7 +143,7 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
 
     def _get_critical_severity(self) -> ErrorSeverity:
         """Get severity for critical errors.
-        
+
         Returns:
             Appropriate error severity for critical errors
         """
@@ -158,7 +158,7 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
 
     def _get_connection_severity(self) -> ErrorSeverity:
         """Get severity for connection errors.
-        
+
         Returns:
             Appropriate error severity for connection errors
         """
@@ -170,7 +170,7 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
 
     def _get_auth_severity(self) -> ErrorSeverity:
         """Get severity for authentication errors.
-        
+
         Returns:
             Appropriate error severity for authentication errors
         """
@@ -180,7 +180,7 @@ class WebSocketStreamError(ErrorTimestampMixin, Exception):
 
     def _get_stream_severity(self) -> ErrorSeverity:
         """Get severity for stream errors.
-        
+
         Returns:
             Appropriate error severity for stream errors
         """

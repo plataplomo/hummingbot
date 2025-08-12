@@ -238,10 +238,7 @@ class StreamErrorContextValidator(ErrorContextValidator):
             and sequence < last_received
             and (last_received - sequence) < cls.MAX_MESSAGE_COUNT
         ):
-            msg = (
-                f"Sequence regression detected: current={sequence}, "
-                f"last_received={last_received}"
-            )
+            msg = f"Sequence regression detected: current={sequence}, last_received={last_received}"
             raise ValueError(msg)
 
     # ========================================================================

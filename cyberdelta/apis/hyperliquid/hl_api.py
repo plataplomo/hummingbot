@@ -365,12 +365,12 @@ class HyperliquidAPI(ExchangeAPI):
 
         # Initialize enhanced WebSocket router with new architecture
         error_handler = BaseErrorHandler(exchange_name=exchange_config.exchange_name)
-        
+
         # Create stream error handler for new architecture
         default_error_config = WebSocketErrorConfig()
         stream_error_handler = WebSocketErrorHandlerFactory.create_handler(
             exchange=exchange_config.exchange_name,
-            config=default_error_config.get_exchange_config(exchange_config.exchange_name)
+            config=default_error_config.get_exchange_config(exchange_config.exchange_name),
         )
 
         # Create registry using Hyperliquid-specific builder

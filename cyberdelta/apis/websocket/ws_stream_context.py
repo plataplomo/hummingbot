@@ -19,7 +19,7 @@ from cyberdelta.apis.websocket.ws_exceptions import WebSocketFieldValidationErro
 # Helper factory for type inference
 def _create_error_chain_list() -> list[ErrorChain]:
     """Create empty ErrorChain list for field defaults.
-    
+
     Returns:
         Empty list for ErrorChain objects.
     """
@@ -125,7 +125,7 @@ class StreamErrorContext(BaseModel):
     @classmethod
     def validate_connection_id(cls, v: str) -> str:
         """Validate connection ID format and length.
-        
+
         Returns:
             The validated connection ID
         """
@@ -135,7 +135,7 @@ class StreamErrorContext(BaseModel):
     @classmethod
     def validate_exchange(cls, v: str) -> str:
         """Validate exchange name format and length.
-        
+
         Returns:
             The validated exchange name
         """
@@ -145,7 +145,7 @@ class StreamErrorContext(BaseModel):
     @classmethod
     def validate_channel(cls, v: str | None) -> str | None:
         """Validate channel name format and length.
-        
+
         Returns:
             The validated channel name or None
         """
@@ -157,10 +157,10 @@ class StreamErrorContext(BaseModel):
     @classmethod
     def validate_positive_sequence(cls, v: int | None) -> int | None:
         """Validate sequence numbers are positive.
-        
+
         Returns:
             The validated sequence number or None
-        
+
         Raises:
             WebSocketFieldValidationError: If sequence number is negative.
         """
@@ -172,10 +172,10 @@ class StreamErrorContext(BaseModel):
     @classmethod
     def validate_non_negative(cls, v: int) -> int:
         """Validate non-negative integers.
-        
+
         Returns:
             The validated non-negative integer
-        
+
         Raises:
             WebSocketFieldValidationError: If value is negative.
         """
@@ -187,10 +187,10 @@ class StreamErrorContext(BaseModel):
     @classmethod
     def validate_message_size(cls, v: int | None) -> int | None:
         """Validate message size.
-        
+
         Returns:
             The validated message size or None
-        
+
         Raises:
             WebSocketFieldValidationError: If message size is negative.
         """
@@ -207,10 +207,10 @@ class StreamErrorContext(BaseModel):
     @classmethod
     def validate_timestamp(cls, v: int | None) -> int | None:
         """Validate timestamps.
-        
+
         Returns:
             The validated timestamp or None
-        
+
         Raises:
             WebSocketFieldValidationError: If timestamp is negative or in the future.
         """
@@ -230,7 +230,7 @@ class StreamErrorContext(BaseModel):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for logging.
-        
+
         Returns:
             Dictionary representation of the context
         """
@@ -238,7 +238,7 @@ class StreamErrorContext(BaseModel):
 
     def get_connection_duration_ms(self) -> int | None:
         """Get connection duration in milliseconds.
-        
+
         Returns:
             Connection duration in milliseconds or None if not available
         """
@@ -248,7 +248,7 @@ class StreamErrorContext(BaseModel):
 
     def get_time_since_last_message_ms(self) -> int | None:
         """Get time since last message in milliseconds.
-        
+
         Returns:
             Time since last message in milliseconds or None if not available
         """
@@ -258,7 +258,7 @@ class StreamErrorContext(BaseModel):
 
     def get_time_since_last_heartbeat_ms(self) -> int | None:
         """Get time since last heartbeat in milliseconds.
-        
+
         Returns:
             Time since last heartbeat in milliseconds or None if not available
         """
@@ -268,7 +268,7 @@ class StreamErrorContext(BaseModel):
 
     def has_sequence_gap(self) -> bool:
         """Check if there's a sequence gap.
-        
+
         Returns:
             True if there is a sequence gap, False otherwise
         """
@@ -278,7 +278,7 @@ class StreamErrorContext(BaseModel):
 
     def get_sequence_gap_size(self) -> int | None:
         """Get size of sequence gap.
-        
+
         Returns:
             Size of the sequence gap or None if no gap
         """
@@ -290,7 +290,7 @@ class StreamErrorContext(BaseModel):
 
     def is_stale_connection(self, stale_threshold_ms: int = 30000) -> bool:
         """Check if connection is stale (no recent messages).
-        
+
         Returns:
             True if connection is stale, False otherwise
         """
@@ -305,7 +305,7 @@ class StreamErrorContext(BaseModel):
 
     def get_summary(self) -> str:
         """Get a summary of the error context.
-        
+
         Returns:
             Human-readable summary of the error context
         """

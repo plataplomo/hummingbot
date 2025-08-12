@@ -221,11 +221,11 @@ class TestErrorHandlerFactory:
     def test_unsupported_exchange_raises_error(self) -> None:
         """Test that unsupported exchange raises error."""
         from unittest.mock import MagicMock
-        
+
         # Create a mock exchange that's not in supported list
         mock_exchange = MagicMock()
         mock_exchange.value = "unsupported_exchange"
-        
+
         with pytest.raises(WebSocketConfigurationError, match="Unsupported exchange"):
             WebSocketErrorHandlerFactory.create_minimal_handler(
                 exchange=mock_exchange,
@@ -318,7 +318,7 @@ class TestErrorHandlerRegistry:
     def test_registry_direct_factory_usage(self) -> None:
         """Test using factory pattern directly instead of global registry."""
         from cyberdelta.enums import ExchangeName
-        
+
         handler = WebSocketErrorHandlerFactory.create_minimal_handler(
             exchange=ExchangeName.HYPERLIQUID
         )

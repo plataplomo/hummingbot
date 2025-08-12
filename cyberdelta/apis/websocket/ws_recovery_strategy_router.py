@@ -92,7 +92,7 @@ class ImmediateRetryHandler:
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
         """Check if this handler can handle the error.
-        
+
         Returns:
             True if this handler can handle immediate retry errors
         """
@@ -102,7 +102,7 @@ class ImmediateRetryHandler:
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
         """Handle immediate retry recovery.
-        
+
         Returns:
             RecoveryResult indicating immediate retry action
         """
@@ -131,7 +131,7 @@ class ExponentialBackoffHandler:
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
         """Check if this handler can handle the error.
-        
+
         Returns:
             True if this handler can handle exponential backoff errors
         """
@@ -141,7 +141,7 @@ class ExponentialBackoffHandler:
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
         """Handle exponential backoff recovery.
-        
+
         Returns:
             RecoveryResult indicating exponential backoff action with delay
         """
@@ -175,7 +175,7 @@ class ReconnectionHandler:
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
         """Check if this handler can handle the error.
-        
+
         Returns:
             True if this handler can handle reconnection strategy errors
         """
@@ -189,7 +189,7 @@ class ReconnectionHandler:
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
         """Handle reconnection recovery.
-        
+
         Returns:
             RecoveryResult indicating reconnection action taken
         """
@@ -231,7 +231,7 @@ class ResubscriptionHandler:
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
         """Check if this handler can handle the error.
-        
+
         Returns:
             True if this handler can handle resubscription strategy errors
         """
@@ -244,7 +244,7 @@ class ResubscriptionHandler:
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
         """Handle resubscription recovery.
-        
+
         Returns:
             RecoveryResult indicating resubscription action taken
         """
@@ -280,7 +280,7 @@ class CircuitBreakerHandler:
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
         """Check if this handler can handle the error.
-        
+
         Returns:
             True if this handler can handle circuit breaker strategy errors
         """
@@ -290,7 +290,7 @@ class CircuitBreakerHandler:
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
         """Handle circuit breaker recovery.
-        
+
         Returns:
             RecoveryResult indicating circuit breaker activation
         """
@@ -318,7 +318,7 @@ class DegradeServiceHandler:
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
         """Check if this handler can handle the error.
-        
+
         Returns:
             True if this handler can handle service degradation strategy errors
         """
@@ -328,7 +328,7 @@ class DegradeServiceHandler:
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
         """Handle service degradation recovery.
-        
+
         Returns:
             RecoveryResult indicating service degradation action taken
         """
@@ -356,7 +356,7 @@ class NoRecoveryHandler:
 
     async def can_handle(self, error: WebSocketStreamError) -> bool:
         """Check if this handler can handle the error.
-        
+
         Returns:
             True if this handler can handle no recovery strategy errors
         """
@@ -366,7 +366,7 @@ class NoRecoveryHandler:
         self, error: WebSocketStreamError, recovery: WebSocketErrorRecovery | None = None
     ) -> RecoveryResult:
         """Handle no recovery strategy.
-        
+
         Returns:
             RecoveryResult indicating no recovery action available
         """

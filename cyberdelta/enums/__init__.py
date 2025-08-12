@@ -31,6 +31,7 @@ from .trading import (
     TimeInForce,
     TradingAction,
 )
+from .validation import TradingState, ValidationCategory
 
 
 __all__ = [
@@ -61,5 +62,7 @@ __all__ = [
     "SystemEventType",
     "TimeInForce",
     "TradingAction",
+    "TradingState",
+    "ValidationCategory",
     "WorkflowStatus",
 ]

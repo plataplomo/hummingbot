@@ -93,10 +93,10 @@ class WebSocketErrorRecoveryConfig(BaseModel):
     @classmethod
     def validate_recovery_method(cls, v: str) -> str:
         """Validate sequence gap recovery method.
-        
+
         Returns:
             The validated recovery method string.
-            
+
         Raises:
             ValueError: If the recovery method is not valid.
         """
@@ -263,10 +263,10 @@ class WebSocketErrorLoggingConfig(BaseModel):
     @classmethod
     def validate_severity(cls, v: str) -> str:
         """Validate severity level.
-        
+
         Returns:
             The validated severity level string.
-            
+
         Raises:
             ValueError: If the severity level is not valid.
         """

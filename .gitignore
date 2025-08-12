@@ -52,6 +52,7 @@ node_modules/
 .coverage
 htmlcov/
 .pytest_cache/
+.hypothesis/
 nosetests.xml
 coverage.xml
 *.cover

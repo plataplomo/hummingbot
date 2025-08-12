@@ -19,14 +19,16 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.domain.trading.execution.order_tracker import OrderTracker
 from cyberdelta.domain.trading.fills.fill_handler import FillHandler
-from cyberdelta.domain.trading.validation.order_validator import OrderValidator
-from cyberdelta.enums import ExchangeName, OrderSide, OrderType
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TradingState
 from cyberdelta.enums.monitoring import ServiceType
+from cyberdelta.infrastructure.validation.validation_service import ValidationService
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.trading.execution_request import ExecutionRequest
 from cyberdelta.models.trading.fill_statistics import FillStatistics, OrderUpdateData
+from cyberdelta.protocols.domain.market_data import MarketDataServiceProtocol
+from cyberdelta.protocols.domain.portfolio.state_management import PortfolioStateManagerProtocol
 from cyberdelta.protocols.infrastructure.monitoring import HealthCheckable
 
 
@@ -59,8 +61,10 @@ class ExecutionEngine(HealthCheckable):
         self,
         config: AppSettings,
         api_clients: dict[str, ExchangeAPI],
-        order_validator: OrderValidator | None = None,
-        fill_handler: FillHandler | None = None,
+        order_validator: ValidationService,
+        fill_handler: FillHandler,
+        portfolio_service: PortfolioStateManagerProtocol,
+        market_data_service: MarketDataServiceProtocol,
     ) -> None:
         """Initialize execution engine with configuration and dependencies.
 
@@ -69,11 +73,19 @@ class ExecutionEngine(HealthCheckable):
             api_clients: Dictionary of exchange API clients by name
             order_validator: Order validator for comprehensive order validation
             fill_handler: Fill handler for processing order fills
+            portfolio_service: Portfolio state manager for position and balance data
+            market_data_service: Market data service for current prices and market information
+
+        Note:
+            All dependencies are required - no None values allowed.
+            This ensures fail-fast behavior and prevents runtime errors.
         """
         self.config = config
         self._api_clients = api_clients
         self._order_validator = order_validator
         self._fill_handler = fill_handler
+        self._portfolio_service = portfolio_service
+        self._market_data_service = market_data_service
         self._order_tracker = OrderTracker(config)
 
         # Extract execution settings - NO hardcoded defaults
@@ -159,14 +171,9 @@ class ExecutionEngine(HealthCheckable):
             self._order_tracker.update_order_status(order_id, new_status)
             order.status = new_status
 
-        # Handle fills
+        # Handle fills using fill handler
         if update.fill:
-            if self._fill_handler:
-                # Use FillHandler for comprehensive fill processing
-                trade = await self._fill_handler.process_fill(order, update.fill)
-            else:
-                # Fallback: update.fill is already a Fill object
-                trade = update.fill
+            trade = await self._fill_handler.process_fill(order, update.fill)
 
             # Update order filled quantity - quantity_filled is always available
             current_filled = order.quantity_filled
@@ -210,16 +217,24 @@ class ExecutionEngine(HealthCheckable):
             logger.warning("cancel_request_for_unknown_order", order_id=order_id)
             return False
 
-        # Validate cancellation if validator is available
-        if self._order_validator:
-            cancellation_violations = await self._order_validator.validate_order_cancellation(order)
-            if cancellation_violations:
-                logger.warning(
-                    "order_cancellation_validation_failed",
-                    order_id=order_id,
-                    violations=cancellation_violations,
-                )
-                return False
+        # Validate cancellation with current portfolio and market data
+        portfolio_state = await self._portfolio_service.get_state()
+        market_snapshot = await self._market_data_service.create_market_snapshot(order.symbol)
+
+        cancellation_result = await self._order_validator.validate_order_cancellation(
+            order=order,
+            portfolio_state=portfolio_state,
+            market_snapshot=market_snapshot,
+            trading_state=TradingState.ACTIVE,
+            is_reconciling=False,
+        )
+        if not cancellation_result.is_valid:
+            logger.warning(
+                "order_cancellation_validation_failed",
+                order_id=order_id,
+                violations=cancellation_result.violations,
+            )
+            return False
 
         try:
             if self._safe_mode:
@@ -304,20 +319,9 @@ class ExecutionEngine(HealthCheckable):
         """Get fill processing statistics from FillHandler.
 
         Returns:
-            Dictionary with fill processing statistics
+            Fill processing statistics from the configured fill handler
         """
-        if self._fill_handler:
-            return self._fill_handler.get_fill_statistics()
-
-        return FillStatistics(
-            fill_handler_available=False,
-            total_fills_processed=0,
-            total_fees_usd=Decimal(0),
-            average_fill_size_usd=Decimal(0),
-            success_rate=Decimal(0),
-            message="No fill handler configured for detailed statistics",
-            last_fill_timestamp=None,
-        )
+        return self._fill_handler.get_fill_statistics()
 
     def get_recent_fills(self, limit: int = 10) -> list[Fill]:
         """Get recent fills processed by the FillHandler.
@@ -326,11 +330,9 @@ class ExecutionEngine(HealthCheckable):
             limit: Maximum number of fills to return
 
         Returns:
-            List of recent Fill objects
+            List of recent Fill objects from the configured fill handler
         """
-        if self._fill_handler:
-            return self._fill_handler.get_recent_fills(limit)
-        return []
+        return self._fill_handler.get_recent_fills(limit)
 
     # Private helper methods
 
@@ -415,35 +417,42 @@ class ExecutionEngine(HealthCheckable):
             strategy_name=request.signal.source_strategy,
         )
 
-        # Comprehensive order validation if validator is available
-        if self._order_validator is not None:
-            await self._validate_order(order, request.signal.signal_id)
+        # Comprehensive order validation with current market data
+        await self._validate_order(order, request.signal.signal_id)
 
         return order
 
     async def _validate_order(self, order: Order, signal_id: str) -> None:
-        """Validate order using order validator.
+        """Validate order using order validator with current market data.
 
         Raises:
             ValueError: If order validation fails
         """
-        if self._order_validator is None:
-            return
+        # Get current portfolio state and market data for comprehensive validation
+        portfolio_state = await self._portfolio_service.get_state()
+        market_snapshot = await self._market_data_service.create_market_snapshot(order.symbol)
 
-        validation_violations = await self._order_validator.validate_order(order)
-        if validation_violations:
+        validation_result = await self._order_validator.validate_order(
+            order=order,
+            portfolio_state=portfolio_state,
+            market_snapshot=market_snapshot,
+            trading_state=TradingState.ACTIVE,
+            is_reconciling=False,
+            is_reduce_only=False,
+        )
+        if not validation_result.is_valid:
             max_violations_to_show = 3
-            violation_summary = "; ".join(validation_violations[:max_violations_to_show])
-            if len(validation_violations) > max_violations_to_show:
-                remaining = len(validation_violations) - max_violations_to_show
+            violation_summary = "; ".join(validation_result.violations[:max_violations_to_show])
+            if len(validation_result.violations) > max_violations_to_show:
+                remaining = len(validation_result.violations) - max_violations_to_show
                 violation_summary += f" (and {remaining} more)"
 
             logger.error(
                 "order_validation_failed",
                 signal_id=signal_id,
                 order_id=order.client_order_id,
-                violation_count=len(validation_violations),
-                violations=validation_violations,
+                violation_count=len(validation_result.violations),
+                violations=validation_result.violations,
             )
 
             msg = f"Order validation failed: {violation_summary}"

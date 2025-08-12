@@ -339,7 +339,7 @@ class OptimizedProcessor[T: BaseModel]:
                     msgspec_encoder_available=self.msgspec_encoder is not None,
                     msgspec_decoder_available=self.msgspec_decoder is not None,
                 )
-            
+
             method = "pydantic"
             validated = self._validate_with_pydantic(payload)
             success = True
@@ -368,7 +368,7 @@ class OptimizedProcessor[T: BaseModel]:
             Transformed result.
 
         Raises:
-            WebSocketTransformerError: If transformer doesn't accept context parameters 
+            WebSocketTransformerError: If transformer doesn't accept context parameters
                 but context was provided.
         """
         total_start = time.perf_counter()
@@ -387,8 +387,8 @@ class OptimizedProcessor[T: BaseModel]:
                     except TypeError as e:
                         # Transformer doesn't accept context - require explicit handling
                         transformer_name = (
-                            transformer.__name__ 
-                            if hasattr(transformer, "__name__") 
+                            transformer.__name__
+                            if hasattr(transformer, "__name__")
                             else type(transformer).__name__
                         )
                         raise WebSocketTransformerError(
