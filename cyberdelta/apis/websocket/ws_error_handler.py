@@ -13,8 +13,8 @@ from typing import Any
 from cachetools import TTLCache
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from cyberdelta.apis.common.api_error import APIError
-from cyberdelta.apis.common.api_error_codes import APIErrorCode
+# DEPRECATED IMPORTS REMOVED: APIError and APIErrorCode no longer used
+# This handler is being phased out in favor of ws_stream_error_handler.py
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
 
@@ -377,29 +377,8 @@ class BaseErrorHandler:
             suppressed_count=self._suppressed_counts.get(error_key, 0),
         )
 
-    def convert_validation_error_to_api_error(
-        self,
-        error: ValidationError,
-        context: str,
-    ) -> APIError:
-        """Convert Pydantic validation error to APIError.
-
-        Args:
-            error: The validation error.
-            context: Context string for the error message.
-
-        Returns:
-            APIError instance.
-
-        """
-        self.stats.validation_errors += 1
-
-        return APIError(
-            code=APIErrorCode.INVALID_RESPONSE.value,
-            message=f"Invalid WebSocket {context}: {error}",
-            original_exception=error,
-            http_status=None,
-        )
+    # DEPRECATED: convert_validation_error_to_api_error has been removed
+    # Use the new typed error system from ws_stream_error_handler.py instead
 
     def get_stats(self) -> dict[str, Any]:
         """Get error handling statistics.

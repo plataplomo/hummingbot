@@ -6,7 +6,7 @@ without requiring concrete imports, thus avoiding circular dependencies.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from cyberdelta.apis.common.base_types import BaseContextProtocol
 
@@ -24,9 +24,9 @@ class WebSocketEnvelopeProtocol(Protocol):
     """
 
     # Required attributes that all envelopes have
-    data: dict[str, Any] | list[Any]
+    data: dict[str, object] | list[object]
 
-    def model_dump(self, *, mode: str = "python") -> dict[str, Any]:
+    def model_dump(self, *, mode: str = "python") -> dict[str, object]:
         """Pydantic model serialization method."""
         ...
 
@@ -56,18 +56,25 @@ class WebSocketContextProtocol(BaseContextProtocol, Protocol):
     exchange_type: ExchangeName
     connection_id: str
     message_id: str
-    timestamp: Any  # datetime in implementation
+    timestamp: object  # datetime in implementation
 
     # Optional attributes that may be None
     symbol: str | None
     routing_key: str
 
     # Domain model attribute - set by processor after transformation
-    # Type is Any because it varies based on the transformer used
-    domain_model: Any
+    # Type is object because it varies based on the transformer used
+    domain_model: object
 
-    def model_dump(self, *, mode: str = "python") -> dict[str, Any]:
+    def model_dump(self, *, mode: str = "python") -> dict[str, object]:
         """Pydantic model serialization method."""
+        ...
+
+    def create_error_context(self) -> object:
+        """Create typed error context for stream error handling.
+
+        Returns StreamErrorContext but using object to avoid circular imports.
+        """
         ...
 
     def get_transformer_params(self) -> dict[str, str]:

@@ -243,7 +243,7 @@ class TradingService(HealthCheckable):
             raise RequiredParameterError(
                 parameter="exchange",
                 context="TradingService fee calculation",
-                exchange=exchange.value,
+                exchange=exchange,
             )
 
         exchange_config = self.config.exchanges[exchange]
@@ -253,7 +253,7 @@ class TradingService(HealthCheckable):
             raise RequiredParameterError(
                 parameter="fee_structure",
                 context="TradingService fee calculation",
-                exchange=exchange.value,
+                exchange=exchange,
             )
 
         fee_structure = exchange_config.fee_structure

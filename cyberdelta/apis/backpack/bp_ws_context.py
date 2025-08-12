@@ -9,20 +9,21 @@ from pydantic import computed_field
 
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 class BackpackMessageContext(WebSocketMessageContext[BackpackRawWebSocketEnvelope]):
     """Backpack-specific message context with enhanced typing."""
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def stream_symbol(self) -> str | None:
         """Extract symbol from Backpack stream format."""
         parts = self.validated_envelope.stream.split(".")
         return parts[1] if len(parts) > 1 else None
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
-    @computed_field
     def stream_details(self) -> str | None:
         """Extract additional details from Backpack stream format."""
         parts = self.validated_envelope.stream.split(".")
@@ -70,3 +71,46 @@ class BackpackMessageContext(WebSocketMessageContext[BackpackRawWebSocketEnvelop
             None as Backpack doesn't use coin parameters
         """
         return None
+
+    def create_error_context(
+        self,
+        channel: str | None = None,
+        sequence_number: int | None = None,
+        message_type: str | None = None,
+    ) -> StreamErrorContext:
+        """Create Backpack-specific error context.
+
+        Overrides base implementation to provide Backpack-specific details.
+
+        Args:
+            channel: Optional channel name override (defaults to stream)
+            sequence_number: Optional sequence number
+            message_type: Optional message type override
+
+        Returns:
+            StreamErrorContext: Backpack-specific error context
+        """
+        # StreamErrorContext imported at module level
+
+        # Use stream as default channel for Backpack
+        error_channel = channel or self.validated_envelope.stream
+
+        # Use stream symbol as topic if no symbol is set
+        topic = self.symbol or self.stream_symbol
+
+        # Get sequence from envelope if available
+        if sequence_number is None and hasattr(self.validated_envelope, "sequence"):
+            sequence_number = getattr(self.validated_envelope, "sequence", None)
+
+        # Create base context using parent method
+        context = super().create_error_context(
+            channel=error_channel,
+            sequence_number=sequence_number,
+            message_type=message_type,
+        )
+
+        # Update Backpack-specific fields
+        context.topic = topic
+        context.environment = "production"  # Backpack specific
+
+        return context

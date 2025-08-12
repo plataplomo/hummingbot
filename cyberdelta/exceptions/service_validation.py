@@ -6,6 +6,7 @@ particularly for the service_args_models.py validators.
 
 from decimal import Decimal
 
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.field_validation import FieldError
 
 
@@ -52,7 +53,7 @@ class OrderParameterError(ServiceValidationError):
         field_name: str | None = None,
         value: object = None,
         valid_values: list[str] | None = None,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
         context: str | None = None,
         reason: str | None = None,
         **kwargs: object,
@@ -83,7 +84,7 @@ class OrderParameterError(ServiceValidationError):
         if context:
             message = f"{message} (context: {context})"
         if exchange:
-            message = f"{message} for {exchange}"
+            message = f"{message} for {exchange.value}"
 
         super().__init__(
             message=message,

@@ -175,7 +175,7 @@ class BackpackBatchOrderService:
         if symbol is None:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="cancel all orders",
             )
 
@@ -233,7 +233,7 @@ class BackpackBatchOrderService:
         if symbol is None:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="cancel all orders",
             )
 
@@ -241,7 +241,7 @@ class BackpackBatchOrderService:
         if not symbol.value.strip():
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="cancel all orders",
                 reason="cannot be empty or whitespace only",
             )

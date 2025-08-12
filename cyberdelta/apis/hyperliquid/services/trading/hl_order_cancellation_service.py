@@ -492,7 +492,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             raise EmptyResponseError(
                 response_type="status data",
                 operation=action_description,
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
             )
 
         # Process the status using utility functions
@@ -508,7 +508,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
                 parameter="symbol",
                 issue="cannot be None at this point in processing",
                 value=cancel_args.symbol,
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
                 operation="single order cancellation",
                 expected_type="non-empty string",
                 suggestion="This indicates an internal validation error",
@@ -594,7 +594,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
                 parameter="authenticator",
                 issue="is required for cancel all orders operation",
                 value=self._authenticator,
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
                 operation="cancel all orders",
                 expected_type="IAuthenticator",
                 suggestion="Ensure authentication is properly configured",
@@ -678,7 +678,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             parameter="order_id",
             issue="must be a positive integer",
             value=order_id,
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             operation="order cancellation",
             expected_type="positive integer",
             suggestion="Provide an order ID greater than 0",
@@ -702,7 +702,7 @@ class HyperliquidOrderCancellationService(HyperliquidBaseTradingService):
             parameter="order_id",
             issue="must be a valid integer",
             value=order_id,
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             operation="order cancellation",
             expected_type="integer string",
             suggestion="Provide a valid numeric order ID",

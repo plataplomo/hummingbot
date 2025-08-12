@@ -134,7 +134,7 @@ class BackpackFillMapper(CommonDataParserMixin, ValidationMixin, FillMapperProto
                 data=trade_data,
                 model_class=Fill,
                 context="backpack_public_trade_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:
@@ -206,7 +206,7 @@ class BackpackFillMapper(CommonDataParserMixin, ValidationMixin, FillMapperProto
                 data=trade_data,
                 model_class=Fill,
                 context="backpack_recent_trade_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:
@@ -276,7 +276,7 @@ class BackpackFillMapper(CommonDataParserMixin, ValidationMixin, FillMapperProto
                 data=trade_data,
                 model_class=Fill,
                 context="backpack_ws_trade_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:

@@ -520,7 +520,7 @@ class HyperliquidOrderStatusProcessor:
             data=order_data,
             model_class=Order,
             context=f"place_order_{status.value}_{args.symbol}",
-            source_exchange=ExchangeName.HYPERLIQUID.value,
+            source_exchange=ExchangeName.HYPERLIQUID,
         )
 
     def _create_filled_order(
@@ -571,7 +571,7 @@ class HyperliquidOrderStatusProcessor:
             data=order_data,
             model_class=Order,
             context=f"place_order_filled_{args.symbol}",
-            source_exchange=ExchangeName.HYPERLIQUID.value,
+            source_exchange=ExchangeName.HYPERLIQUID,
         )
 
     def handle_service_error(

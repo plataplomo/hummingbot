@@ -4,10 +4,16 @@ These exceptions handle errors specific to market data service operations,
 including parameter validation and data availability.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class MarketDataServiceError(APIError):
@@ -216,7 +222,7 @@ class SymbolNotFoundError(MarketDataServiceError):
         self,
         symbol: str,
         available_symbols: list[str] | None = None,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
         service_method: str | None = None,
     ) -> None:
         """Initialize symbol not found error.
@@ -224,10 +230,10 @@ class SymbolNotFoundError(MarketDataServiceError):
         Args:
             symbol: The symbol that was not found
             available_symbols: List of available symbols
-            exchange: Exchange name where symbol lookup failed
+            exchange: Exchange enum value where symbol lookup failed
             service_method: Service method where error occurred
         """
-        prefix = f"[{exchange}] " if exchange else ""
+        prefix = f"[{exchange.value}] " if exchange else ""
         message = f"{prefix}Symbol '{symbol}' not found"
 
         if available_symbols:
@@ -247,7 +253,7 @@ class SymbolNotFoundError(MarketDataServiceError):
             metadata={
                 "symbol": symbol,
                 "available_symbols": available_symbols,
-                "exchange": exchange,
+                "exchange": exchange.value if exchange else None,
             },
         )
         self.symbol = symbol

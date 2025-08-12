@@ -96,7 +96,7 @@ class BackpackFundingRateMapper(CommonDataParserMixin, ValidationMixin, FundingR
                 data=funding_data,
                 model_class=FundingRate,
                 context="backpack_funding_rate_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:
@@ -162,7 +162,7 @@ class BackpackFundingRateMapper(CommonDataParserMixin, ValidationMixin, FundingR
                 data=funding_data,
                 model_class=FundingRate,
                 context="backpack_funding_interval_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:

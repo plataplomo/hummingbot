@@ -196,14 +196,14 @@ class SecretsConfig(BaseModel):
             if exchange_name == ExchangeName.HYPERLIQUID:
                 if not isinstance(secrets_config_item, PrivateKeyAuthSecrets):
                     raise InvalidAuthTypeError(
-                        exchange="Hyperliquid",
+                        exchange=ExchangeName.HYPERLIQUID,
                         expected_auth_type="private_key",
                     )
                 # Basic presence check for private_key
                 pk_val = secrets_config_item.private_key.get_secret_value()
                 if not pk_val or not pk_val.strip():
                     raise EmptySecretError(
-                        exchange="Hyperliquid",
+                        exchange=ExchangeName.HYPERLIQUID,
                         field_name="private_key",
                     )
 
@@ -214,7 +214,7 @@ class SecretsConfig(BaseModel):
             elif exchange_name == ExchangeName.BACKPACK:
                 if not isinstance(secrets_config_item, ApiKeyAuthSecrets):
                     raise InvalidAuthTypeError(
-                        exchange="Backpack",
+                        exchange=ExchangeName.BACKPACK,
                         expected_auth_type="api_key",
                     )
                 # Basic presence checks for Backpack (ED25519 keys)
@@ -222,13 +222,13 @@ class SecretsConfig(BaseModel):
                 api_secret_val = secrets_config_item.api_secret.get_secret_value()
                 if not (api_key_val and api_key_val.strip()):
                     raise EmptySecretError(
-                        exchange="Backpack",
+                        exchange=ExchangeName.BACKPACK,
                         field_name="api_key",
                         field_description="ED25519 Public Key",
                     )
                 if not (api_secret_val and api_secret_val.strip()):
                     raise EmptySecretError(
-                        exchange="Backpack",
+                        exchange=ExchangeName.BACKPACK,
                         field_name="api_secret",
                         field_description="ED25519 Private Key",
                     )

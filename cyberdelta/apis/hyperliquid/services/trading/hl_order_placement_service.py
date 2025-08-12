@@ -249,7 +249,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService, SymbolAwar
                 self._get_asset_index_callable,
             )
             if asset_index is None:
-                raise SymbolNotFoundError(symbol=symbol.value, exchange="Hyperliquid")
+                raise SymbolNotFoundError(symbol=symbol.value, exchange=ExchangeName.HYPERLIQUID)
 
             orders_with_indices.append((order_args, asset_index))
 
@@ -450,7 +450,7 @@ class HyperliquidOrderPlacementService(HyperliquidBaseTradingService, SymbolAwar
                     parameter=f"orders[{i}]",
                     issue="failed validation",
                     value=order,
-                    exchange=ExchangeName.HYPERLIQUID.value,
+                    exchange=ExchangeName.HYPERLIQUID,
                     operation="order placement",
                     suggestion=str(e),
                 ) from e

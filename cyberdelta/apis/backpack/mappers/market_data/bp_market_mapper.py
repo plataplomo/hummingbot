@@ -97,7 +97,7 @@ class BackpackMarketMapper(CommonDataParserMixin, MarketMapperProtocol):
                 data=market_data,
                 model_class=Market,
                 context="backpack_market_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:

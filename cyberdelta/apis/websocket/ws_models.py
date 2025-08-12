@@ -15,11 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 from cyberdelta.apis.websocket.websocket_states import FieldPresenceState
 
 
-class WebSocketValidationError(ValueError):
-    """Base exception for WebSocket validation errors."""
-
-
-class SuccessErrorMismatchError(WebSocketValidationError):
+class SuccessErrorMismatchError(ValueError):
     """Raised when success and error fields don't match."""
 
     def __init__(self, success_state: FieldPresenceState, error_state: FieldPresenceState) -> None:
@@ -30,7 +26,7 @@ class SuccessErrorMismatchError(WebSocketValidationError):
             super().__init__("Must have error message when success is False")
 
 
-class AuthenticationErrorMismatchError(WebSocketValidationError):
+class AuthenticationErrorMismatchError(ValueError):
     """Raised when authenticated and error fields don't match."""
 
     def __init__(self) -> None:

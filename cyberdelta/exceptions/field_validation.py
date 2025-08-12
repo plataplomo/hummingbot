@@ -9,7 +9,13 @@ Uses our three-layer exception architecture:
 Key design: Field validation ≠ Transformation. These are separate concerns.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class FieldError(Exception):
@@ -262,7 +268,7 @@ class PositionLogicError(ValueError, FieldError):
         validation_type: str,
         message: str,
         *,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
         fields: dict[str, object] | None = None,
     ) -> None:
         """Initialize position logic error.

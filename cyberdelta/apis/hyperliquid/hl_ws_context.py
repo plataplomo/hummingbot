@@ -9,6 +9,7 @@ from pydantic import computed_field
 
 from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import HyperliquidRawWebSocketEnvelope
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 class HyperliquidMessageContext(WebSocketMessageContext[HyperliquidRawWebSocketEnvelope]):
@@ -79,3 +80,46 @@ class HyperliquidMessageContext(WebSocketMessageContext[HyperliquidRawWebSocketE
         if coin_value is None:
             coin_value = self.symbol
         return {"coin": coin_value} if coin_value else None
+
+    def create_error_context(
+        self,
+        channel: str | None = None,
+        sequence_number: int | None = None,
+        message_type: str | None = None,
+    ) -> StreamErrorContext:
+        """Create Hyperliquid-specific error context.
+
+        Overrides base implementation to provide Hyperliquid-specific details.
+
+        Args:
+            channel: Optional channel name override (defaults to envelope channel)
+            sequence_number: Optional sequence number
+            message_type: Optional message type override
+
+        Returns:
+            StreamErrorContext: Hyperliquid-specific error context
+        """
+        # StreamErrorContext imported at module level
+
+        # Use channel from envelope or parameter
+        error_channel = channel or getattr(self.validated_envelope, "channel", None)
+
+        # Use coin as topic if no symbol is set
+        topic = self.symbol or self.coin
+
+        # Get sequence from envelope if available
+        if sequence_number is None and hasattr(self.validated_envelope, "sequence"):
+            sequence_number = getattr(self.validated_envelope, "sequence", None)
+
+        # Create base context using parent method
+        context = super().create_error_context(
+            channel=error_channel,
+            sequence_number=sequence_number,
+            message_type=message_type,
+        )
+
+        # Update Hyperliquid-specific fields
+        context.topic = topic
+        context.environment = "production"  # Hyperliquid specific
+
+        return context

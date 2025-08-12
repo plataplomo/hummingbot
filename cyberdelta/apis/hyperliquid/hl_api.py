@@ -62,6 +62,7 @@ from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import (
     AccountSettings,
@@ -207,7 +208,7 @@ class HyperliquidAPI(ExchangeAPI):
             raise RequiredParameterError(
                 parameter="chain_id",
                 context="Hyperliquid initialization",
-                exchange="Hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
 
         # Create the factory to handle component instantiation
@@ -892,7 +893,7 @@ class HyperliquidAPI(ExchangeAPI):
             raise RequiredParameterError(
                 parameter="start_time",
                 context="get_historical_funding_rates",
-                exchange="Hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
         return await self.market_data_service.get_historical_funding_rates(args=args)
 

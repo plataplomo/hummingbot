@@ -4,19 +4,27 @@ These exceptions handle transformation errors specific to trading data
 such as orders, trades, and trading-related enums.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from cyberdelta.apis.common.api_error import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import UnknownEnumError
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class UnknownOrderSideError(UnknownEnumError):
     """Raised when an unknown order side value is encountered."""
 
-    def __init__(self, side: str, exchange: str | None = None) -> None:
+    def __init__(self, side: str, exchange: ExchangeName | None = None) -> None:
         """Initialize unknown order side error.
 
         Args:
             side: The unknown side value
-            exchange: Optional exchange name
+            exchange: Optional exchange enum value
         """
         prefix = f"[{exchange}] " if exchange else ""
         super().__init__(

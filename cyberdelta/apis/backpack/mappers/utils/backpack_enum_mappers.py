@@ -7,7 +7,7 @@ that are shared across multiple mappers to avoid code duplication.
 from cyberdelta.apis.exceptions.data_transformation import UnknownEnumError
 from cyberdelta.apis.exceptions.trading_transformation import UnknownOrderSideError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import OrderSide
+from cyberdelta.enums import ExchangeName, OrderSide
 
 
 logger = get_logger(__name__)
@@ -57,7 +57,7 @@ class BackpackEnumMappers:
 
         # Different error types based on context
         if error_type == "order":
-            raise UnknownOrderSideError(bp_side, exchange="Backpack")
+            raise UnknownOrderSideError(bp_side, exchange=ExchangeName.BACKPACK)
 
         raise UnknownEnumError(
             enum_type="Backpack order side",

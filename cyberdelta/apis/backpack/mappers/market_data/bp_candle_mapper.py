@@ -138,7 +138,7 @@ class BackpackCandleMapper(CommonDataParserMixin, ValidationMixin, CandleMapperP
                 data=candle_data,
                 model_class=Candle,
                 context="backpack_kline_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:

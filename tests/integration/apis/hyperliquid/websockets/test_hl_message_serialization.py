@@ -25,9 +25,10 @@ import pytest
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from cyberdelta.apis.common.base_types import DomainModelProtocol
-from cyberdelta.apis.exceptions import UnsupportedWebSocketTopicError, WebSocketSubscriptionError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.symbols import Symbol
 
@@ -442,7 +443,7 @@ class TestHyperliquidMessageSerializationIntegration:
             TypeError,
             ConnectionError,
             TimeoutError,
-            UnsupportedWebSocketTopicError,
+            WebSocketStreamError,
             WebSocketSubscriptionError,
         ) as e:
             pytest.fail(f"Failed to subscribe to allMids: {e}")
@@ -574,7 +575,7 @@ class TestHyperliquidMessageSerializationIntegration:
             TypeError,
             ConnectionError,
             TimeoutError,
-            UnsupportedWebSocketTopicError,
+            WebSocketStreamError,
             WebSocketSubscriptionError,
         ) as e:
             pytest.fail(f"Failed to subscribe for envelope testing: {e}")
@@ -811,7 +812,7 @@ class TestHyperliquidMessageSerializationIntegration:
             TypeError,
             ConnectionError,
             TimeoutError,
-            UnsupportedWebSocketTopicError,
+            WebSocketStreamError,
             WebSocketSubscriptionError,
         ) as e:
             pytest.fail(f"Failed to subscribe for precision testing: {e}")

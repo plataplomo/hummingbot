@@ -1,11 +1,24 @@
 """WebSocket-related exceptions for CyberDelta.
 
-These exceptions handle WebSocket subscription, message parsing,
-and channel-specific validation errors.
+DEPRECATED: These legacy WebSocket exceptions are deprecated and will be removed.
+Use the new decoupled WebSocket error system from cyberdelta.apis.websocket.ws_exceptions instead.
+
+These exceptions handled WebSocket subscription, message parsing,
+and channel-specific validation errors but are no longer used.
 """
+
+import warnings
 
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
+
+
+warnings.warn(
+    "The websocket exceptions in cyberdelta.apis.exceptions.websocket are deprecated. "
+    "Use cyberdelta.apis.websocket.ws_exceptions instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 class WebSocketError(APIError):

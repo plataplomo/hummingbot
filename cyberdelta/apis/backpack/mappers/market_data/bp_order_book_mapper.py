@@ -97,7 +97,7 @@ class BackpackOrderBookMapper(CommonDataParserMixin, OrderBookMapperProtocol):
                 data=orderbook_data,
                 model_class=OrderBook,
                 context="backpack_orderbook_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:
@@ -170,7 +170,7 @@ class BackpackOrderBookMapper(CommonDataParserMixin, OrderBookMapperProtocol):
                 data=orderbook_data,
                 model_class=OrderBook,
                 context="backpack_ws_depth_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:

@@ -104,7 +104,7 @@ class BackpackBalanceMapper(
                 data=balance_data,
                 model_class=SpotBalance,
                 context="backpack_balance_from_dict",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
             logger.debug(
@@ -211,7 +211,7 @@ class BackpackBalanceMapper(
                 data=balance_data,
                 model_class=SpotBalance,
                 context="backpack_raw_balance_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
             logger.debug(
@@ -246,7 +246,7 @@ class BackpackBalanceMapper(
         self,
         symbol: Symbol,
         collateral_data: BackpackRawCollateralAsset,
-        exchange_name: str,
+        exchange_name: ExchangeName,
     ) -> SpotBalance:
         """Create a SpotBalance from collateral data when standard balance endpoint is unavailable.
 

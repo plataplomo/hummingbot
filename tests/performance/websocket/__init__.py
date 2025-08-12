@@ -1,0 +1,1 @@
+"""WebSocket performance tests module."""

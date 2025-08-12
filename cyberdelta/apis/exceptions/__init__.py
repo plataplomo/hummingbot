@@ -115,14 +115,9 @@ from .trading_transformation import (
     UnknownOrderSideError,
 )
 
-# WebSocket exceptions
-from .websocket import (
-    InvalidWebSocketDataError,
-    UnsupportedWebSocketTopicError,
-    UserEventsSubscriptionError,
-    WebSocketError,
-    WebSocketSubscriptionError,
-)
+
+# WebSocket exceptions - DEPRECATED: Use cyberdelta.apis.websocket.ws_exceptions instead
+# Legacy WebSocket exceptions removed - use cyberdelta.apis.websocket.ws_exceptions instead
 
 
 __all__ = [
@@ -156,7 +151,7 @@ __all__ = [
     "InvalidParameterTypeError",
     "InvalidPrivateKeyError",
     "InvalidQuantityError",
-    "InvalidWebSocketDataError",
+    # "InvalidWebSocketDataError",  # DEPRECATED
     "KlineTypeError",
     "KlineValueError",
     "MapperNotFoundError",
@@ -190,10 +185,10 @@ __all__ = [
     "UnknownEnumError",
     "UnknownOrderSideError",
     "UnreachableCodeError",
-    "UnsupportedWebSocketTopicError",
-    "UserEventsSubscriptionError",
+    # "UnsupportedWebSocketTopicError",  # DEPRECATED
+    # "UserEventsSubscriptionError",  # DEPRECATED
     "WebSocketConnectionClosedError",
-    "WebSocketError",
+    # "WebSocketError",  # DEPRECATED
     "WebSocketSignatureError",
-    "WebSocketSubscriptionError",
+    # "WebSocketSubscriptionError",  # DEPRECATED
 ]

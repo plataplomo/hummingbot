@@ -5,6 +5,7 @@ API error handling capabilities. They inherit from ConfigurationError
 to avoid circular dependencies with the API layer.
 """
 
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import ConfigurationError
 
 
@@ -39,9 +40,9 @@ class PortfolioStateNotInitializedError(PortfolioStateError):
 class ExchangeNotSupportedError(PortfolioError):
     """Raised when an unsupported exchange is encountered."""
 
-    def __init__(self, exchange: str) -> None:
-        """Initialize with exchange name."""
-        super().__init__(f"API client for {exchange} does not support balance fetching")
+    def __init__(self, exchange: ExchangeName) -> None:
+        """Initialize with exchange enum."""
+        super().__init__(f"API client for {exchange.value} does not support balance fetching")
 
 
 class ReconciliationError(PortfolioError):

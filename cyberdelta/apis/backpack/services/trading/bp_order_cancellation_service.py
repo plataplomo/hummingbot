@@ -191,7 +191,7 @@ class BackpackOrderCancellationService:
         if args.symbol is None:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="cancel order",
             )
 
@@ -262,7 +262,7 @@ class BackpackOrderCancellationService:
         if symbol is None:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="cancel order",
             )
 
@@ -272,7 +272,7 @@ class BackpackOrderCancellationService:
         if not order_id.strip():
             raise MissingRequiredFieldError(
                 field="order_id",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="cancel order",
                 reason="cannot be empty or whitespace only",
             )
@@ -319,7 +319,7 @@ class BackpackOrderCancellationService:
         if symbol is None:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="cancel order response processing",
             )
 

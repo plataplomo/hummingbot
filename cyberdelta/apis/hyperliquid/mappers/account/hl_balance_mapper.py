@@ -206,7 +206,7 @@ class HyperliquidBalanceMapper(CommonDataParserMixin, BalanceMapperMixin, Balanc
                 data=balance_data,
                 model_class=SpotBalance,
                 context="hyperliquid_usdc_balance_transform",
-                source_exchange=ExchangeName.HYPERLIQUID.value,
+                source_exchange=ExchangeName.HYPERLIQUID,
             )
 
             spot_balances["USDC"] = spot_balance
@@ -327,7 +327,7 @@ class HyperliquidBalanceMapper(CommonDataParserMixin, BalanceMapperMixin, Balanc
                 data=balance_data,
                 model_class=SpotBalance,
                 context="hyperliquid_spot_asset_transform",
-                source_exchange=ExchangeName.HYPERLIQUID.value,
+                source_exchange=ExchangeName.HYPERLIQUID,
             )
 
             spot_balances[asset_name] = spot_balance

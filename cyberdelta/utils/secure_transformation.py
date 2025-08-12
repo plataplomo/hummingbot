@@ -17,6 +17,7 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common import TransformationError as BaseTransformationError
 from cyberdelta.config.structlog_config import TraceLevelLogger, get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
     RangeFieldError,
@@ -49,13 +50,16 @@ class SecurityValidationAggregator:
         self.models: dict[str, int] = {}
         self.exchanges: dict[str, int] = {}
 
-    def record_attempt(self, context: str, model_class: str, source_exchange: str | None) -> None:
+    def record_attempt(
+        self, context: str, model_class: str, source_exchange: ExchangeName | None
+    ) -> None:
         """Record a validation attempt."""
         self.attempts += 1
         self.contexts[context] = self.contexts.get(context, 0) + 1
         self.models[model_class] = self.models.get(model_class, 0) + 1
         if source_exchange:
-            self.exchanges[source_exchange] = self.exchanges.get(source_exchange, 0) + 1
+            exchange_key = source_exchange.value
+            self.exchanges[exchange_key] = self.exchanges.get(exchange_key, 0) + 1
 
     def record_success(self) -> None:
         """Record a successful validation."""
@@ -168,7 +172,7 @@ def secure_transform[T: BaseModel](
     data: dict[str, Any],
     model_class: type[T],
     context: str = "unknown",
-    source_exchange: str | None = None,
+    source_exchange: ExchangeName | None = None,
 ) -> T:
     """Securely transform raw data to internal model with comprehensive validation.
 
@@ -218,13 +222,14 @@ def secure_transform[T: BaseModel](
             "security_validation_failed",
             context=context,
             model_class=model_class.__name__,
-            source_exchange=source_exchange,
+            source_exchange=source_exchange.value if source_exchange else None,
             validation_errors=e.errors(),
             error_count=len(e.errors()),
             action="potential_attack_detected",
             message=(
                 f"SECURITY ALERT: Validation failed - context={context}, "
-                f"model={model_class.__name__}, source={source_exchange}"
+                f"model={model_class.__name__}, "
+                f"source={source_exchange.value if source_exchange else 'none'}"
             ),
         )
 
@@ -243,7 +248,7 @@ def secure_transform[T: BaseModel](
             "security_unexpected_transformation_error",
             context=context,
             model_class=model_class.__name__,
-            source_exchange=source_exchange,
+            source_exchange=source_exchange.value if source_exchange else None,
             error_type=type(e).__name__,
             error=str(e),
             action="critical_security_event",
@@ -265,7 +270,7 @@ def secure_transform_with_audit[T: BaseModel](
     data: dict[str, Any],
     model_class: type[T],
     context: str = "unknown",
-    source_exchange: str | None = None,
+    source_exchange: ExchangeName | None = None,
     audit_logger: TraceLevelLogger | structlog.BoundLogger | None = None,
 ) -> T:
     """Secure transformation with enhanced audit logging for financial operations.
@@ -320,7 +325,7 @@ def secure_transform_with_audit[T: BaseModel](
             timestamp=end_time.isoformat(),
             context=context,
             model_class=model_class.__name__,
-            source_exchange=source_exchange,
+            source_exchange=source_exchange.value if source_exchange else None,
             duration_ms=round(duration_ms, 2),
             action="transformation_successful",
             message=(
@@ -337,7 +342,7 @@ def secure_transform_with_audit[T: BaseModel](
             timestamp=end_time.isoformat(),
             context=context,
             model_class=model_class.__name__,
-            source_exchange=source_exchange,
+            source_exchange=source_exchange.value if source_exchange else None,
             duration_ms=round(duration_ms, 2),
             error=str(e),
             action="transformation_failed",

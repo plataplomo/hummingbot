@@ -9,7 +9,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field
 
 from cyberdelta.config.models.event_system_config import EventSystemSettings
 
@@ -45,8 +45,9 @@ from cyberdelta.config.models.safety_config import (
     SafetySystemsSettings,
 )
 from cyberdelta.config.models.simulation_config import SimulationSettings
-from cyberdelta.config.models.smart_symbol_generator import SmartSymbolGenerator
 from cyberdelta.config.models.smart_symbol_models import SmartSymbolsConfig, SymbolPatterns
+from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
+from cyberdelta.config.models.websocket_processor_config import WebSocketProcessorConfig
 from cyberdelta.enums import ExchangeName
 
 
@@ -129,6 +130,21 @@ class AppSettings(BaseModel):
         default_factory=MonitoringSettings, description="Monitoring and alerting settings"
     )
 
+    # Event system configuration
+    event_system: EventSystemSettings = Field(
+        default_factory=EventSystemSettings,
+        description="Event system configuration for pubsub communication",
+    )
+
+    # WebSocket error handling
+    websocket_error: WebSocketErrorConfig = Field(
+        default_factory=WebSocketErrorConfig, description="WebSocket error handling configuration"
+    )
+
+    websocket_processor: WebSocketProcessorConfig = Field(
+        default_factory=WebSocketProcessorConfig, description="WebSocket processor configuration"
+    )
+
     # Portfolio management
     calculation: PortfolioCalculationSettings = Field(
         default_factory=PortfolioCalculationSettings, description="Portfolio calculation settings"
@@ -156,18 +172,6 @@ class AppSettings(BaseModel):
         ),
         description="Smart symbol configuration",
     )
-
-    # Event system configuration
-    event_system: EventSystemSettings = Field(
-        default_factory=EventSystemSettings,
-        description="Event system configuration for high-performance event architecture",
-    )
-
-    @property
-    @computed_field
-    def symbol_generator(self) -> SmartSymbolGenerator:
-        """Get the symbol generator for this configuration."""
-        return SmartSymbolGenerator(self.symbols)
 
     def get_exchange_config(self, exchange_name: ExchangeName) -> ExchangeSpecificConfig | None:
         """Get configuration for a specific exchange.

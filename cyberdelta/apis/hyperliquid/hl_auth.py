@@ -50,6 +50,7 @@ from cyberdelta.apis.hyperliquid.models.hl_eip712_models import (
     HyperliquidUserDomainData,
 )
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.exceptions.field_validation import InvalidFormatError, PassphraseFieldError
 
@@ -170,7 +171,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             raise RequiredParameterError(
                 parameter="wallet_private_key_secret or account_object",
                 context="authentication initialization",
-                exchange="Hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
         if wallet_private_key_secret and account_object:
             msg = "Provide either wallet_private_key_secret or account_object, not both."
@@ -183,7 +184,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             raise RequiredParameterError(
                 parameter="wallet_private_key_secret or account_object",
                 context="authentication initialization (only one allowed)",
-                exchange="Hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
 
     def _setup_account(
@@ -877,7 +878,7 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             raise RequiredParameterError(
                 parameter="data",
                 context="exchange request validation",
-                exchange="Hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
 
         # Prepare action payload and determine signing scheme
@@ -1163,13 +1164,13 @@ class HyperliquidEip712Authenticator(IAuthenticator):
             raise RequiredParameterError(
                 parameter="action_payload",
                 context="HTTP body construction",
-                exchange="Hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
         if not signature_dict:
             raise RequiredParameterError(
                 parameter="signature",
                 context="HTTP body construction",
-                exchange="Hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
         if current_nonce_ms <= 0:
             raise InvalidFormatError(

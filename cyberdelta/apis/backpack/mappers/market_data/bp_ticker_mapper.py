@@ -118,7 +118,7 @@ class BackpackTickerMapper(CommonDataParserMixin, TickerMapperProtocol):
                 data=ticker_data,
                 model_class=Ticker,
                 context="backpack_ticker_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:
@@ -172,7 +172,7 @@ class BackpackTickerMapper(CommonDataParserMixin, TickerMapperProtocol):
                 data=ticker_data,
                 model_class=Ticker,
                 context="backpack_ws_ticker_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except Exception as e:

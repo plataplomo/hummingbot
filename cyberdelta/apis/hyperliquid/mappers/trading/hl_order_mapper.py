@@ -316,7 +316,7 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
                 data=order_data,
                 model_class=Order,
                 context="hyperliquid_simple_order_transform",
-                source_exchange=ExchangeName.HYPERLIQUID.value,
+                source_exchange=ExchangeName.HYPERLIQUID,
             )
 
         except TransformationError:
@@ -717,7 +717,7 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
             data=order_data,
             model_class=Order,
             context="hyperliquid_order_transform",
-            source_exchange=ExchangeName.HYPERLIQUID.value,
+            source_exchange=ExchangeName.HYPERLIQUID,
         )
 
     def _parse_historical_order_components(
@@ -962,5 +962,5 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
             data=order_data,
             model_class=Order,
             context="hyperliquid_historical_order_transform",
-            source_exchange=ExchangeName.HYPERLIQUID.value,
+            source_exchange=ExchangeName.HYPERLIQUID,
         )

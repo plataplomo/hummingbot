@@ -39,22 +39,24 @@ class TestnetConfigurationError(APIError):
 class RateLimitConfigurationError(APIError):
     """Raised when rate limit configuration is missing or invalid."""
 
-    def __init__(self, exchange: str, parameter_name: str = "rate_limit_per_minute") -> None:
+    def __init__(
+        self, exchange: ExchangeName, parameter_name: str = "rate_limit_per_minute"
+    ) -> None:
         """Initialize rate limit configuration error.
 
         Args:
-            exchange: Name of the exchange
+            exchange: Exchange enum value
             parameter_name: Name of the missing parameter (default: "rate_limit_per_minute")
         """
         self.exchange = exchange
         self.parameter_name = parameter_name
 
         super().__init__(
-            message=f"{parameter_name} is required for {exchange}",
+            message=f"{parameter_name} is required for {exchange.value}",
             code=APIErrorCode.INVALID_REQUEST.value,
             exchange_code="RATE_LIMIT_CONFIG_ERROR",
             metadata={
-                "exchange": exchange,
+                "exchange": exchange.value,
                 "parameter": parameter_name,
                 "error_type": "configuration",
             },

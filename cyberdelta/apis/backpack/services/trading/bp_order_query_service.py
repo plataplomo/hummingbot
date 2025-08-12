@@ -199,7 +199,7 @@ class BackpackOrderQueryService:
         if symbol is not None and (not symbol or not symbol.value):
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="get all open orders",
                 reason="must be a valid Symbol object with non-empty value when provided",
             )
@@ -316,7 +316,7 @@ class BackpackOrderQueryService:
         if args.symbol is None:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="get order",
             )
 
@@ -455,13 +455,13 @@ class BackpackOrderQueryService:
         if args.symbol is None:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="get order",
             )
         if not args.symbol:
             raise MissingRequiredFieldError(
                 field="symbol",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="get order",
                 reason="must be a non-empty string",
             )
@@ -513,7 +513,7 @@ class BackpackOrderQueryService:
         if not args.order_id and not args.client_order_id:
             raise MissingRequiredFieldError(
                 field="order_id or client_order_id",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
                 operation="get order",
                 reason="at least one identifier must be provided",
             )

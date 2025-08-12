@@ -48,6 +48,8 @@ class APIErrorCode(Enum):
     FUNDING_RATE_UNAVAILABLE = 118
     IP_BAN_SUSPECTED = 119
     MIN_QUANTITY_NOT_MET = 120
+    PERMISSION_DENIED = 121
+    ACCOUNT_SUSPENDED = 122
 
     # --- Unknown/Miscellaneous Errors (200-299) ---
     UNKNOWN = 200

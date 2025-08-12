@@ -67,7 +67,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             raise RequiredParameterError(
                 parameter="ip_weight_limit_per_minute",
                 context="HyperliquidRateLimitStrategy",
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
             )
         ip_rate_rps = ip_rate_rpm / 60.0
         ip_bucket = max(1, int(ip_rate_rps * 2))  # 2-second bucket
@@ -88,7 +88,7 @@ class HyperliquidRateLimitStrategy(RateLimitStrategy):
             raise RequiredParameterError(
                 parameter="address_action_safety_net",
                 context="HyperliquidRateLimitStrategy",
-                exchange=ExchangeName.HYPERLIQUID.value,
+                exchange=ExchangeName.HYPERLIQUID,
             )
         aa_rate_rpm = aa_config.rate_per_minute
         aa_rate_rps = aa_rate_rpm / 60.0

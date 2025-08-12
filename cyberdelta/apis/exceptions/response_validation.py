@@ -4,8 +4,16 @@ These exceptions handle validation errors for API responses,
 including empty responses, invalid data formats, and missing fields.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class EmptyResponseError(APIError):
@@ -16,7 +24,7 @@ class EmptyResponseError(APIError):
         response_type: str,
         operation: str | None = None,
         http_status: int | None = None,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
     ) -> None:
         """Initialize empty response error.
 
@@ -24,7 +32,7 @@ class EmptyResponseError(APIError):
             response_type: Type of response that was empty
             operation: Operation that returned empty response
             http_status: HTTP status code
-            exchange: Exchange name
+            exchange: Exchange enum value
         """
         message = f"Empty {response_type} received"
         if operation:
@@ -41,7 +49,7 @@ class EmptyResponseError(APIError):
                 "expected_format": "non-empty data",
                 "actual_data": None,
                 "operation": operation,
-                "exchange": exchange,
+                "exchange": exchange.value if exchange else None,
             },
         )
 
@@ -90,14 +98,14 @@ class NotImplementedOperationError(APIError):
         self,
         operation: str,
         service: str,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
     ) -> None:
         """Initialize not implemented operation error.
 
         Args:
             operation: Operation that is not implemented
             service: Service class name
-            exchange: Exchange name
+            exchange: Exchange enum value
         """
         message = f"{operation} not yet implemented in {service}"
         if exchange:
@@ -109,7 +117,7 @@ class NotImplementedOperationError(APIError):
             metadata={
                 "operation": operation,
                 "service": service,
-                "exchange": exchange,
+                "exchange": exchange.value if exchange else None,
             },
         )
 

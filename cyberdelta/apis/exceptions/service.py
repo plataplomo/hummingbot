@@ -4,10 +4,17 @@ These exceptions handle service-level errors including parameter validation,
 operation failures, and service-specific errors.
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class ServiceParameterError(APIError):
@@ -21,7 +28,7 @@ class ServiceParameterError(APIError):
         parameter: str,
         issue: str,
         value: object = None,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
         operation: str | None = None,
         expected_type: str | None = None,
         suggestion: str | None = None,
@@ -32,7 +39,7 @@ class ServiceParameterError(APIError):
             parameter: Name of the parameter that failed validation
             issue: Description of what's wrong with the parameter
             value: The actual value that was provided (if any)
-            exchange: Exchange name where the error occurred
+            exchange: Exchange enum value where the error occurred
             operation: Operation being performed when error occurred
             expected_type: What type/format was expected
             suggestion: Helpful suggestion for fixing the issue
@@ -52,7 +59,7 @@ class ServiceParameterError(APIError):
         if expected_type:
             message += f" (expected: {expected_type})"
         if exchange:
-            message = f"[{exchange}] {message}"
+            message = f"[{exchange.value}] {message}"
         if operation:
             message += f" during {operation}"
         if suggestion:
@@ -66,7 +73,7 @@ class ServiceParameterError(APIError):
                 "parameter": parameter,
                 "issue": issue,
                 "value": str(value) if value is not None else None,
-                "exchange": exchange,
+                "exchange": exchange.value if exchange else None,
                 "operation": operation,
                 "expected_type": expected_type,
                 "suggestion": suggestion,

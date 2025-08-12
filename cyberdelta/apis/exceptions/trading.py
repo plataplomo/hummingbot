@@ -4,10 +4,16 @@ These exceptions handle trading operation errors including order placement,
 execution, balance checks, and market availability.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class InvalidBatchResponseError(APIError):
@@ -120,18 +126,18 @@ class OrderNotFoundError(OrderError):
         self,
         order_id: str,
         symbol: str | None = None,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
     ) -> None:
         """Initialize order not found error.
 
         Args:
             order_id: The order identifier
             symbol: Optional trading symbol
-            exchange: Optional exchange name
+            exchange: Optional exchange enum value
         """
         message = f"Order {order_id} not found"
         if exchange:
-            message = f"{message} on {exchange}"
+            message = f"{message} on {exchange.value}"
 
         super().__init__(
             message=message,
@@ -150,7 +156,7 @@ class MarketClosedError(APIError):
         symbol: str,
         market_state: str | None = None,
         next_open: str | None = None,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
         reason: str | None = None,
     ) -> None:
         """Initialize market closed error.
@@ -159,7 +165,7 @@ class MarketClosedError(APIError):
             symbol: Trading symbol
             market_state: Current market state
             next_open: When market will open next
-            exchange: Optional exchange name
+            exchange: Optional exchange enum value
             reason: Optional specific reason for market being closed
         """
         self.symbol = symbol
@@ -179,7 +185,7 @@ class MarketClosedError(APIError):
         if next_open:
             message = f"{message}, opens at {next_open}"
         if exchange:
-            message = f"{message} on {exchange}"
+            message = f"{message} on {exchange.value}"
 
         super().__init__(
             message=message,
@@ -188,7 +194,7 @@ class MarketClosedError(APIError):
                 "symbol": symbol,
                 "market_state": market_state,
                 "next_open": next_open,
-                "exchange": exchange,
+                "exchange": exchange.value if exchange else None,
                 "reason": reason,
             },
         )

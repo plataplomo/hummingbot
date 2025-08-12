@@ -209,6 +209,46 @@ class WebSocketManager:
             and not self._ws_connection.closed
         )
 
+    @property
+    def exchange_name(self) -> str:
+        """Get the exchange name."""
+        return self._exchange_name
+
+    @property
+    def ws_url(self) -> str:
+        """Get the WebSocket URL."""
+        return self._ws_url
+
+    @property
+    def failure_count(self) -> int:
+        """Get the current failure count."""
+        return self._failure_count
+
+    @property
+    def circuit_open(self) -> bool:
+        """Check if circuit breaker is open."""
+        return self._circuit_open
+
+    @circuit_open.setter
+    def circuit_open(self, value: bool) -> None:
+        """Set circuit breaker state."""
+        self._circuit_open = value
+
+    @property
+    def max_reconnect_attempts(self) -> int:
+        """Get maximum reconnect attempts."""
+        return self._max_reconnect_attempts
+
+    @property
+    def should_reconnect(self) -> bool:
+        """Check if manager should attempt reconnection."""
+        return self._should_reconnect
+
+    @should_reconnect.setter
+    def should_reconnect(self, value: bool) -> None:
+        """Set whether manager should attempt reconnection."""
+        self._should_reconnect = value
+
     def connect(self) -> asyncio.Task[None] | None:
         """Initiates the WebSocket connection process by creating a task for _establish_connection.
 

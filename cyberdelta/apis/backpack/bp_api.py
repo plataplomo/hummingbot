@@ -43,6 +43,7 @@ from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
 
 
@@ -176,7 +177,7 @@ class BackpackAPI(ExchangeAPI):
         # The rate limit parameters (rate, bucket_size) are derived from the static
         # rate_limit_per_minute configured in exchange_config
         if exchange_config.rate_limit_per_minute is None:
-            raise RateLimitConfigurationError("Backpack")
+            raise RateLimitConfigurationError(ExchangeName.BACKPACK)
 
         rate_per_second = exchange_config.rate_limit_per_minute / 60.0
         bucket_size = max(1, int(rate_per_second * 2))
@@ -631,7 +632,7 @@ class BackpackAPI(ExchangeAPI):
             raise RequiredParameterError(
                 parameter="symbol",
                 context="get_order",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
             )
         return await self.trading_service.get_order(args)
 
@@ -652,7 +653,7 @@ class BackpackAPI(ExchangeAPI):
             raise RequiredParameterError(
                 parameter="symbol",
                 context="get_order_status",
-                exchange="Backpack",
+                exchange=ExchangeName.BACKPACK,
             )
         # Return type changed to Order | None to align with abstract method
         return await self.trading_service.get_order(args)

@@ -7,12 +7,13 @@ Exchange-specific contexts are in their respective packages.
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, TypeVar
 
 import orjson
 from pydantic import BaseModel, Field, computed_field
 
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.enums import ExchangeName
 
 
@@ -59,16 +60,18 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     # Type is Any because it varies based on the transformer used
     domain_model: Any = Field(default=None, exclude=True)
 
+    @computed_field  # type: ignore[prop-decorator]
     @property
     def exchange_name(self) -> str:
-        """Get exchange name string from ExchangeName enum.
+        """Get exchange name as string.
 
         Returns:
-            str: Exchange name string derived from exchange_type enum.
+            str: Exchange name string value
         """
         return self.exchange_type.value
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def topic(self) -> str | None:
         """Extract topic with proper typing based on exchange.
 
@@ -80,7 +83,8 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         # HYPERLIQUID
         return getattr(self.validated_envelope, "channel", None)
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def is_private_message(self) -> bool:
         """Determine if message is private based on routing key.
 
@@ -90,7 +94,8 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         private_patterns = {"account", "user", "balance", "orders", "fills"}
         return any(pattern in self.routing_key.lower() for pattern in private_patterns)
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def message_size_bytes(self) -> int:
         """Calculate message size for monitoring.
 
@@ -119,7 +124,8 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
             # If serialization fails, return 0
             return 0
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def processing_priority(self) -> int:
         """Compute processing priority (1=highest, 5=lowest).
 
@@ -139,7 +145,8 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         # Lowest priority for everything else
         return 4
 
-    @computed_field
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def processing_duration_ms(self) -> float:
         """Calculate processing duration in milliseconds.
 
@@ -178,6 +185,113 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
             dict[str, str] | None: None in base implementation. Exchange-specific contexts
                 should override this method if they support coin parameters.
         """
+        return None
+
+    # ========================================================================
+    # Error Context Creation (Step 13 - WebSocket Type Safety)
+    # ========================================================================
+
+    def create_error_context(
+        self,
+        channel: str | None = None,
+        sequence_number: int | None = None,
+        message_type: str | None = None,
+    ) -> StreamErrorContext:
+        """Create typed error context from WebSocket context.
+
+        This method creates a fully typed StreamErrorContext for use with the
+        new decoupled WebSocket error system. No dict conversions!
+
+        Args:
+            channel: Optional channel name override
+            sequence_number: Optional sequence number
+            message_type: Optional message type override
+
+        Returns:
+            StreamErrorContext: Fully typed error context for WebSocket errors
+        """
+        # Get current timestamp in milliseconds
+        now = datetime.now(UTC)
+        timestamp_ms = int(now.timestamp() * 1000)
+
+        # Determine channel from topic or parameter
+        # Access computed field value properly
+        topic_value = self.topic
+        error_channel = channel or topic_value
+
+        # Get message type from envelope if not provided
+        if message_type is None and hasattr(self.validated_envelope, "type"):
+            message_type = str(getattr(self.validated_envelope, "type", None))
+        elif message_type is None and hasattr(self.validated_envelope, "method"):
+            message_type = str(getattr(self.validated_envelope, "method", None))
+
+        # Calculate message size if possible
+        try:
+            # Access computed field value properly
+            raw_size = self.message_size_bytes
+        except (TypeError, ValueError, AttributeError):
+            raw_size = None
+
+        # Create the error context with full type safety
+        return StreamErrorContext(
+            # Core connection info
+            connection_id=self.connection_id,
+            exchange=self.exchange_name,
+            environment="production",  # Could be configurable
+            # Channel & subscription info
+            channel=error_channel,
+            topic=self.symbol,  # Symbol often serves as topic
+            subscription_id=None,  # Would need to be tracked separately
+            # Sequence & ordering
+            sequence_number=sequence_number,
+            expected_sequence=None,  # Would need sequence tracking
+            last_received_sequence=None,  # Would need sequence tracking
+            # Timing information
+            error_timestamp_ms=timestamp_ms,
+            connection_started_ms=None,  # Would need connection tracking
+            last_message_received_ms=timestamp_ms,  # Current message time
+            last_heartbeat_ms=None,  # Would need heartbeat tracking
+            # Message context
+            message_id=self.message_id,
+            message_type=message_type,
+            raw_message_size=raw_size,
+            # Connection state
+            is_authenticated=bool(self.is_private_message),  # Private implies auth
+            active_subscriptions=0,  # Would need subscription tracking
+            pending_messages=0,  # Would need queue tracking
+            reconnect_count=0,  # Would need reconnect tracking
+            # Additional context
+            user_id=self.user_id,
+            session_id=self.connection_id,  # Using connection_id as session
+            client_version=None,  # Would need version tracking
+        )
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def channel(self) -> str | None:
+        """Get channel name for error context compatibility.
+
+        Returns:
+            str | None: Channel/topic name from the message
+        """
+        # Access computed field value properly
+        return self.topic
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def sequence_number(self) -> int | None:
+        """Get sequence number if available.
+
+        Returns:
+            int | None: Sequence number from envelope if present
+        """
+        # Try common sequence field names
+        if hasattr(self.validated_envelope, "sequence"):
+            return getattr(self.validated_envelope, "sequence", None)
+        if hasattr(self.validated_envelope, "seq"):
+            return getattr(self.validated_envelope, "seq", None)
+        if hasattr(self.validated_envelope, "sequence_number"):
+            return getattr(self.validated_envelope, "sequence_number", None)
         return None
 
 

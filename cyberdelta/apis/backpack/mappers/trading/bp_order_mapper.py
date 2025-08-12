@@ -309,7 +309,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
                 data=order_data,
                 model_class=Order,
                 context="backpack_simple_order_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except (ValueError, TypeError, KeyError, AttributeError) as e:
@@ -576,7 +576,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
                 data=order_data,
                 model_class=Order,
                 context="backpack_raw_order_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except (ValueError, TypeError, KeyError, AttributeError) as e:
@@ -688,7 +688,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
                 data=order_data,
                 model_class=Order,
                 context="backpack_ws_order_update_transform",
-                source_exchange=ExchangeName.BACKPACK.value,
+                source_exchange=ExchangeName.BACKPACK,
             )
 
         except (ValueError, TypeError, KeyError, AttributeError) as e:

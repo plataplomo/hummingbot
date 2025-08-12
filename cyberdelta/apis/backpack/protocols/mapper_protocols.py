@@ -52,6 +52,7 @@ from cyberdelta.apis.base.protocols.mapper_protocols import (
     AbstractTickerMapperProtocol,
 )
 from cyberdelta.apis.models.service_args.account import UpdateAccountSettingsArgs
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import (
     AccountSettings,
     DerivativePosition,
@@ -108,7 +109,7 @@ class BalanceMapperProtocol(MapperProtocol, AbstractBalanceMapperProtocol, Proto
         self,
         symbol: Symbol,
         collateral_data: BackpackRawCollateralAsset,
-        exchange_name: str,
+        exchange_name: ExchangeName,
     ) -> SpotBalance:
         """Create a SpotBalance from collateral data."""
         ...

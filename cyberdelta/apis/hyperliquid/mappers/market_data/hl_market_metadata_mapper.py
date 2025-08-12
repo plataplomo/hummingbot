@@ -275,7 +275,7 @@ class HyperliquidMarketMetadataMapper(
                 data=market_data,
                 model_class=Market,
                 context="hyperliquid_asset_def_market_transform",
-                source_exchange=ExchangeName.HYPERLIQUID.value,
+                source_exchange=ExchangeName.HYPERLIQUID,
             )
 
             logger.debug(

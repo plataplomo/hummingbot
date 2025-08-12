@@ -150,7 +150,7 @@ class HyperliquidHistoricalDataMapper(
                 data=candle_data,
                 model_class=Candle,
                 context="hyperliquid_ws_candle_transform",
-                source_exchange=ExchangeName.HYPERLIQUID.value,
+                source_exchange=ExchangeName.HYPERLIQUID,
             )
 
             logger.debug(
@@ -345,7 +345,7 @@ class HyperliquidHistoricalDataMapper(
                 data=funding_data,
                 model_class=FundingRate,
                 context="hyperliquid_asset_ctx_funding_transform",
-                source_exchange=ExchangeName.HYPERLIQUID.value,
+                source_exchange=ExchangeName.HYPERLIQUID,
             )
 
             logger.debug(
@@ -437,7 +437,7 @@ class HyperliquidHistoricalDataMapper(
                 data=funding_data,
                 model_class=FundingRate,
                 context="hyperliquid_funding_history_transform",
-                source_exchange=ExchangeName.HYPERLIQUID.value,
+                source_exchange=ExchangeName.HYPERLIQUID,
             )
 
             logger.debug(
@@ -714,5 +714,5 @@ class HyperliquidHistoricalDataMapper(
             data=candle_data,
             model_class=Candle,
             context="hyperliquid_candle_transform",
-            source_exchange=ExchangeName.HYPERLIQUID.value,
+            source_exchange=ExchangeName.HYPERLIQUID,
         )

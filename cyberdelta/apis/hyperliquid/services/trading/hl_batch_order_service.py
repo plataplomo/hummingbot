@@ -85,6 +85,8 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
     with optimized performance for high-frequency trading scenarios.
     """
 
+    _exchange_name: ExchangeName
+
     def __init__(
         self,
         http_client_requester: HttpClientRequesterSig,
@@ -905,7 +907,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             parameter="order_type",
             issue="market orders are not supported in batch operations",
             value="MARKET",
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             operation="batch order placement",
             expected_type="non-market order type",
             suggestion="Use LIMIT orders for batch operations",
@@ -924,7 +926,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             parameter="order_id",
             issue="must be a positive integer",
             value=order_id,
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             operation="batch order cancellation",
             expected_type="positive integer",
             suggestion="Provide an order ID greater than 0",
@@ -948,7 +950,7 @@ class HyperliquidBatchOrderService(HyperliquidBaseTradingService):
             parameter="order_id",
             issue="must be a valid integer",
             value=order_id,
-            exchange=ExchangeName.HYPERLIQUID.value,
+            exchange=ExchangeName.HYPERLIQUID,
             operation="batch order cancellation",
             expected_type="integer string",
             suggestion="Provide a valid numeric order ID",

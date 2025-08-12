@@ -13,25 +13,21 @@ from collections import deque
 from contextlib import suppress
 from datetime import UTC, datetime
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from pydantic import BaseModel, Field
 
 from cyberdelta.apis.base.infrastructure_config_domain import ReconnectionResult
-from cyberdelta.apis.common.api_error import APIError
-from cyberdelta.apis.common.api_error_codes import APIErrorCode
-from cyberdelta.apis.exceptions.websocket import WebSocketError
+
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.common.api_error import APIError
+from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
+from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.config.structlog_config import get_logger
-
-
-class RecoveryStrategy(StrEnum):
-    """Error recovery strategies."""
-
-    IMMEDIATE_RETRY = "immediate_retry"
-    EXPONENTIAL_BACKOFF = "exponential_backoff"
-    LINEAR_BACKOFF = "linear_backoff"
-    CIRCUIT_BREAKER = "circuit_breaker"
-    GRACEFUL_DEGRADATION = "graceful_degradation"
+from cyberdelta.enums import ExchangeName
 
 
 class ConnectionState(StrEnum):
@@ -43,15 +39,6 @@ class ConnectionState(StrEnum):
     RECONNECTING = "reconnecting"
     FAILED = "failed"
     CIRCUIT_OPEN = "circuit_open"
-
-
-class ErrorSeverity(StrEnum):
-    """Error severity levels."""
-
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    CRITICAL = "critical"
 
 
 class BackoffConfig(BaseModel):
@@ -86,7 +73,7 @@ class MessageReplayConfig(BaseModel):
 class ErrorRecoveryConfig(BaseModel):
     """Main configuration for error recovery system."""
 
-    strategy: RecoveryStrategy = RecoveryStrategy.EXPONENTIAL_BACKOFF
+    strategy: WebSocketRecoveryStrategy = WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF
     backoff: BackoffConfig = Field(default_factory=BackoffConfig)
     circuit_breaker: CircuitBreakerConfig = Field(default_factory=CircuitBreakerConfig)
     message_replay: MessageReplayConfig = Field(default_factory=MessageReplayConfig)
@@ -388,7 +375,7 @@ class WebSocketErrorRecovery:
         """Handle connection error and initiate recovery.
 
         Args:
-            error: Connection error (can be APIError or generic Exception)
+            error: Connection error (can be WebSocketStreamError, APIError or generic Exception)
         """
         self.state = ConnectionState.FAILED
         self.health.state = self.state
@@ -397,14 +384,36 @@ class WebSocketErrorRecovery:
 
         # Extract structured error information if available
         error_details = str(error)
-        error_code = None
+        error_code: str | int | None = None
         retry_after = None
         is_retryable = True
+        recovery_strategy = WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF
 
-        if isinstance(error, APIError):
+        # Handle new WebSocketStreamError first
+        if isinstance(error, WebSocketStreamError):
+            error_details = error.message
+            error_code = str(error.code.name)  # Convert to string for consistency
+            is_retryable = error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE
+            recovery_strategy = error.get_recovery_strategy()
+            retry_after = error.get_retry_delay_ms() / 1000.0  # Convert ms to seconds
+
+            # Log structured error information
+            self.logger.warning(
+                "websocket_stream_error_details",
+                connection_id=self.connection_id,
+                error_code=error_code,
+                category=error.category,
+                severity=error.severity.name,
+                retryable=is_retryable,
+                recovery_strategy=recovery_strategy.name,
+                retry_delay_ms=error.get_retry_delay_ms(),
+            )
+        # Fallback to legacy APIError handling
+        elif isinstance(error, APIError):
             error_details = error.message
             error_code = error.code
             retry_after = error.retry_after
+            # Check if the error is retryable based on the code
             is_retryable = error.is_retryable
 
             # Log structured error information
@@ -427,8 +436,30 @@ class WebSocketErrorRecovery:
         )
         self.recovery_events.append(event)
 
+        # Handle WebSocketStreamError recovery strategies
+        if isinstance(error, WebSocketStreamError):
+            if recovery_strategy == WebSocketRecoveryStrategy.NONE:
+                self.logger.warning(
+                    "non_retryable_websocket_error",
+                    connection_id=self.connection_id,
+                    error_code=error_code,
+                    error_message=error_details,
+                )
+                self.state = ConnectionState.FAILED
+                return
+            if recovery_strategy == WebSocketRecoveryStrategy.CIRCUIT_BREAKER:
+                self.state = ConnectionState.CIRCUIT_OPEN
+                self.circuit_opened_at = time.time()
+                self.logger.warning(
+                    "circuit_breaker_opened_by_strategy",
+                    connection_id=self.connection_id,
+                    failures=self.circuit_failures,
+                )
+                return
+            # Apply recovery strategy to config
+            self.config.strategy = recovery_strategy
         # Don't retry if APIError indicates it's not retryable
-        if isinstance(error, APIError) and not error.is_retryable:
+        elif isinstance(error, APIError) and not error.is_retryable:
             self.logger.warning(
                 "non_retryable_error",
                 connection_id=self.connection_id,
@@ -452,13 +483,13 @@ class WebSocketErrorRecovery:
             )
             return
 
-        # Use retry_after from APIError if available
-        if isinstance(error, APIError) and error.retry_after:
-            self.current_delay = max(self.current_delay, error.retry_after)
+        # Use retry_after from error if available
+        if retry_after:
+            self.current_delay = max(self.current_delay, retry_after)
             self.logger.info(
-                "using_api_error_retry_after",
+                "using_error_retry_after",
                 connection_id=self.connection_id,
-                retry_after=error.retry_after,
+                retry_after=retry_after,
             )
 
         # Start recovery if not already running
@@ -470,13 +501,38 @@ class WebSocketErrorRecovery:
 
         Args:
             message: Failed message
-            error: Failure reason (can be APIError or generic Exception)
+            error: Failure reason (can be WebSocketStreamError, APIError or generic Exception)
         """
         # Extract structured error information if available
         error_details = str(error)
         should_retry = True
+        recovery_strategy = WebSocketRecoveryStrategy.LINEAR_BACKOFF
 
-        if isinstance(error, APIError):
+        # Handle new WebSocketStreamError first
+        if isinstance(error, WebSocketStreamError):
+            error_details = error.message
+            should_retry = error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE
+            recovery_strategy = error.get_recovery_strategy()
+
+            # Log structured error information
+            self.logger.warning(
+                "websocket_stream_message_failure",
+                connection_id=self.connection_id,
+                error_code=error.code.name,
+                category=error.category,
+                severity=error.severity.name,
+                retryable=should_retry,
+                recovery_strategy=recovery_strategy.name,
+                retry_delay_ms=error.get_retry_delay_ms(),
+            )
+
+            # Handle special recovery strategies for message failures
+            if recovery_strategy == WebSocketRecoveryStrategy.FULL_RECONNECT:
+                # Message failure requires full reconnection
+                await self.handle_connection_error(error)
+                return
+        # Fallback to legacy APIError handling
+        elif isinstance(error, APIError):
             error_details = error.message
             should_retry = error.is_retryable
 
@@ -723,12 +779,26 @@ class WebSocketErrorRecovery:
         Returns:
             Delay in seconds
         """
-        if self.config.strategy == RecoveryStrategy.LINEAR_BACKOFF:
+        # Handle immediate retry
+        if self.config.strategy == WebSocketRecoveryStrategy.IMMEDIATE_RETRY:
+            return 0.0
+
+        # Linear backoff
+        if self.config.strategy == WebSocketRecoveryStrategy.LINEAR_BACKOFF:
             delay = self.config.backoff.initial_delay * self.retry_count
-        else:  # EXPONENTIAL_BACKOFF
+        # Exponential backoff (default for most strategies)
+        elif self.config.strategy in {
+            WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
+            WebSocketRecoveryStrategy.RECONNECT_SAME,
+            WebSocketRecoveryStrategy.RECONNECT_DIFFERENT,
+            WebSocketRecoveryStrategy.FULL_RECONNECT,
+        }:
             delay = self.config.backoff.initial_delay * (
                 self.config.backoff.multiplier ** (self.retry_count - 1)
             )
+        else:
+            # Default delay for other strategies
+            delay = self.config.backoff.initial_delay
 
         delay = min(delay, self.config.backoff.max_delay)
 
@@ -781,32 +851,43 @@ class WebSocketErrorRecovery:
         }
 
     @staticmethod
-    def create_websocket_error(
+    def create_websocket_stream_error(
         message: str,
-        error_code: APIErrorCode,
+        error_code: WebSocketErrorCode,
+        connection_id: str,
+        exchange: ExchangeName,
         original_exception: Exception | None = None,
-        retry_after: float | None = None,
-        metadata: dict[str, Any] | None = None,
         channel: str | None = None,
-    ) -> WebSocketError:
-        """Create a WebSocket-specific error with proper context.
+        sequence_number: int | None = None,
+        reconnect_count: int = 0,
+    ) -> WebSocketStreamError:
+        """Create a WebSocketStreamError with proper context.
 
         Args:
             message: Human-readable error description
-            error_code: Standardized API error code
+            error_code: WebSocket-specific error code
+            connection_id: Connection identifier
+            exchange: Exchange enum value
             original_exception: The underlying exception
-            retry_after: Suggested retry delay in seconds
-            metadata: Additional error context
             channel: WebSocket channel name (optional)
+            sequence_number: Message sequence number (optional)
+            reconnect_count: Number of reconnection attempts
 
         Returns:
-            WebSocketError instance with WebSocket-specific context
+            WebSocketStreamError instance with typed context
         """
-        return WebSocketError(
-            message=message,
-            code=error_code.value,
+        # Create typed error context
+        context = StreamErrorContext(
+            connection_id=connection_id,
+            exchange=exchange.value,
             channel=channel,
-            retry_after=retry_after,
-            metadata=metadata,
-            original_exception=original_exception,
+            sequence_number=sequence_number,
+            reconnect_count=reconnect_count,
+        )
+
+        return WebSocketStreamError(
+            message=message,
+            code=error_code,
+            context=context,
+            cause=original_exception,
         )

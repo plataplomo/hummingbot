@@ -15,6 +15,10 @@ import orjson
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
+from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics, ProcessorMetrics
+from cyberdelta.apis.websocket.ws_processor_error_bridge import (
+    ProcessorErrorBridgeFactory,
+)
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
@@ -22,6 +26,7 @@ from cyberdelta.config.structlog_config import get_logger
 if TYPE_CHECKING:
     from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
     from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
+    from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 
 # Type variables for input and output models
 T = TypeVar("T", bound=BaseModel)  # Raw WebSocket message model
@@ -69,65 +74,8 @@ class MessageTransformer(Protocol[T_contra, U_co]):
         ...
 
 
-class ValidationMetrics:
-    """Tracks validation and processing metrics."""
-
-    def __init__(self) -> None:
-        """Initialize metrics tracking."""
-        self.total_processed = 0
-        self.validation_errors = 0
-        self.transformation_errors = 0
-        self.handler_errors = 0
-        self.total_processing_time = 0.0
-        self._start_time = time.time()
-
-    def record_processing_time(self, processing_time: float) -> None:
-        """Record processing time for a message.
-
-        Args:
-            processing_time: Time taken to process message in seconds.
-
-        """
-        self.total_processed += 1
-        self.total_processing_time += processing_time
-
-    def record_validation_error(self) -> None:
-        """Record a validation error."""
-        self.validation_errors += 1
-
-    def record_transformation_error(self) -> None:
-        """Record a transformation error."""
-        self.transformation_errors += 1
-
-    def record_handler_error(self) -> None:
-        """Record a handler error."""
-        self.handler_errors += 1
-
-    def get_stats(self) -> dict[str, Any]:
-        """Get processing statistics.
-
-        Returns:
-            Dictionary of statistics.
-
-        """
-        uptime = time.time() - self._start_time
-        return {
-            "total_processed": self.total_processed,
-            "validation_errors": self.validation_errors,
-            "transformation_errors": self.transformation_errors,
-            "handler_errors": self.handler_errors,
-            "average_processing_time_ms": (
-                (self.total_processing_time / self.total_processed) * 1000
-                if self.total_processed > 0
-                else 0
-            ),
-            "messages_per_second": (self.total_processed / uptime if uptime > 0 else 0),
-            "error_rate": (
-                (self.validation_errors + self.transformation_errors + self.handler_errors)
-                / max(self.total_processed, 1)
-            ),
-            "uptime_seconds": uptime,
-        }
+# Legacy ValidationMetrics class removed - replaced with typed ProcessingMetrics
+# See cyberdelta.apis.websocket.ws_processing_metrics for the new typed implementation
 
 
 class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
@@ -147,6 +95,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         error_handler: BaseErrorHandler,
         processor_name: str | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
+        stream_error_handler: WebSocketStreamErrorHandler | None = None,
     ) -> None:
         """Initialize the Pydantic processor.
 
@@ -156,15 +105,23 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             error_handler: Error handler for centralized error management.
             processor_name: Optional name for logging (defaults to model name).
             metrics_collector: Optional metrics collector for enhanced monitoring.
+            stream_error_handler: Optional typed WebSocket error handler.
 
         """
         self.raw_model = raw_model
         self.transformer = transformer
         self.error_handler = error_handler
+        self.stream_error_handler = stream_error_handler
         self.processor_name = processor_name or raw_model.__name__
-        self.metrics = ValidationMetrics()
+        self.metrics = ProcessingMetrics()
         self.metrics_collector = metrics_collector
         self.logger = get_logger(f"PydanticProcessor.{self.processor_name}")
+
+        # Initialize error bridge if stream error handler is available
+        self.error_bridge = ProcessorErrorBridgeFactory.create_bridge(
+            processor=self,
+            stream_error_handler=stream_error_handler,
+        )
 
     async def process(
         self,
@@ -217,7 +174,10 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 self.logger.info(
                     "processor_metrics",
                     processor=self.processor_name,
-                    **self.metrics.get_stats(),
+                    total_processed=self.metrics.total_processed,
+                    error_rate=self.metrics.get_error_rate(),
+                    messages_per_second=self.metrics.get_messages_per_second(),
+                    average_processing_time_ms=self.metrics.get_average_processing_time_ms(),
                 )
 
         except Exception as e:
@@ -231,6 +191,18 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             )
             if self.metrics_collector:
                 self.metrics_collector.record_error("unexpected", message_type, str(e))
+
+            # Use error bridge if available, fallback to legacy
+            if self.error_bridge:
+                await self.error_bridge.handle_unexpected_error(
+                    error=e,
+                    context=context,
+                    stage="processing_pipeline",
+                )
+            else:
+                # Legacy error handling could be added here if needed
+                # For now, just log since this is a top-level catch-all
+                pass
         finally:
             # Always record message metrics
             if self.metrics_collector:
@@ -259,14 +231,24 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             self.metrics.record_validation_error()
             if self.metrics_collector:
                 self.metrics_collector.record_error("validation", message_type, str(e))
-            # Convert to dict for error handler (temporary)
-            context_dict = context.model_dump(mode="python")
-            payload_dict = payload if isinstance(payload, dict) else {"data": payload}
-            await self.error_handler.handle_validation_error(
-                error=e,
-                payload=payload_dict,
-                context=context_dict,
-            )
+
+            # Phase 2: Use typed error bridge for all validation errors
+            if self.error_bridge:
+                await self.error_bridge.handle_validation_error(
+                    error=e,
+                    payload=payload,
+                    context=context,
+                )
+            else:
+                self.logger.error(
+                    "No error bridge available for validation error handling",
+                    processor=self.processor_name,
+                    error=str(e),
+                )
+                # This should not happen in Phase 2 - all processors should have error bridges
+                raise RuntimeError(
+                    f"Processor {self.processor_name} missing error bridge for validation error handling"
+                )
             return None
 
         # Success case
@@ -298,18 +280,24 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             self.metrics.record_transformation_error()
             if self.metrics_collector:
                 self.metrics_collector.record_error("transformation", message_type, str(e))
-            # Convert to dict for error handler (temporary)
-            context_dict = context.model_dump(mode="python")
-            payload_dict = payload if isinstance(payload, dict) else {"data": payload}
-            await self.error_handler.handle_processing_error(
-                error=e,
-                payload=payload_dict,
-                context={
-                    **context_dict,
-                    "stage": "transformation",
-                    "raw_model": self.raw_model.__name__,
-                },
-            )
+
+            # Phase 2: Use typed error bridge for all transformation errors
+            if self.error_bridge:
+                await self.error_bridge.handle_transformation_error(
+                    error=e,
+                    validated_payload=validated,
+                    context=context,
+                )
+            else:
+                self.logger.error(
+                    "No error bridge available for transformation error handling",
+                    processor=self.processor_name,
+                    error=str(e),
+                )
+                # This should not happen in Phase 2 - all processors should have error bridges
+                raise RuntimeError(
+                    f"Processor {self.processor_name} missing error bridge for transformation error handling"
+                )
             return None
 
         # Success case
@@ -354,18 +342,25 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             self.metrics.record_handler_error()
             if self.metrics_collector:
                 self.metrics_collector.record_error("handler", message_type, str(e))
-            # Convert to dict for error handler (temporary)
-            context_dict = context.model_dump(mode="python")
-            await self.error_handler.handle_processing_error(
-                error=e,
-                payload={},  # Don't include full payload in handler errors
-                context={
-                    **context_dict,
-                    "stage": "handler_invocation",
-                    "domain_model": type(domain_model).__name__,
-                    "error_type": type(e).__name__,
-                },
-            )
+
+            # Phase 2: Use typed error bridge for all handler errors
+            if self.error_bridge:
+                await self.error_bridge.handle_handler_error(
+                    error=e,
+                    domain_model=domain_model,
+                    context=context,
+                    is_unexpected=False,
+                )
+            else:
+                self.logger.error(
+                    "No error bridge available for handler error handling",
+                    processor=self.processor_name,
+                    error=str(e),
+                )
+                # This should not happen in Phase 2 - all processors should have error bridges
+                raise RuntimeError(
+                    f"Processor {self.processor_name} missing error bridge for handler error handling"
+                )
             return False
         except (OSError, RuntimeError, MemoryError) as e:
             # Catch any other runtime exceptions but log them as unexpected
@@ -379,19 +374,25 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
                 routing_key=context.routing_key,
                 exchange=context.exchange_type,
             )
-            # Convert to dict for error handler (temporary)
-            context_dict = context.model_dump(mode="python")
-            await self.error_handler.handle_processing_error(
-                error=e,
-                payload={},  # Don't include full payload in handler errors
-                context={
-                    **context_dict,
-                    "stage": "handler_invocation",
-                    "domain_model": type(domain_model).__name__,
-                    "error_type": type(e).__name__,
-                    "unexpected": True,
-                },
-            )
+
+            # Phase 2: Use typed error bridge for all unexpected handler errors
+            if self.error_bridge:
+                await self.error_bridge.handle_handler_error(
+                    error=e,
+                    domain_model=domain_model,
+                    context=context,
+                    is_unexpected=True,
+                )
+            else:
+                self.logger.error(
+                    "No error bridge available for unexpected handler error handling",
+                    processor=self.processor_name,
+                    error=str(e),
+                )
+                # This should not happen in Phase 2 - all processors should have error bridges
+                raise RuntimeError(
+                    f"Processor {self.processor_name} missing error bridge for unexpected handler error handling"
+                )
             return False
         else:
             # Success case
@@ -403,23 +404,23 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
             )
             return True
 
-    def get_metrics(self) -> dict[str, Any]:
-        """Get processing metrics.
+    def get_metrics(self) -> ProcessorMetrics:
+        """Get typed processing metrics.
 
         Returns:
-            Dictionary of processing metrics and metadata.
+            Typed ProcessorMetrics instance with all metrics and metadata.
 
         """
-        return {
-            "processor_name": self.processor_name,
-            "raw_model": self.raw_model.__name__,
-            "transformer_type": type(self.transformer).__name__,
-            "metrics": self.metrics.get_stats(),
-        }
+        return ProcessorMetrics.from_processor(
+            processor_name=self.processor_name,
+            raw_model_name=self.raw_model.__name__,
+            transformer_type=type(self.transformer).__name__,
+            processing_metrics=self.metrics,
+        )
 
     def reset_metrics(self) -> None:
         """Reset processing metrics."""
-        self.metrics = ValidationMetrics()
+        self.metrics = self.metrics.reset()
         self.logger.info(
             "processor_metrics_reset",
             processor=self.processor_name,

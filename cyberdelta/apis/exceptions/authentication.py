@@ -4,8 +4,16 @@ These exceptions handle authentication errors including API key validation,
 signature generation, and authenticator configuration.
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from cyberdelta.apis.common.api_error import APIError
 from cyberdelta.apis.common.api_error_codes import APIErrorCode
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class InvalidPrivateKeyError(APIError, ValueError):
@@ -148,21 +156,22 @@ class AuthenticatorNotConfiguredError(APIError):
 class UnknownEndpointError(APIError):
     """Raised when an API endpoint is not mapped or recognized."""
 
-    def __init__(self, method: str, path: str, exchange: str = "Backpack") -> None:
+    def __init__(self, method: str, path: str, exchange: ExchangeName | None = None) -> None:
         """Initialize unknown endpoint error.
 
         Args:
             method: HTTP method
             path: API endpoint path
-            exchange: Exchange name (default: "Backpack")
+            exchange: Exchange enum value (optional)
         """
         self.method = method.upper()
         self.path = path
         self.exchange = exchange
+        exchange_name = exchange.value if exchange else "Unknown"
 
         super().__init__(
-            message=f"{exchange} instruction not found for {self.method} {self.path}",
+            message=f"{exchange_name} instruction not found for {self.method} {self.path}",
             code=APIErrorCode.INVALID_REQUEST.value,
             exchange_code="UNKNOWN_ENDPOINT",
-            metadata={"method": self.method, "path": self.path, "exchange": self.exchange},
+            metadata={"method": self.method, "path": self.path, "exchange": exchange_name},
         )

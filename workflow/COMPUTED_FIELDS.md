@@ -16,18 +16,18 @@ def stream_symbol(self) -> str | None:
 
 **Root Cause**: Type checkers interpret `@computed_field` methods as callable functions rather than properties, leading to `self.stream_symbol` being treated as a method reference instead of property access.
 
-## Web Search Investigation (July 2025)
+## Current Status (August 2025)
 
-Searched for official solutions:
-- **Pydantic Documentation**: No specific guidance on `@computed_field` type checking
-- **Stack Overflow**: Mentions `# type: ignore[prop-decorator]` comments
-- **GitHub Issues**: Various workarounds but no definitive pattern
+**Mypy 2025 Updates**: As of mypy 1.17.1 (released July 31, 2025), this limitation is still present but better documented:
+- Added `[prop-decorator]` error code specifically for unsupported property decorators (PR #16571)
+- This is **not a bug** - it's a **known limitation** with official workaround
+- `# type: ignore[prop-decorator]` is the **official mypy solution**
 
-**Key Finding**: The search results showed type ignore comments as potential solutions, but did NOT provide a definitive working pattern.
+**Pydantic Documentation**: Official pattern is `@computed_field` + `@property`
 
-## Experimental Solution ✅
+## Official Solution ✅
 
-Through trial and error, discovered that **decorator order matters**:
+**Use the official Pydantic pattern with mypy type ignore**:
 
 ```python
 # ❌ BROKEN - Type checker errors
@@ -35,15 +35,15 @@ Through trial and error, discovered that **decorator order matters**:
 def stream_symbol(self) -> str | None:
     return parts[1] if len(parts) > 1 else None
 
-# ❌ BROKEN - "Decorators on top of @property are not supported"
-@computed_field
+# ❌ BROKEN - Runtime error: 'PydanticDescriptorProxy' object is not callable
 @property
+@computed_field
 def stream_symbol(self) -> str | None:
     return parts[1] if len(parts) > 1 else None
 
-# ✅ WORKING - All linters pass
+# ✅ WORKING - Official Pydantic pattern with mypy workaround
+@computed_field  # type: ignore[prop-decorator]
 @property
-@computed_field
 def stream_symbol(self) -> str | None:
     return parts[1] if len(parts) > 1 else None
 ```
@@ -53,7 +53,7 @@ def stream_symbol(self) -> str | None:
 **Environment**:
 - Python 3.13.5
 - Pydantic 2.11.4
-- mypy 1.14.1
+- mypy 1.17.1 (August 2025) - includes `[prop-decorator]` error code
 - ruff 0.8.5
 - pyright 1.1.397
 
@@ -73,8 +73,8 @@ from pydantic import BaseModel, computed_field
 class MyModel(BaseModel):
     raw_data: str
 
-    @property  # ← Must be FIRST
-    @computed_field  # ← Must be SECOND
+    @computed_field  # type: ignore[prop-decorator]
+    @property
     def processed_value(self) -> str | None:
         """Computed field that works with all type checkers."""
         return self.raw_data.upper() if self.raw_data else None
@@ -87,10 +87,12 @@ value = model.processed_value  # ← Property access, not method call
 
 ## Why This Works
 
-The `@property` decorator first ensures the method is treated as a property descriptor, then `@computed_field` adds Pydantic's computed field behavior on top. This satisfies both:
+This uses the **official Pydantic pattern** (`@computed_field` + `@property`) with the **official mypy workaround**:
 
-1. **Type checkers**: See it as a property due to `@property`
-2. **Pydantic**: Recognizes it as a computed field due to `@computed_field`
+1. **Pydantic**: Recognizes it as a computed field (official pattern)
+2. **Runtime**: Works correctly (official pattern tested)
+3. **Mypy**: Uses `# type: ignore[prop-decorator]` to suppress known limitation
+4. **Other type checkers**: Ruff passes, Pyright has unrelated issues
 
 ## Alternative Approaches Tested
 
@@ -119,31 +121,33 @@ def stream_symbol(self) -> str | None:
 
 ## Recommendation
 
-**Always use the `@property` + `@computed_field` pattern** for computed fields that need to pass strict type checking:
+**Always use the official Pydantic `@computed_field` + `@property` pattern with mypy type ignore** for computed fields:
 
-1. Put `@property` FIRST
-2. Put `@computed_field` SECOND
+1. Put `@computed_field  # type: ignore[prop-decorator]` FIRST
+2. Put `@property` SECOND  
 3. Use normal property access syntax: `self.field_name` (not `self.field_name()`)
 
 ## File Examples
 
-**Working Implementation**: `cyberdelta/apis/backpack/bp_ws_context.py:17-22`
+**Working Implementation**: `cyberdelta/apis/websocket/ws_context.py`
 
 ```python
+@computed_field  # type: ignore[prop-decorator]
 @property
-@computed_field
-def stream_symbol(self) -> str | None:
-    """Extract symbol from Backpack stream format."""
-    parts = self.validated_envelope.stream.split(".")
-    return parts[1] if len(parts) > 1 else None
+def topic(self) -> str | None:
+    """Extract topic with proper typing based on exchange."""
+    if self.exchange_type == ExchangeType.BACKPACK:
+        return getattr(self.validated_envelope, "stream", None)
+    return getattr(self.validated_envelope, "channel", None)
 ```
 
 ## Status
 
-- ✅ **Verified Working**: All type checkers pass (mypy, ruff, pyright)
-- ✅ **Runtime Tested**: Properties work correctly at runtime
+- ✅ **Official Pattern**: Uses documented Pydantic decorator order
+- ✅ **Runtime Tested**: Properties work correctly at runtime  
+- ✅ **Mypy Compatible**: Uses official mypy workaround for known limitation
 - ✅ **Production Ready**: Used in WebSocket context classes
-- ⚠️ **Experimental**: Not officially documented by Pydantic team
+- ✅ **Well Documented**: Tracked in mypy/pydantic GitHub issues
 
 ## Future Considerations
 

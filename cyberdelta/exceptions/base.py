@@ -5,7 +5,13 @@ API error handling capabilities. They inherit from standard Python
 exceptions to avoid circular dependencies with the API layer.
 """
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class ConfigurationError(RuntimeError):
@@ -41,13 +47,13 @@ class RequiredParameterError(ConfigurationError):
     API-specific error handling.
     """
 
-    def __init__(self, parameter: str, context: str, exchange: str | None = None) -> None:
+    def __init__(self, parameter: str, context: str, exchange: ExchangeName | None = None) -> None:
         """Initialize required parameter error.
 
         Args:
             parameter: Name of the missing parameter
             context: Context where the parameter is required
-            exchange: Optional exchange name
+            exchange: Optional exchange enum
         """
         self.parameter = parameter
         self.context = context
@@ -55,11 +61,15 @@ class RequiredParameterError(ConfigurationError):
 
         message = f"'{parameter}' parameter is required for {context}"
         if exchange:
-            message = f"[{exchange}] {message}"
+            message = f"[{exchange.value}] {message}"
 
         super().__init__(
             message=message,
-            metadata={"parameter": parameter, "context": context, "exchange": exchange},
+            metadata={
+                "parameter": parameter,
+                "context": context,
+                "exchange": exchange.value if exchange else None,
+            },
         )
 
 
@@ -213,12 +223,12 @@ class InvalidAuthTypeError(ValueError):
     """Raised when exchange has incorrect authentication type."""
 
     def __init__(
-        self, exchange: str, expected_auth_type: str, actual_auth_type: str | None = None
+        self, exchange: ExchangeName, expected_auth_type: str, actual_auth_type: str | None = None
     ) -> None:
         """Initialize invalid auth type error.
 
         Args:
-            exchange: Name of the exchange
+            exchange: Exchange enum value
             expected_auth_type: Expected authentication type
             actual_auth_type: Actual authentication type found
         """
@@ -227,7 +237,7 @@ class InvalidAuthTypeError(ValueError):
         self.actual_auth_type = actual_auth_type
 
         message = (
-            f"{exchange} configuration in secrets must have auth_type '{expected_auth_type}' "
+            f"{exchange.value} configuration in secrets must have auth_type '{expected_auth_type}' "
             f"and corresponding fields."
         )
         super().__init__(message)
@@ -237,12 +247,12 @@ class EmptySecretError(ValueError):
     """Raised when a required secret field is empty."""
 
     def __init__(
-        self, exchange: str, field_name: str, field_description: str | None = None
+        self, exchange: ExchangeName, field_name: str, field_description: str | None = None
     ) -> None:
         """Initialize empty secret error.
 
         Args:
-            exchange: Name of the exchange
+            exchange: Exchange enum value
             field_name: Name of the empty field
             field_description: Optional description of the field
         """
@@ -251,9 +261,9 @@ class EmptySecretError(ValueError):
         self.field_description = field_description
 
         if field_description:
-            message = f"{exchange} '{field_name}' ({field_description}) cannot be empty."
+            message = f"{exchange.value} '{field_name}' ({field_description}) cannot be empty."
         else:
-            message = f"{exchange} '{field_name}' cannot be empty in secrets."
+            message = f"{exchange.value} '{field_name}' cannot be empty in secrets."
         super().__init__(message)
 
 

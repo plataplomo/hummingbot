@@ -37,15 +37,15 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
 )
 from cyberdelta.apis.common.types import MessageHandler
-from cyberdelta.apis.exceptions import (
-    UnsupportedWebSocketTopicError,
-    WebSocketSubscriptionError,
-)
+from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_exceptions import WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_transformer import (
     ControlMessageTransformer,
     MapperTransformer,
@@ -326,7 +326,7 @@ class BackpackWebSocketRouter(
 
         Raises:
             EmptyStringParameterError: If topic is empty
-            UnsupportedWebSocketTopicError: If topic format is not supported by Backpack
+            WebSocketStreamError: If topic format is not supported by Backpack
             WebSocketSubscriptionError: If topic validation fails
 
         """
@@ -341,9 +341,22 @@ class BackpackWebSocketRouter(
         # Most Backpack topics require the format "type.symbol" (except fills, orders, etc.)
         # Simple private streams like "fills", "orders" are allowed without dots
         if topic not in {"fills", "orders", "liquidation"} and "." not in topic:
-            raise UnsupportedWebSocketTopicError(
-                topic,
-                supported_formats=["type.symbol", "fills", "orders", "liquidation"],
+            context = StreamErrorContext(
+                connection_id=str(uuid.uuid4()),
+                exchange=ExchangeName.BACKPACK,
+                topic=topic,
+                extra_context={
+                    "supported_formats": ["type.symbol", "fills", "orders", "liquidation"],
+                    "validation_type": "topic_format",
+                },
+            )
+            raise WebSocketStreamError(
+                message=(
+                    f"Unsupported topic format '{topic}'. "
+                    "Expected formats: type.symbol, fills, orders, liquidation"
+                ),
+                code=WebSocketErrorCode.INVALID_TOPIC,
+                context=context,
             )
 
         # Additional validation for topics with symbols
@@ -352,7 +365,19 @@ class BackpackWebSocketRouter(
                 # Validate the topic format using the exchange-specific validator
                 BackpackValidators.validate_backpack_topic(topic)
             except ValueError as e:
-                raise WebSocketSubscriptionError(topic, str(e)) from e
+                # Create a proper error context for the subscription error
+                error_context = StreamErrorContext(
+                    connection_id=self._connection_id,
+                    exchange=self.exchange_name,
+                    channel=topic,
+                )
+                raise WebSocketSubscriptionError(
+                    message=f"Invalid topic format: {e!s}",
+                    context=error_context,
+                    channel=topic,
+                    code=WebSocketErrorCode.SUBSCRIPTION_FAILED,
+                    cause=e,
+                ) from e
 
         # Build the subscription request
         signature_tuple = None

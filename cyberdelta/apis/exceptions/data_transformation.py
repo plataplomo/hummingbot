@@ -4,7 +4,15 @@ These exceptions handle errors that occur during data transformation
 in mapper classes. They extend TransformationError (Layer 3).
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from cyberdelta.apis.common.api_error import TransformationError
+
+
+if TYPE_CHECKING:
+    from cyberdelta.enums import ExchangeName
 
 
 class UnknownEnumError(TransformationError):
@@ -47,7 +55,7 @@ class MissingRequiredFieldError(TransformationError):
         source_data: dict[str, object] | None = None,
         *,
         field: str | None = None,
-        exchange: str | None = None,
+        exchange: ExchangeName | None = None,
         operation: str | None = None,
         reason: str | None = None,
         **kwargs: object,
@@ -59,7 +67,7 @@ class MissingRequiredFieldError(TransformationError):
             context: Context where fields are required
             source_data: The source data being transformed
             field: Single field name (alias for field_names)
-            exchange: Exchange name
+            exchange: Exchange enum value
             operation: Operation being performed
             reason: Additional reason
             **kwargs: Additional context
@@ -81,7 +89,7 @@ class MissingRequiredFieldError(TransformationError):
         if operation:
             context_parts.append(operation)
         if exchange:
-            context_parts.append(f"on {exchange}")
+            context_parts.append(f"on {exchange.value}")
         if context:
             context_parts.append(context)
 
