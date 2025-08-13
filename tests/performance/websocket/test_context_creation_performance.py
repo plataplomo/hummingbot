@@ -21,7 +21,7 @@ class TestContextCreationPerformance:
 
     def test_single_context_creation_performance(self) -> None:
         """Test single context creation meets performance targets."""
-        # Target: < 100µs per context creation
+        # Target: < 100μs per context creation
         target_time_us = 100
 
         # Warm up
@@ -37,7 +37,7 @@ class TestContextCreationPerformance:
 
         assert context is not None
         assert creation_time_us < target_time_us, (
-            f"Context creation took {creation_time_us:.1f}µs, target was {target_time_us}µs"
+            f"Context creation took {creation_time_us:.1f}μs, target was {target_time_us}μs"
         )
 
     def test_bulk_context_creation_performance(self) -> None:
@@ -67,15 +67,15 @@ class TestContextCreationPerformance:
 
         assert len(contexts) == count
         assert avg_time_us < target_avg_time_us, (
-            f"Average context creation took {avg_time_us:.1f}µs, target was {target_avg_time_us}µs"
+            f"Average context creation took {avg_time_us:.1f}μs, target was {target_avg_time_us}μs"
         )
         assert total_time_us < count * target_avg_time_us, (
-            f"Total time {total_time_us:.1f}µs exceeded target {count * target_avg_time_us}µs"
+            f"Total time {total_time_us:.1f}μs exceeded target {count * target_avg_time_us}μs"
         )
 
     def test_context_with_all_fields_performance(self) -> None:
         """Test context creation with all fields populated."""
-        # Target: < 200µs even with all fields
+        # Target: < 200μs even with all fields
         target_time_us = 200
         now_ms = int(datetime.now(UTC).timestamp() * 1000)
 
@@ -122,38 +122,51 @@ class TestContextCreationPerformance:
         assert context is not None
         assert context.connection_id == "full-perf-test"
         assert creation_time_us < target_time_us, (
-            f"Full context creation took {creation_time_us:.1f}µs, target was {target_time_us}µs"
+            f"Full context creation took {creation_time_us:.1f}μs, target was {target_time_us}μs"
         )
 
     def test_context_validation_performance(self) -> None:
         """Test context validation performance."""
-        # Target: validation should add < 50µs overhead
+        # Target: validation should add < 50μs overhead
         target_validation_overhead_us = 50
         now_ms = int(datetime.now(UTC).timestamp() * 1000)
 
-        # Test data
-        context_data = {
-            "connection_id": "validation-perf-test",
-            "exchange": "hyperliquid",
-            "channel": "trades",
-            "topic": "BTC-USDC",
-            "sequence_number": 1000,
-            "error_timestamp_ms": now_ms,
-        }
+        # Data for performance testing - values are used directly in constructor calls
 
         # Warm up
         for _ in range(10):
-            StreamErrorContext(**context_data)
+            StreamErrorContext(
+                connection_id="validation-perf-test",
+                exchange="hyperliquid",
+                channel="trades",
+                topic="BTC-USDC",
+                sequence_number=1000,
+                error_timestamp_ms=now_ms,
+            )
 
         # Measure without validation (using model_construct)
         start_time = time.perf_counter()
-        context_no_validation = StreamErrorContext.model_construct(**context_data)
+        context_no_validation = StreamErrorContext.model_construct(
+            connection_id="validation-perf-test",
+            exchange="hyperliquid",
+            channel="trades",
+            topic="BTC-USDC",
+            sequence_number=1000,
+            error_timestamp_ms=now_ms,
+        )
         end_time = time.perf_counter()
         no_validation_time_us = (end_time - start_time) * 1_000_000
 
         # Measure with validation (normal constructor)
         start_time = time.perf_counter()
-        context_with_validation = StreamErrorContext(**context_data)
+        context_with_validation = StreamErrorContext(
+            connection_id="validation-perf-test",
+            exchange="hyperliquid",
+            channel="trades",
+            topic="BTC-USDC",
+            sequence_number=1000,
+            error_timestamp_ms=now_ms,
+        )
         end_time = time.perf_counter()
         with_validation_time_us = (end_time - start_time) * 1_000_000
 
@@ -162,19 +175,18 @@ class TestContextCreationPerformance:
         assert context_no_validation is not None
         assert context_with_validation is not None
         assert validation_overhead_us < target_validation_overhead_us, (
-            f"Validation overhead was {validation_overhead_us:.1f}µs, target was {target_validation_overhead_us}µs"
+            f"Validation overhead was {validation_overhead_us:.1f}μs, "
+            f"target was {target_validation_overhead_us}μs"
         )
 
     def test_context_method_call_performance(self) -> None:
         """Test performance of context method calls."""
-        # Target: method calls should be < 10µs each
+        # Target: method calls should be < 10μs each
         target_method_time_us = 10
 
         context = ErrorTestFactory.create_test_context(
             sequence_number=1000,
             expected_sequence=1005,
-            connection_started_ms=int(datetime.now(UTC).timestamp() * 1000) - 30000,
-            last_message_received_ms=int(datetime.now(UTC).timestamp() * 1000) - 5000,
         )
 
         # Warm up
@@ -207,18 +219,18 @@ class TestContextCreationPerformance:
         assert has_gap is True
 
         assert gap_time_us < target_method_time_us, (
-            f"get_sequence_gap_size took {gap_time_us:.1f}µs, target was {target_method_time_us}µs"
+            f"get_sequence_gap_size took {gap_time_us:.1f}μs, target was {target_method_time_us}μs"
         )
         assert summary_time_us < target_method_time_us * 2, (  # Summary can be a bit slower
-            f"get_summary took {summary_time_us:.1f}µs, target was {target_method_time_us * 2}µs"
+            f"get_summary took {summary_time_us:.1f}μs, target was {target_method_time_us * 2}μs"
         )
         assert has_gap_time_us < target_method_time_us, (
-            f"has_sequence_gap took {has_gap_time_us:.1f}µs, target was {target_method_time_us}µs"
+            f"has_sequence_gap took {has_gap_time_us:.1f}μs, target was {target_method_time_us}μs"
         )
 
     def test_context_error_chain_performance(self) -> None:
         """Test error chain operation performance."""
-        # Target: adding to error chain should be < 50µs
+        # Target: adding to error chain should be < 50μs
         target_add_time_us = 50
 
         context = ErrorTestFactory.create_test_context()
@@ -238,14 +250,14 @@ class TestContextCreationPerformance:
         assert len(context.error_chain) == 1
         assert context.error_chain[0].error_class == "ValueError"
         assert add_time_us < target_add_time_us, (
-            f"Adding to error chain took {add_time_us:.1f}µs, target was {target_add_time_us}µs"
+            f"Adding to error chain took {add_time_us:.1f}μs, target was {target_add_time_us}μs"
         )
 
     @pytest.mark.parametrize("field_count", [5, 10, 15, 20])
     def test_context_scaling_with_field_count(self, field_count: int) -> None:
         """Test how context creation scales with number of fields."""
         # Performance should scale linearly with field count
-        max_time_per_field_us = 20  # 20µs per field max
+        max_time_per_field_us = 20  # 20μs per field max
 
         base_data = {
             "connection_id": "scaling-test",
@@ -286,10 +298,10 @@ class TestContextCreationPerformance:
 
         # Warm up
         for _ in range(5):
-            StreamErrorContext(**base_data)
+            StreamErrorContext.model_validate(base_data)
 
         start_time = time.perf_counter()
-        context = StreamErrorContext(**base_data)
+        context = StreamErrorContext.model_validate(base_data)
         end_time = time.perf_counter()
 
         creation_time_us = (end_time - start_time) * 1_000_000
@@ -297,6 +309,6 @@ class TestContextCreationPerformance:
 
         assert context is not None
         assert time_per_field_us < max_time_per_field_us, (
-            f"Time per field was {time_per_field_us:.1f}µs for {field_count} fields, "
-            f"max allowed was {max_time_per_field_us}µs"
+            f"Time per field was {time_per_field_us:.1f}μs for {field_count} fields, "
+            f"max allowed was {max_time_per_field_us}μs"
         )

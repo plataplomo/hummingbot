@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from time import sleep
 
+from cyberdelta.enums import WorkflowStatus
 from cyberdelta.enums.trading import OrderSide, OrderType
 from cyberdelta.models.events.workflow import (
     BaseWorkflowEvent,
@@ -66,7 +67,7 @@ class TestWorkflowAuditLoggerReality:
             quantity=Decimal("1.0"),
             price=Decimal("50000.00"),
             order_type=OrderType.LIMIT,
-            status="completed",
+            status=WorkflowStatus.COMPLETED,
             started_at=datetime.now(UTC),
             completed_at=datetime.now(UTC),
         )
@@ -118,7 +119,7 @@ class TestWorkflowAuditLoggerReality:
         event = BaseWorkflowEvent(
             event_type="failing_workflow",
             timeout=30.0,
-            status="failed",
+            status=WorkflowStatus.FAILED,
             error="Validation failed: Invalid symbol",
             started_at=datetime.now(UTC),
             completed_at=datetime.now(UTC),
@@ -235,7 +236,7 @@ class TestWorkflowAuditLoggerReality:
         event = BaseWorkflowEvent(
             event_type="audit_trail_test",
             timeout=60.0,
-            status="completed",
+            status=WorkflowStatus.COMPLETED,
             completed_at=datetime.now(UTC),
         )
 
@@ -285,7 +286,7 @@ class TestWorkflowAuditLoggerReality:
             timeout=30.0,
             started_at=start_time,
             completed_at=end_time,
-            status="completed",
+            status=WorkflowStatus.COMPLETED,
         )
 
         context = WorkflowContextModel(
@@ -338,6 +339,6 @@ class TestWorkflowAuditLoggerReality:
 
         # Test error logging
         test_error = RuntimeError("test error")
-        mock_event.status = "failed"
+        mock_event.status = WorkflowStatus.FAILED
         mock_event.error = "test error"
         audit_logger.log_workflow_error(mock_event, test_error)

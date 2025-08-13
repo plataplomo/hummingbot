@@ -31,6 +31,8 @@ from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 
+logger = logging.getLogger(__name__)
+
 
 # ============================================================================
 # Performance Test Configuration
@@ -39,7 +41,11 @@ from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErr
 
 @pytest.fixture
 def performance_config() -> dict[str, int]:
-    """Configuration for performance tests."""
+    """Configuration for performance tests.
+    
+    Returns:
+        dict[str, int]: Configuration parameters for performance test iterations.
+    """
     return {
         "error_creation_iterations": 10000,
         "error_handling_iterations": 5000,
@@ -51,7 +57,11 @@ def performance_config() -> dict[str, int]:
 
 @pytest.fixture
 def test_context() -> StreamErrorContext:
-    """Test error context for benchmarks."""
+    """Test error context for benchmarks.
+    
+    Returns:
+        StreamErrorContext: Predefined error context for performance testing.
+    """
     return StreamErrorContext(
         connection_id="perf-test-conn-123",
         exchange="hyperliquid",
@@ -67,7 +77,11 @@ def test_context() -> StreamErrorContext:
 
 @pytest.fixture
 def test_handler() -> WebSocketStreamErrorHandler:
-    """Test error handler for benchmarks."""
+    """Test error handler for benchmarks.
+    
+    Returns:
+        WebSocketStreamErrorHandler: Minimal error handler optimized for performance testing.
+    """
     config = WebSocketErrorHandlerFactory.create_default_config(
         exchange="hyperliquid",
         environment="test",  # Use 'test' environment instead of 'performance'
@@ -133,10 +147,10 @@ class TestErrorCreationPerformance:
         errors_per_second = iterations / (elapsed_ms / 1000)
         time_per_error_us = (elapsed_ms * 1000) / iterations
 
-        print("\nError Creation Performance:")
-        print(f"  Total time: {elapsed_ms:.2f}ms")
-        print(f"  Errors/second: {errors_per_second:.0f}")
-        print(f"  Time/error: {time_per_error_us:.2f}μs")
+        logger.info("\nError Creation Performance:")
+        logger.info("  Total time: %.2fms", elapsed_ms)
+        logger.info("  Errors/second: %.0f", errors_per_second)
+        logger.info("  Time/error: %.2fμs", time_per_error_us)
 
         # Assert reasonable performance (should create > 1k errors/second)
         # Note: Adjusted for CI/container environment which may be slower
@@ -188,8 +202,8 @@ class TestErrorCreationPerformance:
         elapsed_ms = (end_time - start_time) * 1000
 
         errors_per_second = iterations / (elapsed_ms / 1000)
-        print("\nValidation Error Creation Performance:")
-        print(f"  Errors/second: {errors_per_second:.0f}")
+        logger.info("\nValidation Error Creation Performance:")
+        logger.info("  Errors/second: %.0f", errors_per_second)
 
         assert errors_per_second > 800, (
             f"Validation error creation too slow: {errors_per_second:.0f}/s"
@@ -235,8 +249,8 @@ class TestErrorCreationPerformance:
         elapsed_ms = (end_time - start_time) * 1000
 
         contexts_per_second = iterations / (elapsed_ms / 1000)
-        print("\nContext Creation Performance:")
-        print(f"  Contexts/second: {contexts_per_second:.0f}")
+        logger.info("\nContext Creation Performance:")
+        logger.info("  Contexts/second: %.0f", contexts_per_second)
 
         assert contexts_per_second > 1500, f"Context creation too slow: {contexts_per_second:.0f}/s"
 
@@ -290,10 +304,10 @@ class TestErrorHandlingPerformance:
         errors_per_second = iterations / (elapsed_ms / 1000)
         time_per_error_us = (elapsed_ms * 1000) / iterations
 
-        print("\nError Handler Throughput:")
-        print(f"  Total time: {elapsed_ms:.2f}ms")
-        print(f"  Errors/second: {errors_per_second:.0f}")
-        print(f"  Time/error: {time_per_error_us:.2f}μs")
+        logger.info("\nError Handler Throughput:")
+        logger.info("  Total time: %.2fms", elapsed_ms)
+        logger.info("  Errors/second: %.0f", errors_per_second)
+        logger.info("  Time/error: %.2fμs", time_per_error_us)
 
         # Should handle > 500 errors/second with minimal features
         # Note: Adjusted for CI/container environment
@@ -310,7 +324,11 @@ class TestErrorHandlingPerformance:
         errors_per_task = 100
 
         async def handle_errors(task_id: int) -> float:
-            """Handle errors for a single task."""
+            """Handle errors for a single task.
+            
+            Returns:
+                float: Time taken to handle all errors in seconds.
+            """
             start = time.perf_counter()
 
             for i in range(errors_per_task):
@@ -342,11 +360,11 @@ class TestErrorHandlingPerformance:
         errors_per_second = total_errors / (total_elapsed_ms / 1000)
         avg_task_time_ms = sum(task_times) * 1000 / len(task_times)
 
-        print("\nConcurrent Error Handling:")
-        print(f"  Total time: {total_elapsed_ms:.2f}ms")
-        print(f"  Total errors: {total_errors}")
-        print(f"  Errors/second: {errors_per_second:.0f}")
-        print(f"  Avg task time: {avg_task_time_ms:.2f}ms")
+        logger.info("\nConcurrent Error Handling:")
+        logger.info("  Total time: %.2fms", total_elapsed_ms)
+        logger.info("  Total errors: %d", total_errors)
+        logger.info("  Errors/second: %.0f", errors_per_second)
+        logger.info("  Avg task time: %.2fms", avg_task_time_ms)
 
         # Should handle concurrent load efficiently
         # Note: Adjusted for CI/container environment
@@ -408,8 +426,8 @@ class TestErrorHandlingPerformance:
 
         errors_per_second = iterations / (elapsed_ms / 1000)
 
-        print("\nValidation Error Handling:")
-        print(f"  Errors/second: {errors_per_second:.0f}")
+        logger.info("\nValidation Error Handling:")
+        logger.info("  Errors/second: %.0f", errors_per_second)
 
         assert errors_per_second > 300, f"Validation handling too slow: {errors_per_second:.0f}/s"
 
@@ -478,8 +496,8 @@ class TestEventPublishingPerformance:
 
         events_per_second = iterations / (elapsed_ms / 1000)
 
-        print("\nEvent Publishing Throughput:")
-        print(f"  Events/second: {events_per_second:.0f}")
+        logger.info("\nEvent Publishing Throughput:")
+        logger.info("  Events/second: %.0f", events_per_second)
 
         # Should publish > 1k events/second without async
         # Note: Adjusted for CI/container environment
@@ -537,8 +555,8 @@ class TestEventPublishingPerformance:
 
             events_per_second = iterations / (elapsed_ms / 1000)
 
-            print("\nAsync Event Publishing:")
-            print(f"  Events/second: {events_per_second:.0f}")
+            logger.info("\nAsync Event Publishing:")
+            logger.info("  Events/second: %.0f", events_per_second)
 
             # Async should still handle > 500 events/second
             # Note: Adjusted for CI/container environment
@@ -597,12 +615,12 @@ class TestMemoryUsage:
         subscription_size = sys.getsizeof(subscription_error)
         context_size = sys.getsizeof(test_context)
 
-        print("\nError Object Memory Footprint:")
-        print(f"  StreamError: {stream_size} bytes")
-        print(f"  ValidationError: {validation_size} bytes")
-        print(f"  ConnectionError: {connection_size} bytes")
-        print(f"  SubscriptionError: {subscription_size} bytes")
-        print(f"  ErrorContext: {context_size} bytes")
+        logger.info("\nError Object Memory Footprint:")
+        logger.info("  StreamError: %d bytes", stream_size)
+        logger.info("  ValidationError: %d bytes", validation_size)
+        logger.info("  ConnectionError: %d bytes", connection_size)
+        logger.info("  SubscriptionError: %d bytes", subscription_size)
+        logger.info("  ErrorContext: %d bytes", context_size)
 
         # Errors should be reasonably sized (< 10KB each)
         assert stream_size < 10000, f"StreamError too large: {stream_size} bytes"
@@ -647,11 +665,11 @@ class TestMemoryUsage:
         final_memory = process.memory_info().rss / 1024 / 1024  # MB
         memory_growth = final_memory - initial_memory
 
-        print("\nMemory Scaling Test:")
-        print(f"  Initial memory: {initial_memory:.2f} MB")
-        print(f"  Final memory: {final_memory:.2f} MB")
-        print(f"  Memory growth: {memory_growth:.2f} MB")
-        print(f"  Growth per 1000 errors: {(memory_growth / error_count * 1000):.2f} MB")
+        logger.info("\nMemory Scaling Test:")
+        logger.info("  Initial memory: %.2f MB", initial_memory)
+        logger.info("  Final memory: %.2f MB", final_memory)
+        logger.info("  Memory growth: %.2f MB", memory_growth)
+        logger.info("  Growth per 1000 errors: %.2f MB", (memory_growth / error_count * 1000))
 
         # Memory growth should be reasonable (< 100MB for 10k errors)
         assert memory_growth < 100, f"Excessive memory growth: {memory_growth:.2f} MB"
@@ -676,14 +694,14 @@ class TestPerformanceComparison:
         performance_config: dict[str, int],
     ) -> None:
         """Print performance summary."""
-        print("\n" + "=" * 60)
-        print("PERFORMANCE TEST SUMMARY")
-        print("=" * 60)
-        print("Error Creation: > 1,000/second")
-        print("Error Handling: > 500/second")
-        print("Concurrent Handling: > 1,000/second")
-        print("Event Publishing: > 1,000/second")
-        print("Memory per Error: < 10KB")
-        print("Memory Growth (10k errors): < 100MB")
-        print("=" * 60)
-        print("All performance targets met ✅")
+        logger.info("\n" + "=" * 60)
+        logger.info("PERFORMANCE TEST SUMMARY")
+        logger.info("=" * 60)
+        logger.info("Error Creation: > 1,000/second")
+        logger.info("Error Handling: > 500/second")
+        logger.info("Concurrent Handling: > 1,000/second")
+        logger.info("Event Publishing: > 1,000/second")
+        logger.info("Memory per Error: < 10KB")
+        logger.info("Memory Growth (10k errors): < 100MB")
+        logger.info("=" * 60)
+        logger.info("All performance targets met ✅")

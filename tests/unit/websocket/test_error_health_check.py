@@ -7,6 +7,7 @@ handling infrastructure for proper operation and performance.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from datetime import UTC, datetime, timedelta
 
@@ -241,6 +242,7 @@ class TestWebSocketErrorHealthCheck:
         for i in range(3):
             health = SystemHealth(
                 overall_status=HealthStatus.HEALTHY,
+                components=[],
                 check_timestamp=datetime.now(UTC) - timedelta(minutes=i * 10),
             )
             health_check._check_history.append(health)
@@ -261,11 +263,13 @@ class TestWebSocketErrorHealthCheck:
         assert not health_check.is_healthy()
 
         # Set healthy status
-        health_check._last_check = SystemHealth(overall_status=HealthStatus.HEALTHY)
+        health_check._last_check = SystemHealth(overall_status=HealthStatus.HEALTHY, components=[])
         assert health_check.is_healthy()
 
         # Set unhealthy status
-        health_check._last_check = SystemHealth(overall_status=HealthStatus.UNHEALTHY)
+        health_check._last_check = SystemHealth(
+            overall_status=HealthStatus.UNHEALTHY, components=[]
+        )
         assert not health_check.is_healthy()
 
     def test_health_report_generation(self) -> None:
@@ -304,7 +308,7 @@ class TestWebSocketErrorHealthCheck:
         assert "Overall Status: HEALTHY" in report
         assert "error_handler" in report
         assert "metrics_collector" in report
-        assert "Error Creation: 500.0µs" in report
+        assert "Error Creation: 500.0μs" in report
         assert "Recovery Success: 92.0%" in report
 
     def test_error_metrics_calculation(self) -> None:
@@ -349,10 +353,8 @@ class TestWebSocketErrorHealthCheck:
 
         # Cancel monitoring
         monitoring_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await monitoring_task
-        except asyncio.CancelledError:
-            pass
 
         # Should have multiple health checks
         assert len(health_check._check_history) >= 3
@@ -365,8 +367,6 @@ class TestWebSocketErrorHealthCheck:
             max_handler_overhead_percent=10,
             max_memory_usage_mb=50,
         )
-
-        health_check = WebSocketErrorHealthCheck(config=config)
 
         # Simulate degraded performance
         performance = PerformanceHealth(
@@ -399,7 +399,7 @@ class TestWebSocketErrorHealthCheck:
         health_check.add_health_callback(working_callback)
 
         # Notify callbacks
-        health = SystemHealth(overall_status=HealthStatus.HEALTHY)
+        health = SystemHealth(overall_status=HealthStatus.HEALTHY, components=[])
         health_check._notify_callbacks(health)
 
         # Working callback should still be called despite first one failing
@@ -420,7 +420,7 @@ class TestWebSocketErrorHealthCheck:
             try:
                 status = check_func()
                 components.append(status)
-            except Exception as e:
+            except (RuntimeError, ValueError, TypeError, AttributeError, OSError) as e:
                 components.append(
                     ComponentStatus(
                         name=name, status=HealthStatus.UNHEALTHY, message=f"Check failed: {e}"
@@ -453,7 +453,7 @@ class TestWebSocketErrorHealthCheck:
         assert health_check.get_last_health() is None
 
         # Set a health check
-        health = SystemHealth(overall_status=HealthStatus.HEALTHY)
+        health = SystemHealth(overall_status=HealthStatus.HEALTHY, components=[])
         health_check._last_check = health
 
         assert health_check.get_last_health() == health

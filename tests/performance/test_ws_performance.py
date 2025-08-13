@@ -43,7 +43,9 @@ from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import Hyperliq
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
 from tests.common_symbols import BTC_USDC_BP
 
@@ -156,11 +158,13 @@ class TestMessageRoutingPerformance:
         """Test Backpack router throughput."""
         # Setup router
         error_handler = BaseErrorHandler(exchange_name=ExchangeName.BACKPACK)
+        stream_error_handler = WebSocketStreamErrorHandler(config=WebSocketErrorConfig())
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         router = BackpackWebSocketRouter(
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
@@ -202,11 +206,13 @@ class TestMessageRoutingPerformance:
         """Test Hyperliquid router throughput."""
         # Setup router
         error_handler = BaseErrorHandler(exchange_name=ExchangeName.HYPERLIQUID)
+        stream_error_handler = WebSocketStreamErrorHandler(config=WebSocketErrorConfig())
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         router = HyperliquidWebSocketRouter(
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=HyperliquidOrderBookMapper(),
             price_ticker_mapper=HyperliquidPriceTickerMapper(),
@@ -284,11 +290,13 @@ class TestMemoryEfficiency:
         """Test that processors efficiently reuse memory."""
         # This is a simplified test - in production, you'd use memory profilers
         error_handler = BaseErrorHandler(exchange_name=ExchangeName.BACKPACK)
+        stream_error_handler = WebSocketStreamErrorHandler(config=WebSocketErrorConfig())
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         router = BackpackWebSocketRouter(
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
@@ -321,11 +329,13 @@ class TestConcurrentProcessing:
     async def test_concurrent_routing(self) -> None:
         """Test routing multiple messages concurrently."""
         error_handler = BaseErrorHandler(exchange_name=ExchangeName.BACKPACK)
+        stream_error_handler = WebSocketStreamErrorHandler(config=WebSocketErrorConfig())
         registry = WebSocketRegistryFactory.create_configured_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         router = BackpackWebSocketRouter(
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),

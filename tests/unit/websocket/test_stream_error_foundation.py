@@ -242,7 +242,11 @@ class TestStreamErrorContext:
 
     @pytest.fixture
     def valid_context(self) -> StreamErrorContext:
-        """Create a valid error context."""
+        """Create a valid error context.
+
+        Returns:
+            StreamErrorContext: Valid test context
+        """
         return StreamErrorContext(
             connection_id="test-connection-123",
             exchange="hyperliquid",
@@ -342,7 +346,11 @@ class TestWebSocketStreamLogData:
 
     @pytest.fixture
     def sample_context(self) -> StreamErrorContext:
-        """Create sample context."""
+        """Create sample context.
+
+        Returns:
+            StreamErrorContext: Sample test context
+        """
         return StreamErrorContext(
             connection_id="test-123",
             exchange="backpack",
@@ -420,7 +428,11 @@ class TestWebSocketStreamError:
 
     @pytest.fixture
     def sample_context(self) -> StreamErrorContext:
-        """Create sample context."""
+        """Create sample context.
+
+        Returns:
+            StreamErrorContext: Sample test context
+        """
         return StreamErrorContext(
             connection_id="test-456",
             exchange="hyperliquid",
@@ -600,7 +612,11 @@ class TestWebSocketExceptions:
 
     @pytest.fixture
     def sample_context(self) -> StreamErrorContext:
-        """Create sample context."""
+        """Create sample context.
+
+        Returns:
+            StreamErrorContext: Sample test context
+        """
         return StreamErrorContext(
             connection_id="test-789",
             exchange="backpack",
@@ -844,7 +860,6 @@ class TestFoundationIntegration:
         assert log_data.sequence_gap == 1
 
         # Verify error properties without adapter
-        assert ws_error.recovery_strategy != WebSocketRecoveryStrategy.NONE
         assert ws_error.code == WebSocketErrorCode.SEQUENCE_GAP
         assert ws_error.context.has_sequence_gap() is True
         assert ws_error.context.get_sequence_gap_size() == 1

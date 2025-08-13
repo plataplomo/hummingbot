@@ -237,8 +237,8 @@ class TestProcessorMetrics:
         # Invalid data should raise ValidationError
         with pytest.raises(Exception):  # Pydantic ValidationError
             ProcessorMetrics(
-                processor_name="TestProcessor",
+                processor_name="",  # Invalid: empty string
                 raw_model_name="TestModel",
                 transformer_type="TestTransformer",
-                processing_metrics="invalid_type",  # Wrong type
+                processing_metrics=ProcessingMetrics(),
             )

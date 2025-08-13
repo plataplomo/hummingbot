@@ -6,6 +6,7 @@ from decimal import Decimal
 
 import msgspec
 
+from cyberdelta.enums import WorkflowStatus
 from cyberdelta.enums.trading import OrderSide, OrderType
 from cyberdelta.models.events.workflow import (
     BaseWorkflowEvent,
@@ -71,10 +72,16 @@ class TestBaseWorkflowEventValidation:
         event = BaseWorkflowEvent(event_type="transition_test", timeout=30.0)
 
         # Should start as pending
-        assert event.status == "pending"
+        assert event.status == WorkflowStatus.PENDING
 
         # Test valid status values through direct assignment
-        valid_statuses = ["pending", "running", "completed", "failed", "cancelled"]
+        valid_statuses = [
+            WorkflowStatus.PENDING,
+            WorkflowStatus.RUNNING,
+            WorkflowStatus.COMPLETED,
+            WorkflowStatus.FAILED,
+            WorkflowStatus.CANCELLED,
+        ]
 
         for status in valid_statuses:
             test_event = BaseWorkflowEvent(event_type="test", timeout=30.0, status=status)

@@ -17,6 +17,7 @@ from tests.utils.websocket.error_test_utils import (
     ErrorAssertions,
     ErrorScenarioGenerator,
     ErrorTestFactory,
+    ErrorTestScenario,
 )
 
 
@@ -96,7 +97,7 @@ class TestErrorCodeCoverage:
             assert not code.is_retryable(), f"Error code {code.name} should not be retryable"
 
     @pytest.mark.parametrize("scenario", ErrorScenarioGenerator.get_all_error_code_scenarios())
-    def test_error_code_scenario(self, scenario) -> None:
+    def test_error_code_scenario(self, scenario: ErrorTestScenario) -> None:
         """Test individual error code scenarios.
 
         Args:
@@ -114,11 +115,11 @@ class TestErrorCodeCoverage:
         )
 
         # Verify retryability
-        assert (
-            error.get_recovery_strategy()
-            != WebSocketRecoveryStrategy.NONE
-            == scenario.should_be_retryable
-        ), f"Error {scenario.name} retryability mismatch"
+        is_retryable = error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE
+        assert is_retryable == scenario.should_be_retryable, (
+            f"Error {scenario.name} retryability mismatch: "
+            f"expected {scenario.should_be_retryable}, got {is_retryable}"
+        )
 
         # Verify criticality
         assert error.is_critical == scenario.should_be_critical, (
@@ -283,7 +284,6 @@ class TestErrorCodeCoverage:
 
         for code in exchange_codes:
             assert code.get_category() == "EXCHANGE"
-            error = ErrorTestFactory.create_test_error(code=code)
 
             # Temporary exchange issues are retryable
             if code in {
@@ -294,7 +294,7 @@ class TestErrorCodeCoverage:
 
     def test_error_code_uniqueness(self) -> None:
         """Test that all error codes have unique values."""
-        seen_values = {}
+        seen_values: dict[int, str] = {}
 
         for code in WebSocketErrorCode:
             if code.value in seen_values:
@@ -353,11 +353,13 @@ class TestErrorCodeCoverage:
 
             # If error is not retryable, recovery should be NONE
             if not code.is_retryable():
-                assert (
-                    error.recovery_strategy == WebSocketRecoveryStrategy.NONE
-                    or error.recovery_strategy == WebSocketRecoveryStrategy.CIRCUIT_BREAKER
-                ), (
-                    f"Non-retryable error {code.name} has recovery strategy {error.recovery_strategy}"
+                allowed_strategies = {
+                    WebSocketRecoveryStrategy.NONE,
+                    WebSocketRecoveryStrategy.CIRCUIT_BREAKER,
+                }
+                assert error.recovery_strategy in allowed_strategies, (
+                    f"Non-retryable error {code.name} has invalid recovery strategy "
+                    f"{error.recovery_strategy}"
                 )
 
             # If error is retryable, should have a recovery strategy

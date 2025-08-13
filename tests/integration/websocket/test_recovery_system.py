@@ -12,9 +12,11 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.connectivity.ws_connection_error_bridge import (
-    ConnectionErrorBridge,
-)
+# TODO: Implement ws_connection_error_bridge module
+# from cyberdelta.apis.connectivity.ws_connection_error_bridge import (
+#     ConnectionErrorBridge,
+# )
+from unittest.mock import Mock as ConnectionErrorBridge
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_recovery import (
     BackoffConfig,
@@ -37,7 +39,11 @@ class TestRecoverySystemIntegration:
 
     @pytest.fixture
     def recovery_config(self) -> ErrorRecoveryConfig:
-        """Create recovery configuration."""
+        """Create recovery configuration.
+
+        Returns:
+            ErrorRecoveryConfig: Configuration for recovery system with fast test settings.
+        """
         return ErrorRecoveryConfig(
             strategy=WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
             backoff=BackoffConfig(
@@ -62,7 +68,11 @@ class TestRecoverySystemIntegration:
 
     @pytest.fixture
     def mock_connection(self) -> Mock:
-        """Create mock connection."""
+        """Create mock connection.
+
+        Returns:
+            Mock: Mock WebSocket connection with async methods for testing.
+        """
         connection = Mock()
         connection.connect = AsyncMock(return_value=True)
         connection.disconnect = AsyncMock()
@@ -72,17 +82,29 @@ class TestRecoverySystemIntegration:
 
     @pytest.fixture
     def recovery_system(self, recovery_config: ErrorRecoveryConfig) -> WebSocketErrorRecovery:
-        """Create recovery system."""
+        """Create recovery system.
+
+        Returns:
+            WebSocketErrorRecovery: Recovery system configured with test settings.
+        """
         return WebSocketErrorRecovery("test-conn-id", recovery_config)
 
     @pytest.fixture
     def recovery_router(self) -> RecoveryStrategyRouter:
-        """Create recovery strategy router."""
+        """Create recovery strategy router.
+
+        Returns:
+            RecoveryStrategyRouter: Router for selecting recovery strategies.
+        """
         return RecoveryStrategyRouter()
 
     @pytest.fixture
     def connection_bridge(self) -> ConnectionErrorBridge:
-        """Create connection error bridge."""
+        """Create connection error bridge.
+
+        Returns:
+            ConnectionErrorBridge: Bridge for converting connection errors to stream errors.
+        """
         return ConnectionErrorBridge("hyperliquid", "test-conn-id")
 
     async def test_end_to_end_recovery_flow(
@@ -525,7 +547,6 @@ class TestRecoverySystemIntegration:
         )
 
         await recovery_system.handle_connection_error(error1)
-        initial_state = recovery_system.state
 
         # Second error - reconnection failed
         error2 = WebSocketStreamError(

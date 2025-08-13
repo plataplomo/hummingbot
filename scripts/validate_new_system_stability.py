@@ -81,7 +81,7 @@ class SystemStabilityValidator:
 
             # Test 2: Can create error handler
             try:
-                handler = WebSocketStreamErrorHandler(
+                _handler = WebSocketStreamErrorHandler(
                     metrics_collector=self.metrics_collector, enable_metrics=True
                 )
                 results["error_handler"] = True

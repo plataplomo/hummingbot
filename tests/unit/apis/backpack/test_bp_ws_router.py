@@ -19,6 +19,7 @@ from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrd
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 
@@ -33,6 +34,15 @@ class TestBackpackWebSocketRouter:
             AsyncMock: Mock BaseErrorHandler instance for testing.
         """
         return AsyncMock(spec=BaseErrorHandler)
+
+    @pytest.fixture
+    def stream_error_handler(self) -> MagicMock:
+        """Create mock stream error handler.
+
+        Returns:
+            MagicMock: Mock WebSocketStreamErrorHandler instance for testing.
+        """
+        return MagicMock(spec=WebSocketStreamErrorHandler)
 
     @pytest.fixture
     def order_book_mapper(self) -> MagicMock:
@@ -101,6 +111,7 @@ class TestBackpackWebSocketRouter:
     def router(
         self,
         error_handler: AsyncMock,
+        stream_error_handler: MagicMock,
         order_book_mapper: MagicMock,
         ticker_mapper: MagicMock,
         trade_mapper: MagicMock,
@@ -120,6 +131,7 @@ class TestBackpackWebSocketRouter:
 
         return BackpackWebSocketRouter(
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=order_book_mapper,
             ticker_mapper=ticker_mapper,

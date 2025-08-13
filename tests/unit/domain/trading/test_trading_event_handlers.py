@@ -17,7 +17,7 @@ from cyberdelta.domain.trading.trading_event_handlers import (
     TradingOrderEventHandler,
     TradingPositionEventHandler,
 )
-from cyberdelta.enums import OrderEventType, PositionEventType
+from cyberdelta.enums import OrderEventType, OrderSide, PositionEventType
 from cyberdelta.enums.component_state import ComponentState
 from cyberdelta.enums.event_bus import HandlerPriority
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -174,6 +174,7 @@ class TestTradingOrderEventHandler:
             symbol="BTC",
             order_id="order123",
             event_type=OrderEventType.PLACED,
+            side=OrderSide.BUY,
             price=Decimal("50000.00"),
             quantity=Decimal("0.1"),
         )
@@ -217,6 +218,7 @@ class TestTradingOrderEventHandler:
             symbol="ETH",
             order_id="order456",
             event_type=OrderEventType.FILLED,
+            side=OrderSide.SELL,
             fill_price=Decimal("3000.00"),
             fill_quantity=Decimal("1.0"),
             commission=Decimal("3.00"),
@@ -254,6 +256,7 @@ class TestTradingOrderEventHandler:
             symbol="SOL",
             order_id="order789",
             event_type=OrderEventType.CANCELLED,
+            side=OrderSide.BUY,
             reason="User requested",
         )
 
@@ -293,6 +296,7 @@ class TestTradingOrderEventHandler:
             symbol="BTC",
             order_id="order1",
             event_type=OrderEventType.PLACED,
+            side=OrderSide.BUY,
         )
         await handler.handle_event(placed_event)
 
@@ -306,6 +310,7 @@ class TestTradingOrderEventHandler:
             symbol="BTC",
             order_id="order2",
             event_type=OrderEventType.CANCELLED,
+            side=OrderSide.SELL,
         )
         await handler.handle_event(cancelled_event)
 
@@ -337,6 +342,7 @@ class TestTradingOrderEventHandler:
                 symbol="BTC",
                 order_id=f"order{i}",
                 event_type=OrderEventType.PLACED,
+                side=OrderSide.BUY,
             )
             await handler.handle_event(event)
 

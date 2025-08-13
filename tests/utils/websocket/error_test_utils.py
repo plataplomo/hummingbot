@@ -6,11 +6,12 @@ to facilitate comprehensive testing of the WebSocket error system.
 
 from __future__ import annotations
 
-import random
+import secrets
 from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
+from pydantic_core import InitErrorDetails
 
 from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
@@ -43,7 +44,10 @@ class ErrorTestFactory:
         channel: str | None = "trades",
         topic: str | None = "BTC-USDC",
         sequence_number: int | None = None,
-        **kwargs: Any,
+        expected_sequence: int | None = None,
+        error_timestamp_ms: int | None = None,
+        reconnect_count: int = 0,
+        is_authenticated: bool = False,
     ) -> StreamErrorContext:
         """Create a test error context with defaults.
 
@@ -53,14 +57,16 @@ class ErrorTestFactory:
             channel: Channel name
             topic: Topic/symbol
             sequence_number: Sequence number
-            **kwargs: Additional context fields
+            expected_sequence: Expected sequence number
+            error_timestamp_ms: Error timestamp in milliseconds
+            reconnect_count: Number of reconnection attempts
+            is_authenticated: Whether connection is authenticated
 
         Returns:
             StreamErrorContext for testing
         """
-        # Set default timestamp if not provided in kwargs
-        if "error_timestamp_ms" not in kwargs:
-            kwargs["error_timestamp_ms"] = int(datetime.now(UTC).timestamp() * 1000)
+        if error_timestamp_ms is None:
+            error_timestamp_ms = int(datetime.now(UTC).timestamp() * 1000)
 
         return StreamErrorContext(
             connection_id=connection_id,
@@ -68,7 +74,10 @@ class ErrorTestFactory:
             channel=channel,
             topic=topic,
             sequence_number=sequence_number,
-            **kwargs,
+            expected_sequence=expected_sequence,
+            error_timestamp_ms=error_timestamp_ms,
+            reconnect_count=reconnect_count,
+            is_authenticated=is_authenticated,
         )
 
     @staticmethod
@@ -76,7 +85,9 @@ class ErrorTestFactory:
         code: WebSocketErrorCode = WebSocketErrorCode.CONNECTION_LOST,
         message: str | None = None,
         context: StreamErrorContext | None = None,
-        **kwargs: Any,
+        severity: ErrorSeverity | None = None,
+        recovery_strategy: WebSocketRecoveryStrategy | None = None,
+        cause: Exception | None = None,
     ) -> WebSocketStreamError:
         """Create a test WebSocket error.
 
@@ -84,7 +95,9 @@ class ErrorTestFactory:
             code: Error code
             message: Error message (generated if not provided)
             context: Error context (created if not provided)
-            **kwargs: Additional error fields
+            severity: Error severity
+            recovery_strategy: Recovery strategy
+            cause: Underlying exception
 
         Returns:
             WebSocketStreamError for testing
@@ -99,7 +112,9 @@ class ErrorTestFactory:
             message=message,
             code=code,
             context=context,
-            **kwargs,
+            severity=severity,
+            recovery_strategy=recovery_strategy,
+            cause=cause,
         )
 
     @staticmethod
@@ -125,9 +140,14 @@ class ErrorTestFactory:
             return e
 
         # Fallback if validation doesn't fail (shouldn't happen)
-        raise ValidationError.from_exception_data(
-            "TestModel", [{"type": "value_error", "loc": ("test_field",), "msg": "Invalid value"}]
-        )
+        # Create a validation error manually since the expected ValidationError didn't occur
+
+        error_details: InitErrorDetails = {
+            "type": "value_error",
+            "loc": ("test_field",),
+            "input": "invalid",
+        }
+        return ValidationError.from_exception_data("TestModel", [error_details])
 
     @staticmethod
     def create_random_error() -> WebSocketStreamError:
@@ -137,13 +157,13 @@ class ErrorTestFactory:
             Random WebSocketStreamError
         """
         all_codes = list(WebSocketErrorCode)
-        code = random.choice(all_codes)
+        code = secrets.choice(all_codes)
 
         context = ErrorTestFactory.create_test_context(
-            connection_id=f"random-{random.randint(1000, 9999)}",
-            exchange=random.choice(["hyperliquid", "backpack", "binance"]),
-            channel=random.choice(["trades", "orderbook", "account", None]),
-            sequence_number=random.randint(0, 1000000) if random.random() > 0.3 else None,
+            connection_id=f"random-{secrets.randbits(14) % 9000 + 1000}",
+            exchange=secrets.choice(["hyperliquid", "backpack", "binance"]),
+            channel=secrets.choice(["trades", "orderbook", "account", None]),
+            sequence_number=secrets.randbits(20) if secrets.randbits(1) else None,
         )
 
         return ErrorTestFactory.create_test_error(
@@ -163,7 +183,7 @@ class ErrorScenarioGenerator:
         Returns:
             List of test scenarios covering all error codes
         """
-        scenarios = []
+        scenarios: list[ErrorTestScenario] = []
 
         # Connection errors
         scenarios.extend([
@@ -361,9 +381,6 @@ class ErrorAssertions:
             expected_code: Expected error code
             expected_severity: Expected severity (if provided)
             expected_recovery: Expected recovery strategy (if provided)
-
-        Raises:
-            AssertionError: If properties don't match
         """
         assert error.code == expected_code, f"Expected code {expected_code}, got {error.code}"
 
@@ -383,9 +400,6 @@ class ErrorAssertions:
 
         Args:
             context: Context to validate
-
-        Raises:
-            AssertionError: If context is invalid
         """
         assert context.connection_id, "Connection ID required"
         assert context.exchange, "Exchange required"
@@ -403,9 +417,6 @@ class ErrorAssertions:
 
         Args:
             error: Error with potential chain
-
-        Raises:
-            AssertionError: If chain is invalid
         """
         if error.cause:
             assert isinstance(error.cause, Exception), "Cause must be an exception"

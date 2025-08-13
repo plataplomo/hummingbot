@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import tempfile
+from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -17,7 +18,7 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
+from cyberdelta.apis.websocket.ws_error_metrics import AggregatedMetrics
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
@@ -61,8 +62,9 @@ class ErrorPersistenceManager:
             return []
 
         with open(self.persistence_path) as f:
-            data = json.load(f)
-            return data.get("errors", [])
+            data: dict[str, Any] = json.load(f)
+            errors: list[dict[str, Any]] = data.get("errors", [])
+            return errors
 
     def clear_error_state(self) -> None:
         """Clear persisted error state."""
@@ -147,19 +149,27 @@ class TestErrorPersistence:
     """Test error persistence and recovery."""
 
     @pytest.fixture
-    def temp_persistence_path(self) -> Path:
+    def temp_persistence_path(self) -> Generator[Path]:
         """Create temporary persistence path."""
         with tempfile.TemporaryDirectory() as tmpdir:
             yield Path(tmpdir) / "error_state.json"
 
     @pytest.fixture
     def persistence_manager(self, temp_persistence_path: Path) -> ErrorPersistenceManager:
-        """Create persistence manager."""
+        """Create persistence manager.
+
+        Returns:
+            ErrorPersistenceManager: Manager for persisting error state to disk.
+        """
         return ErrorPersistenceManager(temp_persistence_path)
 
     @pytest.fixture
     def history_tracker(self) -> ErrorHistoryTracker:
-        """Create history tracker."""
+        """Create history tracker.
+
+        Returns:
+            ErrorHistoryTracker: Tracker for maintaining error history with time windows.
+        """
         return ErrorHistoryTracker(max_history_size=100)
 
     async def test_basic_error_persistence(
@@ -313,14 +323,14 @@ class TestErrorPersistence:
     ) -> None:
         """Test persistence of error metrics."""
         # Create metrics
-        metrics = WebSocketErrorMetrics(
-            total_errors=150,
-            errors_by_code={"CONNECTION_LOST": 50, "RATE_LIMITED": 100},
-            errors_by_severity={"ERROR": 100, "WARNING": 50},
-            errors_by_exchange={"hyperliquid": 80, "backpack": 70},
-            recovery_attempts={"CONNECTION_LOST": 25, "RATE_LIMITED": 200},
-            average_recovery_time_ms=250.5,
-            last_error_timestamp=datetime.now(UTC),
+        metrics = AggregatedMetrics(
+            start_timestamp_ms=int((datetime.now(UTC) - timedelta(hours=1)).timestamp() * 1000),
+            end_timestamp_ms=int(datetime.now(UTC).timestamp() * 1000),
+            duration_ms=3600000,  # 1 hour
+            error_counts_by_code={"CONNECTION_LOST": 50, "RATE_LIMITED": 100},
+            error_counts_by_exchange={"hyperliquid": 80, "backpack": 70},
+            recovery_attempts_by_strategy={"RECONNECT": 25, "RESYNC": 200},
+            average_recovery_duration_ms=250.5,
         )
 
         # Convert to dict for persistence
@@ -443,8 +453,8 @@ class TestErrorPersistence:
         """Test persistence of error chains."""
         # Create error with chain
         context = ErrorTestFactory.create_test_context()
-        context.add_error_to_chain(ValueError("Root cause"))
-        context.add_error_to_chain(TypeError("Middle error"))
+        context.add_to_error_chain(ValueError("Root cause"))
+        context.add_to_error_chain(TypeError("Middle error"))
 
         error = WebSocketStreamError(
             message="Final error",

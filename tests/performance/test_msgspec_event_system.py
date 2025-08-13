@@ -18,6 +18,7 @@ from cyberdelta.enums import (
     ExchangeName,
     MarketDataType,
     OrderEventType,
+    OrderSide,
     PositionEventType,
 )
 from cyberdelta.enums.event_bus import HandlerPriority
@@ -79,6 +80,7 @@ def sample_events() -> list[msgspec.Struct]:
             exchange=ExchangeName.BACKPACK,
             symbol="ETH-USDC",
             event_type=OrderEventType.FILLED,
+            side=OrderSide.BUY,
             price=Decimal("3000.00"),
             quantity=Decimal("5.0"),
             fill_price=Decimal("2999.50"),

@@ -42,7 +42,11 @@ from tests.common_symbols import BTC_HL, BTC_USDC_BP
 
 @st.composite
 def decimal_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate valid Decimal values for financial calculations."""
+    """Generate valid Decimal values for financial calculations.
+
+    Returns:
+        Random Decimal value suitable for financial operations.
+    """
     # Generate reasonable financial values
     value = draw(
         st.floats(
@@ -58,7 +62,11 @@ def decimal_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def tick_size_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate valid tick sizes."""
+    """Generate valid tick sizes.
+
+    Returns:
+        Random tick size from common values.
+    """
     # Common tick sizes: 0.01, 0.001, 0.0001, 0.1, 1.0
     tick_size = draw(
         st.sampled_from([
@@ -74,7 +82,11 @@ def tick_size_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def lot_size_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate valid lot sizes."""
+    """Generate valid lot sizes.
+
+    Returns:
+        Random lot size from common values.
+    """
     # Common lot sizes for crypto
     lot_size = draw(
         st.sampled_from([
@@ -90,7 +102,11 @@ def lot_size_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def aligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
-    """Generate prices aligned to given tick size."""
+    """Generate prices aligned to given tick size.
+
+    Returns:
+        Price aligned to the specified tick size.
+    """
     # Generate a base price multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=100000))
     # Align to tick size
@@ -100,7 +116,11 @@ def aligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
 
 @st.composite
 def aligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
-    """Generate quantities aligned to given lot size."""
+    """Generate quantities aligned to given lot size.
+
+    Returns:
+        Quantity aligned to the specified lot size.
+    """
     # Generate a base quantity multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=10000))
     # Align to lot size
@@ -503,7 +523,11 @@ class TestValidationServiceProperties:
 
 
 def draw_aligned_price(tick_size: Decimal) -> Decimal:
-    """Helper to generate an aligned price for a given tick size."""
+    """Helper to generate an aligned price for a given tick size.
+
+    Returns:
+        Price aligned to the tick size.
+    """
     # Generate a random multiplier
     import random
 
@@ -512,7 +536,11 @@ def draw_aligned_price(tick_size: Decimal) -> Decimal:
 
 
 def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
-    """Helper to generate an aligned quantity for a given lot size."""
+    """Helper to generate an aligned quantity for a given lot size.
+
+    Returns:
+        Quantity aligned to the lot size.
+    """
     # Generate a random multiplier
     import random
 
@@ -527,7 +555,11 @@ def create_mock_validation_context(
     min_trade_value: Decimal | None = None,
     max_trade_value: Decimal | None = None,
 ) -> ValidationContext:
-    """Create a mock validation context for testing."""
+    """Create a mock validation context for testing.
+
+    Returns:
+        Mock validation context with specified parameters.
+    """
     mock_config = Mock(spec=AppSettings)
 
     # Mock validation config if trade values are provided
@@ -557,7 +589,11 @@ def create_mock_validation_context(
 
 
 def create_test_validation_service() -> ValidationService:
-    """Create ValidationService for testing."""
+    """Create ValidationService for testing.
+
+    Returns:
+        Configured ValidationService instance for testing.
+    """
     # Create comprehensive mock config
     config = Mock(spec=AppSettings)
 

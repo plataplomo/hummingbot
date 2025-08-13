@@ -152,7 +152,7 @@ class TestPydanticWebSocketProcessor:
         return PydanticWebSocketProcessor(
             raw_model=MessageModel,
             transformer=transformer,
-            error_handler=error_handler,
+            stream_error_handler=error_handler,
             processor_name="test_processor",
         )
 
@@ -267,7 +267,7 @@ class TestPydanticWebSocketProcessor:
         processor: PydanticWebSocketProcessor[MessageModel, Any] = PydanticWebSocketProcessor(
             raw_model=MessageModel,
             transformer=FailingTransformer(),
-            error_handler=error_handler,
+            stream_error_handler=error_handler,
         )
 
         handler = AsyncMock()
@@ -343,7 +343,7 @@ class TestPydanticWebSocketProcessor:
             PydanticWebSocketProcessor(
                 raw_model=MessageModel,
                 transformer=transformer,
-                error_handler=error_handler,
+                stream_error_handler=error_handler,
             )
         )
 
@@ -375,11 +375,11 @@ class TestPydanticWebSocketProcessor:
         processor.metrics.record_processing_time(0.1)
         metrics = processor.get_metrics()
 
-        assert metrics["processor_name"] == "test_processor"
-        assert metrics["raw_model"] == "MessageModel"
-        assert metrics["transformer_type"] == "TestTransformer"
-        assert "metrics" in metrics
-        assert metrics["metrics"]["total_processed"] == 1
+        assert metrics.processor_name == "test_processor"
+        assert metrics.raw_model_name == "MessageModel"
+        assert metrics.transformer_type == "TestTransformer"
+        assert metrics.processing_metrics is not None
+        assert metrics.processing_metrics.total_processed == 1
 
     def test_reset_metrics(
         self,
@@ -420,7 +420,7 @@ class TestProcessorFactory:
 
         processor = ProcessorFactory.create_simple_processor(
             raw_model=MessageModel,
-            error_handler=error_handler,
+            stream_error_handler=error_handler,
             processor_name="test_simple",
         )
 
@@ -438,7 +438,7 @@ class TestProcessorFactory:
             ProcessorFactory.create_processor(
                 raw_model=MessageModel,
                 transformer=transformer,
-                error_handler=error_handler,
+                stream_error_handler=error_handler,
                 processor_name="test_custom",
             )
         )

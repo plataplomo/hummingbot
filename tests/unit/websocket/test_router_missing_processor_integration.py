@@ -23,7 +23,7 @@ class TestEnvelopeModel(BaseModel):
     """Test envelope model."""
 
     stream: str
-    data: dict
+    data: dict[str, str | int | float | bool | None]
 
 
 class TestRouterImpl(BaseWebSocketRouter[TestEnvelopeModel]):
@@ -34,11 +34,19 @@ class TestRouterImpl(BaseWebSocketRouter[TestEnvelopeModel]):
         # Leave empty to test missing processor scenario
 
     def _extract_routing_key_from_envelope(self, envelope: TestEnvelopeModel) -> str | None:
-        """Extract routing key."""
+        """Extract routing key.
+
+        Returns:
+            str | None: The routing key from the envelope stream field.
+        """
         return envelope.stream
 
-    def _extract_payload_from_envelope(self, envelope: TestEnvelopeModel) -> dict:
-        """Extract payload."""
+    def _extract_payload_from_envelope(self, envelope: TestEnvelopeModel) -> dict[str, str | int | float | bool | None]:
+        """Extract payload.
+
+        Returns:
+            dict: The payload data from the envelope.
+        """
         return envelope.data
 
 
@@ -47,7 +55,11 @@ class TestRouterMissingProcessorIntegration:
 
     @pytest.fixture
     def mock_context(self) -> Mock:
-        """Create mock WebSocket context."""
+        """Create mock WebSocket context.
+
+        Returns:
+            Mock: Mock WebSocket context with predefined test values.
+        """
         context = Mock(spec=WebSocketContextProtocol)
         context.connection_id = "test-conn-12345"
         context.exchange_name = "hyperliquid"
@@ -63,21 +75,33 @@ class TestRouterMissingProcessorIntegration:
 
     @pytest.fixture
     def mock_legacy_error_handler(self) -> Mock:
-        """Create mock legacy error handler."""
+        """Create mock legacy error handler.
+
+        Returns:
+            Mock: Mock legacy error handler with async processing methods.
+        """
         handler = Mock()
         handler.handle_processing_error = AsyncMock()
         return handler
 
     @pytest.fixture
     def mock_typed_error_handler(self) -> Mock:
-        """Create mock typed error handler."""
+        """Create mock typed error handler.
+
+        Returns:
+            Mock: Mock typed error handler implementing WebSocketStreamErrorHandler.
+        """
         handler = Mock(spec=WebSocketStreamErrorHandler)
         handler.handle_stream_error = AsyncMock()
         return handler
 
     @pytest.fixture
     def mock_typed_processor(self) -> Mock:
-        """Create mock typed processor."""
+        """Create mock typed processor.
+
+        Returns:
+            Mock: Mock typed processor implementing TypeSafeWebSocketProcessor.
+        """
         return Mock(spec=TypeSafeWebSocketProcessor)
 
     @pytest.mark.asyncio

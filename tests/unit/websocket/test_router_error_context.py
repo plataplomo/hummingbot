@@ -108,7 +108,11 @@ class TestRouterErrorContextBuilder:
 
     @pytest.fixture
     def mock_router(self) -> Mock:
-        """Create mock router for testing."""
+        """Create mock router for testing.
+
+        Returns:
+            Mock: Mock WebSocket router with predefined test configuration.
+        """
         router = Mock()
         router.__class__.__name__ = "TestWebSocketRouter"
         router.exchange_name = "hyperliquid"  # Valid exchange name
@@ -118,7 +122,11 @@ class TestRouterErrorContextBuilder:
 
     @pytest.fixture
     def mock_context(self) -> Mock:
-        """Create mock WebSocket context."""
+        """Create mock WebSocket context.
+
+        Returns:
+            Mock: Mock WebSocket context implementing WebSocketContextProtocol.
+        """
         context = Mock(spec=WebSocketContextProtocol)
         context.connection_id = "test-conn-12345"
         context.exchange_name = "hyperliquid"  # Valid exchange name
@@ -130,7 +138,7 @@ class TestRouterErrorContextBuilder:
         """Test creating context from envelope validation error."""
         message = {"stream": "invalid", "bad_field": "value"}
         validation_error = ValidationError.from_exception_data(
-            "ValidationError", [{"type": "missing", "loc": ("data",), "msg": "Field required"}]
+            "ValidationError", [{"type": "missing", "loc": ("data",), "input": {}}]
         )
 
         context = RouterErrorContextBuilder.from_envelope_validation_error(

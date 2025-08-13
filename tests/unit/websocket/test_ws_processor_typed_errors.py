@@ -18,7 +18,6 @@ from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
     SimpleDictTransformer,
 )
-from cyberdelta.apis.websocket.ws_processor_error_context import ProcessorErrorContextBuilder
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
@@ -67,7 +66,11 @@ class TestTypedProcessorErrorHandling:
 
     @pytest.fixture
     def mock_context(self) -> Mock:
-        """Create mock WebSocket context."""
+        """Create mock WebSocket context.
+
+        Returns:
+            Mock: Mock WebSocket context with predefined test values.
+        """
         context = Mock(spec=WebSocketContextProtocol)
         context.connection_id = "test-connection-123"
         context.exchange_name = "hyperliquid"
@@ -88,13 +91,21 @@ class TestTypedProcessorErrorHandling:
 
     @pytest.fixture
     def mock_stream_error_handler(self) -> AsyncMock:
-        """Create mock stream error handler."""
+        """Create mock stream error handler.
+
+        Returns:
+            AsyncMock: Mock stream error handler implementing WebSocketStreamErrorHandler.
+        """
         handler = AsyncMock(spec=WebSocketStreamErrorHandler)
         return handler
 
     @pytest.fixture
     def mock_legacy_error_handler(self) -> AsyncMock:
-        """Create mock legacy error handler."""
+        """Create mock legacy error handler.
+
+        Returns:
+            AsyncMock: Mock legacy error handler with async processing methods.
+        """
         handler = AsyncMock()
         handler.handle_validation_error = AsyncMock()
         handler.handle_processing_error = AsyncMock()
@@ -110,7 +121,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="TestProcessor",
         )
@@ -132,7 +142,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="ValidationTestProcessor",
         )
@@ -171,7 +180,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=FailingTransformer(),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="TransformationTestProcessor",
         )
@@ -212,7 +220,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=TransformerForTest(),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="HandlerTestProcessor",
         )
@@ -262,7 +269,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=UnexpectedErrorTransformer(),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="UnexpectedErrorTestProcessor",
         )
@@ -300,8 +306,7 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
-            error_handler=mock_legacy_error_handler,
-            stream_error_handler=None,  # No typed handler
+            stream_error_handler=mock_legacy_error_handler,  # Use mock handler
             processor_name="NoTypedHandlerTestProcessor",
         )
 
@@ -337,7 +342,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=TransformerForTest(),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="SuccessTestProcessor",
         )
@@ -380,7 +384,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=TransformerForTest(),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="BridgeTestProcessor",
         )
@@ -404,7 +407,6 @@ class TestTypedProcessorErrorHandling:
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
-            error_handler=mock_legacy_error_handler,
             stream_error_handler=mock_stream_error_handler,
             processor_name="MetricsTestProcessor",
         )

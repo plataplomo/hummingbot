@@ -7,6 +7,7 @@ batch processing, and async handling improvements.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Any
 from unittest.mock import AsyncMock
@@ -14,9 +15,13 @@ from unittest.mock import AsyncMock
 import pytest
 
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
+
+
+logger = logging.getLogger(__name__)
 
 
 class OptimizedErrorHandler(WebSocketStreamErrorHandler):
@@ -37,7 +42,7 @@ class OptimizedErrorHandler(WebSocketStreamErrorHandler):
         self._batch_timeout = 0.1  # 100ms
         self._last_batch_time = time.time()
 
-    async def handle_stream_error_optimized(self, error: Any) -> None:
+    async def handle_stream_error_optimized(self, error: WebSocketStreamError) -> None:
         """Optimized error handling with caching and batching."""
         # Check cache for error pattern
         error_key = f"{error.code.name}:{error.context.exchange}"
@@ -56,7 +61,9 @@ class OptimizedErrorHandler(WebSocketStreamErrorHandler):
                 "severity": error.severity,
             }
 
-    async def _apply_cached_strategy(self, error: Any, strategy: dict[str, Any]) -> None:
+    async def _apply_cached_strategy(
+        self, error: WebSocketStreamError, strategy: dict[str, Any]
+    ) -> None:
         """Apply cached strategy to error."""
         # Fast path for cached errors
         if self._metrics:
@@ -99,7 +106,11 @@ class OptimizedErrorHandler(WebSocketStreamErrorHandler):
                 self._metrics.record_error(error)
 
     def get_cache_stats(self) -> dict[str, int]:
-        """Get cache statistics."""
+        """Get cache statistics.
+
+        Returns:
+            dict[str, int]: Cache performance statistics including hits, misses, and hit rate.
+        """
         total = self._cache_hits + self._cache_misses
         hit_rate = self._cache_hits / total if total > 0 else 0
 
@@ -116,12 +127,20 @@ class TestErrorHandlerOptimization:
 
     @pytest.fixture
     def config(self) -> WebSocketErrorConfig:
-        """Create test configuration."""
+        """Create test configuration.
+
+        Returns:
+            WebSocketErrorConfig: Default configuration for optimization testing.
+        """
         return WebSocketErrorConfig()
 
     @pytest.fixture
     def optimized_handler(self, config: WebSocketErrorConfig) -> OptimizedErrorHandler:
-        """Create optimized handler."""
+        """Create optimized handler.
+
+        Returns:
+            OptimizedErrorHandler: Error handler with performance optimizations enabled.
+        """
         return OptimizedErrorHandler(config)
 
     async def test_caching_performance_improvement(
@@ -168,7 +187,7 @@ class TestErrorHandlerOptimization:
         # Create many errors
         errors = [
             ErrorTestFactory.create_test_error(
-                code=WebSocketErrorCode.MESSAGE_PARSE_ERROR,
+                code=WebSocketErrorCode.MESSAGE_MALFORMED,
                 message=f"Parse error {i}",
             )
             for i in range(100)
@@ -284,8 +303,7 @@ class TestErrorHandlerOptimization:
             for _ in range(20)
         ]
 
-        for error in errors:
-            error.is_critical = True
+        # STREAM_CORRUPTED errors are already critical by definition
 
         # Measure time to process all errors
         start = time.perf_counter()
@@ -387,7 +405,7 @@ class TestErrorHandlerOptimization:
             "Deduplication": "< 50ms for 100 duplicates",
         }
 
-        print("\n=== WebSocket Error Handler Optimizations ===")
+        logger.info("\n=== WebSocket Error Handler Optimizations ===")
         for optimization, target in optimizations.items():
-            print(f"  {optimization}: {target}")
-        print("=" * 47)
+            logger.info("  %s: %s", optimization, target)
+        logger.info("=" * 47)

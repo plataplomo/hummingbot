@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -92,7 +92,7 @@ class TestWebSocketErrorMetricsCollector:
             ErrorSeverity.WARNING,
         ]
 
-        for i, severity in enumerate(severities):
+        for severity in severities:
             error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
             error.severity = severity
             collector.record_error(error)
@@ -156,7 +156,7 @@ class TestWebSocketErrorMetricsCollector:
         assert summary.avg_recovery_time_ms == 20.0  # Average of 10, 20, 30
 
     @patch("time.time")
-    def test_error_rate_calculation(self, mock_time) -> None:
+    def test_error_rate_calculation(self, mock_time: MagicMock) -> None:
         """Test error rate per second calculation."""
         collector = WebSocketErrorMetricsCollector()
 
@@ -173,8 +173,8 @@ class TestWebSocketErrorMetricsCollector:
         mock_time.return_value = base_time + 60
 
         # Rate should be 10 errors / 60 seconds
-        rate = collector._calculate_error_rate()
-        assert rate == pytest.approx(10 / 60.0, rel=0.01)
+        summary = collector.get_summary()
+        assert summary.error_rate_per_second == pytest.approx(10 / 60.0, rel=0.01)
 
     def test_peak_rate_tracking(self) -> None:
         """Test peak error rate tracking."""
@@ -190,7 +190,7 @@ class TestWebSocketErrorMetricsCollector:
         assert summary.peak_error_rate >= summary.error_rate_per_second
 
     @patch("time.time")
-    def test_metrics_cleanup(self, mock_time) -> None:
+    def test_metrics_cleanup(self, mock_time: MagicMock) -> None:
         """Test old metrics cleanup based on window size."""
         collector = WebSocketErrorMetricsCollector(window_size_minutes=5)
 

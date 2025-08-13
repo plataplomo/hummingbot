@@ -46,7 +46,11 @@ class MockProcessor:
         }
 
     def get_metrics(self) -> ProcessorMetrics:
-        """Mock get_metrics method to return ProcessorMetrics."""
+        """Mock get_metrics method to return ProcessorMetrics.
+        
+        Returns:
+            ProcessorMetrics: Mock processor metrics with predefined test values.
+        """
         processing_metrics = ProcessingMetrics(
             total_processed=100,
             validation_errors=5,
@@ -73,7 +77,11 @@ class MockContext:
         self.sequence_number = 1234
 
     def create_error_context(self) -> StreamErrorContext:
-        """Create error context from mock context."""
+        """Create error context from mock context.
+        
+        Returns:
+            StreamErrorContext: Error context with mock connection and processor metadata.
+        """
         return StreamErrorContext(
             connection_id=self.connection_id,
             exchange=self.exchange_name,
@@ -94,17 +102,29 @@ class TestProcessorErrorContextBuilder:
 
     @pytest.fixture
     def mock_processor(self) -> MockProcessor:
-        """Create mock processor."""
+        """Create mock processor.
+        
+        Returns:
+            MockProcessor: Mock processor with predefined test configuration.
+        """
         return MockProcessor()
 
     @pytest.fixture
     def mock_context(self) -> MockContext:
-        """Create mock WebSocket context."""
+        """Create mock WebSocket context.
+        
+        Returns:
+            MockContext: Mock WebSocket context with test connection details.
+        """
         return MockContext()
 
     @pytest.fixture
     def validation_error(self) -> ValidationError:
-        """Create validation error for testing."""
+        """Create validation error for testing.
+        
+        Returns:
+            ValidationError: Pydantic validation error from invalid model data.
+        """
         try:
             MockRawModel.model_validate({"price": "invalid", "symbol": 123})
         except ValidationError as e:
@@ -113,7 +133,11 @@ class TestProcessorErrorContextBuilder:
 
     @pytest.fixture
     def mock_payload(self) -> dict[str, Any]:
-        """Create mock payload."""
+        """Create mock payload.
+        
+        Returns:
+            dict[str, Any]: Mock payload data for testing processor error contexts.
+        """
         return {"price": "150.50", "symbol": "BTC"}
 
     def test_from_validation_error_with_context_method(

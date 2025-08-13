@@ -23,7 +23,7 @@ from typing import Any
 
 import psutil
 import pytest
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawTickerEvent
@@ -534,18 +534,16 @@ class TestBackpackProcessorPipeline:
             # Simulate some processing work
             if hasattr(context, "domain_model") and context.domain_model:
                 # Access the model to ensure it's fully processed - use protocol methods
-                try:
+                if isinstance(context.domain_model, BaseModel):
+                    # Modern Pydantic v2 models
                     model_data = context.domain_model.model_dump()
                     _ = model_data.get("symbol")
                     _ = model_data.get("price")
-                except AttributeError:
-                    # Fallback for models that don't have model_dump
-                    try:
-                        model_data = context.domain_model.dict()
-                        _ = model_data.get("symbol")
-                        _ = model_data.get("price")
-                    except AttributeError:
-                        pass
+                elif hasattr(context.domain_model, "dict"):
+                    # Legacy Pydantic v1 models or dict-like objects
+                    model_data = context.domain_model.dict()
+                    _ = model_data.get("symbol")
+                    _ = model_data.get("price")
             end = asyncio.get_event_loop().time()
             processing_times.append(end - start)
             message_count += 1

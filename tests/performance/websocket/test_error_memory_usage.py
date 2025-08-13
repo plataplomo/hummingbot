@@ -7,6 +7,7 @@ the old dict-based approach to ensure efficient resource utilization.
 from __future__ import annotations
 
 import gc
+import logging
 import sys
 import tracemalloc
 
@@ -18,12 +19,19 @@ from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
+logger = logging.getLogger(__name__)
+
+
 class TestErrorMemoryUsage:
     """Analyze memory usage of error system."""
 
     @pytest.fixture
     def config(self) -> WebSocketErrorConfig:
-        """Create test configuration."""
+        """Create test configuration.
+
+        Returns:
+            WebSocketErrorConfig: Configuration for memory usage testing.
+        """
         return WebSocketErrorConfig()
 
     def test_single_error_memory_footprint(self) -> None:
@@ -69,7 +77,7 @@ class TestErrorMemoryUsage:
         tracemalloc.start()
         snapshot_before = tracemalloc.take_snapshot()
 
-        handler = WebSocketStreamErrorHandler(config=config)
+        _handler = WebSocketStreamErrorHandler(config=config)
 
         snapshot_after = tracemalloc.take_snapshot()
         tracemalloc.stop()
@@ -83,7 +91,7 @@ class TestErrorMemoryUsage:
 
     def test_bulk_error_memory_scaling(self, config: WebSocketErrorConfig) -> None:
         """Test memory scaling with many errors."""
-        handler = WebSocketStreamErrorHandler(config=config)
+        _handler = WebSocketStreamErrorHandler(config=config)
 
         gc.collect()
         tracemalloc.start()
@@ -92,7 +100,7 @@ class TestErrorMemoryUsage:
         snapshot_base = tracemalloc.take_snapshot()
 
         # Create 100 errors
-        errors_100 = [
+        _errors_100 = [
             ErrorTestFactory.create_test_error(
                 code=WebSocketErrorCode.RATE_LIMITED,
                 message=f"Error {i}",
@@ -103,7 +111,7 @@ class TestErrorMemoryUsage:
         snapshot_100 = tracemalloc.take_snapshot()
 
         # Create 900 more (total 1000)
-        errors_1000 = [
+        _errors_1000 = [
             ErrorTestFactory.create_test_error(
                 code=WebSocketErrorCode.RATE_LIMITED,
                 message=f"Error {i}",
@@ -141,7 +149,7 @@ class TestErrorMemoryUsage:
         tracemalloc.start()
         snapshot_base = tracemalloc.take_snapshot()
 
-        handler_no_metrics = WebSocketStreamErrorHandler(config=config_no_metrics)
+        _handler_no_metrics = WebSocketStreamErrorHandler(config=config_no_metrics)
 
         snapshot_no_metrics = tracemalloc.take_snapshot()
 
@@ -149,14 +157,14 @@ class TestErrorMemoryUsage:
         config_with_metrics = WebSocketErrorConfig()
         config_with_metrics.metrics.enable_metrics_collection = True
 
-        handler_with_metrics = WebSocketStreamErrorHandler(config=config_with_metrics)
+        _handler_with_metrics = WebSocketStreamErrorHandler(config=config_with_metrics)
 
         snapshot_with_metrics = tracemalloc.take_snapshot()
         tracemalloc.stop()
 
         # Calculate memory difference
         stats_no_metrics = snapshot_no_metrics.compare_to(snapshot_base, "lineno")
-        memory_no_metrics = sum(stat.size_diff for stat in stats_no_metrics if stat.size_diff > 0)
+        _memory_no_metrics = sum(stat.size_diff for stat in stats_no_metrics if stat.size_diff > 0)
 
         stats_with_metrics = snapshot_with_metrics.compare_to(snapshot_no_metrics, "lineno")
         memory_metrics_overhead = sum(
@@ -176,7 +184,7 @@ class TestErrorMemoryUsage:
         snapshot_base = tracemalloc.take_snapshot()
 
         # Create many contexts
-        contexts = [
+        _contexts = [
             ErrorTestFactory.create_test_context(
                 exchange=f"exchange_{i % 3}",
                 connection_id=f"conn_{i}",
@@ -208,7 +216,7 @@ class TestErrorMemoryUsage:
         # Process many errors
         for i in range(100):
             error = ErrorTestFactory.create_test_error(
-                code=WebSocketErrorCode.MESSAGE_PARSE_ERROR,
+                code=WebSocketErrorCode.MESSAGE_MALFORMED,
                 message=f"Temporary error {i}",
             )
             # Process synchronously (simplified for memory test)
@@ -243,10 +251,10 @@ class TestErrorMemoryUsage:
         )
 
         # Add potential circular reference through context
-        error.context.metadata["error_ref"] = error  # Intentional circular ref
+        error.context.extra_context["error_ref"] = error  # Intentional circular ref
 
         # Get initial reference count
-        initial_refs = sys.getrefcount(error)
+        _initial_refs = sys.getrefcount(error)
 
         # Create another reference
         error_copy = error
@@ -260,7 +268,7 @@ class TestErrorMemoryUsage:
         assert refs_after_del < refs_with_copy, "Circular reference detected"
 
         # Clean up
-        del error.context.metadata["error_ref"]
+        del error.context.extra_context["error_ref"]
 
     def test_memory_comparison_with_dict_approach(self) -> None:
         """Compare memory usage with old dict-based approach."""
@@ -326,7 +334,7 @@ class TestErrorMemoryUsage:
             "vs Dict Approach": "< 1.5x memory",
         }
 
-        print("\n=== WebSocket Error System Memory Usage ===")
+        logger.info("\n=== WebSocket Error System Memory Usage ===")
         for metric, target in summary.items():
-            print(f"  {metric}: {target}")
-        print("=" * 45)
+            logger.info("  %s: %s", metric, target)
+        logger.info("=" * 45)

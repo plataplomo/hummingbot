@@ -28,6 +28,7 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 
@@ -43,6 +44,15 @@ class TestHyperliquidWebSocketRouter:
             AsyncMock: Mock BaseErrorHandler instance for testing.
         """
         return AsyncMock(spec=BaseErrorHandler)
+
+    @pytest.fixture
+    def stream_error_handler(self) -> MagicMock:
+        """Create mock stream error handler.
+
+        Returns:
+            MagicMock: Mock WebSocketStreamErrorHandler instance for testing.
+        """
+        return MagicMock(spec=WebSocketStreamErrorHandler)
 
     @pytest.fixture
     def order_book_mapper(self) -> MagicMock:
@@ -111,6 +121,7 @@ class TestHyperliquidWebSocketRouter:
     def router(
         self,
         error_handler: AsyncMock,
+        stream_error_handler: MagicMock,
         order_book_mapper: MagicMock,
         price_ticker_mapper: MagicMock,
         balance_mapper: MagicMock,
@@ -130,6 +141,7 @@ class TestHyperliquidWebSocketRouter:
 
         return HyperliquidWebSocketRouter(
             error_handler=error_handler,
+            stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=order_book_mapper,
             price_ticker_mapper=price_ticker_mapper,

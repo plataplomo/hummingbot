@@ -10,6 +10,7 @@ from cyberdelta.config.models.event_system_config import (
     EventRetryConfig,
     EventWorkflowConfig,
 )
+from cyberdelta.enums import WorkflowStatus
 from cyberdelta.enums.trading import OrderSide, OrderType
 from cyberdelta.exceptions import ServiceValidationError
 from cyberdelta.models.events.workflow import BaseWorkflowEvent, PlaceOrderWorkflowEvent
@@ -124,7 +125,7 @@ class TestWorkflowOrchestratorReal:
         assert result.timeout == event.timeout
 
         # Verify event state was really updated
-        assert event.status == "completed"
+        assert event.status == WorkflowStatus.COMPLETED
         assert event.started_at is not None
         assert event.completed_at is not None
 
@@ -170,7 +171,7 @@ class TestWorkflowOrchestratorReal:
         assert failing_handler.executed is True
 
         # Verify event status reflects real failure
-        assert event.status == "failed"
+        assert event.status == WorkflowStatus.FAILED
         assert event.error == "Handler intentionally failed"
         assert event.completed_at is not None
 
@@ -249,7 +250,7 @@ class TestWorkflowOrchestratorReal:
 
         # Verify real cancellation happened
         assert was_cancelled is True
-        assert event.status == "cancelled"
+        assert event.status == WorkflowStatus.CANCELLED
         assert event.error == "Cancelled by request"
         assert event.completed_at is not None
 
@@ -301,8 +302,8 @@ class TestWorkflowOrchestratorReal:
         await orchestrator.shutdown()
 
         # Verify real cancellation occurred
-        assert event1.status == "cancelled"
-        assert event2.status == "cancelled"
+        assert event1.status == WorkflowStatus.CANCELLED
+        assert event2.status == WorkflowStatus.CANCELLED
         assert event1.error == "Cancelled by request"
         assert event2.error == "Cancelled by request"
 

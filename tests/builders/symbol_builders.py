@@ -42,7 +42,9 @@ class ArbitrageSymbolBuilder:
         self._pairs: dict[str, ArbitragePair] = {}
         self._prices: dict[Symbol, Decimal] = {}
         self._funding_rates: dict[Symbol, Decimal] = {}
-        self._metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]] = {}
+        self._metadata: dict[
+            str, str | int | float | bool | Decimal | dict[str, Any] | list[Any]
+        ] = {}
 
     def add_perpetual_pair(
         self,
@@ -235,7 +237,7 @@ class MarketDataTestScenario:
     tickers: dict[Symbol, dict[str, Decimal | float]]
     order_books: dict[Symbol, dict[str, list[tuple[Decimal, Decimal]] | Decimal | None]]
     candles: dict[Symbol, list[dict[str, str | float | int]]]
-    metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]]
+    metadata: dict[str, str | int | float | bool | Decimal | dict[str, Any] | list[Any]]
 
 
 class MarketDataSymbolBuilder:
@@ -249,7 +251,9 @@ class MarketDataSymbolBuilder:
             Symbol, dict[str, list[tuple[Decimal, Decimal]] | Decimal | None]
         ] = {}
         self._candles: dict[Symbol, list[dict[str, str | float | int]]] = {}
-        self._metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]] = {}
+        self._metadata: dict[
+            str, str | int | float | bool | Decimal | dict[str, Any] | list[Any]
+        ] = {}
 
     def add_symbol(
         self,
@@ -382,7 +386,7 @@ class TradingTestScenario:
     positions: dict[Symbol, Decimal]
     orders: dict[Symbol, list[dict[str, str | int | float | bool]]]
     balances: dict[str, Decimal]
-    metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]]
+    metadata: dict[str, str | int | float | bool | Decimal | dict[str, Any] | list[Any]]
 
 
 class TradingSymbolBuilder:
@@ -394,7 +398,9 @@ class TradingSymbolBuilder:
         self._positions: dict[Symbol, Decimal] = {}
         self._orders: dict[Symbol, list[dict[str, str | int | float | bool]]] = {}
         self._balances: dict[str, Decimal] = {}
-        self._metadata: dict[str, str | int | float | bool | dict[str, Any] | list[Any]] = {}
+        self._metadata: dict[
+            str, str | int | float | bool | Decimal | dict[str, Any] | list[Any]
+        ] = {}
 
     def add_trading_symbol(
         self,
@@ -449,7 +455,7 @@ class TradingSymbolBuilder:
         self._positions[sym] = size
 
         if entry_price:
-            self._metadata[f"{symbol_key}_entry_price"] = float(entry_price)
+            self._metadata[f"{symbol_key}_entry_price"] = entry_price
 
         return self
 

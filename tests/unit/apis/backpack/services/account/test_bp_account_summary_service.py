@@ -626,7 +626,7 @@ class TestBackpackAccountSummaryService:
             response_type="data",
             operation="collateral request",
             http_status=200,
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
         )
 
         # Set up HTTP calls for basic mode fallback

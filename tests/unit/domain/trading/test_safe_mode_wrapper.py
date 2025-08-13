@@ -419,9 +419,9 @@ class TestSafeModeWrapper:
         position = sol_positions[0]
         assert position.side == OrderSide.BUY
         assert position.size is not None
-        assert float(position.size) == 10.0
+        assert position.size == Decimal("10.0")
         assert position.entry_price is not None
-        assert float(position.entry_price) == 100.0
+        assert position.entry_price == Decimal("100.0")
 
     @pytest.mark.asyncio
     async def test_update_position_from_fill_add(self, safe_mode_wrapper: SafeModeWrapper) -> None:
@@ -460,11 +460,11 @@ class TestSafeModeWrapper:
         assert len(btc_positions) >= 1
         position = btc_positions[0]
         assert position.size is not None
-        assert abs(float(position.size) - 0.2) < 0.01  # 0.1 + 0.1
+        assert abs(position.size - Decimal("0.2")) < Decimal("0.01")  # 0.1 + 0.1
         # Average entry should be around 50500: (0.1 * 50000 + 0.1 * 51000) / 0.2
         assert position.entry_price is not None
         # Allow for slippage
-        assert abs(float(position.entry_price) - 50500.0) < 1000
+        assert abs(position.entry_price - Decimal("50500.0")) < Decimal(1000)
 
     @pytest.mark.asyncio
     async def test_update_position_from_fill_close(

@@ -24,6 +24,7 @@ from cyberdelta.apis.websocket.ws_error_recovery import (
 )
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
+from cyberdelta.enums import ExchangeName
 
 
 @pytest.mark.asyncio
@@ -32,7 +33,11 @@ class TestWebSocketErrorRecoveryTyped:
 
     @pytest.fixture
     def recovery_config(self) -> ErrorRecoveryConfig:
-        """Create recovery configuration."""
+        """Create recovery configuration.
+
+        Returns:
+            ErrorRecoveryConfig: Configuration for error recovery with exponential backoff.
+        """
         return ErrorRecoveryConfig(
             strategy=WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
             backoff=BackoffConfig(
@@ -57,7 +62,11 @@ class TestWebSocketErrorRecoveryTyped:
 
     @pytest.fixture
     def mock_connection(self) -> Mock:
-        """Create mock connection."""
+        """Create mock connection.
+
+        Returns:
+            Mock: Mock WebSocket connection with async methods for recovery testing.
+        """
         connection = Mock()
         connection.connect = AsyncMock(return_value=True)
         connection.disconnect = AsyncMock()
@@ -67,7 +76,11 @@ class TestWebSocketErrorRecoveryTyped:
 
     @pytest.fixture
     def recovery_system(self, recovery_config: ErrorRecoveryConfig) -> WebSocketErrorRecovery:
-        """Create recovery system."""
+        """Create recovery system.
+
+        Returns:
+            WebSocketErrorRecovery: Error recovery system configured with test settings.
+        """
         return WebSocketErrorRecovery("test-conn-id", recovery_config)
 
     async def test_handle_websocket_stream_error_retryable(
@@ -79,7 +92,7 @@ class TestWebSocketErrorRecoveryTyped:
         # Create typed error with retryable strategy
         context = StreamErrorContext(
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             sequence_number=123,
             reconnect_count=1,
@@ -121,7 +134,7 @@ class TestWebSocketErrorRecoveryTyped:
         # Create typed error with no recovery strategy
         context = StreamErrorContext(
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="auth",
         )
 
@@ -152,7 +165,7 @@ class TestWebSocketErrorRecoveryTyped:
         # Create typed error with circuit breaker strategy
         context = StreamErrorContext(
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             reconnect_count=10,  # High reconnect count
         )
 
@@ -181,7 +194,7 @@ class TestWebSocketErrorRecoveryTyped:
         # Create typed error for message failure
         context = StreamErrorContext(
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orders",
             sequence_number=456,
         )
@@ -217,7 +230,7 @@ class TestWebSocketErrorRecoveryTyped:
         # Create typed error requiring full reconnect
         context = StreamErrorContext(
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="critical",
         )
 
@@ -295,7 +308,7 @@ class TestWebSocketErrorRecoveryTyped:
             message="Test error",
             error_code=WebSocketErrorCode.CONNECTION_TIMEOUT,
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             sequence_number=789,
             reconnect_count=2,
@@ -350,7 +363,7 @@ class TestWebSocketErrorRecoveryTyped:
         # First handle a typed error
         context = StreamErrorContext(
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         typed_error = WebSocketStreamError(

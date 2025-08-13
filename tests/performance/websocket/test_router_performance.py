@@ -10,8 +10,9 @@ message routing and error handling scenarios.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
-from typing import Any
+from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -25,6 +26,10 @@ from cyberdelta.apis.websocket.ws_router import (
 )
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.enums import ExchangeName
+
+
+logger = logging.getLogger(__name__)
 
 
 class TestEnvelopeModel(BaseModel):
@@ -42,11 +47,19 @@ class TestRouterImpl(BaseWebSocketRouter[TestEnvelopeModel]):
         """Setup test processors."""
 
     def _extract_routing_key_from_envelope(self, envelope: TestEnvelopeModel) -> str | None:
-        """Extract routing key from envelope."""
+        """Extract routing key from envelope.
+
+        Returns:
+            str | None: The routing key from the envelope stream field.
+        """
         return envelope.stream or None
 
     def _extract_payload_from_envelope(self, envelope: TestEnvelopeModel) -> dict[str, Any]:
-        """Extract payload from envelope."""
+        """Extract payload from envelope.
+
+        Returns:
+            dict[str, Any]: The payload data from the envelope.
+        """
         return envelope.data
 
 
@@ -78,7 +91,11 @@ class TestWebSocketRouterPerformance:
 
     @pytest.fixture
     def mock_legacy_error_handler(self) -> Mock:
-        """Create mock legacy error handler."""
+        """Create mock legacy error handler.
+
+        Returns:
+            Mock: Configured legacy error handler mock with async methods.
+        """
         mock = Mock()
         mock.handle_unroutable_message = AsyncMock()
         mock.handle_routing_error = AsyncMock()
@@ -87,14 +104,22 @@ class TestWebSocketRouterPerformance:
 
     @pytest.fixture
     def mock_stream_error_handler(self) -> Mock:
-        """Create mock stream error handler."""
+        """Create mock stream error handler.
+
+        Returns:
+            Mock: Stream error handler mock implementing WebSocketStreamErrorHandler.
+        """
         mock = Mock(spec=WebSocketStreamErrorHandler)
         mock.handle_stream_error = AsyncMock()
         return mock
 
     @pytest.fixture
     def mock_typed_processor(self) -> Mock:
-        """Create mock typed processor."""
+        """Create mock typed processor.
+
+        Returns:
+            Mock: Typed processor mock implementing TypeSafeWebSocketProcessor.
+        """
         mock = Mock(spec=TypeSafeWebSocketProcessor)
         mock_context = Mock(spec=WebSocketContextProtocol)
         mock_context.connection_id = "test-conn-1234-abcd"
@@ -105,9 +130,18 @@ class TestWebSocketRouterPerformance:
 
     @pytest.fixture
     def envelope_validator(self) -> Mock:
-        """Create envelope validator."""
+        """Create envelope validator.
+
+        Returns:
+            Mock: Validator mock that creates TestEnvelopeModel instances from message dictionaries.
+        """
 
         def validator(message: dict[str, Any]) -> TestEnvelopeModel:
+            """Validate and convert message to envelope model.
+
+            Returns:
+                TestEnvelopeModel: Validated envelope containing stream, data, and timestamp.
+            """
             return TestEnvelopeModel(
                 stream=message.get("stream", ""),
                 data=message.get("data", {}),
@@ -124,10 +158,13 @@ class TestWebSocketRouterPerformance:
         mock_stream_error_handler: Mock,
         envelope_validator: Mock,
     ) -> TestRouterImpl:
-        """Create router configured for performance testing."""
+        """Create router configured for performance testing.
+
+        Returns:
+            TestRouterImpl: Router instance configured with mock dependencies for performance tests.
+        """
         return TestRouterImpl(
-            exchange_name="hyperliquid",
-            exchange_type=ExchangeType.HYPERLIQUID,
+            exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_stream_error_handler,
@@ -141,10 +178,10 @@ class TestWebSocketRouterPerformance:
         """Test router performance for successful message processing."""
         # Setup processor and handler
         processor = PerformanceProcessor()
-        handler = AsyncMock()
+        handler = AsyncMock(spec=MessageHandler)
 
         performance_router.register_processor("ticker", processor)
-        handlers = {"ticker": handler}
+        handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Test single message performance
         message = {
@@ -175,10 +212,10 @@ class TestWebSocketRouterPerformance:
         """Test router performance for bulk message processing."""
         # Setup processor and handler
         processor = PerformanceProcessor()
-        handler = AsyncMock()
+        handler = AsyncMock(spec=MessageHandler)
 
         performance_router.register_processor("ticker", processor)
-        handlers = {"ticker": handler}
+        handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Process 100 messages in bulk
         messages = []
@@ -219,13 +256,18 @@ class TestWebSocketRouterPerformance:
         """Test router performance under concurrent message processing."""
         # Setup processor and handler
         processor = PerformanceProcessor()
-        handler = AsyncMock()
+        handler = AsyncMock(spec=MessageHandler)
 
         performance_router.register_processor("ticker", processor)
-        handlers = {"ticker": handler}
+        handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Create concurrent tasks
         async def process_message(i: int) -> float:
+            """Process individual message and measure timing.
+
+            Returns:
+                float: Processing time in milliseconds.
+            """
             message = {
                 "stream": "ticker",
                 "data": {"symbol": "BTC-USD", "price": str(50000 + i), "id": i},
@@ -270,14 +312,14 @@ class TestWebSocketRouterPerformance:
         def failing_validator(message: dict[str, Any]) -> TestEnvelopeModel:
             raise ValidationError.from_exception_data(
                 "TestEnvelopeModel",
-                [{"type": "missing", "loc": ("stream",), "msg": "Field required"}],
+                [{"type": "missing", "loc": ("stream",), "input": {}}],
             )
 
         performance_router.envelope_validator = Mock(side_effect=failing_validator)
 
         # Test single validation error performance
         message = {"data": {"invalid": "structure"}}
-        handlers = {}
+        handlers: dict[str, MessageHandler] = {}
 
         start_time = time.perf_counter()
         await performance_router.route_message(message, handlers)
@@ -304,14 +346,14 @@ class TestWebSocketRouterPerformance:
         def failing_validator(message: dict[str, Any]) -> TestEnvelopeModel:
             raise ValidationError.from_exception_data(
                 "TestEnvelopeModel",
-                [{"type": "missing", "loc": ("stream",), "msg": "Field required"}],
+                [{"type": "missing", "loc": ("stream",), "input": {}}],
             )
 
         performance_router.envelope_validator = Mock(side_effect=failing_validator)
 
         # Process 50 validation errors
         messages = [{"data": {"invalid": f"structure_{i}"}} for i in range(50)]
-        handlers = {}
+        handlers: dict[str, MessageHandler] = {}
 
         start_time = time.perf_counter()
         for message in messages:
@@ -339,8 +381,8 @@ class TestWebSocketRouterPerformance:
     ) -> None:
         """Test router performance when handling missing processor errors."""
         # Setup handler but no processor
-        handler = AsyncMock()
-        handlers = {"ticker": handler}
+        handler = AsyncMock(spec=MessageHandler)
+        handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Test missing processor error performance
         message = {"stream": "ticker", "data": {"symbol": "BTC-USD"}, "timestamp": int(time.time())}
@@ -367,10 +409,10 @@ class TestWebSocketRouterPerformance:
         """Test router performance with mixed successful and error scenarios."""
         # Setup processor and handler for successful messages
         processor = PerformanceProcessor()
-        handler = AsyncMock()
+        handler = AsyncMock(spec=MessageHandler)
 
         performance_router.register_processor("ticker", processor)
-        handlers = {"ticker": handler}
+        handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Create mixed messages (70% success, 30% missing processor)
         mixed_messages = []
@@ -423,10 +465,10 @@ class TestWebSocketRouterPerformance:
 
         # Setup processor and handler
         processor = PerformanceProcessor()
-        handler = AsyncMock()
+        handler = AsyncMock(spec=MessageHandler)
 
         performance_router.register_processor("ticker", processor)
-        handlers = {"ticker": handler}
+        handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Process messages with memory optimization
         messages = []
@@ -618,10 +660,10 @@ class TestWebSocketRouterPerformance:
 
         # Setup high-performance processor
         processor = PerformanceProcessor()
-        handler = AsyncMock()
+        handler = AsyncMock(spec=MessageHandler)
 
         performance_router.register_processor("ticker", processor)
-        handlers = {"ticker": handler}
+        handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Simulate high-frequency scenario: 1000 msgs/sec for 1 second
         messages = []
@@ -675,8 +717,8 @@ class TestWebSocketRouterPerformance:
         memory_stats = performance_router.get_memory_stats()
         assert memory_stats is not None
 
-        print("High-frequency performance summary:")
-        print(f"  - Total time: {total_hft_time:.2f}ms")
-        print(f"  - Average per message: {avg_time_per_message:.2f}ms")
-        print(f"  - Throughput: {messages_per_second:.2f} messages/second")
-        print(f"  - Memory stats: {memory_stats}")
+        logger.info("High-frequency performance summary:")
+        logger.info("  - Total time: %.2fms", total_hft_time)
+        logger.info("  - Average per message: %.2fms", avg_time_per_message)
+        logger.info("  - Throughput: %.2f messages/second", messages_per_second)
+        logger.info("  - Memory stats: %s", memory_stats)

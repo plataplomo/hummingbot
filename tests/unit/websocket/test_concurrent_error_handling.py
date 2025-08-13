@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import random
 import time
+from typing import Protocol, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -20,9 +21,17 @@ from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErr
 from cyberdelta.apis.websocket.ws_stream_recovery import StreamRecoverySystem
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorConfig,
+    WebSocketErrorMetricsConfig,
     WebSocketErrorRecoveryConfig,
 )
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
+
+
+class MetricsProtocol(Protocol):
+    """Protocol for metrics objects returned by get_metrics()."""
+
+    total_errors: int
+    errors_by_code: dict[str, int]
 
 
 @pytest.mark.asyncio
@@ -31,18 +40,29 @@ class TestConcurrentErrorHandling:
 
     @pytest.fixture
     def error_config(self) -> WebSocketErrorConfig:
-        """Create test error configuration."""
+        """Create test error configuration.
+
+        Returns:
+            WebSocketErrorConfig: Configuration for WebSocket error handling tests.
+        """
         return WebSocketErrorConfig(
-            max_recovery_attempts=5,
-            recovery_backoff_ms=50,
-            enable_metrics_collection=True,
-            enable_concurrent_handling=True,
-            max_concurrent_errors=10,
+            recovery=WebSocketErrorRecoveryConfig(
+                max_recovery_attempts=5,
+                initial_backoff_ms=50,
+            ),
+            metrics=WebSocketErrorMetricsConfig(
+                enable_metrics_collection=True,
+            ),
+            max_concurrent_error_handlers=10,
         )
 
     @pytest.fixture
     def recovery_config(self) -> WebSocketErrorRecoveryConfig:
-        """Create test recovery configuration."""
+        """Create test recovery configuration.
+
+        Returns:
+            WebSocketErrorRecoveryConfig: Configuration for recovery system tests.
+        """
         return WebSocketErrorRecoveryConfig(
             max_recovery_attempts=5,
             initial_backoff_ms=100,
@@ -55,7 +75,11 @@ class TestConcurrentErrorHandling:
 
     @pytest.fixture
     def mock_connection_manager(self) -> MagicMock:
-        """Create thread-safe mock connection manager."""
+        """Create thread-safe mock connection manager.
+
+        Returns:
+            MagicMock: Mock connection manager with async methods for testing.
+        """
         manager = MagicMock()
         manager.reconnect = AsyncMock(side_effect=self._simulate_reconnect)
         manager.reset_connection = AsyncMock(side_effect=self._simulate_reset)
@@ -64,12 +88,20 @@ class TestConcurrentErrorHandling:
         return manager
 
     async def _simulate_reconnect(self) -> bool:
-        """Simulate reconnection with delay."""
+        """Simulate reconnection with delay.
+
+        Returns:
+            bool: True if reconnection successful (80% success rate).
+        """
         await asyncio.sleep(random.uniform(0.01, 0.05))
         return random.random() > 0.2  # 80% success rate
 
     async def _simulate_reset(self) -> bool:
-        """Simulate connection reset with delay."""
+        """Simulate connection reset with delay.
+
+        Returns:
+            bool: True indicating successful reset.
+        """
         await asyncio.sleep(random.uniform(0.02, 0.08))
         return True
 
@@ -100,7 +132,7 @@ class TestConcurrentErrorHandling:
         assert all(r is None or isinstance(r, Exception) for r in results)
 
         # Check metrics
-        metrics = handler.get_metrics()
+        metrics = cast(MetricsProtocol, handler.get_metrics())
         assert metrics.total_errors == 20
 
         # Should handle concurrently (faster than sequential)
@@ -141,7 +173,7 @@ class TestConcurrentErrorHandling:
         assert len(results) == 25
 
         # Check error distribution in metrics
-        metrics = handler.get_metrics()
+        metrics = cast(MetricsProtocol, handler.get_metrics())
         assert metrics.total_errors == 25
         assert len(metrics.errors_by_code) >= 1  # At least one error type
 
@@ -193,7 +225,8 @@ class TestConcurrentErrorHandling:
             counter["value"] = current + 1
             await original_handle(error)
 
-        handler.handle_stream_error = counted_handle
+        # Mock the method properly
+        handler.handle_stream_error = AsyncMock(side_effect=counted_handle)  # type: ignore[method-assign]
 
         # Create many errors
         errors = [
@@ -260,7 +293,7 @@ class TestConcurrentErrorHandling:
             await asyncio.gather(*tasks, return_exceptions=True)
 
         # Check final metrics
-        metrics = handler.get_metrics()
+        metrics = cast(MetricsProtocol, handler.get_metrics())
         assert metrics.total_errors == num_errors
 
     async def test_concurrent_metric_updates(
@@ -289,7 +322,7 @@ class TestConcurrentErrorHandling:
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify metrics accuracy
-        metrics = handler.get_metrics()
+        metrics = cast(MetricsProtocol, handler.get_metrics())
         assert metrics.total_errors == sum(error_counts.values())
 
         # Check individual error counts
@@ -363,7 +396,8 @@ class TestConcurrentErrorHandling:
             if error.context.sequence_number is not None:
                 processed_sequences.append(error.context.sequence_number)
 
-        handler.handle_stream_error = tracking_handle
+        # Mock the method properly
+        handler.handle_stream_error = AsyncMock(side_effect=tracking_handle)  # type: ignore[method-assign]
 
         # Handle concurrently
         tasks = [handler.handle_stream_error(error) for error in errors]
@@ -404,8 +438,8 @@ class TestConcurrentErrorHandling:
         all_results = await asyncio.gather(*hl_tasks, *bp_tasks, return_exceptions=True)
 
         # Check isolation
-        hl_metrics = hl_handler.get_metrics()
-        bp_metrics = bp_handler.get_metrics()
+        hl_metrics = cast(MetricsProtocol, hl_handler.get_metrics())
+        bp_metrics = cast(MetricsProtocol, bp_handler.get_metrics())
 
         assert hl_metrics.total_errors == 15
         assert bp_metrics.total_errors == 15
@@ -433,7 +467,11 @@ class TestConcurrentErrorHandling:
                 resources_freed.append(resource_id)
 
             async def handle_stream_error(self, error: WebSocketStreamError) -> bool:
-                """Handle with resource tracking."""
+                """Handle with resource tracking.
+
+                Returns:
+                    bool: True if error handling completed successfully.
+                """
                 resource_id = f"resource_{id(error)}"
                 try:
                     await self._allocate_resource(resource_id)
@@ -499,5 +537,5 @@ class TestConcurrentErrorHandling:
         assert speedup > 2.0, f"Expected significant speedup, got {speedup:.2f}x"
 
         # Verify same number of errors processed
-        metrics = handler.get_metrics()
+        metrics = cast(MetricsProtocol, handler.get_metrics())
         assert metrics.total_errors == 100

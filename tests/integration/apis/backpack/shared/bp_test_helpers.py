@@ -674,19 +674,19 @@ def _log_balance_details(
         logger.info(
             "balance_details_with_lending",
             currency=found_currency,
-            total_balance=float(total_balance),
-            spot_available=float(available_quantity),
-            lent_quantity=float(balance_obj.bp_details.lend_quantity),
-            using_for_trading=float(available_balance),
+            total_balance=total_balance,
+            spot_available=available_quantity,
+            lent_quantity=balance_obj.bp_details.lend_quantity,
+            using_for_trading=available_balance,
             message="Balance details with auto-lending active",
         )
     else:
         logger.info(
             "balance_details",
             currency=found_currency,
-            total_balance=float(total_balance),
-            available_quantity=float(available_quantity),
-            using_for_trading=float(available_balance),
+            total_balance=total_balance,
+            available_quantity=available_quantity,
+            using_for_trading=available_balance,
             message="Balance details",
         )
 
@@ -741,10 +741,10 @@ async def _check_buy_order_balance(
         logger.warning(
             "balance_calculation_discrepancy",
             symbol=symbol,
-            required_amount=float(min_quantity * price),
-            available_balance=float(available_balance),
-            total_balance=float(total_balance),
-            max_affordable_quantity=float(max_affordable_quantity),
+            required_amount=min_quantity * price,
+            available_balance=available_balance,
+            total_balance=total_balance,
+            max_affordable_quantity=max_affordable_quantity,
             quote_currency=quote_currency,
             message="Balance calculation discrepancy - proceeding with minimum order size",
         )

@@ -15,7 +15,7 @@ import asyncio
 from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -121,13 +121,17 @@ class TestHyperliquidWebSocketMarketData:
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "bids" in data and "asks" in data:
+                        # Type narrowing for mypy
+                        data = cast(dict[str, Any], data)
                         orderbook = OrderBook(
                             symbol=test_symbol,
                             bids=[
-                                (Decimal(str(p)), Decimal(str(q))) for p, q in data.get("bids", [])
+                                (Decimal(str(p)), Decimal(str(q))) 
+                                for p, q in cast(list[list[Any]], data.get("bids", []))
                             ],
                             asks=[
-                                (Decimal(str(p)), Decimal(str(q))) for p, q in data.get("asks", [])
+                                (Decimal(str(p)), Decimal(str(q))) 
+                                for p, q in cast(list[list[Any]], data.get("asks", []))
                             ],
                             timestamp=datetime.now(UTC),
                         )
@@ -246,7 +250,9 @@ class TestHyperliquidWebSocketMarketData:
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "trades" in data:
-                        for trade_data in data["trades"]:
+                        # Type narrowing for mypy
+                        data = cast(dict[str, Any], data)
+                        for trade_data in cast(list[dict[str, Any]], data["trades"]):
                             trade = Fill(
                                 id=str(trade_data.get("tid", "")),
                                 symbol=test_symbol,
@@ -324,6 +330,8 @@ class TestHyperliquidWebSocketMarketData:
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "mids" in data:
+                        # Type narrowing for mypy
+                        data = cast(dict[str, Any], data)
                         for coin, price in data["mids"].items():
                             decimal_price = Decimal(str(price))
                             self._validate_mid_price(coin, decimal_price)

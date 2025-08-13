@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_exceptions import WebSocketValidationError
-from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
+from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter, MessageHandler
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.enums import ExchangeName
@@ -22,7 +22,7 @@ class TestEnvelopeModel(BaseModel):
     """Test envelope model."""
 
     stream: str
-    data: dict
+    data: dict[str, str | int | float | bool | None]
 
 
 class TestRouterImpl(BaseWebSocketRouter[TestEnvelopeModel]):
@@ -32,11 +32,19 @@ class TestRouterImpl(BaseWebSocketRouter[TestEnvelopeModel]):
         """Setup test processors."""
 
     def _extract_routing_key_from_envelope(self, envelope: TestEnvelopeModel) -> str | None:
-        """Extract routing key."""
+        """Extract routing key.
+
+        Returns:
+            str | None: The routing key from the envelope stream field.
+        """
         return envelope.stream
 
-    def _extract_payload_from_envelope(self, envelope: TestEnvelopeModel) -> dict:
-        """Extract payload."""
+    def _extract_payload_from_envelope(self, envelope: TestEnvelopeModel) -> dict[str, str | int | float | bool | None]:
+        """Extract payload.
+
+        Returns:
+            dict: The payload data from the envelope.
+        """
         return envelope.data
 
 
@@ -45,7 +53,11 @@ class TestRouterRoutingErrorsIntegration:
 
     @pytest.fixture
     def mock_legacy_error_handler(self) -> Mock:
-        """Create mock legacy error handler."""
+        """Create mock legacy error handler.
+
+        Returns:
+            Mock: Mock legacy error handler with async routing methods.
+        """
         mock = Mock()
         mock.handle_unroutable_message = AsyncMock()
         mock.handle_routing_error = AsyncMock()
@@ -53,14 +65,22 @@ class TestRouterRoutingErrorsIntegration:
 
     @pytest.fixture
     def mock_typed_error_handler(self) -> Mock:
-        """Create mock typed error handler."""
+        """Create mock typed error handler.
+
+        Returns:
+            Mock: Mock typed error handler implementing WebSocketStreamErrorHandler.
+        """
         mock = Mock(spec=WebSocketStreamErrorHandler)
         mock.handle_stream_error = AsyncMock()
         return mock
 
     @pytest.fixture
     def mock_typed_processor(self) -> Mock:
-        """Create mock typed processor."""
+        """Create mock typed processor.
+
+        Returns:
+            Mock: Mock typed processor implementing TypeSafeWebSocketProcessor.
+        """
         return Mock(spec=TypeSafeWebSocketProcessor)
 
     @pytest.mark.asyncio
@@ -82,7 +102,7 @@ class TestRouterRoutingErrorsIntegration:
         # Test invalid message that will fail envelope validation
         invalid_message = {"invalid": "structure"}
         validation_error = ValidationError.from_exception_data(
-            "TestEnvelopeModel", [{"type": "missing", "loc": ("stream",), "msg": "Field required"}]
+            "TestEnvelopeModel", [{"type": "missing", "loc": ("stream",), "input": {}}]
         )
 
         # Call envelope validation error handler directly
@@ -185,7 +205,7 @@ class TestRouterRoutingErrorsIntegration:
         """Test general routing error uses typed error system when available."""
 
         # Create a mock envelope validator that will throw an exception during routing
-        def failing_envelope_validator(message: dict) -> TestEnvelopeModel:
+        def failing_envelope_validator(message: dict[str, str | int | float | bool | None]) -> TestEnvelopeModel:
             raise RuntimeError("Envelope validator failure during routing")
 
         # Create router with typed error handler and failing envelope validator
@@ -199,7 +219,7 @@ class TestRouterRoutingErrorsIntegration:
 
         # Test message and empty handlers
         message = {"stream": "test", "data": {}}
-        handlers = {}
+        handlers: dict[str, MessageHandler] = {}
 
         # Call route_message which should trigger RuntimeError during envelope validation
         await router.route_message(message, handlers)
@@ -231,7 +251,7 @@ class TestRouterRoutingErrorsIntegration:
         """Test that routing error context is created correctly."""
 
         # Create a failing envelope validator
-        def failing_envelope_validator(message: dict) -> TestEnvelopeModel:
+        def failing_envelope_validator(message: dict[str, str | int | float | bool | None]) -> TestEnvelopeModel:
             raise KeyError("Missing required key during routing")
 
         # Create router with typed error handler and failing envelope validator

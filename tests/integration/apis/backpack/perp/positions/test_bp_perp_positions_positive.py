@@ -230,7 +230,7 @@ class TestBackpackPerpPositionsPrivate:
                 logger.info(
                     "test_position_created",
                     order_id=order_id,
-                    quantity=float(quantity),
+                    quantity=quantity,
                     message="Created test position for testing",
                 )
 

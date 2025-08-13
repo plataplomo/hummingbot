@@ -23,6 +23,7 @@ from cyberdelta.enums import (
     HealthStatus,
     MarketDataType,
     OrderEventType,
+    OrderSide,
     PositionEventType,
     RiskSeverity,
     RiskType,
@@ -165,6 +166,7 @@ class TestOrderEvent:
             exchange=ExchangeName.HYPERLIQUID,
             symbol="BTC-USDC",
             event_type=OrderEventType.PLACED,
+            side=OrderSide.BUY,
             price=Decimal("50000.00"),
             quantity=Decimal("0.1"),
         )
@@ -185,6 +187,7 @@ class TestOrderEvent:
             exchange=ExchangeName.BACKPACK,
             symbol="ETH-USDC",
             event_type=OrderEventType.FILLED,
+            side=OrderSide.SELL,
             price=Decimal("3500.00"),
             quantity=Decimal("1.0"),
             fill_price=Decimal("3500.25"),
@@ -205,6 +208,7 @@ class TestOrderEvent:
             exchange=ExchangeName.HYPERLIQUID,
             symbol="SOL-USDC",
             event_type=OrderEventType.PARTIALLY_FILLED,
+            side=OrderSide.BUY,
             price=Decimal("100.00"),
             quantity=Decimal("10.0"),
             fill_price=Decimal("100.05"),
@@ -224,6 +228,7 @@ class TestOrderEvent:
             exchange=ExchangeName.BACKPACK,
             symbol="BTC-USDC",
             event_type=OrderEventType.REJECTED,
+            side=OrderSide.BUY,
             reason="insufficient_balance",
             error_code="E001",
         )
@@ -242,6 +247,7 @@ class TestOrderEvent:
             exchange=ExchangeName.HYPERLIQUID,
             symbol="BTC-USDC",
             event_type=OrderEventType.PLACED,  # Valid event type
+            side=OrderSide.BUY,
             price=Decimal("50000.00"),
         )
 
@@ -648,6 +654,7 @@ class TestEventSerialization:
             exchange=ExchangeName.BACKPACK,
             symbol="ETH-USDC",
             event_type=OrderEventType.FILLED,
+            side=OrderSide.SELL,
             price=Decimal("3500.999"),
             quantity=Decimal("1.5"),
             fill_price=Decimal("3501.001"),
@@ -674,6 +681,7 @@ class TestEventSerialization:
                 exchange=ExchangeName.BACKPACK,
                 symbol="ETH-USDC",
                 event_type=OrderEventType.PLACED,
+                side=OrderSide.BUY,
             ),
             PositionEvent(
                 position_id="pos1",
@@ -754,6 +762,7 @@ class TestTimestampHandling:
             exchange=ExchangeName.BACKPACK,
             symbol="ETH-USDC",
             event_type=OrderEventType.PLACED,
+            side=OrderSide.BUY,
             timestamp=custom_time,
         )
 
@@ -860,6 +869,7 @@ class TestSymbolStringHandling:
                 exchange=ExchangeName.BACKPACK,
                 symbol=symbol_format,
                 event_type=OrderEventType.PLACED,
+                side=OrderSide.BUY,
             )
 
             assert event.symbol == symbol_format
@@ -873,7 +883,11 @@ class TestSymbolStringHandling:
         events = [
             MarketData(symbol=symbol, exchange=exchange, data_type=MarketDataType.TICK),
             OrderEvent(
-                order_id="test", exchange=exchange, symbol=symbol, event_type=OrderEventType.PLACED
+                order_id="test",
+                exchange=exchange,
+                symbol=symbol,
+                event_type=OrderEventType.PLACED,
+                side=OrderSide.BUY,
             ),
             PositionEvent(
                 position_id="pos1",

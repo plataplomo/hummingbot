@@ -7,14 +7,22 @@ to track performance improvements and prevent regressions.
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 
 import pytest
 
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
-from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
+from cyberdelta.config.models.websocket_error_config import (
+    WebSocketErrorConfig,
+    WebSocketErrorMetricsConfig,
+    WebSocketErrorRecoveryConfig,
+)
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
+
+
+logger = logging.getLogger(__name__)
 
 
 class TestErrorPerformanceBaseline:
@@ -22,11 +30,19 @@ class TestErrorPerformanceBaseline:
 
     @pytest.fixture
     def config(self) -> WebSocketErrorConfig:
-        """Create test configuration."""
+        """Create test configuration.
+
+        Returns:
+            WebSocketErrorConfig: Configuration for baseline performance testing.
+        """
         return WebSocketErrorConfig(
-            max_recovery_attempts=3,
-            recovery_backoff_ms=100,
-            enable_metrics_collection=True,
+            recovery=WebSocketErrorRecoveryConfig(
+                max_recovery_attempts=3,
+                initial_backoff_ms=100,
+            ),
+            metrics=WebSocketErrorMetricsConfig(
+                enable_metrics_collection=True,
+            ),
         )
 
     async def test_single_error_handling_baseline(self, config: WebSocketErrorConfig) -> None:
@@ -102,7 +118,7 @@ class TestErrorPerformanceBaseline:
 
         start = time.perf_counter()
         for _ in range(iterations):
-            context = ErrorTestFactory.create_test_context()
+            _context = ErrorTestFactory.create_test_context()
         elapsed = time.perf_counter() - start
 
         # Baseline: Should create 10000 contexts in under 1 second
@@ -110,7 +126,7 @@ class TestErrorPerformanceBaseline:
 
         # Per-context time should be < 0.1ms
         per_context_us = (elapsed / iterations) * 1_000_000
-        assert per_context_us < 100, f"Per-context time: {per_context_us:.2f}µs"
+        assert per_context_us < 100, f"Per-context time: {per_context_us:.2f}μs"
 
     async def test_error_creation_baseline(self) -> None:
         """Test baseline performance for error object creation."""
@@ -118,8 +134,8 @@ class TestErrorPerformanceBaseline:
 
         start = time.perf_counter()
         for i in range(iterations):
-            error = ErrorTestFactory.create_test_error(
-                code=WebSocketErrorCode.MESSAGE_PARSE_ERROR,
+            _error = ErrorTestFactory.create_test_error(
+                code=WebSocketErrorCode.MESSAGE_MALFORMED,
                 message=f"Test error {i}",
             )
         elapsed = time.perf_counter() - start
@@ -129,7 +145,7 @@ class TestErrorPerformanceBaseline:
 
         # Per-error time should be < 0.2ms
         per_error_us = (elapsed / iterations) * 1_000_000
-        assert per_error_us < 200, f"Per-error time: {per_error_us:.2f}µs"
+        assert per_error_us < 200, f"Per-error time: {per_error_us:.2f}μs"
 
     async def test_metrics_collection_overhead(self, config: WebSocketErrorConfig) -> None:
         """Test overhead of metrics collection."""
@@ -138,9 +154,13 @@ class TestErrorPerformanceBaseline:
 
         # Handler without metrics
         config_no_metrics = WebSocketErrorConfig(
-            max_recovery_attempts=3,
-            recovery_backoff_ms=100,
-            enable_metrics_collection=False,
+            recovery=WebSocketErrorRecoveryConfig(
+                max_recovery_attempts=3,
+                initial_backoff_ms=100,
+            ),
+            metrics=WebSocketErrorMetricsConfig(
+                enable_metrics_collection=False,
+            ),
         )
         handler_no_metrics = WebSocketStreamErrorHandler(config=config_no_metrics)
 
@@ -190,13 +210,13 @@ class TestErrorPerformanceBaseline:
             "Single Error Handling": "< 10ms",
             "Bulk Error (1000)": "< 1s total, < 1ms per error",
             "Concurrent (100)": "< 100ms total",
-            "Context Creation": "< 100µs per context",
-            "Error Creation": "< 200µs per error",
+            "Context Creation": "< 100μs per context",
+            "Error Creation": "< 200μs per error",
             "Metrics Overhead": "< 20%",
             "Recovery Decision": "< 5ms",
         }
 
-        print("\n=== WebSocket Error System Performance Baseline ===")
+        logger.info("\n=== WebSocket Error System Performance Baseline ===")
         for metric, target in summary.items():
-            print(f"  {metric}: {target}")
-        print("=" * 50)
+            logger.info("  %s: %s", metric, target)
+        logger.info("=" * 50)

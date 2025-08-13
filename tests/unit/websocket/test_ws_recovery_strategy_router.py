@@ -26,12 +26,20 @@ class TestRecoveryStrategyRouter:
 
     @pytest.fixture
     def router(self) -> RecoveryStrategyRouter:
-        """Create recovery strategy router."""
+        """Create recovery strategy router.
+
+        Returns:
+            RecoveryStrategyRouter: Router for determining recovery strategies.
+        """
         return RecoveryStrategyRouter()
 
     @pytest.fixture
     def mock_recovery(self) -> Mock:
-        """Create mock recovery system."""
+        """Create mock recovery system.
+
+        Returns:
+            Mock: Mock recovery system with async error handling methods.
+        """
         recovery = Mock()
         recovery.handle_connection_error = AsyncMock()
         recovery.handle_message_failure = AsyncMock()
@@ -43,7 +51,11 @@ class TestRecoveryStrategyRouter:
         strategy: WebSocketRecoveryStrategy | None = None,
         severity: ErrorSeverity | None = None,
     ) -> WebSocketStreamError:
-        """Create a test error with specified parameters."""
+        """Create a test error with specified parameters.
+
+        Returns:
+            WebSocketStreamError: Test error configured with provided parameters.
+        """
         context = StreamErrorContext(
             connection_id="test-conn-id",
             exchange="hyperliquid",
@@ -176,6 +188,7 @@ class TestRecoveryStrategyRouter:
         assert result.strategy_used == WebSocketRecoveryStrategy.CIRCUIT_BREAKER
         assert result.should_continue is False
         assert "Circuit breaker activated" in result.action_taken
+        assert result.error_message is not None
         assert "Too many failures" in result.error_message
 
     async def test_route_degrade_service_recovery(
@@ -342,6 +355,7 @@ class TestRecoveryStrategyRouter:
         assert result.success is False
         assert result.should_continue is False
         assert "Recovery handler failed" in result.action_taken
+        assert result.error_message is not None
         assert "Handler failed" in result.error_message
 
     async def test_get_stats(

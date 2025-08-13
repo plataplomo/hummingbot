@@ -25,7 +25,11 @@ class TestRecoveryStrategyCoverage:
 
     @pytest.fixture
     def recovery_config(self) -> WebSocketErrorRecoveryConfig:
-        """Create test recovery configuration."""
+        """Create test recovery configuration.
+
+        Returns:
+            WebSocketErrorRecoveryConfig: Configuration for recovery strategy testing.
+        """
         return WebSocketErrorRecoveryConfig(
             max_recovery_attempts=3,
             initial_backoff_ms=100,
@@ -38,7 +42,11 @@ class TestRecoveryStrategyCoverage:
 
     @pytest.fixture
     def mock_connection_manager(self) -> MagicMock:
-        """Create mock connection manager."""
+        """Create mock connection manager.
+
+        Returns:
+            MagicMock: Mock connection manager with async methods for testing.
+        """
         manager = MagicMock()
         manager.reconnect = AsyncMock(return_value=True)
         manager.reset_connection = AsyncMock(return_value=True)
@@ -47,7 +55,11 @@ class TestRecoveryStrategyCoverage:
 
     @pytest.fixture
     def mock_subscription_manager(self) -> MagicMock:
-        """Create mock subscription manager."""
+        """Create mock subscription manager.
+
+        Returns:
+            MagicMock: Mock subscription manager with async subscription methods.
+        """
         manager = MagicMock()
         manager.resubscribe = AsyncMock(return_value=True)
         manager.clear_subscriptions = AsyncMock()
@@ -55,7 +67,11 @@ class TestRecoveryStrategyCoverage:
 
     @pytest.fixture
     def mock_state_manager(self) -> MagicMock:
-        """Create mock state manager."""
+        """Create mock state manager.
+
+        Returns:
+            MagicMock: Mock state manager with async state management methods.
+        """
         manager = MagicMock()
         manager.request_snapshot = AsyncMock(return_value=True)
         manager.clear_state = AsyncMock()
@@ -69,7 +85,11 @@ class TestRecoveryStrategyCoverage:
         mock_subscription_manager: MagicMock,
         mock_state_manager: MagicMock,
     ) -> StreamRecoverySystem:
-        """Create recovery system with mocked dependencies."""
+        """Create recovery system with mocked dependencies.
+
+        Returns:
+            StreamRecoverySystem: Recovery system configured with mock dependencies for testing.
+        """
         return StreamRecoverySystem(
             config=recovery_config,
             connection_manager=mock_connection_manager,

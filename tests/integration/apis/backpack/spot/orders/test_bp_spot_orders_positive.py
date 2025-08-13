@@ -144,9 +144,7 @@ class TestBackpackSpotOrdersPositiveBalance:
             "market_order_executed",
             order_id=placed_order.exchange_order_id,
             status=str(placed_order.status),
-            quantity_filled=(
-                float(placed_order.quantity_filled) if placed_order.quantity_filled else None
-            ),
+            quantity_filled=placed_order.quantity_filled,
             message=(
                 f"✓ Market order executed: {placed_order.exchange_order_id}, "
                 f"status: {placed_order.status}, filled: {placed_order.quantity_filled}"
@@ -793,8 +791,8 @@ class TestBackpackSpotOrdersPositiveBalance:
                 logger.info(
                     "precision_test_passed",
                     test_name=test_case["name"],
-                    quantity_requested=float(placed_order.quantity_requested),
-                    price=float(placed_order.price) if placed_order.price else None,
+                    quantity_requested=placed_order.quantity_requested,
+                    price=placed_order.price,
                     order_id=placed_order.exchange_order_id,
                     message=(
                         f"✓ Precision test '{test_case['name']}' passed: "
@@ -885,7 +883,7 @@ class TestBackpackSpotOrdersPositiveBalance:
                 logger.info(
                     "large_order_accepted",
                     multiplier=multiplier,
-                    quantity=float(large_quantity),
+                    quantity=large_quantity,
                     order_id=placed_order.exchange_order_id,
                     message=(
                         f"✓ Large order {multiplier}x minimum accepted: "

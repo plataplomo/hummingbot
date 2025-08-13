@@ -7,6 +7,7 @@ to ensure consistent behavior while respecting exchange-specific requirements.
 from __future__ import annotations
 
 import asyncio
+from typing import Any, Protocol, cast
 
 import pytest
 
@@ -15,6 +16,13 @@ from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_handler_registry import WebSocketErrorHandlerRegistry
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
+
+
+class ErrorMetricsProtocol(Protocol):
+    """Protocol for error metrics objects."""
+
+    total_errors: int
+    errors_by_exchange: dict[str, int]
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
@@ -24,16 +32,24 @@ class TestMultiExchangeErrors:
 
     @pytest.fixture
     def error_config(self) -> WebSocketErrorConfig:
-        """Create test error configuration."""
-        return WebSocketErrorConfig(
-            max_recovery_attempts=3,
-            recovery_backoff_ms=100,
-            enable_metrics_collection=True,
-        )
+        """Create test error configuration.
+
+        Returns:
+            WebSocketErrorConfig: Configuration for multi-exchange error testing.
+        """
+        config = WebSocketErrorConfig()
+        config.recovery.max_recovery_attempts = 3
+        config.recovery.initial_backoff_ms = 100
+        config.metrics.enable_metrics_collection = True
+        return config
 
     @pytest.fixture
     def handler_registry(self, error_config: WebSocketErrorConfig) -> WebSocketErrorHandlerRegistry:
-        """Create error handler registry."""
+        """Create error handler registry.
+
+        Returns:
+            WebSocketErrorHandlerRegistry: Registry for managing multi-exchange error handlers.
+        """
         return WebSocketErrorHandlerRegistry()
 
     async def test_hyperliquid_specific_errors(
@@ -69,7 +85,7 @@ class TestMultiExchangeErrors:
             await handler.handle_stream_error(error)
 
         # Verify metrics
-        metrics = handler.get_metrics()
+        metrics = cast(ErrorMetricsProtocol, handler.get_metrics())
         assert metrics.total_errors >= 3
         assert "hyperliquid" in str(metrics.errors_by_exchange)
 
@@ -106,12 +122,12 @@ class TestMultiExchangeErrors:
             await handler.handle_stream_error(error)
 
         # Verify handling
-        metrics = handler.get_metrics()
+        metrics = cast(ErrorMetricsProtocol, handler.get_metrics())
         assert metrics.total_errors >= 3
 
     async def test_exchange_specific_recovery_strategies(self) -> None:
         """Test that recovery strategies are appropriate for each exchange."""
-        exchanges = ["hyperliquid", "backpack", "binance"]
+        exchanges = [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]
 
         for exchange in exchanges:
             # Create rate limit error for each exchange
@@ -164,8 +180,10 @@ class TestMultiExchangeErrors:
         hl_metrics = hl_handler.get_metrics()
         bp_metrics = bp_handler.get_metrics()
 
-        assert hl_metrics.total_errors > 0
-        assert bp_metrics.total_errors > 0
+        hl_metrics_typed = cast(ErrorMetricsProtocol, hl_metrics)
+        bp_metrics_typed = cast(ErrorMetricsProtocol, bp_metrics)
+        assert hl_metrics_typed.total_errors > 0
+        assert bp_metrics_typed.total_errors > 0
 
     async def test_exchange_failover_strategy(self) -> None:
         """Test failover from one exchange to another on errors."""
@@ -212,7 +230,7 @@ class TestMultiExchangeErrors:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test exchange-specific authentication error handling."""
-        exchanges = ["hyperliquid", "backpack"]
+        exchanges = [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]
 
         for exchange in exchanges:
             handler = handler_registry.get_handler(exchange, error_config)
@@ -341,7 +359,7 @@ class TestMultiExchangeErrors:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test handling errors from multiple exchanges concurrently."""
-        exchanges = ["hyperliquid", "backpack", "binance"]
+        exchanges = [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]
         handlers = {
             exchange: handler_registry.get_handler(exchange, error_config) for exchange in exchanges
         }
@@ -367,4 +385,5 @@ class TestMultiExchangeErrors:
         # Check metrics for each exchange
         for exchange, handler in handlers.items():
             metrics = handler.get_metrics()
-            assert metrics.total_errors >= 3
+            metrics_typed = cast(ErrorMetricsProtocol, metrics)
+            assert metrics_typed.total_errors >= 3

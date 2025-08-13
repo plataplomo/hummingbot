@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from unittest.mock import Mock
+import time
+from unittest.mock import MagicMock, Mock
 
 import pytest
+from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
@@ -51,15 +53,50 @@ class MockConnectionManager:
     """Mock connection manager for testing."""
 
     def __init__(self) -> None:
+        """Initialize mock connection manager."""
         self.reconnect_called = False
         self.close_called = False
         self.switch_endpoint_called = False
 
-    async def reconnect(self, connection_id: str, delay_ms: int = 0) -> bool:
-        """Mock reconnect."""
+    async def reconnect(
+        self,
+        connection_id: str,
+        exchange: str,
+        force: bool = False,
+    ) -> bool:
+        """Mock reconnect.
+
+        Returns:
+            Always True for successful reconnection.
+        """
         self.reconnect_called = True
         await asyncio.sleep(0.01)  # Simulate async work
         return True
+
+    async def reset_connection(
+        self,
+        connection_id: str,
+        exchange: str,
+    ) -> bool:
+        """Mock reset connection.
+
+        Returns:
+            Always True for successful reset.
+        """
+        await asyncio.sleep(0.01)
+        return True
+
+    async def get_connection_state(
+        self,
+        connection_id: str,
+        exchange: str,
+    ) -> str:
+        """Mock get connection state.
+
+        Returns:
+            Always 'connected' for testing.
+        """
+        return "connected"
 
     async def close_connection(self, connection_id: str) -> None:
         """Mock close connection."""
@@ -67,7 +104,11 @@ class MockConnectionManager:
         await asyncio.sleep(0.01)
 
     async def switch_endpoint(self, connection_id: str) -> bool:
-        """Mock endpoint switch."""
+        """Mock endpoint switch.
+
+        Returns:
+            Always True for successful endpoint switch.
+        """
         self.switch_endpoint_called = True
         await asyncio.sleep(0.01)
         return True
@@ -77,15 +118,34 @@ class MockSubscriptionManager:
     """Mock subscription manager for testing."""
 
     def __init__(self) -> None:
+        """Initialize mock subscription manager."""
         self.resubscribe_called = False
         self.clear_subscriptions_called = False
         self.pause_called = False
 
-    async def resubscribe_all(self, connection_id: str) -> bool:
-        """Mock resubscribe."""
+    async def resubscribe(
+        self,
+        connection_id: str,
+        exchange: str,
+        channel: str | None = None,
+    ) -> bool:
+        """Mock resubscribe.
+
+        Returns:
+            Always True for successful resubscription.
+        """
         self.resubscribe_called = True
         await asyncio.sleep(0.01)
         return True
+
+    async def clear_subscriptions(
+        self,
+        connection_id: str,
+        exchange: str,
+    ) -> None:
+        """Mock clear subscriptions."""
+        self.clear_subscriptions_called = True
+        await asyncio.sleep(0.01)
 
     async def clear_subscriptions(self, connection_id: str) -> None:
         """Mock clear subscriptions."""
@@ -102,47 +162,74 @@ class MockStateManager:
     """Mock state manager for testing."""
 
     def __init__(self) -> None:
+        """Initialize mock state manager."""
         self.reset_called = False
         self.snapshot_called = False
         self.restore_called = False
 
-    async def reset_state(self, connection_id: str) -> None:
-        """Mock reset state."""
-        self.reset_called = True
-        await asyncio.sleep(0.01)
+    async def request_snapshot(
+        self,
+        exchange: str,
+        channel: str,
+        symbol: str | None = None,
+    ) -> bool:
+        """Mock request snapshot.
 
-    async def create_snapshot(self, connection_id: str) -> dict[str, object]:
-        """Mock create snapshot."""
+        Returns:
+            Always True for successful snapshot request.
+        """
         self.snapshot_called = True
-        return {"test": "snapshot"}
+        await asyncio.sleep(0.01)
+        return True
 
-    async def restore_snapshot(self, connection_id: str, snapshot: dict[str, object]) -> None:
-        """Mock restore snapshot."""
-        self.restore_called = True
+    async def clear_state(
+        self,
+        exchange: str,
+        channel: str | None = None,
+        symbol: str | None = None,
+    ) -> None:
+        """Mock clear state."""
+        self.reset_called = True
         await asyncio.sleep(0.01)
 
 
 @pytest.fixture
 def mock_connection_manager() -> MockConnectionManager:
-    """Fixture for mock connection manager."""
+    """Fixture for mock connection manager.
+
+    Returns:
+        Mock connection manager instance.
+    """
     return MockConnectionManager()
 
 
 @pytest.fixture
 def mock_subscription_manager() -> MockSubscriptionManager:
-    """Fixture for mock subscription manager."""
+    """Fixture for mock subscription manager.
+
+    Returns:
+        Mock subscription manager instance.
+    """
     return MockSubscriptionManager()
 
 
 @pytest.fixture
 def mock_state_manager() -> MockStateManager:
-    """Fixture for mock state manager."""
+    """Fixture for mock state manager.
+
+    Returns:
+        Mock state manager instance.
+    """
     return MockStateManager()
 
 
 @pytest.fixture
 def test_config() -> WebSocketErrorConfig:
-    """Fixture for test error configuration."""
+    """Fixture for test error configuration.
+
+    Returns:
+        Default test WebSocket error configuration.
+    """
     return WebSocketErrorHandlerFactory.create_default_config(
         exchange=ExchangeName.HYPERLIQUID,
         environment="test",
@@ -151,7 +238,11 @@ def test_config() -> WebSocketErrorConfig:
 
 @pytest.fixture
 def error_context() -> StreamErrorContext:
-    """Fixture for error context."""
+    """Fixture for error context.
+
+    Returns:
+        Sample stream error context for testing.
+    """
     return StreamErrorContext(
         connection_id="test-conn-123",
         exchange=ExchangeName.HYPERLIQUID,
@@ -167,7 +258,11 @@ def error_context() -> StreamErrorContext:
 
 @pytest.fixture
 def sample_error(error_context: StreamErrorContext) -> WebSocketStreamError:
-    """Fixture for sample WebSocket error."""
+    """Fixture for sample WebSocket error.
+
+    Returns:
+        Sample WebSocket stream error for testing.
+    """
     return WebSocketStreamError(
         message="Connection lost unexpectedly",
         code=WebSocketErrorCode.CONNECTION_LOST,
@@ -220,8 +315,6 @@ class TestErrorHandlerFactory:
 
     def test_unsupported_exchange_raises_error(self) -> None:
         """Test that unsupported exchange raises error."""
-        from unittest.mock import MagicMock
-
         # Create a mock exchange that's not in supported list
         mock_exchange = MagicMock()
         mock_exchange.value = "unsupported_exchange"
@@ -262,7 +355,11 @@ class TestErrorHandlerRegistry:
 
     @pytest.fixture
     def registry(self) -> WebSocketErrorHandlerRegistry:
-        """Fixture for clean registry."""
+        """Fixture for clean registry.
+
+        Returns:
+            Fresh WebSocket error handler registry.
+        """
         return WebSocketErrorHandlerRegistry()
 
     def test_registry_caching_behavior(self, registry: WebSocketErrorHandlerRegistry) -> None:
@@ -317,8 +414,6 @@ class TestErrorHandlerRegistry:
 
     def test_registry_direct_factory_usage(self) -> None:
         """Test using factory pattern directly instead of global registry."""
-        from cyberdelta.enums import ExchangeName
-
         handler = WebSocketErrorHandlerFactory.create_minimal_handler(
             exchange=ExchangeName.HYPERLIQUID
         )
@@ -330,7 +425,9 @@ class TestErrorHandlerRegistry:
         health = registry.health_check()
         assert health["registry_healthy"] is True
         assert health["active_handlers"] == 0
-        assert "No active handlers registered" in health["issues"]
+        issues = health["issues"]
+        assert isinstance(issues, (list, str))
+        assert "No active handlers registered" in issues
 
         # Add a handler - keep reference to prevent garbage collection
         handler = registry.get_handler(ExchangeName.HYPERLIQUID)
@@ -359,7 +456,11 @@ class TestErrorHandlerIntegration:
         mock_subscription_manager: MockSubscriptionManager,
         mock_state_manager: MockStateManager,
     ) -> WebSocketStreamErrorHandler:
-        """Fixture for fully configured handler with mocks."""
+        """Fixture for fully configured handler with mocks.
+
+        Returns:
+            WebSocket stream error handler with all mock dependencies.
+        """
         metrics = WebSocketErrorMetrics(config=test_config.metrics)
 
         return WebSocketErrorHandlerFactory.create_handler(
@@ -377,7 +478,6 @@ class TestErrorHandlerIntegration:
         error_context: StreamErrorContext,
     ) -> None:
         """Test complete validation error handling flow."""
-        from pydantic import BaseModel, ValidationError
 
         class TestModel(BaseModel):
             required_field: str
@@ -407,7 +507,7 @@ class TestErrorHandlerIntegration:
         # Verify metrics were recorded
         if handler_with_mocks.metrics_collector:
             stats = handler_with_mocks.metrics_collector.get_statistics()
-            assert stats["total_errors_recorded"] >= 1
+            assert stats.total_errors_recorded >= 1
 
     async def test_connection_error_recovery_flow(
         self,
@@ -420,8 +520,6 @@ class TestErrorHandlerIntegration:
             message="Connection failed",
             code=WebSocketErrorCode.CONNECTION_FAILED,
             context=sample_error.context,
-            severity=ErrorSeverity.ERROR,
-            recovery_strategy=WebSocketRecoveryStrategy.FULL_RECONNECT,
         )
 
         # Handle the connection error
@@ -441,10 +539,8 @@ class TestErrorHandlerIntegration:
         """Test subscription error handling."""
         subscription_error = WebSocketSubscriptionError(
             message="Subscription failed",
-            code=WebSocketErrorCode.SUBSCRIPTION_FAILED,
             context=error_context,
-            severity=ErrorSeverity.WARNING,
-            recovery_strategy=WebSocketRecoveryStrategy.RESUBSCRIBE,
+            code=WebSocketErrorCode.SUBSCRIPTION_FAILED,
         )
 
         # Handle the subscription error
@@ -453,7 +549,7 @@ class TestErrorHandlerIntegration:
         # Verify error was processed
         if handler_with_mocks.metrics_collector:
             stats = handler_with_mocks.metrics_collector.get_statistics()
-            assert stats["total_errors_recorded"] >= 1
+            assert stats.total_errors_recorded >= 1
 
     async def test_error_metrics_integration(
         self,
@@ -468,7 +564,7 @@ class TestErrorHandlerIntegration:
         # Check metrics were collected
         if handler_with_mocks.metrics_collector:
             stats = handler_with_mocks.metrics_collector.get_statistics()
-            assert stats["total_errors_recorded"] >= 3
+            assert stats.total_errors_recorded >= 3
 
             # Get aggregated metrics
             metrics = handler_with_mocks.metrics_collector.get_aggregated_metrics()
@@ -486,7 +582,11 @@ class TestEventPublisherIntegration:
 
     @pytest.fixture
     def event_publisher(self) -> WebSocketErrorEventPublisher:
-        """Fixture for event publisher."""
+        """Fixture for event publisher.
+
+        Returns:
+            WebSocket error event publisher for testing.
+        """
         logger = logging.getLogger("test_publisher")
         return WebSocketErrorEventPublisher(
             logger=logger,
@@ -496,7 +596,11 @@ class TestEventPublisherIntegration:
 
     @pytest.fixture
     def event_handler(self) -> LoggingEventHandler:
-        """Fixture for logging event handler."""
+        """Fixture for logging event handler.
+
+        Returns:
+            Logging event handler for testing.
+        """
         logger = logging.getLogger("test_handler")
         return LoggingEventHandler(logger=logger, log_level="INFO")
 
@@ -623,7 +727,11 @@ class TestRecoverySystemIntegration:
 
     @pytest.fixture
     def recovery_config(self) -> WebSocketErrorRecoveryConfig:
-        """Fixture for recovery configuration."""
+        """Fixture for recovery configuration.
+
+        Returns:
+            WebSocket error recovery configuration for testing.
+        """
         return WebSocketErrorRecoveryConfig(
             max_recovery_attempts=3,
             initial_backoff_ms=100,
@@ -640,7 +748,11 @@ class TestRecoverySystemIntegration:
         mock_subscription_manager: MockSubscriptionManager,
         mock_state_manager: MockStateManager,
     ) -> StreamRecoverySystem:
-        """Fixture for recovery system."""
+        """Fixture for recovery system.
+
+        Returns:
+            Stream recovery system with mock dependencies.
+        """
         logger = logging.getLogger("test_recovery")
         return StreamRecoverySystem(
             config=recovery_config,
@@ -687,7 +799,7 @@ class TestRecoverySystemIntegration:
             code=WebSocketErrorCode.SUBSCRIPTION_FAILED,
             context=sample_error.context,
             severity=ErrorSeverity.WARNING,
-            recovery_strategy=WebSocketRecoveryStrategy.RESUBSCRIBE,
+            recovery_strategy=WebSocketRecoveryStrategy.RESUBSCRIBE_SINGLE,
         )
 
         # Execute recovery
@@ -703,8 +815,6 @@ class TestRecoverySystemIntegration:
         sample_error: WebSocketStreamError,
     ) -> None:
         """Test recovery with backoff delays."""
-        import time
-
         # Create error that will fail initially
         failing_error = WebSocketStreamError(
             message="Temporary failure",
@@ -716,7 +826,7 @@ class TestRecoverySystemIntegration:
 
         # Measure time for recovery attempts
         start_time = time.time()
-        success = await recovery_system.handle_stream_error(failing_error)
+        await recovery_system.handle_stream_error(failing_error)
         end_time = time.time()
 
         # Should have taken some time due to backoff
@@ -740,7 +850,11 @@ class TestEndToEndIntegration:
         mock_subscription_manager: MockSubscriptionManager,
         mock_state_manager: MockStateManager,
     ) -> tuple[WebSocketStreamErrorHandler, WebSocketErrorEventPublisher, WebSocketErrorMetrics]:
-        """Fixture for complete integrated system."""
+        """Fixture for complete integrated system.
+
+        Returns:
+            Tuple of error handler, event publisher, and metrics collector.
+        """
         # Create configuration
         config = WebSocketErrorHandlerFactory.create_default_config(
             exchange=ExchangeName.HYPERLIQUID,
@@ -812,7 +926,7 @@ class TestEndToEndIntegration:
             assert handler_stats["total_errors_handled"] >= 1
 
             # Metrics should have recorded the error
-            assert metrics_stats["total_errors_recorded"] >= 1
+            assert metrics_stats.total_errors_recorded >= 1
 
             # Publisher should have published events
             assert publisher_stats["events_published"] >= 1
@@ -882,7 +996,7 @@ class TestEndToEndIntegration:
 
             # Verify metrics recorded both errors
             metrics_stats = metrics.get_statistics()
-            assert metrics_stats["total_errors_recorded"] >= 2
+            assert metrics_stats.total_errors_recorded >= 2
 
         finally:
             await publisher.stop_async_publishing()
