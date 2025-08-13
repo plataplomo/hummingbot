@@ -967,7 +967,9 @@ class TestBackpackAllStreamModelConversions:
                 # Convert domain model to dict for analysis - domain models are Pydantic models
                 # that provide serialization methods returning dict[str, Any] structures
                 model_dict: dict[str, object]
-                if hasattr(domain_model, "model_dump") and callable(getattr(domain_model, "model_dump", None)):
+                if hasattr(domain_model, "model_dump") and callable(
+                    getattr(domain_model, "model_dump", None)
+                ):
                     # Domain model has Pydantic v2 model_dump method
                     dumped_result: object = getattr(domain_model, "model_dump")()
                     if isinstance(dumped_result, dict):
@@ -975,8 +977,10 @@ class TestBackpackAllStreamModelConversions:
                         model_dict = dumped_result
                     else:
                         model_dict = {"model": "invalid_model_dump_result"}
-                elif hasattr(domain_model, "dict") and callable(getattr(domain_model, "dict", None)):
-                    # Domain model has Pydantic v1 dict method  
+                elif hasattr(domain_model, "dict") and callable(
+                    getattr(domain_model, "dict", None)
+                ):
+                    # Domain model has Pydantic v1 dict method
                     dict_result: object = getattr(domain_model, "dict")()
                     if isinstance(dict_result, dict):
                         # Type narrowing: isinstance check confirms dict type

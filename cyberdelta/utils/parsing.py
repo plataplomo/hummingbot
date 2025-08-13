@@ -226,10 +226,23 @@ def parse_decimal_value(
             reason="Value cannot be None",
         )
     if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise DecimalFieldError(
+                field_name=field_name or "decimal",
+                value=value,
+                reason="Non-finite values (infinity, NaN) not allowed in financial calculations",
+            )
         return value
     try:
         str_val = str(value).strip().replace(",", "")
-        return Decimal(str_val)
+        decimal_result = Decimal(str_val)
+        if not decimal_result.is_finite():
+            raise DecimalFieldError(
+                field_name=field_name or "decimal",
+                value=value,
+                reason="Non-finite values (infinity, NaN) not allowed in financial calculations",
+            )
+        return decimal_result
     except (InvalidOperation, TypeError) as e:
         raise DecimalFieldError(
             field_name=field_name or "decimal",

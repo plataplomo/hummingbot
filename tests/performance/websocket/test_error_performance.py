@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 @pytest.fixture
 def performance_config() -> dict[str, int]:
     """Configuration for performance tests.
-    
+
     Returns:
         dict[str, int]: Configuration parameters for performance test iterations.
     """
@@ -64,7 +64,7 @@ def performance_config() -> dict[str, int]:
 @pytest.fixture
 def test_context() -> StreamErrorContext:
     """Test error context for benchmarks.
-    
+
     Returns:
         StreamErrorContext: Predefined error context for performance testing.
     """
@@ -84,7 +84,7 @@ def test_context() -> StreamErrorContext:
 @pytest.fixture
 def test_handler() -> WebSocketStreamErrorHandler:
     """Test error handler for benchmarks.
-    
+
     Returns:
         WebSocketStreamErrorHandler: Minimal error handler optimized for performance testing.
     """
@@ -330,7 +330,7 @@ class TestErrorHandlingPerformance:
 
         async def handle_errors(task_id: int) -> float:
             """Handle errors for a single task.
-            
+
             Returns:
                 float: Time taken to handle all errors in seconds.
             """
@@ -399,12 +399,12 @@ class TestErrorHandlingPerformance:
                 self.symbol: str | None = "BTC-USD"
                 self.routing_key = "test.route"
                 self.domain_model: object = None
-                
+
                 # Required by BaseContextProtocol
                 self.exchange_name = "hyperliquid"
                 self.validated_envelope = None
                 self.raw_model = None
-                
+
                 # Additional properties
                 self.channel = "test"
                 self.sequence_number = 1

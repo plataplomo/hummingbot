@@ -298,8 +298,7 @@ class TestRecoverySystemPerformance:
 
         assert stats is not None
         assert recovery_time_ms < target_time_ms, (
-            f"Recovery system response took {recovery_time_ms:.1f}ms, "
-            f"target was {target_time_ms}ms"
+            f"Recovery system response took {recovery_time_ms:.1f}ms, target was {target_time_ms}ms"
         )
 
     @pytest.mark.parametrize("error_count", [10, 50, 100])

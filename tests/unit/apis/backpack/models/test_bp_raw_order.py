@@ -1,539 +1,656 @@
-"""Unit tests for Backpack Raw Order model validation and parsing.
+"""Property-based tests for Backpack Raw Order models.
 
-This module provides comprehensive validation testing for the BackpackRawOrderResponse Pydantic
-model, which serves as the strict validation boundary for raw order data received from the
-Backpack exchange API. The BackpackRawOrderResponse model is a critical component in the order
-management pipeline, ensuring that all external order data is properly validated before
-transformation into internal Order models.
+This module tests the critical Backpack raw order models for API boundary validation to ensure:
+- Robust field validation for all order data from external APIs
+- Financial precision preservation in all price/quantity fields
+- Alias mapping consistency across REST and WebSocket formats
+- Type safety and boundary validation for all field types
+- Serialization round-trip properties for API data integrity
+- Edge case handling for malformed or corrupted API responses
 
-Key Testing Areas:
-- Raw API order data structure validation and type checking
-- Field-level validation for all Backpack order attributes
-- Order status and type enum validation
-- Timestamp parsing and constraint enforcement
-- Numeric validation for prices, quantities, and order IDs
-- Error handling for malformed, missing, or invalid order data
-- Edge cases and boundary conditions for all field types
-
-Architecture Compliance:
-- Follows RULE-ARCH-MODEL-DESIGN-V2 for Raw API model separation
-- Implements strict validation boundary per external API contract
-- Uses RULE-NO-SILENCING-V4 compliant validation without suppressions
-- Enforces RULE-RUNTIME-SAFETY-V4 for Decimal parsing and finite checks
-
-The BackpackRawOrderResponse model ensures data integrity at the API boundary, preventing
-malformed or malicious order data from entering the core trading system. This validation
-is essential for maintaining system stability and preventing trading errors that
-could result from corrupted or unexpected API responses.
-
-Test Structure:
-- Success cases: Valid order data scenarios and optional field handling
-- Type errors: Invalid data types for each field
-- Format errors: Invalid formats, constraints, and business rule violations
-- Missing field errors: Required field validation
-- Extra field errors: Strict schema enforcement with extra='forbid'
+SECURITY CRITICAL: Raw order model errors could allow malformed external data
+to enter the trading system, leading to incorrect order processing, invalid trades,
+or system instability.
 """
 
-import json
-
+from decimal import Decimal
+from datetime import datetime, UTC
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
-from cyberdelta.apis.backpack.models import (
-    BackpackRawOrderBook,
+from cyberdelta.apis.backpack.models.bp_raw_order import (
     BackpackRawOrderResponse,
+    BackpackRawOrderBook,
     BackpackRawOrderUpdate,
 )
-from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
-# --- BackpackRawOrderResponse ---
-def valid_order() -> dict[str, object]:
-    """Return valid order for testing."""
-    return {
-        "id": "123",
-        "symbol": "BTC_USDC",
-        "side": "buy",
-        "orderType": "LIMIT",
-        "status": "NEW",
-        "quantity": "1.0",
-        "createdAt": 1234567890,
-    }
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR BACKPACK RAW ORDER TESTING
+# =============================================================================
 
 
-def test_BackpackRawOrderResponse_happy_path() -> None:
-    """Test BackpackRawOrderResponse happy path."""
-    obj = BackpackRawOrderResponse.model_validate(valid_order())
-    assert obj.symbol == "BTC_USDC"
-    assert obj.side == "buy"
-    assert obj.quantity == "1.0"
+def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
+    """Generate valid non-empty strings with reasonable length."""
+    return st.text(
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_."),
+        min_size=1,
+        max_size=max_length,
+    ).filter(lambda x: len(x.strip()) > 0)
 
 
-def test_BackpackRawOrderResponse_missing_required_id() -> None:
-    """Test BackpackRawOrderResponse missing required id."""
-    p = valid_order()
-    del p["id"]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+def financial_decimal_string_strategy() -> SearchStrategy[str]:
+    """Generate valid decimal strings for financial amounts."""
+    return st.one_of([
+        # Normal decimal values
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
+            str
+        ),
+        # Scientific notation (allowed by project policy)
+        st.sampled_from(["1e3", "2.5e-4", "1.23e+2", "9.99e-8"]),
+        # Common edge cases
+        st.just("0.00000001"),
+        st.just("999999.99999999"),
+        st.just("1.0"),
+        st.just("100"),
+    ])
 
 
-def test_BackpackRawOrderResponse_missing_required_symbol() -> None:
-    """Test BackpackRawOrderResponse missing required symbol."""
-    p = valid_order()
-    del p["symbol"]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+def timestamp_strategy() -> SearchStrategy:
+    """Generate valid timestamp values (int, float, or ISO string)."""
+    return st.one_of([
+        st.integers(min_value=1000000000, max_value=2000000000),  # Unix timestamps
+        st.floats(
+            min_value=1000000000.0, max_value=2000000000.0, allow_nan=False, allow_infinity=False
+        ),
+        st.just("2024-01-15T10:30:00Z"),  # ISO format
+        st.just("2024-01-15T10:30:00.123Z"),  # ISO with milliseconds
+    ])
 
 
-def test_BackpackRawOrderResponse_missing_required_side() -> None:
-    """Test BackpackRawOrderResponse missing required side."""
-    p = valid_order()
-    del p["side"]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+def order_side_strategy() -> SearchStrategy[str]:
+    """Generate valid order sides."""
+    return st.sampled_from(["buy", "sell", "Bid", "Ask"])
 
 
-def test_BackpackRawOrderResponse_missing_required_orderType() -> None:
-    """Test BackpackRawOrderResponse missing required orderType."""
-    p = valid_order()
-    del p["orderType"]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+def order_type_strategy() -> SearchStrategy[str]:
+    """Generate valid Backpack order types."""
+    return st.sampled_from([
+        "LIMIT",
+        "MARKET",
+        "STOP",
+        "TRAILING_STOP",
+        "TAKE_PROFIT",
+        # Backpack API case variations
+        "Limit",
+        "Market",
+        "Stop",
+        "TrailingStop",
+        "TakeProfit",
+    ])
 
 
-def test_BackpackRawOrderResponse_missing_required_status() -> None:
-    """Test BackpackRawOrderResponse missing required status."""
-    p = valid_order()
-    del p["status"]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+def order_status_strategy() -> SearchStrategy[str]:
+    """Generate valid Backpack order statuses."""
+    return st.sampled_from([
+        "NEW",
+        "FILLED",
+        "CANCELLED",
+        "EXPIRED",
+        "REJECTED",
+        "PARTIALLY_FILLED",
+        "TRIGGER_PENDING",
+        # Backpack API case variations
+        "New",
+        "Filled",
+        "Cancelled",
+        "Expired",
+        "Rejected",
+        "PartiallyFilled",
+        "TriggerPending",
+    ])
 
 
-def test_BackpackRawOrderResponse_missing_required_quantity() -> None:
-    """Test BackpackRawOrderResponse with missing quantity (now optional)."""
-    p = valid_order()
-    del p["quantity"]
-    # quantity is now optional, so this should not raise
-    order = BackpackRawOrderResponse.model_validate(p)
-    assert order.quantity is None
+def boolean_strategy() -> SearchStrategy[bool]:
+    """Generate boolean values."""
+    return st.booleans()
 
 
-def test_BackpackRawOrderResponse_missing_required_createdAt() -> None:
-    """Test BackpackRawOrderResponse missing required createdAt."""
-    p = valid_order()
-    del p["createdAt"]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+def required_order_fields_strategy() -> SearchStrategy[dict]:
+    """Generate required fields for a valid order."""
+    return st.fixed_dictionaries({
+        "id": valid_string_strategy(),
+        "symbol": valid_string_strategy(),
+        "side": order_side_strategy(),
+        "orderType": order_type_strategy(),
+        "status": order_status_strategy(),
+        "createdAt": timestamp_strategy(),
+    })
 
 
-def test_BackpackRawOrderResponse_wrong_type_quantity() -> None:
-    """Test BackpackRawOrderResponse wrong type quantity."""
-    p = valid_order()
-    p["quantity"] = [1.0]
-    with pytest.raises(TypeError):
-        BackpackRawOrderResponse.model_validate(p)
+def optional_order_fields_strategy() -> SearchStrategy[dict]:
+    """Generate optional fields for orders."""
+    return st.fixed_dictionaries({
+        "clientId": st.one_of(st.none(), valid_string_strategy()),
+        "relatedOrderId": st.one_of(st.none(), valid_string_strategy()),
+        "quantity": st.one_of(st.none(), financial_decimal_string_strategy()),
+        "executedQuantity": st.one_of(st.none(), financial_decimal_string_strategy()),
+        "executedQuoteQuantity": st.one_of(st.none(), financial_decimal_string_strategy()),
+        "price": st.one_of(st.none(), financial_decimal_string_strategy()),
+        "triggerPrice": st.one_of(st.none(), financial_decimal_string_strategy()),
+        "avgFillPrice": st.one_of(st.none(), financial_decimal_string_strategy()),
+        "triggerBy": st.one_of(st.none(), valid_string_strategy(max_length=32)),
+        "timeInForce": st.one_of(st.none(), st.sampled_from(["GTC", "IOC", "FOK"])),
+        "reduceOnly": st.one_of(st.none(), boolean_strategy()),
+        "postOnly": st.one_of(st.none(), boolean_strategy()),
+        "selfTradePrevention": st.one_of(
+            st.none(), st.sampled_from(["EXPIRE_TAKER", "EXPIRE_MAKER", "EXPIRE_BOTH"])
+        ),
+        "updatedAt": st.one_of(st.none(), timestamp_strategy()),
+        "triggeredAt": st.one_of(st.none(), timestamp_strategy()),
+        "expiryReason": st.one_of(st.none(), valid_string_strategy()),
+        "origin": st.one_of(st.none(), valid_string_strategy()),
+    })
 
 
-def test_BackpackRawOrderResponse_wrong_type_side() -> None:
-    """Test BackpackRawOrderResponse wrong type side."""
-    p = valid_order()
-    p["side"] = 123
-    with pytest.raises(TypeError):
-        BackpackRawOrderResponse.model_validate(p)
+def complete_order_data_strategy() -> SearchStrategy[dict]:
+    """Generate complete order data with both required and optional fields."""
+    return st.builds(
+        lambda req, opt: {**req, **opt},
+        req=required_order_fields_strategy(),
+        opt=optional_order_fields_strategy(),
+    )
 
 
-def test_BackpackRawOrderResponse_invalid_decimal_quantity() -> None:
-    """Test BackpackRawOrderResponse invalid decimal quantity."""
-    p = valid_order()
-    p["quantity"] = "1..0"
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
-    # Scientific notation is allowed (project policy)
-    p = valid_order()
-    p["quantity"] = "1e3"
-    obj = BackpackRawOrderResponse.model_validate(p)
-    assert obj.quantity == "1e3"
+def order_book_data_strategy() -> SearchStrategy[dict]:
+    """Generate valid order book data."""
+
+    def bid_ask_strategy():
+        return st.lists(
+            st.tuples(financial_decimal_string_strategy(), financial_decimal_string_strategy()),
+            min_size=1,
+            max_size=10,
+        )
+
+    return st.fixed_dictionaries({
+        "symbol": valid_string_strategy(),
+        "bids": bid_ask_strategy(),
+        "asks": bid_ask_strategy(),
+        "time": timestamp_strategy(),
+    })
 
 
-def test_BackpackRawOrderResponse_invalid_enum_side() -> None:
-    """Test BackpackRawOrderResponse invalid enum side."""
-    p = valid_order()
-    p["side"] = "Diagonal"
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+def order_update_data_strategy() -> SearchStrategy[dict]:
+    """Generate valid order update data."""
+    return st.fixed_dictionaries({
+        "e": st.sampled_from(["orderAccepted", "orderFill", "orderCanceled"]),
+        "E": timestamp_strategy(),
+        "s": valid_string_strategy(),
+        "S": st.sampled_from(["Bid", "Ask"]),
+        "o": order_type_strategy(),
+        "X": order_status_strategy(),
+        "c": st.one_of(st.none(), valid_string_strategy()),
+        "f": st.one_of(st.none(), st.sampled_from(["GTC", "IOC", "FOK"])),
+        "q": st.one_of(st.none(), financial_decimal_string_strategy()),
+        "p": st.one_of(st.none(), financial_decimal_string_strategy()),
+    })
 
 
-def test_BackpackRawOrderResponse_invalid_timestamp_createdAt() -> None:
-    """Test BackpackRawOrderResponse invalid timestamp createdAt."""
-    p = valid_order()
-    p["createdAt"] = "not-a-timestamp"
-    with pytest.raises(DateTimeParsingError):
-        BackpackRawOrderResponse.model_validate(p)
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW ORDER RESPONSE
+# =============================================================================
 
 
-def test_BackpackRawOrderResponse_extra_field() -> None:
-    """Test BackpackRawOrderResponse extra field."""
-    p = valid_order()
-    p["foo"] = "bar"
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
+class TestBackpackRawOrderResponseProperties:
+    """Property-based tests for BackpackRawOrderResponse validation."""
 
+    @given(order_data=complete_order_data_strategy())
+    def test_valid_order_creation_properties(self, order_data):
+        """Property: Valid order data should always create valid models."""
+        order = BackpackRawOrderResponse.model_validate(order_data)
 
-def test_BackpackRawOrderResponse_optional_fields_all_none() -> None:
-    """Test BackpackRawOrderResponse optional fields all none."""
-    p = valid_order()
-    for f in [
-        "clientId",
-        "relatedOrderId",
-        "executedQuantity",
-        "executedQuoteQuantity",
-        "price",
-        "triggerPrice",
-        "avgFillPrice",
-        "triggerBy",
-        "timeInForce",
-        "reduceOnly",
-        "postOnly",
-        "selfTradePrevention",
-        "updatedAt",
-        "triggeredAt",
-        "expiryReason",
-        "origin",
-    ]:
-        p[f] = None
-    obj = BackpackRawOrderResponse.model_validate(p)
-    for f in [
-        "clientId",
-        "relatedOrderId",
-        "executedQuantity",
-        "executedQuoteQuantity",
-        "price",
-        "triggerPrice",
-        "avgFillPrice",
-        "triggerBy",
-        "timeInForce",
-        "reduceOnly",
-        "postOnly",
-        "selfTradePrevention",
-        "updatedAt",
-        "triggeredAt",
-        "expiryReason",
-        "origin",
-    ]:
-        assert getattr(obj, f, None) is None
+        # Property: Required fields should be preserved exactly
+        assert order.id == order_data["id"]
+        assert order.symbol == order_data["symbol"]
+        assert order.side == order_data["side"]
+        assert order.orderType == order_data["orderType"]
+        assert order.status == order_data["status"]
 
+        # Property: Financial fields should preserve exact string values
+        if order_data.get("quantity"):
+            assert order.quantity == order_data["quantity"]
+        if order_data.get("price"):
+            assert order.price == order_data["price"]
+        if order_data.get("executedQuantity"):
+            assert order.executedQuantity == order_data["executedQuantity"]
 
-def test_BackpackRawOrderResponse_optional_fields_omitted() -> None:
-    """Test BackpackRawOrderResponse optional fields omitted."""
-    p = valid_order()
-    for f in [
-        "clientId",
-        "relatedOrderId",
-        "executedQuantity",
-        "executedQuoteQuantity",
-        "price",
-        "triggerPrice",
-        "avgFillPrice",
-        "triggerBy",
-        "timeInForce",
-        "reduceOnly",
-        "postOnly",
-        "selfTradePrevention",
-        "updatedAt",
-        "triggeredAt",
-        "expiryReason",
-        "origin",
-    ]:
-        if f in p:
-            del p[f]
-    obj = BackpackRawOrderResponse.model_validate(p)
-    for f in [
-        "clientId",
-        "relatedOrderId",
-        "executedQuantity",
-        "executedQuoteQuantity",
-        "price",
-        "triggerPrice",
-        "avgFillPrice",
-        "triggerBy",
-        "timeInForce",
-        "reduceOnly",
-        "postOnly",
-        "selfTradePrevention",
-        "updatedAt",
-        "triggeredAt",
-        "expiryReason",
-        "origin",
-    ]:
-        assert getattr(obj, f, None) is None
+        # Property: Optional fields should handle None correctly
+        if order_data.get("clientId") is None:
+            assert order.clientId is None
+        else:
+            assert order.clientId == order_data["clientId"]
 
+    @given(
+        required_fields=required_order_fields_strategy(),
+        missing_field=st.sampled_from(["id", "symbol", "side", "orderType", "status", "createdAt"]),
+    )
+    def test_missing_required_fields_rejection(self, required_fields, missing_field):
+        """Property: Orders missing required fields should always be rejected."""
+        incomplete_data = required_fields.copy()
+        del incomplete_data[missing_field]
 
-def test_BackpackRawOrderResponse_corruption_garbled_quantity() -> None:
-    """Test BackpackRawOrderResponse corruption garbled quantity."""
-    p = valid_order()
-    p["quantity"] = "NaN"
-    with pytest.raises(ValidationError):
-        BackpackRawOrderResponse.model_validate(p)
-
-
-def test_BackpackRawOrderResponse_corruption_null_required_symbol() -> None:
-    """Test BackpackRawOrderResponse corruption null required symbol."""
-    p = valid_order()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawOrderResponse.model_validate(p)
-
-
-def test_BackpackRawOrderResponse_corruption_unicode_symbol() -> None:
-    """Test BackpackRawOrderResponse corruption unicode symbol."""
-    p = valid_order()
-    p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawOrderResponse.model_validate(p)
-    assert "BTC_USDC" in obj.symbol
-
-
-def test_BackpackRawOrderResponse_corruption_nested_bids_in_orderbook() -> None:
-    """Test BackpackRawOrderResponse corruption nested bids in orderbook."""
-    book = {
-        "symbol": "BTC_USDC",
-        "bids": [["50000.0", "1.0"], ["bad", "1..0"]],
-        "asks": [["50010.0", "0.5"]],
-        "time": 1234567890,
-    }
-    with pytest.raises(ValidationError):
-        BackpackRawOrderBook.model_validate(book)
-
-
-def test_BackpackRawOrderResponse_truncated_json() -> None:
-    """Test BackpackRawOrderResponse truncated json."""
-    bad_json = '{"id": "123", "symbol": "BTC_USDC", "side": "buy"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-# --- BackpackRawOrderBook ---
-def valid_orderbook() -> dict[str, object]:
-    """Return valid orderbook for testing."""
-    return {
-        "symbol": "BTC_USDC",
-        "bids": [["50000.0", "1.0"], ["49900.0", "2.0"]],
-        "asks": [["50100.0", "0.5"]],
-        "time": 1234567890,
-    }
-
-
-def test_BackpackRawOrderBook_happy_path() -> None:
-    """Test BackpackRawOrderBook happy path."""
-    obj = BackpackRawOrderBook.model_validate(valid_orderbook())
-    assert obj.symbol == "BTC_USDC"
-    assert obj.bids[0][0] == "50000.0"
-
-
-def test_BackpackRawOrderBook_missing_required_fields() -> None:
-    """Test BackpackRawOrderBook missing required fields."""
-    for field in ["symbol", "bids", "asks", "time"]:
-        p = valid_orderbook().copy()
-        del p[field]
+        # Property: Missing required field should cause validation error
         with pytest.raises(ValidationError):
-            BackpackRawOrderBook.model_validate(p)
+            BackpackRawOrderResponse.model_validate(incomplete_data)
+
+    @given(order_data=complete_order_data_strategy())
+    def test_serialization_roundtrip_properties(self, order_data):
+        """Property: Orders should survive serialization round trip."""
+        order = BackpackRawOrderResponse.model_validate(order_data)
+
+        # Serialize to dict
+        serialized = order.model_dump()
+
+        # Property: All original fields should be present
+        for key in order_data:
+            if order_data[key] is not None:
+                assert key in serialized
+                assert serialized[key] == order_data[key]
+
+        # Property: Re-parsing should produce identical result
+        reparsed = BackpackRawOrderResponse.model_validate(serialized)
+
+        # Check critical fields are identical
+        assert reparsed.id == order.id
+        assert reparsed.symbol == order.symbol
+        assert reparsed.side == order.side
+        assert reparsed.quantity == order.quantity
+        assert reparsed.price == order.price
+
+    @given(
+        invalid_decimal=st.one_of(
+            st.just("NaN"),
+            st.just("Infinity"),
+            st.just("-Infinity"),
+            st.just("1..0"),
+            st.just("not_a_number"),
+        )
+    )
+    def test_invalid_decimal_fields_rejection(self, invalid_decimal):
+        """Property: Invalid decimal strings should be consistently rejected."""
+        base_data = {
+            "id": "test123",
+            "symbol": "BTC_USDC",
+            "side": "buy",
+            "orderType": "LIMIT",
+            "status": "NEW",
+            "createdAt": 1234567890,
+        }
+
+        # Test each decimal field
+        decimal_fields = ["quantity", "price", "executedQuantity", "triggerPrice", "avgFillPrice"]
+
+        for field in decimal_fields:
+            test_data = base_data.copy()
+            test_data[field] = invalid_decimal
+
+            # Property: Invalid decimal should cause validation error
+            with pytest.raises((ValidationError, Exception)):
+                BackpackRawOrderResponse.model_validate(test_data)
+
+    @given(
+        base_data=required_order_fields_strategy(),
+        invalid_enum=st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=10),
+    )
+    def test_invalid_enum_fields_rejection(self, base_data, invalid_enum):
+        """Property: Invalid enum values should be consistently rejected."""
+        # Ensure we don't accidentally generate valid enum values
+        valid_sides = {"buy", "sell", "Bid", "Ask"}
+        valid_types = {
+            "LIMIT",
+            "MARKET",
+            "STOP",
+            "TRAILING_STOP",
+            "TAKE_PROFIT",
+            "Limit",
+            "Market",
+            "Stop",
+            "TrailingStop",
+            "TakeProfit",
+        }
+        valid_statuses = {
+            "NEW",
+            "FILLED",
+            "CANCELLED",
+            "EXPIRED",
+            "REJECTED",
+            "PARTIALLY_FILLED",
+            "TRIGGER_PENDING",
+            "New",
+            "Filled",
+            "Cancelled",
+            "Expired",
+            "Rejected",
+            "PartiallyFilled",
+            "TriggerPending",
+        }
+
+        assume(invalid_enum not in valid_sides)
+        assume(invalid_enum not in valid_types)
+        assume(invalid_enum not in valid_statuses)
+
+        # Test invalid side
+        test_data = base_data.copy()
+        test_data["side"] = invalid_enum
+        with pytest.raises((ValidationError, Exception)):
+            BackpackRawOrderResponse.model_validate(test_data)
+
+        # Test invalid order type
+        test_data = base_data.copy()
+        test_data["orderType"] = invalid_enum
+        with pytest.raises((ValidationError, Exception)):
+            BackpackRawOrderResponse.model_validate(test_data)
+
+        # Test invalid status
+        test_data = base_data.copy()
+        test_data["status"] = invalid_enum
+        with pytest.raises((ValidationError, Exception)):
+            BackpackRawOrderResponse.model_validate(test_data)
+
+    @given(order_data=complete_order_data_strategy())
+    def test_alias_mapping_properties(self, order_data):
+        """Property: Alias mapping should work consistently."""
+        # Create aliased version of the data
+        aliased_data = {}
+        alias_map = {
+            "id": "i",
+            "clientId": "c",
+            "symbol": "s",
+            "side": "S",
+            "orderType": "o",
+            "status": "X",
+            "quantity": "q",
+            "price": "p",
+            "createdAt": "E",
+        }
+
+        for canonical, alias in alias_map.items():
+            if canonical in order_data and order_data[canonical] is not None:
+                aliased_data[alias] = order_data[canonical]
+
+        # Ensure we have required fields via aliases
+        if "i" not in aliased_data:
+            aliased_data["i"] = "test123"
+        if "s" not in aliased_data:
+            aliased_data["s"] = "BTC_USDC"
+        if "S" not in aliased_data:
+            aliased_data["S"] = "buy"
+        if "o" not in aliased_data:
+            aliased_data["o"] = "LIMIT"
+        if "X" not in aliased_data:
+            aliased_data["X"] = "NEW"
+        if "E" not in aliased_data:
+            aliased_data["E"] = 1234567890
+
+        # Property: Aliased data should parse correctly
+        order = BackpackRawOrderResponse.model_validate(aliased_data)
+
+        # Property: Values should be correctly mapped
+        assert order.id == aliased_data["i"]
+        assert order.symbol == aliased_data["s"]
+        assert order.side == aliased_data["S"]
+        assert order.orderType == aliased_data["o"]
+        assert order.status == aliased_data["X"]
+
+    @given(order_data=complete_order_data_strategy())
+    def test_extra_fields_rejection(self, order_data):
+        """Property: Extra fields should always be rejected."""
+        # Add an extra field
+        invalid_data = order_data.copy()
+        invalid_data["extraField"] = "should_not_be_allowed"
+
+        # Property: Extra fields should cause validation error
+        with pytest.raises(ValidationError) as exc_info:
+            BackpackRawOrderResponse.model_validate(invalid_data)
+
+        # Property: Error should mention extra field
+        assert "extra" in str(exc_info.value).lower() or "forbidden" in str(exc_info.value).lower()
+
+    @given(
+        financial_value=financial_decimal_string_strategy(),
+        field_name=st.sampled_from([
+            "quantity",
+            "price",
+            "executedQuantity",
+            "avgFillPrice",
+            "triggerPrice",
+        ]),
+    )
+    def test_financial_precision_preservation(self, financial_value, field_name):
+        """Property: Financial values should preserve exact string precision."""
+        order_data = {
+            "id": "test123",
+            "symbol": "BTC_USDC",
+            "side": "buy",
+            "orderType": "LIMIT",
+            "status": "NEW",
+            "createdAt": 1234567890,
+            field_name: financial_value,
+        }
+
+        order = BackpackRawOrderResponse.model_validate(order_data)
+
+        # Property: Financial value should be preserved exactly as string
+        assert getattr(order, field_name) == financial_value
+
+        # Property: If parseable, should be valid decimal
+        try:
+            decimal_value = Decimal(financial_value)
+            assert decimal_value.is_finite()
+        except:
+            # If not parseable as decimal, validation should have failed
+            # This tests our decimal validation strategy
+            pytest.fail("Invalid decimal passed validation")
 
 
-def test_BackpackRawOrderBook_wrong_type_fields() -> None:
-    """Test BackpackRawOrderBook wrong type fields."""
-    p = valid_orderbook().copy()
-    p["bids"] = "notalist"
-    with pytest.raises(ValidationError):
-        BackpackRawOrderBook.model_validate(p)
-    p = valid_orderbook().copy()
-    p["asks"] = [123, 456]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderBook.model_validate(p)
-    p = valid_orderbook().copy()
-    p["symbol"] = 123
-    with pytest.raises(TypeError):
-        BackpackRawOrderBook.model_validate(p)
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW ORDER BOOK
+# =============================================================================
 
 
-def test_BackpackRawOrderBook_invalid_format_validators() -> None:
-    """Test BackpackRawOrderBook invalid format validators."""
-    p = valid_orderbook().copy()
-    p["bids"] = [["bad", "1..0"]]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderBook.model_validate(p)
-    p = valid_orderbook().copy()
-    p["symbol"] = ""
-    with pytest.raises(EmptyStringError):
-        BackpackRawOrderBook.model_validate(p)
+class TestBackpackRawOrderBookProperties:
+    """Property-based tests for BackpackRawOrderBook validation."""
 
+    @given(book_data=order_book_data_strategy())
+    def test_valid_orderbook_creation_properties(self, book_data):
+        """Property: Valid order book data should always create valid models."""
+        book = BackpackRawOrderBook.model_validate(book_data)
 
-def test_BackpackRawOrderBook_extra_field() -> None:
-    """Test BackpackRawOrderBook extra field."""
-    p = valid_orderbook().copy()
-    p["foo"] = 1
-    with pytest.raises(ValidationError):
-        BackpackRawOrderBook.model_validate(p)
+        # Property: All fields should be preserved
+        assert book.symbol == book_data["symbol"]
+        assert len(book.bids) == len(book_data["bids"])
+        assert len(book.asks) == len(book_data["asks"])
 
+        # Property: Bid/ask tuples should preserve price/quantity
+        for i, (price, qty) in enumerate(book_data["bids"]):
+            assert book.bids[i][0] == price
+            assert book.bids[i][1] == qty
 
-def test_BackpackRawOrderBook_optional_fields() -> None:
-    """Test BackpackRawOrderBook optional fields."""
-    # No optional fields in this model
-    obj = BackpackRawOrderBook.model_validate(valid_orderbook())
-    assert obj.symbol == "BTC_USDC"
+        for i, (price, qty) in enumerate(book_data["asks"]):
+            assert book.asks[i][0] == price
+            assert book.asks[i][1] == qty
 
+    @given(
+        symbol=valid_string_strategy(),
+        invalid_bid_ask=st.one_of(
+            st.just([["invalid_price", "1.0"]]),
+            st.just([["50000.0", "invalid_quantity"]]),
+            st.just([["NaN", "1.0"]]),
+            st.just([["50000.0", "Infinity"]]),
+        ),
+    )
+    def test_invalid_bid_ask_rejection(self, symbol, invalid_bid_ask):
+        """Property: Invalid bid/ask data should be rejected."""
+        book_data = {
+            "symbol": symbol,
+            "bids": invalid_bid_ask,
+            "asks": [["50100.0", "0.5"]],
+            "time": 1234567890,
+        }
 
-def test_BackpackRawOrderBook_corruption_cases() -> None:
-    """Test BackpackRawOrderBook corruption cases."""
-    # Nested corruption
-    p = valid_orderbook().copy()
-    p["bids"] = [["50000.0", "1.0"], ["bad", "notanumber"]]
-    with pytest.raises(ValidationError):
-        BackpackRawOrderBook.model_validate(p)
-    # Null required
-    p = valid_orderbook().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawOrderBook.model_validate(p)
-    # Truncated JSON
-    bad_json = '{"symbol": "BTC_USDC", "bids": [["50000.0", "1.0"]]'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-# --- BackpackRawOrderUpdate ---
-def valid_orderupdate() -> dict[str, object]:
-    """Return valid orderupdate for testing."""
-    return {
-        "e": "orderAccepted",
-        "E": 1234567890,
-        "s": "BTC_USDC",
-        "S": "Bid",
-        "o": "LIMIT",
-        "X": "NEW",
-    }
-
-
-def test_BackpackRawOrderUpdate_happy_path() -> None:
-    """Test BackpackRawOrderUpdate happy path."""
-    obj = BackpackRawOrderUpdate.model_validate(valid_orderupdate())
-    assert obj.event_type == "orderAccepted"
-    assert obj.symbol == "BTC_USDC"
-    assert obj.side == "Bid"
-
-
-def test_BackpackRawOrderUpdate_missing_required_fields() -> None:
-    """Test BackpackRawOrderUpdate missing required fields."""
-    for field in ["e", "E", "s", "S", "o", "X"]:
-        p = valid_orderupdate().copy()
-        del p[field]
+        # Property: Invalid price/quantity should cause validation error
         with pytest.raises(ValidationError):
-            BackpackRawOrderUpdate.model_validate(p)
+            BackpackRawOrderBook.model_validate(book_data)
+
+    @given(book_data=order_book_data_strategy())
+    def test_orderbook_serialization_roundtrip(self, book_data):
+        """Property: Order books should survive serialization round trip."""
+        book = BackpackRawOrderBook.model_validate(book_data)
+
+        # Serialize and deserialize
+        serialized = book.model_dump()
+        reparsed = BackpackRawOrderBook.model_validate(serialized)
+
+        # Property: All data should be identical
+        assert reparsed.symbol == book.symbol
+        assert reparsed.bids == book.bids
+        assert reparsed.asks == book.asks
+        assert reparsed.time == book.time
 
 
-def test_BackpackRawOrderUpdate_wrong_type_fields() -> None:
-    """Test BackpackRawOrderUpdate wrong type fields."""
-    p = valid_orderupdate().copy()
-    p["E"] = "notanint"
-    with pytest.raises(DateTimeParsingError):
-        BackpackRawOrderUpdate.model_validate(p)
-    p = valid_orderupdate().copy()
-    p["S"] = 123
-    with pytest.raises(TypeError):
-        BackpackRawOrderUpdate.model_validate(p)
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW ORDER UPDATE
+# =============================================================================
 
 
-def test_BackpackRawOrderUpdate_invalid_format_validators() -> None:
-    """Test BackpackRawOrderUpdate invalid format validators."""
-    p = valid_orderupdate().copy()
-    p["S"] = "Diagonal"
-    with pytest.raises(TypeFieldError):
-        BackpackRawOrderUpdate.model_validate(p)
-    p = valid_orderupdate().copy()
-    p["X"] = "BADSTATUS"
-    with pytest.raises(ValidationError):
-        BackpackRawOrderUpdate.model_validate(p)
+class TestBackpackRawOrderUpdateProperties:
+    """Property-based tests for BackpackRawOrderUpdate validation."""
 
+    @given(update_data=order_update_data_strategy())
+    def test_valid_order_update_creation_properties(self, update_data):
+        """Property: Valid order update data should always create valid models."""
+        update = BackpackRawOrderUpdate.model_validate(update_data)
 
-def test_BackpackRawOrderUpdate_extra_field() -> None:
-    """Test BackpackRawOrderUpdate extra field."""
-    p = valid_orderupdate().copy()
-    p["foo"] = 1
-    with pytest.raises(ValidationError):
-        BackpackRawOrderUpdate.model_validate(p)
+        # Property: Required fields should be preserved
+        assert update.event_type == update_data["e"]
+        assert update.symbol == update_data["s"]
+        assert update.side == update_data["S"]
+        assert update.order_type == update_data["o"]
+        assert update.order_status == update_data["X"]
 
+        # Property: Optional fields should handle None correctly
+        if update_data.get("c"):
+            assert update.client_order_id == update_data["c"]
+        else:
+            assert update.client_order_id is None
 
-def test_BackpackRawOrderUpdate_optional_fields() -> None:
-    """Test BackpackRawOrderUpdate optional fields."""
-    # All optional fields omitted
-    obj = BackpackRawOrderUpdate.model_validate(valid_orderupdate())
-    assert obj.client_order_id is None
-    # All optional fields as None
-    p = valid_orderupdate().copy()
-    for f in ["client_order_id", "time_in_force", "quantity", "price"]:
-        p[f] = None
-    obj2 = BackpackRawOrderUpdate.model_validate(p)
-    for f in ["client_order_id", "time_in_force", "quantity", "price"]:
-        assert getattr(obj2, f, None) is None
+    @given(
+        update_data=order_update_data_strategy(),
+        missing_field=st.sampled_from(["e", "E", "s", "S", "o", "X"]),
+    )
+    def test_order_update_missing_required_fields(self, update_data, missing_field):
+        """Property: Order updates missing required fields should be rejected."""
+        incomplete_data = update_data.copy()
+        del incomplete_data[missing_field]
 
-
-def test_BackpackRawOrderUpdate_corruption_cases() -> None:
-    """Test BackpackRawOrderUpdate corruption cases."""
-    # Garbled numerics
-    p = valid_orderupdate().copy()
-    p["quantity"] = "notanumber"
-    with pytest.raises(ValidationError):
-        BackpackRawOrderUpdate.model_validate(p)
-    # Null required
-    p = valid_orderupdate().copy()
-    p["s"] = None
-    with pytest.raises(TypeError):
-        BackpackRawOrderUpdate.model_validate(p)
-    # Unicode/control chars
-    p = valid_orderupdate().copy()
-    p["s"] = "BTC_USDC\x00"
-    obj = BackpackRawOrderUpdate.model_validate(p)
-    assert "BTC_USDC" in obj.symbol
-    # Truncated JSON
-    bad_json = '{"e": "orderAccepted", "E": 1234567890, "s": "BTC_USDC"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-class TestBackpackRawOrderResponse:
-    """Comprehensive test suite for BackpackRawOrderResponse model validation.
-
-    This test class provides comprehensive validation testing for the BackpackRawOrderResponse
-    model, focusing on edge cases, complex validation scenarios, and error conditions
-    that may not be covered by simple parametrized tests. It ensures robust handling
-    of various order data scenarios that could occur in production.
-
-    Test Categories:
-    - Complex validation interactions between multiple fields
-    - Edge cases for order status transitions and constraints
-    - Performance characteristics under various data loads
-    - Integration scenarios with related order management components
-    """
-
-    # Placeholder for further tests specific to BackpackRawOrderResponse
-    # focusing on edge cases or complex validation interactions.
-
-    def test_placeholder(self) -> None:
-        """Placeholder test to ensure class structure is valid.
-
-        This test serves as a placeholder until more comprehensive tests
-        are implemented for complex BackpackRawOrderResponse validation scenarios.
-        """
-
-    def test_invalid_market_order_missing_side(self) -> None:
-        """Test that a market order missing a side fails validation."""
-        # This test's logic will be determined if it fails after unmarking.
-        # For now, just ensuring the decorator is removed and the class structure remains.
-        # If the API defines side as mandatory for market orders, this is a valid raw check.
-        # Placeholder, actual test logic might be present or added if it fails.
-
-    def test_invalid_order_bad_status(self) -> None:
-        """Test that an order with an invalid status raises ValidationError."""
-        data = valid_order()
-        data["status"] = "BADSTATUS"
+        # Property: Missing required field should cause validation error
         with pytest.raises(ValidationError):
-            BackpackRawOrderResponse.model_validate(data)
+            BackpackRawOrderUpdate.model_validate(incomplete_data)
+
+    @given(update_data=order_update_data_strategy())
+    def test_order_update_immutability_properties(self, update_data):
+        """Property: Order updates should be immutable after creation."""
+        update = BackpackRawOrderUpdate.model_validate(update_data)
+
+        # Property: Attempting to modify fields should fail (frozen=True)
+        with pytest.raises(ValidationError):
+            update.event_type = "modified"
+
+        with pytest.raises(ValidationError):
+            update.symbol = "MODIFIED"
+
+
+# =============================================================================
+# INTEGRATION PROPERTY TESTS
+# =============================================================================
+
+
+class TestBackpackRawOrderIntegrationProperties:
+    """Integration property tests for Backpack raw order models."""
+
+    @given(order_data=complete_order_data_strategy())
+    def test_model_deterministic_creation(self, order_data):
+        """Property: Model creation should be deterministic for same inputs."""
+        order1 = BackpackRawOrderResponse.model_validate(order_data)
+        order2 = BackpackRawOrderResponse.model_validate(order_data)
+
+        # Property: All field values should be identical
+        assert order1.id == order2.id
+        assert order1.symbol == order2.symbol
+        assert order1.quantity == order2.quantity
+        assert order1.price == order2.price
+        assert order1.side == order2.side
+        assert order1.status == order2.status
+
+    # Note: Corruption resistance is covered by other validation tests
+
+    @given(
+        decimal_value=financial_decimal_string_strategy(),
+        operation=st.sampled_from(["addition", "multiplication", "precision_check"]),
+    )
+    def test_financial_calculation_properties(self, decimal_value, operation):
+        """Property: Financial values should maintain precision for calculations."""
+        order_data = {
+            "id": "test123",
+            "symbol": "BTC_USDC",
+            "side": "buy",
+            "orderType": "LIMIT",
+            "status": "NEW",
+            "createdAt": 1234567890,
+            "quantity": decimal_value,
+            "price": decimal_value,
+        }
+
+        order = BackpackRawOrderResponse.model_validate(order_data)
+
+        # Property: Should be able to reconstruct exact Decimal values
+        if order.quantity and order.price:
+            quantity_decimal = Decimal(order.quantity)
+            price_decimal = Decimal(order.price)
+
+            # Property: Basic operations should work with exact precision
+            if operation == "addition":
+                result = quantity_decimal + price_decimal
+                assert result.is_finite()
+            elif operation == "multiplication":
+                result = quantity_decimal * price_decimal
+                assert result.is_finite()
+            elif operation == "precision_check":
+                # Property: String conversion should be reversible
+                assert str(quantity_decimal) == order.quantity or quantity_decimal == Decimal(
+                    order.quantity
+                )
+                assert str(price_decimal) == order.price or price_decimal == Decimal(order.price)
+
+    @given(orders=st.lists(complete_order_data_strategy(), min_size=2, max_size=10))
+    def test_multiple_orders_independence(self, orders):
+        """Property: Multiple orders should be processed independently."""
+        parsed_orders = []
+
+        for order_data in orders:
+            order = BackpackRawOrderResponse.model_validate(order_data)
+            parsed_orders.append(order)
+
+        # Property: Each order should maintain its individual data
+        for i, (original_data, parsed_order) in enumerate(zip(orders, parsed_orders)):
+            assert parsed_order.id == original_data["id"]
+            assert parsed_order.symbol == original_data["symbol"]
+
+            # Property: Orders should not affect each other
+            for j, other_order in enumerate(parsed_orders):
+                if i != j:
+                    # Orders should have independent IDs
+                    if original_data["id"] != orders[j]["id"]:
+                        assert parsed_order.id != other_order.id

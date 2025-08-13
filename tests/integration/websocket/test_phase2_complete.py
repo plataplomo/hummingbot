@@ -149,14 +149,12 @@ class TestPhase2Complete:
     ) -> None:
         """Test complete error flow from processor to recovery."""
         # Create error handler
-        error_handler = error_handler_factory.create_handler(
-            ExchangeName.HYPERLIQUID, error_config
-        )
+        error_handler = error_handler_factory.create_handler(ExchangeName.HYPERLIQUID, error_config)
 
         # Create processor
         # Create a mock transformer
         mock_transformer = Mock()
-        
+
         processor = PydanticWebSocketProcessor(
             raw_model=TestMessage,
             transformer=mock_transformer,
@@ -210,10 +208,10 @@ class TestPhase2Complete:
         # await router.route_message(message, context)
 
         # Verify error was handled
-        # TODO: Implement concrete router or remove this test  
+        # TODO: Implement concrete router or remove this test
         # stats = router.get_stats()
         # assert stats["errors"]["total_errors"] > 0
-        
+
         # Skip this test for now since router is not implemented
         pytest.skip("Router implementation needed for this test")
 
@@ -309,10 +307,10 @@ class TestPhase2Complete:
         mock_stream_error_handler = Mock()
         processor: PydanticWebSocketProcessor[TestMessage, TestMessage] = (
             PydanticWebSocketProcessor(
-            raw_model=TestMessage,
-            transformer=mock_transformer,
-            stream_error_handler=mock_stream_error_handler,
-        )
+                raw_model=TestMessage,
+                transformer=mock_transformer,
+                stream_error_handler=mock_stream_error_handler,
+            )
         )
 
         # Create context
@@ -340,7 +338,7 @@ class TestPhase2Complete:
             assert error_context.channel == "trades"
             assert error_context.sequence_number == 123
 
-# Removed test_router_error_context_builder_integration - BaseWebSocketRouter is abstract
+    # Removed test_router_error_context_builder_integration - BaseWebSocketRouter is abstract
     # and the from_missing_processor method doesn't exist (it's from_missing_processor_error)
     # This test was testing outdated functionality.
 

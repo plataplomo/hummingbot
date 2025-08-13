@@ -263,7 +263,7 @@ class DerivativePosition(ExchangeValidationMixin, StandardModel):
 
         # Always use absolute size for consistent calculation
         size_abs = abs(self.size)
-        
+
         if self.side == OrderSide.BUY:
             return size_abs * (mark_price - self.entry_price)
         # SELL

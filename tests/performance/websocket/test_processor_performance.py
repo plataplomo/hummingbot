@@ -77,7 +77,7 @@ class TestComplexTransformer(MessageTransformer[TestComplexModel, None]):
         self, validated: TestComplexModel, context: WebSocketContextProtocol | None = None
     ) -> None:
         """Transform complex model with processing.
-        
+
         This transformer processes the data but doesn't return a domain model.
         """
         # Process the validated model (side effects only)
@@ -308,9 +308,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_complex_model_performance(
         self,
-        complex_processor: PydanticWebSocketProcessor[
-            TestComplexModel, Any
-        ],
+        complex_processor: PydanticWebSocketProcessor[TestComplexModel, Any],
         test_context: BackpackMessageContext,
         complex_payload: dict[
             str, str | list[dict[str, str | int | dict[str, int]]] | dict[str, str | bool | int]
@@ -434,7 +432,7 @@ class TestProcessorPerformance:
         processor_with_metrics = PydanticWebSocketProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
-                processor_name="with_metrics",
+            processor_name="with_metrics",
             stream_error_handler=mock_stream_handler,
         )
 
@@ -567,7 +565,7 @@ class TestProcessorPerformance:
             processor = PydanticWebSocketProcessor(
                 raw_model=TestOrderModel,
                 transformer=TestTransformer(),
-                        processor_name=f"perf_test_{i}",
+                processor_name=f"perf_test_{i}",
                 stream_error_handler=mock_stream_handler,
             )
             # Verify processor is functional
@@ -605,7 +603,7 @@ class TestProcessorPerformanceComparison:
         new_processor = PydanticWebSocketProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
-                processor_name="new_approach",
+            processor_name="new_approach",
             stream_error_handler=mock_stream_handler,
         )
 

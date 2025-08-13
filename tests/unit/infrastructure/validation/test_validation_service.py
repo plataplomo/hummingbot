@@ -44,7 +44,7 @@ def decimal_strategy(
     draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
 ) -> Decimal:
     """Generate valid Decimal values for financial calculations.
-    
+
     Returns:
         Decimal: A valid decimal value for financial calculations.
     """
@@ -63,7 +63,7 @@ def decimal_strategy(
 @st.composite
 def balance_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic balance values.
-    
+
     Returns:
         Decimal: A realistic balance value.
     """
@@ -73,7 +73,7 @@ def balance_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic price values.
-    
+
     Returns:
         Decimal: A realistic price value.
     """
@@ -83,7 +83,7 @@ def price_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic quantity values.
-    
+
     Returns:
         Decimal: A realistic quantity value.
     """
@@ -93,7 +93,7 @@ def quantity_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def config_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, Decimal, Decimal]:
     """Generate valid configuration limits (min_trade, max_trade, max_position, max_exposure).
-    
+
     Returns:
         tuple[Decimal, Decimal, Decimal, Decimal]: Configuration limits tuple.
     """
@@ -107,7 +107,7 @@ def config_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, Decimal, 
 @st.composite
 def exchange_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, float, float]:
     """Generate valid exchange limits (min_order, max_order, tick_size, lot_size).
-    
+
     Returns:
         tuple[Decimal, Decimal, float, float]: Exchange limits tuple.
     """
@@ -128,7 +128,7 @@ def create_mock_config(
     max_total_exposure_usd: Decimal = Decimal("100000.00"),
 ) -> Mock:
     """Create comprehensive mock AppSettings for testing.
-    
+
     Returns:
         Mock: Mock AppSettings object for testing.
     """
@@ -165,7 +165,7 @@ def create_mock_portfolio_state(
     btc_balance: Decimal = Decimal("2.0"),
 ) -> Mock:
     """Create mock portfolio state with realistic balances and positions.
-    
+
     Returns:
         Mock: Mock portfolio state object.
     """
@@ -196,7 +196,7 @@ def create_valid_order(
     order_type: OrderType = OrderType.LIMIT,
 ) -> Order:
     """Create a valid test order that should pass all validations.
-    
+
     Returns:
         Order: A valid test order.
     """

@@ -47,7 +47,7 @@ def decimal_strategy(
     draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
 ) -> Decimal:
     """Generate valid Decimal values for financial calculations.
-    
+
     Returns:
         Decimal: A valid financial decimal value between min_value and max_value.
     """
@@ -66,7 +66,7 @@ def decimal_strategy(
 @st.composite
 def balance_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic balance values.
-    
+
     Returns:
         Decimal: A realistic balance value between 0 and 1,000,000.
     """
@@ -76,7 +76,7 @@ def balance_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic price values.
-    
+
     Returns:
         Decimal: A realistic price value between 0.01 and 10,000.
     """
@@ -86,7 +86,7 @@ def price_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic quantity values.
-    
+
     Returns:
         Decimal: A realistic quantity value between 0.000001 and 1000.
     """
@@ -96,7 +96,7 @@ def quantity_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def order_value_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
     """Generate valid order value limits (min, max) where min <= max.
-    
+
     Returns:
         tuple[Decimal, Decimal]: A tuple of (min_value, max_value) where min <= max.
     """
@@ -110,7 +110,7 @@ def generate_order_strategy(
     draw: st.DrawFn, exchange: ExchangeName, with_price: bool = True
 ) -> Order:
     """Generate valid Order objects for testing.
-    
+
     Returns:
         Order: A valid Order object with the specified exchange and optional price.
     """
@@ -164,7 +164,7 @@ def create_mock_validation_context(
     exchange_max_size: Decimal | None = None,
 ) -> ValidationContext:
     """Create a mock validation context for testing.
-    
+
     Returns:
         ValidationContext: A mock validation context configured with the specified parameters.
     """
@@ -202,7 +202,7 @@ def create_mock_portfolio_with_balance(
     btc_balance: Decimal | None = None,
 ) -> Mock:
     """Create mock portfolio state with specified balances.
-    
+
     Returns:
         Mock: A mock portfolio state with the specified USDC and BTC balances.
     """
@@ -234,7 +234,7 @@ def create_test_order(
     order_type: OrderType = OrderType.LIMIT,
 ) -> Order:
     """Create a test order with specified parameters.
-    
+
     Returns:
         Order: A test order configured with the specified exchange, side, quantity, price, and type.
     """

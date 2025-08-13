@@ -112,7 +112,7 @@ class TestRouterRoutingErrorsIntegration:
         # Since we can't easily test private error handling, verify components are configured
         assert router.stream_error_handler is not None
         assert router.typed_processor is not None
-        
+
         # Verify router configuration is correct for error handling
         assert router.exchange_name == ExchangeName.HYPERLIQUID
         assert router.connection_id is not None
@@ -159,10 +159,10 @@ class TestRouterRoutingErrorsIntegration:
 
         # Test message with empty stream will trigger missing routing key
         message = {"stream": "", "data": {}}
-        
+
         # Set up envelope validator - callable that creates TestEnvelopeModel from dict
         router.envelope_validator = lambda data: TestEnvelopeModel(**data)
-        
+
         # Empty handlers dict to test routing behavior
         handlers: dict[str, Any] = {}
 
@@ -196,7 +196,7 @@ class TestRouterRoutingErrorsIntegration:
 
         # Create a mock envelope validator that will throw an exception during routing
         def failing_envelope_validator(
-            message: dict[str, str | int | float | bool | None]
+            message: dict[str, str | int | float | bool | None],
         ) -> TestEnvelopeModel:
             raise RuntimeError("Envelope validator failure during routing")
 
@@ -244,7 +244,7 @@ class TestRouterRoutingErrorsIntegration:
 
         # Create a failing envelope validator
         def failing_envelope_validator(
-            message: dict[str, str | int | float | bool | None]
+            message: dict[str, str | int | float | bool | None],
         ) -> TestEnvelopeModel:
             raise KeyError("Missing required key during routing")
 

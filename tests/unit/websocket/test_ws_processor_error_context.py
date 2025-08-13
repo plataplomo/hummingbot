@@ -34,14 +34,14 @@ class MockRawModel(BaseModel):
 
 class MockTransformer:
     """Mock transformer for testing."""
-    
+
     def transform(
         self,
         validated: MockRawModel,
         context: WebSocketContextProtocol | None = None,
     ) -> MockRawModel | None:
         """Mock transform method.
-        
+
         Returns:
             MockRawModel | None: The validated raw model or None.
         """
@@ -50,18 +50,18 @@ class MockTransformer:
 
 def create_mock_processor() -> PydanticWebSocketProcessor[MockRawModel, MockRawModel]:
     """Create a mock processor for testing.
-    
+
     Returns:
         PydanticWebSocketProcessor[MockRawModel, MockRawModel]: Mock processor.
     """
     # We need a mock stream error handler that implements the required interface
     mock_error_handler = Mock(spec=WebSocketStreamErrorHandler)
-    
+
     return PydanticWebSocketProcessor(
         raw_model=MockRawModel,
         transformer=MockTransformer(),
         stream_error_handler=mock_error_handler,
-        processor_name="TestProcessor"
+        processor_name="TestProcessor",
     )
 
 
@@ -77,12 +77,12 @@ class MockContext:
         self.symbol: str | None = "BTC-USDC"
         self.routing_key = "trade.btc.usdc"
         self.domain_model: object = None
-        
+
         # Required by BaseContextProtocol
         self.exchange_name = "hyperliquid"
         self.validated_envelope = None
         self.raw_model = None
-        
+
         # Additional properties
         self.channel = "trades"
         self.sequence_number = 1234
@@ -98,7 +98,7 @@ class MockContext:
 
     def create_error_context(self) -> StreamErrorContext:
         """Create error context from mock context.
-        
+
         Returns:
             StreamErrorContext: Error context with mock connection and processor metadata.
         """
@@ -132,7 +132,7 @@ class TestProcessorErrorContextBuilder:
     @pytest.fixture
     def mock_processor(self) -> PydanticWebSocketProcessor[MockRawModel, MockRawModel]:
         """Create mock processor.
-        
+
         Returns:
             PydanticWebSocketProcessor: Mock processor with predefined test configuration.
         """
@@ -141,7 +141,7 @@ class TestProcessorErrorContextBuilder:
     @pytest.fixture
     def mock_context(self) -> MockContext:
         """Create mock WebSocket context.
-        
+
         Returns:
             MockContext: Mock WebSocket context with test connection details.
         """
@@ -150,7 +150,7 @@ class TestProcessorErrorContextBuilder:
     @pytest.fixture
     def validation_error(self) -> ValidationError:
         """Create validation error for testing.
-        
+
         Returns:
             ValidationError: Pydantic validation error from invalid model data.
         """
@@ -163,7 +163,7 @@ class TestProcessorErrorContextBuilder:
     @pytest.fixture
     def mock_payload(self) -> dict[str, Any]:
         """Create mock payload.
-        
+
         Returns:
             dict[str, Any]: Mock payload data for testing processor error contexts.
         """
@@ -208,7 +208,7 @@ class TestProcessorErrorContextBuilder:
         validation_error: ValidationError,
         mock_payload: dict[str, Any],
     ) -> None:
-        """Test creating error context using fallback when context has no 
+        """Test creating error context using fallback when context has no
         create_error_context method."""
         # Create mock context without create_error_context method
         mock_context = Mock(spec=WebSocketContextProtocol)

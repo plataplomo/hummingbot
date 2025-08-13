@@ -440,7 +440,7 @@ class TestOrderValueLimitsRuleProperties:
 @st.composite
 def generate_order_strategy(draw: st.DrawFn) -> Order:
     """Generate valid Order objects for testing.
-    
+
     Returns:
         Order: A valid order for property-based testing.
     """

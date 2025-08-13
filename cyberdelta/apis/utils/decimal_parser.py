@@ -294,8 +294,13 @@ def format_decimal_for_exchange(
         # Convert to string and remove trailing zeros for cleaner output
         result = str(formatted).rstrip("0").rstrip(".")
 
+        # Handle the edge case where result becomes empty (e.g., 0 with 0 decimal places)
+        if not result:
+            result = "0"
+
         # Ensure we have at least one digit after decimal for non-integers
-        if "." not in result and decimal_places > 0:
+        # But skip this for scientific notation (contains 'E' or 'e')
+        if "." not in result and decimal_places > 0 and "E" not in result.upper():
             result += ".0"
 
         logger.debug(

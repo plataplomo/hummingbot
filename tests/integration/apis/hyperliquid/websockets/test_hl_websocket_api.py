@@ -126,11 +126,11 @@ class TestHyperliquidWebSocketMarketData:
                         orderbook = OrderBook(
                             symbol=test_symbol,
                             bids=[
-                                (Decimal(str(p)), Decimal(str(q))) 
+                                (Decimal(str(p)), Decimal(str(q)))
                                 for p, q in cast(list[list[Any]], data.get("bids", []))
                             ],
                             asks=[
-                                (Decimal(str(p)), Decimal(str(q))) 
+                                (Decimal(str(p)), Decimal(str(q)))
                                 for p, q in cast(list[list[Any]], data.get("asks", []))
                             ],
                             timestamp=datetime.now(UTC),
@@ -258,26 +258,24 @@ class TestHyperliquidWebSocketMarketData:
                             assert isinstance(trade_data_raw, dict)
                             # Type narrowing: trade_data is now known to be a dict
                             trade_data: dict[str, object] = trade_data_raw
-                            
+
                             # Extract and validate timestamp
                             timestamp_ms = trade_data.get("time", 0)
                             if not isinstance(timestamp_ms, (int, float)):
                                 timestamp_ms = 0
-                            
+
                             # Extract and validate side
                             side_str = trade_data.get("side", "buy")
                             if not isinstance(side_str, str):
                                 side_str = "buy"
                             side = OrderSide.BUY if side_str.lower() == "buy" else OrderSide.SELL
-                            
+
                             trade = Fill(
                                 id=str(trade_data.get("tid", "")),
                                 symbol=test_symbol,
                                 price=Decimal(str(trade_data.get("px", 0))),
                                 quantity=Decimal(str(trade_data.get("sz", 0))),
-                                executed_at=datetime.fromtimestamp(
-                                    timestamp_ms / 1000, tz=UTC
-                                ),
+                                executed_at=datetime.fromtimestamp(timestamp_ms / 1000, tz=UTC),
                                 exchange=ExchangeName.HYPERLIQUID,
                                 side=side,
                                 order_id=str(trade_data.get("oid", "unknown")),

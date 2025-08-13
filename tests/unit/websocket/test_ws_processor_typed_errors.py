@@ -302,7 +302,7 @@ class TestTypedProcessorErrorHandling:
         mock_stream_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
-        """Test processor behavior when no typed handler is available - 
+        """Test processor behavior when no typed handler is available -
         error is caught and logged."""
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,

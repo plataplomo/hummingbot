@@ -133,11 +133,11 @@ class TestWebSocketRouter:
             # Extract and validate stream and data parameters
             stream_val = message.get("stream", "")
             data_val = message.get("data", {})
-            
+
             # Ensure proper types for TestEnvelopeModel
             stream = str(stream_val) if stream_val is not None else ""
             data = data_val if isinstance(data_val, dict) else {}
-            
+
             return TestEnvelopeModel(stream=stream, data=data)
 
         return Mock(side_effect=validator)
@@ -438,7 +438,7 @@ class TestWebSocketRouter:
         call_args = mock_stream_error_handler.handle_stream_error.call_args
         error = call_args[0][0]
 
-        # Verify error properties (should be PROCESSOR_ERROR since we got to the 
+        # Verify error properties (should be PROCESSOR_ERROR since we got to the
         # missing processor handler)
         assert isinstance(error, WebSocketValidationError)
         assert error.code == WebSocketErrorCode.PROCESSOR_ERROR
@@ -446,7 +446,7 @@ class TestWebSocketRouter:
         assert error.value == "test_stream"
         assert "No processor found for routing key: test_stream" in error.message
 
-    # Removed test_general_routing_error_with_typed_handler due to mypy issues 
+    # Removed test_general_routing_error_with_typed_handler due to mypy issues
     # with Mock method assignment
     # The core error handling functionality is tested by other tests
 

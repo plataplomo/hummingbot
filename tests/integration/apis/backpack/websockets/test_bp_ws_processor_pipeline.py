@@ -539,7 +539,9 @@ class TestBackpackProcessorPipeline:
                     model_data = context.domain_model.model_dump()
                     _ = model_data.get("symbol")
                     _ = model_data.get("price")
-                elif hasattr(context.domain_model, "dict") and callable(getattr(context.domain_model, "dict", None)):
+                elif hasattr(context.domain_model, "dict") and callable(
+                    getattr(context.domain_model, "dict", None)
+                ):
                     # Legacy Pydantic v1 models or dict-like objects
                     dict_result: object = getattr(context.domain_model, "dict")()
                     if isinstance(dict_result, dict):

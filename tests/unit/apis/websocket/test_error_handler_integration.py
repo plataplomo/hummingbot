@@ -521,6 +521,7 @@ class TestErrorHandlerIntegration:
 
         # Handle the connection error - create a mock WebSocketContextProtocol
         from unittest.mock import Mock
+
         mock_ws_context = Mock()
         mock_ws_context.exchange_type = ExchangeName.HYPERLIQUID
         mock_ws_context.connection_id = "test-conn-123"
@@ -528,7 +529,7 @@ class TestErrorHandlerIntegration:
         mock_ws_context.symbol = "BTC-USDC"
         mock_ws_context.routing_key = "test.route"
         mock_ws_context.domain_model = None
-        
+
         await handler_with_mocks.handle_connection_error(mock_ws_context, connection_error)
 
         # Should trigger recovery through the recovery handler

@@ -265,13 +265,15 @@ class TestWebSocketErrorRecoveryTyped:
 
         # Test that immediate retry strategy attempts recovery quickly
         initial_stats = recovery_system.get_recovery_stats()
-        
+
         # Simulate connection error
         await recovery_system.handle_connection_error(ConnectionError("Test connection error"))
-        
+
         # Check that recovery was attempted
         updated_stats = recovery_system.get_recovery_stats()
-        assert updated_stats["total_recovery_attempts"] >= initial_stats.get("total_recovery_attempts", 0)
+        assert updated_stats["total_recovery_attempts"] >= initial_stats.get(
+            "total_recovery_attempts", 0
+        )
 
     async def test_linear_backoff_recovery_behavior(
         self,
@@ -279,19 +281,22 @@ class TestWebSocketErrorRecoveryTyped:
     ) -> None:
         """Test recovery behavior for linear backoff strategy."""
         recovery_system.config.strategy = WebSocketRecoveryStrategy.LINEAR_BACKOFF
-        
+
         # Test that linear backoff strategy tracks multiple attempts
         initial_stats = recovery_system.get_recovery_stats()
-        
+
         # Simulate multiple connection errors
         for i in range(3):
             await recovery_system.handle_connection_error(
                 ConnectionError(f"Test connection error {i}")
             )
-        
+
         # Check that multiple recovery attempts were tracked
         updated_stats = recovery_system.get_recovery_stats()
-        assert updated_stats["total_recovery_attempts"] >= initial_stats.get("total_recovery_attempts", 0) + 3
+        assert (
+            updated_stats["total_recovery_attempts"]
+            >= initial_stats.get("total_recovery_attempts", 0) + 3
+        )
 
     async def test_exponential_backoff_recovery_behavior(
         self,
@@ -299,16 +304,16 @@ class TestWebSocketErrorRecoveryTyped:
     ) -> None:
         """Test recovery behavior for exponential backoff strategy."""
         recovery_system.config.strategy = WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF
-        
+
         # Test that exponential backoff strategy properly handles errors
         health_before = recovery_system.get_health_status()
-        
+
         # Simulate connection error
         await recovery_system.handle_connection_error(ConnectionError("Test connection error"))
-        
+
         # Check that health status reflects the error handling
         health_after = recovery_system.get_health_status()
-        
+
         # Either health changed or recovery was attempted
         stats = recovery_system.get_recovery_stats()
         assert stats["total_recovery_attempts"] > 0 or health_after != health_before

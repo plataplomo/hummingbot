@@ -219,7 +219,7 @@ class TestErrorHandlerOptimization:
         # Mock slow recovery handler
         slow_recovery = AsyncMock()
         slow_recovery.handle_recovery = AsyncMock(side_effect=lambda *args: asyncio.sleep(0.1))
-        
+
         handler = WebSocketStreamErrorHandler(config, recovery_handler=slow_recovery)
 
         # Create errors requiring recovery

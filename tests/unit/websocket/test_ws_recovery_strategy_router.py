@@ -349,6 +349,7 @@ class TestRecoveryStrategyRouter:
             ):
                 # Mock the handle method to simulate failure
                 import unittest.mock
+
                 handler.handle = unittest.mock.AsyncMock(side_effect=RuntimeError("Handler failed"))  # type: ignore[method-assign] # Mock assignment for testing
                 break
 

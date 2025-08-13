@@ -1,373 +1,549 @@
-"""Unit tests for Hyperliquid Raw Order Action Pydantic models.
+"""Property-based tests for Hyperliquid Raw Order models.
 
-Validates parsing, aliases, and error handling for raw order request structures.
+This module tests the critical Hyperliquid raw order models for API boundary validation to ensure:
+- Robust field validation for all order data from external APIs
+- Financial precision preservation in all price/quantity fields
+- Order type structure consistency (limit, market, trigger)
+- Type safety and boundary validation for all field types
+- Serialization properties for API signing requirements
+- Edge case handling for malformed or corrupted API responses
+
+SECURITY CRITICAL: Raw order model errors could allow malformed external data
+to enter the trading system, leading to incorrect order processing, invalid trades,
+or system instability.
 """
 
-from typing import Any, ClassVar, cast
-
+from decimal import Decimal
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
-from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
+    HyperliquidRawPlaceOrderAction,
+    HyperliquidRawOrderType,
     HyperliquidRawLimitOrderTypeDetails,
     HyperliquidRawMarketOrderTypeDetails,
-    HyperliquidRawOrderType,
-    HyperliquidRawPlaceOrderAction,
+    HyperliquidRawHistoricalOrdersRequestPayload,
 )
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 
 
-# --- Test Data ---
-VALID_LIMIT_ORDER_DATA: dict[str, str] = {"tif": "Gtc"}
-VALID_MARKET_ORDER_DATA: dict[str, Any] = {}
-
-VALID_LIMIT_ORDER_TYPE_GTC: dict[str, dict[str, str]] = {"limit": VALID_LIMIT_ORDER_DATA}
-VALID_LIMIT_ORDER_TYPE_IOC: dict[str, dict[str, str]] = {"limit": {"tif": "Ioc"}}
-VALID_MARKET_ORDER_TYPE: dict[str, dict[str, Any]] = {"market": VALID_MARKET_ORDER_DATA}
-
-VALID_TRIGGER_DETAILS_TP_MARKET_DATA: dict[str, Any] = {
-    "triggerPx": "100.50",
-    "isMarket": True,
-    "tpsl": "tp",
-}
-VALID_TRIGGER_DETAILS_SL_LIMIT_DATA: dict[str, Any] = {
-    "triggerPx": "90.00",
-    "isMarket": False,
-    "tpsl": "sl",
-}
-
-# For HyperliquidRawPlaceOrderAction, the nested dicts are complex.
-# We will type the outer dict as Dict[str, Any] and rely on Pydantic's parsing for internals.
-# Type ignores might be needed at the point of **data expansion if Pyright still complains.
-
-MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT: dict[str, Any] = {
-    "asset": 1,
-    "isBuy": True,
-    "limitPx": "150.75",
-    "sz": "10.2",
-    "reduceOnly": False,
-    "orderType": VALID_LIMIT_ORDER_TYPE_GTC,
-}
-
-FULL_VALID_PLACE_ORDER_ACTION_LIMIT_WITH_TRIGGER_AND_CLOID: dict[str, Any] = {
-    "asset": 2,
-    "isBuy": False,
-    "limitPx": "2000.00",
-    "sz": "0.5",
-    "reduceOnly": True,
-    "orderType": VALID_LIMIT_ORDER_TYPE_IOC,
-    "trigger": VALID_TRIGGER_DETAILS_TP_MARKET_DATA,
-    "cloid": "0x" + "0" * 30 + "01",  # Valid 128-bit hex string
-}
-
-MINIMAL_VALID_PLACE_ORDER_ACTION_MARKET: dict[str, Any] = {
-    "asset": 3,
-    "isBuy": True,
-    "limitPx": "0",
-    "sz": "5",
-    "reduceOnly": False,
-    "orderType": VALID_MARKET_ORDER_TYPE,
-}
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR HYPERLIQUID RAW ORDER TESTING
+# =============================================================================
 
 
-# --- Helper for common assertions ---
-def assert_common_place_order_fields(
-    parsed_model: HyperliquidRawPlaceOrderAction,
-    raw_data: dict[str, Any],
-    expected_python_types: dict[str, type],
-) -> None:
-    """Assert common place order fields."""
-    asset_val = raw_data["asset"]
-    assert parsed_model.asset == asset_val
-    assert isinstance(parsed_model.asset, expected_python_types["asset"])
-
-    is_buy_val = raw_data["isBuy"]
-    assert parsed_model.isBuy == is_buy_val
-    assert isinstance(parsed_model.isBuy, expected_python_types["is_buy"])
-
-    # Business logic normalizes decimal strings
-    if raw_data["limitPx"] == "2000.00":
-        assert parsed_model.limitPx == "2000"  # Business logic normalizes
-    else:
-        assert parsed_model.limitPx == str(raw_data["limitPx"])
-    assert isinstance(parsed_model.limitPx, expected_python_types["limit_px"])
-
-    sz_val = raw_data["sz"]
-    assert parsed_model.sz == str(sz_val)
-    assert isinstance(parsed_model.sz, expected_python_types["sz"])
-
-    reduce_only_val = raw_data["reduceOnly"]
-    assert parsed_model.reduceOnly == reduce_only_val
-    assert isinstance(parsed_model.reduceOnly, expected_python_types["reduce_only"])
-
-    cloid_val = raw_data.get("cloid")
-    if cloid_val is not None:
-        assert parsed_model.cloid == str(cloid_val)
-        assert isinstance(parsed_model.cloid, expected_python_types["cloid"])
-    else:
-        assert parsed_model.cloid is None
+def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
+    """Generate valid non-empty strings with reasonable length."""
+    return st.text(
+        alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_."),
+        min_size=1,
+        max_size=max_length,
+    ).filter(lambda x: len(x.strip()) > 0)
 
 
-# --- Test Cases ---
+def financial_decimal_string_strategy() -> SearchStrategy[str]:
+    """Generate valid decimal strings for financial amounts."""
+    return st.one_of([
+        # Normal decimal values
+        st.decimals(
+            min_value=Decimal("0.00000001"),
+            max_value=Decimal("1000000"),
+            places=8,
+            allow_nan=False,
+            allow_infinity=False,
+        ).map(str),
+        # Common edge cases
+        st.just("0.00000001"),
+        st.just("999999.99999999"),
+        st.just("1.0"),
+        st.just("100"),
+        st.just("50000.0"),
+    ])
 
 
-class TestHyperliquidRawOrderType:
-    """Test class for HyperliquidRawOrderType model."""
+def ethereum_address_strategy() -> SearchStrategy[str]:
+    """Generate valid Ethereum addresses."""
+    return st.text(alphabet="0123456789abcdef", min_size=40, max_size=40).map(lambda x: f"0x{x}")
 
-    def test_valid_limit_order_type(self) -> None:
-        """Test valid limit order type."""
-        limit_details = HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
-        parsed = HyperliquidRawOrderType(limit=limit_details, market=None)
-        assert parsed.limit is not None
-        assert parsed.market is None
-        assert parsed.limit.tif == "Gtc"
-        assert isinstance(parsed.limit.tif, str)
 
-    def test_valid_market_order_type(self) -> None:
-        """Test valid market order type."""
-        market_details = HyperliquidRawMarketOrderTypeDetails()
-        parsed = HyperliquidRawOrderType(limit=None, market=market_details)
-        assert parsed.market is not None
-        assert parsed.limit is None
+def cloid_strategy() -> SearchStrategy[str | None]:
+    """Generate valid client order IDs (Hyperliquid format)."""
+    return st.one_of([
+        st.none(),
+        # Hex format cloids
+        st.text(alphabet="0123456789abcdef", min_size=8, max_size=16).map(lambda x: f"0x{x}"),
+        # User-defined string cloids
+        valid_string_strategy(max_length=32),
+    ])
 
-    def test_order_type_both_limit_and_market_allowed(self) -> None:
-        """Test order type both limit and market allowed."""
-        # Raw models should accept data without business logic validation
-        # The builder/service layer should ensure only one is set
-        order_type = HyperliquidRawOrderType(
-            limit=cast("HyperliquidRawLimitOrderTypeDetails", VALID_LIMIT_ORDER_DATA),
-            market=cast("HyperliquidRawMarketOrderTypeDetails", VALID_MARKET_ORDER_DATA),
+
+def asset_index_strategy() -> SearchStrategy[int]:
+    """Generate valid asset indices."""
+    return st.integers(min_value=0, max_value=1000)
+
+
+def tif_strategy() -> SearchStrategy[str]:
+    """Generate valid time-in-force values for Hyperliquid."""
+    return st.sampled_from(["Alo", "Ioc", "Gtc"])
+
+
+def limit_order_type_strategy() -> SearchStrategy[HyperliquidRawLimitOrderTypeDetails]:
+    """Generate valid limit order type details."""
+    return st.builds(HyperliquidRawLimitOrderTypeDetails, tif=tif_strategy())
+
+
+def market_order_type_strategy() -> SearchStrategy[HyperliquidRawMarketOrderTypeDetails]:
+    """Generate valid market order type details."""
+    return st.builds(HyperliquidRawMarketOrderTypeDetails)
+
+
+def trigger_info_strategy() -> SearchStrategy[HyperliquidRawTriggerInfo]:
+    """Generate valid trigger info for orders."""
+    return st.builds(
+        HyperliquidRawTriggerInfo,
+        isMarket=st.booleans(),
+        triggerPx=financial_decimal_string_strategy(),
+        tpsl=st.sampled_from(["tp", "sl"]),
+    )
+
+
+def order_type_strategy() -> SearchStrategy[HyperliquidRawOrderType]:
+    """Generate valid order types (limit, market, or trigger)."""
+    return st.one_of([
+        # Limit order type
+        st.builds(
+            HyperliquidRawOrderType,
+            limit=limit_order_type_strategy(),
+            market=st.none(),
+            trigger=st.none(),
+        ),
+        # Market order type
+        st.builds(
+            HyperliquidRawOrderType,
+            limit=st.none(),
+            market=market_order_type_strategy(),
+            trigger=st.none(),
+        ),
+        # Trigger order type
+        st.builds(
+            HyperliquidRawOrderType,
+            limit=st.none(),
+            market=st.none(),
+            trigger=trigger_info_strategy(),
+        ),
+    ])
+
+
+def place_order_action_strategy() -> SearchStrategy[dict]:
+    """Generate valid place order action data."""
+    return st.fixed_dictionaries({
+        "asset": asset_index_strategy(),
+        "isBuy": st.booleans(),
+        "limitPx": financial_decimal_string_strategy(),
+        "sz": financial_decimal_string_strategy(),
+        "reduceOnly": st.booleans(),
+        "orderType": order_type_strategy(),
+        "cloid": cloid_strategy(),
+    })
+
+
+def historical_orders_request_strategy() -> SearchStrategy[dict]:
+    """Generate valid historical orders request data."""
+    return st.fixed_dictionaries({
+        "type": st.just("historicalOrders"),
+        "user": ethereum_address_strategy(),
+    })
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW PLACE ORDER ACTION
+# =============================================================================
+
+
+class TestHyperliquidRawPlaceOrderActionProperties:
+    """Property-based tests for HyperliquidRawPlaceOrderAction validation."""
+
+    @given(order_data=place_order_action_strategy())
+    def test_valid_order_creation_properties(self, order_data):
+        """Property: Valid order data should always create valid models."""
+        order = HyperliquidRawPlaceOrderAction(**order_data)
+
+        # Property: Required fields should be preserved exactly
+        assert order.asset == order_data["asset"]
+        assert order.isBuy == order_data["isBuy"]
+        assert order.limitPx == order_data["limitPx"]
+        assert order.sz == order_data["sz"]
+        assert order.reduceOnly == order_data["reduceOnly"]
+
+        # Property: Financial fields should preserve exact string values
+        assert order.limitPx == order_data["limitPx"]
+        assert order.sz == order_data["sz"]
+
+        # Property: Optional cloid should handle None correctly
+        assert order.cloid == order_data.get("cloid")
+
+    @given(
+        asset=asset_index_strategy(),
+        isBuy=st.booleans(),
+        limitPx=financial_decimal_string_strategy(),
+        sz=financial_decimal_string_strategy(),
+        reduceOnly=st.booleans(),
+    )
+    def test_missing_order_type_rejection(self, asset, isBuy, limitPx, sz, reduceOnly):
+        """Property: Orders without orderType should be rejected."""
+        incomplete_data = {
+            "asset": asset,
+            "isBuy": isBuy,
+            "limitPx": limitPx,
+            "sz": sz,
+            "reduceOnly": reduceOnly,
+            # Missing orderType
+        }
+
+        # Property: Missing required field should cause validation error
+        with pytest.raises(ValidationError):
+            HyperliquidRawPlaceOrderAction(**incomplete_data)
+
+    @given(order_data=place_order_action_strategy())
+    def test_serialization_properties(self, order_data):
+        """Property: Orders should serialize correctly for API signing."""
+        order = HyperliquidRawPlaceOrderAction(**order_data)
+
+        # Serialize to dict for API
+        serialized = order.model_dump(exclude_none=True)
+
+        # Property: All non-None fields should be present
+        assert "asset" in serialized
+        assert "isBuy" in serialized
+        assert "limitPx" in serialized
+        assert "sz" in serialized
+        assert "reduceOnly" in serialized
+        assert "orderType" in serialized
+
+        # Property: cloid should only be present if not None
+        if order_data.get("cloid") is not None:
+            assert "cloid" in serialized
+            assert serialized["cloid"] == order_data["cloid"]
+        else:
+            assert "cloid" not in serialized or serialized["cloid"] is None
+
+    @given(
+        invalid_decimal=st.one_of(
+            st.just("NaN"),
+            st.just("Infinity"),
+            st.just("-Infinity"),
+            st.just("1..0"),
+            st.just("not_a_number"),
         )
-        assert order_type.limit is not None
-        assert order_type.market is not None
+    )
+    def test_invalid_decimal_fields_rejection(self, invalid_decimal):
+        """Property: Invalid decimal strings should be consistently rejected."""
+        base_data = {
+            "asset": 0,
+            "isBuy": True,
+            "reduceOnly": False,
+            "orderType": HyperliquidRawOrderType(market=HyperliquidRawMarketOrderTypeDetails()),
+        }
 
-    def test_order_type_neither_limit_nor_market_allowed(self) -> None:
-        """Test order type neither limit nor market allowed."""
-        # Raw models should accept data without business logic validation
-        # The builder/service layer should ensure at least one is set
-        order_type = HyperliquidRawOrderType(limit=None, market=None)
-        assert order_type.limit is None
-        assert order_type.market is None
+        # Test limitPx with invalid decimal
+        test_data = base_data.copy()
+        test_data["limitPx"] = invalid_decimal
+        test_data["sz"] = "1.0"
 
-    def test_invalid_tif_string(self) -> None:
-        """Test invalid tif string."""
-        with pytest.raises(
-            ValidationError,
-            match=r"Field 'tif' must be one of \['Alo', 'Gtc', 'Ioc'\], got 'InvalidTif'",
-        ):
-            HyperliquidRawOrderType(
-                limit=cast("HyperliquidRawLimitOrderTypeDetails", {"tif": "InvalidTif"}),
+        # Property: Invalid decimal should cause validation error
+        with pytest.raises((ValidationError, Exception)):
+            HyperliquidRawPlaceOrderAction(**test_data)
+
+        # Test sz with invalid decimal
+        test_data = base_data.copy()
+        test_data["limitPx"] = "100.0"
+        test_data["sz"] = invalid_decimal
+
+        with pytest.raises((ValidationError, Exception)):
+            HyperliquidRawPlaceOrderAction(**test_data)
+
+    @given(negative_asset=st.integers(min_value=-1000, max_value=-1))
+    def test_negative_asset_index_rejection(self, negative_asset):
+        """Property: Negative asset indices should be rejected."""
+        order_data = {
+            "asset": negative_asset,
+            "isBuy": True,
+            "limitPx": "100.0",
+            "sz": "1.0",
+            "reduceOnly": False,
+            "orderType": HyperliquidRawOrderType(market=HyperliquidRawMarketOrderTypeDetails()),
+        }
+
+        # Property: Negative asset index should cause validation error
+        with pytest.raises(ValidationError):
+            HyperliquidRawPlaceOrderAction(**order_data)
+
+    @given(order_data=place_order_action_strategy())
+    def test_extra_fields_rejection(self, order_data):
+        """Property: Extra fields should always be rejected."""
+        # Add an extra field
+        invalid_data = order_data.copy()
+        invalid_data["extraField"] = "should_not_be_allowed"
+
+        # Property: Extra fields should cause validation error
+        with pytest.raises(ValidationError) as exc_info:
+            HyperliquidRawPlaceOrderAction(**invalid_data)
+
+        # Property: Error should mention extra field
+        assert "extra" in str(exc_info.value).lower()
+
+    @given(limitPx=financial_decimal_string_strategy(), sz=financial_decimal_string_strategy())
+    def test_financial_precision_preservation(self, limitPx, sz):
+        """Property: Financial values should preserve exact string precision."""
+        order_data = {
+            "asset": 0,
+            "isBuy": True,
+            "limitPx": limitPx,
+            "sz": sz,
+            "reduceOnly": False,
+            "orderType": HyperliquidRawOrderType(
+                limit=HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
+            ),
+        }
+
+        order = HyperliquidRawPlaceOrderAction(**order_data)
+
+        # Property: Financial values should be preserved exactly as strings
+        assert order.limitPx == limitPx
+        assert order.sz == sz
+
+        # Property: If parseable, should be valid decimals
+        limit_decimal = Decimal(limitPx)
+        sz_decimal = Decimal(sz)
+        assert limit_decimal.is_finite()
+        assert sz_decimal.is_finite()
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW ORDER TYPE
+# =============================================================================
+
+
+class TestHyperliquidRawOrderTypeProperties:
+    """Property-based tests for HyperliquidRawOrderType validation."""
+
+    @given(order_type=order_type_strategy())
+    def test_order_type_exclusivity(self, order_type):
+        """Property: Order type should have exactly one non-None field."""
+        non_none_count = sum([
+            order_type.limit is not None,
+            order_type.market is not None,
+            order_type.trigger is not None,
+        ])
+
+        # Property: Exactly one order type should be set
+        assert non_none_count == 1
+
+    @given(order_type=order_type_strategy())
+    def test_order_type_serialization(self, order_type):
+        """Property: Order type serialization should produce clean structure."""
+        # Serialize the order type
+        serialized = order_type.model_dump(exclude_none=True)
+
+        # Property: Only one key should be present
+        assert len(serialized) == 1
+
+        # Property: The key should be one of the valid types
+        assert list(serialized.keys())[0] in ["limit", "market", "trigger"]
+
+        # Property: Market orders should have empty dict value
+        if "market" in serialized:
+            assert serialized["market"] == {}
+
+    @given(tif=tif_strategy())
+    def test_limit_order_type_tif_preservation(self, tif):
+        """Property: Limit order type should preserve TIF value."""
+        limit_details = HyperliquidRawLimitOrderTypeDetails(tif=tif)
+        order_type = HyperliquidRawOrderType(limit=limit_details)
+
+        # Property: TIF should be preserved
+        assert order_type.limit.tif == tif
+
+        # Property: Serialization should include TIF
+        serialized = order_type.model_dump(exclude_none=True)
+        assert serialized["limit"]["tif"] == tif
+
+    def test_market_order_type_empty_structure(self):
+        """Property: Market order type should serialize to empty dict."""
+        market_details = HyperliquidRawMarketOrderTypeDetails()
+        order_type = HyperliquidRawOrderType(market=market_details)
+
+        # Property: Market should be empty dict
+        serialized = order_type.model_dump(exclude_none=True)
+        assert serialized == {"market": {}}
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HISTORICAL ORDERS REQUEST
+# =============================================================================
+
+
+class TestHyperliquidHistoricalOrdersRequestProperties:
+    """Property-based tests for HyperliquidRawHistoricalOrdersRequestPayload."""
+
+    @given(request_data=historical_orders_request_strategy())
+    def test_valid_request_creation(self, request_data):
+        """Property: Valid request data should create valid models."""
+        request = HyperliquidRawHistoricalOrdersRequestPayload(**request_data)
+
+        # Property: Type should always be "historicalOrders"
+        assert request.type == "historicalOrders"
+
+        # Property: User address should be preserved
+        assert request.user == request_data["user"]
+
+        # Property: Address should be Ethereum format
+        assert request.user.startswith("0x")
+        assert len(request.user) == 42
+
+    @given(invalid_address=st.text(alphabet="xyz", min_size=1, max_size=10))
+    def test_invalid_address_rejection(self, invalid_address):
+        """Property: Invalid Ethereum addresses should be rejected."""
+        request_data = {
+            "type": "historicalOrders",
+            "user": invalid_address,
+        }
+
+        # Property: Invalid address should cause validation error
+        with pytest.raises((ValidationError, Exception)):
+            HyperliquidRawHistoricalOrdersRequestPayload(**request_data)
+
+    @given(request_data=historical_orders_request_strategy())
+    def test_request_immutability(self, request_data):
+        """Property: Request models should be immutable."""
+        request = HyperliquidRawHistoricalOrdersRequestPayload(**request_data)
+
+        # Property: Attempting to modify fields should fail
+        with pytest.raises((AttributeError, ValidationError)):
+            request.type = "modifiedType"
+
+        with pytest.raises((AttributeError, ValidationError)):
+            request.user = "0x" + "a" * 40
+
+
+# =============================================================================
+# INTEGRATION PROPERTY TESTS
+# =============================================================================
+
+
+class TestHyperliquidRawOrderIntegrationProperties:
+    """Integration property tests for Hyperliquid raw order models."""
+
+    @given(order_data=place_order_action_strategy())
+    def test_model_deterministic_creation(self, order_data):
+        """Property: Model creation should be deterministic for same inputs."""
+        order1 = HyperliquidRawPlaceOrderAction(**order_data)
+        order2 = HyperliquidRawPlaceOrderAction(**order_data)
+
+        # Property: All field values should be identical
+        assert order1.asset == order2.asset
+        assert order1.isBuy == order2.isBuy
+        assert order1.limitPx == order2.limitPx
+        assert order1.sz == order2.sz
+        assert order1.reduceOnly == order2.reduceOnly
+        assert order1.cloid == order2.cloid
+
+    @given(
+        decimal_value=financial_decimal_string_strategy(),
+        operation=st.sampled_from(["multiplication", "addition", "comparison"]),
+    )
+    def test_financial_calculation_properties(self, decimal_value, operation):
+        """Property: Financial values should maintain precision for calculations."""
+        order_data = {
+            "asset": 0,
+            "isBuy": True,
+            "limitPx": decimal_value,
+            "sz": decimal_value,
+            "reduceOnly": False,
+            "orderType": HyperliquidRawOrderType(
+                limit=HyperliquidRawLimitOrderTypeDetails(tif="Gtc")
+            ),
+        }
+
+        order = HyperliquidRawPlaceOrderAction(**order_data)
+
+        # Property: Should be able to reconstruct exact Decimal values
+        price_decimal = Decimal(order.limitPx)
+        size_decimal = Decimal(order.sz)
+
+        # Property: Basic operations should work with exact precision
+        if operation == "multiplication":
+            result = price_decimal * size_decimal
+            assert result.is_finite()
+        elif operation == "addition":
+            result = price_decimal + size_decimal
+            assert result.is_finite()
+        elif operation == "comparison":
+            # Property: Comparison should work correctly
+            assert price_decimal == Decimal(decimal_value)
+            assert size_decimal == Decimal(decimal_value)
+
+    @given(orders=st.lists(place_order_action_strategy(), min_size=2, max_size=5))
+    def test_multiple_orders_independence(self, orders):
+        """Property: Multiple orders should be processed independently."""
+        parsed_orders = []
+
+        for order_data in orders:
+            order = HyperliquidRawPlaceOrderAction(**order_data)
+            parsed_orders.append(order)
+
+        # Property: Each order should maintain its individual data
+        for i, (original_data, parsed_order) in enumerate(zip(orders, parsed_orders)):
+            assert parsed_order.asset == original_data["asset"]
+            assert parsed_order.isBuy == original_data["isBuy"]
+            assert parsed_order.limitPx == original_data["limitPx"]
+            assert parsed_order.sz == original_data["sz"]
+
+            # Property: Orders should not affect each other
+            for j, other_order in enumerate(parsed_orders):
+                if i != j:
+                    # Orders with different data should remain independent
+                    if original_data["asset"] != orders[j]["asset"]:
+                        assert parsed_order.asset != other_order.asset
+
+    @given(order_type_choice=st.sampled_from(["limit", "market", "trigger"]), tif=tif_strategy())
+    def test_order_type_consistency(self, order_type_choice, tif):
+        """Property: Order type should maintain consistency through operations."""
+        # Create order type based on choice
+        if order_type_choice == "limit":
+            order_type = HyperliquidRawOrderType(limit=HyperliquidRawLimitOrderTypeDetails(tif=tif))
+        elif order_type_choice == "market":
+            order_type = HyperliquidRawOrderType(market=HyperliquidRawMarketOrderTypeDetails())
+        else:  # trigger
+            order_type = HyperliquidRawOrderType(
+                trigger=HyperliquidRawTriggerInfo(isMarket=True, triggerPx="100.0", tpsl="tp")
             )
 
+        # Create order with this type
+        order_data = {
+            "asset": 0,
+            "isBuy": True,
+            "limitPx": "100.0",
+            "sz": "1.0",
+            "reduceOnly": False,
+            "orderType": order_type,
+        }
 
-class TestHyperliquidRawTriggerInfo:
-    """Test class for HyperliquidRawTriggerInfo model."""
+        order = HyperliquidRawPlaceOrderAction(**order_data)
 
-    def test_valid_trigger_details_tp_market(self) -> None:
-        """Test valid trigger details tp market."""
-        parsed = HyperliquidRawTriggerInfo(**VALID_TRIGGER_DETAILS_TP_MARKET_DATA)
-        assert parsed.trigger_px == "100.5"  # Business logic normalizes decimal strings
-        assert isinstance(parsed.trigger_px, str)
-        assert parsed.is_market is True
-        assert isinstance(parsed.is_market, bool)
-        assert parsed.tpsl == "tp"
-        assert isinstance(parsed.tpsl, str)
-
-    def test_valid_trigger_details_sl_limit(self) -> None:
-        """Test valid trigger details sl limit."""
-        parsed = HyperliquidRawTriggerInfo(**VALID_TRIGGER_DETAILS_SL_LIMIT_DATA)
-        assert parsed.trigger_px == "90"  # Business logic normalizes decimal strings
-        assert isinstance(parsed.trigger_px, str)
-        assert parsed.is_market is False
-        assert isinstance(parsed.is_market, bool)
-        assert parsed.tpsl == "sl"
-        assert isinstance(parsed.tpsl, str)
-
-    def test_invalid_trigger_px_not_decimal_string(self) -> None:
-        """Test invalid trigger px not decimal string."""
-        data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
-        data["triggerPx"] = "not_a_number"
-        with pytest.raises(
-            ValidationError,
-            match=r"Cannot convert to Decimal",
-        ):
-            HyperliquidRawTriggerInfo(**data)
-
-    def test_invalid_trigger_px_infinite_string(self) -> None:
-        """Test invalid trigger px infinite string."""
-        data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
-        data["triggerPx"] = "inf"
-        with pytest.raises(
-            ValidationError,
-            match=r"must be a parseable finite decimal string",
-        ):
-            HyperliquidRawTriggerInfo(**data)
-
-    def test_valid_trigger_px_zero(self) -> None:
-        """Test valid trigger px zero."""
-        data: dict[str, Any] = {"triggerPx": "0", "isMarket": True, "tpsl": "tp"}
-        parsed = HyperliquidRawTriggerInfo(**data)
-        assert parsed.trigger_px == "0"
-        assert isinstance(parsed.trigger_px, str)
-
-    def test_invalid_tpsl_value(self) -> None:
-        """Test invalid tpsl value."""
-        data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
-        data["tpsl"] = "stop"
-        with pytest.raises(
-            ValidationError,
-            match=r"Field 'tpsl' must be one of \['sl', 'tp'\], got 'stop'",
-        ):
-            HyperliquidRawTriggerInfo(**data)
-
-    def test_missing_trigger_px(self) -> None:
-        """Test missing trigger px."""
-        data_missing_px: dict[str, Any] = {"isMarket": True, "tpsl": "tp"}
-        with pytest.raises(ValidationError, match="Field required"):
-            HyperliquidRawTriggerInfo(**data_missing_px)
-
-    def test_invalid_is_market_type(self) -> None:
-        """Test invalid is market type."""
-        data = VALID_TRIGGER_DETAILS_TP_MARKET_DATA.copy()
-        data["isMarket"] = "not_a_bool"
-        with pytest.raises(TypeError, match="Field 'is_market' must be boolean, got str"):
-            HyperliquidRawTriggerInfo(**data)
-
-
-class TestHyperliquidRawPlaceOrderAction:
-    """Test class for HyperliquidRawPlaceOrderAction model."""
-
-    EXPECTED_PYTHON_TYPES_AFTER_PARSING: ClassVar[dict[str, type]] = {
-        "asset": int,
-        "is_buy": bool,
-        "limit_px": str,
-        "sz": str,
-        "reduce_only": bool,
-        "cloid": str,
-    }
-
-    def test_minimal_valid_limit_order(self) -> None:
-        """Test minimal valid limit order."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT
-        parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
-        assert parsed.orderType.limit is not None
-        order_type_data = cast("dict[str, Any]", data["orderType"])
-        limit_data = cast("dict[str, Any]", order_type_data.get("limit"))
-        assert parsed.orderType.limit.tif == limit_data.get("tif")
-        assert parsed.trigger is None
-
-    def test_full_valid_limit_order_with_trigger_and_cloid(self) -> None:
-        """Test full valid limit order with trigger and cloid."""
-        data = FULL_VALID_PLACE_ORDER_ACTION_LIMIT_WITH_TRIGGER_AND_CLOID
-        parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
-
-        assert parsed.orderType.limit is not None
-        order_type_data = cast("dict[str, Any]", data["orderType"])
-        limit_data = cast("dict[str, Any]", order_type_data.get("limit"))
-        assert parsed.orderType.limit.tif == limit_data.get("tif")
-
-        assert parsed.trigger is not None
-        trigger_data = cast("dict[str, Any]", data["trigger"])
-        # Business logic normalizes "100.50" to "100.5"
-        assert parsed.trigger.trigger_px == "100.5"
-        assert parsed.trigger.is_market == trigger_data.get("isMarket")
-        assert parsed.trigger.tpsl == trigger_data.get("tpsl")
-
-        cloid_data = data["cloid"]
-        assert parsed.cloid == cloid_data
-
-    def test_minimal_valid_market_order(self) -> None:
-        """Test minimal valid market order."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_MARKET
-        parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert_common_place_order_fields(parsed, data, self.EXPECTED_PYTHON_TYPES_AFTER_PARSING)
-        assert parsed.orderType.market is not None
-        assert parsed.orderType.limit is None
-        assert parsed.trigger is None
-
-    def test_missing_required_field_asset(self) -> None:
-        """Test missing required field asset."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        del data["asset"]
-        with pytest.raises(ValidationError, match="Field required"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_invalid_asset_type_string(self) -> None:
-        """Test invalid asset type string."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["asset"] = "not_an_int"
-        with pytest.raises(TypeError, match="Field 'asset' must be integer, got str"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_invalid_limit_px_type_not_string(self) -> None:
-        """Test invalid limit px type not string."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["limitPx"] = 150.75
-        with pytest.raises(TypeError, match=r"Field 'limitPx' must be str, got float"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_invalid_sz_not_parseable_to_decimal(self) -> None:
-        """Test invalid sz not parseable to decimal."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["sz"] = "abc"
-        with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_valid_sz_zero_string_for_raw_model(self) -> None:
-        """Test valid sz zero string for raw model."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["sz"] = "0"
-        parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert parsed.sz == "0"
-
-    def test_invalid_is_buy_type_string(self) -> None:
-        """Test invalid is buy type string."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["isBuy"] = "TrueString"
-        with pytest.raises(TypeError, match="Field 'isBuy' must be boolean, got str"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_extra_field_not_allowed(self) -> None:
-        """Test extra field not allowed."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["extraField"] = "some_value"
-        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_invalid_cloid_too_long(self) -> None:
-        """Test invalid cloid too long."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["cloid"] = "0x" + "a" * 65  # 65 hex chars after 0x = 67 total chars (way too long)
-        with pytest.raises(ValidationError, match="Must be exactly 34 characters"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_invalid_cloid_empty_if_present(self) -> None:
-        """Test invalid cloid empty if present."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["cloid"] = ""
-        with pytest.raises(ValidationError, match="Must start with '0x' prefix"):
-            HyperliquidRawPlaceOrderAction(**data)
-
-    def test_valid_cloid_none(self) -> None:
-        """Test valid cloid none."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["cloid"] = None
-        parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert parsed.cloid is None
-
-    def test_valid_cloid_present(self) -> None:
-        """Test valid cloid present."""
-        data = MINIMAL_VALID_PLACE_ORDER_ACTION_LIMIT.copy()
-        data["cloid"] = "0x" + "0" * 30 + "02"  # Valid 128-bit hex string
-        parsed = HyperliquidRawPlaceOrderAction(**data)
-        assert parsed.cloid == "0x" + "0" * 30 + "02"
-
-
-class TestHyperliquidRawOrder:
-    """Tests for the HyperliquidRawOrder model itself (representing an existing order)."""
-
-    def test_invalid_order_bad_status(self) -> None:
-        """Test that an order with an invalid status raises ValidationError."""
-        # ... existing code ...
+        # Property: Order type should be preserved
+        if order_type_choice == "limit":
+            assert order.orderType.limit is not None
+            assert order.orderType.market is None
+            assert order.orderType.trigger is None
+            assert order.orderType.limit.tif == tif
+        elif order_type_choice == "market":
+            assert order.orderType.market is not None
+            assert order.orderType.limit is None
+            assert order.orderType.trigger is None
+        else:  # trigger
+            assert order.orderType.trigger is not None
+            assert order.orderType.limit is None
+            assert order.orderType.market is None

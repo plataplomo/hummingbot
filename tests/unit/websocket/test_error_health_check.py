@@ -67,13 +67,12 @@ class TestWebSocketErrorHealthCheck:
 
         # Check overall health which includes error handler check
         health_result = await health_check.check_health()
-        
+
         # Find error handler component in the results
         error_handler_status = next(
-            (comp for comp in health_result.components if comp.name == "error_handler"),
-            None
+            (comp for comp in health_result.components if comp.name == "error_handler"), None
         )
-        
+
         assert error_handler_status is not None
         assert error_handler_status.status == HealthStatus.HEALTHY
         assert "functioning correctly" in error_handler_status.message.lower()
@@ -83,10 +82,9 @@ class TestWebSocketErrorHealthCheck:
         # Without metrics collector
         health_check = WebSocketErrorHealthCheck()
         health_result = await health_check.check_health()
-        
+
         metrics_status = next(
-            (comp for comp in health_result.components if comp.name == "metrics_collector"),
-            None
+            (comp for comp in health_result.components if comp.name == "metrics_collector"), None
         )
         assert metrics_status is not None
         assert metrics_status.status == HealthStatus.UNKNOWN
@@ -110,8 +108,7 @@ class TestWebSocketErrorHealthCheck:
 
         health_result = await health_check.check_health()
         metrics_status = next(
-            (comp for comp in health_result.components if comp.name == "metrics_collector"),
-            None
+            (comp for comp in health_result.components if comp.name == "metrics_collector"), None
         )
         assert metrics_status is not None
         assert metrics_status.status == HealthStatus.HEALTHY
@@ -123,10 +120,9 @@ class TestWebSocketErrorHealthCheck:
 
         health_result = await health_check.check_health()
         recovery_status = next(
-            (comp for comp in health_result.components if comp.name == "recovery_system"),
-            None
+            (comp for comp in health_result.components if comp.name == "recovery_system"), None
         )
-        
+
         assert recovery_status is not None
         assert recovery_status.status == HealthStatus.HEALTHY
         assert "functioning" in recovery_status.message.lower()
@@ -146,7 +142,7 @@ class TestWebSocketErrorHealthCheck:
 
         health_result = await health_check.check_health()
         performance = health_result.performance
-        
+
         assert performance is not None
         assert isinstance(performance, PerformanceHealth)
         assert performance.error_creation_us > 0
@@ -180,7 +176,7 @@ class TestWebSocketErrorHealthCheck:
         health_result = await health_check.check_health()
         assert health_result.overall_status in [HealthStatus.HEALTHY, HealthStatus.UNKNOWN]
         assert len(health_result.components) > 0  # Should have default components
-        
+
         # Test that health check produces consistent results
         health_result2 = await health_check.check_health()
         assert health_result2.overall_status == health_result.overall_status
@@ -203,8 +199,7 @@ class TestWebSocketErrorHealthCheck:
         # Test that custom component is included in health check
         health_result = await health_check.check_health()
         custom_component = next(
-            (c for c in health_result.components if c.name == "custom_component"),
-            None
+            (c for c in health_result.components if c.name == "custom_component"), None
         )
         assert custom_component is not None
         assert custom_component.status == HealthStatus.HEALTHY
@@ -256,7 +251,7 @@ class TestWebSocketErrorHealthCheck:
 
         # Perform a health check
         await health_check.check_health()
-        
+
         # Should now have a status (either healthy or known status)
         # Since this is a real system, we can't guarantee it's healthy,
         # but we can check that is_healthy() doesn't crash and returns a boolean
@@ -274,7 +269,7 @@ class TestWebSocketErrorHealthCheck:
 
         # Perform health check to generate data
         await health_check.check_health()
-        
+
         # With health data
         report = health_check.generate_health_report()
         assert "Health Status Report" in report or "Overall Status" in report
@@ -391,12 +386,9 @@ class TestWebSocketErrorHealthCheck:
 
         # Should handle the failure gracefully in health check
         health_result = await health_check.check_health()
-        
+
         # Should have component that failed
-        failed_component = next(
-            (c for c in health_result.components if c.name == "failing"),
-            None
-        )
+        failed_component = next((c for c in health_result.components if c.name == "failing"), None)
         assert failed_component is not None
         assert failed_component.status == HealthStatus.UNHEALTHY
         assert "failed" in failed_component.message.lower()
