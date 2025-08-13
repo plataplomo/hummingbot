@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 
+from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_recovery import (
     BackoffConfig,
     CircuitBreakerConfig,
@@ -15,7 +16,6 @@ from cyberdelta.apis.websocket.ws_error_recovery import (
     ErrorRecoveryConfig,
     MessageBuffer,
     MessageReplayConfig,
-    RecoveryStrategy,
     StateManager,
     WebSocketErrorRecovery,
 )
@@ -323,7 +323,7 @@ class TestWebSocketErrorRecovery:
             ErrorRecoveryConfig: Recovery config with fast timing for test performance.
         """
         return ErrorRecoveryConfig(
-            strategy=RecoveryStrategy.EXPONENTIAL_BACKOFF,
+            strategy=WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
             backoff=BackoffConfig(
                 initial_delay=0.1,  # Fast for testing
                 max_delay=1.0,

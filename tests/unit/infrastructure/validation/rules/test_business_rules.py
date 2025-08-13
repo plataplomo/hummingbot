@@ -46,7 +46,11 @@ from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_USDC_BP
 def decimal_strategy(
     draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
 ) -> Decimal:
-    """Generate valid Decimal values for financial calculations."""
+    """Generate valid Decimal values for financial calculations.
+    
+    Returns:
+        Decimal: A valid financial decimal value between min_value and max_value.
+    """
     value = draw(
         st.floats(
             min_value=min_value,
@@ -61,25 +65,41 @@ def decimal_strategy(
 
 @st.composite
 def balance_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic balance values."""
+    """Generate realistic balance values.
+    
+    Returns:
+        Decimal: A realistic balance value between 0 and 1,000,000.
+    """
     return draw(decimal_strategy(min_value=0.0, max_value=1000000.0))
 
 
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic price values."""
+    """Generate realistic price values.
+    
+    Returns:
+        Decimal: A realistic price value between 0.01 and 10,000.
+    """
     return draw(decimal_strategy(min_value=0.01, max_value=100000.0))
 
 
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic quantity values."""
+    """Generate realistic quantity values.
+    
+    Returns:
+        Decimal: A realistic quantity value between 0.000001 and 1000.
+    """
     return draw(decimal_strategy(min_value=0.000001, max_value=1000.0))
 
 
 @st.composite
 def order_value_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
-    """Generate valid order value limits (min, max) where min <= max."""
+    """Generate valid order value limits (min, max) where min <= max.
+    
+    Returns:
+        tuple[Decimal, Decimal]: A tuple of (min_value, max_value) where min <= max.
+    """
     min_val = draw(decimal_strategy(min_value=1.0, max_value=1000.0))
     max_val = draw(decimal_strategy(min_value=float(min_val), max_value=100000.0))
     return min_val, max_val
@@ -89,7 +109,11 @@ def order_value_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
 def generate_order_strategy(
     draw: st.DrawFn, exchange: ExchangeName, with_price: bool = True
 ) -> Order:
-    """Generate valid Order objects for testing."""
+    """Generate valid Order objects for testing.
+    
+    Returns:
+        Order: A valid Order object with the specified exchange and optional price.
+    """
     side = draw(st.sampled_from(list(OrderSide)))
     order_type = draw(st.sampled_from([OrderType.LIMIT, OrderType.MARKET]))
 
@@ -139,7 +163,11 @@ def create_mock_validation_context(
     exchange_min_size: Decimal | None = None,
     exchange_max_size: Decimal | None = None,
 ) -> ValidationContext:
-    """Create a mock validation context for testing."""
+    """Create a mock validation context for testing.
+    
+    Returns:
+        ValidationContext: A mock validation context configured with the specified parameters.
+    """
     mock_config = Mock(spec=AppSettings)
 
     # Mock validation config if values are provided
@@ -173,7 +201,11 @@ def create_mock_portfolio_with_balance(
     usdc_balance: Decimal | None = None,
     btc_balance: Decimal | None = None,
 ) -> Mock:
-    """Create mock portfolio state with specified balances."""
+    """Create mock portfolio state with specified balances.
+    
+    Returns:
+        Mock: A mock portfolio state with the specified USDC and BTC balances.
+    """
     portfolio_state = Mock(spec=PortfolioState)
 
     balances = {}
@@ -201,7 +233,11 @@ def create_test_order(
     price: Decimal | None = Decimal("50000.00"),
     order_type: OrderType = OrderType.LIMIT,
 ) -> Order:
-    """Create a test order with specified parameters."""
+    """Create a test order with specified parameters.
+    
+    Returns:
+        Order: A test order configured with the specified exchange, side, quantity, price, and type.
+    """
     if exchange == ExchangeName.BACKPACK:
         symbol = BTC_USDC_BP
     else:
@@ -366,7 +402,8 @@ class TestBalanceValidationRuleProperties:
             )
         else:
             assert not result.is_valid, (
-                f"Sell order for {order_quantity} should be invalid with balance {available_balance}"
+                f"Sell order for {order_quantity} should be invalid "
+                f"with balance {available_balance}"
             )
             assert len(result.violations) >= 1
             assert "Insufficient BTC balance" in result.violations[0]
@@ -562,11 +599,13 @@ class TestOrderValueLimitsRuleProperties:
         # Property: Order should be valid iff value is within limits
         if min_value <= order_value <= max_value:
             assert result.is_valid, (
-                f"Order value {order_value} should be valid within limits [{min_value}, {max_value}]"
+                f"Order value {order_value} should be valid "
+                f"within limits [{min_value}, {max_value}]"
             )
         else:
             assert not result.is_valid, (
-                f"Order value {order_value} should be invalid outside limits [{min_value}, {max_value}]"
+                f"Order value {order_value} should be invalid "
+                f"outside limits [{min_value}, {max_value}]"
             )
             assert len(result.violations) >= 1
 

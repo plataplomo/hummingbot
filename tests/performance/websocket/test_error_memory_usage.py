@@ -203,7 +203,7 @@ class TestErrorMemoryUsage:
         per_context = total_memory / 1000
         assert per_context < 1024, f"Per-context memory: {per_context:.0f} bytes"
 
-    def test_memory_cleanup_after_processing(self, config: WebSocketErrorConfig) -> None:
+    async def test_memory_cleanup_after_processing(self, config: WebSocketErrorConfig) -> None:
         """Test that memory is properly cleaned up after error processing."""
         handler = WebSocketStreamErrorHandler(config=config)
 
@@ -219,8 +219,8 @@ class TestErrorMemoryUsage:
                 code=WebSocketErrorCode.MESSAGE_MALFORMED,
                 message=f"Temporary error {i}",
             )
-            # Process synchronously (simplified for memory test)
-            handler._track_error(error)
+            # Process error through public interface
+            await handler.handle_stream_error(error)
 
         snapshot_peak = tracemalloc.take_snapshot()
 

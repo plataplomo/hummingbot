@@ -100,6 +100,8 @@ class TestRouterErrorMetadata:
 
         after_time = int(time.time() * 1000)
 
+        # The timestamp should be set automatically in model_post_init
+        assert metadata.error_timestamp_ms is not None
         assert before_time <= metadata.error_timestamp_ms <= after_time
 
 
@@ -116,7 +118,7 @@ class TestRouterErrorContextBuilder:
         router = Mock()
         router.__class__.__name__ = "TestWebSocketRouter"
         router.exchange_name = "hyperliquid"  # Valid exchange name
-        router._connection_id = "test-conn-12345"
+        router.get_connection_id = Mock(return_value="test-conn-12345")
         router.processors = {"route1": Mock(), "route2": Mock()}
         return router
 
@@ -391,18 +393,18 @@ class TestRouterErrorContextBuilder:
 
     def test_context_builder_with_non_dict_message(self, mock_router: Mock) -> None:
         """Test context builder handles non-dict messages gracefully."""
-        # Test with string message
-        string_message = "not a dict"
+        # Test with dict message (as required by the method signature)
+        dict_message = {"raw_message": "not a dict", "type": "invalid"}
         error = ValueError("Test error")
 
         context = RouterErrorContextBuilder.from_routing_error(
             router=mock_router,
             error=error,
-            message=string_message,  # This will be converted to dict
+            message=dict_message,
         )
 
         # Should handle gracefully and set message_keys to None
         assert context.extra_context is not None
         router_metadata = context.extra_context["router_metadata"]
         assert router_metadata["message_keys"] is None
-        assert context.extra_context["raw_message"] == string_message
+        assert context.extra_context["raw_message"] == dict_message

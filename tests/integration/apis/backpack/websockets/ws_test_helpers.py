@@ -298,7 +298,10 @@ async def wait_for_model_in_context[T](
             if isinstance(data, dict):
                 for key in context_keys:
                     if key in data and isinstance(data[key], model_type):
-                        found_models.append(data[key])
+                        model_instance = data[key]
+                        # Help mypy understand the type
+                        assert isinstance(model_instance, model_type)
+                        found_models.append(model_instance)
                         return
 
     try:

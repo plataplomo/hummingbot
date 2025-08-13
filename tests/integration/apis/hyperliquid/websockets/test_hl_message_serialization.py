@@ -779,7 +779,9 @@ class TestHyperliquidMessageSerializationIntegration:
             received_messages.append(context_data)
 
             # Process the precision test
-            self._process_precision_test(domain_data, precision_tests_passed)
+            if domain_data is not None:
+                assert isinstance(domain_data, DomainModelProtocol)
+                self._process_precision_test(domain_data, precision_tests_passed)
 
         return message_handler
 

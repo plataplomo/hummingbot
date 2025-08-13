@@ -539,11 +539,14 @@ class TestBackpackProcessorPipeline:
                     model_data = context.domain_model.model_dump()
                     _ = model_data.get("symbol")
                     _ = model_data.get("price")
-                elif hasattr(context.domain_model, "dict"):
+                elif hasattr(context.domain_model, "dict") and callable(getattr(context.domain_model, "dict", None)):
                     # Legacy Pydantic v1 models or dict-like objects
-                    model_data = context.domain_model.dict()
-                    _ = model_data.get("symbol")
-                    _ = model_data.get("price")
+                    dict_result: object = getattr(context.domain_model, "dict")()
+                    if isinstance(dict_result, dict):
+                        # Type narrowing: Pydantic dict() returns dict[str, Any]
+                        legacy_model_data: dict[str, object] = dict_result
+                        _symbol_value: object | None = legacy_model_data.get("symbol")
+                        _price_value: object | None = legacy_model_data.get("price")
             end = asyncio.get_event_loop().time()
             processing_times.append(end - start)
             message_count += 1

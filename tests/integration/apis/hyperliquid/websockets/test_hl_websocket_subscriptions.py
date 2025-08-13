@@ -160,11 +160,17 @@ class TestHyperliquidWebSocketUserEvents:
                             event_type = data["type"]
 
                             if event_type == "position" and "position" in data:
-                                self._validate_position_data(data["position"])
+                                position_data = data["position"]
+                                assert isinstance(position_data, dict)
+                                self._validate_position_data(position_data)
                             elif event_type == "order" and "order" in data:
-                                self._validate_order_data(data["order"])
+                                order_data = data["order"]
+                                assert isinstance(order_data, dict)
+                                self._validate_order_data(order_data)
                             elif event_type == "fill" and "fill" in data:
-                                self._validate_fill_data(data["fill"])
+                                fill_data = data["fill"]
+                                assert isinstance(fill_data, dict)
+                                self._validate_fill_data(fill_data)
 
                         received_events.append(data)
                     else:
@@ -625,7 +631,9 @@ class TestHyperliquidWebSocketComplexScenarios:
             ):
                 data = context.validated_envelope.data
                 if isinstance(data, dict):
-                    message_type = data.get("type", "unknown")
+                    type_value = data.get("type", "unknown")
+                    assert isinstance(type_value, str)
+                    message_type = type_value
 
             logger.info(
                 "multi_channel_message",

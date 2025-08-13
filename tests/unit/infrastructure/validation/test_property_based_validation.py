@@ -426,18 +426,24 @@ class TestOrderValueLimitsRuleProperties:
         # Property: Order should be valid iff value is within limits
         if min_value <= order_value <= max_value:
             assert result.is_valid, (
-                f"Order value {order_value} should be valid within limits [{min_value}, {max_value}]"
+                f"Order value {order_value} should be valid "
+                f"within limits [{min_value}, {max_value}]"
             )
         else:
             assert not result.is_valid, (
-                f"Order value {order_value} should be invalid outside limits [{min_value}, {max_value}]"
+                f"Order value {order_value} should be invalid "
+                f"outside limits [{min_value}, {max_value}]"
             )
 
 
 # Define strategy before class that uses it
 @st.composite
 def generate_order_strategy(draw: st.DrawFn) -> Order:
-    """Generate valid Order objects for testing."""
+    """Generate valid Order objects for testing.
+    
+    Returns:
+        Order: A valid order for property-based testing.
+    """
     side = draw(st.sampled_from(list(OrderSide)))
     # Only use simple order types to avoid complex validation requirements
     order_type = draw(st.sampled_from([OrderType.MARKET, OrderType.LIMIT]))

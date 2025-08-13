@@ -44,7 +44,11 @@ from tests.common_symbols import BTC_HL, BTC_USDC_BP
 def decimal_strategy(
     draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
 ) -> Decimal:
-    """Generate valid Decimal values for financial calculations."""
+    """Generate valid Decimal values for financial calculations.
+    
+    Returns:
+        Decimal: A valid financial decimal value between min_value and max_value.
+    """
     value = draw(
         st.floats(
             min_value=min_value,
@@ -59,7 +63,11 @@ def decimal_strategy(
 
 @st.composite
 def tick_size_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate valid tick sizes."""
+    """Generate valid tick sizes.
+    
+    Returns:
+        Decimal: A valid tick size value (0.01, 0.001, 0.0001, 0.1, or 1.0).
+    """
     # Common tick sizes: 0.01, 0.001, 0.0001, 0.1, 1.0
     tick_size = draw(
         st.sampled_from([
@@ -75,7 +83,11 @@ def tick_size_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def lot_size_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate valid lot sizes."""
+    """Generate valid lot sizes.
+    
+    Returns:
+        Decimal: A valid lot size value for crypto trading.
+    """
     # Common lot sizes for crypto
     lot_size = draw(
         st.sampled_from([
@@ -91,7 +103,11 @@ def lot_size_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def aligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
-    """Generate prices aligned to given tick size."""
+    """Generate prices aligned to given tick size.
+    
+    Returns:
+        Decimal: A price that is aligned to the given tick size.
+    """
     # Generate a base price multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=100000))
     # Align to tick size
@@ -101,7 +117,11 @@ def aligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
 
 @st.composite
 def misaligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
-    """Generate prices NOT aligned to given tick size."""
+    """Generate prices NOT aligned to given tick size.
+    
+    Returns:
+        Decimal: A price that is NOT aligned to the given tick size.
+    """
     # Skip very small tick sizes where misalignment might be negligible
     assume(tick_size >= Decimal("0.001"))
 
@@ -120,7 +140,11 @@ def misaligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
 
 @st.composite
 def aligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
-    """Generate quantities aligned to given lot size."""
+    """Generate quantities aligned to given lot size.
+    
+    Returns:
+        Decimal: A quantity that is aligned to the given lot size.
+    """
     # Generate a base quantity multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=10000))
     # Align to lot size
@@ -130,7 +154,11 @@ def aligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
 
 @st.composite
 def misaligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
-    """Generate quantities NOT aligned to given lot size."""
+    """Generate quantities NOT aligned to given lot size.
+    
+    Returns:
+        Decimal: A quantity that is NOT aligned to the given lot size.
+    """
     # Skip very small lot sizes where misalignment might be negligible
     assume(lot_size >= Decimal("0.001"))
 
@@ -155,7 +183,11 @@ def create_mock_validation_context(
     lot_size: float | None = None,
     exchange_config: Mock | None = None,
 ) -> ValidationContext:
-    """Create a mock validation context for testing."""
+    """Create a mock validation context for testing.
+    
+    Returns:
+        ValidationContext: Mock validation context with specified precision settings.
+    """
     mock_config = Mock(spec=AppSettings)
 
     # Mock exchange config if precision values are provided
@@ -183,7 +215,11 @@ def create_test_order(
     price: Decimal | None = Decimal("50000.00"),
     order_type: OrderType = OrderType.LIMIT,
 ) -> Order:
-    """Create a test order with specified parameters."""
+    """Create a test order with specified parameters.
+    
+    Returns:
+        Order: Test order with the specified parameters.
+    """
     if exchange == ExchangeName.BACKPACK:
         symbol = BTC_USDC_BP
     else:
@@ -595,7 +631,11 @@ class TestQuantityPrecisionRuleProperties:
 
 
 def draw_aligned_price(tick_size: Decimal) -> Decimal:
-    """Helper to generate an aligned price for a given tick size."""
+    """Helper to generate an aligned price for a given tick size.
+    
+    Returns:
+        Decimal: An aligned price value.
+    """
     import random
 
     multiplier = random.randint(1, 100000)
@@ -603,7 +643,11 @@ def draw_aligned_price(tick_size: Decimal) -> Decimal:
 
 
 def draw_misaligned_price(tick_size: Decimal) -> Decimal:
-    """Helper to generate a misaligned price for a given tick size."""
+    """Helper to generate a misaligned price for a given tick size.
+    
+    Returns:
+        Decimal: A misaligned price value.
+    """
     import random
 
     # Skip very small tick sizes where misalignment might be negligible
@@ -628,7 +672,11 @@ def draw_misaligned_price(tick_size: Decimal) -> Decimal:
 
 
 def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
-    """Helper to generate an aligned quantity for a given lot size."""
+    """Helper to generate an aligned quantity for a given lot size.
+    
+    Returns:
+        Decimal: An aligned quantity value.
+    """
     import random
 
     multiplier = random.randint(1, 10000)
@@ -636,7 +684,11 @@ def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
 
 
 def draw_misaligned_quantity(lot_size: Decimal) -> Decimal:
-    """Helper to generate a misaligned quantity for a given lot size."""
+    """Helper to generate a misaligned quantity for a given lot size.
+    
+    Returns:
+        Decimal: A misaligned quantity value.
+    """
     import random
 
     # Skip very small lot sizes where misalignment might be negligible

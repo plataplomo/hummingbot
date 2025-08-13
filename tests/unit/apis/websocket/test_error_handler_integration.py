@@ -147,11 +147,6 @@ class MockSubscriptionManager:
         self.clear_subscriptions_called = True
         await asyncio.sleep(0.01)
 
-    async def clear_subscriptions(self, connection_id: str) -> None:
-        """Mock clear subscriptions."""
-        self.clear_subscriptions_called = True
-        await asyncio.sleep(0.01)
-
     async def pause_subscriptions(self, connection_id: str) -> None:
         """Mock pause subscriptions."""
         self.pause_called = True
@@ -434,7 +429,9 @@ class TestErrorHandlerRegistry:
         health = registry.health_check()
         assert health["registry_healthy"] is True
         assert health["active_handlers"] == 1
-        assert len(health["issues"]) == 0
+        issues = health["issues"]
+        assert isinstance(issues, (list, str))  # Type narrowing for mypy
+        assert len(issues) == 0
 
         # Keep handler alive
         del handler
@@ -522,8 +519,17 @@ class TestErrorHandlerIntegration:
             context=sample_error.context,
         )
 
-        # Handle the connection error
-        await handler_with_mocks.handle_connection_error(connection_error)
+        # Handle the connection error - create a mock WebSocketContextProtocol
+        from unittest.mock import Mock
+        mock_ws_context = Mock()
+        mock_ws_context.exchange_type = ExchangeName.HYPERLIQUID
+        mock_ws_context.connection_id = "test-conn-123"
+        mock_ws_context.message_id = "test-msg-123"
+        mock_ws_context.symbol = "BTC-USDC"
+        mock_ws_context.routing_key = "test.route"
+        mock_ws_context.domain_model = None
+        
+        await handler_with_mocks.handle_connection_error(mock_ws_context, connection_error)
 
         # Should trigger recovery through the recovery handler
         # Note: Since we're using a mock, we need to check if the recovery system
@@ -544,7 +550,7 @@ class TestErrorHandlerIntegration:
         )
 
         # Handle the subscription error
-        await handler_with_mocks.handle_subscription_error(subscription_error)
+        await handler_with_mocks.handle_stream_error(subscription_error)
 
         # Verify error was processed
         if handler_with_mocks.metrics_collector:
@@ -693,10 +699,10 @@ class TestEventPublisherIntegration:
             # Create low-severity error that should be filtered
             low_severity_error = WebSocketStreamError(
                 message="Minor issue",
-                code=WebSocketErrorCode.MESSAGE_PARSING_ERROR,
+                code=WebSocketErrorCode.MESSAGE_MALFORMED,
                 context=sample_error.context,
                 severity=ErrorSeverity.INFO,  # Below ERROR threshold
-                recovery_strategy=WebSocketRecoveryStrategy.IGNORE,
+                recovery_strategy=WebSocketRecoveryStrategy.NONE,
             )
 
             # Publish low-severity event (should be filtered)
@@ -923,7 +929,9 @@ class TestEndToEndIntegration:
             publisher_stats = publisher.get_statistics()
 
             # Handler should have processed the error
-            assert handler_stats["total_errors_handled"] >= 1
+            total_errors_handled = handler_stats["total_errors_handled"]
+            assert isinstance(total_errors_handled, int)
+            assert total_errors_handled >= 1
 
             # Metrics should have recorded the error
             assert metrics_stats.total_errors_recorded >= 1
@@ -966,12 +974,12 @@ class TestEndToEndIntegration:
                 code=WebSocketErrorCode.CONNECTION_TIMEOUT,
                 context=error_context,
                 severity=ErrorSeverity.WARNING,
-                recovery_strategy=WebSocketRecoveryStrategy.SIMPLE_RETRY,
+                recovery_strategy=WebSocketRecoveryStrategy.IMMEDIATE_RETRY,
             )
 
             critical_error = WebSocketStreamError(
                 message="Critical system failure",
-                code=WebSocketErrorCode.SYSTEM_ERROR,
+                code=WebSocketErrorCode.INTERNAL_ERROR,
                 context=error_context,
                 severity=ErrorSeverity.CRITICAL,
                 recovery_strategy=WebSocketRecoveryStrategy.CIRCUIT_BREAKER,

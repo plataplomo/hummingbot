@@ -268,8 +268,8 @@ class TestRecoveryStrategyCoverage:
             await recovery_system.handle_stream_error(error)
 
         # Circuit breaker should be active
-        recovery_key = recovery_system._get_recovery_key(error.context)
-        assert recovery_system._is_circuit_breaker_active(recovery_key)
+        stats = recovery_system.get_recovery_stats()
+        assert len(stats["circuit_breakers_active"]) > 0, "Circuit breaker should be active"
 
         # Further attempts should be blocked
         success = await recovery_system.handle_stream_error(error)

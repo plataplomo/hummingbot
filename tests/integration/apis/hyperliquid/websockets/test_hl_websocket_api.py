@@ -24,7 +24,7 @@ from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums import ExchangeName
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models.market import Fill, OrderBook
 from cyberdelta.symbols.models import Symbol
 
@@ -250,19 +250,36 @@ class TestHyperliquidWebSocketMarketData:
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "trades" in data:
-                        # Type narrowing for mypy
-                        data = cast(dict[str, Any], data)
-                        for trade_data in cast(list[dict[str, Any]], data["trades"]):
+                        trades_data_raw: object = data["trades"]
+                        assert isinstance(trades_data_raw, list)
+                        # Type narrowing: trades_data is now known to be a list
+                        trades_data: list[object] = trades_data_raw
+                        for trade_data_raw in trades_data:
+                            assert isinstance(trade_data_raw, dict)
+                            # Type narrowing: trade_data is now known to be a dict
+                            trade_data: dict[str, object] = trade_data_raw
+                            
+                            # Extract and validate timestamp
+                            timestamp_ms = trade_data.get("time", 0)
+                            if not isinstance(timestamp_ms, (int, float)):
+                                timestamp_ms = 0
+                            
+                            # Extract and validate side
+                            side_str = trade_data.get("side", "buy")
+                            if not isinstance(side_str, str):
+                                side_str = "buy"
+                            side = OrderSide.BUY if side_str.lower() == "buy" else OrderSide.SELL
+                            
                             trade = Fill(
                                 id=str(trade_data.get("tid", "")),
                                 symbol=test_symbol,
                                 price=Decimal(str(trade_data.get("px", 0))),
                                 quantity=Decimal(str(trade_data.get("sz", 0))),
                                 executed_at=datetime.fromtimestamp(
-                                    trade_data.get("time", 0) / 1000, tz=UTC
+                                    timestamp_ms / 1000, tz=UTC
                                 ),
                                 exchange=ExchangeName.HYPERLIQUID,
-                                side=trade_data.get("side", "buy"),
+                                side=side,
                                 order_id=str(trade_data.get("oid", "unknown")),
                             )
 
@@ -330,9 +347,11 @@ class TestHyperliquidWebSocketMarketData:
                 ):
                     data = context.validated_envelope.data
                     if isinstance(data, dict) and "mids" in data:
-                        # Type narrowing for mypy
-                        data = cast(dict[str, Any], data)
-                        for coin, price in data["mids"].items():
+                        mids_data_raw: object = data["mids"]
+                        assert isinstance(mids_data_raw, dict)
+                        # Type narrowing: mids_data is now known to be a dict
+                        mids_data: dict[str, object] = mids_data_raw
+                        for coin, price in mids_data.items():
                             decimal_price = Decimal(str(price))
                             self._validate_mid_price(coin, decimal_price)
                             mids[coin] = decimal_price

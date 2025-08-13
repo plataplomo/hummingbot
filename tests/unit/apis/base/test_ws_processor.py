@@ -16,7 +16,6 @@ from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
     PydanticWebSocketProcessor,
     SimpleDictTransformer,
-    ValidationMetrics,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
@@ -75,25 +74,28 @@ class TestValidationMetrics:
 
     def test_initialization(self) -> None:
         """Test metrics initialization."""
-        metrics = ValidationMetrics()
+        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
+        metrics = ProcessingMetrics()
         assert metrics.total_processed == 0
         assert metrics.validation_errors == 0
         assert metrics.transformation_errors == 0
         assert metrics.handler_errors == 0
-        assert metrics.total_processing_time == 0.0
+        assert metrics.total_processing_time_seconds == 0.0
 
     def test_record_processing_time(self) -> None:
         """Test recording processing time."""
-        metrics = ValidationMetrics()
+        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
+        metrics = ProcessingMetrics()
         metrics.record_processing_time(0.1)
         metrics.record_processing_time(0.2)
 
         assert metrics.total_processed == 2
-        assert abs(metrics.total_processing_time - 0.3) < 1e-10
+        assert abs(metrics.total_processing_time_seconds - 0.3) < 1e-10
 
     def test_record_errors(self) -> None:
         """Test recording different error types."""
-        metrics = ValidationMetrics()
+        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
+        metrics = ProcessingMetrics()
         metrics.record_validation_error()
         metrics.record_transformation_error()
         metrics.record_handler_error()
@@ -104,17 +106,18 @@ class TestValidationMetrics:
 
     def test_get_stats(self) -> None:
         """Test getting statistics."""
-        metrics = ValidationMetrics()
+        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
+        metrics = ProcessingMetrics()
         metrics.record_processing_time(0.1)
         metrics.record_validation_error()
 
-        stats = metrics.get_stats()
-        assert stats["total_processed"] == 1
-        assert stats["validation_errors"] == 1
-        assert stats["average_processing_time_ms"] == 100.0
-        assert stats["error_rate"] == 1.0
-        assert "uptime_seconds" in stats
-        assert "messages_per_second" in stats
+        # Test individual methods instead of get_stats dict
+        assert metrics.total_processed == 1
+        assert metrics.validation_errors == 1
+        assert metrics.get_average_processing_time_ms() == 100.0
+        assert metrics.get_error_rate() == 1.0
+        assert metrics.get_uptime_seconds() > 0
+        assert metrics.get_messages_per_second() >= 0
 
 
 class TestPydanticWebSocketProcessor:

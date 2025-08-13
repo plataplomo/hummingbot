@@ -11,21 +11,22 @@ import logging
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import AsyncMock
+from typing import Any
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from pydantic import BaseModel, Field
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.ws_context import ExchangeType
-from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_processor import (
     MessageTransformer,
     PydanticWebSocketProcessor,
 )
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+from cyberdelta.enums import ExchangeName
 
 
 logger = logging.getLogger(__name__)
@@ -53,7 +54,9 @@ class TestComplexModel(BaseModel):
     processing_metadata: dict[str, str | int | float | bool] = Field(default_factory=dict)
 
 
-class TestTransformer(MessageTransformer[TestOrderModel, TestOrderModel | list[TestOrderModel] | None]):
+class TestTransformer(
+    MessageTransformer[TestOrderModel, TestOrderModel | list[TestOrderModel] | None]
+):
     """Test transformer for performance testing."""
 
     def transform(
@@ -87,7 +90,6 @@ class TestComplexTransformer(MessageTransformer[TestComplexModel, None]):
             "active_flags": [k for k, v in validated.status_flags.items() if v],
         }
         # In a real scenario, this might store the processed data somewhere
-        return None
 
 
 @pytest.fixture
@@ -159,7 +161,7 @@ def test_context() -> BackpackMessageContext:
     )
     return BackpackMessageContext(
         validated_envelope=envelope,
-        exchange_type=ExchangeType.BACKPACK,
+        exchange_type=ExchangeName.BACKPACK,
         routing_key="test.performance",
         timestamp=datetime.now(UTC),
         message_id="perf-test-msg",
@@ -420,11 +422,12 @@ class TestProcessorPerformance:
     ) -> None:
         """Test performance overhead of metrics collection."""
         # Create processor without metrics
+        mock_stream_handler = Mock()
         processor_no_metrics = PydanticWebSocketProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
-                processor_name="no_metrics",
-            stream_error_handler=None,  # No stream handler = minimal metrics
+            processor_name="no_metrics",
+            stream_error_handler=mock_stream_handler,
         )
 
         # Create processor with full metrics
@@ -589,12 +592,13 @@ class TestProcessorPerformanceComparison:
         invalid_order_payload: dict[str, str | int],
     ) -> None:
         """Compare performance of old vs new error handling."""
-        # Old approach processor (no stream handler)
+        # Old approach processor (with mock stream handler)
+        mock_stream_handler_old = Mock()
         old_processor = PydanticWebSocketProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
-                processor_name="old_approach",
-            stream_error_handler=None,
+            processor_name="old_approach",
+            stream_error_handler=mock_stream_handler_old,
         )
 
         # New approach processor (with stream handler)

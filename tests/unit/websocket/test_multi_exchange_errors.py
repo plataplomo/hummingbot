@@ -7,7 +7,7 @@ to ensure consistent behavior while respecting exchange-specific requirements.
 from __future__ import annotations
 
 import asyncio
-from typing import Any, Protocol, cast
+from typing import Protocol, cast
 
 import pytest
 
@@ -23,6 +23,8 @@ class ErrorMetricsProtocol(Protocol):
 
     total_errors: int
     errors_by_exchange: dict[str, int]
+
+
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 

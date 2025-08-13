@@ -6,6 +6,7 @@ typed StreamErrorContext objects from processor state, eliminating dict conversi
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import Mock
@@ -13,13 +14,15 @@ from unittest.mock import Mock
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics, ProcessorMetrics
+from cyberdelta.apis.websocket.ws_processor import PydanticWebSocketProcessor
 from cyberdelta.apis.websocket.ws_processor_error_context import (
     ProcessorErrorContextBuilder,
     ProcessorErrorMetadata,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+from cyberdelta.enums import ExchangeName
 
 
 class MockRawModel(BaseModel):
@@ -29,52 +32,69 @@ class MockRawModel(BaseModel):
     symbol: str = Field(...)
 
 
-class MockProcessor:
-    """Mock processor for testing."""
-
-    def __init__(self) -> None:
-        self.processor_name = "TestProcessor"
-        self.raw_model = MockRawModel
-        self.transformer = Mock()
-        self.metrics = Mock()
-
-        # Mock metrics get_stats method
-        self.metrics.get_stats.return_value = {
-            "total_processed": 100,
-            "error_rate": 0.05,
-            "average_processing_time_ms": 15.5,
-        }
-
-    def get_metrics(self) -> ProcessorMetrics:
-        """Mock get_metrics method to return ProcessorMetrics.
+class MockTransformer:
+    """Mock transformer for testing."""
+    
+    def transform(
+        self,
+        validated: MockRawModel,
+        context: WebSocketContextProtocol | None = None,
+    ) -> MockRawModel | None:
+        """Mock transform method.
         
         Returns:
-            ProcessorMetrics: Mock processor metrics with predefined test values.
+            MockRawModel | None: The validated raw model or None.
         """
-        processing_metrics = ProcessingMetrics(
-            total_processed=100,
-            validation_errors=5,
-            transformation_errors=2,
-            handler_errors=1,
-            total_processing_time_seconds=1.5,
-        )
-        return ProcessorMetrics.from_processor(
-            processor_name=self.processor_name,
-            raw_model_name=self.raw_model.__name__,
-            transformer_type=type(self.transformer).__name__,
-            processing_metrics=processing_metrics,
-        )
+        return validated
+
+
+def create_mock_processor() -> PydanticWebSocketProcessor[MockRawModel, MockRawModel]:
+    """Create a mock processor for testing.
+    
+    Returns:
+        PydanticWebSocketProcessor[MockRawModel, MockRawModel]: Mock processor.
+    """
+    # We need a mock stream error handler that implements the required interface
+    mock_error_handler = Mock(spec=WebSocketStreamErrorHandler)
+    
+    return PydanticWebSocketProcessor(
+        raw_model=MockRawModel,
+        transformer=MockTransformer(),
+        stream_error_handler=mock_error_handler,
+        processor_name="TestProcessor"
+    )
 
 
 class MockContext:
     """Mock WebSocket context for testing."""
 
     def __init__(self) -> None:
+        # Required by WebSocketContextProtocol
+        self.exchange_type = ExchangeName.HYPERLIQUID
         self.connection_id = "test-connection-123"
-        self.exchange_name = "hyperliquid"
-        self.channel = "trades"
+        self.message_id = "test-msg-123"
+        self.timestamp = datetime.now(UTC)
+        self.symbol: str | None = "BTC-USDC"
         self.routing_key = "trade.btc.usdc"
+        self.domain_model: object = None
+        
+        # Required by BaseContextProtocol
+        self.exchange_name = "hyperliquid"
+        self.validated_envelope = None
+        self.raw_model = None
+        
+        # Additional properties
+        self.channel = "trades"
         self.sequence_number = 1234
+
+    def model_dump(self, *, mode: str = "python") -> dict[str, object]:
+        return {
+            "connection_id": self.connection_id,
+            "exchange_name": self.exchange_name,
+            "channel": self.channel,
+            "routing_key": self.routing_key,
+            "sequence_number": self.sequence_number,
+        }
 
     def create_error_context(self) -> StreamErrorContext:
         """Create error context from mock context.
@@ -96,18 +116,27 @@ class MockContext:
             ),
         )
 
+    def get_transformer_params(self) -> dict[str, str]:
+        return {"symbol": "BTC-USDC"}
+
+    def get_symbol_param(self) -> dict[str, str] | None:
+        return {"symbol": "BTC-USDC"}
+
+    def get_coin_param(self) -> dict[str, str] | None:
+        return None
+
 
 class TestProcessorErrorContextBuilder:
     """Test ProcessorErrorContextBuilder functionality."""
 
     @pytest.fixture
-    def mock_processor(self) -> MockProcessor:
+    def mock_processor(self) -> PydanticWebSocketProcessor[MockRawModel, MockRawModel]:
         """Create mock processor.
         
         Returns:
-            MockProcessor: Mock processor with predefined test configuration.
+            PydanticWebSocketProcessor: Mock processor with predefined test configuration.
         """
-        return MockProcessor()
+        return create_mock_processor()
 
     @pytest.fixture
     def mock_context(self) -> MockContext:
@@ -142,7 +171,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_validation_error_with_context_method(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
         validation_error: ValidationError,
         mock_payload: dict[str, Any],
@@ -166,6 +195,7 @@ class TestProcessorErrorContextBuilder:
 
         # Check metadata
         assert result.metadata is not None
+        assert isinstance(result.metadata, ProcessorErrorMetadata)
         assert result.metadata.processor_name == "TestProcessor"
         assert result.metadata.stage == "validation"
         assert result.metadata.raw_model_name == "MockRawModel"
@@ -174,11 +204,12 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_validation_error_fallback(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         validation_error: ValidationError,
         mock_payload: dict[str, Any],
     ) -> None:
-        """Test creating error context using fallback when context has no create_error_context method."""
+        """Test creating error context using fallback when context has no 
+        create_error_context method."""
         # Create mock context without create_error_context method
         mock_context = Mock(spec=WebSocketContextProtocol)
         mock_context.connection_id = "fallback-connection-456"
@@ -208,12 +239,13 @@ class TestProcessorErrorContextBuilder:
 
         # Check metadata
         assert result.metadata is not None
+        assert isinstance(result.metadata, ProcessorErrorMetadata)
         assert result.metadata.processor_name == "TestProcessor"
         assert result.metadata.stage == "validation"
 
     def test_from_transformation_error(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from transformation error."""
@@ -232,6 +264,7 @@ class TestProcessorErrorContextBuilder:
         # Assert
         assert isinstance(result, StreamErrorContext)
         assert result.metadata is not None
+        assert isinstance(result.metadata, ProcessorErrorMetadata)
         assert result.metadata.processor_name == "TestProcessor"
         assert result.metadata.stage == "transformation"
         assert result.metadata.raw_model_name == "MockRawModel"
@@ -242,7 +275,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_handler_error_single_model(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from handler error with single domain model."""
@@ -262,6 +295,7 @@ class TestProcessorErrorContextBuilder:
         # Assert
         assert isinstance(result, StreamErrorContext)
         assert result.metadata is not None
+        assert isinstance(result.metadata, ProcessorErrorMetadata)
         assert result.metadata.processor_name == "TestProcessor"
         assert result.metadata.stage == "handler_invocation"
         assert result.metadata.domain_model_name == "MockRawModel"
@@ -272,7 +306,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_handler_error_batch_models(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from handler error with batch domain models."""
@@ -295,6 +329,7 @@ class TestProcessorErrorContextBuilder:
         # Assert
         assert isinstance(result, StreamErrorContext)
         assert result.metadata is not None
+        assert isinstance(result.metadata, ProcessorErrorMetadata)
         assert result.metadata.domain_model_name == "list[MockRawModel]"
         assert result.metadata.domain_model_count == 2
         assert result.metadata.is_unexpected_error is True
@@ -302,7 +337,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_handler_error_empty_batch(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from handler error with empty batch."""
@@ -321,12 +356,13 @@ class TestProcessorErrorContextBuilder:
         # Assert
         assert isinstance(result, StreamErrorContext)
         assert result.metadata is not None
+        assert isinstance(result.metadata, ProcessorErrorMetadata)
         assert result.metadata.domain_model_name == "list[Unknown]"
         assert result.metadata.domain_model_count == 0
 
     def test_from_unexpected_error(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from unexpected processor error."""
@@ -345,6 +381,7 @@ class TestProcessorErrorContextBuilder:
         # Assert
         assert isinstance(result, StreamErrorContext)
         assert result.metadata is not None
+        assert isinstance(result.metadata, ProcessorErrorMetadata)
         assert result.metadata.processor_name == "TestProcessor"
         assert result.metadata.stage == "validation"
         assert result.metadata.error_type == "MemoryError"
@@ -370,7 +407,7 @@ class TestProcessorErrorContextBuilder:
     def test_extract_payload_summary_large_dict(self) -> None:
         """Test extracting summary from large dict payload."""
         # Arrange - create dict with many keys
-        payload = {f"key_{i}": f"value_{i}" for i in range(10)}
+        payload: dict[str, object] = {f"key_{i}": f"value_{i}" for i in range(10)}
 
         # Act
         result = ProcessorErrorContextBuilder.extract_payload_summary(payload, max_chars=50)
@@ -383,7 +420,7 @@ class TestProcessorErrorContextBuilder:
     def test_extract_payload_summary_list(self) -> None:
         """Test extracting summary from list payload."""
         # Arrange
-        payload = [{"price": 150.50}, {"price": 151.00}, {"price": 149.50}]
+        payload: list[object] = [{"price": 150.50}, {"price": 151.00}, {"price": 149.50}]
 
         # Act
         result = ProcessorErrorContextBuilder.extract_payload_summary(payload)
@@ -418,7 +455,7 @@ class TestProcessorErrorContextBuilder:
         """Test payload summary extraction handles exceptions gracefully."""
 
         # Arrange - create object that will raise exception during processing
-        class BadObject:
+        class BadObject(BaseModel):
             def __len__(self) -> int:
                 raise RuntimeError("Cannot get length")
 
@@ -435,7 +472,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_enhance_context_with_metrics(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test enhancing error context with processor metrics."""
@@ -451,13 +488,14 @@ class TestProcessorErrorContextBuilder:
         # Assert
         assert enhanced_context is context  # Should modify in place
         assert enhanced_context.metadata is not None
+        assert isinstance(enhanced_context.metadata, ProcessorErrorMetadata)
         assert enhanced_context.metadata.total_processed == 100
         assert enhanced_context.metadata.total_errors == 8  # 5 + 2 + 1 = 8
         assert enhanced_context.metadata.error_rate == 0.08  # 8/100 = 0.08
 
     def test_enhance_context_with_metrics_no_metadata(
         self,
-        mock_processor: MockProcessor,
+        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
     ) -> None:
         """Test enhancing context when it has basic metadata."""
         # Arrange

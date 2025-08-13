@@ -104,7 +104,8 @@ class TestLoggingPerformanceOptimization:
             f"Bulk logging took {total_time_ms:.1f}ms, target was {target_total_time_ms}ms"
         )
         assert avg_time_us < target_total_time_ms * 1000 / count, (
-            f"Average log creation took {avg_time_us:.1f}μs, target was {target_total_time_ms * 1000 / count:.1f}μs"
+            f"Average log creation took {avg_time_us:.1f}μs, "
+            f"target was {target_total_time_ms * 1000 / count:.1f}μs"
         )
 
     def test_logging_format_performance(self) -> None:
@@ -233,7 +234,8 @@ class TestLoggingPerformanceOptimization:
         assert isinstance(serialized, dict)
         assert "connection_id" in serialized
         assert serialization_time_us < target_time_us, (
-            f"Context serialization took {serialization_time_us:.1f}μs, target was {target_time_us}μs"
+            f"Context serialization took {serialization_time_us:.1f}μs, "
+            f"target was {target_time_us}μs"
         )
 
     def test_large_error_message_performance(self) -> None:
@@ -343,7 +345,8 @@ class TestLoggingPerformanceOptimization:
         )
 
         assert estimated_size < target_size_bytes, (
-            f"Log data estimated size {estimated_size} bytes exceeds target {target_size_bytes} bytes"
+            f"Log data estimated size {estimated_size} bytes "
+            f"exceeds target {target_size_bytes} bytes"
         )
 
     @pytest.mark.parametrize("error_count", [10, 50, 100, 500])

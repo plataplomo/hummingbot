@@ -14,6 +14,7 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_error_recovery import ConnectionState
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_recovery import StreamRecoverySystem
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorRecoveryConfig
@@ -276,7 +277,7 @@ class TestRecoverySystemPerformance:
             f"target was {target_time_ms}ms"
         )
 
-    def test_recovery_circuit_breaker_performance(self) -> None:
+    async def test_recovery_circuit_breaker_performance(self) -> None:
         """Test circuit breaker logic performance."""
         # Target: < 1ms to evaluate circuit breaker
         target_time_ms = 1
@@ -285,23 +286,24 @@ class TestRecoverySystemPerformance:
 
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
 
-        # Use available method to check circuit breaker logic
+        # Use public interface to measure recovery performance
         start_time = time.perf_counter()
-        # Check if circuit breaker is active using private method logic
-        key = recovery_system._get_recovery_key(error.context)
-        is_active = recovery_system._is_circuit_breaker_active(key)
+        # Test recovery system response time through public interface
+        stats = recovery_system.get_recovery_stats()
+        # Use handle_stream_error as a performance proxy
+        await recovery_system.handle_stream_error(error)
         end_time = time.perf_counter()
 
-        breaker_time_ms = (end_time - start_time) * 1000
+        recovery_time_ms = (end_time - start_time) * 1000
 
-        assert isinstance(is_active, bool)
-        assert breaker_time_ms < target_time_ms, (
-            f"Circuit breaker evaluation took {breaker_time_ms:.1f}ms, "
+        assert stats is not None
+        assert recovery_time_ms < target_time_ms, (
+            f"Recovery system response took {recovery_time_ms:.1f}ms, "
             f"target was {target_time_ms}ms"
         )
 
     @pytest.mark.parametrize("error_count", [10, 50, 100])
-    def test_recovery_system_scaling_performance(self, error_count: int) -> None:
+    async def test_recovery_system_scaling_performance(self, error_count: int) -> None:
         """Test how recovery system scales with error count."""
         # Target: performance should scale linearly
         max_time_per_error_ms = 0.5  # 0.5ms per error
@@ -330,9 +332,10 @@ class TestRecoverySystemPerformance:
 
         start_time = time.perf_counter()
         for error in errors:
-            # Use available operations
+            # Use public operations that test recovery system performance
             recovery_system.get_recovery_stats()
-            recovery_system._get_recovery_key(error.context)
+            # Test recovery system operations for performance
+            await recovery_system.handle_stream_error(error)
         end_time = time.perf_counter()
 
         total_time_ms = (end_time - start_time) * 1000
@@ -353,7 +356,8 @@ class TestRecoverySystemPerformance:
         # Perform many recovery operations
         for i in range(1000):
             recovery_system.get_recovery_stats()
-            recovery_system._get_recovery_key(error.context)
+            # Use public operations for memory testing
+            _ = len(recovery_system.get_recovery_stats())
 
         # Memory usage should be bounded
         stats = recovery_system.get_recovery_stats()

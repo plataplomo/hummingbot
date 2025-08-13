@@ -84,7 +84,7 @@ class TestConcurrentErrorHandling:
         manager.reconnect = AsyncMock(side_effect=self._simulate_reconnect)
         manager.reset_connection = AsyncMock(side_effect=self._simulate_reset)
         manager.get_connection_state = AsyncMock(return_value="connected")
-        manager._lock = asyncio.Lock()  # Add lock for thread safety
+        # Removed private _lock attribute as it's not used in the actual implementation
         return manager
 
     async def _simulate_reconnect(self) -> bool:

@@ -43,7 +43,11 @@ from tests.common_symbols import BTC_USDC_BP
 def decimal_strategy(
     draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
 ) -> Decimal:
-    """Generate valid Decimal values for financial calculations."""
+    """Generate valid Decimal values for financial calculations.
+    
+    Returns:
+        Decimal: A valid decimal value for financial calculations.
+    """
     value = draw(
         st.floats(
             min_value=min_value,
@@ -58,25 +62,41 @@ def decimal_strategy(
 
 @st.composite
 def balance_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic balance values."""
+    """Generate realistic balance values.
+    
+    Returns:
+        Decimal: A realistic balance value.
+    """
     return draw(decimal_strategy(min_value=0.0, max_value=1000000.0))
 
 
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic price values."""
+    """Generate realistic price values.
+    
+    Returns:
+        Decimal: A realistic price value.
+    """
     return draw(decimal_strategy(min_value=0.01, max_value=100000.0))
 
 
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic quantity values."""
+    """Generate realistic quantity values.
+    
+    Returns:
+        Decimal: A realistic quantity value.
+    """
     return draw(decimal_strategy(min_value=0.000001, max_value=1000.0))
 
 
 @st.composite
 def config_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, Decimal, Decimal]:
-    """Generate valid configuration limits (min_trade, max_trade, max_position, max_exposure)."""
+    """Generate valid configuration limits (min_trade, max_trade, max_position, max_exposure).
+    
+    Returns:
+        tuple[Decimal, Decimal, Decimal, Decimal]: Configuration limits tuple.
+    """
     min_trade = draw(decimal_strategy(min_value=1.0, max_value=1000.0))
     max_trade = draw(decimal_strategy(min_value=float(min_trade), max_value=100000.0))
     max_position = draw(decimal_strategy(min_value=float(max_trade), max_value=500000.0))
@@ -86,7 +106,11 @@ def config_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, Decimal, 
 
 @st.composite
 def exchange_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, float, float]:
-    """Generate valid exchange limits (min_order, max_order, tick_size, lot_size)."""
+    """Generate valid exchange limits (min_order, max_order, tick_size, lot_size).
+    
+    Returns:
+        tuple[Decimal, Decimal, float, float]: Exchange limits tuple.
+    """
     min_order = draw(decimal_strategy(min_value=1.0, max_value=100.0))
     max_order = draw(decimal_strategy(min_value=float(min_order), max_value=50000.0))
     tick_size = draw(st.sampled_from([0.01, 0.001, 0.0001, 0.1, 1.0]))
@@ -103,7 +127,11 @@ def create_mock_config(
     max_position_usd: Decimal = Decimal("25000.00"),
     max_total_exposure_usd: Decimal = Decimal("100000.00"),
 ) -> Mock:
-    """Create comprehensive mock AppSettings for testing."""
+    """Create comprehensive mock AppSettings for testing.
+    
+    Returns:
+        Mock: Mock AppSettings object for testing.
+    """
     config = Mock(spec=AppSettings)
 
     # Mock validation config
@@ -136,7 +164,11 @@ def create_mock_portfolio_state(
     usdc_balance: Decimal = Decimal("15000.00"),
     btc_balance: Decimal = Decimal("2.0"),
 ) -> Mock:
-    """Create mock portfolio state with realistic balances and positions."""
+    """Create mock portfolio state with realistic balances and positions.
+    
+    Returns:
+        Mock: Mock portfolio state object.
+    """
     portfolio_state = Mock(spec=PortfolioState)
 
     # Mock balances
@@ -163,7 +195,11 @@ def create_valid_order(
     side: OrderSide = OrderSide.BUY,
     order_type: OrderType = OrderType.LIMIT,
 ) -> Order:
-    """Create a valid test order that should pass all validations."""
+    """Create a valid test order that should pass all validations.
+    
+    Returns:
+        Order: A valid test order.
+    """
     return Order(
         symbol=BTC_USDC_BP,
         side=side,

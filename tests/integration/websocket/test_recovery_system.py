@@ -4,7 +4,12 @@ This test validates Step 49: Recovery System Tests.
 """
 
 import asyncio
-from unittest.mock import AsyncMock, Mock
+
+# TODO: Implement ws_connection_error_bridge module
+# from cyberdelta.apis.connectivity.ws_connection_error_bridge import (
+#     ConnectionErrorBridge,
+# )
+from unittest.mock import AsyncMock, Mock, Mock as ConnectionErrorBridge
 
 import pytest
 
@@ -12,11 +17,6 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
     WebSocketRecoveryStrategy,
 )
-# TODO: Implement ws_connection_error_bridge module
-# from cyberdelta.apis.connectivity.ws_connection_error_bridge import (
-#     ConnectionErrorBridge,
-# )
-from unittest.mock import Mock as ConnectionErrorBridge
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_recovery import (
     BackoffConfig,
@@ -197,13 +197,13 @@ class TestRecoverySystemIntegration:
         """Test connection bridge integration with recovery system."""
         # Create mock manager
         mock_manager = Mock()
-        mock_manager._exchange_name = "hyperliquid"
-        mock_manager._ws_url = "wss://api.hyperliquid.xyz/ws"
+        mock_manager.exchange_name = "hyperliquid"
+        mock_manager.ws_url = "wss://api.hyperliquid.xyz/ws"
         mock_manager.is_connected = False
-        mock_manager._failure_count = 0
-        mock_manager._circuit_open = False
-        mock_manager._max_reconnect_attempts = 10
-        mock_manager._should_reconnect = True
+        mock_manager.failure_count = 0
+        mock_manager.circuit_open = False
+        mock_manager.max_reconnect_attempts = 10
+        mock_manager.should_reconnect = True
 
         # Create connection error
         error = ConnectionError("Connection reset")
@@ -218,7 +218,7 @@ class TestRecoverySystemIntegration:
         # Verify integration
         assert result.success is True
         assert result.should_continue is True
-        assert mock_manager._should_reconnect is True
+        assert mock_manager.should_reconnect is True
 
     async def test_circuit_breaker_integration(
         self,
@@ -285,8 +285,9 @@ class TestRecoverySystemIntegration:
         # Verify messages buffered
         assert len(recovery_system.message_buffer.buffer) == 3
 
-        # Trigger recovery with reconnection
-        await recovery_system._replay_messages()
+        # Trigger recovery by simulating successful reconnection
+        # This should automatically replay messages if replay_on_reconnect is enabled
+        await recovery_system.handle_successful_operation()
 
         # Verify messages were replayed
         assert mock_connection.send_message.call_count == 3

@@ -10,8 +10,12 @@ from __future__ import annotations
 import asyncio
 import gc
 import logging
+import os
+import sys
 import time
+from datetime import UTC, datetime
 
+import psutil
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
@@ -30,6 +34,8 @@ from cyberdelta.apis.websocket.ws_exceptions import (
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+from cyberdelta.enums import ExchangeName
+
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +89,7 @@ def test_handler() -> WebSocketStreamErrorHandler:
         WebSocketStreamErrorHandler: Minimal error handler optimized for performance testing.
     """
     config = WebSocketErrorHandlerFactory.create_default_config(
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         environment="test",  # Use 'test' environment instead of 'performance'
     )
     # Disable heavy features for baseline performance
@@ -92,8 +98,7 @@ def test_handler() -> WebSocketStreamErrorHandler:
     config.alerting.enable_alerting = False
 
     return WebSocketErrorHandlerFactory.create_minimal_handler(
-        exchange="hyperliquid",
-        config=config,
+        exchange=ExchangeName.HYPERLIQUID,
     )
 
 
@@ -281,7 +286,7 @@ class TestErrorHandlingPerformance:
                 else WebSocketErrorCode.SUBSCRIPTION_FAILED,
                 context=test_context,
                 severity=ErrorSeverity.ERROR if i % 3 == 0 else ErrorSeverity.WARNING,
-                recovery_strategy=WebSocketRecoveryStrategy.SIMPLE_RETRY,
+                recovery_strategy=WebSocketRecoveryStrategy.IMMEDIATE_RETRY,
             )
             for i in range(iterations)
         ]
@@ -334,10 +339,10 @@ class TestErrorHandlingPerformance:
             for i in range(errors_per_task):
                 error = WebSocketStreamError(
                     message=f"Task {task_id} error {i}",
-                    code=WebSocketErrorCode.MESSAGE_PARSING_ERROR,
+                    code=WebSocketErrorCode.MESSAGE_MALFORMED,
                     context=test_context,
                     severity=ErrorSeverity.WARNING,
-                    recovery_strategy=WebSocketRecoveryStrategy.IGNORE,
+                    recovery_strategy=WebSocketRecoveryStrategy.NONE,
                 )
                 await test_handler.handle_stream_error(error)
 
@@ -383,12 +388,34 @@ class TestErrorHandlingPerformance:
             required_field: str
             numeric_field: int = Field(gt=0)
 
-        # Mock context
+        # Mock context implementing WebSocketContextProtocol
         class MockContext:
-            connection_id = "test-conn"
-            exchange_name = "hyperliquid"
-            channel = "test"
-            sequence_number = 1
+            def __init__(self) -> None:
+                # Required by WebSocketContextProtocol
+                self.exchange_type = ExchangeName.HYPERLIQUID
+                self.connection_id = "test-conn"
+                self.message_id = "test-msg-123"
+                self.timestamp = datetime.now(UTC)
+                self.symbol: str | None = "BTC-USD"
+                self.routing_key = "test.route"
+                self.domain_model: object = None
+                
+                # Required by BaseContextProtocol
+                self.exchange_name = "hyperliquid"
+                self.validated_envelope = None
+                self.raw_model = None
+                
+                # Additional properties
+                self.channel = "test"
+                self.sequence_number = 1
+
+            def model_dump(self, *, mode: str = "python") -> dict[str, object]:
+                return {
+                    "connection_id": self.connection_id,
+                    "exchange_name": self.exchange_name,
+                    "channel": self.channel,
+                    "sequence_number": self.sequence_number,
+                }
 
             def create_error_context(self) -> StreamErrorContext:
                 return StreamErrorContext(
@@ -397,6 +424,15 @@ class TestErrorHandlingPerformance:
                     channel=self.channel,
                     sequence_number=self.sequence_number,
                 )
+
+            def get_transformer_params(self) -> dict[str, str]:
+                return {"symbol": "BTC-USD"}
+
+            def get_symbol_param(self) -> dict[str, str] | None:
+                return {"symbol": "BTC-USD"}
+
+            def get_coin_param(self) -> dict[str, str] | None:
+                return None
 
         mock_context = MockContext()
         mock_payload = TestModel(required_field="test", numeric_field=1)
@@ -469,7 +505,7 @@ class TestEventPublishingPerformance:
                 code=WebSocketErrorCode.CONNECTION_LOST,
                 context=test_context,
                 severity=ErrorSeverity.ERROR,
-                recovery_strategy=WebSocketRecoveryStrategy.SIMPLE_RETRY,
+                recovery_strategy=WebSocketRecoveryStrategy.IMMEDIATE_RETRY,
             )
             for i in range(iterations)
         ]
@@ -579,7 +615,6 @@ class TestMemoryUsage:
         test_context: StreamErrorContext,
     ) -> None:
         """Test memory footprint of error objects."""
-        import sys
 
         # Create different error types
         stream_error = WebSocketStreamError(
@@ -634,9 +669,6 @@ class TestMemoryUsage:
         test_context: StreamErrorContext,
     ) -> None:
         """Test memory scaling with many errors."""
-        import os
-
-        import psutil
 
         process = psutil.Process(os.getpid())
 
@@ -649,10 +681,10 @@ class TestMemoryUsage:
         for i in range(error_count):
             error = WebSocketStreamError(
                 message=f"Memory test error {i}",
-                code=WebSocketErrorCode.MESSAGE_PARSING_ERROR,
+                code=WebSocketErrorCode.MESSAGE_MALFORMED,
                 context=test_context,
                 severity=ErrorSeverity.INFO,
-                recovery_strategy=WebSocketRecoveryStrategy.IGNORE,
+                recovery_strategy=WebSocketRecoveryStrategy.NONE,
             )
             await test_handler.handle_stream_error(error)
 

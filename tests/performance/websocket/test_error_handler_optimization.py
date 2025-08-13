@@ -105,11 +105,12 @@ class OptimizedErrorHandler(WebSocketStreamErrorHandler):
             for error in errors:
                 self._metrics.record_error(error)
 
-    def get_cache_stats(self) -> dict[str, int]:
+    def get_cache_stats(self) -> dict[str, int | float]:
         """Get cache statistics.
 
         Returns:
-            dict[str, int]: Cache performance statistics including hits, misses, and hit rate.
+            dict[str, int | float]: Cache performance statistics including hits,
+                misses, and hit rate.
         """
         total = self._cache_hits + self._cache_misses
         hit_rate = self._cache_hits / total if total > 0 else 0
@@ -215,12 +216,11 @@ class TestErrorHandlerOptimization:
         config: WebSocketErrorConfig,
     ) -> None:
         """Test that async handling allows better concurrency."""
-        handler = WebSocketStreamErrorHandler(config)
-
         # Mock slow recovery handler
         slow_recovery = AsyncMock()
         slow_recovery.handle_recovery = AsyncMock(side_effect=lambda *args: asyncio.sleep(0.1))
-        handler._recovery_handler = slow_recovery
+        
+        handler = WebSocketStreamErrorHandler(config, recovery_handler=slow_recovery)
 
         # Create errors requiring recovery
         errors = [
