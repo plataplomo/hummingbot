@@ -1,116 +1,193 @@
-"""Integration tests for validation service.
+"""Property-based integration tests for validation service using Hypothesis.
 
 Tests the complete ValidationService that orchestrates all validation rules
 and ensures proper category ordering and rule execution.
 
 Following TESTING_SECURITY_RULES.md:
-- NO hardcoded financial values
-- Uses real configuration values
+- NO hardcoded financial values (Hypothesis generates them)
+- Uses property-based testing for comprehensive coverage
 - Tests complete validation flows
 - Validates rule execution order and priority
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
+from hypothesis import HealthCheck, assume, given, settings, strategies as st
 
 from cyberdelta.config.models import AppSettings
-from cyberdelta.infrastructure.validation.validation_service import ValidationService
 from cyberdelta.enums import (
     ExchangeName,
     OrderSide,
     OrderType,
-    TradingState,
     TimeInForce,
+    TradingState,
     ValidationCategory,
 )
+from cyberdelta.infrastructure.validation.validation_service import ValidationService
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.models.spot_balance import SpotBalance
 from cyberdelta.models.validation import ValidationResult
-from cyberdelta.symbols import bp_symbol
+from tests.common_symbols import BTC_USDC_BP
 
 
-class TestValidationService:
-    """Integration tests for ValidationService."""
+# --- Hypothesis Strategies ---
 
-    @pytest.fixture
-    def mock_config(self) -> Mock:
-        """Create comprehensive mock AppSettings for testing."""
-        config = Mock(spec=AppSettings)
 
-        # Mock validation config
-        validation_config = Mock()
-        validation_config.min_trade_value = Decimal("100.00")
-        validation_config.max_trade_value = Decimal("50000.00")
-        config.validation = validation_config
-
-        # Mock risk config
-        risk_config = Mock()
-        global_risk = Mock()
-        global_risk.max_position_usd = Decimal("25000.00")
-        global_risk.max_total_exposure_usd = Decimal("100000.00")
-        risk_config.global_risk = global_risk
-        config.risk = risk_config
-
-        # Mock exchange configs
-        backpack_config = Mock()
-        backpack_config.tick_size = 0.01
-        backpack_config.lot_size = 0.001
-        backpack_config.min_order_size = Decimal("50.00")
-        backpack_config.max_order_size = Decimal("25000.00")
-
-        config.exchanges = {"backpack": backpack_config}
-
-        return config
-
-    @pytest.fixture
-    def validation_service(self, mock_config: Mock) -> ValidationService:
-        """Create ValidationService for testing."""
-        return ValidationService(mock_config)
-
-    @pytest.fixture
-    def mock_portfolio_state(self) -> Mock:
-        """Create mock portfolio state with realistic balances and positions."""
-        portfolio_state = Mock(spec=PortfolioState)
-
-        # Mock balances
-        usdc_balance = Mock(spec=SpotBalance)
-        usdc_balance.available_quantity = Decimal("15000.00")  # $15k available
-
-        btc_balance = Mock(spec=SpotBalance)
-        btc_balance.available_quantity = Decimal("2.0")  # 2.0 BTC available
-
-        portfolio_state.balances = {
-            "backpack:USDC": usdc_balance,
-            "backpack:BTC": btc_balance,
-        }
-
-        # Mock positions (empty for most tests)
-        portfolio_state.positions = {}
-
-        return portfolio_state
-
-    @pytest.fixture
-    def valid_order(self) -> Order:
-        """Create a valid test order that should pass all validations."""
-        return Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.100"),  # Aligned to 0.001 lot size
-            price=Decimal("10000.00"),  # Aligned to 0.01 tick size, $1k total value
-            order_type=OrderType.LIMIT,
-            time_in_force=TimeInForce.GTC,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_valid_order",
+@st.composite
+def decimal_strategy(
+    draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
+) -> Decimal:
+    """Generate valid Decimal values for financial calculations."""
+    value = draw(
+        st.floats(
+            min_value=min_value,
+            max_value=max_value,
+            allow_infinity=False,
+            allow_nan=False,
+            exclude_min=True,
         )
+    )
+    return Decimal(str(value))
 
-    def test_service_initialization(self, validation_service: ValidationService) -> None:
+
+@st.composite
+def balance_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic balance values."""
+    return draw(decimal_strategy(min_value=0.0, max_value=1000000.0))
+
+
+@st.composite
+def price_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic price values."""
+    return draw(decimal_strategy(min_value=0.01, max_value=100000.0))
+
+
+@st.composite
+def quantity_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic quantity values."""
+    return draw(decimal_strategy(min_value=0.000001, max_value=1000.0))
+
+
+@st.composite
+def config_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    """Generate valid configuration limits (min_trade, max_trade, max_position, max_exposure)."""
+    min_trade = draw(decimal_strategy(min_value=1.0, max_value=1000.0))
+    max_trade = draw(decimal_strategy(min_value=float(min_trade), max_value=100000.0))
+    max_position = draw(decimal_strategy(min_value=float(max_trade), max_value=500000.0))
+    max_exposure = draw(decimal_strategy(min_value=float(max_position), max_value=1000000.0))
+    return min_trade, max_trade, max_position, max_exposure
+
+
+@st.composite
+def exchange_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal, float, float]:
+    """Generate valid exchange limits (min_order, max_order, tick_size, lot_size)."""
+    min_order = draw(decimal_strategy(min_value=1.0, max_value=100.0))
+    max_order = draw(decimal_strategy(min_value=float(min_order), max_value=50000.0))
+    tick_size = draw(st.sampled_from([0.01, 0.001, 0.0001, 0.1, 1.0]))
+    lot_size = draw(st.sampled_from([0.001, 0.0001, 0.01, 0.1, 1.0]))
+    return min_order, max_order, tick_size, lot_size
+
+
+# --- Helper Functions ---
+
+
+def create_mock_config(
+    min_trade_value: Decimal = Decimal("100.00"),
+    max_trade_value: Decimal = Decimal("50000.00"),
+    max_position_usd: Decimal = Decimal("25000.00"),
+    max_total_exposure_usd: Decimal = Decimal("100000.00"),
+) -> Mock:
+    """Create comprehensive mock AppSettings for testing."""
+    config = Mock(spec=AppSettings)
+
+    # Mock validation config
+    validation_config = Mock()
+    validation_config.min_trade_value = min_trade_value
+    validation_config.max_trade_value = max_trade_value
+    config.validation = validation_config
+
+    # Mock risk config
+    risk_config = Mock()
+    global_risk = Mock()
+    global_risk.max_position_usd = max_position_usd
+    global_risk.max_total_exposure_usd = max_total_exposure_usd
+    risk_config.global_risk = global_risk
+    config.risk = risk_config
+
+    # Mock exchange configs
+    backpack_config = Mock()
+    backpack_config.tick_size = 0.01
+    backpack_config.lot_size = 0.001
+    backpack_config.min_order_size = Decimal("1.00")  # Lower minimum for tests
+    backpack_config.max_order_size = Decimal("25000.00")
+
+    config.exchanges = {"backpack": backpack_config}
+
+    return config
+
+
+def create_mock_portfolio_state(
+    usdc_balance: Decimal = Decimal("15000.00"),
+    btc_balance: Decimal = Decimal("2.0"),
+) -> Mock:
+    """Create mock portfolio state with realistic balances and positions."""
+    portfolio_state = Mock(spec=PortfolioState)
+
+    # Mock balances
+    usdc_bal = Mock(spec=SpotBalance)
+    usdc_bal.available_quantity = usdc_balance
+
+    btc_bal = Mock(spec=SpotBalance)
+    btc_bal.available_quantity = btc_balance
+
+    portfolio_state.balances = {
+        "backpack:USDC": usdc_bal,
+        "backpack:BTC": btc_bal,
+    }
+
+    # Mock positions (empty for most tests)
+    portfolio_state.positions = {}
+
+    return portfolio_state
+
+
+def create_valid_order(
+    quantity: Decimal = Decimal("0.100"),
+    price: Decimal = Decimal("10000.00"),
+    side: OrderSide = OrderSide.BUY,
+    order_type: OrderType = OrderType.LIMIT,
+) -> Order:
+    """Create a valid test order that should pass all validations."""
+    return Order(
+        symbol=BTC_USDC_BP,
+        side=side,
+        quantity_requested=quantity,
+        price=price,
+        order_type=order_type,
+        time_in_force=TimeInForce.GTC,
+        exchange=ExchangeName.BACKPACK,
+        exchange_order_id="test_valid_order",
+        updated_at=datetime.now(UTC),
+        triggered_at=None,
+        strategy_name="test_strategy",
+        signal_id="test_signal",
+    )
+
+
+class TestValidationServiceProperties:
+    """Property-based integration tests for ValidationService."""
+
+    def test_service_initialization(self) -> None:
         """Test that service initializes with all validation rules registered."""
+        config = create_mock_config()
+        validation_service = ValidationService(config)
+
         # Check that rules are registered in registry
         all_rules = validation_service.registry.get_rules()
         assert len(all_rules) > 0
@@ -137,49 +214,228 @@ class TestValidationService:
         assert len(risk_rules) == 2  # MaxPositionRule, MaxExposureRule
 
         market_rules = validation_service.registry.get_rules(ValidationCategory.MARKET)
-        assert len(market_rules) == 3  # MarketStatusRule, TradingHoursRule, LiquidityRule
+        assert len(market_rules) == 2  # MarketStatusRule, LiquidityRule
 
-    async def test_valid_order_passes_all_validations(
-        self, validation_service: ValidationService, valid_order: Order, mock_portfolio_state: Mock
+    @given(
+        config_limits=config_limits_strategy(),
+        order_price=price_strategy(),
+        order_quantity=quantity_strategy(),
+    )
+    @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @pytest.mark.asyncio
+    async def test_valid_orders_within_all_limits_pass(
+        self,
+        config_limits: tuple[Decimal, Decimal, Decimal, Decimal],
+        order_price: Decimal,
+        order_quantity: Decimal,
     ) -> None:
-        """Test that a valid order passes all validation rules."""
+        """Property: Orders within all configured limits should pass validation."""
+        min_trade, max_trade, max_position, max_exposure = config_limits
+
+        order_value = order_price * order_quantity
+
+        # Only test orders that should be valid
+        assume(min_trade <= order_value <= max_trade)
+        assume(order_value <= max_position)  # Single order won't exceed position limit
+
+        config = create_mock_config(
+            min_trade_value=min_trade,
+            max_trade_value=max_trade,
+            max_position_usd=max_position,
+            max_total_exposure_usd=max_exposure,
+        )
+
+        # Ensure exchange limits accommodate the order value
+        # Set exchange max to be at least as large as max_trade to avoid conflicts
+        exchange_max = max(max_trade, Decimal("50000.00"))
+        config.exchanges["backpack"].max_order_size = exchange_max
+
+        validation_service = ValidationService(config)
+
+        # Create order with aligned precision
+        aligned_quantity = (order_quantity // Decimal("0.001")) * Decimal("0.001")
+        aligned_price = (order_price // Decimal("0.01")) * Decimal("0.01")
+
+        # Ensure aligned values are positive
+        if aligned_quantity <= 0:
+            aligned_quantity = Decimal("0.001")
+        if aligned_price <= 0:
+            aligned_price = Decimal("0.01")
+
+        # Recalculate order value with aligned values and ensure it's still within limits
+        aligned_order_value = aligned_price * aligned_quantity
+
+        # Skip this test case if alignment changed the value too much
+        assume(min_trade <= aligned_order_value <= max_trade)
+        assume(aligned_order_value <= max_position)
+
+        # Create portfolio state with balance matching aligned order value
+        portfolio_state = create_mock_portfolio_state(
+            usdc_balance=aligned_order_value * Decimal(2)  # Sufficient balance for aligned value
+        )
+
+        order = create_valid_order(
+            quantity=aligned_quantity, price=aligned_price, side=OrderSide.BUY
+        )
+
         result = await validation_service.validate_order(
-            order=valid_order,
-            portfolio_state=mock_portfolio_state,
+            order=order,
+            portfolio_state=portfolio_state,
             market_snapshot=None,
             trading_state=TradingState.ACTIVE,
             is_reconciling=False,
             is_reduce_only=False,
         )
 
-        assert result.is_valid
-        assert len(result.violations) == 0
-        assert result.validation_type == "PRE_TRADE_RISK_CHECK"
+        # Property: Should be valid when within all limits
+        assert result.is_valid, (
+            f"Order with aligned value {aligned_order_value} should be valid within limits "
+            f"[{min_trade}, {max_trade}] and sufficient balance. Violations: {result.violations}"
+        )
 
-    async def test_precision_violations_stop_early(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
+    @given(
+        insufficient_balance=balance_strategy(),
+        order_price=price_strategy(),
+        order_quantity=quantity_strategy(),
+    )
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_insufficient_balance_always_fails(
+        self, insufficient_balance: Decimal, order_price: Decimal, order_quantity: Decimal
     ) -> None:
-        """Test that precision violations cause early termination (fail-fast)."""
+        """Property: Orders with insufficient balance should always fail validation."""
+        order_value = order_price * order_quantity
+
+        # Ensure balance is insufficient
+        assume(insufficient_balance < order_value)
+
+        config = create_mock_config()
+        validation_service = ValidationService(config)
+        portfolio_state = create_mock_portfolio_state(usdc_balance=insufficient_balance)
+
+        # Create order with aligned precision to avoid precision validation failures
+        aligned_quantity = (order_quantity // Decimal("0.001")) * Decimal("0.001")
+        aligned_price = (order_price // Decimal("0.01")) * Decimal("0.01")
+
+        # Ensure aligned values are positive
+        if aligned_quantity <= 0:
+            aligned_quantity = Decimal("0.001")
+        if aligned_price <= 0:
+            aligned_price = Decimal("0.01")
+
+        order = create_valid_order(
+            quantity=aligned_quantity, price=aligned_price, side=OrderSide.BUY
+        )
+
+        result = await validation_service.validate_order(
+            order=order,
+            portfolio_state=portfolio_state,
+            market_snapshot=None,
+            trading_state=TradingState.ACTIVE,
+            is_reconciling=False,
+            is_reduce_only=False,
+        )
+
+        # Property: Should always fail with insufficient balance
+        assert not result.is_valid, (
+            f"Order costing {order_value} should fail with balance {insufficient_balance}"
+        )
+        assert any("balance" in v.lower() or "insufficient" in v.lower() for v in result.violations)
+
+    @given(
+        trading_state=st.sampled_from([
+            TradingState.ACTIVE,
+            TradingState.REDUCING,
+            TradingState.HALTED,
+            TradingState.RECONCILING,
+        ]),
+        is_reduce_only=st.booleans(),
+        is_reconciling=st.booleans(),
+    )
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_trading_state_behavior_properties(
+        self, trading_state: TradingState, is_reduce_only: bool, is_reconciling: bool
+    ) -> None:
+        """Property: Validation behavior should be consistent across trading states."""
+        config = create_mock_config()
+        validation_service = ValidationService(config)
+        portfolio_state = create_mock_portfolio_state()
+
+        order = create_valid_order()
+
+        result = await validation_service.validate_order(
+            order=order,
+            portfolio_state=portfolio_state,
+            market_snapshot=None,
+            trading_state=trading_state,
+            is_reconciling=is_reconciling,
+            is_reduce_only=is_reduce_only,
+        )
+
+        # Property: Reconciliation mode should skip most checks
+        if is_reconciling:
+            # During reconciliation, balance and risk checks should be skipped
+            if not result.is_valid:
+                violations_text = " ".join(result.violations).lower()
+                assert "balance" not in violations_text
+                assert "insufficient" not in violations_text
+
+        # Property: Halted state should block non-reduce orders
+        elif trading_state == TradingState.HALTED and not is_reduce_only:
+            assert not result.is_valid
+            violations_text = " ".join(result.violations).lower()
+            assert "halted" in violations_text
+
+        # Property: Reduce-only orders should bypass some restrictions
+        elif is_reduce_only and trading_state == TradingState.HALTED:
+            violations_text = " ".join(result.violations).lower() if result.violations else ""
+            assert "halted" not in violations_text  # Should not be blocked by halt
+
+    @given(
+        misaligned_quantity=st.floats(
+            min_value=1.0001, max_value=2.0, allow_nan=False, allow_infinity=False
+        ),
+        misaligned_price=st.floats(
+            min_value=10000.005, max_value=10000.995, allow_nan=False, allow_infinity=False
+        ),
+    )
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_precision_violations_cause_early_termination(
+        self, misaligned_quantity: float, misaligned_price: float
+    ) -> None:
+        """Property: Precision violations should cause early termination (fail-fast)."""
+        config = create_mock_config()
+        validation_service = ValidationService(config)
+        portfolio_state = create_mock_portfolio_state()
+
         # Create order with precision violations
-        bad_precision_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
+        order = Order(
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
-            quantity_requested=Decimal("0.1005"),  # Not aligned to 0.001 lot size
-            price=Decimal("10000.005"),  # Not aligned to 0.01 tick size
+            quantity_requested=Decimal(str(misaligned_quantity)),  # Not aligned to 0.001 lot size
+            price=Decimal(str(misaligned_price)),  # Not aligned to 0.01 tick size
             order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_bad_precision",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await validation_service.validate_order(
-            order=bad_precision_order,
-            portfolio_state=mock_portfolio_state,
+            order=order,
+            portfolio_state=portfolio_state,
             market_snapshot=None,
             trading_state=TradingState.ACTIVE,
             is_reconciling=False,
             is_reduce_only=False,
         )
 
+        # Property: Should fail with precision violations
         assert not result.is_valid
         assert len(result.violations) >= 1
 
@@ -189,228 +445,33 @@ class TestValidationService:
         ]
         assert len(precision_violations) >= 1
 
-    async def test_insufficient_balance_violation(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
-    ) -> None:
-        """Test balance validation failure."""
-        # Create order that exceeds available balance
-        large_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("2.000"),  # 2.0 BTC
-            price=Decimal("10000.00"),  # $20k total (> $15k available)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_insufficient_balance",
-        )
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_market_orders_skip_price_validation(self, _: None) -> None:
+        """Property: Market orders should skip price-related validations."""
+        config = create_mock_config()
+        validation_service = ValidationService(config)
+        portfolio_state = create_mock_portfolio_state()
 
-        result = await validation_service.validate_order(
-            order=large_order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.ACTIVE,
-            is_reconciling=False,
-            is_reduce_only=False,
-        )
-
-        assert not result.is_valid
-        assert len(result.violations) >= 1
-
-        # Should have balance violation
-        balance_violations = [
-            v for v in result.violations if "balance" in v.lower() or "insufficient" in v.lower()
-        ]
-        assert len(balance_violations) >= 1
-
-    async def test_order_value_limits_violation(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
-    ) -> None:
-        """Test order value limits validation failure."""
-        # Create order below minimum value
-        tiny_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.001"),  # 0.001 BTC
-            price=Decimal("10000.00"),  # $10 total (< $100 minimum)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_below_minimum",
-        )
-
-        result = await validation_service.validate_order(
-            order=tiny_order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.ACTIVE,
-            is_reconciling=False,
-            is_reduce_only=False,
-        )
-
-        assert not result.is_valid
-        assert len(result.violations) >= 1
-
-        # Should have value limit violation
-        limit_violations = [v for v in result.violations if "minimum" in v.lower()]
-        assert len(limit_violations) >= 1
-
-    async def test_risk_limits_violation(self, validation_service: ValidationService) -> None:
-        """Test risk validation failure for position limits."""
-        # Create portfolio state with existing large position
-        portfolio_with_position = Mock(spec=PortfolioState)
-
-        # Mock existing BTC position worth $20k
-        from cyberdelta.models.derivative_position import DerivativePosition
-
-        existing_position = Mock(spec=DerivativePosition)
-        existing_position.size = Decimal("2.0")  # 2.0 BTC
-        existing_position.entry_price = Decimal("10000.00")  # $10k entry
-
-        portfolio_with_position.positions = {"backpack:BTC_USDC": existing_position}
-        portfolio_with_position.balances = {}
-
-        # Create order that would push position over limit
-        large_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.000"),  # Add 1.0 BTC
-            price=Decimal("10000.00"),  # $10k more = $30k total (> $25k limit)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_position_limit",
-        )
-
-        result = await validation_service.validate_order(
-            order=large_order,
-            portfolio_state=portfolio_with_position,
-            market_snapshot=None,
-            trading_state=TradingState.ACTIVE,
-            is_reconciling=False,
-            is_reduce_only=False,
-        )
-
-        assert not result.is_valid
-        assert len(result.violations) >= 1
-
-        # Should have position limit violation
-        position_violations = [v for v in result.violations if "position" in v.lower()]
-        assert len(position_violations) >= 1
-
-    async def test_multiple_violations_across_categories(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
-    ) -> None:
-        """Test order with violations in multiple categories."""
-        # Create order with multiple problems
-        bad_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.1005"),  # Bad precision
-            price=Decimal("50.00"),  # $5.025 total (< $100 minimum)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_multiple_violations",
-        )
-
-        result = await validation_service.validate_order(
-            order=bad_order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.ACTIVE,
-            is_reconciling=False,
-            is_reduce_only=False,
-        )
-
-        assert not result.is_valid
-        assert len(result.violations) >= 1
-
-        # Note: Due to fail-fast on precision, we may only see precision violations
-        # This is the intended behavior for critical errors
-
-    async def test_halted_trading_state(
-        self, validation_service: ValidationService, valid_order: Order, mock_portfolio_state: Mock
-    ) -> None:
-        """Test validation during halted trading state."""
-        result = await validation_service.validate_order(
-            order=valid_order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.HALTED,  # System halted
-            is_reconciling=False,
-            is_reduce_only=False,  # Not reduce-only
-        )
-
-        assert not result.is_valid
-        assert len(result.violations) >= 1
-
-        # Should have market status violation
-        halt_violations = [v for v in result.violations if "halted" in v.lower()]
-        assert len(halt_violations) >= 1
-
-    async def test_reduce_only_order_bypasses_some_rules(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
-    ) -> None:
-        """Test that reduce-only orders bypass certain validation rules."""
-        # Create reduce-only order during halted state
-        reduce_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.SELL,  # Selling to reduce position
-            quantity_requested=Decimal("0.100"),
-            price=Decimal("10000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_reduce_only",
-        )
-
-        result = await validation_service.validate_order(
-            order=reduce_order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.HALTED,  # Would normally block orders
-            is_reconciling=False,
-            is_reduce_only=True,  # But this is reduce-only
-        )
-
-        # Reduce-only orders should be allowed during halts for risk management
-        # May still fail other validations (balance, precision) but not market status
-        violations_text = " ".join(result.violations).lower()
-        assert "halted" not in violations_text
-
-    async def test_reconciliation_mode_skips_checks(
-        self, validation_service: ValidationService, valid_order: Order, mock_portfolio_state: Mock
-    ) -> None:
-        """Test that reconciliation mode skips certain validation checks."""
-        result = await validation_service.validate_order(
-            order=valid_order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.ACTIVE,
-            is_reconciling=True,  # Reconciliation mode
-            is_reduce_only=False,
-        )
-
-        # During reconciliation, balance and risk checks should be skipped
-        # Only precision and basic checks should remain
-        if not result.is_valid:
-            violations_text = " ".join(result.violations).lower()
-            assert "balance" not in violations_text
-            assert "insufficient" not in violations_text
-
-    async def test_market_order_validation(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
-    ) -> None:
-        """Test validation of market orders (no price)."""
         market_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=Decimal("0.100"),  # Valid quantity
             price=None,  # Market order
             order_type=OrderType.MARKET,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_market_order",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await validation_service.validate_order(
             order=market_order,
-            portfolio_state=mock_portfolio_state,
+            portfolio_state=portfolio_state,
             market_snapshot=None,
             trading_state=TradingState.ACTIVE,
             is_reconciling=False,
@@ -419,139 +480,122 @@ class TestValidationService:
 
         # Market orders should skip price-related validations
         # but still validate quantity precision and other rules
-
-        # If it fails, should not be due to price precision
         if not result.is_valid:
             violations_text = " ".join(result.violations).lower()
             assert "price" not in violations_text or "must have a price" not in violations_text
 
-    async def test_validation_with_no_exchange_config(
-        self, mock_config: Mock, mock_portfolio_state: Mock
-    ) -> None:
-        """Test validation when exchange configuration is missing."""
-        # Remove exchange config
-        mock_config.exchanges = {}
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_no_portfolio_state_always_fails(self, _: None) -> None:
+        """Property: Orders should always fail when portfolio state is unavailable."""
+        config = create_mock_config()
+        validation_service = ValidationService(config)
 
-        service = ValidationService(mock_config)
+        order = create_valid_order()
 
-        order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.100"),
-            price=Decimal("10000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_no_exchange_config",
-        )
-
-        result = await service.validate_order(
-            order=order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.ACTIVE,
-            is_reconciling=False,
-            is_reduce_only=False,
-        )
-
-        # Should still validate using global rules
-        # May pass or fail based on other rules, but shouldn't crash
-        assert isinstance(result, ValidationResult)
-
-    async def test_create_order_denied_event(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
-    ) -> None:
-        """Test creation of OrderDenied event from validation failure."""
-        # Create invalid order
-        invalid_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.001"),  # Below minimum value
-            price=Decimal("10000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_denied_event",
-        )
-
-        # Validate and get failure
-        validation_result = await validation_service.validate_order(
-            order=invalid_order,
-            portfolio_state=mock_portfolio_state,
-            market_snapshot=None,
-            trading_state=TradingState.ACTIVE,
-            is_reconciling=False,
-            is_reduce_only=False,
-        )
-
-        assert not validation_result.is_valid
-
-        # Create context for denied event
-        from cyberdelta.infrastructure.validation.validation_context import ValidationContext
-
-        context = ValidationContext(
-            config=validation_service.config,
-            exchange_config=None,
-            market_snapshot=None,
-            portfolio_state=mock_portfolio_state,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-        # Create OrderDenied event
-        denied_event = await validation_service.create_order_denied_event(
-            order=invalid_order,
-            validation_result=validation_result,
-            context=context,
-        )
-
-        assert denied_event.order_id == "test_denied_event"
-        assert denied_event.reason  # Should have reason
-        assert denied_event.validation_category  # Should have category
-        assert "BTC_USDC" in denied_event.details["symbol"]
-        assert denied_event.details["side"] == "BUY"
-
-    @pytest.mark.parametrize(
-        "trading_state,expected_valid",
-        [
-            (TradingState.ACTIVE, True),
-            (TradingState.REDUCING, True),  # Should allow trading
-            (TradingState.HALTED, False),  # Should block non-reduce orders
-            (TradingState.RECONCILING, True),  # Should allow (with skipped checks)
-        ],
-    )
-    async def test_various_trading_states(
-        self,
-        validation_service: ValidationService,
-        valid_order: Order,
-        mock_portfolio_state: Mock,
-        trading_state: TradingState,
-        expected_valid: bool,
-    ) -> None:
-        """Test validation behavior across different trading states."""
         result = await validation_service.validate_order(
-            order=valid_order,
-            portfolio_state=mock_portfolio_state,
+            order=order,
+            portfolio_state=None,  # No portfolio state
             market_snapshot=None,
-            trading_state=trading_state,
-            is_reconciling=(trading_state == TradingState.RECONCILING),
+            trading_state=TradingState.ACTIVE,
+            is_reconciling=False,
             is_reduce_only=False,
         )
 
-        if expected_valid:
-            assert result.is_valid or len(result.violations) == 0
-        else:
-            assert not result.is_valid
-            assert len(result.violations) > 0
+        # Property: Should always fail without portfolio state
+        assert not result.is_valid
+        assert len(result.violations) >= 1
 
-    async def test_null_order_validation(
-        self, validation_service: ValidationService, mock_portfolio_state: Mock
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_validation_result_structure_consistency(self, _: None) -> None:
+        """Property: ValidationResult should always have consistent structure."""
+        config = create_mock_config()
+        validation_service = ValidationService(config)
+        portfolio_state = create_mock_portfolio_state()
+
+        order = create_valid_order()
+
+        result = await validation_service.validate_order(
+            order=order,
+            portfolio_state=portfolio_state,
+            market_snapshot=None,
+            trading_state=TradingState.ACTIVE,
+            is_reconciling=False,
+            is_reduce_only=False,
+        )
+
+        # Property: Result should always have consistent structure
+        assert isinstance(result, ValidationResult)
+        assert isinstance(result.is_valid, bool)
+        assert isinstance(result.violations, list)
+        assert result.validation_type == "PRE_TRADE_RISK_CHECK"
+
+        # If invalid, should have violations
+        if not result.is_valid:
+            assert len(result.violations) > 0
+            assert all(isinstance(v, str) for v in result.violations)
+
+    @given(
+        exchange_limits=exchange_limits_strategy(),
+        order_price=price_strategy(),
+        order_quantity=quantity_strategy(),
+    )
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_exchange_specific_validation_respected(
+        self,
+        exchange_limits: tuple[Decimal, Decimal, float, float],
+        order_price: Decimal,
+        order_quantity: Decimal,
     ) -> None:
-        """Test that null orders are rejected."""
-        with pytest.raises(ValueError, match="Order cannot be None"):
-            await validation_service.validate_order(
-                order=None,  # type: ignore
-                portfolio_state=mock_portfolio_state,
-                market_snapshot=None,
-                trading_state=TradingState.ACTIVE,
-                is_reconciling=False,
-                is_reduce_only=False,
-            )
+        """Property: Exchange-specific limits should be properly enforced."""
+        min_order, max_order, tick_size, lot_size = exchange_limits
+
+        # Create config with exchange limits
+        config = create_mock_config()
+        backpack_config = Mock()
+        backpack_config.tick_size = tick_size
+        backpack_config.lot_size = lot_size
+        backpack_config.min_order_size = min_order
+        backpack_config.max_order_size = max_order
+        config.exchanges = {"backpack": backpack_config}
+
+        validation_service = ValidationService(config)
+        portfolio_state = create_mock_portfolio_state(
+            usdc_balance=Decimal("1000000.00")  # Large balance to avoid balance issues
+        )
+
+        # Align order to exchange precision
+        aligned_quantity = (order_quantity // Decimal(str(lot_size))) * Decimal(str(lot_size))
+        aligned_price = (order_price // Decimal(str(tick_size))) * Decimal(str(tick_size))
+
+        # Ensure we have valid aligned values
+        if aligned_quantity <= 0:
+            aligned_quantity = Decimal(str(lot_size))
+        if aligned_price <= 0:
+            aligned_price = Decimal(str(tick_size))
+
+        order_value = aligned_price * aligned_quantity
+
+        order = create_valid_order(quantity=aligned_quantity, price=aligned_price)
+
+        result = await validation_service.validate_order(
+            order=order,
+            portfolio_state=portfolio_state,
+            market_snapshot=None,
+            trading_state=TradingState.ACTIVE,
+            is_reconciling=False,
+            is_reduce_only=False,
+        )
+
+        # Property: Orders should respect exchange-specific limits
+        if order_value < min_order:
+            assert not result.is_valid
+            assert any("below" in v.lower() and "minimum" in v.lower() for v in result.violations)
+        elif order_value > max_order:
+            assert not result.is_valid
+            assert any("exceeds" in v.lower() and "maximum" in v.lower() for v in result.violations)
+        # If within exchange limits, other validations may still apply

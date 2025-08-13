@@ -325,3 +325,8 @@ reportOptionalSubscript = "error"
 reportGeneralTypeIssues = "error"
 reportAssignmentType = "error"
 
+[dependency-groups]
+dev = [
+    "hypothesis>=6.137.3",
+]
+

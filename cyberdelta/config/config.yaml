@@ -389,8 +389,6 @@ event_system:
     publish_order_updates: true
 
   # Feature flags
-  enable_dual_publishing: false
-  enable_legacy_adapter: false
   enable_performance_tracking: true
   safe_mode: false
   max_memory_usage_mb: 4096

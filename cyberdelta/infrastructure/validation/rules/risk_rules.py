@@ -209,7 +209,7 @@ class MaxPositionRule:
                     msg="Market order validation requires market snapshot with current price",
                 )
                 raise ValueError(msg)
-            
+
             order_value = order.quantity_requested * price
         else:
             order_value = order.quantity_requested * order.price
@@ -397,7 +397,7 @@ class MaxExposureRule:
                     msg="Market order validation requires market snapshot with current price",
                 )
                 raise ValueError(msg)
-            
+
             order_value = order.quantity_requested * price
         else:
             order_value = order.quantity_requested * order.price

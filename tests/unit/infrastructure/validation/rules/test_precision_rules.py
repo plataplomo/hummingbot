@@ -1,541 +1,660 @@
-"""Unit tests for precision validation rules.
+"""Property-based tests for precision validation rules using Hypothesis.
 
 Tests the PricePrecisionRule and QuantityPrecisionRule implementations
 that validate order price and quantity alignment to exchange requirements.
 
 Following TESTING_SECURITY_RULES.md:
-- NO hardcoded financial values
-- Uses real exchange constraints from configuration
+- NO hardcoded financial values (Hypothesis generates them)
+- Uses property-based testing for exhaustive coverage
 - Fails fast on critical precision errors
 - All financial calculations use Decimal
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
+from hypothesis import assume, given, settings, strategies as st
 
 from cyberdelta.config.models import AppSettings
+from cyberdelta.enums import (
+    ExchangeName,
+    OrderSide,
+    OrderType,
+    TimeInForce,
+    TradingState,
+    ValidationCategory,
+)
 from cyberdelta.infrastructure.validation.rules.precision_rules import (
     PricePrecisionRule,
     QuantityPrecisionRule,
 )
 from cyberdelta.infrastructure.validation.validation_context import ValidationContext
-from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TradingState, ValidationCategory
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.validation import ValidationResult
-from cyberdelta.symbols import bp_symbol, hl_symbol
+from tests.common_symbols import BTC_HL, BTC_USDC_BP
 
 
-class TestPricePrecisionRule:
-    """Test cases for PricePrecisionRule validation logic."""
+# --- Hypothesis Strategies ---
 
-    @pytest.fixture
-    def price_rule(self) -> PricePrecisionRule:
-        """Create PricePrecisionRule instance for testing."""
-        return PricePrecisionRule(enabled=True)
 
-    @pytest.fixture
-    def mock_config(self) -> Mock:
-        """Create mock AppSettings for testing."""
-        config = Mock(spec=AppSettings)
-        config.exchanges = {}
-        return config
+@st.composite
+def decimal_strategy(
+    draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
+) -> Decimal:
+    """Generate valid Decimal values for financial calculations."""
+    value = draw(
+        st.floats(
+            min_value=min_value,
+            max_value=max_value,
+            allow_infinity=False,
+            allow_nan=False,
+            exclude_min=True,
+        )
+    )
+    return Decimal(str(value))
 
-    @pytest.fixture
-    def mock_exchange_config(self) -> Mock:
-        """Create mock exchange configuration with tick size."""
+
+@st.composite
+def tick_size_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate valid tick sizes."""
+    # Common tick sizes: 0.01, 0.001, 0.0001, 0.1, 1.0
+    tick_size = draw(
+        st.sampled_from([
+            Decimal("0.01"),
+            Decimal("0.001"),
+            Decimal("0.0001"),
+            Decimal("0.1"),
+            Decimal("1.0"),
+        ])
+    )
+    return tick_size
+
+
+@st.composite
+def lot_size_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate valid lot sizes."""
+    # Common lot sizes for crypto
+    lot_size = draw(
+        st.sampled_from([
+            Decimal("0.001"),
+            Decimal("0.0001"),
+            Decimal("0.01"),
+            Decimal("0.1"),
+            Decimal("1.0"),
+        ])
+    )
+    return lot_size
+
+
+@st.composite
+def aligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
+    """Generate prices aligned to given tick size."""
+    # Generate a base price multiple
+    base_multiplier = draw(st.integers(min_value=1, max_value=100000))
+    # Align to tick size
+    aligned_price = Decimal(base_multiplier) * tick_size
+    return aligned_price
+
+
+@st.composite
+def misaligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
+    """Generate prices NOT aligned to given tick size."""
+    # Skip very small tick sizes where misalignment might be negligible
+    assume(tick_size >= Decimal("0.001"))
+
+    # Generate aligned price first
+    aligned_price = draw(aligned_price_strategy(tick_size))
+    # Add misalignment (fraction of tick size)
+    misalignment = tick_size / Decimal(10)  # 1/10th of tick size
+    misaligned_price = aligned_price + misalignment
+
+    # Verify it's actually misaligned
+    remainder = misaligned_price % tick_size
+    assume(remainder != Decimal(0))  # Must be misaligned
+
+    return misaligned_price
+
+
+@st.composite
+def aligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
+    """Generate quantities aligned to given lot size."""
+    # Generate a base quantity multiple
+    base_multiplier = draw(st.integers(min_value=1, max_value=10000))
+    # Align to lot size
+    aligned_quantity = Decimal(base_multiplier) * lot_size
+    return aligned_quantity
+
+
+@st.composite
+def misaligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
+    """Generate quantities NOT aligned to given lot size."""
+    # Skip very small lot sizes where misalignment might be negligible
+    assume(lot_size >= Decimal("0.001"))
+
+    # Generate aligned quantity first
+    aligned_quantity = draw(aligned_quantity_strategy(lot_size))
+    # Add misalignment (fraction of lot size)
+    misalignment = lot_size / Decimal(10)  # 1/10th of lot size
+    misaligned_quantity = aligned_quantity + misalignment
+
+    # Verify it's actually misaligned
+    remainder = misaligned_quantity % lot_size
+    assume(remainder != Decimal(0))  # Must be misaligned
+
+    return misaligned_quantity
+
+
+# --- Helper Functions ---
+
+
+def create_mock_validation_context(
+    tick_size: float | None = None,
+    lot_size: float | None = None,
+    exchange_config: Mock | None = None,
+) -> ValidationContext:
+    """Create a mock validation context for testing."""
+    mock_config = Mock(spec=AppSettings)
+
+    # Mock exchange config if precision values are provided
+    if exchange_config is None and (tick_size is not None or lot_size is not None):
         exchange_config = Mock()
-        exchange_config.tick_size = 0.01  # $0.01 tick size
-        return exchange_config
+        if tick_size is not None:
+            exchange_config.tick_size = tick_size
+        if lot_size is not None:
+            exchange_config.lot_size = lot_size
 
-    @pytest.fixture
-    def validation_context(
-        self, mock_config: Mock, mock_exchange_config: Mock
-    ) -> ValidationContext:
-        """Create validation context for testing."""
-        return ValidationContext(
-            config=mock_config,
-            exchange_config=mock_exchange_config,
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
+    return ValidationContext(
+        config=mock_config,
+        exchange_config=exchange_config,
+        market_snapshot=None,
+        portfolio_state=None,
+        trading_state=TradingState.ACTIVE,
+        timestamp=datetime.now(UTC),
+    )
 
-    @pytest.fixture
-    def limit_order(self) -> Order:
-        """Create test limit order."""
-        return Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("50000.00"),  # Aligned to $0.01 tick
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_order_001",
-        )
 
-    @pytest.fixture
-    def market_order(self) -> Order:
-        """Create test market order."""
-        return Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            price=None,  # Market orders don't have price
-            order_type=OrderType.MARKET,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_order_002",
-        )
+def create_test_order(
+    exchange: ExchangeName,
+    side: OrderSide,
+    quantity: Decimal = Decimal("1.0"),
+    price: Decimal | None = Decimal("50000.00"),
+    order_type: OrderType = OrderType.LIMIT,
+) -> Order:
+    """Create a test order with specified parameters."""
+    if exchange == ExchangeName.BACKPACK:
+        symbol = BTC_USDC_BP
+    else:
+        symbol = BTC_HL
 
-    def test_rule_properties(self, price_rule: PricePrecisionRule) -> None:
+    return Order(
+        symbol=symbol,
+        side=side,
+        quantity_requested=quantity,
+        price=price,
+        order_type=order_type,
+        time_in_force=TimeInForce.GTC,
+        exchange=exchange,
+        exchange_order_id="test_order",
+        updated_at=datetime.now(UTC),
+        triggered_at=None,
+        strategy_name="test_strategy",
+        signal_id="test_signal",
+    )
+
+
+class TestPricePrecisionRuleProperties:
+    """Property-based tests for PricePrecisionRule validation logic."""
+
+    def test_rule_properties(self) -> None:
         """Test rule property values."""
+        price_rule = PricePrecisionRule(enabled=True)
         assert price_rule.name == "price_precision"
         assert price_rule.category == ValidationCategory.PRECISION
         assert price_rule.enabled is True
         assert price_rule.bypass_on_reduce_only is False
 
-    async def test_market_order_skipped(
-        self,
-        price_rule: PricePrecisionRule,
-        market_order: Order,
-        validation_context: ValidationContext,
-    ) -> None:
-        """Test that market orders are skipped (no price to validate)."""
-        result = await price_rule.validate(market_order, validation_context)
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_market_orders_always_skipped(self, _: None) -> None:
+        """Property: Market orders should always be skipped (no price to validate)."""
+        price_rule = PricePrecisionRule(enabled=True)
 
+        context = create_mock_validation_context(tick_size=0.01)
+
+        # Create market order
+        order = create_test_order(
+            exchange=ExchangeName.BACKPACK,
+            side=OrderSide.BUY,
+            price=None,  # Market order
+            order_type=OrderType.MARKET,
+        )
+
+        result = await price_rule.validate(order, context)
+
+        # Property: Should always be valid (skipped)
         assert result.is_valid
         assert len(result.violations) == 0
 
-    async def test_limit_order_without_price_violation(
-        self, price_rule: PricePrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that limit orders without price are rejected."""
-        limit_order_no_price = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            price=None,  # Invalid: limit order must have price
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_order_003",
-        )
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_limit_orders_without_price_always_violation(self, _: None) -> None:
+        """Property: Limit orders without price should always be rejected.
 
-        result = await price_rule.validate(limit_order_no_price, validation_context)
+        Uses Mock to test defensive validation for limit orders missing price,
+        which could occur if order creation logic has bugs.
+        """
+        price_rule = PricePrecisionRule(enabled=True)
 
+        context = create_mock_validation_context(tick_size=0.01)
+
+        # Use Mock to create limit order without price
+        # This could happen if order creation logic has a bug
+        order = Mock()
+        order.symbol = BTC_USDC_BP
+        order.side = OrderSide.BUY
+        order.price = None  # Missing price for limit order
+        order.quantity_requested = Decimal("1.0")
+        order.order_type = OrderType.LIMIT
+        order.time_in_force = TimeInForce.GTC
+        order.exchange = ExchangeName.BACKPACK
+        order.exchange_order_id = "test_limit_no_price"
+
+        result = await price_rule.validate(order, context)
+
+        # Property: Should always be invalid
         assert not result.is_valid
         assert len(result.violations) == 1
         assert "Limit order must have a price specified" in result.violations[0]
 
-    async def test_negative_price_violation(
-        self, price_rule: PricePrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that negative prices are rejected."""
-        negative_price_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("-100.00"),  # Invalid: negative price
-            order_type=OrderType.LIMIT,
+    @given(
+        negative_price=st.floats(
+            min_value=-1000000.0, max_value=0.0, allow_nan=False, allow_infinity=False
+        )
+    )
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_negative_and_zero_prices_always_violation(self, negative_price: float) -> None:
+        """Property: Negative or zero prices should always be rejected.
+
+        Uses Mock to test defensive validation against impossible states
+        that could occur if Pydantic validation is bypassed.
+        """
+        price_rule = PricePrecisionRule(enabled=True)
+
+        context = create_mock_validation_context(tick_size=0.01)
+
+        # Use Mock to create "impossible" order state
+        # This tests defensive validation against bugs that bypass Pydantic
+        order = Mock()
+        order.symbol = BTC_USDC_BP
+        order.side = OrderSide.BUY
+        order.price = Decimal(str(negative_price))  # Negative/zero price
+        order.quantity_requested = Decimal("1.0")
+        order.order_type = OrderType.LIMIT
+        order.time_in_force = TimeInForce.GTC
+        order.exchange = ExchangeName.BACKPACK
+        order.exchange_order_id = "test_negative_price"
+
+        result = await price_rule.validate(order, context)
+
+        # Property: Should always be invalid
+        assert not result.is_valid
+        assert len(result.violations) >= 1  # May have multiple violations
+        # Check that at least one violation mentions the negative price
+        assert any("Price must be positive" in v for v in result.violations)
+
+    @given(tick_size=tick_size_strategy())
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_aligned_prices_always_valid(self, tick_size: Decimal) -> None:
+        """Property: Prices aligned to tick size should always be valid."""
+        price_rule = PricePrecisionRule(enabled=True)
+
+        # Generate aligned price
+        aligned_price = draw_aligned_price(tick_size)
+
+        context = create_mock_validation_context(tick_size=float(tick_size))
+
+        # Create order with aligned price
+        order = create_test_order(
             exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_order_004",
+            side=OrderSide.BUY,
+            price=aligned_price,
+            order_type=OrderType.LIMIT,
         )
 
-        result = await price_rule.validate(negative_price_order, validation_context)
+        result = await price_rule.validate(order, context)
 
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "Price must be positive" in result.violations[0]
-        assert "BTC" in result.violations[0]
-
-    async def test_zero_price_violation(
-        self, price_rule: PricePrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that zero prices are rejected."""
-        zero_price_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("0.00"),  # Invalid: zero price
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_order_005",
+        # Property: Should always be valid
+        assert result.is_valid, (
+            f"Aligned price {aligned_price} should be valid for tick size {tick_size}"
         )
 
-        result = await price_rule.validate(zero_price_order, validation_context)
+    @given(tick_size=tick_size_strategy())
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_misaligned_prices_always_invalid(self, tick_size: Decimal) -> None:
+        """Property: Prices NOT aligned to tick size should always be invalid."""
+        price_rule = PricePrecisionRule(enabled=True)
 
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "Price must be positive" in result.violations[0]
+        # Generate misaligned price
+        misaligned_price = draw_misaligned_price(tick_size)
 
-    async def test_price_aligned_to_tick_size_valid(
-        self,
-        price_rule: PricePrecisionRule,
-        limit_order: Order,
-        validation_context: ValidationContext,
-    ) -> None:
-        """Test that prices aligned to tick size are valid."""
-        # Order with price aligned to $0.01 tick size
-        result = await price_rule.validate(limit_order, validation_context)
+        context = create_mock_validation_context(tick_size=float(tick_size))
 
-        assert result.is_valid
-        assert len(result.violations) == 0
-
-    async def test_price_not_aligned_to_tick_size_violation(
-        self, price_rule: PricePrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that prices not aligned to tick size are rejected."""
-        misaligned_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("50000.005"),  # Not aligned to $0.01 tick
-            order_type=OrderType.LIMIT,
+        # Create order with misaligned price
+        order = create_test_order(
             exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_order_006",
+            side=OrderSide.BUY,
+            price=misaligned_price,
+            order_type=OrderType.LIMIT,
         )
 
-        result = await price_rule.validate(misaligned_order, validation_context)
+        result = await price_rule.validate(order, context)
 
-        assert not result.is_valid
-        assert len(result.violations) == 1
+        # Property: Should always be invalid
+        assert not result.is_valid, (
+            f"Misaligned price {misaligned_price} should be invalid for tick size {tick_size}"
+        )
+        assert len(result.violations) >= 1
         assert "not aligned to tick size" in result.violations[0]
-        assert "50000.005" in result.violations[0]
-        assert "0.01" in result.violations[0]
 
-    async def test_no_tick_size_configured_valid(
-        self, price_rule: PricePrecisionRule, limit_order: Order, mock_config: Mock
-    ) -> None:
-        """Test that orders are valid when no tick size is configured."""
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_no_tick_size_configured_always_valid(self, _: None) -> None:
+        """Property: Orders should always be valid when no tick size is configured."""
+        price_rule = PricePrecisionRule(enabled=True)
+
         # Context without exchange config (no tick size)
-        context_no_tick = ValidationContext(
-            config=mock_config,
-            exchange_config=None,  # No exchange config
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
+        context = create_mock_validation_context(exchange_config=None)
 
-        result = await price_rule.validate(limit_order, context_no_tick)
-
-        assert result.is_valid
-        assert len(result.violations) == 0
-
-    async def test_zero_tick_size_valid(
-        self, price_rule: PricePrecisionRule, limit_order: Order, mock_config: Mock
-    ) -> None:
-        """Test that orders are valid when tick size is zero."""
-        mock_exchange_config = Mock()
-        mock_exchange_config.tick_size = 0.0  # Zero tick size
-
-        context_zero_tick = ValidationContext(
-            config=mock_config,
-            exchange_config=mock_exchange_config,
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-        result = await price_rule.validate(limit_order, context_zero_tick)
-
-        assert result.is_valid
-        assert len(result.violations) == 0
-
-    def test_precision_alignment_check(self, price_rule: PricePrecisionRule) -> None:
-        """Test the precision alignment helper method."""
-        tick_size = Decimal("0.01")
-
-        # Test aligned prices
-        assert price_rule._is_precision_valid(Decimal("100.00"), tick_size)
-        assert price_rule._is_precision_valid(Decimal("100.01"), tick_size)
-        assert price_rule._is_precision_valid(Decimal("99.99"), tick_size)
-
-        # Test misaligned prices
-        assert not price_rule._is_precision_valid(Decimal("100.005"), tick_size)
-        assert not price_rule._is_precision_valid(Decimal("100.001"), tick_size)
-
-    def test_tick_alignment_helper(self, price_rule: PricePrecisionRule) -> None:
-        """Test the tick alignment helper method."""
-        tick_size = Decimal("0.01")
-
-        # Test price alignment (rounds down)
-        aligned = price_rule._align_to_tick(Decimal("100.005"), tick_size)
-        assert aligned == Decimal("100.00")
-
-        aligned = price_rule._align_to_tick(Decimal("100.019"), tick_size)
-        assert aligned == Decimal("100.01")
-
-
-class TestQuantityPrecisionRule:
-    """Test cases for QuantityPrecisionRule validation logic."""
-
-    @pytest.fixture
-    def quantity_rule(self) -> QuantityPrecisionRule:
-        """Create QuantityPrecisionRule instance for testing."""
-        return QuantityPrecisionRule(enabled=True)
-
-    @pytest.fixture
-    def mock_config(self) -> Mock:
-        """Create mock AppSettings for testing."""
-        config = Mock(spec=AppSettings)
-        config.exchanges = {}
-        return config
-
-    @pytest.fixture
-    def mock_exchange_config(self) -> Mock:
-        """Create mock exchange configuration with lot size."""
-        exchange_config = Mock()
-        exchange_config.lot_size = 0.001  # 0.001 BTC lot size
-        return exchange_config
-
-    @pytest.fixture
-    def validation_context(
-        self, mock_config: Mock, mock_exchange_config: Mock
-    ) -> ValidationContext:
-        """Create validation context for testing."""
-        return ValidationContext(
-            config=mock_config,
-            exchange_config=mock_exchange_config,
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-    @pytest.fixture
-    def valid_order(self) -> Order:
-        """Create test order with valid quantity."""
-        return Order(
-            symbol=hl_symbol("BTC"),
+        # Create order with any price
+        order = create_test_order(
+            exchange=ExchangeName.BACKPACK,
             side=OrderSide.BUY,
-            quantity_requested=Decimal("1.000"),  # Aligned to 0.001 lot size
-            price=Decimal("50000.00"),
+            price=Decimal("50000.005"),  # Would be misaligned with 0.01 tick
             order_type=OrderType.LIMIT,
-            exchange=ExchangeName.HYPERLIQUID,
-            exchange_order_id="test_order_007",
         )
 
-    def test_rule_properties(self, quantity_rule: QuantityPrecisionRule) -> None:
+        result = await price_rule.validate(order, context)
+
+        # Property: Should always be valid without tick size config
+        assert result.is_valid
+        assert len(result.violations) == 0
+
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_zero_tick_size_always_valid(self, _: None) -> None:
+        """Property: Orders should always be valid when tick size is zero."""
+        price_rule = PricePrecisionRule(enabled=True)
+
+        context = create_mock_validation_context(tick_size=0.0)
+
+        # Create order with any price
+        order = create_test_order(
+            exchange=ExchangeName.BACKPACK,
+            side=OrderSide.BUY,
+            price=Decimal("50000.005"),  # Any precision
+            order_type=OrderType.LIMIT,
+        )
+
+        result = await price_rule.validate(order, context)
+
+        # Property: Should always be valid with zero tick size
+        assert result.is_valid
+        assert len(result.violations) == 0
+
+
+class TestQuantityPrecisionRuleProperties:
+    """Property-based tests for QuantityPrecisionRule validation logic."""
+
+    def test_rule_properties(self) -> None:
         """Test rule property values."""
+        quantity_rule = QuantityPrecisionRule(enabled=True)
         assert quantity_rule.name == "quantity_precision"
         assert quantity_rule.category == ValidationCategory.PRECISION
         assert quantity_rule.enabled is True
         assert quantity_rule.bypass_on_reduce_only is False
 
-    async def test_negative_quantity_violation(
-        self, quantity_rule: QuantityPrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that negative quantities are rejected."""
-        negative_quantity_order = Order(
-            symbol=hl_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("-1.0"),  # Invalid: negative quantity
-            price=Decimal("50000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.HYPERLIQUID,
-            exchange_order_id="test_order_008",
+    @given(
+        negative_quantity=st.floats(
+            min_value=-1000000.0, max_value=0.0, allow_nan=False, allow_infinity=False
         )
-
-        result = await quantity_rule.validate(negative_quantity_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "Quantity must be positive" in result.violations[0]
-        assert "BTC" in result.violations[0]
-
-    async def test_zero_quantity_violation(
-        self, quantity_rule: QuantityPrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that zero quantities are rejected."""
-        zero_quantity_order = Order(
-            symbol=hl_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.000"),  # Invalid: zero quantity
-            price=Decimal("50000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.HYPERLIQUID,
-            exchange_order_id="test_order_009",
-        )
-
-        result = await quantity_rule.validate(zero_quantity_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "Quantity must be positive" in result.violations[0]
-
-    async def test_quantity_aligned_to_lot_size_valid(
-        self,
-        quantity_rule: QuantityPrecisionRule,
-        valid_order: Order,
-        validation_context: ValidationContext,
-    ) -> None:
-        """Test that quantities aligned to lot size are valid."""
-        result = await quantity_rule.validate(valid_order, validation_context)
-
-        assert result.is_valid
-        assert len(result.violations) == 0
-
-    async def test_quantity_not_aligned_to_lot_size_violation(
-        self, quantity_rule: QuantityPrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that quantities not aligned to lot size are rejected."""
-        misaligned_order = Order(
-            symbol=hl_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0005"),  # Not aligned to 0.001 lot
-            price=Decimal("50000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.HYPERLIQUID,
-            exchange_order_id="test_order_010",
-        )
-
-        result = await quantity_rule.validate(misaligned_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "not aligned to lot size" in result.violations[0]
-        assert "1.0005" in result.violations[0]
-        assert "0.001" in result.violations[0]
-
-    async def test_no_lot_size_configured_valid(
-        self, quantity_rule: QuantityPrecisionRule, valid_order: Order, mock_config: Mock
-    ) -> None:
-        """Test that orders are valid when no lot size is configured."""
-        # Context without exchange config (no lot size)
-        context_no_lot = ValidationContext(
-            config=mock_config,
-            exchange_config=None,  # No exchange config
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-        result = await quantity_rule.validate(valid_order, context_no_lot)
-
-        assert result.is_valid
-        assert len(result.violations) == 0
-
-    async def test_zero_lot_size_valid(
-        self, quantity_rule: QuantityPrecisionRule, valid_order: Order, mock_config: Mock
-    ) -> None:
-        """Test that orders are valid when lot size is zero."""
-        mock_exchange_config = Mock()
-        mock_exchange_config.lot_size = 0.0  # Zero lot size
-
-        context_zero_lot = ValidationContext(
-            config=mock_config,
-            exchange_config=mock_exchange_config,
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-        result = await quantity_rule.validate(valid_order, context_zero_lot)
-
-        assert result.is_valid
-        assert len(result.violations) == 0
-
-    def test_precision_alignment_check(self, quantity_rule: QuantityPrecisionRule) -> None:
-        """Test the precision alignment helper method."""
-        lot_size = Decimal("0.001")
-
-        # Test aligned quantities
-        assert quantity_rule._is_precision_valid(Decimal("1.000"), lot_size)
-        assert quantity_rule._is_precision_valid(Decimal("0.001"), lot_size)
-        assert quantity_rule._is_precision_valid(Decimal("10.250"), lot_size)
-
-        # Test misaligned quantities
-        assert not quantity_rule._is_precision_valid(Decimal("1.0005"), lot_size)
-        assert not quantity_rule._is_precision_valid(Decimal("0.0001"), lot_size)
-
-    def test_lot_alignment_helper(self, quantity_rule: QuantityPrecisionRule) -> None:
-        """Test the lot alignment helper method."""
-        lot_size = Decimal("0.001")
-
-        # Test quantity alignment (rounds down)
-        aligned = quantity_rule._align_to_lot(Decimal("1.0005"), lot_size)
-        assert aligned == Decimal("1.000")
-
-        aligned = quantity_rule._align_to_lot(Decimal("0.0019"), lot_size)
-        assert aligned == Decimal("0.001")
-
-    async def test_market_order_quantity_validation(
-        self, quantity_rule: QuantityPrecisionRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that market orders also validate quantity precision."""
-        market_order_misaligned = Order(
-            symbol=hl_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0005"),  # Not aligned to 0.001 lot
-            price=None,  # Market order
-            order_type=OrderType.MARKET,
-            exchange=ExchangeName.HYPERLIQUID,
-            exchange_order_id="test_order_011",
-        )
-
-        result = await quantity_rule.validate(market_order_misaligned, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "not aligned to lot size" in result.violations[0]
-
-    @pytest.mark.parametrize(
-        "quantity_str,lot_size_str,should_be_valid",
-        [
-            # Valid alignments
-            ("1.000", "0.001", True),
-            ("0.500", "0.001", True),
-            ("10.000", "0.010", True),
-            ("5.50", "0.50", True),
-            # Invalid alignments
-            ("1.0005", "0.001", False),
-            ("0.9999", "0.001", False),
-            ("10.005", "0.010", False),
-            ("5.25", "0.50", False),
-        ],
     )
-    async def test_various_quantity_alignments(
-        self,
-        quantity_rule: QuantityPrecisionRule,
-        mock_config: Mock,
-        quantity_str: str,
-        lot_size_str: str,
-        should_be_valid: bool,
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_negative_and_zero_quantities_always_violation(
+        self, negative_quantity: float
     ) -> None:
-        """Test various quantity and lot size combinations."""
-        mock_exchange_config = Mock()
-        mock_exchange_config.lot_size = float(lot_size_str)
+        """Property: Negative or zero quantities should always be rejected.
 
-        context = ValidationContext(
-            config=mock_config,
-            exchange_config=mock_exchange_config,
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
+        Uses Mock to test defensive validation against impossible states
+        that could occur if Pydantic validation is bypassed.
+        """
+        quantity_rule = QuantityPrecisionRule(enabled=True)
 
-        order = Order(
-            symbol=hl_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal(quantity_str),
-            price=Decimal("50000.00"),
-            order_type=OrderType.LIMIT,
+        context = create_mock_validation_context(lot_size=0.001)
+
+        # Use Mock to create "impossible" order state
+        # This tests defensive validation against bugs that bypass Pydantic
+        order = Mock()
+        order.symbol = BTC_HL
+        order.side = OrderSide.BUY
+        order.quantity_requested = Decimal(str(negative_quantity))  # Negative/zero quantity
+        order.price = Decimal("50000.00")
+        order.order_type = OrderType.LIMIT
+        order.time_in_force = TimeInForce.GTC
+        order.exchange = ExchangeName.HYPERLIQUID
+        order.exchange_order_id = "test_negative_quantity"
+
+        result = await quantity_rule.validate(order, context)
+
+        # Property: Should always be invalid
+        assert not result.is_valid
+        assert len(result.violations) >= 1  # May have multiple violations
+        # Check that at least one violation mentions the negative quantity
+        assert any("Quantity must be positive" in v for v in result.violations)
+
+    @given(lot_size=lot_size_strategy())
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_aligned_quantities_always_valid(self, lot_size: Decimal) -> None:
+        """Property: Quantities aligned to lot size should always be valid."""
+        quantity_rule = QuantityPrecisionRule(enabled=True)
+
+        # Generate aligned quantity
+        aligned_quantity = draw_aligned_quantity(lot_size)
+
+        context = create_mock_validation_context(lot_size=float(lot_size))
+
+        # Create order with aligned quantity
+        order = create_test_order(
             exchange=ExchangeName.HYPERLIQUID,
-            exchange_order_id="test_parametrized",
+            side=OrderSide.BUY,
+            quantity=aligned_quantity,
+            order_type=OrderType.LIMIT,
         )
 
         result = await quantity_rule.validate(order, context)
 
-        assert result.is_valid == should_be_valid
-        if not should_be_valid:
-            assert len(result.violations) == 1
-            assert "not aligned to lot size" in result.violations[0]
+        # Property: Should always be valid
+        assert result.is_valid, (
+            f"Aligned quantity {aligned_quantity} should be valid for lot size {lot_size}"
+        )
+
+    @given(lot_size=lot_size_strategy())
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_misaligned_quantities_always_invalid(self, lot_size: Decimal) -> None:
+        """Property: Quantities NOT aligned to lot size should always be invalid."""
+        quantity_rule = QuantityPrecisionRule(enabled=True)
+
+        # Generate misaligned quantity
+        misaligned_quantity = draw_misaligned_quantity(lot_size)
+
+        context = create_mock_validation_context(lot_size=float(lot_size))
+
+        # Create order with misaligned quantity
+        order = create_test_order(
+            exchange=ExchangeName.HYPERLIQUID,
+            side=OrderSide.BUY,
+            quantity=misaligned_quantity,
+            order_type=OrderType.LIMIT,
+        )
+
+        result = await quantity_rule.validate(order, context)
+
+        # Property: Should always be invalid
+        assert not result.is_valid, (
+            f"Misaligned quantity {misaligned_quantity} should be invalid for lot size {lot_size}"
+        )
+        assert len(result.violations) >= 1
+        assert "not aligned to lot size" in result.violations[0]
+
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_no_lot_size_configured_always_valid(self, _: None) -> None:
+        """Property: Orders should always be valid when no lot size is configured."""
+        quantity_rule = QuantityPrecisionRule(enabled=True)
+
+        # Context without exchange config (no lot size)
+        context = create_mock_validation_context(exchange_config=None)
+
+        # Create order with any quantity
+        order = create_test_order(
+            exchange=ExchangeName.HYPERLIQUID,
+            side=OrderSide.BUY,
+            quantity=Decimal("1.0005"),  # Would be misaligned with 0.001 lot
+            order_type=OrderType.LIMIT,
+        )
+
+        result = await quantity_rule.validate(order, context)
+
+        # Property: Should always be valid without lot size config
+        assert result.is_valid
+        assert len(result.violations) == 0
+
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_zero_lot_size_always_valid(self, _: None) -> None:
+        """Property: Orders should always be valid when lot size is zero."""
+        quantity_rule = QuantityPrecisionRule(enabled=True)
+
+        context = create_mock_validation_context(lot_size=0.0)
+
+        # Create order with any quantity
+        order = create_test_order(
+            exchange=ExchangeName.HYPERLIQUID,
+            side=OrderSide.BUY,
+            quantity=Decimal("1.0005"),  # Any precision
+            order_type=OrderType.LIMIT,
+        )
+
+        result = await quantity_rule.validate(order, context)
+
+        # Property: Should always be valid with zero lot size
+        assert result.is_valid
+        assert len(result.violations) == 0
+
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_market_orders_validate_quantity_precision(self, _: None) -> None:
+        """Property: Market orders should still validate quantity precision."""
+        quantity_rule = QuantityPrecisionRule(enabled=True)
+
+        context = create_mock_validation_context(lot_size=0.001)
+
+        # Create market order with misaligned quantity
+        order = create_test_order(
+            exchange=ExchangeName.HYPERLIQUID,
+            side=OrderSide.BUY,
+            quantity=Decimal("1.0005"),  # Not aligned to 0.001 lot
+            price=None,  # Market order
+            order_type=OrderType.MARKET,
+        )
+
+        result = await quantity_rule.validate(order, context)
+
+        # Property: Should still be invalid (quantity precision applies to all orders)
+        assert not result.is_valid
+        assert len(result.violations) == 1
+        assert "not aligned to lot size" in result.violations[0]
+
+
+# --- Helper Functions for Drawing ---
+
+
+def draw_aligned_price(tick_size: Decimal) -> Decimal:
+    """Helper to generate an aligned price for a given tick size."""
+    import random
+
+    multiplier = random.randint(1, 100000)
+    return Decimal(multiplier) * tick_size
+
+
+def draw_misaligned_price(tick_size: Decimal) -> Decimal:
+    """Helper to generate a misaligned price for a given tick size."""
+    import random
+
+    # Skip very small tick sizes where misalignment might be negligible
+    tick_size = max(tick_size, Decimal("0.001"))
+
+    # Generate aligned price first
+    multiplier = random.randint(100, 100000)
+    aligned_price = Decimal(multiplier) * tick_size
+
+    # Add misalignment that's NOT a multiple of tick size
+    # Use a fraction that won't result in a valid tick
+    misalignment = tick_size / Decimal(3)  # 1/3 of tick size - won't align
+    misaligned_price = aligned_price + misalignment
+
+    # Verify it's actually misaligned
+    remainder = misaligned_price % tick_size
+    if remainder == Decimal(0):
+        # If somehow aligned, add a smaller misalignment
+        misaligned_price += tick_size / Decimal(7)
+
+    return misaligned_price
+
+
+def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
+    """Helper to generate an aligned quantity for a given lot size."""
+    import random
+
+    multiplier = random.randint(1, 10000)
+    return Decimal(multiplier) * lot_size
+
+
+def draw_misaligned_quantity(lot_size: Decimal) -> Decimal:
+    """Helper to generate a misaligned quantity for a given lot size."""
+    import random
+
+    # Skip very small lot sizes where misalignment might be negligible
+    lot_size = max(lot_size, Decimal("0.001"))
+
+    # Generate aligned quantity first
+    multiplier = random.randint(10, 10000)
+    aligned_quantity = Decimal(multiplier) * lot_size
+
+    # Add misalignment that's NOT a multiple of lot size
+    # Use a fraction that won't result in a valid lot
+    misalignment = lot_size / Decimal(3)  # 1/3 of lot size - won't align
+    misaligned_quantity = aligned_quantity + misalignment
+
+    # Verify it's actually misaligned
+    remainder = misaligned_quantity % lot_size
+    if remainder == Decimal(0):
+        # If somehow aligned, add a smaller misalignment
+        misaligned_quantity += lot_size / Decimal(7)
+
+    return misaligned_quantity

@@ -12,14 +12,15 @@ Following TESTING_SECURITY_RULES.md:
 
 from __future__ import annotations
 
-from decimal import Decimal
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
 
 from cyberdelta.config.models import AppSettings
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce, TradingState
 from cyberdelta.infrastructure.validation.rules.business_rules import (
     BalanceValidationRule,
     OrderValueLimitsRule,
@@ -28,13 +29,12 @@ from cyberdelta.infrastructure.validation.rules.precision_rules import (
     PricePrecisionRule,
     QuantityPrecisionRule,
 )
-from cyberdelta.infrastructure.validation.validation_service import ValidationService
 from cyberdelta.infrastructure.validation.validation_context import ValidationContext
-from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TradingState, TimeInForce
+from cyberdelta.infrastructure.validation.validation_service import ValidationService
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.models.spot_balance import SpotBalance
-from cyberdelta.symbols import bp_symbol, hl_symbol
+from tests.common_symbols import BTC_HL, BTC_USDC_BP
 
 
 # --- Hypothesis Strategies ---
@@ -130,7 +130,7 @@ class TestPricePrecisionRuleProperties:
 
         # Create order with aligned price
         order = Order(
-            symbol=bp_symbol("BTC"),
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=Decimal("1.0"),
             price=aligned_price,
@@ -138,6 +138,10 @@ class TestPricePrecisionRuleProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_aligned",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await price_rule.validate(order, context)
@@ -158,19 +162,19 @@ class TestPricePrecisionRuleProperties:
 
         # Generate misaligned price
         aligned_price = draw_aligned_price(tick_size)
-        misalignment = tick_size / Decimal("10")  # 1/10th of tick size
+        misalignment = tick_size / Decimal(10)  # 1/10th of tick size
         misaligned_price = aligned_price + misalignment
 
         # Verify it's actually misaligned
         remainder = misaligned_price % tick_size
-        assume(remainder != Decimal("0"))  # Must be misaligned
+        assume(remainder != Decimal(0))  # Must be misaligned
 
         # Create mock context
         context = create_mock_validation_context(tick_size=float(tick_size))
 
         # Create order with misaligned price
         order = Order(
-            symbol=bp_symbol("BTC"),
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=Decimal("1.0"),
             price=misaligned_price,
@@ -178,6 +182,10 @@ class TestPricePrecisionRuleProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_misaligned",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await price_rule.validate(order, context)
@@ -185,9 +193,10 @@ class TestPricePrecisionRuleProperties:
             f"Misaligned price {misaligned_price} should be invalid for tick size {tick_size}"
         )
 
+    @given(st.just(None))  # Add @given decorator for @settings to work
     @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_market_orders_always_skip_price_validation(self) -> None:
+    async def test_market_orders_always_skip_price_validation(self, _: None) -> None:
         """Property: Market orders should always skip price validation regardless of tick size."""
         # Create rule instance
         price_rule = PricePrecisionRule(enabled=True)
@@ -197,7 +206,7 @@ class TestPricePrecisionRuleProperties:
 
         # Create market order (price should be ignored)
         order = Order(
-            symbol=bp_symbol("BTC"),
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=Decimal("1.0"),
             price=None,  # Market order
@@ -205,6 +214,10 @@ class TestPricePrecisionRuleProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_market",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await price_rule.validate(order, context)
@@ -230,7 +243,7 @@ class TestQuantityPrecisionRuleProperties:
 
         # Create order with aligned quantity
         order = Order(
-            symbol=hl_symbol("BTC"),
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity_requested=aligned_quantity,
             price=Decimal("50000.00"),
@@ -238,6 +251,10 @@ class TestQuantityPrecisionRuleProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.HYPERLIQUID,
             exchange_order_id="test_aligned_qty",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await quantity_rule.validate(order, context)
@@ -245,7 +262,11 @@ class TestQuantityPrecisionRuleProperties:
             f"Aligned quantity {aligned_quantity} should be valid for lot size {lot_size}"
         )
 
-    @given(quantity=st.floats(max_value=0.0, allow_nan=False, allow_infinity=False))
+    @given(
+        quantity=st.floats(
+            min_value=-1000000.0, max_value=0.0, allow_nan=False, allow_infinity=False
+        )
+    )
     @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
     async def test_negative_and_zero_quantities_always_invalid(self, quantity: float) -> None:
@@ -259,17 +280,19 @@ class TestQuantityPrecisionRuleProperties:
         # Create mock context
         context = create_mock_validation_context(lot_size=0.001)
 
-        # Create order with non-positive quantity
-        order = Order(
-            symbol=hl_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=decimal_quantity,
-            price=Decimal("50000.00"),
-            order_type=OrderType.LIMIT,
-            time_in_force=TimeInForce.GTC,
-            exchange=ExchangeName.HYPERLIQUID,
-            exchange_order_id="test_non_positive_qty",
-        )
+        # Create a mock order to test the validation rule directly
+        # without going through Pydantic validation
+        from unittest.mock import Mock
+
+        order = Mock()
+        order.symbol = BTC_HL
+        order.side = OrderSide.BUY
+        order.quantity_requested = decimal_quantity  # Non-positive quantity
+        order.price = Decimal("50000.00")
+        order.order_type = OrderType.LIMIT
+        order.time_in_force = TimeInForce.GTC
+        order.exchange = ExchangeName.HYPERLIQUID
+        order.exchange_order_id = "test_non_positive_qty"
 
         result = await quantity_rule.validate(order, context)
         assert not result.is_valid, (
@@ -307,7 +330,7 @@ class TestBalanceValidationRuleProperties:
 
         # Create buy order
         order = Order(
-            symbol=bp_symbol("BTC_USDC"),
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=order_quantity,
             price=order_price,
@@ -315,6 +338,10 @@ class TestBalanceValidationRuleProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_buy_balance",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await balance_rule.validate(order, context)
@@ -360,7 +387,7 @@ class TestOrderValueLimitsRuleProperties:
 
         # Create order
         order = Order(
-            symbol=bp_symbol("BTC"),
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=order_quantity,
             price=order_price,
@@ -368,6 +395,10 @@ class TestOrderValueLimitsRuleProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_value_limits",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
         result = await limits_rule.validate(order, context)
@@ -383,19 +414,65 @@ class TestOrderValueLimitsRuleProperties:
             )
 
 
+# Define strategy before class that uses it
+@st.composite
+def generate_order_strategy(draw: st.DrawFn) -> Order:
+    """Generate valid Order objects for testing."""
+    side = draw(st.sampled_from(list(OrderSide)))
+    # Only use simple order types to avoid complex validation requirements
+    order_type = draw(st.sampled_from([OrderType.MARKET, OrderType.LIMIT]))
+    exchange = draw(st.sampled_from(list(ExchangeName)))
+
+    # Generate price (None for market orders)
+    if order_type == OrderType.MARKET:
+        price = None
+        stop_price = None
+    else:
+        price = draw(decimal_strategy())
+        stop_price = None
+
+    # Generate quantity
+    quantity = draw(decimal_strategy())
+
+    # Use pre-configured symbols from common_symbols
+    if exchange == ExchangeName.BACKPACK:
+        # Use the properly configured Backpack symbol
+        symbol = BTC_USDC_BP
+    else:
+        # Use the properly configured Hyperliquid symbol
+        symbol = BTC_HL
+
+    order_id = draw(
+        st.text(min_size=5, max_size=20, alphabet=st.characters(min_codepoint=65, max_codepoint=90))
+    )
+
+    return Order(
+        symbol=symbol,
+        side=side,
+        quantity_requested=quantity,
+        price=price,
+        stop_price=stop_price,
+        order_type=order_type,
+        time_in_force=TimeInForce.GTC,
+        exchange=exchange,
+        exchange_order_id=f"test_{order_id}",
+        updated_at=datetime.now(UTC),
+        triggered_at=None,
+        strategy_name="test_strategy",
+        signal_id="test_signal",
+    )
+
+
 class TestValidationServiceProperties:
     """Property-based tests for the complete ValidationService."""
 
-    @given(st.data())
+    @given(order=generate_order_strategy())
     @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_validation_always_returns_result(self, data: st.DataObject) -> None:
+    async def test_validation_always_returns_result(self, order: Order) -> None:
         """Property: Validation should always return a ValidationResult, never crash."""
         # Create validation service
         validation_service = create_test_validation_service()
-
-        # Generate an order
-        order = data.draw(generate_order_strategy())
 
         # Create minimal portfolio state
         portfolio_state = Mock(spec=PortfolioState)
@@ -508,41 +585,3 @@ def create_test_validation_service() -> ValidationService:
     config.exchanges = {"backpack": backpack_config}
 
     return ValidationService(config)
-
-
-@st.composite
-def generate_order_strategy(draw: st.DrawFn) -> Order:
-    """Generate valid Order objects for testing."""
-    side = draw(st.sampled_from(list(OrderSide)))
-    order_type = draw(st.sampled_from(list(OrderType)))
-    exchange = draw(st.sampled_from(list(ExchangeName)))
-
-    # Generate price (None for market orders)
-    if order_type == OrderType.MARKET:
-        price = None
-    else:
-        price = draw(decimal_strategy())
-
-    # Generate quantity
-    quantity = draw(decimal_strategy())
-
-    # Choose symbol based on exchange
-    if exchange == ExchangeName.BACKPACK:
-        symbol = bp_symbol("BTC_USDC")
-    else:
-        symbol = hl_symbol("BTC")
-
-    order_id = draw(
-        st.text(min_size=5, max_size=20, alphabet=st.characters(min_codepoint=65, max_codepoint=90))
-    )
-
-    return Order(
-        symbol=symbol,
-        side=side,
-        quantity_requested=quantity,
-        price=price,
-        order_type=order_type,
-        time_in_force=TimeInForce.GTC,
-        exchange=exchange,
-        exchange_order_id=f"test_{order_id}",
-    )

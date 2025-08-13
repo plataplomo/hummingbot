@@ -103,8 +103,7 @@ class PortfolioValidationSettings(BaseModel):
     balance_tolerance: ConfigDecimal = Field(default=Decimal("0.0001"), gt=Decimal(0))
     require_non_negative_balances: bool = True
     skip_balance_for_reduce_only: bool = Field(
-        default=False,
-        description="Skip balance checks for reduce-only orders that close positions"
+        default=False, description="Skip balance checks for reduce-only orders that close positions"
     )
 
     # Position validation
@@ -154,8 +153,7 @@ class PortfolioValidationSettings(BaseModel):
         default=None,
         gt=0,
         description=(
-            "Default minimum required 24-hour volume in quote currency "
-            "for liquidity validation."
+            "Default minimum required 24-hour volume in quote currency for liquidity validation."
         ),
     )
 

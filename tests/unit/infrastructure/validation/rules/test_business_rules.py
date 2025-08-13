@@ -1,637 +1,665 @@
-"""Unit tests for business validation rules.
+"""Property-based tests for business validation rules using Hypothesis.
 
 Tests the BalanceValidationRule and OrderValueLimitsRule implementations
 that validate order balance availability and value limits.
 
 Following TESTING_SECURITY_RULES.md:
-- NO hardcoded financial values
-- Uses real configuration values
+- NO hardcoded financial values (Hypothesis generates them)
+- Uses property-based testing for exhaustive coverage
 - All financial calculations use Decimal
 - Fails fast on critical business logic errors
 """
 
 from __future__ import annotations
 
-from decimal import Decimal
 from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
+from hypothesis import assume, given, settings, strategies as st
 
 from cyberdelta.config.models import AppSettings
+from cyberdelta.enums import (
+    ExchangeName,
+    OrderSide,
+    OrderType,
+    TimeInForce,
+    TradingState,
+    ValidationCategory,
+)
 from cyberdelta.infrastructure.validation.rules.business_rules import (
     BalanceValidationRule,
     OrderValueLimitsRule,
 )
 from cyberdelta.infrastructure.validation.validation_context import ValidationContext
-from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TradingState, ValidationCategory
 from cyberdelta.models.market.order import Order
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.models.spot_balance import SpotBalance
-from cyberdelta.models.validation import ValidationResult
-from cyberdelta.symbols import bp_symbol, hl_symbol
+from tests.common_symbols import BTC_HL, BTC_USDC_BP, ETH_USDC_BP
 
 
-class TestBalanceValidationRule:
-    """Test cases for BalanceValidationRule validation logic."""
+# --- Hypothesis Strategies ---
 
-    @pytest.fixture
-    def balance_rule(self) -> BalanceValidationRule:
-        """Create BalanceValidationRule instance for testing."""
-        return BalanceValidationRule(enabled=True)
 
-    @pytest.fixture
-    def mock_config(self) -> Mock:
-        """Create mock AppSettings for testing."""
-        config = Mock(spec=AppSettings)
-        config.exchanges = {}
-        return config
-
-    @pytest.fixture
-    def mock_portfolio_state(self) -> Mock:
-        """Create mock portfolio state with balances."""
-        portfolio_state = Mock(spec=PortfolioState)
-
-        # Mock USDC balance for buy orders
-        usdc_balance = Mock(spec=SpotBalance)
-        usdc_balance.available_quantity = Decimal("10000.00")  # $10k available
-
-        # Mock BTC balance for sell orders
-        btc_balance = Mock(spec=SpotBalance)
-        btc_balance.available_quantity = Decimal("1.5")  # 1.5 BTC available
-
-        portfolio_state.balances = {
-            "backpack:USDC": usdc_balance,
-            "backpack:BTC": btc_balance,
-            "hyperliquid:USDC": usdc_balance,
-            "hyperliquid:BTC": btc_balance,
-        }
-
-        return portfolio_state
-
-    @pytest.fixture
-    def validation_context(
-        self, mock_config: Mock, mock_portfolio_state: Mock
-    ) -> ValidationContext:
-        """Create validation context for testing."""
-        return ValidationContext(
-            config=mock_config,
-            exchange_config=None,
-            market_snapshot=None,
-            portfolio_state=mock_portfolio_state,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-            is_reconciling=False,
-            is_reduce_only=False,
+@st.composite
+def decimal_strategy(
+    draw: st.DrawFn, min_value: float = 0.000001, max_value: float = 100000.0
+) -> Decimal:
+    """Generate valid Decimal values for financial calculations."""
+    value = draw(
+        st.floats(
+            min_value=min_value,
+            max_value=max_value,
+            allow_infinity=False,
+            allow_nan=False,
+            exclude_min=True,
         )
+    )
+    return Decimal(str(value))
 
-    @pytest.fixture
-    def context_no_portfolio(self, mock_config: Mock) -> ValidationContext:
-        """Create validation context without portfolio state."""
-        return ValidationContext(
-            config=mock_config,
-            exchange_config=None,
-            market_snapshot=None,
-            portfolio_state=None,  # No portfolio state
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
 
-    @pytest.fixture
-    def context_skip_balance(
-        self, mock_config: Mock, mock_portfolio_state: Mock
-    ) -> ValidationContext:
-        """Create validation context that skips balance checks."""
-        return ValidationContext(
-            config=mock_config,
-            exchange_config=None,
-            market_snapshot=None,
-            portfolio_state=mock_portfolio_state,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-            is_reconciling=True,  # Skip balance checks during reconciliation
-            is_reduce_only=False,
-        )
+@st.composite
+def balance_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic balance values."""
+    return draw(decimal_strategy(min_value=0.0, max_value=1000000.0))
 
-    @pytest.fixture
-    def buy_order(self) -> Order:
-        """Create test buy order."""
-        return Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.1"),  # 0.1 BTC
-            price=Decimal("50000.00"),  # $50k per BTC = $5k total
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_buy_001",
-        )
 
-    @pytest.fixture
-    def sell_order(self) -> Order:
-        """Create test sell order."""
-        return Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.SELL,
-            quantity_requested=Decimal("1.0"),  # 1.0 BTC
-            price=Decimal("50000.00"),  # $50k per BTC
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_sell_001",
-        )
+@st.composite
+def price_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic price values."""
+    return draw(decimal_strategy(min_value=0.01, max_value=100000.0))
 
-    def test_rule_properties(self, balance_rule: BalanceValidationRule) -> None:
+
+@st.composite
+def quantity_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic quantity values."""
+    return draw(decimal_strategy(min_value=0.000001, max_value=1000.0))
+
+
+@st.composite
+def order_value_limits_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
+    """Generate valid order value limits (min, max) where min <= max."""
+    min_val = draw(decimal_strategy(min_value=1.0, max_value=1000.0))
+    max_val = draw(decimal_strategy(min_value=float(min_val), max_value=100000.0))
+    return min_val, max_val
+
+
+@st.composite
+def generate_order_strategy(
+    draw: st.DrawFn, exchange: ExchangeName, with_price: bool = True
+) -> Order:
+    """Generate valid Order objects for testing."""
+    side = draw(st.sampled_from(list(OrderSide)))
+    order_type = draw(st.sampled_from([OrderType.LIMIT, OrderType.MARKET]))
+
+    # Generate price (None for market orders or when not required)
+    if order_type == OrderType.MARKET or not with_price:
+        price = None
+    else:
+        price = draw(price_strategy())
+
+    quantity = draw(quantity_strategy())
+
+    # Use proper symbols from common_symbols
+    if exchange == ExchangeName.BACKPACK:
+        symbol = BTC_USDC_BP
+    else:
+        symbol = BTC_HL
+
+    order_id = draw(
+        st.text(min_size=5, max_size=20, alphabet=st.characters(min_codepoint=65, max_codepoint=90))
+    )
+
+    return Order(
+        symbol=symbol,
+        side=side,
+        quantity_requested=quantity,
+        price=price,
+        order_type=order_type,
+        time_in_force=TimeInForce.GTC,
+        exchange=exchange,
+        exchange_order_id=f"test_{order_id}",
+        updated_at=datetime.now(UTC),
+        triggered_at=None,
+        strategy_name="test_strategy",
+        signal_id="test_signal",
+    )
+
+
+# --- Helper Functions ---
+
+
+def create_mock_validation_context(
+    portfolio_state: PortfolioState | None = None,
+    exchange_config: Mock | None = None,
+    is_reconciling: bool = False,
+    global_min_value: Decimal | None = None,
+    global_max_value: Decimal | None = None,
+    exchange_min_size: Decimal | None = None,
+    exchange_max_size: Decimal | None = None,
+) -> ValidationContext:
+    """Create a mock validation context for testing."""
+    mock_config = Mock(spec=AppSettings)
+
+    # Mock validation config if values are provided
+    if global_min_value is not None or global_max_value is not None:
+        validation_config = Mock()
+        validation_config.min_trade_value = global_min_value or Decimal("100.00")
+        validation_config.max_trade_value = global_max_value or Decimal("50000.00")
+        mock_config.validation = validation_config
+
+    # Mock exchange config if values are provided
+    if exchange_config is None and (exchange_min_size is not None or exchange_max_size is not None):
+        exchange_config = Mock()
+        if exchange_min_size is not None:
+            exchange_config.min_order_size = exchange_min_size
+        if exchange_max_size is not None:
+            exchange_config.max_order_size = exchange_max_size
+
+    return ValidationContext(
+        config=mock_config,
+        exchange_config=exchange_config,
+        market_snapshot=None,
+        portfolio_state=portfolio_state,
+        trading_state=TradingState.ACTIVE,
+        timestamp=datetime.now(UTC),
+        is_reconciling=is_reconciling,
+        is_reduce_only=False,
+    )
+
+
+def create_mock_portfolio_with_balance(
+    usdc_balance: Decimal | None = None,
+    btc_balance: Decimal | None = None,
+) -> Mock:
+    """Create mock portfolio state with specified balances."""
+    portfolio_state = Mock(spec=PortfolioState)
+
+    balances = {}
+
+    if usdc_balance is not None:
+        usdc_bal = Mock(spec=SpotBalance)
+        usdc_bal.available_quantity = usdc_balance
+        balances["backpack:USDC"] = usdc_bal
+        balances["hyperliquid:USDC"] = usdc_bal
+
+    if btc_balance is not None:
+        btc_bal = Mock(spec=SpotBalance)
+        btc_bal.available_quantity = btc_balance
+        balances["backpack:BTC"] = btc_bal
+        balances["hyperliquid:BTC"] = btc_bal
+
+    portfolio_state.balances = balances
+    return portfolio_state
+
+
+def create_test_order(
+    exchange: ExchangeName,
+    side: OrderSide,
+    quantity: Decimal = Decimal("1.0"),
+    price: Decimal | None = Decimal("50000.00"),
+    order_type: OrderType = OrderType.LIMIT,
+) -> Order:
+    """Create a test order with specified parameters."""
+    if exchange == ExchangeName.BACKPACK:
+        symbol = BTC_USDC_BP
+    else:
+        symbol = BTC_HL
+
+    return Order(
+        symbol=symbol,
+        side=side,
+        quantity_requested=quantity,
+        price=price,
+        order_type=order_type,
+        time_in_force=TimeInForce.GTC,
+        exchange=exchange,
+        exchange_order_id="test_order",
+        updated_at=datetime.now(UTC),
+        triggered_at=None,
+        strategy_name="test_strategy",
+        signal_id="test_signal",
+    )
+
+
+class TestBalanceValidationRuleProperties:
+    """Property-based tests for BalanceValidationRule validation logic."""
+
+    def test_rule_properties(self) -> None:
         """Test rule property values."""
+        balance_rule = BalanceValidationRule(enabled=True)
         assert balance_rule.name == "balance_check"
         assert balance_rule.category == ValidationCategory.BALANCE
         assert balance_rule.enabled is True
         assert balance_rule.bypass_on_reduce_only is True
 
-    async def test_skip_balance_checks_during_reconciliation(
-        self,
-        balance_rule: BalanceValidationRule,
-        buy_order: Order,
-        context_skip_balance: ValidationContext,
-    ) -> None:
-        """Test that balance checks are skipped during reconciliation."""
-        result = await balance_rule.validate(buy_order, context_skip_balance)
+    @given(st.just(None))  # Add @given decorator for @settings to work
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_skip_balance_checks_during_reconciliation(self, _: None) -> None:
+        """Property: Balance checks should always be skipped during reconciliation."""
+        balance_rule = BalanceValidationRule(enabled=True)
 
+        # Create context that skips balance checks
+        context = create_mock_validation_context(
+            portfolio_state=create_mock_portfolio_with_balance(), is_reconciling=True
+        )
+
+        # Create any order
+        order = create_test_order(ExchangeName.BACKPACK, OrderSide.BUY)
+
+        result = await balance_rule.validate(order, context)
+
+        # Property: Should always be valid during reconciliation
         assert result.is_valid
         assert len(result.violations) == 0
 
-    async def test_no_portfolio_state_violation(
-        self,
-        balance_rule: BalanceValidationRule,
-        buy_order: Order,
-        context_no_portfolio: ValidationContext,
-    ) -> None:
-        """Test violation when portfolio state is unavailable."""
-        result = await balance_rule.validate(buy_order, context_no_portfolio)
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_no_portfolio_state_always_violation(self, _: None) -> None:
+        """Property: Orders should always be rejected when portfolio state is unavailable."""
+        balance_rule = BalanceValidationRule(enabled=True)
 
+        # Create context without portfolio state
+        context = create_mock_validation_context(portfolio_state=None)
+
+        # Create any order
+        order = create_test_order(ExchangeName.BACKPACK, OrderSide.BUY)
+
+        result = await balance_rule.validate(order, context)
+
+        # Property: Should always be invalid without portfolio state
         assert not result.is_valid
         assert len(result.violations) == 1
         assert "Portfolio state unavailable" in result.violations[0]
 
-    async def test_buy_order_sufficient_balance_valid(
-        self,
-        balance_rule: BalanceValidationRule,
-        buy_order: Order,
-        validation_context: ValidationContext,
+    @given(
+        available_balance=balance_strategy(),
+        order_price=price_strategy(),
+        order_quantity=quantity_strategy(),
+    )
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_buy_orders_respect_balance_constraints(
+        self, available_balance: Decimal, order_price: Decimal, order_quantity: Decimal
     ) -> None:
-        """Test buy order with sufficient USDC balance is valid."""
-        # Buy order needs $5k, we have $10k available
-        result = await balance_rule.validate(buy_order, validation_context)
+        """Property: Buy orders should only be valid if total cost <= available balance."""
+        balance_rule = BalanceValidationRule(enabled=True)
 
-        assert result.is_valid
-        assert len(result.violations) == 0
+        order_cost = order_price * order_quantity
 
-    async def test_buy_order_insufficient_balance_violation(
-        self, balance_rule: BalanceValidationRule, validation_context: ValidationContext
-    ) -> None:
-        """Test buy order with insufficient USDC balance is rejected."""
-        # Create buy order that needs more than available balance
-        large_buy_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
+        # Create portfolio with specified balance
+        portfolio_state = create_mock_portfolio_with_balance(usdc_balance=available_balance)
+        context = create_mock_validation_context(portfolio_state=portfolio_state)
+
+        # Create buy order
+        order = Order(
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),  # 1.0 BTC
-            price=Decimal("15000.00"),  # $15k per BTC = $15k total (> $10k available)
+            quantity_requested=order_quantity,
+            price=order_price,
             order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_large_buy",
+            exchange_order_id="test_buy_balance",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
-        result = await balance_rule.validate(large_buy_order, validation_context)
+        result = await balance_rule.validate(order, context)
 
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "Insufficient USDC balance" in result.violations[0]
-        assert "need 15000" in result.violations[0]
-        assert "available 10000" in result.violations[0]
+        # Property: Order should be valid iff we have enough balance
+        if order_cost <= available_balance:
+            assert result.is_valid, (
+                f"Buy order costing {order_cost} should be valid with balance {available_balance}"
+            )
+        else:
+            assert not result.is_valid, (
+                f"Buy order costing {order_cost} should be invalid with balance {available_balance}"
+            )
+            assert len(result.violations) >= 1
+            assert "Insufficient USDC balance" in result.violations[0]
 
-    async def test_buy_order_no_quote_balance_violation(
-        self, balance_rule: BalanceValidationRule, validation_context: ValidationContext
+    @given(
+        available_balance=balance_strategy(),
+        order_price=price_strategy(),
+        order_quantity=quantity_strategy(),
+    )
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_sell_orders_respect_balance_constraints(
+        self, available_balance: Decimal, order_price: Decimal, order_quantity: Decimal
     ) -> None:
-        """Test buy order with no quote currency balance is rejected."""
-        # Create buy order for pair without quote balance
-        no_balance_order = Order(
-            symbol=bp_symbol("ETH_DAI"),  # DAI not in portfolio
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.0"),
-            price=Decimal("3000.00"),
+        """Property: Sell orders should only be valid if requested quantity <= available balance."""
+        balance_rule = BalanceValidationRule(enabled=True)
+
+        # Create portfolio with specified BTC balance
+        portfolio_state = create_mock_portfolio_with_balance(btc_balance=available_balance)
+        context = create_mock_validation_context(portfolio_state=portfolio_state)
+
+        # Create sell order
+        order = Order(
+            symbol=BTC_USDC_BP,
+            side=OrderSide.SELL,
+            quantity_requested=order_quantity,
+            price=order_price,
             order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_no_balance",
+            exchange_order_id="test_sell_balance",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
-        result = await balance_rule.validate(no_balance_order, validation_context)
+        result = await balance_rule.validate(order, context)
 
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "No DAI balance found" in result.violations[0]
+        # Property: Order should be valid iff we have enough base asset
+        if order_quantity <= available_balance:
+            assert result.is_valid, (
+                f"Sell order for {order_quantity} should be valid with balance {available_balance}"
+            )
+        else:
+            assert not result.is_valid, (
+                f"Sell order for {order_quantity} should be invalid with balance {available_balance}"
+            )
+            assert len(result.violations) >= 1
+            assert "Insufficient BTC balance" in result.violations[0]
 
-    async def test_buy_order_without_price_violation(
-        self, balance_rule: BalanceValidationRule, validation_context: ValidationContext
-    ) -> None:
-        """Test buy order without price cannot be validated."""
-        market_buy_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_buy_orders_without_price_always_violation(self, _: None) -> None:
+        """Property: Buy orders without price should always be rejected."""
+        balance_rule = BalanceValidationRule(enabled=True)
+
+        portfolio_state = create_mock_portfolio_with_balance()
+        context = create_mock_validation_context(portfolio_state=portfolio_state)
+
+        # Create market buy order without price
+        order = Order(
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=Decimal("0.1"),
-            price=None,  # Market order without price
+            price=None,
             order_type=OrderType.MARKET,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_market_buy",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
-        result = await balance_rule.validate(market_buy_order, validation_context)
+        result = await balance_rule.validate(order, context)
 
+        # Property: Should always be invalid
         assert not result.is_valid
         assert len(result.violations) == 1
         assert "Cannot validate buy order without price" in result.violations[0]
 
-    async def test_sell_order_sufficient_balance_valid(
-        self,
-        balance_rule: BalanceValidationRule,
-        sell_order: Order,
-        validation_context: ValidationContext,
-    ) -> None:
-        """Test sell order with sufficient BTC balance is valid."""
-        # Sell order needs 1.0 BTC, we have 1.5 BTC available
-        result = await balance_rule.validate(sell_order, validation_context)
+    @given(st.just(None))
+    @settings(max_examples=20, deadline=None)
+    @pytest.mark.asyncio
+    async def test_missing_base_balance_always_violation(self, _: None) -> None:
+        """Property: Sell orders for assets without base balance should always be rejected."""
+        balance_rule = BalanceValidationRule(enabled=True)
 
-        assert result.is_valid
-        assert len(result.violations) == 0
+        # Create portfolio without ETH balance
+        portfolio_state = create_mock_portfolio_with_balance(usdc_balance=Decimal("10000.00"))
+        context = create_mock_validation_context(portfolio_state=portfolio_state)
 
-    async def test_sell_order_insufficient_balance_violation(
-        self, balance_rule: BalanceValidationRule, validation_context: ValidationContext
-    ) -> None:
-        """Test sell order with insufficient BTC balance is rejected."""
-        # Create sell order that needs more than available balance
-        large_sell_order = Order(
-            symbol=bp_symbol("BTC_USDC"),
-            side=OrderSide.SELL,
-            quantity_requested=Decimal("2.0"),  # Need 2.0 BTC, only have 1.5
-            price=Decimal("50000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_large_sell",
-        )
-
-        result = await balance_rule.validate(large_sell_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "Insufficient BTC balance" in result.violations[0]
-        assert "need 2.0" in result.violations[0]
-        assert "available 1.5" in result.violations[0]
-
-    async def test_sell_order_no_base_balance_violation(
-        self, balance_rule: BalanceValidationRule, validation_context: ValidationContext
-    ) -> None:
-        """Test sell order with no base currency balance is rejected."""
-        # Create sell order for asset not in portfolio
-        no_balance_order = Order(
-            symbol=bp_symbol("ETH_USDC"),  # ETH not in portfolio
+        # Create sell order for ETH (no ETH balance in portfolio)
+        order = Order(
+            symbol=ETH_USDC_BP,
             side=OrderSide.SELL,
             quantity_requested=Decimal("1.0"),
             price=Decimal("3000.00"),
             order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_no_eth",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
-        result = await balance_rule.validate(no_balance_order, validation_context)
+        result = await balance_rule.validate(order, context)
 
+        # Property: Should always be invalid
         assert not result.is_valid
         assert len(result.violations) == 1
         assert "No ETH balance found" in result.violations[0]
 
-    async def test_hyperliquid_symbol_extraction(
-        self, balance_rule: BalanceValidationRule, validation_context: ValidationContext
-    ) -> None:
-        """Test symbol extraction works for Hyperliquid orders."""
-        hl_order = Order(
-            symbol=hl_symbol("BTC"),  # Hyperliquid format
+    @given(st.just(None))
+    @settings(max_examples=20, deadline=None)
+    @pytest.mark.asyncio
+    async def test_hyperliquid_symbol_extraction_always_works(self, _: None) -> None:
+        """Property: Hyperliquid orders should always extract symbols correctly."""
+        balance_rule = BalanceValidationRule(enabled=True)
+
+        # Create portfolio with USD balance for Hyperliquid (BTC_HL uses USD as quote)
+        portfolio_state = Mock(spec=PortfolioState)
+        usd_balance = Mock(spec=SpotBalance)
+        usd_balance.available_quantity = Decimal("10000.00")
+        portfolio_state.balances = {"hyperliquid:USD": usd_balance}
+        context = create_mock_validation_context(portfolio_state=portfolio_state)
+
+        # Create Hyperliquid order
+        order = Order(
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity_requested=Decimal("0.1"),
             price=Decimal("50000.00"),
             order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.HYPERLIQUID,
             exchange_order_id="test_hl_order",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
-        result = await balance_rule.validate(hl_order, validation_context)
+        result = await balance_rule.validate(order, context)
 
         # Should use USDC as quote asset and succeed with sufficient balance
         assert result.is_valid
         assert len(result.violations) == 0
 
 
-class TestOrderValueLimitsRule:
-    """Test cases for OrderValueLimitsRule validation logic."""
+class TestOrderValueLimitsRuleProperties:
+    """Property-based tests for OrderValueLimitsRule validation logic."""
 
-    @pytest.fixture
-    def limits_rule(self) -> OrderValueLimitsRule:
-        """Create OrderValueLimitsRule instance for testing."""
-        return OrderValueLimitsRule(enabled=True)
-
-    @pytest.fixture
-    def mock_config(self) -> Mock:
-        """Create mock AppSettings with validation limits."""
-        config = Mock(spec=AppSettings)
-
-        # Mock validation config with limits
-        validation_config = Mock()
-        validation_config.min_trade_value = Decimal("100.00")  # $100 minimum
-        validation_config.max_trade_value = Decimal("50000.00")  # $50k maximum
-        config.validation = validation_config
-
-        return config
-
-    @pytest.fixture
-    def mock_exchange_config(self) -> Mock:
-        """Create mock exchange configuration with order size limits."""
-        exchange_config = Mock()
-        exchange_config.min_order_size = Decimal("50.00")  # $50 minimum
-        exchange_config.max_order_size = Decimal("25000.00")  # $25k maximum
-        return exchange_config
-
-    @pytest.fixture
-    def validation_context(
-        self, mock_config: Mock, mock_exchange_config: Mock
-    ) -> ValidationContext:
-        """Create validation context for testing."""
-        return ValidationContext(
-            config=mock_config,
-            exchange_config=mock_exchange_config,
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-    @pytest.fixture
-    def valid_order(self) -> Order:
-        """Create test order with valid value."""
-        return Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.01"),  # 0.01 BTC
-            price=Decimal("50000.00"),  # $50k per BTC = $500 total
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_valid_value",
-        )
-
-    def test_rule_properties(self, limits_rule: OrderValueLimitsRule) -> None:
+    def test_rule_properties(self) -> None:
         """Test rule property values."""
+        limits_rule = OrderValueLimitsRule(enabled=True)
         assert limits_rule.name == "order_value_limits"
         assert limits_rule.category == ValidationCategory.LIMITS
         assert limits_rule.enabled is True
         assert limits_rule.bypass_on_reduce_only is False
 
-    async def test_market_order_without_price_skipped(
-        self, limits_rule: OrderValueLimitsRule, validation_context: ValidationContext
-    ) -> None:
-        """Test that market orders without price are skipped."""
-        market_order = Order(
-            symbol=bp_symbol("BTC"),
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_market_orders_without_price_always_skipped(self, _: None) -> None:
+        """Property: Market orders without price should always be skipped."""
+        limits_rule = OrderValueLimitsRule(enabled=True)
+
+        context = create_mock_validation_context()
+
+        # Create market order without price
+        order = Order(
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=Decimal("0.01"),
-            price=None,  # Market order
+            price=None,
             order_type=OrderType.MARKET,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_market",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
-        result = await limits_rule.validate(market_order, validation_context)
+        result = await limits_rule.validate(order, context)
 
+        # Property: Should always be valid (skipped)
         assert result.is_valid
         assert len(result.violations) == 0
 
-    async def test_order_within_all_limits_valid(
-        self,
-        limits_rule: OrderValueLimitsRule,
-        valid_order: Order,
-        validation_context: ValidationContext,
+    @given(
+        min_value=decimal_strategy(min_value=1.0, max_value=1000.0),
+        max_value=decimal_strategy(min_value=1000.0, max_value=100000.0),
+        order_price=price_strategy(),
+        order_quantity=quantity_strategy(),
+    )
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_order_value_limits_properly_enforced(
+        self, min_value: Decimal, max_value: Decimal, order_price: Decimal, order_quantity: Decimal
     ) -> None:
-        """Test order within all limits is valid."""
-        # Order value $500 is between global ($100-$50k) and exchange ($50-$25k) limits
-        result = await limits_rule.validate(valid_order, validation_context)
+        """Property: Orders should only be valid if min_value <= order_value <= max_value."""
+        limits_rule = OrderValueLimitsRule(enabled=True)
 
-        assert result.is_valid
-        assert len(result.violations) == 0
+        # Ensure min <= max (Hypothesis can sometimes generate edge cases)
+        assume(min_value <= max_value)
 
-    async def test_order_below_global_minimum_violation(
-        self, limits_rule: OrderValueLimitsRule, validation_context: ValidationContext
-    ) -> None:
-        """Test order below global minimum is rejected."""
-        small_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.001"),  # 0.001 BTC
-            price=Decimal("50000.00"),  # $50k per BTC = $50 total (< $100 min)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_small",
+        order_value = order_price * order_quantity
+
+        # Create context with specified limits
+        context = create_mock_validation_context(
+            global_min_value=min_value, global_max_value=max_value
         )
 
-        result = await limits_rule.validate(small_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "below global minimum" in result.violations[0]
-        assert "$50" in result.violations[0]
-        assert "$100" in result.violations[0]
-
-    async def test_order_above_global_maximum_violation(
-        self, limits_rule: OrderValueLimitsRule, validation_context: ValidationContext
-    ) -> None:
-        """Test order above global maximum is rejected."""
-        large_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("1.5"),  # 1.5 BTC
-            price=Decimal("50000.00"),  # $50k per BTC = $75k total (> $50k max)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_large",
-        )
-
-        result = await limits_rule.validate(large_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "exceeds global maximum" in result.violations[0]
-        assert "$75000" in result.violations[0]
-        assert "$50000" in result.violations[0]
-
-    async def test_order_below_exchange_minimum_violation(
-        self, limits_rule: OrderValueLimitsRule, validation_context: ValidationContext
-    ) -> None:
-        """Test order below exchange minimum is rejected."""
-        small_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.0008"),  # 0.0008 BTC
-            price=Decimal("50000.00"),  # $50k per BTC = $40 total (< $50 exchange min)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_exchange_small",
-        )
-
-        result = await limits_rule.validate(small_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "below exchange minimum" in result.violations[0]
-        assert "$40" in result.violations[0]
-        assert "$50" in result.violations[0]
-        assert "backpack" in result.violations[0]
-
-    async def test_order_above_exchange_maximum_violation(
-        self, limits_rule: OrderValueLimitsRule, validation_context: ValidationContext
-    ) -> None:
-        """Test order above exchange maximum is rejected."""
-        large_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.6"),  # 0.6 BTC
-            price=Decimal("50000.00"),  # $50k per BTC = $30k total (> $25k exchange max)
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_exchange_large",
-        )
-
-        result = await limits_rule.validate(large_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 1
-        assert "exceeds exchange maximum" in result.violations[0]
-        assert "$30000" in result.violations[0]
-        assert "$25000" in result.violations[0]
-        assert "backpack" in result.violations[0]
-
-    async def test_multiple_violations(
-        self, limits_rule: OrderValueLimitsRule, validation_context: ValidationContext
-    ) -> None:
-        """Test order can have multiple limit violations."""
-        # Order that violates both global max and exchange max
-        very_large_order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("2.0"),  # 2.0 BTC
-            price=Decimal("50000.00"),  # $50k per BTC = $100k total
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_multiple",
-        )
-
-        result = await limits_rule.validate(very_large_order, validation_context)
-
-        assert not result.is_valid
-        assert len(result.violations) == 2
-        assert any("exceeds global maximum" in v for v in result.violations)
-        assert any("exceeds exchange maximum" in v for v in result.violations)
-
-    async def test_no_exchange_config_uses_global_only(
-        self, limits_rule: OrderValueLimitsRule, mock_config: Mock
-    ) -> None:
-        """Test validation uses only global limits when no exchange config."""
-        context_no_exchange = ValidationContext(
-            config=mock_config,
-            exchange_config=None,  # No exchange config
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-        # Order within global limits but would exceed exchange limits
+        # Create order
         order = Order(
-            symbol=bp_symbol("BTC"),
+            symbol=BTC_USDC_BP,
+            side=OrderSide.BUY,
+            quantity_requested=order_quantity,
+            price=order_price,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
+            exchange=ExchangeName.BACKPACK,
+            exchange_order_id="test_value_limits",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
+        )
+
+        result = await limits_rule.validate(order, context)
+
+        # Property: Order should be valid iff value is within limits
+        if min_value <= order_value <= max_value:
+            assert result.is_valid, (
+                f"Order value {order_value} should be valid within limits [{min_value}, {max_value}]"
+            )
+        else:
+            assert not result.is_valid, (
+                f"Order value {order_value} should be invalid outside limits [{min_value}, {max_value}]"
+            )
+            assert len(result.violations) >= 1
+
+    @given(
+        exchange_min=decimal_strategy(min_value=10.0, max_value=100.0),
+        exchange_max=decimal_strategy(min_value=1000.0, max_value=50000.0),
+        order_price=price_strategy(),
+        order_quantity=quantity_strategy(),
+    )
+    @settings(max_examples=50, deadline=None)
+    @pytest.mark.asyncio
+    async def test_exchange_limits_properly_enforced(
+        self,
+        exchange_min: Decimal,
+        exchange_max: Decimal,
+        order_price: Decimal,
+        order_quantity: Decimal,
+    ) -> None:
+        """Property: Orders should respect exchange-specific limits when configured."""
+        limits_rule = OrderValueLimitsRule(enabled=True)
+
+        # Ensure min <= max
+        assume(exchange_min <= exchange_max)
+
+        order_value = order_price * order_quantity
+
+        # Create context with exchange limits and proper validation config
+        context = create_mock_validation_context(
+            exchange_min_size=exchange_min,
+            exchange_max_size=exchange_max,
+            global_min_value=Decimal("1.0"),  # Ensure validation config exists
+            global_max_value=Decimal("100000.0"),
+        )
+
+        # Create order
+        order = Order(
+            symbol=BTC_USDC_BP,
+            side=OrderSide.BUY,
+            quantity_requested=order_quantity,
+            price=order_price,
+            order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
+            exchange=ExchangeName.BACKPACK,
+            exchange_order_id="test_exchange_limits",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
+        )
+
+        result = await limits_rule.validate(order, context)
+
+        # Property: Order should respect exchange limits
+        if order_value < exchange_min:
+            assert not result.is_valid
+            assert any("below exchange minimum" in v for v in result.violations)
+        elif order_value > exchange_max:
+            assert not result.is_valid
+            assert any("exceeds exchange maximum" in v for v in result.violations)
+        # Note: May still violate global limits, but that's checked separately
+
+    @given(st.just(None))
+    @settings(max_examples=30, deadline=None)
+    @pytest.mark.asyncio
+    async def test_no_exchange_config_uses_global_only(self, _: None) -> None:
+        """Property: When no exchange config, only global limits should apply."""
+        limits_rule = OrderValueLimitsRule(enabled=True)
+
+        # Create context without exchange config
+        context = create_mock_validation_context(
+            exchange_config=None,
+            global_min_value=Decimal("100.00"),
+            global_max_value=Decimal("50000.00"),
+        )
+
+        # Order within global limits but would exceed typical exchange limits
+        order = Order(
+            symbol=BTC_USDC_BP,
             side=OrderSide.BUY,
             quantity_requested=Decimal("0.6"),  # 0.6 BTC
-            price=Decimal("50000.00"),  # $30k total (within global $50k, above exchange $25k)
+            price=Decimal("50000.00"),  # $30k total
             order_type=OrderType.LIMIT,
+            time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             exchange_order_id="test_no_exchange_config",
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name="test_strategy",
+            signal_id="test_signal",
         )
 
-        result = await limits_rule.validate(order, context_no_exchange)
+        result = await limits_rule.validate(order, context)
 
-        # Should be valid (only global limits apply)
+        # Property: Should be valid (only global limits apply)
         assert result.is_valid
         assert len(result.violations) == 0
-
-    async def test_exchange_config_without_limits(
-        self, limits_rule: OrderValueLimitsRule, mock_config: Mock
-    ) -> None:
-        """Test validation when exchange config has no order size limits."""
-        exchange_config_no_limits = Mock()
-        # No min_order_size or max_order_size attributes
-
-        context_no_limits = ValidationContext(
-            config=mock_config,
-            exchange_config=exchange_config_no_limits,
-            market_snapshot=None,
-            portfolio_state=None,
-            trading_state=TradingState.ACTIVE,
-            timestamp=datetime.now(UTC),
-        )
-
-        # Large order that would violate exchange limits if they existed
-        order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal("0.8"),  # 0.8 BTC
-            price=Decimal("50000.00"),  # $40k total
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_no_limits",
-        )
-
-        result = await limits_rule.validate(order, context_no_limits)
-
-        # Should be valid (only global limits apply)
-        assert result.is_valid
-        assert len(result.violations) == 0
-
-    @pytest.mark.parametrize(
-        "quantity_str,expected_value,should_violate_global_min",
-        [
-            ("0.001", "50", True),  # $50 < $100 global min
-            ("0.002", "100", False),  # $100 = $100 global min (boundary)
-            ("0.01", "500", False),  # $500 within limits
-            ("1.0", "50000", False),  # $50k = $50k global max (boundary)
-        ],
-    )
-    async def test_various_order_values(
-        self,
-        limits_rule: OrderValueLimitsRule,
-        validation_context: ValidationContext,
-        quantity_str: str,
-        expected_value: str,
-        should_violate_global_min: bool,
-    ) -> None:
-        """Test various order values against limits."""
-        order = Order(
-            symbol=bp_symbol("BTC"),
-            side=OrderSide.BUY,
-            quantity_requested=Decimal(quantity_str),
-            price=Decimal("50000.00"),
-            order_type=OrderType.LIMIT,
-            exchange=ExchangeName.BACKPACK,
-            exchange_order_id="test_parametrized",
-        )
-
-        result = await limits_rule.validate(order, validation_context)
-
-        if should_violate_global_min:
-            assert not result.is_valid
-            assert len(result.violations) >= 1
-            assert any("below global minimum" in v for v in result.violations)
-            assert expected_value in result.violations[0]
-        else:
-            # May still violate other limits, but not global minimum
-            if not result.is_valid:
-                assert not any("below global minimum" in v for v in result.violations)

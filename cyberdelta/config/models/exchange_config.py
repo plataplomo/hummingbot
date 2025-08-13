@@ -208,7 +208,7 @@ class ExchangeSpecificConfig(BaseModel):
         gt=0,
         description="Minimum required 24-hour volume in quote currency for liquidity validation.",
     )
-    
+
     min_quantity: float | None = Field(
         default=None,
         gt=0,
