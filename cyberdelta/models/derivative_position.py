@@ -261,10 +261,13 @@ class DerivativePosition(ExchangeValidationMixin, StandardModel):
         if self.size == Decimal(0) or not self.entry_price:
             return None
 
+        # Always use absolute size for consistent calculation
+        size_abs = abs(self.size)
+        
         if self.side == OrderSide.BUY:
-            return self.size * (mark_price - self.entry_price)
+            return size_abs * (mark_price - self.entry_price)
         # SELL
-        return abs(self.size) * (self.entry_price - mark_price)
+        return size_abs * (self.entry_price - mark_price)
 
     # --- Model Validators ---
 

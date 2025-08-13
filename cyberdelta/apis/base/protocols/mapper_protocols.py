@@ -106,24 +106,6 @@ class AbstractBalanceMapperProtocol(Protocol):
 class PositionMapperMixin:
     """Shared utilities for all position mappers."""
 
-    def calculate_unrealized_pnl(
-        self, entry_price: Decimal, current_price: Decimal, size: Decimal, is_long: bool
-    ) -> Decimal:
-        """Calculate unrealized PnL for a position.
-
-        Args:
-            entry_price: Position entry price
-            current_price: Current market price
-            size: Position size (absolute value)
-            is_long: True for long positions, False for short
-
-        Returns:
-            Unrealized PnL
-        """
-        if is_long:
-            return (current_price - entry_price) * size
-        return (entry_price - current_price) * size
-
     def calculate_position_value(self, price: Decimal, size: Decimal) -> Decimal:
         """Calculate the total value of a position.
 
