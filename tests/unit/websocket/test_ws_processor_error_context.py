@@ -69,6 +69,7 @@ class MockContext:
     """Mock WebSocket context for testing."""
 
     def __init__(self) -> None:
+        """Initialize mock WebSocket context."""
         # Required by WebSocketContextProtocol
         self.exchange_type = ExchangeName.HYPERLIQUID
         self.connection_id = "test-connection-123"
@@ -88,6 +89,11 @@ class MockContext:
         self.sequence_number = 1234
 
     def model_dump(self, *, mode: str = "python") -> dict[str, object]:
+        """Serialize context data.
+        
+        Returns:
+            dict[str, object]: Serialized context data.
+        """
         return {
             "connection_id": self.connection_id,
             "exchange_name": self.exchange_name,
@@ -117,12 +123,27 @@ class MockContext:
         )
 
     def get_transformer_params(self) -> dict[str, str]:
+        """Get transformer parameters.
+        
+        Returns:
+            dict[str, str]: Transformer parameters.
+        """
         return {"symbol": "BTC-USDC"}
 
     def get_symbol_param(self) -> dict[str, str] | None:
+        """Get symbol parameter.
+        
+        Returns:
+            dict[str, str] | None: Symbol parameter or None.
+        """
         return {"symbol": "BTC-USDC"}
 
     def get_coin_param(self) -> dict[str, str] | None:
+        """Get coin parameter.
+        
+        Returns:
+            dict[str, str] | None: Coin parameter or None.
+        """
         return None
 
 
@@ -153,6 +174,9 @@ class TestProcessorErrorContextBuilder:
 
         Returns:
             ValidationError: Pydantic validation error from invalid model data.
+            
+        Raises:
+            AssertionError: If ValidationError is not raised as expected.
         """
         try:
             MockRawModel.model_validate({"price": "invalid", "symbol": 123})
@@ -209,7 +233,8 @@ class TestProcessorErrorContextBuilder:
         mock_payload: dict[str, Any],
     ) -> None:
         """Test creating error context using fallback when context has no
-        create_error_context method."""
+        create_error_context method.
+        """
         # Create mock context without create_error_context method
         mock_context = Mock(spec=WebSocketContextProtocol)
         mock_context.connection_id = "fallback-connection-456"

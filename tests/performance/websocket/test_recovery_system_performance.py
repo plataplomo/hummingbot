@@ -14,7 +14,6 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_recovery import ConnectionState
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_recovery import StreamRecoverySystem
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorRecoveryConfig
@@ -102,21 +101,21 @@ class TestRecoverySystemPerformance:
             WebSocketErrorCode.AUTH_EXPIRED,
         ]
 
-        errors = []
+        errors: list[WebSocketStreamError] = []
         for i in range(count):
             error_code = error_types[i % len(error_types)]
             error = ErrorTestFactory.create_test_error(code=error_code)
             errors.append(error)
 
         # Warm up
-        for i in range(10):
+        for _i in range(10):
             recovery_system.get_recovery_stats()
 
         gc.collect()
 
         start_time = time.perf_counter()
-        stats_list = []
-        for error in errors:
+        stats_list: list[dict[str, object]] = []
+        for _error in errors:
             stats = recovery_system.get_recovery_stats()
             stats_list.append(stats)
         end_time = time.perf_counter()
@@ -240,7 +239,7 @@ class TestRecoverySystemPerformance:
         start_time = time.perf_counter()
 
         # Run concurrent recovery handling
-        tasks = []
+        tasks: list[asyncio.Task[bool]] = []
         for error in errors:
             task = asyncio.create_task(recovery_system.handle_stream_error(error))
             tasks.append(task)
@@ -324,7 +323,7 @@ class TestRecoverySystemPerformance:
             errors.append(error)
 
         # Warm up
-        for i in range(min(10, error_count)):
+        for _i in range(min(10, error_count)):
             recovery_system.get_recovery_stats()
 
         gc.collect()
@@ -350,10 +349,8 @@ class TestRecoverySystemPerformance:
         # Target: recovery operations should not accumulate excessive memory
         recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
 
-        error = ErrorTestFactory.create_test_error()
-
         # Perform many recovery operations
-        for i in range(1000):
+        for _i in range(1000):
             recovery_system.get_recovery_stats()
             # Use public operations for memory testing
             _ = len(recovery_system.get_recovery_stats())

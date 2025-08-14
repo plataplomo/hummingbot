@@ -11,16 +11,15 @@ wrong order types, or mismatched order statuses causing execution failures.
 """
 
 from decimal import Decimal
-from datetime import datetime, UTC
+from typing import Any
+
 import pytest
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderType, OrderSide, TimeInForce
-from cyberdelta.symbols.models import Symbol
+from cyberdelta.enums import OrderType, TimeInForce
 
 
 # =============================================================================
@@ -104,10 +103,10 @@ def financial_decimal_str_strategy() -> SearchStrategy[str]:
     """Generate financial decimal strings for order values."""
     return st.one_of([
         # Common trading amounts
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(
             str
         ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=2).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=2).map(str),
         # Edge cases
         st.just("0"),
         st.just("0.00000001"),  # Minimum crypto amount
@@ -115,7 +114,7 @@ def financial_decimal_str_strategy() -> SearchStrategy[str]:
     ])
 
 
-def order_transformation_data_strategy():
+def order_transformation_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for order transformation testing."""
     return st.fixed_dictionaries({
         "id": st.text(min_size=10, max_size=50),
@@ -148,7 +147,7 @@ class TestOrderStatusMappingProperties:
     """Property-based tests for order status mapping."""
 
     @given(bp_status=backpack_order_status_strategy())
-    def test_status_mapping_consistency(self, bp_status: str):
+    def test_status_mapping_consistency(self, bp_status: str) -> None:
         """Property: Status mapping should be consistent and deterministic."""
         # Map the status twice
         result1 = BackpackOrderMapper._map_status_to_internal(bp_status)
@@ -173,7 +172,7 @@ class TestOrderStatusMappingProperties:
             "triggerpending",
         ])
     )
-    def test_known_status_mapping_correctness(self, bp_status: str):
+    def test_known_status_mapping_correctness(self, bp_status: str) -> None:
         """Property: Known status values should map to correct internal values."""
         result = BackpackOrderMapper._map_status_to_internal(bp_status)
 
@@ -212,14 +211,14 @@ class TestOrderStatusMappingProperties:
             ]
         )
     )
-    def test_unknown_status_mapping(self, bp_status: str):
+    def test_unknown_status_mapping(self, bp_status: str) -> None:
         """Property: Unknown status values should map to UNKNOWN."""
         result = BackpackOrderMapper._map_status_to_internal(bp_status)
 
         # Property: Unknown statuses should map to UNKNOWN
         assert result == OrderStatus.UNKNOWN
 
-    def test_status_mapping_case_insensitive(self):
+    def test_status_mapping_case_insensitive(self) -> None:
         """Property: Status mapping should be case-insensitive."""
         test_cases = ["FILLED", "filled", "Filled", "FiLlEd"]
 
@@ -238,7 +237,7 @@ class TestOrderTypeMappingProperties:
     """Property-based tests for order type mapping."""
 
     @given(bp_type=backpack_order_type_strategy())
-    def test_type_mapping_consistency(self, bp_type: str):
+    def test_type_mapping_consistency(self, bp_type: str) -> None:
         """Property: Type mapping should be consistent and deterministic."""
         # Map the type twice
         result1 = BackpackOrderMapper._map_type_to_internal(bp_type)
@@ -260,7 +259,7 @@ class TestOrderTypeMappingProperties:
             "take_profit",
         ])
     )
-    def test_known_type_mapping_correctness(self, bp_type: str):
+    def test_known_type_mapping_correctness(self, bp_type: str) -> None:
         """Property: Known type values should map to correct internal values."""
         result = BackpackOrderMapper._map_type_to_internal(bp_type)
 
@@ -279,7 +278,7 @@ class TestOrderTypeMappingProperties:
     @given(
         bp_type=st.sampled_from(["market", "limit"]), trigger_price=financial_decimal_str_strategy()
     )
-    def test_trigger_price_affects_type_mapping(self, bp_type: str, trigger_price: str):
+    def test_trigger_price_affects_type_mapping(self, bp_type: str, trigger_price: str) -> None:
         """Property: Presence of trigger price should affect order type mapping."""
         # Map without trigger price
         result_without_trigger = BackpackOrderMapper._map_type_to_internal(bp_type)
@@ -304,7 +303,7 @@ class TestTimeInForceMappingProperties:
     """Property-based tests for time in force mapping."""
 
     @given(bp_tif=backpack_time_in_force_strategy())
-    def test_tif_mapping_consistency(self, bp_tif: str):
+    def test_tif_mapping_consistency(self, bp_tif: str) -> None:
         """Property: Time in force mapping should be consistent."""
         # Map the TIF twice
         result1 = BackpackOrderMapper._map_time_in_force(bp_tif)
@@ -317,7 +316,7 @@ class TestTimeInForceMappingProperties:
         assert isinstance(result1, TimeInForce)
 
     @given(bp_tif=st.sampled_from(["GTC", "IOC", "FOK"]))
-    def test_known_tif_mapping_correctness(self, bp_tif: str):
+    def test_known_tif_mapping_correctness(self, bp_tif: str) -> None:
         """Property: Known TIF values should map correctly."""
         result = BackpackOrderMapper._map_time_in_force(bp_tif)
 
@@ -330,7 +329,7 @@ class TestTimeInForceMappingProperties:
 
         assert result == expected_mappings[bp_tif]
 
-    def test_tif_mapping_case_insensitive(self):
+    def test_tif_mapping_case_insensitive(self) -> None:
         """Property: TIF mapping should be case-insensitive."""
         test_cases = ["GTC", "gtc", "Gtc", "gTc"]
 
@@ -350,11 +349,29 @@ class TestOrderTransformationProperties:
 
     @given(order_data=order_transformation_data_strategy())
     @settings(max_examples=500)
-    def test_order_transformation_preserves_financial_precision(self, order_data):
+    def test_order_transformation_preserves_financial_precision(
+        self, order_data: dict[str, Any]
+    ) -> None:
         """Property: Order transformation should preserve financial precision."""
         try:
+            # Create a symbol for the test
+            from cyberdelta.symbols import exchanges
+
+            symbol = exchanges.backpack(order_data["symbol"])
+
+            mapper = BackpackOrderMapper()
+
             # Transform the order data
-            result = BackpackOrderMapper.transform_order_data_to_internal(order_data)
+            result = mapper.transform_order_data_to_internal(
+                order_id=str(order_data["id"]),
+                symbol=symbol,
+                side=str(order_data["side"]),
+                order_type=str(order_data["orderType"]),
+                status=str(order_data["status"]),
+                quantity=str(order_data["quantity"]),
+                price=str(order_data["price"]) if order_data["price"] else None,
+                time_in_force=str(order_data["timeInForce"]),
+            )
 
             # Property: Financial values should be preserved as Decimal
             if order_data.get("quantity"):
@@ -370,9 +387,12 @@ class TestOrderTransformationProperties:
                 assert result.price == original_price
 
             # Property: Symbol should be properly mapped
-            assert isinstance(result.symbol, Symbol)
+            # Check it's a BaseSymbol instance (Symbol is a type alias)
+            assert hasattr(result.symbol, "value") and hasattr(result.symbol, "exchange")
 
-            # Property: Side should be properly mapped
+            # Property: Side should be properly mapped to enum
+            from cyberdelta.enums import OrderSide
+
             assert result.side in [OrderSide.BUY, OrderSide.SELL]
 
         except Exception as e:
@@ -381,22 +401,38 @@ class TestOrderTransformationProperties:
             assert isinstance(e, (ValueError, TypeError, AttributeError))
 
     @given(order_data=order_transformation_data_strategy())
-    def test_order_transformation_financial_invariants(self, order_data):
+    def test_order_transformation_financial_invariants(self, order_data: dict[str, Any]) -> None:
         """Property: Transformed orders should maintain financial invariants."""
         try:
-            result = BackpackOrderMapper.transform_order_data_to_internal(order_data)
+            # Create a symbol for the test
+            from cyberdelta.symbols import exchanges
+
+            symbol = exchanges.backpack(order_data["symbol"])
+
+            mapper = BackpackOrderMapper()
+
+            result = mapper.transform_order_data_to_internal(
+                order_id=str(order_data["id"]),
+                symbol=symbol,
+                side=str(order_data["side"]),
+                order_type=str(order_data["orderType"]),
+                status=str(order_data["status"]),
+                quantity=str(order_data["quantity"]),
+                price=str(order_data["price"]) if order_data["price"] else None,
+                time_in_force=str(order_data["timeInForce"]),
+            )
 
             # Property: Quantities should be positive or zero
             if result.quantity_requested is not None:
-                assert result.quantity_requested >= Decimal("0")
+                assert result.quantity_requested >= Decimal(0)
 
             # Property: Prices should be positive or None
             if result.price is not None:
-                assert result.price > Decimal("0")
+                assert result.price > Decimal(0)
 
             # Property: Trigger prices should be positive or None
             if hasattr(result, "trigger_price") and result.trigger_price is not None:
-                assert result.trigger_price > Decimal("0")
+                assert result.trigger_price > Decimal(0)
 
             # Property: Financial values should be finite
             if result.quantity_requested is not None:
@@ -414,11 +450,11 @@ class TestOrderTransformationProperties:
     )
     def test_order_transformation_round_trip_properties(
         self, valid_quantity: str, valid_price: str
-    ):
+    ) -> None:
         """Property: Valid financial values should survive round-trip transformation."""
         # Skip zero prices as they're invalid for orders
-        assume(Decimal(valid_price) > Decimal("0"))
-        assume(Decimal(valid_quantity) > Decimal("0"))
+        assume(Decimal(valid_price) > Decimal(0))
+        assume(Decimal(valid_quantity) > Decimal(0))
 
         # Create minimal valid order data
         order_data = {
@@ -444,14 +480,14 @@ class TestOrderTransformationProperties:
             symbol = exchanges.backpack("BTC_USDC")
 
             result = mapper.transform_order_data_to_internal(
-                order_id=order_data["id"],
+                order_id="test_order_123",
                 symbol=symbol,
-                side=order_data["side"],
-                order_type=order_data["orderType"],
-                status=order_data["status"],
-                quantity=order_data["quantity"],
-                price=order_data["price"],
-                time_in_force=order_data["timeInForce"],
+                side="Bid",
+                order_type="limit",
+                status="new",
+                quantity=valid_quantity,
+                price=valid_price,
+                time_in_force="GTC",
             )
 
             # Property: Original decimal precision should be preserved
@@ -480,7 +516,7 @@ class TestOrderMapperIntegrationProperties:
         order_type=st.sampled_from(["limit", "market"]),
         tif=st.sampled_from(["GTC", "IOC"]),
     )
-    def test_enum_mapping_consistency(self, status: str, order_type: str, tif: str):
+    def test_enum_mapping_consistency(self, status: str, order_type: str, tif: str) -> None:
         """Property: All enum mappings should be consistent."""
         mapped_status = BackpackOrderMapper._map_status_to_internal(status)
         mapped_type = BackpackOrderMapper._map_type_to_internal(order_type)
@@ -497,10 +533,26 @@ class TestOrderMapperIntegrationProperties:
         assert BackpackOrderMapper._map_time_in_force(tif) == mapped_tif
 
     @given(order_data=order_transformation_data_strategy())
-    def test_transformation_error_safety(self, order_data):
+    def test_transformation_error_safety(self, order_data: dict[str, Any]) -> None:
         """Property: Transformation errors should be safe and informative."""
         try:
-            BackpackOrderMapper.transform_order_data_to_internal(order_data)
+            # Create a symbol for the test
+            from cyberdelta.symbols import exchanges
+
+            symbol = exchanges.backpack(order_data["symbol"])
+
+            mapper = BackpackOrderMapper()
+
+            mapper.transform_order_data_to_internal(
+                order_id=str(order_data["id"]),
+                symbol=symbol,
+                side=str(order_data["side"]),
+                order_type=str(order_data["orderType"]),
+                status=str(order_data["status"]),
+                quantity=str(order_data["quantity"]),
+                price=str(order_data["price"]) if order_data["price"] else None,
+                time_in_force=str(order_data["timeInForce"]),
+            )
         except Exception as e:
             # Property: Errors should be specific exception types (not generic Exception)
             assert not isinstance(e, Exception) or type(e) != Exception

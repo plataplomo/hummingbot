@@ -118,18 +118,12 @@ def generate_order_strategy(
     order_type = draw(st.sampled_from([OrderType.LIMIT, OrderType.MARKET]))
 
     # Generate price (None for market orders or when not required)
-    if order_type == OrderType.MARKET or not with_price:
-        price = None
-    else:
-        price = draw(price_strategy())
+    price = None if order_type == OrderType.MARKET or not with_price else draw(price_strategy())
 
     quantity = draw(quantity_strategy())
 
     # Use proper symbols from common_symbols
-    if exchange == ExchangeName.BACKPACK:
-        symbol = BTC_USDC_BP
-    else:
-        symbol = BTC_HL
+    symbol = BTC_USDC_BP if exchange == ExchangeName.BACKPACK else BTC_HL
 
     order_id = draw(
         st.text(min_size=5, max_size=20, alphabet=st.characters(min_codepoint=65, max_codepoint=90))
@@ -238,10 +232,7 @@ def create_test_order(
     Returns:
         Order: A test order configured with the specified exchange, side, quantity, price, and type.
     """
-    if exchange == ExchangeName.BACKPACK:
-        symbol = BTC_USDC_BP
-    else:
-        symbol = BTC_HL
+    symbol = BTC_USDC_BP if exchange == ExchangeName.BACKPACK else BTC_HL
 
     return Order(
         symbol=symbol,
@@ -270,10 +261,8 @@ class TestBalanceValidationRuleProperties:
         assert balance_rule.enabled is True
         assert balance_rule.bypass_on_reduce_only is True
 
-    @given(st.just(None))  # Add @given decorator for @settings to work
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_skip_balance_checks_during_reconciliation(self, _: None) -> None:
+    async def test_skip_balance_checks_during_reconciliation(self) -> None:
         """Property: Balance checks should always be skipped during reconciliation."""
         balance_rule = BalanceValidationRule(enabled=True)
 
@@ -291,10 +280,8 @@ class TestBalanceValidationRuleProperties:
         assert result.is_valid
         assert len(result.violations) == 0
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_no_portfolio_state_always_violation(self, _: None) -> None:
+    async def test_no_portfolio_state_always_violation(self) -> None:
         """Property: Orders should always be rejected when portfolio state is unavailable."""
         balance_rule = BalanceValidationRule(enabled=True)
 
@@ -408,10 +395,8 @@ class TestBalanceValidationRuleProperties:
             assert len(result.violations) >= 1
             assert "Insufficient BTC balance" in result.violations[0]
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_buy_orders_without_price_always_violation(self, _: None) -> None:
+    async def test_buy_orders_without_price_always_violation(self) -> None:
         """Property: Buy orders without price should always be rejected."""
         balance_rule = BalanceValidationRule(enabled=True)
 
@@ -441,10 +426,8 @@ class TestBalanceValidationRuleProperties:
         assert len(result.violations) == 1
         assert "Cannot validate buy order without price" in result.violations[0]
 
-    @given(st.just(None))
-    @settings(max_examples=20, deadline=None)
     @pytest.mark.asyncio
-    async def test_missing_base_balance_always_violation(self, _: None) -> None:
+    async def test_missing_base_balance_always_violation(self) -> None:
         """Property: Sell orders for assets without base balance should always be rejected."""
         balance_rule = BalanceValidationRule(enabled=True)
 
@@ -475,10 +458,8 @@ class TestBalanceValidationRuleProperties:
         assert len(result.violations) == 1
         assert "No ETH balance found" in result.violations[0]
 
-    @given(st.just(None))
-    @settings(max_examples=20, deadline=None)
     @pytest.mark.asyncio
-    async def test_hyperliquid_symbol_extraction_always_works(self, _: None) -> None:
+    async def test_hyperliquid_symbol_extraction_always_works(self) -> None:
         """Property: Hyperliquid orders should always extract symbols correctly."""
         balance_rule = BalanceValidationRule(enabled=True)
 
@@ -523,10 +504,8 @@ class TestOrderValueLimitsRuleProperties:
         assert limits_rule.enabled is True
         assert limits_rule.bypass_on_reduce_only is False
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_market_orders_without_price_always_skipped(self, _: None) -> None:
+    async def test_market_orders_without_price_always_skipped(self) -> None:
         """Property: Market orders without price should always be skipped."""
         limits_rule = OrderValueLimitsRule(enabled=True)
 
@@ -667,10 +646,8 @@ class TestOrderValueLimitsRuleProperties:
             assert any("exceeds exchange maximum" in v for v in result.violations)
         # Note: May still violate global limits, but that's checked separately
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_no_exchange_config_uses_global_only(self, _: None) -> None:
+    async def test_no_exchange_config_uses_global_only(self) -> None:
         """Property: When no exchange config, only global limits should apply."""
         limits_rule = OrderValueLimitsRule(enabled=True)
 

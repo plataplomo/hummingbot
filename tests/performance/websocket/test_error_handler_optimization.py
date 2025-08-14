@@ -73,10 +73,10 @@ class OptimizedErrorHandler(WebSocketStreamErrorHandler):
         log_data = error.to_log_data()
         self.log_error(strategy["severity"], log_data)
 
-    async def handle_batch_errors(self, errors: list[Any]) -> None:
+    async def handle_batch_errors(self, errors: list[WebSocketStreamError]) -> None:
         """Handle multiple errors in batch for efficiency."""
         # Group errors by type for batch processing
-        error_groups: dict[str, list[Any]] = {}
+        error_groups: dict[str, list[WebSocketStreamError]] = {}
 
         for error in errors:
             key = error.code.name
@@ -85,13 +85,16 @@ class OptimizedErrorHandler(WebSocketStreamErrorHandler):
             error_groups[key].append(error)
 
         # Process each group concurrently
-        tasks = []
+        tasks: list[asyncio.Task[None]] = []
         for error_type, group_errors in error_groups.items():
-            tasks.append(self._process_error_group(error_type, group_errors))
+            task = asyncio.create_task(self._process_error_group(error_type, group_errors))
+            tasks.append(task)
 
         await asyncio.gather(*tasks)
 
-    async def _process_error_group(self, error_type: str, errors: list[Any]) -> None:
+    async def _process_error_group(
+        self, error_type: str, errors: list[WebSocketStreamError]
+    ) -> None:
         """Process a group of similar errors efficiently."""
         # Batch logging
         if errors:
@@ -250,7 +253,7 @@ class TestErrorHandlerOptimization:
         ]
 
         # Random mixed errors
-        mixed_errors = []
+        mixed_errors: list[WebSocketStreamError] = []
         for i in range(90):
             code = error_types[i % 3]
             mixed_errors.append(
@@ -261,15 +264,15 @@ class TestErrorHandlerOptimization:
             )
 
         # Grouped errors (same type together)
-        grouped_errors = []
+        grouped_errors: list[WebSocketStreamError] = []
         for code in error_types:
-            for i in range(30):
-                grouped_errors.append(
-                    ErrorTestFactory.create_test_error(
-                        code=code,
-                        message=f"Error {code.name} {i}",
-                    )
+            grouped_errors.extend(
+                ErrorTestFactory.create_test_error(
+                    code=code,
+                    message=f"Error {code.name} {i}",
                 )
+                for i in range(30)
+            )
 
         # Process mixed
         start = time.perf_counter()
@@ -357,7 +360,7 @@ class TestErrorHandlerOptimization:
 
         # Measure handler creation time
         start = time.perf_counter()
-        handlers = []
+        handlers: list[WebSocketStreamErrorHandler] = []
         for _ in range(100):
             handler = WebSocketStreamErrorHandler(config)
             handlers.append(handler)

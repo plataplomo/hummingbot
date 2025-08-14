@@ -7,9 +7,6 @@ import logging
 from typing import Any, Protocol, cast
 
 # TODO: Implement ws_connection_error_bridge module
-# from cyberdelta.apis.connectivity.ws_connection_error_bridge import (
-#     ConnectionErrorBridge,
-# )
 from unittest.mock import AsyncMock, Mock, Mock as ConnectionErrorBridge
 
 import pytest
@@ -29,7 +26,9 @@ from cyberdelta.apis.websocket.ws_error_recovery import (
     ErrorRecoveryConfig,
     WebSocketErrorRecovery,
 )
-from cyberdelta.apis.websocket.ws_processor import PydanticWebSocketProcessor
+from cyberdelta.apis.websocket.ws_processor import (
+    PydanticWebSocketProcessor,
+)
 from cyberdelta.apis.websocket.ws_processor_error_context import (
     ProcessorErrorContextBuilder,
 )
@@ -70,6 +69,13 @@ class TestContext(BaseModel):
     exchange: str
     channel: str | None = None
     sequence_number: int | None = None
+
+
+class TestDomainModel(BaseModel):
+    """Test domain model for processor testing."""
+
+    processed_type: str
+    processed_data: dict[str, Any]
 
 
 @pytest.mark.asyncio
@@ -388,10 +394,10 @@ class TestPhase2Complete:
             assert result.strategy_used == strategy
 
             # Verify appropriate result
-            if (
-                strategy == WebSocketRecoveryStrategy.NONE
-                or strategy == WebSocketRecoveryStrategy.CIRCUIT_BREAKER
-            ):
+            if strategy in {
+                WebSocketRecoveryStrategy.NONE,
+                WebSocketRecoveryStrategy.CIRCUIT_BREAKER,
+            }:
                 assert result.success is False
                 assert result.should_continue is False
             else:

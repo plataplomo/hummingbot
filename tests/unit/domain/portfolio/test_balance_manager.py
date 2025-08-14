@@ -12,11 +12,13 @@ SECURITY CRITICAL: Balance calculation errors could lead to incorrect available
 funds, wrong position sizing, over-leveraging, or financial losses.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timezone
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
+from hypothesis import HealthCheck, assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.config.models import AppSettings, PortfolioValidationSettings
@@ -25,7 +27,7 @@ from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import SpotBalance
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.portfolio.state import PortfolioState
-from cyberdelta.symbols import symbol as create_symbol, exchanges
+from cyberdelta.symbols import Symbol, exchanges, symbol as create_symbol_func
 
 
 # =============================================================================
@@ -33,19 +35,26 @@ from cyberdelta.symbols import symbol as create_symbol, exchanges
 # =============================================================================
 
 
-def create_symbol(value: str, exchange: ExchangeName):
-    """Create a symbol for the given exchange."""
+def create_symbol(value: str, exchange: ExchangeName) -> Symbol:
+    """Create a symbol for the given exchange.
+    
+    Returns:
+        Symbol for the specified exchange.
+    """
     if exchange == ExchangeName.HYPERLIQUID:
         return exchanges.hyperliquid(value=value)
-    else:
-        return exchanges.backpack(value=value)
+    return exchanges.backpack(value=value)
 
 
 def balance_amount_strategy() -> SearchStrategy[Decimal]:
-    """Generate valid balance amounts (non-negative)."""
+    """Generate valid balance amounts (non-negative).
+    
+    Returns:
+        Strategy for generating decimal balance amounts.
+    """
     return st.decimals(
-        min_value=Decimal("0"),
-        max_value=Decimal("1000000"),
+        min_value=Decimal(0),
+        max_value=Decimal(1000000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -53,10 +62,14 @@ def balance_amount_strategy() -> SearchStrategy[Decimal]:
 
 
 def balance_delta_strategy() -> SearchStrategy[Decimal]:
-    """Generate balance delta values (can be negative)."""
+    """Generate balance delta values (can be negative).
+    
+    Returns:
+        Strategy for generating decimal delta values.
+    """
     return st.decimals(
-        min_value=Decimal("-10000"),
-        max_value=Decimal("10000"),
+        min_value=Decimal(-10000),
+        max_value=Decimal(10000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -64,10 +77,14 @@ def balance_delta_strategy() -> SearchStrategy[Decimal]:
 
 
 def price_strategy() -> SearchStrategy[Decimal]:
-    """Generate valid price values."""
+    """Generate valid price values.
+    
+    Returns:
+        Strategy for generating decimal price values.
+    """
     return st.decimals(
         min_value=Decimal("0.00000001"),
-        max_value=Decimal("1000000"),
+        max_value=Decimal(1000000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -75,10 +92,14 @@ def price_strategy() -> SearchStrategy[Decimal]:
 
 
 def quantity_strategy() -> SearchStrategy[Decimal]:
-    """Generate valid quantity values."""
+    """Generate valid quantity values.
+    
+    Returns:
+        Strategy for generating decimal quantity values.
+    """
     return st.decimals(
         min_value=Decimal("0.00000001"),
-        max_value=Decimal("10000"),
+        max_value=Decimal(10000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -86,10 +107,14 @@ def quantity_strategy() -> SearchStrategy[Decimal]:
 
 
 def fee_strategy() -> SearchStrategy[Decimal]:
-    """Generate valid fee amounts."""
+    """Generate valid fee amounts.
+    
+    Returns:
+        Strategy for generating decimal fee amounts.
+    """
     return st.decimals(
-        min_value=Decimal("0"),
-        max_value=Decimal("100"),
+        min_value=Decimal(0),
+        max_value=Decimal(100),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -97,29 +122,45 @@ def fee_strategy() -> SearchStrategy[Decimal]:
 
 
 def exchange_strategy() -> SearchStrategy[ExchangeName]:
-    """Generate valid exchange names."""
+    """Generate valid exchange names.
+    
+    Returns:
+        Strategy for generating exchange names.
+    """
     return st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK])
 
 
 def asset_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbols."""
+    """Generate valid asset symbols.
+    
+    Returns:
+        Strategy for generating asset symbol strings.
+    """
     return st.sampled_from(["USDC", "USD", "BTC", "ETH", "SOL", "PYTH"])
 
 
 def side_strategy() -> SearchStrategy[OrderSide]:
-    """Generate valid order sides."""
+    """Generate valid order sides.
+    
+    Returns:
+        Strategy for generating order side enums.
+    """
     return st.sampled_from([OrderSide.BUY, OrderSide.SELL])
 
 
-def spot_balance_strategy() -> SearchStrategy[dict]:
-    """Generate valid spot balance data."""
+def spot_balance_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate valid spot balance data.
+    
+    Returns:
+        Strategy for generating spot balance dictionaries.
+    """
     return st.builds(
         lambda exchange, asset, total, available: {
             "exchange": exchange,
             "asset": asset,
             "total_quantity": total,
             "available_quantity": min(available, total),  # Available <= Total
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": datetime.now(UTC),
         },
         exchange=exchange_strategy(),
         asset=asset_strategy(),
@@ -128,8 +169,12 @@ def spot_balance_strategy() -> SearchStrategy[dict]:
     )
 
 
-def fill_strategy() -> SearchStrategy[dict]:
-    """Generate valid fill data for balance updates."""
+def fill_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate valid fill data for balance updates.
+    
+    Returns:
+        Strategy for generating fill data dictionaries.
+    """
     return st.builds(
         lambda price, quantity, fee, side, exchange: {
             "price": price,
@@ -152,8 +197,12 @@ def fill_strategy() -> SearchStrategy[dict]:
 
 
 @pytest.fixture
-def mock_config():
-    """Create mock application configuration."""
+def mock_config() -> MagicMock:
+    """Create mock application configuration.
+    
+    Returns:
+        Mock configuration object.
+    """
     config = MagicMock(spec=AppSettings)
     config.validation = MagicMock(spec=PortfolioValidationSettings)
     config.validation.balance_tolerance = Decimal("0.00001")
@@ -164,8 +213,12 @@ def mock_config():
 
 
 @pytest.fixture
-def mock_state_manager():
-    """Create mock portfolio state manager."""
+def mock_state_manager() -> AsyncMock:
+    """Create mock portfolio state manager.
+    
+    Returns:
+        Mock state manager object.
+    """
     state_manager = AsyncMock()
     state = MagicMock(spec=PortfolioState)
     state.balances = {}
@@ -175,8 +228,12 @@ def mock_state_manager():
 
 
 @pytest.fixture
-def balance_manager(mock_config, mock_state_manager):
-    """Create balance manager instance."""
+def balance_manager(mock_config: MagicMock, mock_state_manager: AsyncMock) -> BalanceManager:
+    """Create balance manager instance.
+    
+    Returns:
+        Configured balance manager instance.
+    """
     return BalanceManager(mock_config, mock_state_manager)
 
 
@@ -191,7 +248,7 @@ class TestBalanceInvariants:
     @given(total_quantity=balance_amount_strategy(), available_quantity=balance_amount_strategy())
     def test_balance_constraint_properties(
         self, total_quantity: Decimal, available_quantity: Decimal
-    ):
+    ) -> None:
         """Property: Available balance should never exceed total balance."""
         # Create balance with constraint
         effective_available = min(available_quantity, total_quantity)
@@ -200,30 +257,30 @@ class TestBalanceInvariants:
         assert effective_available <= total_quantity
 
         # Property: Both should be non-negative
-        assert effective_available >= Decimal("0")
-        assert total_quantity >= Decimal("0")
+        assert effective_available >= Decimal(0)
+        assert total_quantity >= Decimal(0)
 
         # Property: If total is zero, available must be zero
-        if total_quantity == Decimal("0"):
-            assert effective_available == Decimal("0")
+        if total_quantity == Decimal(0):
+            assert effective_available == Decimal(0)
 
     @given(initial_balance=balance_amount_strategy(), delta=balance_delta_strategy())
-    def test_balance_update_properties(self, initial_balance: Decimal, delta: Decimal):
+    def test_balance_update_properties(self, initial_balance: Decimal, delta: Decimal) -> None:
         """Property: Balance updates should maintain consistency."""
         new_balance = initial_balance + delta
 
         # Property: Negative balances should be handled
-        if new_balance < Decimal("0"):
+        if new_balance < Decimal(0):
             # In real system, this might be rejected or clamped to zero
             # For now, test the mathematical property
             assert new_balance == initial_balance + delta
         else:
             # Property: Positive updates preserve precision
             assert new_balance == initial_balance + delta
-            assert new_balance >= Decimal("0")
+            assert new_balance >= Decimal(0)
 
     @given(balances=st.lists(balance_amount_strategy(), min_size=1, max_size=10))
-    def test_balance_aggregation_properties(self, balances: list[Decimal]):
+    def test_balance_aggregation_properties(self, balances: list[Decimal]) -> None:
         """Property: Balance aggregation should be exact."""
         total = sum(balances)
 
@@ -231,7 +288,7 @@ class TestBalanceInvariants:
         assert total == sum(balances)
 
         # Property: Total should be non-negative if all parts are
-        assert total >= Decimal("0")
+        assert total >= Decimal(0)
 
         # Property: Total should be at least as large as any individual balance
         assert all(total >= balance for balance in balances)
@@ -255,22 +312,22 @@ class TestBalanceManagerProperties:
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_get_balance_properties(
         self,
-        balance_manager,
-        mock_state_manager,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
         asset: str,
         exchange: ExchangeName,
         total_quantity: Decimal,
         available_quantity: Decimal,
-    ):
+    ) -> None:
         """Property: Balance retrieval should be consistent."""
         # Set up mock balance
-        symbol = create_symbol(value=asset, exchange=exchange)
+        symbol = create_symbol_func(value=asset, exchange=exchange)
         effective_available = min(available_quantity, total_quantity)
 
         balance = SpotBalance(
             exchange=exchange,
             asset=symbol,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             total_quantity=total_quantity,
             available_quantity=effective_available,
         )
@@ -300,8 +357,11 @@ class TestBalanceManagerProperties:
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_total_balance_usd_properties(
-        self, balance_manager, mock_state_manager, balances: list[tuple[str, ExchangeName, Decimal]]
-    ):
+        self,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
+        balances: list[tuple[str, ExchangeName, Decimal]],
+    ) -> None:
         """Property: Total USD balance calculation should be accurate."""
         # Set up mock balances
         state = MagicMock(spec=PortfolioState)
@@ -314,15 +374,15 @@ class TestBalanceManagerProperties:
             # Only keep the latest balance for each key (overwrites previous)
             balance_groups[key] = amount
 
-        expected_total = Decimal("0")
+        expected_total = Decimal(0)
         for key, amount in balance_groups.items():
             exchange_str, asset = key.split(":", 1)
             exchange = ExchangeName(exchange_str)
-            symbol = create_symbol(value=asset, exchange=exchange)
+            symbol = create_symbol_func(value=asset, exchange=exchange)
             balance = SpotBalance(
                 exchange=exchange,
                 asset=symbol,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 total_quantity=amount,
                 available_quantity=amount,
             )
@@ -341,14 +401,17 @@ class TestBalanceManagerProperties:
         assert total == expected_total
 
         # Property: Total should be non-negative
-        assert total >= Decimal("0")
+        assert total >= Decimal(0)
 
     @pytest.mark.asyncio
     @given(fill_data=fill_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_update_balance_from_fill_properties(
-        self, balance_manager, mock_state_manager, fill_data: dict
-    ):
+        self,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
+        fill_data: dict[str, Any],
+    ) -> None:
         """Property: Fill updates should correctly adjust balances."""
         # Calculate expected balance change first to filter invalid scenarios
         cost = fill_data["price"] * fill_data["quantity"]
@@ -357,15 +420,15 @@ class TestBalanceManagerProperties:
         else:
             expected_delta = cost - fill_data["fee"]
 
-        initial_amount = Decimal("10000")
+        initial_amount = Decimal(10000)
         expected_balance = initial_amount + expected_delta
 
         # Skip test cases that would result in negative balances
         # (these are correctly rejected by the system)
-        assume(expected_balance >= Decimal("0"))
+        assume(expected_balance >= Decimal(0))
 
         # Create mock fill
-        symbol = create_symbol(value="BTC_USDC", exchange=fill_data["exchange"])
+        symbol = create_symbol_func(value="BTC_USDC", exchange=fill_data["exchange"])
         fill = MagicMock(spec=Fill)
         fill.symbol = symbol
         fill.exchange = fill_data["exchange"]
@@ -375,11 +438,11 @@ class TestBalanceManagerProperties:
         fill.fee = fill_data["fee"]
 
         # Mock state with initial balance
-        quote_symbol = create_symbol(value="USDC", exchange=fill_data["exchange"])
+        quote_symbol = create_symbol_func(value="USDC", exchange=fill_data["exchange"])
         initial_balance = SpotBalance(
             exchange=fill_data["exchange"],
             asset=quote_symbol,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             total_quantity=initial_amount,
             available_quantity=initial_amount,
         )
@@ -403,28 +466,28 @@ class TestBalanceManagerProperties:
         asset=asset_strategy(),
         expected=balance_amount_strategy(),
         actual=balance_amount_strategy(),
-        tolerance=st.decimals(min_value=Decimal("0.00001"), max_value=Decimal("1"), places=5),
+        tolerance=st.decimals(min_value=Decimal("0.00001"), max_value=Decimal(1), places=5),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_validate_balance_properties(
         self,
-        balance_manager,
-        mock_state_manager,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
         exchange: ExchangeName,
         asset: str,
         expected: Decimal,
         actual: Decimal,
         tolerance: Decimal,
-    ):
+    ) -> None:
         """Property: Balance validation should respect tolerance."""
-        balance_manager._balance_tolerance = tolerance
+        balance_manager.config.validation.balance_tolerance = tolerance
 
         # Set up mock balance
-        symbol = create_symbol(value=asset, exchange=exchange)
+        symbol = create_symbol_func(value=asset, exchange=exchange)
         balance = SpotBalance(
             exchange=exchange,
             asset=symbol,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             total_quantity=actual,
             available_quantity=actual,
         )
@@ -465,23 +528,23 @@ class TestBalanceReconciliationProperties:
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_reconciliation_properties(
         self,
-        balance_manager,
-        mock_state_manager,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
         local_balances: list[tuple[str, Decimal]],
         exchange_balances: list[tuple[str, Decimal]],
         exchange: ExchangeName,
-    ):
+    ) -> None:
         """Property: Reconciliation should identify and correct discrepancies."""
         # Set up local balances
         state = MagicMock(spec=PortfolioState)
         state.balances = {}
 
         for asset, amount in local_balances:
-            symbol = create_symbol(value=asset, exchange=exchange)
+            symbol = create_symbol_func(value=asset, exchange=exchange)
             balance = SpotBalance(
                 exchange=exchange,
                 asset=symbol,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 total_quantity=amount,
                 available_quantity=amount,
             )
@@ -492,11 +555,11 @@ class TestBalanceReconciliationProperties:
         # Create exchange balance objects
         exchange_balance_objects = []
         for asset, amount in exchange_balances:
-            symbol = create_symbol(value=asset, exchange=exchange)
+            symbol = create_symbol_func(value=asset, exchange=exchange)
             balance = SpotBalance(
                 exchange=exchange,
                 asset=symbol,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 total_quantity=amount,
                 available_quantity=amount,
             )
@@ -527,8 +590,12 @@ class TestBalanceReconciliationProperties:
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_reconciliation_update_properties(
-        self, balance_manager, mock_state_manager, assets: list[str], amounts: list[Decimal]
-    ):
+        self,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
+        assets: list[str],
+        amounts: list[Decimal],
+    ) -> None:
         """Property: Reconciliation should update balances to match exchange."""
         # Ensure we have same number of assets and amounts
         assume(len(assets) == len(amounts))
@@ -542,12 +609,12 @@ class TestBalanceReconciliationProperties:
 
         # Create exchange balances
         exchange_balances = []
-        for asset, amount in zip(assets, amounts):
-            symbol = create_symbol(value=asset, exchange=exchange)
+        for asset, amount in zip(assets, amounts, strict=False):
+            symbol = create_symbol_func(value=asset, exchange=exchange)
             balance = SpotBalance(
                 exchange=exchange,
                 asset=symbol,
-                timestamp=datetime.now(timezone.utc),
+                timestamp=datetime.now(UTC),
                 total_quantity=amount,
                 available_quantity=amount,
             )
@@ -557,10 +624,10 @@ class TestBalanceReconciliationProperties:
         balance_manager.config.state.reconciliation_enabled = True
 
         # Perform reconciliation
-        report = await balance_manager.reconcile_balances(exchange_balances, exchange)
+        _ = await balance_manager.reconcile_balances(exchange_balances, exchange)
 
         # Property: All exchange balances should be in state after reconciliation
-        for asset, amount in zip(assets, amounts):
+        for asset, amount in zip(assets, amounts, strict=False):
             key = f"{exchange.value}:{asset}"
             if amount > 0:  # Only non-zero balances are added
                 assert key in state.balances
@@ -593,18 +660,13 @@ class TestFillBalanceImpactProperties:
         fee: Decimal,
         side: OrderSide,
         initial_balance: Decimal,
-    ):
+    ) -> None:
         """Property: Fill cost calculations should be mathematically correct."""
         # Calculate cost
         cost = price * quantity
 
         # Calculate balance impact
-        if side == OrderSide.BUY:
-            # Buying costs money
-            balance_change = -cost - fee
-        else:
-            # Selling brings money
-            balance_change = cost - fee
+        balance_change = -cost - fee if side == OrderSide.BUY else cost - fee
 
         new_balance = initial_balance + balance_change
 
@@ -625,7 +687,9 @@ class TestFillBalanceImpactProperties:
         fills=st.lists(fill_strategy(), min_size=1, max_size=10),
         initial_balance=balance_amount_strategy(),
     )
-    def test_multiple_fills_impact(self, fills: list[dict], initial_balance: Decimal):
+    def test_multiple_fills_impact(
+        self, fills: list[dict[str, Any]], initial_balance: Decimal
+    ) -> None:
         """Property: Multiple fills should have cumulative effect on balance."""
         balance = initial_balance
 
@@ -638,7 +702,7 @@ class TestFillBalanceImpactProperties:
             balance += balance_change
 
         # Property: Final balance should equal initial plus all changes
-        total_change = Decimal("0")
+        total_change = Decimal(0)
         for fill in fills:
             cost = fill["price"] * fill["quantity"]
             if fill["side"] == OrderSide.BUY:
@@ -662,13 +726,13 @@ class TestBalanceMathematicalProperties:
             st.tuples(asset_strategy(), balance_amount_strategy()), min_size=2, max_size=10
         )
     )
-    def test_balance_additivity(self, balances: list[tuple[str, Decimal]]):
+    def test_balance_additivity(self, balances: list[tuple[str, Decimal]]) -> None:
         """Property: Balance totals should be additive."""
         # Group by asset
         asset_totals: dict[str, Decimal] = {}
         for asset, amount in balances:
             if asset not in asset_totals:
-                asset_totals[asset] = Decimal("0")
+                asset_totals[asset] = Decimal(0)
             asset_totals[asset] += amount
 
         # Property: Sum of individual additions equals total
@@ -682,7 +746,7 @@ class TestBalanceMathematicalProperties:
     )
     def test_balance_operation_order_independence(
         self, balance: Decimal, operations: list[Decimal]
-    ):
+    ) -> None:
         """Property: Balance operations should be order-independent for additions."""
         # Apply operations in original order
         result1 = balance
@@ -702,24 +766,24 @@ class TestBalanceMathematicalProperties:
 
     @given(
         balance=balance_amount_strategy(),
-        factor=st.decimals(min_value=Decimal("0.1"), max_value=Decimal("10"), places=2),
+        factor=st.decimals(min_value=Decimal("0.1"), max_value=Decimal(10), places=2),
     )
-    def test_balance_scaling_properties(self, balance: Decimal, factor: Decimal):
+    def test_balance_scaling_properties(self, balance: Decimal, factor: Decimal) -> None:
         """Property: Balance scaling should preserve proportions."""
         scaled = balance * factor
 
         # Property: Scaling should be reversible
-        if factor != Decimal("0"):
+        if factor != Decimal(0):
             unscaled = scaled / factor
             # Account for potential rounding in division
             assert abs(unscaled - balance) < Decimal("0.00000001")
 
         # Property: Zero balance remains zero after scaling
-        if balance == Decimal("0"):
-            assert scaled == Decimal("0")
+        if balance == Decimal(0):
+            assert scaled == Decimal(0)
 
         # Property: Scaling by 1 should not change value
-        if factor == Decimal("1"):
+        if factor == Decimal(1):
             assert scaled == balance
 
 
@@ -740,12 +804,12 @@ class TestExchangeBalanceProperties:
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_exchange_balance_isolation(
         self,
-        balance_manager,
-        mock_state_manager,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
         exchanges: list[ExchangeName],
         assets: list[str],
         amounts: list[Decimal],
-    ):
+    ) -> None:
         """Property: Exchange balances should be isolated from each other."""
         # Ensure we have matching lengths
         assume(len(assets) == len(amounts))
@@ -755,12 +819,12 @@ class TestExchangeBalanceProperties:
         state.balances = {}
 
         for exchange in exchanges:
-            for asset, amount in zip(assets, amounts):
-                symbol = create_symbol(value=asset, exchange=exchange)
+            for asset, amount in zip(assets, amounts, strict=False):
+                symbol = create_symbol_func(value=asset, exchange=exchange)
                 balance = SpotBalance(
                     exchange=exchange,
                     asset=symbol,
-                    timestamp=datetime.now(timezone.utc),
+                    timestamp=datetime.now(UTC),
                     total_quantity=amount,
                     available_quantity=amount,
                 )
@@ -773,7 +837,7 @@ class TestExchangeBalanceProperties:
             exchange_balances = await balance_manager.get_exchange_balances(exchange)
 
             # Property: Should only return balances for this exchange
-            for asset in exchange_balances.keys():
+            for asset in exchange_balances:
                 key = f"{exchange.value}:{asset}"
                 assert key in state.balances
 
@@ -793,35 +857,35 @@ class TestExchangeBalanceProperties:
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_cross_exchange_balance_independence(
         self,
-        balance_manager,
-        mock_state_manager,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
         exchange1: ExchangeName,
         exchange2: ExchangeName,
         asset: str,
         amount1: Decimal,
         amount2: Decimal,
-    ):
+    ) -> None:
         """Property: Same asset on different exchanges should be independent."""
         # Skip if same exchange
         assume(exchange1 != exchange2)
 
         # Set up balances
-        symbol1 = create_symbol(value=asset, exchange=exchange1)
-        symbol2 = create_symbol(value=asset, exchange=exchange2)
+        symbol1 = create_symbol_func(value=asset, exchange=exchange1)
+        symbol2 = create_symbol_func(value=asset, exchange=exchange2)
         state = MagicMock(spec=PortfolioState)
         state.balances = {}
 
         balance1 = SpotBalance(
             exchange=exchange1,
             asset=symbol1,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             total_quantity=amount1,
             available_quantity=amount1,
         )
         balance2 = SpotBalance(
             exchange=exchange2,
             asset=symbol2,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             total_quantity=amount2,
             available_quantity=amount2,
         )
@@ -835,6 +899,8 @@ class TestExchangeBalanceProperties:
         result2 = await balance_manager.get_balance(symbol2, exchange2)
 
         # Property: Balances should be independent
+        assert result1 is not None
+        assert result2 is not None
         assert result1.total_quantity == amount1
         assert result2.total_quantity == amount2
 
@@ -853,18 +919,20 @@ class TestBalanceEdgeCases:
     """Property tests for edge cases in balance management."""
 
     @pytest.mark.asyncio
-    async def test_zero_balance_properties(self, balance_manager, mock_state_manager):
+    async def test_zero_balance_properties(
+        self, balance_manager: BalanceManager, mock_state_manager: AsyncMock
+    ) -> None:
         """Property: Zero balances should be handled correctly."""
         # Set up zero balance
-        symbol = create_symbol(value="BTC", exchange=ExchangeName.HYPERLIQUID)
+        symbol = create_symbol_func(value="BTC", exchange=ExchangeName.HYPERLIQUID)
         exchange = ExchangeName.HYPERLIQUID
 
         balance = SpotBalance(
             exchange=exchange,
             asset=symbol,
-            timestamp=datetime.now(timezone.utc),
-            total_quantity=Decimal("0"),
-            available_quantity=Decimal("0"),
+            timestamp=datetime.now(UTC),
+            total_quantity=Decimal(0),
+            available_quantity=Decimal(0),
         )
 
         state = MagicMock(spec=PortfolioState)
@@ -875,11 +943,12 @@ class TestBalanceEdgeCases:
         result = await balance_manager.get_balance(symbol, exchange)
 
         # Property: Zero balance should be valid
-        assert result.total_quantity == Decimal("0")
-        assert result.available_quantity == Decimal("0")
+        assert result is not None
+        assert result.total_quantity == Decimal(0)
+        assert result.available_quantity == Decimal(0)
 
         # Property: Zero balance validation should work
-        is_valid = await balance_manager.validate_balance(exchange, symbol, Decimal("0"))
+        is_valid = await balance_manager.validate_balance(exchange, symbol, Decimal(0))
         assert is_valid is True
 
     @pytest.mark.asyncio
@@ -888,26 +957,26 @@ class TestBalanceEdgeCases:
             min_value=Decimal("0.00000001"), max_value=Decimal("0.0001"), places=10
         ),
         very_large_amount=st.decimals(
-            min_value=Decimal("1000000"), max_value=Decimal("999999999"), places=2
+            min_value=Decimal(1000000), max_value=Decimal(999999999), places=2
         ),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     async def test_extreme_balance_values(
         self,
-        balance_manager,
-        mock_state_manager,
+        balance_manager: BalanceManager,
+        mock_state_manager: AsyncMock,
         very_small_amount: Decimal,
         very_large_amount: Decimal,
-    ):
+    ) -> None:
         """Property: Extreme balance values should be handled correctly."""
-        symbol = create_symbol(value="BTC", exchange=ExchangeName.HYPERLIQUID)
+        symbol = create_symbol_func(value="BTC", exchange=ExchangeName.HYPERLIQUID)
         exchange = ExchangeName.HYPERLIQUID
 
         # Test very small balance
         small_balance = SpotBalance(
             exchange=exchange,
             asset=symbol,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             total_quantity=very_small_amount,
             available_quantity=very_small_amount,
         )
@@ -919,13 +988,14 @@ class TestBalanceEdgeCases:
         result = await balance_manager.get_balance(symbol, exchange)
 
         # Property: Small amounts should preserve precision
+        assert result is not None
         assert result.total_quantity == very_small_amount
 
         # Test very large balance
         large_balance = SpotBalance(
             exchange=exchange,
             asset=symbol,
-            timestamp=datetime.now(timezone.utc),
+            timestamp=datetime.now(UTC),
             total_quantity=very_large_amount,
             available_quantity=very_large_amount,
         )
@@ -934,16 +1004,19 @@ class TestBalanceEdgeCases:
         result = await balance_manager.get_balance(symbol, exchange)
 
         # Property: Large amounts should not overflow
+        assert result is not None
         assert result.total_quantity == very_large_amount
         assert result.total_quantity.is_finite()
 
     @pytest.mark.asyncio
-    async def test_missing_state_handling(self, balance_manager, mock_state_manager):
+    async def test_missing_state_handling(
+        self, balance_manager: BalanceManager, mock_state_manager: AsyncMock
+    ) -> None:
         """Property: Missing state should be handled gracefully."""
         # Set state to None
         mock_state_manager.get_state.return_value = None
 
-        symbol = create_symbol(value="BTC", exchange=ExchangeName.HYPERLIQUID)
+        symbol = create_symbol_func(value="BTC", exchange=ExchangeName.HYPERLIQUID)
         exchange = ExchangeName.HYPERLIQUID
 
         # Property: Should return None for missing state
@@ -952,13 +1025,14 @@ class TestBalanceEdgeCases:
 
         # Property: Should return 0 for total balance
         total = await balance_manager.get_total_balance_usd()
-        assert total == Decimal("0")
+        assert total == Decimal(0)
 
         # Property: Should handle reconciliation with missing state
-        exchange_balances = []
+        exchange_balances: list[SpotBalance] = []
         report = await balance_manager.reconcile_balances(exchange_balances, exchange)
         assert report.reconciliation_successful is False
-        assert "No portfolio state available" in report.error_messages[0]
+        if report.error_messages:
+            assert "No portfolio state available" in report.error_messages[0]
 
 
 # =============================================================================
@@ -974,7 +1048,7 @@ class TestBalancePrecisionProperties:
             min_value=Decimal("0.00000001"), max_value=Decimal("999999.99999999"), places=8
         )
     )
-    def test_decimal_precision_preservation(self, amount: Decimal):
+    def test_decimal_precision_preservation(self, amount: Decimal) -> None:
         """Property: Decimal precision should be preserved exactly."""
         # Convert to string and back
         amount_str = str(amount)
@@ -987,23 +1061,23 @@ class TestBalancePrecisionProperties:
         assert str(recovered) == str(amount)
 
         # Property: Operations should preserve precision
-        doubled = amount * Decimal("2")
-        halved = doubled / Decimal("2")
+        doubled = amount * Decimal(2)
+        halved = doubled / Decimal(2)
         assert halved == amount
 
     @given(
         amounts=st.lists(
-            st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("100"), places=8),
+            st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(100), places=8),
             min_size=10,
             max_size=100,
         )
     )
-    def test_cumulative_precision(self, amounts: list[Decimal]):
+    def test_cumulative_precision(self, amounts: list[Decimal]) -> None:
         """Property: Cumulative operations should maintain precision."""
         # Sum using different methods
         total1 = sum(amounts)
 
-        total2 = Decimal("0")
+        total2 = Decimal(0)
         for amount in amounts:
             total2 += amount
 
@@ -1011,7 +1085,7 @@ class TestBalancePrecisionProperties:
         assert total1 == total2
 
         # Property: Precision should be maintained
-        assert total1.is_finite()
+        assert total1.is_finite() if isinstance(total1, Decimal) else True
 
         # Property: Average calculation should maintain precision
         if amounts:

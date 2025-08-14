@@ -253,7 +253,7 @@ class TestHyperliquidWebSocketMarketData:
                         trades_data_raw: object = data["trades"]
                         assert isinstance(trades_data_raw, list)
                         # Type narrowing: trades_data is now known to be a list
-                        trades_data: list[object] = trades_data_raw
+                        trades_data = cast(list[object], trades_data_raw)
                         for trade_data_raw in trades_data:
                             assert isinstance(trade_data_raw, dict)
                             # Type narrowing: trade_data is now known to be a dict
@@ -347,8 +347,8 @@ class TestHyperliquidWebSocketMarketData:
                     if isinstance(data, dict) and "mids" in data:
                         mids_data_raw: object = data["mids"]
                         assert isinstance(mids_data_raw, dict)
-                        # Type narrowing: mids_data is now known to be a dict
-                        mids_data: dict[str, object] = mids_data_raw
+                        # Type narrowing: mids_data is now known to be a dict[str, object]
+                        mids_data = cast(dict[str, object], mids_data_raw)
                         for coin, price in mids_data.items():
                             decimal_price = Decimal(str(price))
                             self._validate_mid_price(coin, decimal_price)

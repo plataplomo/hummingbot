@@ -12,6 +12,7 @@ Following TESTING_SECURITY_RULES.md:
 
 from __future__ import annotations
 
+import random
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import Mock
@@ -69,7 +70,7 @@ def tick_size_strategy(draw: st.DrawFn) -> Decimal:
         Decimal: A valid tick size value (0.01, 0.001, 0.0001, 0.1, or 1.0).
     """
     # Common tick sizes: 0.01, 0.001, 0.0001, 0.1, 1.0
-    tick_size = draw(
+    return draw(
         st.sampled_from([
             Decimal("0.01"),
             Decimal("0.001"),
@@ -78,7 +79,6 @@ def tick_size_strategy(draw: st.DrawFn) -> Decimal:
             Decimal("1.0"),
         ])
     )
-    return tick_size
 
 
 @st.composite
@@ -89,7 +89,7 @@ def lot_size_strategy(draw: st.DrawFn) -> Decimal:
         Decimal: A valid lot size value for crypto trading.
     """
     # Common lot sizes for crypto
-    lot_size = draw(
+    return draw(
         st.sampled_from([
             Decimal("0.001"),
             Decimal("0.0001"),
@@ -98,7 +98,6 @@ def lot_size_strategy(draw: st.DrawFn) -> Decimal:
             Decimal("1.0"),
         ])
     )
-    return lot_size
 
 
 @st.composite
@@ -111,8 +110,7 @@ def aligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
     # Generate a base price multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=100000))
     # Align to tick size
-    aligned_price = Decimal(base_multiplier) * tick_size
-    return aligned_price
+    return Decimal(base_multiplier) * tick_size
 
 
 @st.composite
@@ -148,8 +146,7 @@ def aligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
     # Generate a base quantity multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=10000))
     # Align to lot size
-    aligned_quantity = Decimal(base_multiplier) * lot_size
-    return aligned_quantity
+    return Decimal(base_multiplier) * lot_size
 
 
 @st.composite
@@ -220,10 +217,7 @@ def create_test_order(
     Returns:
         Order: Test order with the specified parameters.
     """
-    if exchange == ExchangeName.BACKPACK:
-        symbol = BTC_USDC_BP
-    else:
-        symbol = BTC_HL
+    symbol = BTC_USDC_BP if exchange == ExchangeName.BACKPACK else BTC_HL
 
     return Order(
         symbol=symbol,
@@ -252,10 +246,8 @@ class TestPricePrecisionRuleProperties:
         assert price_rule.enabled is True
         assert price_rule.bypass_on_reduce_only is False
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_market_orders_always_skipped(self, _: None) -> None:
+    async def test_market_orders_always_skipped(self) -> None:
         """Property: Market orders should always be skipped (no price to validate)."""
         price_rule = PricePrecisionRule(enabled=True)
 
@@ -275,10 +267,8 @@ class TestPricePrecisionRuleProperties:
         assert result.is_valid
         assert len(result.violations) == 0
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_limit_orders_without_price_always_violation(self, _: None) -> None:
+    async def test_limit_orders_without_price_always_violation(self) -> None:
         """Property: Limit orders without price should always be rejected.
 
         Uses Mock to test defensive validation for limit orders missing price,
@@ -400,10 +390,8 @@ class TestPricePrecisionRuleProperties:
         assert len(result.violations) >= 1
         assert "not aligned to tick size" in result.violations[0]
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_no_tick_size_configured_always_valid(self, _: None) -> None:
+    async def test_no_tick_size_configured_always_valid(self) -> None:
         """Property: Orders should always be valid when no tick size is configured."""
         price_rule = PricePrecisionRule(enabled=True)
 
@@ -424,10 +412,8 @@ class TestPricePrecisionRuleProperties:
         assert result.is_valid
         assert len(result.violations) == 0
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_zero_tick_size_always_valid(self, _: None) -> None:
+    async def test_zero_tick_size_always_valid(self) -> None:
         """Property: Orders should always be valid when tick size is zero."""
         price_rule = PricePrecisionRule(enabled=True)
 
@@ -554,10 +540,8 @@ class TestQuantityPrecisionRuleProperties:
         assert len(result.violations) >= 1
         assert "not aligned to lot size" in result.violations[0]
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_no_lot_size_configured_always_valid(self, _: None) -> None:
+    async def test_no_lot_size_configured_always_valid(self) -> None:
         """Property: Orders should always be valid when no lot size is configured."""
         quantity_rule = QuantityPrecisionRule(enabled=True)
 
@@ -578,10 +562,8 @@ class TestQuantityPrecisionRuleProperties:
         assert result.is_valid
         assert len(result.violations) == 0
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_zero_lot_size_always_valid(self, _: None) -> None:
+    async def test_zero_lot_size_always_valid(self) -> None:
         """Property: Orders should always be valid when lot size is zero."""
         quantity_rule = QuantityPrecisionRule(enabled=True)
 
@@ -601,10 +583,8 @@ class TestQuantityPrecisionRuleProperties:
         assert result.is_valid
         assert len(result.violations) == 0
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_market_orders_validate_quantity_precision(self, _: None) -> None:
+    async def test_market_orders_validate_quantity_precision(self) -> None:
         """Property: Market orders should still validate quantity precision."""
         quantity_rule = QuantityPrecisionRule(enabled=True)
 
@@ -636,8 +616,6 @@ def draw_aligned_price(tick_size: Decimal) -> Decimal:
     Returns:
         Decimal: An aligned price value.
     """
-    import random
-
     multiplier = random.randint(1, 100000)
     return Decimal(multiplier) * tick_size
 
@@ -648,8 +626,6 @@ def draw_misaligned_price(tick_size: Decimal) -> Decimal:
     Returns:
         Decimal: A misaligned price value.
     """
-    import random
-
     # Skip very small tick sizes where misalignment might be negligible
     tick_size = max(tick_size, Decimal("0.001"))
 
@@ -677,8 +653,6 @@ def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
     Returns:
         Decimal: An aligned quantity value.
     """
-    import random
-
     multiplier = random.randint(1, 10000)
     return Decimal(multiplier) * lot_size
 
@@ -689,8 +663,6 @@ def draw_misaligned_quantity(lot_size: Decimal) -> Decimal:
     Returns:
         Decimal: A misaligned quantity value.
     """
-    import random
-
     # Skip very small lot sizes where misalignment might be negligible
     lot_size = max(lot_size, Decimal("0.001"))
 

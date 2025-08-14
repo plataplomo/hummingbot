@@ -14,22 +14,23 @@ precision errors or validation bypasses.
 """
 
 from decimal import Decimal, InvalidOperation
-import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
-from hypothesis.strategies import SearchStrategy
-from unittest.mock import MagicMock
+from typing import Any
 
-from cyberdelta.apis.utils.decimal_parser import (
-    safe_parse_decimal,
-    validate_positive_decimal,
-    validate_decimal_precision,
-    format_decimal_for_exchange,
-    _validate_decimal_finite,
-    _prepare_value_string,
-)
+import pytest
+from hypothesis import assume, given, strategies as st
+from hypothesis.strategies import SearchStrategy
+
 from cyberdelta.apis.base.validation_contexts import ValidationContext
-from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.base.validation_policies import NullPolicy, RangePolicy
+from cyberdelta.apis.common import APIError, APIErrorCode
+from cyberdelta.apis.utils.decimal_parser import (
+    _prepare_value_string,
+    _validate_decimal_finite,
+    format_decimal_for_exchange,
+    safe_parse_decimal,
+    validate_decimal_precision,
+    validate_positive_decimal,
+)
 
 
 # =============================================================================
@@ -75,16 +76,16 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common financial precisions
         decimal_string_strategy(
-            min_value=Decimal("0.01"), max_value=Decimal("1000000"), max_decimal_places=2
+            min_value=Decimal("0.01"), max_value=Decimal(1000000), max_decimal_places=2
         ),
         decimal_string_strategy(
-            min_value=Decimal("0.0001"), max_value=Decimal("100000"), max_decimal_places=4
+            min_value=Decimal("0.0001"), max_value=Decimal(100000), max_decimal_places=4
         ),
         decimal_string_strategy(
-            min_value=Decimal("0.000001"), max_value=Decimal("10000"), max_decimal_places=6
+            min_value=Decimal("0.000001"), max_value=Decimal(10000), max_decimal_places=6
         ),
         decimal_string_strategy(
-            min_value=Decimal("0.00000001"), max_value=Decimal("1000"), max_decimal_places=8
+            min_value=Decimal("0.00000001"), max_value=Decimal(1000), max_decimal_places=8
         ),
         # Edge cases
         st.just("0"),
@@ -97,7 +98,7 @@ def positive_decimal_strategy() -> SearchStrategy[Decimal]:
     """Generate positive decimal values for testing."""
     return st.decimals(
         min_value=Decimal("0.00000001"),
-        max_value=Decimal("1000000"),
+        max_value=Decimal(1000000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -107,8 +108,8 @@ def positive_decimal_strategy() -> SearchStrategy[Decimal]:
 def non_positive_decimal_strategy() -> SearchStrategy[Decimal]:
     """Generate non-positive decimal values for testing."""
     return st.decimals(
-        min_value=Decimal("-1000000"),
-        max_value=Decimal("0"),
+        min_value=Decimal(-1000000),
+        max_value=Decimal(0),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -180,7 +181,7 @@ class TestSafeParseDecimalProperties:
     )
     def test_safe_parse_decimal_precision_preservation(
         self, decimal_str: str, context: ValidationContext
-    ):
+    ) -> None:
         """Property: Parsing a valid decimal string should preserve exact precision."""
         result = safe_parse_decimal(decimal_str, context)
 
@@ -200,7 +201,7 @@ class TestSafeParseDecimalProperties:
     )
     def test_safe_parse_decimal_already_decimal_passthrough(
         self, decimal_value: Decimal, context: ValidationContext
-    ):
+    ) -> None:
         """Property: Decimal input should pass through unchanged when already valid."""
         result = safe_parse_decimal(decimal_value, context)
 
@@ -208,8 +209,10 @@ class TestSafeParseDecimalProperties:
         assert result == decimal_value
         assert result is decimal_value  # Same object reference
 
-        # Property: Should still be finite
-        assert result.is_finite()
+        # DEFENSIVE CHECK: Ensure result is not None. Pyright=[reportOptionalMemberAccess]
+        if result is not None:
+            # Property: Should still be finite
+            assert result.is_finite()
 
     @given(
         float_value=st.floats(
@@ -219,7 +222,7 @@ class TestSafeParseDecimalProperties:
     )
     def test_safe_parse_decimal_float_conversion(
         self, float_value: float, context: ValidationContext
-    ):
+    ) -> None:
         """Property: Float values should convert consistently to Decimal."""
         # Skip problematic float values that lose precision
         assume(abs(float_value) < 1e15)  # Avoid precision loss
@@ -234,7 +237,7 @@ class TestSafeParseDecimalProperties:
         # Property: Should be close to original float (within float precision limits)
         assert abs(float(result) - float_value) < 1e-10
 
-    def test_safe_parse_decimal_none_handling_properties(self):
+    def test_safe_parse_decimal_none_handling_properties(self) -> None:
         """Property: None handling should respect validation context policies."""
         # Test ALLOW policy
         allow_context = ValidationContext(null_policy=NullPolicy.ALLOW)
@@ -258,7 +261,7 @@ class TestSafeParseDecimalProperties:
     )
     def test_safe_parse_decimal_invalid_input_rejection(
         self, invalid_input: str, context: ValidationContext
-    ):
+    ) -> None:
         """Property: Invalid decimal strings should always raise APIError."""
         with pytest.raises(APIError) as exc_info:
             safe_parse_decimal(invalid_input, context)
@@ -284,7 +287,7 @@ class TestSafeParseDecimalProperties:
     )
     def test_safe_parse_decimal_error_context_inclusion(
         self, decimal_str: str, field_name: str, context_desc: str
-    ):
+    ) -> None:
         """Property: Error messages should include validation context for better debugging."""
         # Make value invalid
         invalid_value = decimal_str + ".invalid"
@@ -299,7 +302,7 @@ class TestSafeParseDecimalProperties:
         assert field_name in error_msg
         assert context_desc in error_msg
 
-    def test_safe_parse_decimal_special_values_rejection(self):
+    def test_safe_parse_decimal_special_values_rejection(self) -> None:
         """Property: Special decimal values (NaN, Infinity) should be rejected."""
         context = ValidationContext()
 
@@ -332,13 +335,13 @@ class TestValidatePositiveDecimalProperties:
     )
     def test_validate_positive_decimal_valid_values_passthrough(
         self, positive_value: Decimal, range_policy: RangePolicy
-    ):
+    ) -> None:
         """Property: Valid positive values should pass through unchanged."""
         # Ensure value meets the range policy requirements
         if range_policy == RangePolicy.FINANCIAL_POSITIVE:
             assume(positive_value > Decimal("0.00000001"))
         elif range_policy == RangePolicy.POSITIVE:
-            assume(positive_value > Decimal("0"))
+            assume(positive_value > Decimal(0))
         # NON_NEGATIVE allows any positive value
 
         context = ValidationContext(range_policy=range_policy)
@@ -358,13 +361,13 @@ class TestValidatePositiveDecimalProperties:
     )
     def test_validate_positive_decimal_invalid_values_rejection(
         self, negative_value: Decimal, range_policy: RangePolicy
-    ):
+    ) -> None:
         """Property: Values violating range policy should be rejected."""
         # Ensure value actually violates the policy
         if range_policy == RangePolicy.NON_NEGATIVE:
-            assume(negative_value < Decimal("0"))
+            assume(negative_value < Decimal(0))
         elif range_policy == RangePolicy.POSITIVE:
-            assume(negative_value <= Decimal("0"))
+            assume(negative_value <= Decimal(0))
         elif range_policy == RangePolicy.FINANCIAL_POSITIVE:
             assume(negative_value <= Decimal("0.00000001"))
 
@@ -380,9 +383,9 @@ class TestValidatePositiveDecimalProperties:
         error_msg = exc_info.value.message
         assert any(term in error_msg.lower() for term in ["positive", "negative", "must be"])
 
-    def test_validate_positive_decimal_boundary_values(self):
+    def test_validate_positive_decimal_boundary_values(self) -> None:
         """Property: Boundary values should be handled correctly per policy."""
-        zero = Decimal("0")
+        zero = Decimal(0)
         tiny_positive = Decimal("0.00000001")
         smaller_positive = Decimal("0.00000000001")
 
@@ -420,7 +423,7 @@ class TestValidatePositiveDecimalProperties:
     )
     def test_validate_positive_decimal_context_in_errors(
         self, positive_value: Decimal, field_name: str, context_desc: str
-    ):
+    ) -> None:
         """Property: Error messages should include validation context."""
         # Force a violation by using negative value
         negative_value = -positive_value
@@ -439,21 +442,21 @@ class TestValidatePositiveDecimalProperties:
         assert field_name in error_msg
         assert context_desc in error_msg
 
-    def test_validate_positive_decimal_unrestricted_policy(self):
+    def test_validate_positive_decimal_unrestricted_policy(self) -> None:
         """Property: ANY policy should allow any finite decimal."""
         unrestricted_context = ValidationContext(range_policy=RangePolicy.ANY)
 
         # Should allow negative values
-        negative_result = validate_positive_decimal(Decimal("-100"), unrestricted_context)
-        assert negative_result == Decimal("-100")
+        negative_result = validate_positive_decimal(Decimal(-100), unrestricted_context)
+        assert negative_result == Decimal(-100)
 
         # Should allow zero
-        zero_result = validate_positive_decimal(Decimal("0"), unrestricted_context)
-        assert zero_result == Decimal("0")
+        zero_result = validate_positive_decimal(Decimal(0), unrestricted_context)
+        assert zero_result == Decimal(0)
 
         # Should allow positive values
-        positive_result = validate_positive_decimal(Decimal("100"), unrestricted_context)
-        assert positive_result == Decimal("100")
+        positive_result = validate_positive_decimal(Decimal(100), unrestricted_context)
+        assert positive_result == Decimal(100)
 
 
 # =============================================================================
@@ -470,7 +473,9 @@ class TestValidateDecimalPrecisionProperties:
         ),
         max_places=st.integers(min_value=0, max_value=18),
     )
-    def test_validate_decimal_precision_integers_allowed(self, value: Decimal, max_places: int):
+    def test_validate_decimal_precision_integers_allowed(
+        self, value: Decimal, max_places: int
+    ) -> None:
         """Property: Integer decimals should always pass precision validation."""
         # Ensure value is actually an integer (no decimal places)
         assume(value % 1 == 0)
@@ -489,7 +494,7 @@ class TestValidateDecimalPrecisionProperties:
     )
     def test_validate_decimal_precision_within_limits_allowed(
         self, base_value: Decimal, allowed_places: int
-    ):
+    ) -> None:
         """Property: Decimals within precision limits should be allowed."""
         # Create a decimal with exactly the allowed number of places
         divisor = Decimal(10) ** allowed_places
@@ -506,7 +511,7 @@ class TestValidateDecimalPrecisionProperties:
     )
     def test_validate_decimal_precision_exceeding_limits_rejected(
         self, max_places: int, excess_places: int
-    ):
+    ) -> None:
         """Property: Decimals exceeding precision limits should be rejected."""
         # Create a decimal that definitely has more precision than allowed
         # Use a value like 1.234567... with exact number of digits needed
@@ -519,8 +524,13 @@ class TestValidateDecimalPrecisionProperties:
 
         # Verify our test value actually exceeds the limit
         _sign, _digits, exponent = decimal_value.as_tuple()
-        actual_places = -exponent if exponent < 0 else 0
-        assume(actual_places > max_places)  # Only test cases that should fail
+        # Handle special exponent values (for NaN, Infinity)
+        if isinstance(exponent, int):
+            actual_places = -exponent if exponent < 0 else 0
+            assume(actual_places > max_places)  # Only test cases that should fail
+        else:
+            # Special values like NaN, Infinity - skip these in this test
+            assume(False)
 
         with pytest.raises(APIError) as exc_info:
             validate_decimal_precision(decimal_value, max_places)
@@ -546,10 +556,10 @@ class TestValidateDecimalPrecisionProperties:
     )
     def test_validate_decimal_precision_error_context(
         self, field_name: str, context: str, max_places: int
-    ):
+    ) -> None:
         """Property: Error messages should include field name and context."""
         # Create a value that exceeds precision
-        excessive_value = Decimal("1") / (Decimal(10) ** (max_places + 5))
+        excessive_value = Decimal(1) / (Decimal(10) ** (max_places + 5))
 
         with pytest.raises(APIError) as exc_info:
             validate_decimal_precision(excessive_value, max_places, field_name, context)
@@ -559,7 +569,7 @@ class TestValidateDecimalPrecisionProperties:
         assert field_name in error_msg
         assert context in error_msg
 
-    def test_validate_decimal_precision_special_values_rejection(self):
+    def test_validate_decimal_precision_special_values_rejection(self) -> None:
         """Property: Special decimal values should be rejected."""
         # Test NaN
         with pytest.raises(APIError) as exc_info:
@@ -591,7 +601,7 @@ class TestFormatDecimalForExchangeProperties:
     )
     def test_format_decimal_for_exchange_precision_respect(
         self, value: Decimal, decimal_places: int
-    ):
+    ) -> None:
         """Property: Formatted decimals should respect specified precision."""
         result = format_decimal_for_exchange(value, decimal_places)
 
@@ -615,7 +625,7 @@ class TestFormatDecimalForExchangeProperties:
     )
     def test_format_decimal_for_exchange_integer_formatting(
         self, integer_value: Decimal, decimal_places: int
-    ):
+    ) -> None:
         """Property: Integer values should be formatted appropriately."""
         result = format_decimal_for_exchange(integer_value, decimal_places)
 
@@ -631,7 +641,7 @@ class TestFormatDecimalForExchangeProperties:
             min_value=0, max_value=1000, places=8, allow_nan=False, allow_infinity=False
         ),
     )
-    def test_format_decimal_for_exchange_roundtrip_consistency(self, value: Decimal):
+    def test_format_decimal_for_exchange_roundtrip_consistency(self, value: Decimal) -> None:
         """Property: Format-parse round trip should be mathematically consistent."""
         # Format with various precisions
         for decimal_places in [0, 2, 4, 6, 8]:
@@ -646,7 +656,9 @@ class TestFormatDecimalForExchangeProperties:
         field_name=st.sampled_from(["price", "quantity", "amount", "balance"]),
         context=st.sampled_from(["order_validation", "balance_check", "fee_calculation"]),
     )
-    def test_format_decimal_for_exchange_robust_handling(self, field_name: str, context: str):
+    def test_format_decimal_for_exchange_robust_handling(
+        self, field_name: str, context: str
+    ) -> None:
         """Property: Format function should handle edge cases robustly."""
         # Test various edge cases that the function should handle
         valid_value = Decimal("123.45")
@@ -659,9 +671,9 @@ class TestFormatDecimalForExchangeProperties:
         result = format_decimal_for_exchange(valid_value, 0, field_name, context)
         assert isinstance(result, str)
 
-    def test_format_decimal_for_exchange_zero_handling(self):
+    def test_format_decimal_for_exchange_zero_handling(self) -> None:
         """Property: Zero values should be formatted consistently."""
-        zero = Decimal("0")
+        zero = Decimal(0)
 
         # Test various decimal place requirements
         for places in [0, 2, 4]:  # Skip 8 to avoid scientific notation issues
@@ -678,7 +690,7 @@ class TestFormatDecimalForExchangeProperties:
                 assert Decimal(result) == zero
 
     @given(decimal_places=st.integers(min_value=0, max_value=18))
-    def test_format_decimal_for_exchange_trailing_zeros_removal(self, decimal_places: int):
+    def test_format_decimal_for_exchange_trailing_zeros_removal(self, decimal_places: int) -> None:
         """Property: Trailing zeros should be removed appropriately."""
         # Create a value with trailing zeros
         value = Decimal("123.45000")
@@ -713,12 +725,12 @@ class TestHelperFunctionProperties:
     )
     def test_validate_decimal_finite_valid_values(
         self, value: Decimal, field_name: str, context: str
-    ):
+    ) -> None:
         """Property: Finite decimal values should pass validation."""
         # Should not raise an exception
         _validate_decimal_finite(value, field_name, context)
 
-    def test_validate_decimal_finite_special_values_rejection(self):
+    def test_validate_decimal_finite_special_values_rejection(self) -> None:
         """Property: Non-finite decimal values should be rejected."""
         field_name = "test_field"
         context = "test_context"
@@ -749,7 +761,7 @@ class TestHelperFunctionProperties:
     )
     def test_prepare_value_string_valid_strings(
         self, str_value: str, field_name: str, context: str
-    ):
+    ) -> None:
         """Property: Valid string values should be prepared correctly."""
         result = _prepare_value_string(str_value, field_name, context)
 
@@ -773,7 +785,7 @@ class TestHelperFunctionProperties:
     )
     def test_prepare_value_string_float_conversion(
         self, float_value: float, field_name: str, context: str
-    ):
+    ) -> None:
         """Property: Float values should be converted to string representation."""
         result = _prepare_value_string(float_value, field_name, context)
 
@@ -781,7 +793,7 @@ class TestHelperFunctionProperties:
         assert isinstance(result, str)
         assert result == str(float_value)
 
-    def test_prepare_value_string_empty_string_rejection(self):
+    def test_prepare_value_string_empty_string_rejection(self) -> None:
         """Property: Empty strings should be rejected."""
         field_name = "test_field"
         context = "test_context"
@@ -810,8 +822,8 @@ class TestHelperFunctionProperties:
         ]),
     )
     def test_prepare_value_string_invalid_types_rejection(
-        self, invalid_value, field_name: str, context: str
-    ):
+        self, invalid_value: Any, field_name: str, context: str
+    ) -> None:
         """Property: Invalid value types should be rejected."""
         with pytest.raises(APIError) as exc_info:
             _prepare_value_string(invalid_value, field_name, context)
@@ -837,7 +849,7 @@ class TestDecimalParserIntegrationProperties:
     )
     def test_parse_validate_format_integration(
         self, decimal_str: str, decimal_places: int, context: ValidationContext
-    ):
+    ) -> None:
         """Property: Parse -> validate -> format should be consistent."""
         # Create a new context that allows positive values for this test
         test_context = ValidationContext(
@@ -851,23 +863,29 @@ class TestDecimalParserIntegrationProperties:
         parsed = safe_parse_decimal(decimal_str, test_context)
         assume(parsed is not None and parsed >= 0)  # Skip negative values for this test
 
+        # DEFENSIVE CHECK: Ensure parsed is not None after assume. Mypy=[union-attr]
+        if parsed is None:
+            return  # Should not happen due to assume, but needed for type safety
+
         # Validate precision (use existing decimal places or max allowed)
-        current_places = -parsed.as_tuple().exponent if parsed.as_tuple().exponent < 0 else 0
-        if current_places <= decimal_places:
-            validated = validate_decimal_precision(parsed, decimal_places)
-            assert validated == parsed
+        exponent = parsed.as_tuple().exponent
+        if isinstance(exponent, int):
+            current_places = -exponent if exponent < 0 else 0
+            if current_places <= decimal_places:
+                validated = validate_decimal_precision(parsed, decimal_places)
+                assert validated == parsed
 
-            # Validate positive (should pass for non-negative)
-            positive_validated = validate_positive_decimal(validated, test_context)
-            assert positive_validated == validated
+                # Validate positive (should pass for non-negative)
+                positive_validated = validate_positive_decimal(validated, test_context)
+                assert positive_validated == validated
 
-            # Format for exchange
-            formatted = format_decimal_for_exchange(positive_validated, decimal_places)
-            assert isinstance(formatted, str)
+                # Format for exchange
+                formatted = format_decimal_for_exchange(positive_validated, decimal_places)
+                assert isinstance(formatted, str)
 
-            # Property: Formatted value should parse back consistently
-            reparsed = Decimal(formatted)
-            assert reparsed.is_finite()
+                # Property: Formatted value should parse back consistently
+                reparsed = Decimal(formatted)
+                assert reparsed.is_finite()
 
     @given(
         context=validation_context_strategy(),
@@ -875,7 +893,7 @@ class TestDecimalParserIntegrationProperties:
     )
     def test_null_policy_consistency_across_functions(
         self, context: ValidationContext, decimal_places: int
-    ):
+    ) -> None:
         """Property: Null policies should be handled consistently."""
         # Test safe_parse_decimal with None
         if context.null_policy == NullPolicy.ALLOW:
@@ -885,18 +903,20 @@ class TestDecimalParserIntegrationProperties:
             result = safe_parse_decimal(None, context)
             assert result == Decimal(0)
 
-            # Further processing should work with the default zero if range policy allows
-            if context.range_policy in [RangePolicy.ANY, RangePolicy.NON_NEGATIVE]:
-                validated = validate_positive_decimal(result, context)
-                formatted = format_decimal_for_exchange(validated, decimal_places)
-                if decimal_places == 0:
-                    assert formatted in ["0", ""]  # Allow empty string for 0 decimal places
-                    if formatted:  # Only check if not empty
+            # DEFENSIVE CHECK: Ensure result is not None after default processing. Pypy=[reportArgumentType]
+            if result is not None:
+                # Further processing should work with the default zero if range policy allows
+                if context.range_policy in [RangePolicy.ANY, RangePolicy.NON_NEGATIVE]:
+                    validated = validate_positive_decimal(result, context)
+                    formatted = format_decimal_for_exchange(validated, decimal_places)
+                    if decimal_places == 0:
+                        assert formatted in ["0", ""]  # Allow empty string for 0 decimal places
+                        if formatted:  # Only check if not empty
+                            assert Decimal(formatted) == Decimal(0)
+                    else:
+                        # Allow various zero representations including scientific notation
+                        assert formatted  # Should not be empty for > 0 decimal places
                         assert Decimal(formatted) == Decimal(0)
-                else:
-                    # Allow various zero representations including scientific notation
-                    assert formatted  # Should not be empty for > 0 decimal places
-                    assert Decimal(formatted) == Decimal(0)
         else:  # REJECT
             with pytest.raises(APIError):
                 safe_parse_decimal(None, context)
@@ -907,7 +927,9 @@ class TestDecimalParserIntegrationProperties:
         ),
         context=validation_context_strategy(),
     )
-    def test_range_policy_enforcement_consistency(self, value: Decimal, context: ValidationContext):
+    def test_range_policy_enforcement_consistency(
+        self, value: Decimal, context: ValidationContext
+    ) -> None:
         """Property: Range policies should be enforced consistently."""
         # Test different range policies with the same value
         if context.range_policy == RangePolicy.FINANCIAL_POSITIVE:
@@ -921,7 +943,7 @@ class TestDecimalParserIntegrationProperties:
                     validate_positive_decimal(value, context)
 
         elif context.range_policy == RangePolicy.POSITIVE:
-            if value > Decimal("0"):
+            if value > Decimal(0):
                 result = validate_positive_decimal(value, context)
                 assert result == value
             else:
@@ -929,7 +951,7 @@ class TestDecimalParserIntegrationProperties:
                     validate_positive_decimal(value, context)
 
         elif context.range_policy == RangePolicy.NON_NEGATIVE:
-            if value >= Decimal("0"):
+            if value >= Decimal(0):
                 result = validate_positive_decimal(value, context)
                 assert result == value
             else:

@@ -12,6 +12,7 @@ Following TESTING_SECURITY_RULES.md:
 
 from __future__ import annotations
 
+import random
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import Mock
@@ -68,7 +69,7 @@ def tick_size_strategy(draw: st.DrawFn) -> Decimal:
         Random tick size from common values.
     """
     # Common tick sizes: 0.01, 0.001, 0.0001, 0.1, 1.0
-    tick_size = draw(
+    return draw(
         st.sampled_from([
             Decimal("0.01"),
             Decimal("0.001"),
@@ -77,7 +78,6 @@ def tick_size_strategy(draw: st.DrawFn) -> Decimal:
             Decimal("1.0"),
         ])
     )
-    return tick_size
 
 
 @st.composite
@@ -88,7 +88,7 @@ def lot_size_strategy(draw: st.DrawFn) -> Decimal:
         Random lot size from common values.
     """
     # Common lot sizes for crypto
-    lot_size = draw(
+    return draw(
         st.sampled_from([
             Decimal("0.001"),
             Decimal("0.0001"),
@@ -97,7 +97,6 @@ def lot_size_strategy(draw: st.DrawFn) -> Decimal:
             Decimal("1.0"),
         ])
     )
-    return lot_size
 
 
 @st.composite
@@ -110,8 +109,7 @@ def aligned_price_strategy(draw: st.DrawFn, tick_size: Decimal) -> Decimal:
     # Generate a base price multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=100000))
     # Align to tick size
-    aligned_price = Decimal(base_multiplier) * tick_size
-    return aligned_price
+    return Decimal(base_multiplier) * tick_size
 
 
 @st.composite
@@ -124,8 +122,7 @@ def aligned_quantity_strategy(draw: st.DrawFn, lot_size: Decimal) -> Decimal:
     # Generate a base quantity multiple
     base_multiplier = draw(st.integers(min_value=1, max_value=10000))
     # Align to lot size
-    aligned_quantity = Decimal(base_multiplier) * lot_size
-    return aligned_quantity
+    return Decimal(base_multiplier) * lot_size
 
 
 # --- Property-Based Tests ---
@@ -213,10 +210,8 @@ class TestPricePrecisionRuleProperties:
             f"Misaligned price {misaligned_price} should be invalid for tick size {tick_size}"
         )
 
-    @given(st.just(None))  # Add @given decorator for @settings to work
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_market_orders_always_skip_price_validation(self, _: None) -> None:
+    async def test_market_orders_always_skip_price_validation(self) -> None:
         """Property: Market orders should always skip price validation regardless of tick size."""
         # Create rule instance
         price_rule = PricePrecisionRule(enabled=True)
@@ -302,8 +297,6 @@ class TestQuantityPrecisionRuleProperties:
 
         # Create a mock order to test the validation rule directly
         # without going through Pydantic validation
-        from unittest.mock import Mock
-
         order = Mock()
         order.symbol = BTC_HL
         order.side = OrderSide.BUY
@@ -461,12 +454,8 @@ def generate_order_strategy(draw: st.DrawFn) -> Order:
     quantity = draw(decimal_strategy())
 
     # Use pre-configured symbols from common_symbols
-    if exchange == ExchangeName.BACKPACK:
-        # Use the properly configured Backpack symbol
-        symbol = BTC_USDC_BP
-    else:
-        # Use the properly configured Hyperliquid symbol
-        symbol = BTC_HL
+    # Use the properly configured symbol for each exchange
+    symbol = BTC_USDC_BP if exchange == ExchangeName.BACKPACK else BTC_HL
 
     order_id = draw(
         st.text(min_size=5, max_size=20, alphabet=st.characters(min_codepoint=65, max_codepoint=90))
@@ -496,7 +485,11 @@ class TestValidationServiceProperties:
     @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
     async def test_validation_always_returns_result(self, order: Order) -> None:
-        """Property: Validation should always return a ValidationResult, never crash."""
+        """Property: Validation should always return a ValidationResult, never crash.
+        
+        Raises:
+            AssertionError: If validation system fails unexpectedly.
+        """
         # Create validation service
         validation_service = create_test_validation_service()
 
@@ -522,7 +515,8 @@ class TestValidationServiceProperties:
             assert isinstance(result.violations, list)
 
         except Exception as e:
-            pytest.fail(f"Validation should not crash, but got: {e}")
+            # Re-raise with context - validation must be robust and not crash
+            raise AssertionError(f"Validation system failed unexpectedly: {e}") from e
 
 
 # --- Helper Functions ---
@@ -535,8 +529,6 @@ def draw_aligned_price(tick_size: Decimal) -> Decimal:
         Price aligned to the tick size.
     """
     # Generate a random multiplier
-    import random
-
     multiplier = random.randint(1, 100000)
     return Decimal(multiplier) * tick_size
 
@@ -548,8 +540,6 @@ def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
         Quantity aligned to the lot size.
     """
     # Generate a random multiplier
-    import random
-
     multiplier = random.randint(1, 10000)
     return Decimal(multiplier) * lot_size
 

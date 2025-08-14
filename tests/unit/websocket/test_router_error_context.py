@@ -13,6 +13,7 @@ from unittest.mock import Mock
 import pytest
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.common.error_foundation import ErrorMetadata
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router_error_context import (
     RouterErrorContextBuilder,
@@ -302,8 +303,6 @@ class TestRouterErrorContextBuilder:
     def test_enhance_context_with_timing(self) -> None:
         """Test enhancing existing context with timing information."""
         # Create base context
-        from cyberdelta.apis.common.error_foundation import ErrorMetadata
-
         base_metadata = ErrorMetadata()
         original_context = StreamErrorContext(
             connection_id="test-conn-123",

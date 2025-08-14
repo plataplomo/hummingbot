@@ -687,15 +687,11 @@ class TestHyperliquidMessageSerializationIntegration:
         try:
             return domain_data.model_dump()
         except AttributeError:
-            # Fallback to dict() (Pydantic v1)
+            # If it's not a Pydantic model but has __dict__, try that
             try:
-                return domain_data.dict()
+                return domain_data.__dict__
             except AttributeError:
-                # If it's not a Pydantic model but has __dict__, try that
-                try:
-                    return domain_data.__dict__
-                except AttributeError:
-                    return {}
+                return {}
 
     def _extract_prices_data(self, domain_data: DomainModelProtocol) -> dict[str, Any]:
         """Extract prices data from domain model using protocol methods.

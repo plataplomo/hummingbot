@@ -9,8 +9,8 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import time
-from datetime import UTC, datetime, timedelta
 
+# No datetime imports needed for current tests
 import pytest
 
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode

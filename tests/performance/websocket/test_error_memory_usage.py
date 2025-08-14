@@ -14,6 +14,7 @@ import tracemalloc
 import pytest
 
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
@@ -278,9 +279,10 @@ class TestErrorMemoryUsage:
         tracemalloc.start()
         snapshot_base = tracemalloc.take_snapshot()
 
-        dict_errors = []
+        # This is intentionally using dict[str, object] to simulate the old untyped approach
+        dict_errors: list[dict[str, object]] = []
         for i in range(100):
-            dict_error = {
+            dict_error: dict[str, object] = {
                 "code": "CONNECTION_LOST",
                 "message": f"Error {i}",
                 "timestamp": 1234567890,
@@ -298,7 +300,7 @@ class TestErrorMemoryUsage:
         snapshot_dict = tracemalloc.take_snapshot()
 
         # New typed approach
-        typed_errors = []
+        typed_errors: list[WebSocketStreamError] = []
         for i in range(100):
             typed_error = ErrorTestFactory.create_test_error(
                 code=WebSocketErrorCode.CONNECTION_LOST,

@@ -12,6 +12,7 @@ from pydantic import BaseModel, ValidationError
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
 from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
     PydanticWebSocketProcessor,
@@ -74,8 +75,6 @@ class TestValidationMetrics:
 
     def test_initialization(self) -> None:
         """Test metrics initialization."""
-        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
-
         metrics = ProcessingMetrics()
         assert metrics.total_processed == 0
         assert metrics.validation_errors == 0
@@ -85,8 +84,6 @@ class TestValidationMetrics:
 
     def test_record_processing_time(self) -> None:
         """Test recording processing time."""
-        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
-
         metrics = ProcessingMetrics()
         metrics.record_processing_time(0.1)
         metrics.record_processing_time(0.2)
@@ -96,8 +93,6 @@ class TestValidationMetrics:
 
     def test_record_errors(self) -> None:
         """Test recording different error types."""
-        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
-
         metrics = ProcessingMetrics()
         metrics.record_validation_error()
         metrics.record_transformation_error()
@@ -109,8 +104,6 @@ class TestValidationMetrics:
 
     def test_get_stats(self) -> None:
         """Test getting statistics."""
-        from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
-
         metrics = ProcessingMetrics()
         metrics.record_processing_time(0.1)
         metrics.record_validation_error()

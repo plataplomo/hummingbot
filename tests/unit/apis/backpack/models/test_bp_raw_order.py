@@ -13,16 +13,17 @@ to enter the trading system, leading to incorrect order processing, invalid trad
 or system instability.
 """
 
+import string
 from decimal import Decimal
-from datetime import datetime, UTC
+
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_order import (
-    BackpackRawOrderResponse,
     BackpackRawOrderBook,
+    BackpackRawOrderResponse,
     BackpackRawOrderUpdate,
 )
 
@@ -45,7 +46,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for financial amounts."""
     return st.one_of([
         # Normal decimal values
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(
             str
         ),
         # Scientific notation (allowed by project policy)
@@ -302,7 +303,7 @@ class TestBackpackRawOrderResponseProperties:
 
     @given(
         base_data=required_order_fields_strategy(),
-        invalid_enum=st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=1, max_size=10),
+        invalid_enum=st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
     )
     def test_invalid_enum_fields_rejection(self, base_data, invalid_enum):
         """Property: Invalid enum values should be consistently rejected."""
@@ -644,7 +645,7 @@ class TestBackpackRawOrderIntegrationProperties:
             parsed_orders.append(order)
 
         # Property: Each order should maintain its individual data
-        for i, (original_data, parsed_order) in enumerate(zip(orders, parsed_orders)):
+        for i, (original_data, parsed_order) in enumerate(zip(orders, parsed_orders, strict=False)):
             assert parsed_order.id == original_data["id"]
             assert parsed_order.symbol == original_data["symbol"]
 

@@ -14,8 +14,9 @@ calculations, or financial losses.
 """
 
 from decimal import Decimal
+
 import pytest
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -42,7 +43,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
         # Normal decimal values
         st.decimals(
             min_value=Decimal("0.00000001"),
-            max_value=Decimal("1000000"),
+            max_value=Decimal(1000000),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -60,8 +61,8 @@ def position_decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid position sizes (can be negative for shorts)."""
     return st.one_of([
         st.decimals(
-            min_value=Decimal("-100000"),
-            max_value=Decimal("100000"),
+            min_value=Decimal(-100000),
+            max_value=Decimal(100000),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -78,8 +79,8 @@ def fee_decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid fee amounts (typically smaller positive values)."""
     return st.one_of([
         st.decimals(
-            min_value=Decimal("0"),
-            max_value=Decimal("100"),
+            min_value=Decimal(0),
+            max_value=Decimal(100),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -583,7 +584,7 @@ class TestHyperliquidRawFillIntegrationProperties:
             parsed_fills.append(fill)
 
         # Property: Each fill should maintain its individual data
-        for i, (original_data, parsed_fill) in enumerate(zip(fills, parsed_fills)):
+        for i, (original_data, parsed_fill) in enumerate(zip(fills, parsed_fills, strict=False)):
             assert parsed_fill.tid == original_data["tid"]
             assert parsed_fill.oid == original_data["oid"]
             assert parsed_fill.px == original_data["px"]

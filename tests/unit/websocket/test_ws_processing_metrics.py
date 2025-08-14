@@ -6,6 +6,7 @@ This module tests the typed metrics models for WebSocket message processing.
 from unittest.mock import patch
 
 import pytest
+from pydantic import ValidationError
 
 from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics, ProcessorMetrics
 
@@ -235,7 +236,7 @@ class TestProcessorMetrics:
         assert processor_metrics.processor_name == "TestProcessor"
 
         # Invalid data should raise ValidationError
-        with pytest.raises(Exception):  # Pydantic ValidationError
+        with pytest.raises(ValidationError):  # Pydantic ValidationError
             ProcessorMetrics(
                 processor_name="",  # Invalid: empty string
                 raw_model_name="TestModel",

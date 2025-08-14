@@ -88,8 +88,8 @@ class TestLoggingPerformanceOptimization:
         gc.collect()  # Clean up before measurement
 
         start_time = time.perf_counter()
-        log_data_list = []
-        for i, error in enumerate(errors):
+        log_data_list: list[WebSocketStreamLogData] = []
+        for error in errors:
             log_data = WebSocketStreamLogData.from_stream_error(
                 error.code, error.message, error.context, error.severity, error.recovery_strategy
             )
@@ -308,8 +308,8 @@ class TestLoggingPerformanceOptimization:
 
         # Measure concurrent performance (simulated by rapid succession)
         start_time = time.perf_counter()
-        log_data_list = []
-        for i in range(100):
+        log_data_list: list[WebSocketStreamLogData] = []
+        for _i in range(100):
             log_data = WebSocketStreamLogData.from_stream_error(
                 error.code, error.message, error.context, error.severity, error.recovery_strategy
             )
@@ -377,7 +377,7 @@ class TestLoggingPerformanceOptimization:
         gc.collect()
 
         start_time = time.perf_counter()
-        for i, error in enumerate(errors):
+        for error in errors:
             WebSocketStreamLogData.from_stream_error(
                 error.code, error.message, error.context, error.severity, error.recovery_strategy
             )

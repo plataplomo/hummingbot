@@ -103,8 +103,7 @@ class TestRouterRoutingErrorsIntegration:
         )
 
         # Test invalid message that will fail envelope validation
-        invalid_message = {"invalid": "structure"}
-        validation_error = ValidationError.from_exception_data(
+        ValidationError.from_exception_data(
             "TestEnvelopeModel", [{"type": "missing", "loc": ("stream",), "input": {}}]
         )
 
@@ -133,9 +132,7 @@ class TestRouterRoutingErrorsIntegration:
             stream_error_handler=mock_typed_error_handler,
         )
 
-        # Test invalid message
-        invalid_message = {"invalid": "structure"}
-        validation_error = ValueError("Test validation error")
+        # Test setup completed - router properly configured
 
         # Test that router has proper legacy handler fallback setup
         assert router.error_handler is not None  # Legacy handler

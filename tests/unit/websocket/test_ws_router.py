@@ -5,7 +5,6 @@ This test validates Step 43: Router Unit Tests Updates.
 
 from __future__ import annotations
 
-import uuid
 from typing import cast
 from unittest.mock import AsyncMock, Mock
 
@@ -114,8 +113,7 @@ class TestWebSocketRouter:
         Returns:
             Mock message handler for testing.
         """
-        mock = AsyncMock(spec=MessageHandler)
-        return mock
+        return AsyncMock(spec=MessageHandler)
 
     @pytest.fixture
     def envelope_validator(self) -> Mock:
@@ -127,7 +125,7 @@ class TestWebSocketRouter:
 
         def validator(
             message: dict[
-                str, str | int | float | bool | None | dict[str, str | int | float | bool | None]
+                str, str | int | float | bool | dict[str, str | int | float | bool | None] | None
             ],
         ) -> TestEnvelopeModel:
             # Extract and validate stream and data parameters
@@ -174,14 +172,13 @@ class TestWebSocketRouter:
         Returns:
             Fully configured test router with all dependencies.
         """
-        router = TestRouterImpl(
+        return TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
             error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_stream_error_handler,
             envelope_validator=envelope_validator,
         )
-        return router
 
     def test_router_initialization(self, test_router: TestRouterImpl) -> None:
         """Test router initialization."""
@@ -293,7 +290,7 @@ class TestWebSocketRouter:
         # Make envelope validator fail
         def failing_validator(
             message: dict[
-                str, str | int | float | bool | None | dict[str, str | int | float | bool | None]
+                str, str | int | float | bool | dict[str, str | int | float | bool | None] | None
             ],
         ) -> TestEnvelopeModel:
             raise ValidationError.from_exception_data(
@@ -336,7 +333,7 @@ class TestWebSocketRouter:
         # Add envelope validator that fails
         def failing_validator(
             message: dict[
-                str, str | int | float | bool | None | dict[str, str | int | float | bool | None]
+                str, str | int | float | bool | dict[str, str | int | float | bool | None] | None
             ],
         ) -> TestEnvelopeModel:
             raise ValidationError.from_exception_data(
@@ -483,10 +480,6 @@ class TestWebSocketRouter:
         mock_typed_processor: Mock,
     ) -> None:
         """Test typed context creation."""
-        envelope = TestEnvelopeModel(stream="test", data={"key": "value"})
-        routing_key = "test"
-        message_id = str(uuid.uuid4())
-
         # Test that context can be created through public interface
         # Since we're not testing private methods, we verify the router properties
         assert configured_router.connection_id is not None
@@ -506,7 +499,7 @@ class TestWebSocketRouter:
         # Trigger a routing error to test recovery integration
         def failing_validator(
             message: dict[
-                str, str | int | float | bool | None | dict[str, str | int | float | bool | None]
+                str, str | int | float | bool | dict[str, str | int | float | bool | None] | None
             ],
         ) -> TestEnvelopeModel:
             raise RuntimeError("Validation failed")

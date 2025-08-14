@@ -16,7 +16,7 @@ from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from operator import itemgetter
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -160,16 +160,22 @@ class TestHyperliquidWebSocketUserEvents:
                             event_type = data["type"]
 
                             if event_type == "position" and "position" in data:
-                                position_data = data["position"]
-                                assert isinstance(position_data, dict)
+                                position_data_raw: object = data["position"]
+                                assert isinstance(position_data_raw, dict)
+                                # Type narrowing: position_data is now known to be a dict[str, object]
+                                position_data = cast(dict[str, object], position_data_raw)
                                 self._validate_position_data(position_data)
                             elif event_type == "order" and "order" in data:
-                                order_data = data["order"]
-                                assert isinstance(order_data, dict)
+                                order_data_raw: object = data["order"]
+                                assert isinstance(order_data_raw, dict)
+                                # Type narrowing: order_data is now known to be a dict[str, object]
+                                order_data = cast(dict[str, object], order_data_raw)
                                 self._validate_order_data(order_data)
                             elif event_type == "fill" and "fill" in data:
-                                fill_data = data["fill"]
-                                assert isinstance(fill_data, dict)
+                                fill_data_raw: object = data["fill"]
+                                assert isinstance(fill_data_raw, dict)
+                                # Type narrowing: fill_data is now known to be a dict[str, object]
+                                fill_data = cast(dict[str, object], fill_data_raw)
                                 self._validate_fill_data(fill_data)
 
                         received_events.append(data)

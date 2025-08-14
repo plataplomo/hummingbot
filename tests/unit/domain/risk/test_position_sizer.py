@@ -13,11 +13,12 @@ SECURITY CRITICAL: Position sizing errors could lead to over-leveraging,
 excessive risk exposure, account liquidation, or catastrophic losses.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, UTC
 from unittest.mock import MagicMock
+
 import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
+from hypothesis import HealthCheck, assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.config.models import (
@@ -26,12 +27,11 @@ from cyberdelta.config.models import (
     GlobalRiskSettings,
     SizingSettings,
 )
+from cyberdelta.core.enums import SignalType
 from cyberdelta.domain.risk.position_sizer import PositionSizer
-from cyberdelta.enums import OrderSide
-from cyberdelta.enums.signals import SignalType
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.exceptions.trading import SignalDataError
 from cyberdelta.models import TradeSignal
-from cyberdelta.models.risk.assessment import PositionSize
 from cyberdelta.symbols import exchanges
 
 
@@ -44,7 +44,7 @@ def price_strategy() -> SearchStrategy[Decimal]:
     """Generate valid price values."""
     return st.decimals(
         min_value=Decimal("0.01"),
-        max_value=Decimal("1000000"),
+        max_value=Decimal(1000000),
         places=6,
         allow_nan=False,
         allow_infinity=False,
@@ -54,8 +54,8 @@ def price_strategy() -> SearchStrategy[Decimal]:
 def equity_strategy() -> SearchStrategy[Decimal]:
     """Generate valid portfolio equity values."""
     return st.decimals(
-        min_value=Decimal("100"),
-        max_value=Decimal("10000000"),
+        min_value=Decimal(100),
+        max_value=Decimal(10000000),
         places=2,
         allow_nan=False,
         allow_infinity=False,
@@ -65,8 +65,8 @@ def equity_strategy() -> SearchStrategy[Decimal]:
 def exposure_strategy() -> SearchStrategy[Decimal]:
     """Generate valid exposure values."""
     return st.decimals(
-        min_value=Decimal("0"),
-        max_value=Decimal("5000000"),
+        min_value=Decimal(0),
+        max_value=Decimal(5000000),
         places=2,
         allow_nan=False,
         allow_infinity=False,
@@ -105,19 +105,10 @@ def side_strategy() -> SearchStrategy[OrderSide]:
     return st.sampled_from([OrderSide.BUY, OrderSide.SELL])
 
 
-def signal_strategy() -> SearchStrategy[dict]:
-    """Generate valid trade signal data."""
+def signal_strategy() -> SearchStrategy[TradeSignal]:
+    """Generate valid trade signal."""
     return st.builds(
-        lambda price, side, signal_type, confidence: {
-            "price": price,
-            "side": side,
-            "signal_type": signal_type,
-            "confidence": confidence,
-            "signal_id": "test_signal_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        },
+        TradeSignal,
         price=price_strategy(),
         side=side_strategy(),
         signal_type=st.sampled_from([
@@ -125,7 +116,10 @@ def signal_strategy() -> SearchStrategy[dict]:
             SignalType.ENTER_SHORT,
             SignalType.REBALANCE,
         ]),
+        symbol=st.just(exchanges.hyperliquid(value="BTC")),
+        exchange=st.just(ExchangeName.HYPERLIQUID),
         confidence=st.one_of(st.none(), confidence_strategy()),
+        # Let optional fields default to None unless specified
     )
 
 
@@ -135,7 +129,7 @@ def signal_strategy() -> SearchStrategy[dict]:
 
 
 @pytest.fixture
-def mock_config_simple():
+def mock_config_simple() -> MagicMock:
     """Create mock configuration for simple sizing method."""
     config = MagicMock(spec=AppSettings)
 
@@ -148,18 +142,18 @@ def mock_config_simple():
     config.risk.sizing.method = "simple"
     config.risk.sizing.simple_fixed_fraction = Decimal("0.02")  # 2% per position
     config.risk.sizing.min_position_size = Decimal("0.001")
-    config.risk.sizing.max_position_size = Decimal("100000")
+    config.risk.sizing.max_position_size = Decimal(100000)
 
     # Global risk limits
-    config.risk.global_risk.max_position_usd = Decimal("10000")
-    config.risk.global_risk.max_total_exposure_usd = Decimal("50000")
+    config.risk.global_risk.max_position_usd = Decimal(10000)
+    config.risk.global_risk.max_total_exposure_usd = Decimal(50000)
     config.risk.global_risk.expected_profit_loss_ratio = Decimal("2.0")
 
     return config
 
 
 @pytest.fixture
-def mock_config_kelly():
+def mock_config_kelly() -> MagicMock:
     """Create mock configuration for Kelly sizing method."""
     config = MagicMock(spec=AppSettings)
 
@@ -173,24 +167,24 @@ def mock_config_kelly():
     config.risk.sizing.kelly_multiplier = Decimal("0.25")  # Conservative Kelly
     config.risk.sizing.kelly_max_allocation = Decimal("0.25")  # Max 25% allocation
     config.risk.sizing.min_position_size = Decimal("0.001")
-    config.risk.sizing.max_position_size = Decimal("100000")
+    config.risk.sizing.max_position_size = Decimal(100000)
 
     # Global risk limits
-    config.risk.global_risk.max_position_usd = Decimal("10000")
-    config.risk.global_risk.max_total_exposure_usd = Decimal("50000")
+    config.risk.global_risk.max_position_usd = Decimal(10000)
+    config.risk.global_risk.max_total_exposure_usd = Decimal(50000)
     config.risk.global_risk.expected_profit_loss_ratio = Decimal("2.0")
 
     return config
 
 
 @pytest.fixture
-def simple_sizer(mock_config_simple):
+def simple_sizer(mock_config_simple: MagicMock) -> PositionSizer:
     """Create position sizer with simple method."""
     return PositionSizer(mock_config_simple)
 
 
 @pytest.fixture
-def kelly_sizer(mock_config_kelly):
+def kelly_sizer(mock_config_kelly: MagicMock) -> PositionSizer:
     """Create position sizer with Kelly method."""
     return PositionSizer(mock_config_kelly)
 
@@ -203,7 +197,7 @@ def kelly_sizer(mock_config_kelly):
 class TestPositionSizeConstraints:
     """Property-based tests for position size constraints."""
 
-    def _create_simple_sizer(self):
+    def _create_simple_sizer(self) -> PositionSizer:
         """Create a simple sizer for testing."""
         config = MagicMock(spec=AppSettings)
         config.risk = MagicMock(spec=EnhancedRiskSettings)
@@ -213,42 +207,40 @@ class TestPositionSizeConstraints:
         config.risk.sizing.method = "simple"
         config.risk.sizing.simple_fixed_fraction = Decimal("0.02")
         config.risk.sizing.min_position_size = Decimal("0.001")
-        config.risk.sizing.max_position_size = Decimal("100000")
+        config.risk.sizing.max_position_size = Decimal(100000)
 
-        config.risk.global_risk.max_position_usd = Decimal("10000")
-        config.risk.global_risk.max_total_exposure_usd = Decimal("50000")
+        config.risk.global_risk.max_position_usd = Decimal(10000)
+        config.risk.global_risk.max_total_exposure_usd = Decimal(50000)
         config.risk.global_risk.expected_profit_loss_ratio = Decimal("2.0")
 
         return PositionSizer(config)
 
     @given(
-        signal_data=signal_strategy(),
+        signal=signal_strategy(),
         total_equity=equity_strategy(),
         current_exposure=exposure_strategy(),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_position_size_never_negative(self, signal_data, total_equity, current_exposure):
+    def test_position_size_never_negative(self, signal: TradeSignal, total_equity: Decimal, current_exposure: Decimal) -> None:
         """Property: Position size should never be negative."""
         sizer = self._create_simple_sizer()
-        signal = TradeSignal(**signal_data)
         position_size = sizer.calculate_position_size(signal, total_equity, current_exposure)
 
         # Property: All values must be non-negative
-        assert position_size.quantity >= Decimal("0")
-        assert position_size.value_usd >= Decimal("0")
-        assert position_size.percent_of_equity >= Decimal("0")
+        assert position_size.quantity >= Decimal(0)
+        assert position_size.value_usd >= Decimal(0)
+        assert position_size.percent_of_equity >= Decimal(0)
 
     @given(
-        signal_data=signal_strategy(),
+        signal=signal_strategy(),
         total_equity=equity_strategy(),
         current_exposure=exposure_strategy(),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_position_value_respects_max_limit(
-        self, simple_sizer, signal_data, total_equity, current_exposure
-    ):
+        self, simple_sizer: PositionSizer, signal: TradeSignal, total_equity: Decimal, current_exposure: Decimal
+    ) -> None:
         """Property: Position value should never exceed max position limit."""
-        signal = TradeSignal(**signal_data)
         position_size = simple_sizer.calculate_position_size(signal, total_equity, current_exposure)
 
         # Property: Value must not exceed configured max
@@ -256,29 +248,27 @@ class TestPositionSizeConstraints:
         assert position_size.value_usd <= max_position
 
     @given(
-        signal_data=signal_strategy(),
+        signal=signal_strategy(),
         total_equity=equity_strategy(),
         current_exposure=exposure_strategy(),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_total_exposure_limit_respected(
-        self, simple_sizer, signal_data, total_equity, current_exposure
-    ):
+        self, simple_sizer: PositionSizer, signal: TradeSignal, total_equity: Decimal, current_exposure: Decimal
+    ) -> None:
         """Property: Total exposure should never exceed max exposure limit."""
-        signal = TradeSignal(**signal_data)
         position_size = simple_sizer.calculate_position_size(signal, total_equity, current_exposure)
 
         # Property: New exposure must not exceed limit
         max_exposure = simple_sizer._max_exposure_usd
         new_total_exposure = current_exposure + position_size.value_usd
-        assert new_total_exposure <= max_exposure or position_size.value_usd == Decimal("0")
+        assert new_total_exposure <= max_exposure or position_size.value_usd == Decimal(0)
 
-    @given(signal_data=signal_strategy(), total_equity=equity_strategy())
+    @given(signal=signal_strategy(), total_equity=equity_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_percent_of_equity_calculation(self, simple_sizer, signal_data, total_equity):
+    def test_percent_of_equity_calculation(self, simple_sizer: PositionSizer, signal: TradeSignal, total_equity: Decimal) -> None:
         """Property: Percent of equity should be accurate."""
-        signal = TradeSignal(**signal_data)
-        current_exposure = Decimal("0")
+        current_exposure = Decimal(0)
 
         position_size = simple_sizer.calculate_position_size(signal, total_equity, current_exposure)
 
@@ -287,7 +277,7 @@ class TestPositionSizeConstraints:
             expected_percent = (position_size.value_usd / total_equity) * 100
             assert abs(position_size.percent_of_equity - expected_percent) < Decimal("0.0001")
         else:
-            assert position_size.percent_of_equity == Decimal("0")
+            assert position_size.percent_of_equity == Decimal(0)
 
 
 # =============================================================================
@@ -300,7 +290,7 @@ class TestSimpleSizingProperties:
 
     @given(total_equity=equity_strategy(), fraction=fraction_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_simple_sizing_fraction_calculation(self, mock_config_simple, total_equity, fraction):
+    def test_simple_sizing_fraction_calculation(self, mock_config_simple: MagicMock, total_equity: Decimal, fraction: Decimal) -> None:
         """Property: Simple sizing should use exact fraction of equity."""
         # Set custom fraction
         mock_config_simple.risk.sizing.simple_fixed_fraction = fraction
@@ -311,23 +301,21 @@ class TestSimpleSizingProperties:
         expected_size = min(expected_size, sizer._max_position_usd)
 
         # Calculate actual size
-        actual_size = sizer._calculate_simple_size(total_equity, Decimal("0"))
+        actual_size = sizer._calculate_simple_size(total_equity, Decimal(0))
 
         # Property: Size should match fraction calculation
         assert actual_size == expected_size
 
     @given(
-        signal_data=signal_strategy(),
+        signal=signal_strategy(),
         total_equity=equity_strategy(),
         current_exposure=exposure_strategy(),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_simple_sizing_consistency(
-        self, simple_sizer, signal_data, total_equity, current_exposure
-    ):
+        self, simple_sizer: PositionSizer, signal: TradeSignal, total_equity: Decimal, current_exposure: Decimal
+    ) -> None:
         """Property: Simple sizing should be deterministic."""
-        signal = TradeSignal(**signal_data)
-
         # Calculate position size twice
         size1 = simple_sizer.calculate_position_size(signal, total_equity, current_exposure)
         size2 = simple_sizer.calculate_position_size(signal, total_equity, current_exposure)
@@ -339,20 +327,19 @@ class TestSimpleSizingProperties:
 
     @given(price=price_strategy(), total_equity=equity_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_simple_sizing_quantity_calculation(self, simple_sizer, price, total_equity):
+    def test_simple_sizing_quantity_calculation(self, simple_sizer: PositionSizer, price: Decimal, total_equity: Decimal) -> None:
         """Property: Quantity should equal value divided by price."""
-        signal_data = {
-            "price": price,
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=price,
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+        )
 
-        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal("0"))
+        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         if position_size.value_usd > 0:
             # Property: quantity * price should equal value (within constraints)
@@ -371,44 +358,42 @@ class TestKellySizingProperties:
 
     @given(confidence=confidence_strategy(), total_equity=equity_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_kelly_sizing_with_confidence(self, kelly_sizer, confidence, total_equity):
+    def test_kelly_sizing_with_confidence(self, kelly_sizer: PositionSizer, confidence: float, total_equity: Decimal) -> None:
         """Property: Kelly sizing should scale with confidence."""
-        signal_data = {
-            "price": Decimal("50000"),
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "confidence": confidence,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=Decimal(50000),
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+            confidence=confidence,
+        )
 
-        position_size = kelly_sizer.calculate_position_size(signal, total_equity, Decimal("0"))
+        position_size = kelly_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         # Property: Higher confidence should generally lead to larger positions
         # (unless Kelly formula gives negative result)
         if confidence > 0.5:
-            assert position_size.value_usd >= Decimal("0")
+            assert position_size.value_usd >= Decimal(0)
 
-    def test_kelly_sizing_requires_confidence(self, kelly_sizer):
+    def test_kelly_sizing_requires_confidence(self, kelly_sizer: PositionSizer) -> None:
         """Property: Kelly sizing should fail without confidence."""
-        signal_data = {
-            "price": Decimal("50000"),
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "confidence": None,  # Missing confidence
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=Decimal(50000),
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+            confidence=None,  # Missing confidence
+        )
 
         # Property: Should raise error for missing confidence
         with pytest.raises(SignalDataError):
-            kelly_sizer.calculate_position_size(signal, Decimal("10000"), Decimal("0"))
+            kelly_sizer.calculate_position_size(signal, Decimal(10000), Decimal(0))
 
     @given(
         confidence=confidence_strategy(),
@@ -417,8 +402,8 @@ class TestKellySizingProperties:
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_kelly_multiplier_effect(
-        self, mock_config_kelly, confidence, kelly_multiplier, total_equity
-    ):
+        self, mock_config_kelly: MagicMock, confidence: float, kelly_multiplier: Decimal, total_equity: Decimal
+    ) -> None:
         """Property: Kelly multiplier should scale position size."""
         # Skip edge cases where Kelly gives zero
         assume(confidence > 0.4)
@@ -430,41 +415,39 @@ class TestKellySizingProperties:
         mock_config_kelly.risk.sizing.kelly_multiplier = kelly_multiplier * Decimal("0.5")
         sizer2 = PositionSizer(mock_config_kelly)
 
-        signal_data = {
-            "price": Decimal("50000"),
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "confidence": confidence,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=Decimal(50000),
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+            confidence=confidence,
+        )
 
-        size1 = sizer1.calculate_position_size(signal, total_equity, Decimal("0"))
-        size2 = sizer2.calculate_position_size(signal, total_equity, Decimal("0"))
+        size1 = sizer1.calculate_position_size(signal, total_equity, Decimal(0))
+        size2 = sizer2.calculate_position_size(signal, total_equity, Decimal(0))
 
         # Property: Smaller multiplier should give smaller or equal position
         assert size2.value_usd <= size1.value_usd
 
     @given(confidence=confidence_strategy(), total_equity=equity_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_kelly_max_allocation_limit(self, kelly_sizer, confidence, total_equity):
+    def test_kelly_max_allocation_limit(self, kelly_sizer: PositionSizer, confidence: float, total_equity: Decimal) -> None:
         """Property: Kelly sizing should respect max allocation limit."""
-        signal_data = {
-            "price": Decimal("50000"),
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "confidence": confidence,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=Decimal(50000),
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+            confidence=confidence,
+        )
 
-        position_size = kelly_sizer.calculate_position_size(signal, total_equity, Decimal("0"))
+        position_size = kelly_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         # Property: Should not exceed max allocation percentage
         max_allocation = kelly_sizer._kelly_max_allocation
@@ -476,7 +459,7 @@ class TestKellySizingProperties:
         # The Kelly sizer may still exceed limits due to minimum quantity constraints
         # So we check that either the limit is respected OR position is at minimum size
         min_quantity = kelly_sizer._sizing_config.min_position_size
-        min_value = min_quantity * signal.price if signal.price > 0 else Decimal("0")
+        min_value = min_quantity * signal.price if signal.price > 0 else Decimal(0)
 
         # Position should respect max allocation OR be at minimum size due to constraints
         assert (
@@ -500,9 +483,9 @@ class TestMathematicalConsistency:
 
     @given(
         price=price_strategy(),
-        quantity=st.decimals(min_value=Decimal("0.001"), max_value=Decimal("1000"), places=8),
+        quantity=st.decimals(min_value=Decimal("0.001"), max_value=Decimal(1000), places=8),
     )
-    def test_value_quantity_relationship(self, price, quantity):
+    def test_value_quantity_relationship(self, price: Decimal, quantity: Decimal) -> None:
         """Property: Value should equal price times quantity."""
         value = price * quantity
 
@@ -518,15 +501,15 @@ class TestMathematicalConsistency:
         fractions=st.lists(fraction_strategy(), min_size=2, max_size=5),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_fraction_additivity(self, mock_config_simple, total_equity, fractions):
+    def test_fraction_additivity(self, mock_config_simple: MagicMock, total_equity: Decimal, fractions: list[Decimal]) -> None:
         """Property: Sum of fractional positions should be additive."""
-        total_allocated = Decimal("0")
+        total_allocated = Decimal(0)
 
         for fraction in fractions:
             mock_config_simple.risk.sizing.simple_fixed_fraction = fraction
             sizer = PositionSizer(mock_config_simple)
 
-            size = sizer._calculate_simple_size(total_equity, Decimal("0"))
+            size = sizer._calculate_simple_size(total_equity, Decimal(0))
             expected = min(total_equity * fraction, sizer._max_position_usd)
 
             assert size == expected
@@ -541,21 +524,20 @@ class TestMathematicalConsistency:
 
     @given(equity1=equity_strategy(), equity2=equity_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_monotonicity_with_equity(self, simple_sizer, equity1, equity2):
+    def test_monotonicity_with_equity(self, simple_sizer: PositionSizer, equity1: Decimal, equity2: Decimal) -> None:
         """Property: Larger equity should give larger or equal position size."""
-        signal_data = {
-            "price": Decimal("50000"),
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=Decimal(50000),
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+        )
 
-        size1 = simple_sizer.calculate_position_size(signal, equity1, Decimal("0"))
-        size2 = simple_sizer.calculate_position_size(signal, equity2, Decimal("0"))
+        size1 = simple_sizer.calculate_position_size(signal, equity1, Decimal(0))
+        size2 = simple_sizer.calculate_position_size(signal, equity2, Decimal(0))
 
         # Property: Monotonicity (until hitting max limits)
         if equity1 <= equity2:
@@ -574,13 +556,13 @@ class TestEdgeCases:
 
     @given(total_equity=equity_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_zero_price_handling(self, simple_sizer, total_equity):
+    def test_zero_price_handling(self, simple_sizer: PositionSizer, total_equity: Decimal) -> None:
         """Property: Zero or negative price should result in zero position."""
         # Test zero price using mock since TradeSignal validates price > 0
         from unittest.mock import Mock
 
         signal = Mock()
-        signal.price = Decimal("0")
+        signal.price = Decimal(0)
         signal.side = OrderSide.BUY
         signal.signal_type = SignalType.ENTER_LONG
         signal.signal_id = "test_123"
@@ -588,39 +570,35 @@ class TestEdgeCases:
         signal.exchange = "hyperliquid"
         signal.timestamp = datetime.now(UTC)
 
-        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal("0"))
+        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         # Property: Zero price should give zero position
-        assert position_size.quantity == Decimal("0")
-        assert position_size.value_usd == Decimal("0")
-        assert position_size.percent_of_equity == Decimal("0")
+        assert position_size.quantity == Decimal(0)
+        assert position_size.value_usd == Decimal(0)
+        assert position_size.percent_of_equity == Decimal(0)
 
-    @given(signal_data=signal_strategy())
+    @given(signal=signal_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_zero_equity_handling(self, simple_sizer, signal_data):
+    def test_zero_equity_handling(self, simple_sizer: PositionSizer, signal: TradeSignal) -> None:
         """Property: Zero equity should result in zero position."""
-        signal = TradeSignal(**signal_data)
-
-        position_size = simple_sizer.calculate_position_size(signal, Decimal("0"), Decimal("0"))
+        position_size = simple_sizer.calculate_position_size(signal, Decimal(0), Decimal(0))
 
         # Property: Zero equity should give zero position
-        assert position_size.quantity == Decimal("0")
-        assert position_size.value_usd == Decimal("0")
-        assert position_size.percent_of_equity == Decimal("0")
+        assert position_size.quantity == Decimal(0)
+        assert position_size.value_usd == Decimal(0)
+        assert position_size.percent_of_equity == Decimal(0)
 
-    @given(signal_data=signal_strategy(), total_equity=equity_strategy())
+    @given(signal=signal_strategy(), total_equity=equity_strategy())
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_max_exposure_reached(self, simple_sizer, signal_data, total_equity):
+    def test_max_exposure_reached(self, simple_sizer: PositionSizer, signal: TradeSignal, total_equity: Decimal) -> None:
         """Property: Should return zero when max exposure is reached."""
-        signal = TradeSignal(**signal_data)
-
         # Set current exposure at max
         max_exposure = simple_sizer._max_exposure_usd
         position_size = simple_sizer.calculate_position_size(signal, total_equity, max_exposure)
 
         # Property: No new position when at max exposure
-        assert position_size.quantity == Decimal("0")
-        assert position_size.value_usd == Decimal("0")
+        assert position_size.quantity == Decimal(0)
+        assert position_size.value_usd == Decimal(0)
 
     @given(
         very_small_price=st.decimals(
@@ -629,20 +607,19 @@ class TestEdgeCases:
         total_equity=equity_strategy(),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_very_small_price_handling(self, simple_sizer, very_small_price, total_equity):
+    def test_very_small_price_handling(self, simple_sizer: PositionSizer, very_small_price: Decimal, total_equity: Decimal) -> None:
         """Property: Very small prices should be handled correctly."""
-        signal_data = {
-            "price": very_small_price,
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="SHIB"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="SHIB"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=very_small_price,
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+        )
 
-        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal("0"))
+        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         if position_size.value_usd > 0:
             # Property: Quantity should be large for small prices
@@ -655,25 +632,24 @@ class TestEdgeCases:
 
     @given(
         very_large_price=st.decimals(
-            min_value=Decimal("100000"), max_value=Decimal("10000000"), places=2
+            min_value=Decimal(100000), max_value=Decimal(10000000), places=2
         ),
         total_equity=equity_strategy(),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_very_large_price_handling(self, simple_sizer, very_large_price, total_equity):
+    def test_very_large_price_handling(self, simple_sizer: PositionSizer, very_large_price: Decimal, total_equity: Decimal) -> None:
         """Property: Very large prices should be handled correctly."""
-        signal_data = {
-            "price": very_large_price,
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=very_large_price,
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+        )
 
-        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal("0"))
+        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         if position_size.value_usd > 0:
             # Property: Quantity should be small for large prices
@@ -681,7 +657,7 @@ class TestEdgeCases:
 
             # Property: Should respect min quantity constraint
             min_quantity = simple_sizer._sizing_config.min_position_size
-            assert position_size.quantity >= min_quantity or position_size.quantity == Decimal("0")
+            assert position_size.quantity >= min_quantity or position_size.quantity == Decimal(0)
 
 
 # =============================================================================
@@ -701,20 +677,19 @@ class TestPrecisionPreservation:
         ),
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_decimal_precision_maintained(self, simple_sizer, price, total_equity):
+    def test_decimal_precision_maintained(self, simple_sizer: PositionSizer, price: Decimal, total_equity: Decimal) -> None:
         """Property: Decimal precision should be preserved throughout calculations."""
-        signal_data = {
-            "price": price,
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=price,
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+        )
 
-        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal("0"))
+        position_size = simple_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         # Property: All values should be Decimal
         assert isinstance(position_size.quantity, Decimal)
@@ -733,9 +708,9 @@ class TestPrecisionPreservation:
             max_size=50,
         )
     )
-    def test_cumulative_precision(self, fractions):
+    def test_cumulative_precision(self, fractions: list[Decimal]) -> None:
         """Property: Cumulative operations should maintain precision."""
-        total = Decimal("0")
+        total = Decimal(0)
 
         for fraction in fractions:
             total += fraction
@@ -763,10 +738,10 @@ class TestKellyFormula:
         win_rate=st.floats(min_value=0.0, max_value=1.0),
         profit_loss_ratio=st.decimals(min_value=Decimal("0.5"), max_value=Decimal("5.0"), places=2),
     )
-    def test_kelly_formula_properties(self, win_rate, profit_loss_ratio):
+    def test_kelly_formula_properties(self, win_rate: float, profit_loss_ratio: Decimal) -> None:
         """Property: Kelly formula should follow mathematical properties."""
         win_rate_decimal = Decimal(str(win_rate))
-        loss_rate = Decimal("1") - win_rate_decimal
+        loss_rate = Decimal(1) - win_rate_decimal
 
         # Kelly fraction = (bp - q) / b
         # where b = profit/loss ratio, p = win probability, q = loss probability
@@ -786,7 +761,7 @@ class TestKellyFormula:
         if kelly_fraction > 0:
             assert kelly_fraction <= win_rate_decimal
 
-    def test_kelly_edge_cases(self):
+    def test_kelly_edge_cases(self) -> None:
         """Property: Kelly should handle edge cases correctly."""
         # Case 1: 100% win rate
         win_rate = Decimal("1.0")
@@ -809,7 +784,7 @@ class TestKellyFormula:
         profit_loss_ratio = Decimal("1.0")
 
         kelly_fraction = (win_rate * profit_loss_ratio - loss_rate) / profit_loss_ratio
-        assert kelly_fraction == Decimal("0")  # No edge, no bet
+        assert kelly_fraction == Decimal(0)  # No edge, no bet
 
 
 # =============================================================================
@@ -821,7 +796,7 @@ class TestPositionSizerIntegration:
     """Integration property tests for complete position sizing flow."""
 
     @given(
-        signal_data=signal_strategy(),
+        signal=signal_strategy(),
         total_equity=equity_strategy(),
         current_exposure=exposure_strategy(),
         method=st.sampled_from(["simple", "kelly"]),
@@ -829,23 +804,36 @@ class TestPositionSizerIntegration:
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_sizing_method_consistency(
         self,
-        mock_config_simple,
-        mock_config_kelly,
-        signal_data,
-        total_equity,
-        current_exposure,
-        method,
-    ):
+        mock_config_simple: MagicMock,
+        mock_config_kelly: MagicMock,
+        signal: TradeSignal,
+        total_equity: Decimal,
+        current_exposure: Decimal,
+        method: str,
+    ) -> None:
         """Property: Sizing method should produce consistent results."""
         # Skip Kelly without confidence
-        if method == "kelly" and signal_data.get("confidence") is None:
-            signal_data["confidence"] = 0.6
+        if method == "kelly" and signal.confidence is None:
+            signal = TradeSignal(
+                signal_id=signal.signal_id,
+                symbol=signal.symbol,
+                signal_type=signal.signal_type,
+                side=signal.side,
+                price=signal.price,
+                quantity=signal.quantity,
+                exchange=signal.exchange,
+                timestamp=signal.timestamp,
+                confidence=0.6,
+                source_strategy=signal.source_strategy,
+                stop_loss=signal.stop_loss,
+                take_profit=signal.take_profit,
+                expiration=signal.expiration,
+                metadata=signal.metadata
+            )
 
         config = mock_config_simple if method == "simple" else mock_config_kelly
         config.risk.sizing.method = method
         sizer = PositionSizer(config)
-
-        signal = TradeSignal(**signal_data)
 
         # Calculate twice
         size1 = sizer.calculate_position_size(signal, total_equity, current_exposure)
@@ -860,13 +848,12 @@ class TestPositionSizerIntegration:
         signals=st.lists(signal_strategy(), min_size=2, max_size=5), total_equity=equity_strategy()
     )
     @settings(suppress_health_check=[HealthCheck.function_scoped_fixture])
-    def test_multiple_position_sizing(self, simple_sizer, signals, total_equity):
+    def test_multiple_position_sizing(self, simple_sizer: PositionSizer, signals: list[TradeSignal], total_equity: Decimal) -> None:
         """Property: Multiple positions should respect cumulative limits."""
-        total_exposure = Decimal("0")
+        total_exposure = Decimal(0)
         positions = []
 
-        for signal_data in signals:
-            signal = TradeSignal(**signal_data)
+        for signal in signals:
             position_size = simple_sizer.calculate_position_size(
                 signal, total_equity, total_exposure
             )
@@ -884,31 +871,30 @@ class TestPositionSizerIntegration:
     @given(price=price_strategy(), total_equity=equity_strategy(), confidence=confidence_strategy())
     @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_position_sizing_determinism(
-        self, mock_config_simple, mock_config_kelly, price, total_equity, confidence
-    ):
+        self, mock_config_simple: MagicMock, mock_config_kelly: MagicMock, price: Decimal, total_equity: Decimal, confidence: float
+    ) -> None:
         """Property: Position sizing should be deterministic for same inputs."""
-        signal_data = {
-            "price": price,
-            "side": OrderSide.BUY,
-            "signal_type": SignalType.ENTER_LONG,
-            "confidence": confidence,
-            "signal_id": "test_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "exchange": "hyperliquid",
-            "timestamp": datetime.now(UTC),
-        }
-        signal = TradeSignal(**signal_data)
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            signal_type=SignalType.ENTER_LONG,
+            side=OrderSide.BUY,
+            price=price,
+            exchange=ExchangeName.HYPERLIQUID,
+            timestamp=datetime.now(UTC),
+            confidence=confidence,
+        )
 
         # Test simple method
         sizer_simple = PositionSizer(mock_config_simple)
-        size_simple_1 = sizer_simple.calculate_position_size(signal, total_equity, Decimal("0"))
-        size_simple_2 = sizer_simple.calculate_position_size(signal, total_equity, Decimal("0"))
+        size_simple_1 = sizer_simple.calculate_position_size(signal, total_equity, Decimal(0))
+        size_simple_2 = sizer_simple.calculate_position_size(signal, total_equity, Decimal(0))
 
         assert size_simple_1.value_usd == size_simple_2.value_usd
 
         # Test Kelly method
         sizer_kelly = PositionSizer(mock_config_kelly)
-        size_kelly_1 = sizer_kelly.calculate_position_size(signal, total_equity, Decimal("0"))
-        size_kelly_2 = sizer_kelly.calculate_position_size(signal, total_equity, Decimal("0"))
+        size_kelly_1 = sizer_kelly.calculate_position_size(signal, total_equity, Decimal(0))
+        size_kelly_2 = sizer_kelly.calculate_position_size(signal, total_equity, Decimal(0))
 
         assert size_kelly_1.value_usd == size_kelly_2.value_usd

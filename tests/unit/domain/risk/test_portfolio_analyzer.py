@@ -12,14 +12,16 @@ assessments, wrong exposure calculations, or failure to detect dangerous
 portfolio states that could result in catastrophic losses.
 """
 
+import operator
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 
-from cyberdelta.domain.risk.portfolio_analyzer import PortfolioAnalyzer
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
+from cyberdelta.domain.risk.portfolio_analyzer import PortfolioAnalyzer
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, TradeSignal
 from cyberdelta.symbols.models import Symbol
@@ -45,8 +47,8 @@ def decimal_strategy(
     Returns:
         Strategy generating valid Decimal values
     """
-    min_val = min_value or Decimal("-1000000")
-    max_val = max_value or Decimal("1000000")
+    min_val = min_value or Decimal(-1000000)
+    max_val = max_value or Decimal(1000000)
 
     return st.decimals(
         min_value=min_val,
@@ -58,10 +60,14 @@ def decimal_strategy(
 
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
-    """Generate positive decimal values for financial calculations."""
+    """Generate positive decimal values for financial calculations.
+    
+    Returns:
+        Strategy generating positive Decimal values for testing
+    """
     return st.decimals(
         min_value=Decimal("0.00000001"),
-        max_value=Decimal("1000000"),
+        max_value=Decimal(1000000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -69,19 +75,27 @@ def positive_decimal_strategy() -> SearchStrategy[Decimal]:
 
 
 def position_size_strategy() -> SearchStrategy[Decimal]:
-    """Generate position sizes (can be positive, negative, or zero)."""
+    """Generate position sizes (can be positive, negative, or zero).
+    
+    Returns:
+        Strategy generating position sizes including zero, positive, and negative values
+    """
     return st.one_of([
-        st.just(Decimal("0")),  # No position
+        st.just(Decimal(0)),  # No position
         positive_decimal_strategy(),  # Long position
-        positive_decimal_strategy().map(lambda x: -x),  # Short position
+        positive_decimal_strategy().map(operator.neg),  # Short position
     ])
 
 
 def price_strategy() -> SearchStrategy[Decimal]:
-    """Generate valid market prices."""
+    """Generate valid market prices.
+    
+    Returns:
+        Strategy generating valid positive price values
+    """
     return st.decimals(
         min_value=Decimal("0.01"),
-        max_value=Decimal("100000"),
+        max_value=Decimal(100000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -104,7 +118,7 @@ def create_mock_position(size: Decimal) -> DerivativePosition:
 
 def create_mock_trade_signal(
     exchange: ExchangeName = ExchangeName.HYPERLIQUID,
-    price: Decimal = Decimal("50000"),
+    price: Decimal = Decimal(50000),
 ) -> TradeSignal:
     """Create a mock TradeSignal for testing.
 
@@ -153,7 +167,7 @@ class TestPortfolioAnalyzerExposureProperties:
     )
     def test_exposure_calculation_mathematical_properties(
         self, position_size: Decimal, signal_price: Decimal
-    ):
+    ) -> None:
         """Property: Exposure calculations must follow mathematical invariants."""
         # Create analyzer and test data
         mock_service = create_mock_portfolio_service()
@@ -165,14 +179,14 @@ class TestPortfolioAnalyzerExposureProperties:
         exposure = analyzer.calculate_exposure(position, signal_price)
 
         # Property: Exposure must always be non-negative (absolute value)
-        assert exposure >= Decimal("0")
+        assert exposure >= Decimal(0)
 
         # Property: Exposure must be finite
         assert exposure.is_finite()
 
         # Property: Exposure is zero if no position
-        if position_size == Decimal("0") or position is None:
-            assert exposure == Decimal("0")
+        if position_size == Decimal(0) or position is None:
+            assert exposure == Decimal(0)
         else:
             # Property: Exposure = |position_size| * price
             expected_exposure = abs(position_size) * signal_price
@@ -181,7 +195,7 @@ class TestPortfolioAnalyzerExposureProperties:
     @given(
         position_size=position_size_strategy(),
     )
-    def test_exposure_calculation_zero_price_handling(self, position_size: Decimal):
+    def test_exposure_calculation_zero_price_handling(self, position_size: Decimal) -> None:
         """Property: Zero or None price should result in zero exposure."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
@@ -189,40 +203,40 @@ class TestPortfolioAnalyzerExposureProperties:
         position = create_mock_position(position_size) if position_size != 0 else None
 
         # Test with zero price
-        exposure_zero = analyzer.calculate_exposure(position, Decimal("0"))
-        assert exposure_zero == Decimal("0")
+        exposure_zero = analyzer.calculate_exposure(position, Decimal(0))
+        assert exposure_zero == Decimal(0)
 
         # Test with None price
         exposure_none = analyzer.calculate_exposure(position, None)
-        assert exposure_none == Decimal("0")
+        assert exposure_none == Decimal(0)
 
     @given(
         signal_price=price_strategy(),
     )
-    def test_exposure_calculation_no_position_handling(self, signal_price: Decimal):
+    def test_exposure_calculation_no_position_handling(self, signal_price: Decimal) -> None:
         """Property: No position should result in zero exposure regardless of price."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
 
         # Test with None position
         exposure_none = analyzer.calculate_exposure(None, signal_price)
-        assert exposure_none == Decimal("0")
+        assert exposure_none == Decimal(0)
 
         # Test with zero-sized position
-        zero_position = create_mock_position(Decimal("0"))
+        zero_position = create_mock_position(Decimal(0))
         exposure_zero = analyzer.calculate_exposure(zero_position, signal_price)
-        assert exposure_zero == Decimal("0")
+        assert exposure_zero == Decimal(0)
 
     @given(
         position_size=st.decimals(
-            min_value=Decimal("0.00000001"), max_value=Decimal("1000"), places=8
+            min_value=Decimal("0.00000001"), max_value=Decimal(1000), places=8
         ),
         price1=price_strategy(),
         price2=price_strategy(),
     )
     def test_exposure_calculation_price_proportionality(
         self, position_size: Decimal, price1: Decimal, price2: Decimal
-    ):
+    ) -> None:
         """Property: Exposure should be proportional to price for the same position."""
         assume(price1 > 0 and price2 > 0)
         assume(price1 != price2)
@@ -249,7 +263,7 @@ class TestPortfolioAnalyzerExposureProperties:
     )
     def test_exposure_calculation_position_direction_invariance(
         self, long_size: Decimal, signal_price: Decimal
-    ):
+    ) -> None:
         """Property: Exposure should be the same for long and short positions of equal size."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
@@ -264,8 +278,8 @@ class TestPortfolioAnalyzerExposureProperties:
         assert long_exposure == short_exposure
 
         # Property: Both exposures are positive
-        assert long_exposure >= Decimal("0")
-        assert short_exposure >= Decimal("0")
+        assert long_exposure >= Decimal(0)
+        assert short_exposure >= Decimal(0)
 
     @given(
         position_size=position_size_strategy(),
@@ -273,7 +287,7 @@ class TestPortfolioAnalyzerExposureProperties:
     )
     def test_exposure_calculation_precision_preservation(
         self, position_size: Decimal, signal_price: Decimal
-    ):
+    ) -> None:
         """Property: Exposure calculations must preserve decimal precision."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
@@ -315,7 +329,7 @@ class TestPortfolioAnalyzerDataExtractionProperties:
         signal_price: Decimal,
         position_size: Decimal,
         total_equity: Decimal,
-    ):
+    ) -> None:
         """Property: Portfolio data extraction should be consistent and complete."""
         # Setup
         mock_service = create_mock_portfolio_service()
@@ -325,8 +339,8 @@ class TestPortfolioAnalyzerDataExtractionProperties:
         position = create_mock_position(position_size) if position_size != 0 else None
 
         # Mock service responses
-        mock_service.get_position.return_value = position
-        mock_service.get_total_equity_usd.return_value = total_equity
+        mock_service.get_position.return_value = position  # type: ignore[attr-defined]
+        mock_service.get_total_equity_usd.return_value = total_equity  # type: ignore[attr-defined]
 
         # Execute
         (
@@ -341,7 +355,7 @@ class TestPortfolioAnalyzerDataExtractionProperties:
 
         # Property: Total equity should match service response
         assert extracted_equity == total_equity
-        assert extracted_equity >= Decimal("0")
+        assert extracted_equity >= Decimal(0)
 
         # Property: Position should match service response
         assert extracted_position == position
@@ -363,7 +377,7 @@ class TestPortfolioAnalyzerDataExtractionProperties:
     )
     async def test_portfolio_data_extraction_list_exchange_handling(
         self, signal_price: Decimal, total_equity: Decimal
-    ):
+    ) -> None:
         """Property: Should handle signals with list exchanges correctly."""
         # Setup
         mock_service = create_mock_portfolio_service()
@@ -376,8 +390,8 @@ class TestPortfolioAnalyzerDataExtractionProperties:
             ExchangeName.BACKPACK,
         ]  # List instead of single value
 
-        mock_service.get_position.return_value = None
-        mock_service.get_total_equity_usd.return_value = total_equity
+        mock_service.get_position.return_value = None  # type: ignore[attr-defined]
+        mock_service.get_total_equity_usd.return_value = total_equity  # type: ignore[attr-defined]
 
         # Execute
         (
@@ -393,7 +407,7 @@ class TestPortfolioAnalyzerDataExtractionProperties:
         # Property: Other properties should still be valid
         assert extracted_equity == total_equity
         assert extracted_position is None
-        assert extracted_exposure == Decimal("0")
+        assert extracted_exposure == Decimal(0)
 
     @pytest.mark.asyncio
     @given(
@@ -402,7 +416,7 @@ class TestPortfolioAnalyzerDataExtractionProperties:
     )
     async def test_portfolio_data_extraction_service_integration(
         self, exchange: ExchangeName, signal_price: Decimal
-    ):
+    ) -> None:
         """Property: Should correctly integrate with portfolio service methods."""
         # Setup
         mock_service = create_mock_portfolio_service()
@@ -411,15 +425,15 @@ class TestPortfolioAnalyzerDataExtractionProperties:
         signal = create_mock_trade_signal(exchange, signal_price)
 
         # Setup service to return None position and positive equity
-        mock_service.get_position.return_value = None
-        mock_service.get_total_equity_usd.return_value = Decimal("10000")
+        mock_service.get_position.return_value = None  # type: ignore[attr-defined]
+        mock_service.get_total_equity_usd.return_value = Decimal(10000)  # type: ignore[attr-defined]
 
         # Execute
         await analyzer.get_portfolio_data(signal)
 
         # Property: Service methods should be called with correct parameters
-        mock_service.get_position.assert_called_once_with(signal.symbol, exchange)
-        mock_service.get_total_equity_usd.assert_called_once()
+        mock_service.get_position.assert_called_once_with(signal.symbol, exchange)  # type: ignore[attr-defined]
+        mock_service.get_total_equity_usd.assert_called_once()  # type: ignore[attr-defined]
 
     @pytest.mark.asyncio
     @given(
@@ -429,19 +443,19 @@ class TestPortfolioAnalyzerDataExtractionProperties:
     )
     async def test_portfolio_data_extraction_multiple_calls_consistency(
         self, position_size_values: list[Decimal], signal_price: Decimal, total_equity: Decimal
-    ):
+    ) -> None:
         """Property: Multiple calls with different positions should be consistent."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
 
         signal = create_mock_trade_signal(ExchangeName.HYPERLIQUID, signal_price)
-        mock_service.get_total_equity_usd.return_value = total_equity
+        mock_service.get_total_equity_usd.return_value = total_equity  # type: ignore[attr-defined]
 
-        results = []
+        results: list[tuple[ExchangeName, DerivativePosition | None, Decimal, Decimal]] = []
 
         for position_size in position_size_values:
             position = create_mock_position(position_size) if position_size != 0 else None
-            mock_service.get_position.return_value = position
+            mock_service.get_position.return_value = position  # type: ignore[attr-defined]
 
             result = await analyzer.get_portfolio_data(signal)
             results.append(result)
@@ -449,12 +463,12 @@ class TestPortfolioAnalyzerDataExtractionProperties:
         # Property: All calls should return consistent structure
         for result in results:
             assert len(result) == 4  # (exchange, position, equity, exposure)
-            exchange, position, equity, exposure = result
+            exchange, _, equity, exposure = result
 
             assert isinstance(exchange, ExchangeName)
             assert equity == total_equity  # Should be consistent across calls
             assert isinstance(exposure, Decimal)
-            assert exposure >= Decimal("0")
+            assert exposure >= Decimal(0)
 
 
 # =============================================================================
@@ -471,13 +485,13 @@ class TestPortfolioAnalyzerIntegrationProperties:
     )
     def test_exposure_calculation_batch_consistency(
         self, position_sizes: list[Decimal], prices: list[Decimal]
-    ):
+    ) -> None:
         """Property: Batch exposure calculations should be mathematically consistent."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
 
-        total_exposure_sum = Decimal("0")
-        individual_exposures = []
+        total_exposure_sum = Decimal(0)
+        individual_exposures: list[Decimal] = []
 
         # Calculate exposures individually
         for position_size in position_sizes:
@@ -489,10 +503,10 @@ class TestPortfolioAnalyzerIntegrationProperties:
 
         # Property: All individual exposures should be non-negative
         for exposure in individual_exposures:
-            assert exposure >= Decimal("0")
+            assert exposure >= Decimal(0)
 
         # Property: Sum should equal manual calculation
-        manual_sum = Decimal("0")
+        manual_sum = Decimal(0)
         for position_size in position_sizes:
             for price in prices:
                 if position_size != 0:
@@ -507,7 +521,7 @@ class TestPortfolioAnalyzerIntegrationProperties:
     )
     def test_exposure_calculation_price_scaling_properties(
         self, position_size: Decimal, price_multipliers: list[Decimal], base_price: Decimal
-    ):
+    ) -> None:
         """Property: Exposure should scale linearly with price."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
@@ -526,7 +540,7 @@ class TestPortfolioAnalyzerIntegrationProperties:
                 assert abs(exposure_ratio - multiplier) < Decimal("0.000001")
             else:
                 # If base exposure is zero, scaled exposure should also be zero
-                assert scaled_exposure == Decimal("0")
+                assert scaled_exposure == Decimal(0)
 
     @pytest.mark.asyncio
     @given(
@@ -540,18 +554,18 @@ class TestPortfolioAnalyzerIntegrationProperties:
     )
     async def test_portfolio_data_cross_exchange_consistency(
         self, exchanges: list[ExchangeName], signal_price: Decimal, total_equity: Decimal
-    ):
+    ) -> None:
         """Property: Portfolio data should be consistent across different exchanges."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
 
-        mock_service.get_total_equity_usd.return_value = total_equity
+        mock_service.get_total_equity_usd.return_value = total_equity  # type: ignore[attr-defined]
 
-        results = []
+        results: list[tuple[ExchangeName, DerivativePosition | None, Decimal, Decimal]] = []
 
         for exchange in exchanges:
             signal = create_mock_trade_signal(exchange, signal_price)
-            mock_service.get_position.return_value = None  # No position for simplicity
+            mock_service.get_position.return_value = None  # type: ignore[attr-defined]  # No position for simplicity
 
             result = await analyzer.get_portfolio_data(signal)
             results.append(result)
@@ -564,7 +578,7 @@ class TestPortfolioAnalyzerIntegrationProperties:
         # Property: Exposure should be zero for all (no positions)
         for result in results:
             _, _, _, exposure = result
-            assert exposure == Decimal("0")
+            assert exposure == Decimal(0)
 
     @given(
         test_scenarios=st.lists(
@@ -573,7 +587,7 @@ class TestPortfolioAnalyzerIntegrationProperties:
     )
     def test_exposure_calculation_comprehensive_scenarios(
         self, test_scenarios: list[tuple[Decimal, Decimal]]
-    ):
+    ) -> None:
         """Property: Exposure calculations should handle comprehensive test scenarios correctly."""
         mock_service = create_mock_portfolio_service()
         analyzer = PortfolioAnalyzer(mock_service)
@@ -585,12 +599,12 @@ class TestPortfolioAnalyzerIntegrationProperties:
             # Property: All fundamental invariants must hold
             assert isinstance(exposure, Decimal)
             assert exposure.is_finite()
-            assert exposure >= Decimal("0")
+            assert exposure >= Decimal(0)
 
             # Property: Mathematical correctness
-            if position_size == 0 or position is None or price == 0 or price is None:
-                assert exposure == Decimal("0")
+            if position_size == 0 or position is None or price == 0:
+                assert exposure == Decimal(0)
             else:
                 expected = abs(position_size) * price
                 assert exposure == expected
-                assert exposure > Decimal("0")  # Should be positive for valid position and price
+                assert exposure > Decimal(0)  # Should be positive for valid position and price

@@ -19,7 +19,7 @@ import gc
 import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 import psutil
 import pytest
@@ -43,8 +43,29 @@ pytestmark = [
 logger = get_logger(__name__)
 
 
+@runtime_checkable
+class SerializableModel(Protocol):
+    """Protocol for models that can be serialized to dict."""
+
+    def model_dump(self) -> dict[str, object]:
+        """Pydantic v2 serialization method."""
+        ...
+
+
 class TestBackpackProcessorPipeline:
     """Test WebSocket processor pipeline with real message processing."""
+
+    def _process_domain_model_for_performance(self, context: WebSocketContextProtocol) -> None:
+        """Process domain model for performance testing."""
+        if (
+            hasattr(context, "domain_model")
+            and context.domain_model
+            and isinstance(context.domain_model, SerializableModel)
+        ):
+            # Use Pydantic v2 model_dump() method
+            model_data = context.domain_model.model_dump()
+            _ = model_data.get("symbol")
+            _ = model_data.get("price")
 
     def _extract_envelope_data(self, context: WebSocketContextProtocol) -> dict[str, Any] | None:
         """Extract data from validated envelope if present.
@@ -543,12 +564,14 @@ class TestBackpackProcessorPipeline:
                     getattr(context.domain_model, "dict", None)
                 ):
                     # Legacy Pydantic v1 models or dict-like objects
-                    dict_result: object = getattr(context.domain_model, "dict")()
-                    if isinstance(dict_result, dict):
-                        # Type narrowing: Pydantic dict() returns dict[str, Any]
-                        legacy_model_data: dict[str, object] = dict_result
-                        _symbol_value: object | None = legacy_model_data.get("symbol")
-                        _price_value: object | None = legacy_model_data.get("price")
+                    # DEFENSIVE CHECK: Access dict method safely. Pyright=[reportAttributeAccessIssue]
+                    dict_method = getattr(context.domain_model, "dict", None)
+                    if dict_method is not None and callable(dict_method):
+                        dict_result = dict_method()
+                        if isinstance(dict_result, dict):
+                            # Type narrowing: Pydantic dict() returns dict[str, Any]
+                            _symbol_value: object | None = dict_result.get("symbol")
+                            _price_value: object | None = dict_result.get("price")
             end = asyncio.get_event_loop().time()
             processing_times.append(end - start)
             message_count += 1

@@ -385,7 +385,7 @@ class TestMultiExchangeErrors:
         assert len(results) == len(exchanges) * 3
 
         # Check metrics for each exchange
-        for exchange, handler in handlers.items():
+        for _exchange, handler in handlers.items():
             metrics = handler.get_metrics()
             metrics_typed = cast(ErrorMetricsProtocol, metrics)
             assert metrics_typed.total_errors >= 3

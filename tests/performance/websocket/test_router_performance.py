@@ -217,7 +217,7 @@ class TestWebSocketRouterPerformance:
         handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Process 100 messages in bulk
-        messages = []
+        messages: list[dict[str, object]] = []
         for i in range(100):
             messages.append({
                 "stream": "ticker",

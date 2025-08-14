@@ -81,15 +81,15 @@ class TestComplexTransformer(MessageTransformer[TestComplexModel, None]):
         This transformer processes the data but doesn't return a domain model.
         """
         # Process the validated model (side effects only)
-        processed_data = {
-            "id": validated.id,
-            "order_count": len(validated.orders),
-            "total_volume": sum(o.quantity for o in validated.orders),
-            "total_value": sum(o.price * o.quantity for o in validated.orders),
-            "aggregate_keys": list(validated.aggregate_data.keys()),
-            "active_flags": [k for k, v in validated.status_flags.items() if v],
-        }
+        # Perform processing calculations (side effects only)
+        len(validated.orders)
+        sum(o.quantity for o in validated.orders)
+        sum(o.price * o.quantity for o in validated.orders)
+        list(validated.aggregate_data.keys())
+        [k for k, v in validated.status_flags.items() if v]
+
         # In a real scenario, this might store the processed data somewhere
+        # Processing complete - values calculated but not stored for performance testing
 
 
 @pytest.fixture
@@ -677,11 +677,11 @@ class TestPerformanceBenchmarks:
         handler = AsyncMock()
 
         # Run for extended period with periodic measurements
-        measurements = []
+        measurements: list[float] = []
         batch_size = 1000
         num_batches = 10
 
-        for batch in range(num_batches):
+        for _batch in range(num_batches):
             start_time = time.perf_counter()
 
             for _ in range(batch_size):

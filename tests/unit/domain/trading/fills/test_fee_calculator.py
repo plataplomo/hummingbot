@@ -15,10 +15,11 @@ or failure to detect unprofitable trades.
 """
 
 from decimal import Decimal
-from datetime import datetime, timezone
+from typing import TypedDict
 from unittest.mock import MagicMock
+
 import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck
+from hypothesis import HealthCheck, assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
@@ -27,7 +28,21 @@ from cyberdelta.domain.trading.fills.fee_calculator import FeeCalculator
 from cyberdelta.enums import ExchangeName, MakerTaker, OrderSide, OrderType
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.symbols import exchanges
+
+
+# =============================================================================
+# TYPE DEFINITIONS
+# =============================================================================
+
+
+class FeeStructureData(TypedDict):
+    """Type definition for fee structure configuration data."""
+    maker_fee_rate: Decimal
+    taker_fee_rate: Decimal
+    fee_calculation_method: str
+    minimum_fee: Decimal | None
+    maximum_fee: Decimal | None
+    fee_asset: str | None
 
 
 # =============================================================================
@@ -39,7 +54,7 @@ def price_strategy() -> SearchStrategy[Decimal]:
     """Generate valid price values."""
     return st.decimals(
         min_value=Decimal("0.00001"),
-        max_value=Decimal("1000000"),
+        max_value=Decimal(1000000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -50,7 +65,7 @@ def quantity_strategy() -> SearchStrategy[Decimal]:
     """Generate valid quantity values."""
     return st.decimals(
         min_value=Decimal("0.00001"),
-        max_value=Decimal("10000"),
+        max_value=Decimal(10000),
         places=8,
         allow_nan=False,
         allow_infinity=False,
@@ -60,7 +75,7 @@ def quantity_strategy() -> SearchStrategy[Decimal]:
 def fee_rate_strategy() -> SearchStrategy[Decimal]:
     """Generate valid fee rate values (as decimals, e.g., 0.001 = 0.1%)."""
     return st.decimals(
-        min_value=Decimal("0"),
+        min_value=Decimal(0),
         max_value=Decimal("0.01"),  # Max 1% fee
         places=6,
         allow_nan=False,
@@ -68,13 +83,13 @@ def fee_rate_strategy() -> SearchStrategy[Decimal]:
     )
 
 
-def fee_limit_strategy() -> SearchStrategy[Decimal]:
+def fee_limit_strategy() -> SearchStrategy[Decimal | None]:
     """Generate valid fee limit values."""
     return st.one_of(
         st.none(),
         st.decimals(
             min_value=Decimal("0.0001"),
-            max_value=Decimal("100"),
+            max_value=Decimal(100),
             places=4,
             allow_nan=False,
             allow_infinity=False,
@@ -117,17 +132,28 @@ def order_type_strategy() -> SearchStrategy[OrderType]:
     ])
 
 
-def fee_structure_strategy() -> SearchStrategy[dict]:
+def fee_structure_strategy() -> SearchStrategy[FeeStructureData]:
     """Generate valid fee structure configuration data."""
-    return st.builds(
-        lambda maker_rate, taker_rate, method, min_fee, max_fee, asset: {
+    
+    def _build_fee_structure(
+        maker_rate: Decimal,
+        taker_rate: Decimal,
+        method: str,
+        min_fee: Decimal | None,
+        max_fee: Decimal | None,
+        asset: str | None,
+    ) -> FeeStructureData:
+        return {
             "maker_fee_rate": maker_rate,
             "taker_fee_rate": taker_rate,
             "fee_calculation_method": method,
             "minimum_fee": min_fee,
             "maximum_fee": max_fee,
             "fee_asset": asset,
-        },
+        }
+
+    return st.builds(
+        _build_fee_structure,
         maker_rate=fee_rate_strategy(),
         taker_rate=fee_rate_strategy(),
         method=fee_method_strategy(),
@@ -147,7 +173,7 @@ def create_mock_order(
     exchange: ExchangeName = ExchangeName.HYPERLIQUID,
     side: OrderSide = OrderSide.BUY,
     order_type: OrderType = OrderType.LIMIT,
-    price: Decimal = Decimal("50000"),
+    price: Decimal = Decimal(50000),
     quantity: Decimal = Decimal("1.0"),
 ) -> Order:
     """Create a mock Order object for testing."""
@@ -179,7 +205,7 @@ def create_mock_fill(
     return fill
 
 
-def create_mock_exchange_config(fee_structure_data: dict) -> ExchangeSpecificConfig:
+def create_mock_exchange_config(fee_structure_data: FeeStructureData) -> ExchangeSpecificConfig:
     """Create a mock exchange configuration."""
     config = MagicMock(spec=ExchangeSpecificConfig)
 
@@ -211,8 +237,12 @@ class TestFeeCalculationProperties:
         maker_taker=maker_taker_strategy(),
     )
     def test_percentage_fee_calculation_accuracy(
-        self, fill_price, fill_quantity, fee_structure_data, maker_taker
-    ):
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_structure_data: FeeStructureData,
+        maker_taker: MakerTaker,
+    ) -> None:
         """Property: Percentage-based fees should be mathematically accurate."""
         # Force percentage method
         fee_structure_data["fee_calculation_method"] = "percentage"
@@ -221,7 +251,7 @@ class TestFeeCalculationProperties:
         fill = create_mock_fill(maker_taker=maker_taker)
         exchange_config = create_mock_exchange_config(fee_structure_data)
 
-        fee_amount, fee_asset = FeeCalculator.calculate_fee(
+        fee_amount, _ = FeeCalculator.calculate_fee(
             order, fill_price, fill_quantity, fill, exchange_config
         )
 
@@ -249,14 +279,16 @@ class TestFeeCalculationProperties:
         assert isinstance(fee_amount, Decimal)
 
         # Property: Fee should be non-negative
-        assert fee_amount >= Decimal("0")
+        assert fee_amount >= Decimal(0)
 
     @given(
         fill_price=price_strategy(), fill_quantity=quantity_strategy(), fee_rate=fee_rate_strategy()
     )
-    def test_fixed_fee_calculation(self, fill_price, fill_quantity, fee_rate):
+    def test_fixed_fee_calculation(
+        self, fill_price: Decimal, fill_quantity: Decimal, fee_rate: Decimal
+    ) -> None:
         """Property: Fixed fees should not depend on trade value."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "fixed",
@@ -279,10 +311,10 @@ class TestFeeCalculationProperties:
         # Property: Fixed fee should not depend on trade value
         # Test with different trade value
         order2 = create_mock_order(
-            price=fill_price * Decimal("2"), quantity=fill_quantity * Decimal("2")
+            price=fill_price * Decimal(2), quantity=fill_quantity * Decimal(2)
         )
         fee_amount2, _ = FeeCalculator.calculate_fee(
-            order2, fill_price * Decimal("2"), fill_quantity * Decimal("2"), fill, exchange_config
+            order2, fill_price * Decimal(2), fill_quantity * Decimal(2), fill, exchange_config
         )
 
         assert fee_amount == fee_amount2  # Same fixed fee regardless of trade value
@@ -293,11 +325,17 @@ class TestFeeCalculationProperties:
         maker_rate=fee_rate_strategy(),
         taker_rate=fee_rate_strategy(),
     )
-    def test_maker_taker_rate_distinction(self, fill_price, fill_quantity, maker_rate, taker_rate):
+    def test_maker_taker_rate_distinction(
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        maker_rate: Decimal,
+        taker_rate: Decimal,
+    ) -> None:
         """Property: Maker and taker rates should be correctly applied."""
         assume(maker_rate != taker_rate)  # Only test when rates differ
 
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": maker_rate,
             "taker_fee_rate": taker_rate,
             "fee_calculation_method": "percentage",
@@ -348,9 +386,15 @@ class TestFeeLimitProperties:
         fill_price=price_strategy(),
         fill_quantity=quantity_strategy(),
         fee_rate=fee_rate_strategy(),
-        minimum_fee=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("1"), places=4),
+        minimum_fee=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(1), places=4),
     )
-    def test_minimum_fee_enforcement(self, fill_price, fill_quantity, fee_rate, minimum_fee):
+    def test_minimum_fee_enforcement(
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_rate: Decimal,
+        minimum_fee: Decimal,
+    ) -> None:
         """Property: Minimum fee should always be enforced."""
         # Create a scenario where calculated fee would be less than minimum
         trade_value = fill_price * fill_quantity
@@ -359,7 +403,7 @@ class TestFeeLimitProperties:
         # Only test when calculated fee would be less than minimum
         assume(calculated_fee < minimum_fee)
 
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -384,12 +428,18 @@ class TestFeeLimitProperties:
 
     @settings(suppress_health_check=[HealthCheck.filter_too_much])
     @given(
-        fill_price=st.decimals(min_value=Decimal("1000"), max_value=Decimal("100000"), places=2),
-        fill_quantity=st.decimals(min_value=Decimal("10"), max_value=Decimal("100"), places=2),
+        fill_price=st.decimals(min_value=Decimal(1000), max_value=Decimal(100000), places=2),
+        fill_quantity=st.decimals(min_value=Decimal(10), max_value=Decimal(100), places=2),
         fee_rate=st.decimals(min_value=Decimal("0.005"), max_value=Decimal("0.01"), places=4),
-        maximum_fee=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("10"), places=4),
+        maximum_fee=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(10), places=4),
     )
-    def test_maximum_fee_enforcement(self, fill_price, fill_quantity, fee_rate, maximum_fee):
+    def test_maximum_fee_enforcement(
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_rate: Decimal,
+        maximum_fee: Decimal,
+    ) -> None:
         """Property: Maximum fee should always be enforced."""
         # Create a scenario where calculated fee would exceed maximum
         trade_value = fill_price * fill_quantity
@@ -398,7 +448,7 @@ class TestFeeLimitProperties:
         # Only test when calculated fee would exceed maximum
         assume(calculated_fee > maximum_fee)
 
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -425,16 +475,21 @@ class TestFeeLimitProperties:
         fill_price=price_strategy(),
         fill_quantity=quantity_strategy(),
         fee_rate=fee_rate_strategy(),
-        minimum_fee=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("1"), places=4),
-        maximum_fee=st.decimals(min_value=Decimal("1"), max_value=Decimal("10"), places=4),
+        minimum_fee=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(1), places=4),
+        maximum_fee=st.decimals(min_value=Decimal(1), max_value=Decimal(10), places=4),
     )
     def test_fee_limit_consistency(
-        self, fill_price, fill_quantity, fee_rate, minimum_fee, maximum_fee
-    ):
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_rate: Decimal,
+        minimum_fee: Decimal,
+        maximum_fee: Decimal,
+    ) -> None:
         """Property: Fee should always be within configured limits."""
         assume(minimum_fee < maximum_fee)  # Ensure valid configuration
 
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -469,9 +524,11 @@ class TestFeeAssetProperties:
         fee_asset=fee_asset_strategy(),
         symbol=st.sampled_from(["BTC_USDC", "ETH_USD", "SOL_USDT"]),
     )
-    def test_fee_asset_configuration(self, fill_price, fill_quantity, fee_asset, symbol):
+    def test_fee_asset_configuration(
+        self, fill_price: Decimal, fill_quantity: Decimal, fee_asset: str | None, symbol: str
+    ) -> None:
         """Property: Configured fee asset should be used when specified."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": Decimal("0.001"),
             "taker_fee_rate": Decimal("0.001"),
             "fee_calculation_method": "percentage",
@@ -499,9 +556,9 @@ class TestFeeAssetProperties:
             expected_asset = symbol_parts[-1] if len(symbol_parts) > 1 else "USDC"
             assert returned_fee_asset == expected_asset
 
-    def test_fee_asset_default_behavior(self):
+    def test_fee_asset_default_behavior(self) -> None:
         """Property: Default fee asset should be quote currency."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": Decimal("0.001"),
             "taker_fee_rate": Decimal("0.001"),
             "fee_calculation_method": "percentage",
@@ -524,7 +581,7 @@ class TestFeeAssetProperties:
             exchange_config = create_mock_exchange_config(fee_structure_data)
 
             _, fee_asset = FeeCalculator.calculate_fee(
-                order, Decimal("50000"), Decimal("1"), fill, exchange_config
+                order, Decimal(50000), Decimal(1), fill, exchange_config
             )
 
             assert fee_asset == expected_asset
@@ -547,9 +604,11 @@ class TestPrecisionPreservation:
         ).filter(lambda x: x > 0),
         fee_rate=st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("0.01"), places=6),
     )
-    def test_decimal_precision_maintained(self, fill_price, fill_quantity, fee_rate):
+    def test_decimal_precision_maintained(
+        self, fill_price: Decimal, fill_quantity: Decimal, fee_rate: Decimal
+    ) -> None:
         """Property: Decimal precision should be preserved throughout calculations."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -584,14 +643,14 @@ class TestPrecisionPreservation:
 
     @given(
         prices=st.lists(
-            st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).filter(
+            st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).filter(
                 lambda x: x > 0
             ),
             min_size=5,
             max_size=20,
         ),
         quantities=st.lists(
-            st.decimals(min_value=Decimal("0.001"), max_value=Decimal("100"), places=6).filter(
+            st.decimals(min_value=Decimal("0.001"), max_value=Decimal(100), places=6).filter(
                 lambda x: x > 0
             ),
             min_size=5,
@@ -599,11 +658,13 @@ class TestPrecisionPreservation:
         ),
         fee_rate=fee_rate_strategy(),
     )
-    def test_cumulative_fee_precision(self, prices, quantities, fee_rate):
+    def test_cumulative_fee_precision(
+        self, prices: list[Decimal], quantities: list[Decimal], fee_rate: Decimal
+    ) -> None:
         """Property: Cumulative fees should maintain precision."""
         assume(len(prices) == len(quantities))
 
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -613,10 +674,10 @@ class TestPrecisionPreservation:
         }
 
         exchange_config = create_mock_exchange_config(fee_structure_data)
-        total_fees = Decimal("0")
-        total_trade_value = Decimal("0")
+        total_fees = Decimal(0)
+        total_trade_value = Decimal(0)
 
-        for price, quantity in zip(prices, quantities):
+        for price, quantity in zip(prices, quantities, strict=False):
             order = create_mock_order(price=price, quantity=quantity)
             fill = create_mock_fill(maker_taker=MakerTaker.TAKER)
 
@@ -652,10 +713,15 @@ class TestExchangeSpecificProperties:
         taker_rate=fee_rate_strategy(),
     )
     def test_exchange_fee_structure_independence(
-        self, fill_price, fill_quantity, exchange, maker_rate, taker_rate
-    ):
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        exchange: ExchangeName,
+        maker_rate: Decimal,
+        taker_rate: Decimal,
+    ) -> None:
         """Property: Each exchange should use its own fee structure."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": maker_rate,
             "taker_fee_rate": taker_rate,
             "fee_calculation_method": "percentage",
@@ -693,7 +759,7 @@ class TestExchangeSpecificProperties:
         # Same config should give same fee regardless of exchange enum
         assert fee_amount == fee_amount2
 
-    def test_missing_fee_structure_handling(self):
+    def test_missing_fee_structure_handling(self) -> None:
         """Property: Missing fee structure should raise an error."""
         order = create_mock_order()
         fill = create_mock_fill()
@@ -705,7 +771,7 @@ class TestExchangeSpecificProperties:
         # Property: Should raise ValueError for missing fee structure
         with pytest.raises(ValueError, match="Fee structure not configured"):
             FeeCalculator.calculate_fee(
-                order, Decimal("50000"), Decimal("1"), fill, exchange_config
+                order, Decimal(50000), Decimal(1), fill, exchange_config
             )
 
 
@@ -718,9 +784,9 @@ class TestEdgeCases:
     """Property tests for edge cases in fee calculation."""
 
     @given(fill_quantity=quantity_strategy(), fee_rate=fee_rate_strategy())
-    def test_zero_price_handling(self, fill_quantity, fee_rate):
+    def test_zero_price_handling(self, fill_quantity: Decimal, fee_rate: Decimal) -> None:
         """Property: Zero price should result in zero fee for percentage method."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -729,21 +795,21 @@ class TestEdgeCases:
             "fee_asset": "USDC",
         }
 
-        order = create_mock_order(price=Decimal("0"), quantity=fill_quantity)
+        order = create_mock_order(price=Decimal(0), quantity=fill_quantity)
         fill = create_mock_fill(maker_taker=MakerTaker.TAKER)
         exchange_config = create_mock_exchange_config(fee_structure_data)
 
         fee_amount, _ = FeeCalculator.calculate_fee(
-            order, Decimal("0"), fill_quantity, fill, exchange_config
+            order, Decimal(0), fill_quantity, fill, exchange_config
         )
 
         # Property: Zero price should give zero fee (unless minimum fee exists)
-        assert fee_amount == Decimal("0")
+        assert fee_amount == Decimal(0)
 
     @given(fill_price=price_strategy(), fee_rate=fee_rate_strategy())
-    def test_zero_quantity_handling(self, fill_price, fee_rate):
+    def test_zero_quantity_handling(self, fill_price: Decimal, fee_rate: Decimal) -> None:
         """Property: Zero quantity should result in zero fee for percentage method."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -752,23 +818,28 @@ class TestEdgeCases:
             "fee_asset": "USDC",
         }
 
-        order = create_mock_order(price=fill_price, quantity=Decimal("0"))
+        order = create_mock_order(price=fill_price, quantity=Decimal(0))
         fill = create_mock_fill(maker_taker=MakerTaker.TAKER)
         exchange_config = create_mock_exchange_config(fee_structure_data)
 
         fee_amount, _ = FeeCalculator.calculate_fee(
-            order, fill_price, Decimal("0"), fill, exchange_config
+            order, fill_price, Decimal(0), fill, exchange_config
         )
 
         # Property: Zero quantity should give zero fee (unless minimum fee exists)
-        assert fee_amount == Decimal("0")
+        assert fee_amount == Decimal(0)
 
     @given(
         fill_price=price_strategy(),
         fill_quantity=quantity_strategy(),
         fee_structure_data=fee_structure_strategy(),
     )
-    def test_none_maker_taker_default(self, fill_price, fill_quantity, fee_structure_data):
+    def test_none_maker_taker_default(
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_structure_data: FeeStructureData,
+    ) -> None:
         """Property: None maker_taker should default to TAKER."""
         order = create_mock_order(price=fill_price, quantity=fill_quantity)
         fill = create_mock_fill(maker_taker=None)  # None maker_taker
@@ -803,9 +874,11 @@ class TestEdgeCases:
         ).filter(lambda x: x > 0),
         fee_rate=fee_rate_strategy(),
     )
-    def test_very_small_values(self, very_small_price, very_small_quantity, fee_rate):
+    def test_very_small_values(
+        self, very_small_price: Decimal, very_small_quantity: Decimal, fee_rate: Decimal
+    ) -> None:
         """Property: Very small trades should calculate fees correctly."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -832,16 +905,18 @@ class TestEdgeCases:
 
     @given(
         very_large_price=st.decimals(
-            min_value=Decimal("100000"), max_value=Decimal("10000000"), places=2
+            min_value=Decimal(100000), max_value=Decimal(10000000), places=2
         ).filter(lambda x: x > 0),
         very_large_quantity=st.decimals(
-            min_value=Decimal("1000"), max_value=Decimal("100000"), places=2
+            min_value=Decimal(1000), max_value=Decimal(100000), places=2
         ).filter(lambda x: x > 0),
         fee_rate=fee_rate_strategy(),
     )
-    def test_very_large_values(self, very_large_price, very_large_quantity, fee_rate):
+    def test_very_large_values(
+        self, very_large_price: Decimal, very_large_quantity: Decimal, fee_rate: Decimal
+    ) -> None:
         """Property: Very large trades should calculate fees correctly."""
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": fee_rate,
             "taker_fee_rate": fee_rate,
             "fee_calculation_method": "percentage",
@@ -882,8 +957,12 @@ class TestFeeCalculatorIntegration:
         maker_taker=maker_taker_strategy(),
     )
     def test_fee_calculation_determinism(
-        self, fill_price, fill_quantity, fee_structure_data, maker_taker
-    ):
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        fee_structure_data: FeeStructureData,
+        maker_taker: MakerTaker,
+    ) -> None:
         """Property: Fee calculation should be deterministic."""
         order = create_mock_order(price=fill_price, quantity=fill_quantity)
         fill = create_mock_fill(maker_taker=maker_taker)
@@ -912,11 +991,15 @@ class TestFeeCalculatorIntegration:
         ),
         fee_structure_data=fee_structure_strategy(),
     )
-    def test_multiple_trades_fee_consistency(self, trades, fee_structure_data):
+    def test_multiple_trades_fee_consistency(
+        self,
+        trades: list[tuple[Decimal, Decimal, MakerTaker]],
+        fee_structure_data: FeeStructureData,
+    ) -> None:
         """Property: Fees for multiple trades should be additive."""
         exchange_config = create_mock_exchange_config(fee_structure_data)
-        total_fees = Decimal("0")
-        total_trade_value = Decimal("0")
+        total_fees = Decimal(0)
+        total_trade_value = Decimal(0)
 
         for price, quantity, maker_taker in trades:
             order = create_mock_order(price=price, quantity=quantity)
@@ -930,7 +1013,7 @@ class TestFeeCalculatorIntegration:
             total_trade_value += price * quantity
 
         # Property: Total fees should be non-negative
-        assert total_fees >= Decimal("0")
+        assert total_fees >= Decimal(0)
 
         # Property: Fees should be finite
         assert total_fees.is_finite()
@@ -954,14 +1037,20 @@ class TestFeeCalculatorIntegration:
         max_fee=fee_limit_strategy(),
     )
     def test_fee_configuration_validity(
-        self, fill_price, fill_quantity, maker_rate, taker_rate, min_fee, max_fee
-    ):
+        self,
+        fill_price: Decimal,
+        fill_quantity: Decimal,
+        maker_rate: Decimal,
+        taker_rate: Decimal,
+        min_fee: Decimal | None,
+        max_fee: Decimal | None,
+    ) -> None:
         """Property: Valid configurations should always produce valid fees."""
         # Skip invalid configurations
         if min_fee is not None and max_fee is not None:
             assume(min_fee <= max_fee)
 
-        fee_structure_data = {
+        fee_structure_data: FeeStructureData = {
             "maker_fee_rate": maker_rate,
             "taker_fee_rate": taker_rate,
             "fee_calculation_method": "percentage",
@@ -980,7 +1069,7 @@ class TestFeeCalculatorIntegration:
 
         # Property: Fee should always be valid
         assert isinstance(fee_amount, Decimal)
-        assert fee_amount >= Decimal("0")
+        assert fee_amount >= Decimal(0)
         assert fee_amount.is_finite()
 
         # Property: Fee asset should always be a string

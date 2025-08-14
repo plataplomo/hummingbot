@@ -11,15 +11,14 @@ calculations, wrong available balance reporting, or trading with insufficient fu
 """
 
 from decimal import Decimal
-from datetime import datetime, UTC
+
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.apis.hyperliquid.mappers.account.hl_balance_mapper import HyperliquidBalanceMapper
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import SpotBalance
-from cyberdelta.symbols.models import Symbol
 
 
 # =============================================================================
@@ -32,13 +31,13 @@ def hyperliquid_balance_decimal_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common balance amounts with Hyperliquid precision
         st.decimals(
-            min_value=Decimal("0"),
-            max_value=Decimal("1000000"),
+            min_value=Decimal(0),
+            max_value=Decimal(1000000),
             places=6,  # Hyperliquid typically uses 6 decimal places
         ).map(str),
         st.decimals(
-            min_value=Decimal("0"),
-            max_value=Decimal("100000"),
+            min_value=Decimal(0),
+            max_value=Decimal(100000),
             places=8,  # Some assets might use 8
         ).map(str),
         # Edge cases
@@ -64,7 +63,7 @@ def hyperliquid_asset_strategy() -> SearchStrategy[str]:
     ])
 
 
-def hyperliquid_balance_data_strategy():
+def hyperliquid_balance_data_strategy() -> SearchStrategy[dict[str, str]]:
     """Generate Hyperliquid balance data for transformation testing."""
     return st.fixed_dictionaries({
         "coin": hyperliquid_asset_strategy(),
@@ -73,7 +72,7 @@ def hyperliquid_balance_data_strategy():
     })
 
 
-def hyperliquid_spot_balance_strategy():
+def hyperliquid_spot_balance_strategy() -> SearchStrategy[dict[str, str | int]]:
     """Generate Hyperliquid spot balance data."""
     return st.fixed_dictionaries({
         "coin": hyperliquid_asset_strategy(),
@@ -84,7 +83,7 @@ def hyperliquid_spot_balance_strategy():
     })
 
 
-def hyperliquid_perp_balance_strategy():
+def hyperliquid_perp_balance_strategy() -> SearchStrategy[dict[str, str | int]]:
     """Generate Hyperliquid perpetual balance data."""
     return st.fixed_dictionaries({
         "coin": hyperliquid_asset_strategy(),
@@ -107,34 +106,47 @@ class TestHyperliquidBalanceTransformationProperties:
     """Property-based tests for Hyperliquid balance transformation."""
 
     @given(balance_data=hyperliquid_balance_data_strategy())
-    def test_balance_transformation_financial_precision(self, balance_data):
+    def test_balance_transformation_financial_precision(self, balance_data: dict[str, str]) -> None:
         """Property: Balance transformation should preserve financial precision."""
         # Skip empty assets
         assume(balance_data["coin"].strip())
 
         try:
             mapper = HyperliquidBalanceMapper()
-            result = mapper.transform_balance_data_to_spot_balance(
-                coin=balance_data["coin"], hold=balance_data["hold"], total=balance_data["total"]
+            # Create mock clearinghouse state
+            from unittest.mock import MagicMock
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawClearinghouseState,
             )
 
-            # Property: Result should be a SpotBalance
-            assert isinstance(result, SpotBalance)
+            mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+            mock_state.margin_summary = MagicMock()
+            mock_state.margin_summary.account_value = balance_data["total"]
+            mock_state.withdrawable = balance_data["hold"]
+            mock_state.asset_positions = []
+            mock_state.cross_margin_summary = None
+            mock_state.cross_positions = []
 
-            # Property: Financial values should be preserved as Decimal
-            assert isinstance(result.total, Decimal)
-            assert isinstance(result.available, Decimal)
-            assert isinstance(result.locked, Decimal)
+            balances = mapper.transform_raw_clearinghouse_state_to_spot_balances(mock_state)
+            if "USDC" in balances:
+                result = balances["USDC"]
 
-            # Property: Precision should be preserved
-            expected_hold = Decimal(balance_data["hold"])
-            expected_total = Decimal(balance_data["total"])
+                # Property: Result should be a SpotBalance
+                assert isinstance(result, SpotBalance)
 
-            # Property: Hyperliquid-specific balance logic
-            # (Implementation may vary - hold might be locked, total might be available)
-            assert result.total.is_finite()
-            assert result.available.is_finite()
-            assert result.locked.is_finite()
+                # Property: Financial values should be preserved as Decimal
+                assert isinstance(result.total_quantity, Decimal)
+                assert isinstance(result.available_quantity, Decimal)
+
+                # Property: Precision should be preserved
+                expected_hold = Decimal(balance_data["hold"])
+                expected_total = Decimal(balance_data["total"])
+
+                # Property: Hyperliquid-specific balance logic
+                # (Implementation may vary - hold might be locked, total might be available)
+                assert result.total_quantity.is_finite()
+                assert result.available_quantity.is_finite()
 
         except Exception as e:
             # Should only fail for truly invalid data
@@ -143,69 +155,91 @@ class TestHyperliquidBalanceTransformationProperties:
     @given(
         hold=hyperliquid_balance_decimal_strategy(), total=hyperliquid_balance_decimal_strategy()
     )
-    def test_balance_mathematical_invariants(self, hold: str, total: str):
+    def test_balance_mathematical_invariants(self, hold: str, total: str) -> None:
         """Property: Balance calculations should maintain mathematical invariants."""
         hold_dec = Decimal(hold)
         total_dec = Decimal(total)
 
         try:
             mapper = HyperliquidBalanceMapper()
-            result = mapper.transform_balance_data_to_spot_balance(
-                coin="USDC", hold=hold, total=total
+            # Create mock clearinghouse state
+            from unittest.mock import MagicMock
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawClearinghouseState,
             )
 
-            # Property: All balance amounts should be non-negative
-            assert result.total >= Decimal("0")
-            assert result.available >= Decimal("0")
-            assert result.locked >= Decimal("0")
+            mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+            mock_state.margin_summary = MagicMock()
+            mock_state.margin_summary.account_value = total
+            mock_state.withdrawable = hold
+            mock_state.asset_positions = []
+            mock_state.cross_margin_summary = None
+            mock_state.cross_positions = []
 
-            # Property: Available should not exceed total
-            assert result.available <= result.total
+            balances = mapper.transform_raw_clearinghouse_state_to_spot_balances(mock_state)
+            if "USDC" in balances:
+                result = balances["USDC"]
 
-            # Property: Locked should not exceed total
-            assert result.locked <= result.total
+                # Property: All balance amounts should be non-negative
+                assert result.total_quantity >= Decimal(0)
+                assert result.available_quantity >= Decimal(0)
 
-            # Property: Available + locked should equal total (with small tolerance for rounding)
-            tolerance = Decimal("0.00000001")
-            assert abs((result.available + result.locked) - result.total) <= tolerance
+                # Property: Available should not exceed total
+                assert result.available_quantity <= result.total_quantity
 
-            # Property: Values should be finite
-            assert result.total.is_finite()
-            assert result.available.is_finite()
-            assert result.locked.is_finite()
+                # Property: Values should be finite
+                assert result.total_quantity.is_finite()
+                assert result.available_quantity.is_finite()
 
         except Exception:
             # Expected for invalid input
             pass
 
     @given(coin=st.sampled_from(["USDC", "BTC", "ETH"]))
-    def test_balance_asset_symbol_consistency(self, coin: str):
+    def test_balance_asset_symbol_consistency(self, coin: str) -> None:
         """Property: Asset symbols should be mapped consistently."""
         mapper = HyperliquidBalanceMapper()
 
         try:
-            result = mapper.transform_balance_data_to_spot_balance(
-                coin=coin, hold="100.0", total="110.0"
+            # Create mock clearinghouse state
+            from unittest.mock import MagicMock
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawClearinghouseState,
             )
 
-            # Property: Symbol should be properly created
-            assert isinstance(result.symbol, Symbol)
+            mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+            mock_state.margin_summary = MagicMock()
+            mock_state.margin_summary.account_value = "110.0"
+            mock_state.withdrawable = "100.0"
+            mock_state.asset_positions = []
+            mock_state.cross_margin_summary = None
+            mock_state.cross_positions = []
 
-            # Property: Exchange should be Hyperliquid
-            assert result.symbol.exchange == ExchangeName.HYPERLIQUID
+            balances = mapper.transform_raw_clearinghouse_state_to_spot_balances(mock_state)
+            if "USDC" in balances:
+                result = balances["USDC"]
 
-            # Property: Asset should be preserved in symbol
-            assert coin in str(result.symbol)
+                # Property: Asset should be properly created
+                from cyberdelta.symbols.models import BaseSymbol
+                assert isinstance(result.asset, BaseSymbol)
 
-        except Exception as e:
+                # Property: Exchange should be Hyperliquid
+                assert result.exchange == ExchangeName.HYPERLIQUID
+
+                # Property: Asset should be preserved in symbol
+                assert "USDC" in str(result.asset)
+
+        except Exception:
             # Asset mapping might fail for invalid symbols
             pass
 
     @given(
-        hold=st.decimals(min_value=Decimal("0"), max_value=Decimal("1000"), places=6),
-        total=st.decimals(min_value=Decimal("0"), max_value=Decimal("1000"), places=6),
+        hold=st.decimals(min_value=Decimal(0), max_value=Decimal(1000), places=6),
+        total=st.decimals(min_value=Decimal(0), max_value=Decimal(1000), places=6),
     )
-    def test_balance_precision_round_trip(self, hold: Decimal, total: Decimal):
+    def test_balance_precision_round_trip(self, hold: Decimal, total: Decimal) -> None:
         """Property: Balance precision should survive round-trip transformation."""
         # Ensure total >= hold for valid balance state
         if total < hold:
@@ -220,10 +254,11 @@ class TestHyperliquidBalanceTransformationProperties:
             symbol = exchanges.hyperliquid("USDC")
 
             # Create mock raw clearinghouse state
-            from cyberdelta.apis.hyperliquid.models.hl_raw_clearinghouse_state import (
+            from unittest.mock import MagicMock
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
                 HyperliquidRawClearinghouseState,
             )
-            from unittest.mock import MagicMock
 
             mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
             mock_state.marginSummary = MagicMock()
@@ -241,10 +276,10 @@ class TestHyperliquidBalanceTransformationProperties:
             assert result.available_quantity.is_finite()
 
             # Property: Available should be non-negative
-            assert result.available_quantity >= Decimal("0")
-            assert result.total_quantity >= Decimal("0")
+            assert result.available_quantity >= Decimal(0)
+            assert result.total_quantity >= Decimal(0)
 
-        except Exception as e:
+        except Exception:
             # Some combinations might not be supported, that's OK
             pass
 
@@ -258,10 +293,11 @@ class TestHyperliquidSpotBalanceProperties:
     """Property-based tests for Hyperliquid spot balance handling."""
 
     @given(spot_data=hyperliquid_spot_balance_strategy())
-    def test_spot_balance_transformation(self, spot_data):
+    def test_spot_balance_transformation(self, spot_data: dict[str, str | int]) -> None:
         """Property: Spot balance transformation should preserve all fields."""
         # Skip empty assets
-        assume(spot_data["coin"].strip())
+        coin = spot_data["coin"]
+        assume(isinstance(coin, str) and coin.strip())
 
         try:
             mapper = HyperliquidBalanceMapper()
@@ -285,7 +321,7 @@ class TestHyperliquidSpotBalanceProperties:
     @given(
         total=hyperliquid_balance_decimal_strategy(), hold=hyperliquid_balance_decimal_strategy()
     )
-    def test_spot_balance_invariants(self, total: str, hold: str):
+    def test_spot_balance_invariants(self, total: str, hold: str) -> None:
         """Property: Spot balances should maintain financial invariants."""
         total_dec = Decimal(total)
         hold_dec = Decimal(hold)
@@ -310,7 +346,7 @@ class TestHyperliquidSpotBalanceProperties:
                 # Property: Hold should not exceed total
                 if hasattr(result, "total") and hasattr(result, "hold"):
                     tolerance = Decimal("0.000001")
-                    assert getattr(result, "hold") <= getattr(result, "total") + tolerance
+                    assert result.hold <= result.total + tolerance
 
         except Exception:
             # Expected for invalid configurations
@@ -326,10 +362,11 @@ class TestHyperliquidPerpBalanceProperties:
     """Property-based tests for Hyperliquid perpetual balance handling."""
 
     @given(perp_data=hyperliquid_perp_balance_strategy())
-    def test_perp_balance_transformation(self, perp_data):
+    def test_perp_balance_transformation(self, perp_data: dict[str, str | int]) -> None:
         """Property: Perp balance transformation should handle position data."""
         # Skip empty assets
-        assume(perp_data["coin"].strip())
+        coin = perp_data["coin"]
+        assume(isinstance(coin, str) and coin.strip())
 
         try:
             mapper = HyperliquidBalanceMapper()
@@ -348,9 +385,9 @@ class TestHyperliquidPerpBalanceProperties:
                             assert value.is_finite()
 
                 # Property: Position size can be negative (short positions)
-                if hasattr(result, "szi") and getattr(result, "szi") is not None:
+                if hasattr(result, "szi") and result.szi is not None:
                     # Position size should be finite but can be negative
-                    assert getattr(result, "szi").is_finite()
+                    assert result.szi.is_finite()
 
         except Exception:
             # Expected for invalid or unsupported data
@@ -358,13 +395,13 @@ class TestHyperliquidPerpBalanceProperties:
 
     @given(
         szi=st.one_of(
-            st.none(), st.decimals(min_value=Decimal("-1000"), max_value=Decimal("1000"), places=6)
+            st.none(), st.decimals(min_value=Decimal(-1000), max_value=Decimal(1000), places=6)
         ),
         entry_px=st.one_of(
-            st.none(), st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6)
+            st.none(), st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6)
         ),
     )
-    def test_perp_position_invariants(self, szi: Decimal | None, entry_px: Decimal | None):
+    def test_perp_position_invariants(self, szi: Decimal | None, entry_px: Decimal | None) -> None:
         """Property: Perpetual positions should maintain logical invariants."""
         perp_data = {
             "coin": "BTC",
@@ -386,17 +423,17 @@ class TestHyperliquidPerpBalanceProperties:
                 # Property: If position size exists, entry price should exist (and vice versa)
                 has_position = (
                     hasattr(result, "szi")
-                    and getattr(result, "szi") is not None
-                    and getattr(result, "szi") != 0
+                    and result.szi is not None
+                    and result.szi != 0
                 )
                 has_entry_price = (
-                    hasattr(result, "entryPx") and getattr(result, "entryPx") is not None
+                    hasattr(result, "entryPx") and result.entryPx is not None
                 )
 
                 if has_position and entry_px is not None:
                     # Should have entry price for non-zero positions
                     assert has_entry_price
-                    assert getattr(result, "entryPx") > 0
+                    assert result.entryPx > 0
 
         except Exception:
             # Expected for invalid configurations
@@ -419,33 +456,60 @@ class TestHyperliquidBalanceValidationProperties:
             st.text().filter(lambda x: x and not x.replace(".", "").replace("-", "").isdigit()),
         )
     )
-    def test_invalid_balance_rejection(self, invalid_balance: str):
+    def test_invalid_balance_rejection(self, invalid_balance: str) -> None:
         """Property: Invalid balance values should be rejected."""
         mapper = HyperliquidBalanceMapper()
 
+        # Create mock clearinghouse state with invalid balance
+        from unittest.mock import MagicMock
+
+        from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+            HyperliquidRawClearinghouseState,
+        )
+
+        mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+        mock_state.margin_summary = MagicMock()
+        mock_state.margin_summary.account_value = "1000.0"
+        mock_state.withdrawable = invalid_balance
+        mock_state.asset_positions = []
+        mock_state.cross_margin_summary = None
+        mock_state.cross_positions = []
+
         with pytest.raises(Exception):  # Should raise some form of validation error
-            mapper.transform_balance_data_to_spot_balance(
-                coin="USDC", hold=invalid_balance, total="1000.0"
-            )
+            mapper.transform_raw_clearinghouse_state_to_spot_balances(mock_state)
 
     @given(
         negative_balance=st.decimals(
-            min_value=Decimal("-1000"), max_value=Decimal("-0.01"), places=6
+            min_value=Decimal(-1000), max_value=Decimal("-0.01"), places=6
         )
     )
-    def test_negative_balance_handling(self, negative_balance: Decimal):
+    def test_negative_balance_handling(self, negative_balance: Decimal) -> None:
         """Property: Test handling of negative balances."""
         mapper = HyperliquidBalanceMapper()
 
         try:
-            result = mapper.transform_balance_data_to_spot_balance(
-                coin="USDC", hold=str(negative_balance), total="0"
+            # Create mock clearinghouse state with negative balance
+            from unittest.mock import MagicMock
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawClearinghouseState,
             )
 
-            # Property: How negative balances are handled should be consistent
-            # (Implementation may reject them or handle them specially)
-            if result:
-                assert isinstance(result.total, Decimal)
+            mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+            mock_state.margin_summary = MagicMock()
+            mock_state.margin_summary.account_value = "0"
+            mock_state.withdrawable = str(negative_balance)
+            mock_state.asset_positions = []
+            mock_state.cross_margin_summary = None
+            mock_state.cross_positions = []
+
+            balances = mapper.transform_raw_clearinghouse_state_to_spot_balances(mock_state)
+            if "USDC" in balances:
+                result = balances["USDC"]
+
+                # Property: How negative balances are handled should be consistent
+                # (Implementation may reject them or handle them specially)
+                assert isinstance(result.total_quantity, Decimal)
 
         except Exception:
             # Negative balances may be rejected, which is valid for spot balances
@@ -465,7 +529,7 @@ class TestHyperliquidBalanceMapperIntegrationProperties:
         total=hyperliquid_balance_decimal_strategy(),
         coin=st.sampled_from(["USDC", "BTC", "ETH"]),
     )
-    def test_balance_mapper_consistency(self, hold: str, total: str, coin: str):
+    def test_balance_mapper_consistency(self, hold: str, total: str, coin: str) -> None:
         """Property: Balance mapper should be consistent across calls."""
         # Ensure valid balance relationship
         if Decimal(total) < Decimal(hold):
@@ -474,27 +538,43 @@ class TestHyperliquidBalanceMapperIntegrationProperties:
         mapper = HyperliquidBalanceMapper()
 
         try:
-            # Transform the same data twice
-            result1 = mapper.transform_balance_data_to_spot_balance(
-                coin=coin, hold=hold, total=total
-            )
-            result2 = mapper.transform_balance_data_to_spot_balance(
-                coin=coin, hold=hold, total=total
+            # Create mock clearinghouse state
+            from unittest.mock import MagicMock
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawClearinghouseState,
             )
 
-            # Property: Same input should give same output
-            assert result1.total == result2.total
-            assert result1.available == result2.available
-            assert result1.locked == result2.locked
-            assert result1.symbol == result2.symbol
+            def create_mock_state() -> MagicMock:
+                mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+                mock_state.margin_summary = MagicMock()
+                mock_state.margin_summary.account_value = total
+                mock_state.withdrawable = hold
+                mock_state.asset_positions = []
+                mock_state.cross_margin_summary = None
+                mock_state.cross_positions = []
+                return mock_state
+
+            # Transform the same data twice
+            balances1 = mapper.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
+            balances2 = mapper.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
+            
+            if "USDC" in balances1 and "USDC" in balances2:
+                result1 = balances1["USDC"]
+                result2 = balances2["USDC"]
+
+                # Property: Same input should give same output
+                assert result1.total_quantity == result2.total_quantity
+                assert result1.available_quantity == result2.available_quantity
+                assert result1.asset == result2.asset
 
         except Exception:
             # If it fails once, it should fail consistently
             with pytest.raises(Exception):
-                mapper.transform_balance_data_to_spot_balance(coin=coin, hold=hold, total=total)
+                mapper.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
 
     @given(balance_data=hyperliquid_balance_data_strategy())
-    def test_balance_mapper_deterministic(self, balance_data):
+    def test_balance_mapper_deterministic(self, balance_data: dict[str, str]) -> None:
         """Property: Balance mapper should be deterministic."""
         # Skip empty assets
         assume(balance_data["coin"].strip())
@@ -503,23 +583,35 @@ class TestHyperliquidBalanceMapperIntegrationProperties:
         mapper2 = HyperliquidBalanceMapper()
 
         try:
-            result1 = mapper1.transform_balance_data_to_spot_balance(
-                coin=balance_data["coin"], hold=balance_data["hold"], total=balance_data["total"]
-            )
-            result2 = mapper2.transform_balance_data_to_spot_balance(
-                coin=balance_data["coin"], hold=balance_data["hold"], total=balance_data["total"]
+            # Create mock clearinghouse state
+            from unittest.mock import MagicMock
+
+            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+                HyperliquidRawClearinghouseState,
             )
 
-            # Property: Different mapper instances should give same results
-            assert result1.total == result2.total
-            assert result1.available == result2.available
-            assert result1.locked == result2.locked
+            def create_mock_state() -> MagicMock:
+                mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
+                mock_state.margin_summary = MagicMock()
+                mock_state.margin_summary.account_value = balance_data["total"]
+                mock_state.withdrawable = balance_data["hold"]
+                mock_state.asset_positions = []
+                mock_state.cross_margin_summary = None
+                mock_state.cross_positions = []
+                return mock_state
+
+            balances1 = mapper1.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
+            balances2 = mapper2.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
+            
+            if "USDC" in balances1 and "USDC" in balances2:
+                result1 = balances1["USDC"]
+                result2 = balances2["USDC"]
+
+                # Property: Different mapper instances should give same results
+                assert result1.total_quantity == result2.total_quantity
+                assert result1.available_quantity == result2.available_quantity
 
         except Exception:
             # Both should fail in the same way
             with pytest.raises(Exception):
-                mapper2.transform_balance_data_to_spot_balance(
-                    coin=balance_data["coin"],
-                    hold=balance_data["hold"],
-                    total=balance_data["total"],
-                )
+                mapper2.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())

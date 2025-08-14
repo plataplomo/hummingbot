@@ -53,7 +53,7 @@ class TestContextCreationPerformance:
         gc.collect()  # Clean up before measurement
 
         start_time = time.perf_counter()
-        contexts = []
+        contexts: list[object] = []
         for i in range(count):
             context = ErrorTestFactory.create_test_context(
                 connection_id=f"perf-test-{i}",

@@ -431,16 +431,18 @@ class TestWebSocketErrorRecoveryTyped:
             (WebSocketRecoveryStrategy.FULL_RECONNECT, 1.0),
         ]
 
-        for strategy, expected_min_delay in strategies_to_test:
+        for strategy, _expected_min_delay in strategies_to_test:
             recovery_system.config.strategy = strategy
             recovery_system.retry_count = 1
 
             # Test that the strategy can handle errors without crashing
+            # Recovery system must be robust - any failure is a critical issue
             try:
                 await recovery_system.handle_connection_error(ConnectionError("Test error"))
                 recovery_handled = True
-            except Exception:
-                recovery_handled = False
+            except (APIError, ConnectionError, ValueError, TypeError) as e:
+                # Fail fast - recovery systems must be bulletproof in trading environments
+                pytest.fail(f"Strategy {strategy.name} failed to handle recovery: {e}")
 
-            # Verify recovery was handled without errors
-            assert recovery_handled, f"Strategy {strategy.name} failed to handle recovery"
+            # Verify recovery was handled successfully
+            assert recovery_handled, f"Strategy {strategy.name} did not complete recovery"

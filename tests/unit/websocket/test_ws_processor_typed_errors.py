@@ -45,6 +45,15 @@ class TransformerForTest(MessageTransformer[MessageForTest, DomainModelForTest])
     def transform(
         self, validated: MessageForTest, context: WebSocketContextProtocol | None = None
     ) -> DomainModelForTest:
+        """Transform validated message to domain model.
+
+        Args:
+            validated: Validated message model.
+            context: Optional WebSocket context.
+
+        Returns:
+            DomainModelForTest: Transformed domain model.
+        """
         return DomainModelForTest(
             message_id=validated.id,
             processed_value=validated.value * 2,
@@ -58,6 +67,15 @@ class FailingTransformer(MessageTransformer[MessageForTest, DomainModelForTest])
     def transform(
         self, validated: MessageForTest, context: WebSocketContextProtocol | None = None
     ) -> DomainModelForTest:
+        """Transform validated message - always fails for testing.
+
+        Args:
+            validated: Validated message model.
+            context: Optional WebSocket context.
+
+        Raises:
+            ValueError: Always raises for testing failure scenarios.
+        """
         raise ValueError("Transformation failed")
 
 
@@ -96,8 +114,7 @@ class TestTypedProcessorErrorHandling:
         Returns:
             AsyncMock: Mock stream error handler implementing WebSocketStreamErrorHandler.
         """
-        handler = AsyncMock(spec=WebSocketStreamErrorHandler)
-        return handler
+        return AsyncMock(spec=WebSocketStreamErrorHandler)
 
     @pytest.fixture
     def mock_legacy_error_handler(self) -> AsyncMock:
@@ -303,7 +320,8 @@ class TestTypedProcessorErrorHandling:
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test processor behavior when no typed handler is available -
-        error is caught and logged."""
+        error is caught and logged.
+        """
         processor = PydanticWebSocketProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
@@ -376,7 +394,7 @@ class TestTypedProcessorErrorHandling:
         mock_legacy_error_handler.handle_validation_error.assert_not_called()
         mock_legacy_error_handler.handle_processing_error.assert_not_called()
 
-    def test_processor_error_bridge_integration(
+    def test_processor_stream_error_handler_integration(
         self,
         mock_stream_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
@@ -389,15 +407,11 @@ class TestTypedProcessorErrorHandling:
             processor_name="BridgeTestProcessor",
         )
 
-        # Verify bridge was created
-        assert hasattr(processor, "error_bridge")
-        assert processor.error_bridge is not None
-        # Bridge pattern removed - processor uses direct stream error handler
+        # Verify stream error handler was configured directly (bridge pattern removed)
+        assert hasattr(processor, "stream_error_handler")
         assert processor.stream_error_handler is not None
-
-        # Verify bridge references are correct
-        assert processor.error_bridge.processor is processor
-        assert processor.error_bridge.stream_error_handler is mock_stream_error_handler
+        # Bridge pattern removed - processor uses direct stream error handler
+        assert processor.stream_error_handler is mock_stream_error_handler
 
     def test_processor_metrics_with_typed_errors(
         self,

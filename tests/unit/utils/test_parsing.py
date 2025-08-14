@@ -14,25 +14,13 @@ wrong timestamps affecting trade timing, or injection vulnerabilities
 through malformed string data.
 """
 
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
-import pytest
-from hypothesis import given, strategies as st, assume, settings, HealthCheck, Verbosity
-from hypothesis.strategies import SearchStrategy
 
-from cyberdelta.utils.parsing import (
-    parse_decimal_value,
-    parse_datetime_utc,
-    validate_str_field,
-    validate_enum_field,
-    timeframe_to_ms,
-    check_str_parsable_to_finite_decimal,
-    _determine_timestamp_scale,
-    _ensure_utc_timezone,
-    NANOSECONDS_THRESHOLD,
-    MICROSECONDS_THRESHOLD,
-    MILLISECONDS_THRESHOLD,
-)
+import pytest
+from hypothesis import Verbosity, assume, given, settings, strategies as st
+from hypothesis.strategies import DataObject, SearchStrategy
+
 from cyberdelta.exceptions.field_validation import (
     DecimalFieldError,
     EnumFieldError,
@@ -42,6 +30,14 @@ from cyberdelta.exceptions.parsing import (
     DateTimeParsingError,
     EmptyStringError,
     TimestampFormatError,
+)
+from cyberdelta.utils.parsing import (
+    check_str_parsable_to_finite_decimal,
+    parse_datetime_utc,
+    parse_decimal_value,
+    timeframe_to_ms,
+    validate_enum_field,
+    validate_str_field,
 )
 
 
@@ -88,16 +84,16 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common financial precisions
         decimal_string_strategy(
-            min_value=Decimal("0.01"), max_value=Decimal("1000000"), max_decimal_places=2
+            min_value=Decimal("0.01"), max_value=Decimal(1000000), max_decimal_places=2
         ),
         decimal_string_strategy(
-            min_value=Decimal("0.0001"), max_value=Decimal("100000"), max_decimal_places=4
+            min_value=Decimal("0.0001"), max_value=Decimal(100000), max_decimal_places=4
         ),
         decimal_string_strategy(
-            min_value=Decimal("0.000001"), max_value=Decimal("10000"), max_decimal_places=6
+            min_value=Decimal("0.000001"), max_value=Decimal(10000), max_decimal_places=6
         ),
         decimal_string_strategy(
-            min_value=Decimal("0.00000001"), max_value=Decimal("1000"), max_decimal_places=8
+            min_value=Decimal("0.00000001"), max_value=Decimal(1000), max_decimal_places=8
         ),
         # Edge cases
         st.just("0"),
@@ -167,7 +163,7 @@ class TestParseDecimalValueProperties:
 
     @given(decimal_str=financial_decimal_strategy())
     @settings(max_examples=1000, verbosity=Verbosity.normal)
-    def test_decimal_roundtrip_precision_preservation(self, decimal_str: str):
+    def test_decimal_roundtrip_precision_preservation(self, decimal_str: str) -> None:
         """Property: Parsing a decimal string should preserve exact precision.
 
         This is CRITICAL for financial calculations - any precision loss
@@ -194,7 +190,7 @@ class TestParseDecimalValueProperties:
             st.floats(min_value=-1e18, max_value=1e18, allow_nan=False, allow_infinity=False),
         )
     )
-    def test_decimal_input_types_consistency(self, value):
+    def test_decimal_input_types_consistency(self, value: str | Decimal | float) -> None:
         """Property: Function should handle string, Decimal, and float inputs consistently."""
         # Skip problematic float values that lose precision
         if isinstance(value, float) and (abs(value) > 1e15 or (value != 0 and abs(value) < 1e-15)):
@@ -226,7 +222,7 @@ class TestParseDecimalValueProperties:
             assert isinstance(str_result, Decimal)
 
     @given(invalid_input=invalid_decimal_strategy())
-    def test_decimal_invalid_input_rejection(self, invalid_input: str):
+    def test_decimal_invalid_input_rejection(self, invalid_input: str) -> None:
         """Property: Invalid decimal strings should always raise DecimalFieldError."""
         with pytest.raises(DecimalFieldError) as exc_info:
             parse_decimal_value(invalid_input, allow_none=False)
@@ -242,7 +238,7 @@ class TestParseDecimalValueProperties:
             ]
         )
 
-    def test_decimal_none_handling_properties(self):
+    def test_decimal_none_handling_properties(self) -> None:
         """Property: None handling should respect allow_none parameter."""
         # Property: allow_none=True should return None for None input
         result_allowed = parse_decimal_value(None, allow_none=True)
@@ -257,7 +253,7 @@ class TestParseDecimalValueProperties:
         value=financial_decimal_strategy(),
         field_name=st.text(min_size=1, max_size=20).filter(lambda x: x.strip()),
     )
-    def test_decimal_error_context_inclusion(self, value: str, field_name: str):
+    def test_decimal_error_context_inclusion(self, value: str, field_name: str) -> None:
         """Property: Error messages should include field name for better debugging."""
         # Make value invalid
         invalid_value = value + ".invalid"
@@ -270,7 +266,7 @@ class TestParseDecimalValueProperties:
         assert field_name in error_msg
 
     @given(decimal_str=financial_decimal_strategy())
-    def test_decimal_financial_invariants(self, decimal_str: str):
+    def test_decimal_financial_invariants(self, decimal_str: str) -> None:
         """Property: Parsed decimals should maintain financial calculation invariants."""
         result = parse_decimal_value(decimal_str, allow_none=False)
 
@@ -287,13 +283,13 @@ class TestParseDecimalValueProperties:
             assert result == 0
 
         # Property: Arithmetic operations should work correctly
-        doubled = result * Decimal("2")
+        doubled = result * Decimal(2)
         assert doubled == result + result  # Multiplication consistency
 
         if result != 0:
             # Property: Division should be reversible
-            halved = result / Decimal("2")
-            assert halved * Decimal("2") == result
+            halved = result / Decimal(2)
+            assert halved * Decimal(2) == result
 
 
 # =============================================================================
@@ -305,14 +301,14 @@ class TestParseDatetimeUtcProperties:
     """Property-based tests for parse_datetime_utc function."""
 
     @given(timestamp=timestamp_strategy())
-    def test_datetime_timestamp_roundtrip(self, timestamp: float):
+    def test_datetime_timestamp_roundtrip(self, timestamp: float) -> None:
         """Property: Parsing timestamp should preserve temporal information."""
         # Parse timestamp
         result = parse_datetime_utc(timestamp)
 
         # Property: Result should be timezone-aware UTC datetime
         assert result is not None
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
         # Property: Converting back should give similar timestamp
         result_timestamp = result.timestamp()
@@ -322,7 +318,7 @@ class TestParseDatetimeUtcProperties:
             assert abs(result_timestamp - timestamp) < 1.0
         else:
             # For milliseconds/microseconds/nanoseconds, compare scaled values
-            scale_factor = 1
+            scale_factor = 1.0
             if timestamp > 2e17:  # nanoseconds
                 scale_factor = 1e9
             elif timestamp > 2e14:  # microseconds
@@ -333,23 +329,23 @@ class TestParseDatetimeUtcProperties:
             expected_seconds = timestamp / scale_factor
             assert abs(result_timestamp - expected_seconds) < 1.0
 
-    @given(dt=st.datetimes(timezones=st.just(timezone.utc)))
-    def test_datetime_utc_datetime_passthrough(self, dt: datetime):
+    @given(dt=st.datetimes(timezones=st.just(UTC)))
+    def test_datetime_utc_datetime_passthrough(self, dt: datetime) -> None:
         """Property: UTC datetime input should pass through unchanged."""
         result = parse_datetime_utc(dt)
 
         # Property: Should return the same datetime
         assert result == dt
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     @given(dt=st.datetimes(timezones=st.none()))
-    def test_datetime_naive_datetime_utc_assignment(self, dt: datetime):
+    def test_datetime_naive_datetime_utc_assignment(self, dt: datetime) -> None:
         """Property: Naive datetime should get UTC timezone assigned."""
         result = parse_datetime_utc(dt)
 
         # Property: Should have UTC timezone assigned
         assert result is not None
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
         # Property: Time components should be preserved
         assert result.year == dt.year
@@ -360,26 +356,26 @@ class TestParseDatetimeUtcProperties:
         assert result.second == dt.second
         assert result.microsecond == dt.microsecond
 
-    def test_datetime_none_handling(self):
+    def test_datetime_none_handling(self) -> None:
         """Property: None input should return None."""
         result = parse_datetime_utc(None)
         assert result is None
 
     @given(
-        valid_iso_string=st.datetimes(timezones=st.one_of(st.none(), st.just(timezone.utc))).map(
+        valid_iso_string=st.datetimes(timezones=st.one_of(st.none(), st.just(UTC))).map(
             lambda dt: dt.isoformat()
         )
     )
-    def test_datetime_iso_string_parsing(self, valid_iso_string: str):
+    def test_datetime_iso_string_parsing(self, valid_iso_string: str) -> None:
         """Property: Valid ISO strings should parse correctly."""
         result = parse_datetime_utc(valid_iso_string)
 
         # Property: Should successfully parse
         assert result is not None
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
     @given(invalid_string=st.text(min_size=1).filter(lambda x: x and not _is_valid_iso_datetime(x)))
-    def test_datetime_invalid_string_rejection(self, invalid_string: str):
+    def test_datetime_invalid_string_rejection(self, invalid_string: str) -> None:
         """Property: Invalid datetime strings should raise DateTimeParsingError."""
         # Skip strings that might be valid timestamps
         assume(not _could_be_timestamp(invalid_string))
@@ -418,7 +414,7 @@ class TestValidateStrFieldProperties:
         text=st.text(min_size=1, max_size=1000),
         max_length=st.integers(min_value=1, max_value=1000),
     )
-    def test_str_field_valid_input_passthrough(self, text: str, max_length: int):
+    def test_str_field_valid_input_passthrough(self, text: str, max_length: int) -> None:
         """Property: Valid string input should pass through unchanged."""
         assume(len(text) <= max_length)
         assume(text.strip())  # Non-empty after stripping
@@ -438,7 +434,7 @@ class TestValidateStrFieldProperties:
             st.dictionaries(st.text(), st.text()),
         )
     )
-    def test_str_field_non_string_rejection(self, non_string):
+    def test_str_field_non_string_rejection(self, non_string: float | bool | list[str] | dict[str, str]) -> None:
         """Property: Non-string input should raise TypeFieldError."""
         with pytest.raises(TypeFieldError) as exc_info:
             validate_str_field(non_string)
@@ -452,7 +448,7 @@ class TestValidateStrFieldProperties:
         text=st.text(min_size=1, max_size=100),
         max_length=st.integers(min_value=1, max_value=50),
     )
-    def test_str_field_length_validation(self, text: str, max_length: int):
+    def test_str_field_length_validation(self, text: str, max_length: int) -> None:
         """Property: Strings exceeding max_length should be rejected."""
         assume(len(text) > max_length)
 
@@ -465,7 +461,7 @@ class TestValidateStrFieldProperties:
         assert str(len(text)) in error_msg
 
     @given(empty_str=st.just("") | st.text(max_size=10).filter(lambda x: not x.strip()))
-    def test_str_field_empty_string_handling(self, empty_str: str):
+    def test_str_field_empty_string_handling(self, empty_str: str) -> None:
         """Property: Empty string handling should respect allow_empty parameter."""
         # Property: allow_empty=True should accept empty strings
         result = validate_str_field(empty_str, allow_empty=True)
@@ -488,7 +484,7 @@ class TestValidateEnumFieldProperties:
         allowed_values=st.sets(st.text(min_size=1, max_size=20), min_size=1, max_size=10),
         chosen_value=st.data(),
     )
-    def test_enum_field_allowed_value_acceptance(self, allowed_values: set[str], chosen_value):
+    def test_enum_field_allowed_value_acceptance(self, allowed_values: set[str], chosen_value: DataObject) -> None:
         """Property: Values in allowed set should be accepted."""
         # Choose one of the allowed values
         value = chosen_value.draw(st.sampled_from(sorted(allowed_values)))
@@ -515,7 +511,7 @@ class TestValidateEnumFieldProperties:
     )
     def test_enum_field_disallowed_value_rejection(
         self, allowed_values: set[str], invalid_value: str
-    ):
+    ) -> None:
         """Property: Values not in allowed set should be rejected."""
         assume(invalid_value not in allowed_values)
 
@@ -538,7 +534,7 @@ class TestTimeframeToMsProperties:
     @given(
         minutes=st.integers(min_value=1, max_value=1440),  # 1 minute to 1 day
     )
-    def test_timeframe_minute_conversion(self, minutes: int):
+    def test_timeframe_minute_conversion(self, minutes: int) -> None:
         """Property: Minute timeframes should convert correctly."""
         timeframe = f"{minutes}m"
         result = timeframe_to_ms(timeframe)
@@ -550,7 +546,7 @@ class TestTimeframeToMsProperties:
     @given(
         hours=st.integers(min_value=1, max_value=24),
     )
-    def test_timeframe_hour_conversion(self, hours: int):
+    def test_timeframe_hour_conversion(self, hours: int) -> None:
         """Property: Hour timeframes should convert correctly."""
         timeframe = f"{hours}h"
         result = timeframe_to_ms(timeframe)
@@ -562,7 +558,7 @@ class TestTimeframeToMsProperties:
     @given(
         days=st.integers(min_value=1, max_value=7),
     )
-    def test_timeframe_day_conversion(self, days: int):
+    def test_timeframe_day_conversion(self, days: int) -> None:
         """Property: Day timeframes should convert correctly."""
         timeframe = f"{days}d"
         result = timeframe_to_ms(timeframe)
@@ -574,7 +570,7 @@ class TestTimeframeToMsProperties:
     @given(
         raw_minutes=st.integers(min_value=1, max_value=1440),
     )
-    def test_timeframe_raw_number_conversion(self, raw_minutes: int):
+    def test_timeframe_raw_number_conversion(self, raw_minutes: int) -> None:
         """Property: Raw numbers should be treated as minutes."""
         timeframe = str(raw_minutes)
         result = timeframe_to_ms(timeframe)
@@ -587,7 +583,7 @@ class TestTimeframeToMsProperties:
         invalid_timeframe=st.text().filter(lambda x: not _is_valid_timeframe(x)),
         default_minutes=st.integers(min_value=1, max_value=60),
     )
-    def test_timeframe_invalid_with_default(self, invalid_timeframe: str, default_minutes: int):
+    def test_timeframe_invalid_with_default(self, invalid_timeframe: str, default_minutes: int) -> None:
         """Property: Invalid timeframes should use default when provided."""
         result = timeframe_to_ms(invalid_timeframe, default_to_minutes=default_minutes)
 
@@ -598,7 +594,7 @@ class TestTimeframeToMsProperties:
     @given(
         invalid_timeframe=st.text().filter(lambda x: not _is_valid_timeframe(x)),
     )
-    def test_timeframe_invalid_without_default(self, invalid_timeframe: str):
+    def test_timeframe_invalid_without_default(self, invalid_timeframe: str) -> None:
         """Property: Invalid timeframes should raise ValueError when no default."""
         with pytest.raises(ValueError):
             timeframe_to_ms(invalid_timeframe, default_to_minutes=None)
@@ -638,7 +634,7 @@ class TestCheckStrParsableToFiniteDecimalProperties:
     """Property-based tests for check_str_parsable_to_finite_decimal function."""
 
     @given(decimal_str=financial_decimal_strategy())
-    def test_finite_decimal_string_acceptance(self, decimal_str: str):
+    def test_finite_decimal_string_acceptance(self, decimal_str: str) -> None:
         """Property: Valid finite decimal strings should be accepted."""
         result = check_str_parsable_to_finite_decimal(decimal_str)
 
@@ -659,7 +655,7 @@ class TestCheckStrParsableToFiniteDecimalProperties:
             st.just("NaN"),
         )
     )
-    def test_invalid_decimal_string_rejection(self, invalid_input: str):
+    def test_invalid_decimal_string_rejection(self, invalid_input: str) -> None:
         """Property: Invalid or non-finite decimal strings should be rejected."""
         with pytest.raises((DecimalFieldError, EmptyStringError)):
             check_str_parsable_to_finite_decimal(invalid_input)
@@ -672,7 +668,7 @@ class TestCheckStrParsableToFiniteDecimalProperties:
             st.booleans(),
         )
     )
-    def test_non_string_input_rejection(self, non_string):
+    def test_non_string_input_rejection(self, non_string: float | None | bool) -> None:
         """Property: Non-string input should be rejected."""
         with pytest.raises(TypeFieldError):
             check_str_parsable_to_finite_decimal(non_string)
@@ -690,7 +686,7 @@ class TestParsingIntegrationProperties:
         decimal_str=financial_decimal_strategy(),
         field_name=st.text(min_size=1, max_size=20).filter(lambda x: x.strip()),
     )
-    def test_decimal_validation_consistency(self, decimal_str: str, field_name: str):
+    def test_decimal_validation_consistency(self, decimal_str: str, field_name: str) -> None:
         """Property: Decimal validation should be consistent across functions."""
         # Both functions should handle the same valid input consistently
         parse_result = parse_decimal_value(decimal_str, allow_none=False, field_name=field_name)
@@ -709,12 +705,12 @@ class TestParsingIntegrationProperties:
         timestamp=timestamp_strategy(),
         field_name=st.text(min_size=1, max_size=20).filter(lambda x: x.strip()),
     )
-    def test_datetime_parsing_field_context(self, timestamp: float, field_name: str):
+    def test_datetime_parsing_field_context(self, timestamp: float, field_name: str) -> None:
         """Property: Datetime parsing should preserve field context in errors."""
         # Valid timestamp should parse successfully
         result = parse_datetime_utc(timestamp, field_name=field_name)
         assert result is not None
-        assert result.tzinfo == timezone.utc
+        assert result.tzinfo == UTC
 
         # Invalid timestamp should include field name in error
         invalid_timestamp = "invalid_timestamp_" + field_name

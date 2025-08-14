@@ -45,6 +45,75 @@ logger = logging.getLogger(__name__)
 # ============================================================================
 
 
+class TestModel(BaseModel):
+    """Test model for validation error tests."""
+
+    required_field: str
+    numeric_field: int = Field(gt=0)
+
+
+class MockContext:
+    """Mock context implementing WebSocketContextProtocol."""
+
+    def __init__(self) -> None:
+        """Initialize mock context with test data."""
+        # Required by WebSocketContextProtocol
+        self.exchange_type = ExchangeName.HYPERLIQUID
+        self.connection_id = "test-conn"
+        self.message_id = "test-msg-123"
+        self.timestamp = datetime.now(UTC)
+        self.symbol: str | None = "BTC-USD"
+        self.routing_key = "test.route"
+        self.domain_model: object = None
+
+        # Required by BaseContextProtocol
+        self.exchange_name = "hyperliquid"
+        self.validated_envelope = None
+        self.raw_model = None
+
+    def model_dump(self, *, mode: str = "python") -> dict[str, object]:
+        """Pydantic model serialization method.
+
+        Returns:
+            dict[str, object]: Serialized context data for testing.
+        """
+        return {
+            "exchange_type": self.exchange_type.value,
+            "connection_id": self.connection_id,
+            "message_id": self.message_id,
+            "timestamp": self.timestamp.isoformat(),
+            "symbol": self.symbol,
+            "routing_key": self.routing_key,
+        }
+
+    def create_error_context(self) -> object:
+        """Create typed error context for stream error handling.
+
+        Returns:
+            object: Stream error context with connection and exchange data.
+        """
+        return StreamErrorContext(
+            connection_id=self.connection_id,
+            exchange=self.exchange_name,
+        )
+
+    def get_transformer_params(self) -> dict[str, str]:
+        """Get parameters needed by transformers for this exchange.
+
+        Returns:
+            dict[str, str]: Parameters for transformer configuration.
+        """
+        return {"symbol": self.symbol or ""}
+
+    def get_symbol_param(self) -> dict[str, str] | None:
+        """Get symbol parameter if applicable to this exchange.
+
+        Returns:
+            dict[str, str] | None: Symbol parameter or None if not applicable.
+        """
+        return {"symbol": self.symbol} if self.symbol else None
+
+
 @pytest.fixture
 def performance_config() -> dict[str, int]:
     """Configuration for performance tests.
@@ -173,10 +242,14 @@ class TestErrorCreationPerformance:
         class TestModel(BaseModel):
             required_field: str
 
+        validation_error: ValidationError
         try:
             TestModel(required_field=None)  # type: ignore
         except ValidationError as e:
             validation_error = e
+        else:
+            # This should never happen with the invalid model above
+            pytest.fail("Expected ValidationError was not raised")
 
         # Warmup
         for _ in range(performance_config["warmup_iterations"]):
@@ -438,7 +511,7 @@ class TestErrorHandlingPerformance:
         mock_payload = TestModel(required_field="test", numeric_field=1)
 
         # Create validation errors
-        validation_errors = []
+        validation_errors: list[ValidationError] = []
         for i in range(iterations):
             try:
                 TestModel(required_field=None, numeric_field=-i)  # type: ignore
@@ -615,7 +688,6 @@ class TestMemoryUsage:
         test_context: StreamErrorContext,
     ) -> None:
         """Test memory footprint of error objects."""
-
         # Create different error types
         stream_error = WebSocketStreamError(
             message="Test error",
@@ -669,7 +741,6 @@ class TestMemoryUsage:
         test_context: StreamErrorContext,
     ) -> None:
         """Test memory scaling with many errors."""
-
         process = psutil.Process(os.getpid())
 
         # Get initial memory
@@ -726,7 +797,7 @@ class TestPerformanceComparison:
         performance_config: dict[str, int],
     ) -> None:
         """Print performance summary."""
-        logger.info("\n" + "=" * 60)
+        logger.info("\n%s", "=" * 60)
         logger.info("PERFORMANCE TEST SUMMARY")
         logger.info("=" * 60)
         logger.info("Error Creation: > 1,000/second")

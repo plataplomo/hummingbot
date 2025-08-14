@@ -11,15 +11,16 @@ calculations, wrong available balance reporting, or trading with insufficient fu
 """
 
 from decimal import Decimal
-from datetime import datetime, UTC
+from typing import Any
+
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.apis.backpack.mappers.account.bp_balance_mapper import BackpackBalanceMapper
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import SpotBalance
-from cyberdelta.symbols.models import Symbol
+from cyberdelta.symbols.models import BaseSymbol
 
 
 # =============================================================================
@@ -31,8 +32,8 @@ def balance_decimal_strategy() -> SearchStrategy[str]:
     """Generate decimal strings for balance amounts."""
     return st.one_of([
         # Common balance amounts
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(100000), places=6).map(str),
         # Edge cases
         st.just("0"),
         st.just("0.0"),
@@ -56,7 +57,7 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
     ])
 
 
-def balance_data_strategy():
+def balance_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate balance data for transformation testing."""
     return st.fixed_dictionaries({
         "asset": asset_symbol_strategy(),
@@ -65,7 +66,7 @@ def balance_data_strategy():
     })
 
 
-def collateral_balance_strategy():
+def collateral_balance_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate collateral balance data."""
     return st.fixed_dictionaries({
         "asset": asset_symbol_strategy(),
@@ -86,18 +87,19 @@ class TestBalanceTransformationProperties:
     """Property-based tests for balance transformation."""
 
     @given(balance_data=balance_data_strategy())
-    def test_balance_transformation_financial_precision(self, balance_data):
+    def test_balance_transformation_financial_precision(self, balance_data: dict[str, Any]) -> None:
         """Property: Balance transformation should preserve financial precision."""
         # Skip empty assets
         assume(balance_data["asset"].strip())
 
         try:
             mapper = BackpackBalanceMapper()
+            total_balance = str(
+                Decimal(balance_data["available"]) + Decimal(balance_data["locked"])
+            )
             result = mapper.transform_balance_data_to_spot_balance(
                 asset=balance_data["asset"],
-                total_balance=str(
-                    Decimal(balance_data["available"]) + Decimal(balance_data["locked"])
-                ),
+                total_balance=total_balance,
                 available_balance=balance_data["available"],
             )
 
@@ -105,9 +107,8 @@ class TestBalanceTransformationProperties:
             assert isinstance(result, SpotBalance)
 
             # Property: Financial values should be preserved as Decimal
-            assert isinstance(result.available, Decimal)
-            assert isinstance(result.locked, Decimal)
-            assert isinstance(result.total, Decimal)
+            assert isinstance(result.available_quantity, Decimal)
+            assert isinstance(result.total_quantity, Decimal)
 
             # Property: Precision should be preserved
             expected_available = Decimal(balance_data["available"])
@@ -123,7 +124,7 @@ class TestBalanceTransformationProperties:
             assert isinstance(e, (ValueError, TypeError, AttributeError))
 
     @given(available=balance_decimal_strategy(), locked=balance_decimal_strategy())
-    def test_balance_mathematical_invariants(self, available: str, locked: str):
+    def test_balance_mathematical_invariants(self, available: str, locked: str) -> None:
         """Property: Balance calculations should maintain mathematical invariants."""
         # Only test with positive values for this property
         available_dec = Decimal(available)
@@ -131,61 +132,61 @@ class TestBalanceTransformationProperties:
 
         try:
             mapper = BackpackBalanceMapper()
+            total_balance = str(available_dec + locked_dec)
             result = mapper.transform_balance_data_to_spot_balance(
-                asset="BTC", available=available, locked=locked
+                asset="BTC", 
+                total_balance=total_balance, 
+                available_balance=available
             )
 
             # Property: All balance amounts should be non-negative
-            assert result.available >= Decimal("0")
-            assert result.locked >= Decimal("0")
-            assert result.total >= Decimal("0")
+            assert result.available_quantity >= Decimal(0)
+            assert result.total_quantity >= Decimal(0)
 
-            # Property: Total should equal sum of parts
-            assert result.total == result.available + result.locked
+            # Property: Total should match calculated value
+            assert result.total_quantity == available_dec + locked_dec
 
             # Property: Available should not exceed total
-            assert result.available <= result.total
-
-            # Property: Locked should not exceed total
-            assert result.locked <= result.total
+            assert result.available_quantity <= result.total_quantity
 
             # Property: Values should be finite
-            assert result.available.is_finite()
-            assert result.locked.is_finite()
-            assert result.total.is_finite()
+            assert result.available_quantity.is_finite()
+            assert result.total_quantity.is_finite()
 
         except Exception:
             # Expected for invalid input
             pass
 
     @given(asset=st.sampled_from(["BTC", "ETH", "USDC"]))
-    def test_balance_asset_symbol_consistency(self, asset: str):
+    def test_balance_asset_symbol_consistency(self, asset: str) -> None:
         """Property: Asset symbols should be mapped consistently."""
         mapper = BackpackBalanceMapper()
 
         try:
             result = mapper.transform_balance_data_to_spot_balance(
-                asset=asset, available="100.0", locked="10.0"
+                asset=asset, 
+                total_balance="110.0", 
+                available_balance="100.0"
             )
 
-            # Property: Symbol should be properly created
-            assert isinstance(result.symbol, Symbol)
+            # Property: Asset should be properly created
+            assert isinstance(result.asset, BaseSymbol)
 
             # Property: Exchange should be Backpack
-            assert result.symbol.exchange == ExchangeName.BACKPACK
+            assert result.exchange == ExchangeName.BACKPACK
 
             # Property: Asset should be preserved in symbol
-            assert asset in str(result.symbol)
+            assert asset in str(result.asset)
 
-        except Exception as e:
+        except Exception:
             # Asset mapping might fail for invalid symbols
             pass
 
     @given(
-        available=st.decimals(min_value=Decimal("0"), max_value=Decimal("1000"), places=8),
-        locked=st.decimals(min_value=Decimal("0"), max_value=Decimal("1000"), places=8),
+        available=st.decimals(min_value=Decimal(0), max_value=Decimal(1000), places=8),
+        locked=st.decimals(min_value=Decimal(0), max_value=Decimal(1000), places=8),
     )
-    def test_balance_precision_round_trip(self, available: Decimal, locked: Decimal):
+    def test_balance_precision_round_trip(self, available: Decimal, locked: Decimal) -> None:
         """Property: Balance precision should survive round-trip transformation."""
         mapper = BackpackBalanceMapper()
 
@@ -218,7 +219,7 @@ class TestCollateralBalanceProperties:
     """Property-based tests for collateral balance handling."""
 
     @given(collateral_data=collateral_balance_strategy())
-    def test_collateral_balance_transformation(self, collateral_data):
+    def test_collateral_balance_transformation(self, collateral_data: dict[str, Any]) -> None:
         """Property: Collateral balance transformation should preserve all fields."""
         # Skip empty assets
         assume(collateral_data["asset"].strip())
@@ -247,7 +248,7 @@ class TestCollateralBalanceProperties:
         available=balance_decimal_strategy(),
         locked=balance_decimal_strategy(),
     )
-    def test_collateral_balance_invariants(self, total: str, available: str, locked: str):
+    def test_collateral_balance_invariants(self, total: str, available: str, locked: str) -> None:
         """Property: Collateral balances should maintain financial invariants."""
         total_dec = Decimal(total)
         available_dec = Decimal(available)
@@ -303,44 +304,51 @@ class TestBalanceValidationProperties:
             st.text().filter(lambda x: x and not x.replace(".", "").replace("-", "").isdigit()),
         )
     )
-    def test_invalid_balance_rejection(self, available: str):
+    def test_invalid_balance_rejection(self, available: str) -> None:
         """Property: Invalid balance values should be rejected."""
         mapper = BackpackBalanceMapper()
 
         with pytest.raises(Exception):  # Should raise some form of validation error
             mapper.transform_balance_data_to_spot_balance(
-                asset="BTC", available=available, locked="0"
+                asset="BTC", 
+                total_balance="0", 
+                available_balance=available
             )
 
-    @given(available=st.decimals(min_value=Decimal("-1000"), max_value=Decimal("-0.01"), places=8))
-    def test_negative_balance_handling(self, available: Decimal):
+    @given(available=st.decimals(min_value=Decimal(-1000), max_value=Decimal("-0.01"), places=8))
+    def test_negative_balance_handling(self, available: Decimal) -> None:
         """Property: Test handling of negative balances."""
         mapper = BackpackBalanceMapper()
 
         try:
             result = mapper.transform_balance_data_to_spot_balance(
-                asset="BTC", available=str(available), locked="0"
+                asset="BTC", 
+                total_balance=str(available), 
+                available_balance=str(available)
             )
 
             # Property: How negative balances are handled should be consistent
             # (Implementation may reject them or handle them specially)
             if result:
-                assert isinstance(result.available, Decimal)
+                assert isinstance(result.available_quantity, Decimal)
 
         except Exception:
             # Negative balances may be rejected, which is valid
             pass
 
     @given(balance_data=balance_data_strategy())
-    def test_balance_transformation_error_safety(self, balance_data):
+    def test_balance_transformation_error_safety(self, balance_data: dict[str, Any]) -> None:
         """Property: Balance transformation errors should be safe and informative."""
         mapper = BackpackBalanceMapper()
 
         try:
+            total_balance = str(
+                Decimal(balance_data["available"]) + Decimal(balance_data["locked"])
+            )
             mapper.transform_balance_data_to_spot_balance(
                 asset=balance_data["asset"],
-                available=balance_data["available"],
-                locked=balance_data["locked"],
+                total_balance=total_balance,
+                available_balance=balance_data["available"],
             )
         except Exception as e:
             # Property: Errors should be specific exception types
@@ -368,34 +376,41 @@ class TestBalanceMapperIntegrationProperties:
         locked=balance_decimal_strategy(),
         asset=st.sampled_from(["BTC", "ETH", "USDC"]),
     )
-    def test_balance_mapper_consistency(self, available: str, locked: str, asset: str):
+    def test_balance_mapper_consistency(self, available: str, locked: str, asset: str) -> None:
         """Property: Balance mapper should be consistent across calls."""
         mapper = BackpackBalanceMapper()
 
         try:
             # Transform the same data twice
+            total_balance = str(Decimal(available) + Decimal(locked))
             result1 = mapper.transform_balance_data_to_spot_balance(
-                asset=asset, available=available, locked=locked
+                asset=asset, 
+                total_balance=total_balance, 
+                available_balance=available
             )
             result2 = mapper.transform_balance_data_to_spot_balance(
-                asset=asset, available=available, locked=locked
+                asset=asset, 
+                total_balance=total_balance, 
+                available_balance=available
             )
 
             # Property: Same input should give same output
-            assert result1.available == result2.available
-            assert result1.locked == result2.locked
-            assert result1.total == result2.total
-            assert result1.symbol == result2.symbol
+            assert result1.available_quantity == result2.available_quantity
+            assert result1.total_quantity == result2.total_quantity
+            assert result1.asset == result2.asset
 
         except Exception:
             # If it fails once, it should fail consistently
             with pytest.raises(Exception):
+                total_balance = str(Decimal(available) + Decimal(locked))
                 mapper.transform_balance_data_to_spot_balance(
-                    asset=asset, available=available, locked=locked
+                    asset=asset, 
+                    total_balance=total_balance, 
+                    available_balance=available
                 )
 
     @given(balance_data=balance_data_strategy())
-    def test_balance_mapper_deterministic(self, balance_data):
+    def test_balance_mapper_deterministic(self, balance_data: dict[str, Any]) -> None:
         """Property: Balance mapper should be deterministic."""
         # Skip empty assets
         assume(balance_data["asset"].strip())
@@ -404,27 +419,32 @@ class TestBalanceMapperIntegrationProperties:
         mapper2 = BackpackBalanceMapper()
 
         try:
+            total_balance = str(
+                Decimal(balance_data["available"]) + Decimal(balance_data["locked"])
+            )
             result1 = mapper1.transform_balance_data_to_spot_balance(
                 asset=balance_data["asset"],
-                available=balance_data["available"],
-                locked=balance_data["locked"],
+                total_balance=total_balance,
+                available_balance=balance_data["available"],
             )
             result2 = mapper2.transform_balance_data_to_spot_balance(
                 asset=balance_data["asset"],
-                available=balance_data["available"],
-                locked=balance_data["locked"],
+                total_balance=total_balance,
+                available_balance=balance_data["available"],
             )
 
             # Property: Different mapper instances should give same results
-            assert result1.available == result2.available
-            assert result1.locked == result2.locked
-            assert result1.total == result2.total
+            assert result1.available_quantity == result2.available_quantity
+            assert result1.total_quantity == result2.total_quantity
 
         except Exception:
             # Both should fail in the same way
             with pytest.raises(Exception):
+                total_balance = str(
+                    Decimal(balance_data["available"]) + Decimal(balance_data["locked"])
+                )
                 mapper2.transform_balance_data_to_spot_balance(
                     asset=balance_data["asset"],
-                    available=balance_data["available"],
-                    locked=balance_data["locked"],
+                    total_balance=total_balance,
+                    available_balance=balance_data["available"],
                 )

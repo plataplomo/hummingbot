@@ -5,10 +5,7 @@ This test validates Step 49: Recovery System Tests.
 
 import asyncio
 
-# TODO: Implement ws_connection_error_bridge module
-# from cyberdelta.apis.connectivity.ws_connection_error_bridge import (
-#     ConnectionErrorBridge,
-# )
+# TODO: Implement ws_connection_error_bridge module - using Mock for testing
 from unittest.mock import AsyncMock, Mock, Mock as ConnectionErrorBridge
 
 import pytest
@@ -252,10 +249,15 @@ class TestRecoverySystemIntegration:
         )
 
         # Try with circuit breaker strategy
+        final_context = StreamErrorContext(
+            connection_id="test-conn-id",
+            exchange="hyperliquid",
+            reconnect_count=3,
+        )
         error = WebSocketStreamError(
             message="Too many failures",
             code=WebSocketErrorCode.CONNECTION_FAILED,
-            context=context,
+            context=final_context,
             recovery_strategy=WebSocketRecoveryStrategy.CIRCUIT_BREAKER,
         )
 
@@ -483,7 +485,7 @@ class TestRecoverySystemIntegration:
         recovery_system.connection = mock_connection
 
         # Create multiple errors
-        errors = []
+        errors: list[WebSocketStreamError] = []
         for i in range(5):
             error = WebSocketStreamError(
                 message=f"Concurrent error {i}",

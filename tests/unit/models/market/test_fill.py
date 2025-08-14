@@ -12,16 +12,18 @@ SECURITY CRITICAL: Fill model errors could lead to incorrect trade recording,
 wrong fee calculations, invalid fill data reaching exchanges, or accounting failures.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, UTC
+from typing import Any, cast
+
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 
-from cyberdelta.models.market.fill import Fill, HyperliquidFillDetails, BackpackFillDetails
-from cyberdelta.enums import OrderSide, MakerTaker
+from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import FillLogicError
+from cyberdelta.models.market.fill import BackpackFillDetails, Fill, HyperliquidFillDetails
 from cyberdelta.symbols import exchanges
 
 
@@ -36,10 +38,10 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
         # Common trading amounts with realistic precision
         st.decimals(
             min_value=Decimal("0.00000001"),  # Crypto precision
-            max_value=Decimal("1000000"),
+            max_value=Decimal(1000000),
             places=8,
         ).map(str),
-        st.decimals(min_value=Decimal("0.0001"), max_value=Decimal("100000"), places=4).map(str),
+        st.decimals(min_value=Decimal("0.0001"), max_value=Decimal(100000), places=4).map(str),
         # Edge cases
         st.just("0.00000001"),  # Minimum crypto amount
         st.just("999999.99999999"),  # Large amount
@@ -49,28 +51,28 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
     """Generate positive Decimal values for financial calculations."""
-    return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8)
+    return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8)
 
 
 def price_strategy() -> SearchStrategy[Decimal]:
     """Generate realistic price values."""
     return st.decimals(
         min_value=Decimal("0.01"),  # Minimum meaningful price
-        max_value=Decimal("100000"),
+        max_value=Decimal(100000),
         places=6,
     )
 
 
 def quantity_strategy() -> SearchStrategy[Decimal]:
     """Generate realistic quantity values."""
-    return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("10000"), places=8)
+    return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(10000), places=8)
 
 
 def fee_strategy() -> SearchStrategy[Decimal]:
     """Generate realistic fee values (can be negative for rebates)."""
     return st.decimals(
-        min_value=Decimal("-100"),  # Negative for rebates
-        max_value=Decimal("1000"),
+        min_value=Decimal(-100),  # Negative for rebates
+        max_value=Decimal(1000),
         places=6,
     )
 
@@ -90,14 +92,13 @@ def exchange_strategy() -> SearchStrategy[ExchangeName]:
     return st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK])
 
 
-def symbol_strategy() -> SearchStrategy:
+def symbol_strategy() -> SearchStrategy[Any]:
     """Generate valid Symbol objects."""
 
     def create_symbol(exchange: ExchangeName, asset: str) -> object:
         if exchange == ExchangeName.HYPERLIQUID:
             return exchanges.hyperliquid(value=asset)
-        else:
-            return exchanges.backpack(value=asset)
+        return exchanges.backpack(value=asset)
 
     return st.builds(
         create_symbol,
@@ -129,7 +130,7 @@ def asset_strategy() -> SearchStrategy[str]:
     return st.sampled_from(["USDC", "USD", "BTC", "ETH", "SOL"])
 
 
-def basic_fill_data_strategy():
+def basic_fill_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for valid basic fills."""
     return st.fixed_dictionaries({
         "id": fill_id_strategy(),
@@ -143,7 +144,7 @@ def basic_fill_data_strategy():
     })
 
 
-def fill_with_fee_data_strategy():
+def fill_with_fee_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for fills with fees."""
     return st.fixed_dictionaries({
         "id": fill_id_strategy(),
@@ -169,7 +170,7 @@ class TestFillValidationProperties:
     """Property-based tests for Fill model validation logic."""
 
     @given(fill_data=basic_fill_data_strategy())
-    def test_basic_fill_creation_properties(self, fill_data):
+    def test_basic_fill_creation_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Valid basic fills should always be created successfully."""
         fill = Fill(**fill_data)
 
@@ -179,11 +180,11 @@ class TestFillValidationProperties:
         assert isinstance(fill.fee, Decimal)
 
         # Property: Required fields must be positive
-        assert fill.price > Decimal("0")
-        assert fill.quantity > Decimal("0")
+        assert fill.price > Decimal(0)
+        assert fill.quantity > Decimal(0)
 
         # Property: Default fee should be zero
-        assert fill.fee == Decimal("0")
+        assert fill.fee == Decimal(0)
         assert fill.fee_asset is None
 
         # Property: Optional fields should have expected defaults
@@ -195,10 +196,10 @@ class TestFillValidationProperties:
         assert fill.quantity == fill_data["quantity"]
 
     @given(fill_data=fill_with_fee_data_strategy())
-    def test_fill_with_fee_creation_properties(self, fill_data):
+    def test_fill_with_fee_creation_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Valid fills with fees should be created successfully."""
         # Ensure fee logic is valid
-        assume(fill_data["fee"] == Decimal("0") or fill_data["fee_asset"] is not None)
+        assume(fill_data["fee"] == Decimal(0) or fill_data["fee_asset"] is not None)
 
         fill = Fill(**fill_data)
 
@@ -208,108 +209,114 @@ class TestFillValidationProperties:
         assert fill.fee == fill_data["fee"]
 
         # Property: Fee asset consistency
-        if fill.fee != Decimal("0"):
+        if fill.fee != Decimal(0):
             assert fill.fee_asset == fill_data["fee_asset"]
 
         # Property: Maker/taker preserved
         assert fill.maker_taker == fill_data.get("maker_taker")
 
     @given(price=price_strategy(), quantity=quantity_strategy())
-    def test_cost_calculation_properties(self, price: Decimal, quantity: Decimal):
+    def test_cost_calculation_properties(self, price: Decimal, quantity: Decimal) -> None:
         """Property: Cost should always equal price * quantity exactly."""
-        fill_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "test_order_456",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": price,
-            "quantity": quantity,
-        }
-
-        fill = Fill(**fill_data)
+        fill = Fill(
+            id="test_fill_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            executed_at=datetime.now(UTC),
+            side=OrderSide.BUY,
+            order_id="test_order_456",
+            exchange=ExchangeName.HYPERLIQUID,
+            price=price,
+            quantity=quantity,
+        )
 
         # Property: Cost calculation should be exact
         expected_cost = price * quantity
         assert fill.cost == expected_cost
 
-        # Property: Cost should be finite
-        assert fill.cost.is_finite()
-
-        # Property: Cost should be positive (since price and quantity are positive)
-        assert fill.cost > Decimal("0")
+        # Property: Cost should be finite and positive (since price and quantity are positive)
+        # Note: Using cast to help mypy understand @computed_field returns Decimal
+        cost_value = cast(Decimal, fill.cost)
+        assert cost_value.is_finite()
+        assert cost_value > Decimal(0)
 
         # Property: String representation should be consistent
         assert str(fill.cost) == str(expected_cost)
 
     @given(fee=fee_strategy(), has_fee_asset=st.booleans())
-    def test_fee_logic_validation_properties(self, fee: Decimal, has_fee_asset: bool):
+    def test_fee_logic_validation_properties(self, fee: Decimal, has_fee_asset: bool) -> None:
         """Property: Fee logic should be consistently validated."""
-        fill_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "test_order_456",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": Decimal("50000.0"),
-            "quantity": Decimal("1.0"),
-            "fee": fee,
-            "fee_asset": "USDC" if has_fee_asset else None,
-        }
+        fee_asset = "USDC" if has_fee_asset else None
 
         # Property: Non-zero fee requires fee_asset
-        if fee != Decimal("0") and not has_fee_asset:
+        if fee != Decimal(0) and not has_fee_asset:
             with pytest.raises((FillLogicError, Exception)) as exc_info:
-                Fill(**fill_data)
+                Fill(
+                    id="test_fill_123",
+                    symbol=exchanges.hyperliquid(value="BTC"),
+                    executed_at=datetime.now(UTC),
+                    side=OrderSide.BUY,
+                    order_id="test_order_456",
+                    exchange=ExchangeName.HYPERLIQUID,
+                    price=Decimal("50000.0"),
+                    quantity=Decimal("1.0"),
+                    fee=fee,
+                    fee_asset=fee_asset,
+                )
             # Should raise either FillLogicError or Pydantic ValidationError
             assert "fee_asset" in str(exc_info.value).lower()
         else:
             # Property: Valid combinations should work
-            fill = Fill(**fill_data)
+            fill = Fill(
+                id="test_fill_123",
+                symbol=exchanges.hyperliquid(value="BTC"),
+                executed_at=datetime.now(UTC),
+                side=OrderSide.BUY,
+                order_id="test_order_456",
+                exchange=ExchangeName.HYPERLIQUID,
+                price=Decimal("50000.0"),
+                quantity=Decimal("1.0"),
+                fee=fee,
+                fee_asset=fee_asset,
+            )
             assert fill.fee == fee
-            if fee != Decimal("0"):
+            if fee != Decimal(0):
                 assert fill.fee_asset == "USDC"
             else:
                 assert fill.fee_asset is None
 
     @given(
-        negative_price=st.decimals(min_value=Decimal("-1000"), max_value=Decimal("0"), places=6),
-        negative_quantity=st.decimals(min_value=Decimal("-100"), max_value=Decimal("0"), places=8),
+        negative_price=st.decimals(min_value=Decimal(-1000), max_value=Decimal(0), places=6),
+        negative_quantity=st.decimals(min_value=Decimal(-100), max_value=Decimal(0), places=8),
     )
     def test_negative_price_quantity_rejection(
         self, negative_price: Decimal, negative_quantity: Decimal
-    ):
+    ) -> None:
         """Property: Negative prices and quantities should be rejected."""
-        base_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "test_order_456",
-            "exchange": ExchangeName.HYPERLIQUID,
-        }
-
         # Test negative price
-        fill_data_price = base_data.copy()
-        fill_data_price.update({
-            "price": negative_price,
-            "quantity": Decimal("1.0"),
-        })
-
         with pytest.raises(Exception):  # Pydantic validation error
-            Fill(**fill_data_price)
+            Fill(
+                id="test_fill_123",
+                symbol=exchanges.hyperliquid(value="BTC"),
+                executed_at=datetime.now(UTC),
+                side=OrderSide.BUY,
+                order_id="test_order_456",
+                exchange=ExchangeName.HYPERLIQUID,
+                price=negative_price,
+                quantity=Decimal("1.0"),
+            )
 
         # Test negative quantity
-        fill_data_quantity = base_data.copy()
-        fill_data_quantity.update({
-            "price": Decimal("50000.0"),
-            "quantity": negative_quantity,
-        })
-
         with pytest.raises(Exception):  # Pydantic validation error
-            Fill(**fill_data_quantity)
+            Fill(
+                id="test_fill_123",
+                symbol=exchanges.hyperliquid(value="BTC"),
+                executed_at=datetime.now(UTC),
+                side=OrderSide.BUY,
+                order_id="test_order_456",
+                exchange=ExchangeName.HYPERLIQUID,
+                price=Decimal("50000.0"),
+                quantity=negative_quantity,
+            )
 
 
 # =============================================================================
@@ -321,69 +328,77 @@ class TestFillExchangeValidationProperties:
     """Property-based tests for exchange-specific fill validation."""
 
     @given(exchange=exchange_strategy())
-    def test_exchange_details_consistency(self, exchange: ExchangeName):
+    def test_exchange_details_consistency(self, exchange: ExchangeName) -> None:
         """Property: Fills should only have details for their own exchange."""
-        fill_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC")
+        # Get the appropriate symbol for the exchange
+        symbol = (
+            exchanges.hyperliquid(value="BTC")
             if exchange == ExchangeName.HYPERLIQUID
-            else exchanges.backpack(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "test_order_456",
-            "exchange": exchange,
-            "price": Decimal("50000.0"),
-            "quantity": Decimal("1.0"),
-        }
+            else exchanges.backpack(value="BTC")
+        )
 
         # Test with correct exchange details
         if exchange == ExchangeName.HYPERLIQUID:
-            fill_data["hl_details"] = HyperliquidFillDetails(fill_hash="test_hash_123")
-            fill = Fill(**fill_data)
+            fill = Fill(
+                id="test_fill_123",
+                symbol=symbol,
+                executed_at=datetime.now(UTC),
+                side=OrderSide.BUY,
+                order_id="test_order_456",
+                exchange=exchange,
+                price=Decimal("50000.0"),
+                quantity=Decimal("1.0"),
+                hl_details=HyperliquidFillDetails(fill_hash="test_hash_123"),
+            )
             assert fill.hl_details is not None
             assert fill.bp_details is None
         else:
-            fill_data["bp_details"] = BackpackFillDetails()
-            fill = Fill(**fill_data)
+            fill = Fill(
+                id="test_fill_123",
+                symbol=symbol,
+                executed_at=datetime.now(UTC),
+                side=OrderSide.BUY,
+                order_id="test_order_456",
+                exchange=exchange,
+                price=Decimal("50000.0"),
+                quantity=Decimal("1.0"),
+                bp_details=BackpackFillDetails(),
+            )
             assert fill.bp_details is not None
             assert fill.hl_details is None
 
-    def test_exchange_details_cross_contamination(self):
+    def test_exchange_details_cross_contamination(self) -> None:
         """Property: Fills should reject details from other exchanges."""
         # Note: Since Fill model doesn't have explicit cross-exchange validation in its logic,
         # this test focuses on proper isolation of exchange-specific details
 
         # Hyperliquid fill with its own details (should work)
-        hl_fill_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "test_order_456",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": Decimal("50000.0"),
-            "quantity": Decimal("1.0"),
-            "hl_details": HyperliquidFillDetails(fill_hash="test_hash_123"),
-        }
-
-        hl_fill = Fill(**hl_fill_data)
+        hl_fill = Fill(
+            id="test_fill_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            executed_at=datetime.now(UTC),
+            side=OrderSide.BUY,
+            order_id="test_order_456",
+            exchange=ExchangeName.HYPERLIQUID,
+            price=Decimal("50000.0"),
+            quantity=Decimal("1.0"),
+            hl_details=HyperliquidFillDetails(fill_hash="test_hash_123"),
+        )
         assert hl_fill.hl_details is not None
         assert hl_fill.bp_details is None
 
         # Backpack fill with its own details (should work)
-        bp_fill_data = {
-            "id": "test_fill_456",
-            "symbol": exchanges.backpack(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.SELL,
-            "order_id": "test_order_789",
-            "exchange": ExchangeName.BACKPACK,
-            "price": Decimal("50000.0"),
-            "quantity": Decimal("1.0"),
-            "bp_details": BackpackFillDetails(system_order_type="LIMIT"),
-        }
-
-        bp_fill = Fill(**bp_fill_data)
+        bp_fill = Fill(
+            id="test_fill_456",
+            symbol=exchanges.backpack(value="BTC"),
+            executed_at=datetime.now(UTC),
+            side=OrderSide.SELL,
+            order_id="test_order_789",
+            exchange=ExchangeName.BACKPACK,
+            price=Decimal("50000.0"),
+            quantity=Decimal("1.0"),
+            bp_details=BackpackFillDetails(system_order_type="LIMIT"),
+        )
         assert bp_fill.bp_details is not None
         assert bp_fill.hl_details is None
 
@@ -397,28 +412,28 @@ class TestFillFinancialPrecisionProperties:
     """Property-based tests for financial precision preservation in fills."""
 
     @given(
-        price=st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("999999"), places=8),
-        quantity=st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("10000"), places=8),
-        fee=st.decimals(min_value=Decimal("-100"), max_value=Decimal("100"), places=8),
+        price=st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(999999), places=8),
+        quantity=st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(10000), places=8),
+        fee=st.decimals(min_value=Decimal(-100), max_value=Decimal(100), places=8),
     )
     def test_financial_precision_preservation(
         self, price: Decimal, quantity: Decimal, fee: Decimal
-    ):
+    ) -> None:
         """Property: All financial values should preserve exact decimal precision."""
-        fill_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "test_order_456",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": price,
-            "quantity": quantity,
-            "fee": fee,
-            "fee_asset": "USDC" if fee != Decimal("0") else None,
-        }
-
-        fill = Fill(**fill_data)
+        fee_asset = "USDC" if fee != Decimal(0) else None
+        
+        fill = Fill(
+            id="test_fill_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            executed_at=datetime.now(UTC),
+            side=OrderSide.BUY,
+            order_id="test_order_456",
+            exchange=ExchangeName.HYPERLIQUID,
+            price=price,
+            quantity=quantity,
+            fee=fee,
+            fee_asset=fee_asset,
+        )
 
         # Property: Exact precision preserved
         assert fill.price == price
@@ -437,57 +452,57 @@ class TestFillFinancialPrecisionProperties:
         assert fill.price.is_finite()
         assert fill.quantity.is_finite()
         assert fill.fee.is_finite()
-        assert fill.cost.is_finite()
+        assert cast(Decimal, fill.cost).is_finite()
 
     @given(
         base_price=price_strategy(),
         base_quantity=quantity_strategy(),
         fee_rate=st.decimals(
-            min_value=Decimal("0"), max_value=Decimal("0.01"), places=6
+            min_value=Decimal(0), max_value=Decimal("0.01"), places=6
         ),  # 0-1% fee
     )
     def test_fill_value_calculations(
         self, base_price: Decimal, base_quantity: Decimal, fee_rate: Decimal
-    ):
+    ) -> None:
         """Property: Fill value calculations should be mathematically consistent."""
         notional_value = base_price * base_quantity
         fee_amount = notional_value * fee_rate
 
-        fill_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "test_order_456",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": base_price,
-            "quantity": base_quantity,
-            "fee": fee_amount,
-            "fee_asset": "USDC",
-            "maker_taker": MakerTaker.TAKER,
-        }
-
-        fill = Fill(**fill_data)
+        fill = Fill(
+            id="test_fill_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            executed_at=datetime.now(UTC),
+            side=OrderSide.BUY,
+            order_id="test_order_456",
+            exchange=ExchangeName.HYPERLIQUID,
+            price=base_price,
+            quantity=base_quantity,
+            fee=fee_amount,
+            fee_asset="USDC",
+            maker_taker=MakerTaker.TAKER,
+        )
 
         # Property: Cost calculation should be exact
-        assert fill.cost == notional_value
-        assert fill.cost == base_price * base_quantity
+        assert cast(Decimal, fill.cost) == notional_value
+        assert cast(Decimal, fill.cost) == base_price * base_quantity
 
         # Property: Fee calculation should be exact
         assert fill.fee == fee_amount
 
         # Property: Net value calculations should be consistent
+        cost_value = cast(Decimal, fill.cost)
         if fill.side == OrderSide.BUY:
             # For buys, total cost including fees
-            total_cost = fill.cost + fill.fee
+            total_cost = cost_value + fill.fee
             assert total_cost == notional_value + fee_amount
         else:
             # For sells, net proceeds after fees
-            net_proceeds = fill.cost - fill.fee
+            net_proceeds = cost_value - fill.fee
             assert net_proceeds == notional_value - fee_amount
 
         # Property: All calculations should be finite and positive
-        assert fill.cost.is_finite() and fill.cost > 0
+        cost_value = cast(Decimal, fill.cost)
+        assert cost_value.is_finite() and cost_value > 0
         assert fill.fee.is_finite()
 
 
@@ -500,7 +515,7 @@ class TestFillImmutabilityProperties:
     """Property-based tests for Fill model immutability."""
 
     @given(fill_data=basic_fill_data_strategy())
-    def test_fill_immutability(self, fill_data):
+    def test_fill_immutability(self, fill_data: dict[str, Any]) -> None:
         """Property: Fill instances should be immutable after creation."""
         fill = Fill(**fill_data)
 
@@ -517,10 +532,10 @@ class TestFillImmutabilityProperties:
         # Property: Original values should be preserved
         assert fill.price == fill_data["price"]
         assert fill.quantity == fill_data["quantity"]
-        assert fill.fee == Decimal("0")  # Default value
+        assert fill.fee == Decimal(0)  # Default value
 
     @given(fill_data=basic_fill_data_strategy())
-    def test_fill_serialization_round_trip(self, fill_data):
+    def test_fill_serialization_round_trip(self, fill_data: dict[str, Any]) -> None:
         """Property: Fill should survive serialization round trip with precision."""
         fill = Fill(**fill_data)
 
@@ -574,7 +589,7 @@ class TestFillIntegrationProperties:
     """Integration property tests for Fill model behavior."""
 
     @given(fill_data=basic_fill_data_strategy())
-    def test_fill_creation_deterministic(self, fill_data):
+    def test_fill_creation_deterministic(self, fill_data: dict[str, Any]) -> None:
         """Property: Fill creation should be deterministic for same inputs."""
         # Create same fill twice
         fill1 = Fill(**fill_data)
@@ -598,27 +613,25 @@ class TestFillIntegrationProperties:
     )
     def test_fill_business_logic_consistency(
         self, price: Decimal, quantity: Decimal, side: OrderSide, maker_taker: MakerTaker | None
-    ):
+    ) -> None:
         """Property: Fill should maintain business logic consistency."""
-        fill_data = {
-            "id": "test_fill_123",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": side,
-            "order_id": "test_order_456",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": price,
-            "quantity": quantity,
-            "maker_taker": maker_taker,
-        }
-
-        fill = Fill(**fill_data)
+        fill = Fill(
+            id="test_fill_123",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            executed_at=datetime.now(UTC),
+            side=side,
+            order_id="test_order_456",
+            exchange=ExchangeName.HYPERLIQUID,
+            price=price,
+            quantity=quantity,
+            maker_taker=maker_taker,
+        )
 
         # Property: Side consistency
         assert fill.side == side
 
         # Property: Cost should always be positive for valid price/quantity
-        assert fill.cost > Decimal("0")
+        assert cast(Decimal, fill.cost) > Decimal(0)
 
         # Property: Maker/taker should be preserved
         assert fill.maker_taker == maker_taker
@@ -634,32 +647,29 @@ class TestFillIntegrationProperties:
     )
     def test_multiple_fills_independence(
         self, price1: Decimal, quantity1: Decimal, price2: Decimal, quantity2: Decimal
-    ):
+    ) -> None:
         """Property: Multiple fills should be independent of each other."""
-        fill1_data = {
-            "id": "fill_1",
-            "symbol": exchanges.hyperliquid(value="BTC"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.BUY,
-            "order_id": "order_1",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": price1,
-            "quantity": quantity1,
-        }
+        fill1 = Fill(
+            id="fill_1",
+            symbol=exchanges.hyperliquid(value="BTC"),
+            executed_at=datetime.now(UTC),
+            side=OrderSide.BUY,
+            order_id="order_1",
+            exchange=ExchangeName.HYPERLIQUID,
+            price=price1,
+            quantity=quantity1,
+        )
 
-        fill2_data = {
-            "id": "fill_2",
-            "symbol": exchanges.hyperliquid(value="ETH"),
-            "executed_at": datetime.now(UTC),
-            "side": OrderSide.SELL,
-            "order_id": "order_2",
-            "exchange": ExchangeName.HYPERLIQUID,
-            "price": price2,
-            "quantity": quantity2,
-        }
-
-        fill1 = Fill(**fill1_data)
-        fill2 = Fill(**fill2_data)
+        fill2 = Fill(
+            id="fill_2",
+            symbol=exchanges.hyperliquid(value="ETH"),
+            executed_at=datetime.now(UTC),
+            side=OrderSide.SELL,
+            order_id="order_2",
+            exchange=ExchangeName.HYPERLIQUID,
+            price=price2,
+            quantity=quantity2,
+        )
 
         # Property: Fills should be independent
         assert fill1.price == price1
@@ -668,10 +678,10 @@ class TestFillIntegrationProperties:
         assert fill2.quantity == quantity2
 
         # Property: Cost calculations should be independent
-        assert fill1.cost == price1 * quantity1
-        assert fill2.cost == price2 * quantity2
+        assert cast(Decimal, fill1.cost) == price1 * quantity1
+        assert cast(Decimal, fill2.cost) == price2 * quantity2
 
         # Property: Modifying one should not affect the other (immutability test)
-        original_fill1_cost = fill1.cost
+        original_fill1_cost = cast(Decimal, fill1.cost)
         # fill1 and fill2 should remain unchanged regardless of operations
-        assert fill1.cost == original_fill1_cost
+        assert cast(Decimal, fill1.cost) == original_fill1_cost

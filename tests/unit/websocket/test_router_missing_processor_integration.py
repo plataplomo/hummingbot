@@ -164,10 +164,13 @@ class TestRouterMissingProcessorIntegration:
         unknown_message = {"stream": "unknown.route", "data": {"test": "data"}}
         # Empty handlers dict - the unknown.route key won't be found
         handlers: dict[str, Any] = {}
-        try:
+        # Verify missing processor handling by checking if proper exception is raised
+        with pytest.raises(Exception) as exc_info:
             await router.route_message(unknown_message, handlers)
-        except Exception:
-            pass  # Expected to fail with missing processor
+        
+        # The exception should indicate missing processor
+        error_message = str(exc_info.value).lower()
+        assert "processor" in error_message or "unknown" in error_message
 
         # Verify legacy error handler was called
         mock_legacy_error_handler.handle_processing_error.assert_called_once()
@@ -203,10 +206,13 @@ class TestRouterMissingProcessorIntegration:
         unknown_message = {"stream": "unknown.route", "data": list_payload}
         # Empty handlers dict - the unknown.route key won't be found
         handlers: dict[str, Any] = {}
-        try:
+        # Verify missing processor handling by checking if proper exception is raised
+        with pytest.raises(Exception) as exc_info:
             await router.route_message(unknown_message, handlers)
-        except Exception:
-            pass  # Expected to fail with missing processor
+        
+        # The exception should indicate missing processor
+        error_message = str(exc_info.value).lower()
+        assert "processor" in error_message or "unknown" in error_message
 
         # Verify typed error handler was called
         mock_typed_error_handler.handle_stream_error.assert_called_once()
@@ -243,10 +249,13 @@ class TestRouterMissingProcessorIntegration:
         unknown_message = {"stream": "test.route", "data": {"message": "test"}}
         # Empty handlers dict - the test.route key won't be found
         handlers: dict[str, Any] = {}
-        try:
+        # Verify missing processor handling by checking if proper exception is raised
+        with pytest.raises(Exception) as exc_info:
             await router.route_message(unknown_message, handlers)
-        except Exception:
-            pass  # Expected to fail with missing processor
+        
+        # The exception should indicate missing processor
+        error_message = str(exc_info.value).lower()
+        assert "processor" in error_message or "unknown" in error_message
 
         # Get the error that was passed to the typed handler
         call_args = mock_typed_error_handler.handle_stream_error.call_args

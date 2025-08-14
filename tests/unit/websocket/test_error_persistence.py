@@ -5,6 +5,7 @@ Tests error state persistence, recovery after restarts, and error history tracki
 
 from __future__ import annotations
 
+import asyncio
 import json
 import tempfile
 from collections.abc import Generator
@@ -518,7 +519,6 @@ class TestErrorPersistence:
         persistence_manager: ErrorPersistenceManager,
     ) -> None:
         """Test that concurrent persistence operations are safe."""
-        import asyncio
 
         async def save_errors(manager: ErrorPersistenceManager, error_id: int) -> None:
             """Save errors with specific ID."""

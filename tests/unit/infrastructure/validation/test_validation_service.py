@@ -481,10 +481,8 @@ class TestValidationServiceProperties:
         ]
         assert len(precision_violations) >= 1
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_market_orders_skip_price_validation(self, _: None) -> None:
+    async def test_market_orders_skip_price_validation(self) -> None:
         """Property: Market orders should skip price-related validations."""
         config = create_mock_config()
         validation_service = ValidationService(config)
@@ -520,10 +518,8 @@ class TestValidationServiceProperties:
             violations_text = " ".join(result.violations).lower()
             assert "price" not in violations_text or "must have a price" not in violations_text
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_no_portfolio_state_always_fails(self, _: None) -> None:
+    async def test_no_portfolio_state_always_fails(self) -> None:
         """Property: Orders should always fail when portfolio state is unavailable."""
         config = create_mock_config()
         validation_service = ValidationService(config)
@@ -543,10 +539,8 @@ class TestValidationServiceProperties:
         assert not result.is_valid
         assert len(result.violations) >= 1
 
-    @given(st.just(None))
-    @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
-    async def test_validation_result_structure_consistency(self, _: None) -> None:
+    async def test_validation_result_structure_consistency(self) -> None:
         """Property: ValidationResult should always have consistent structure."""
         config = create_mock_config()
         validation_service = ValidationService(config)

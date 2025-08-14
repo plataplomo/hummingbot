@@ -14,7 +14,7 @@ import asyncio
 import contextlib
 from collections.abc import Iterator
 from decimal import Decimal
-from typing import Any, Protocol, TypeGuard, cast
+from typing import Any, Protocol, TypeGuard, cast, runtime_checkable
 
 import pytest
 from pydantic import ValidationError
@@ -953,6 +953,14 @@ class TestBackpackAllStreamModelConversions:
             MessageHandler: Handler function for processing WebSocket messages
         """
 
+        @runtime_checkable
+        class SerializableModel(Protocol):
+            """Protocol for models that can be serialized to dict."""
+
+            def model_dump(self) -> dict[str, object]:
+                """Pydantic v2 serialization method."""
+                ...
+
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
@@ -971,7 +979,7 @@ class TestBackpackAllStreamModelConversions:
                     getattr(domain_model, "model_dump", None)
                 ):
                     # Domain model has Pydantic v2 model_dump method
-                    dumped_result: object = getattr(domain_model, "model_dump")()
+                    dumped_result: object = domain_model.model_dump()
                     if isinstance(dumped_result, dict):
                         # Type narrowing: isinstance check confirms dict type
                         model_dict = dumped_result
@@ -981,7 +989,7 @@ class TestBackpackAllStreamModelConversions:
                     getattr(domain_model, "dict", None)
                 ):
                     # Domain model has Pydantic v1 dict method
-                    dict_result: object = getattr(domain_model, "dict")()
+                    dict_result: object = domain_model.dict()
                     if isinstance(dict_result, dict):
                         # Type narrowing: isinstance check confirms dict type
                         model_dict = dict_result

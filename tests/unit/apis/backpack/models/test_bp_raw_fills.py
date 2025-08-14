@@ -13,10 +13,11 @@ to enter the trading system, leading to incorrect trade accounting, invalid PnL
 calculations, or financial losses.
 """
 
+from datetime import UTC, datetime
 from decimal import Decimal
-from datetime import datetime, timezone
+
 import pytest
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -46,7 +47,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
         # Normal decimal values
         st.decimals(
             min_value=Decimal("0.00000001"),
-            max_value=Decimal("1000000"),
+            max_value=Decimal(1000000),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -66,8 +67,8 @@ def fee_decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid fee amounts (typically smaller values)."""
     return st.one_of([
         st.decimals(
-            min_value=Decimal("0"),
-            max_value=Decimal("100"),
+            min_value=Decimal(0),
+            max_value=Decimal(100),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -82,8 +83,8 @@ def fee_decimal_string_strategy() -> SearchStrategy[str]:
 def iso_timestamp_strategy() -> SearchStrategy[str]:
     """Generate valid ISO 8601 timestamp strings."""
     return st.datetimes(
-        min_value=datetime(2020, 1, 1, tzinfo=timezone.utc),
-        max_value=datetime(2030, 1, 1, tzinfo=timezone.utc),
+        min_value=datetime(2020, 1, 1, tzinfo=UTC),
+        max_value=datetime(2030, 1, 1, tzinfo=UTC),
     ).map(lambda dt: dt.isoformat().replace("+00:00", "Z"))
 
 
@@ -553,7 +554,7 @@ class TestBackpackRawFillIntegrationProperties:
             parsed_fills.append(fill)
 
         # Property: Each fill should maintain its individual data
-        for i, (original_data, parsed_fill) in enumerate(zip(fills, parsed_fills)):
+        for i, (original_data, parsed_fill) in enumerate(zip(fills, parsed_fills, strict=False)):
             assert parsed_fill.trade_id == original_data["tradeId"]
             assert parsed_fill.order_id == original_data["orderId"]
             assert parsed_fill.price == original_data["price"]
@@ -578,7 +579,7 @@ class TestBackpackRawFillIntegrationProperties:
 
         if operation == "sum_quantities":
             # Property: Should be able to sum quantities
-            total_quantity = Decimal("0")
+            total_quantity = Decimal(0)
             for fill in fills_list.root:
                 total_quantity += Decimal(fill.quantity)
             assert total_quantity.is_finite()
@@ -586,7 +587,7 @@ class TestBackpackRawFillIntegrationProperties:
 
         elif operation == "sum_fees":
             # Property: Should be able to sum fees
-            total_fees = Decimal("0")
+            total_fees = Decimal(0)
             for fill in fills_list.root:
                 total_fees += Decimal(fill.fee)
             assert total_fees.is_finite()
@@ -594,8 +595,8 @@ class TestBackpackRawFillIntegrationProperties:
 
         elif operation == "avg_price":
             # Property: Should be able to calculate weighted average price
-            total_notional = Decimal("0")
-            total_quantity = Decimal("0")
+            total_notional = Decimal(0)
+            total_quantity = Decimal(0)
             for fill in fills_list.root:
                 price = Decimal(fill.price)
                 quantity = Decimal(fill.quantity)
