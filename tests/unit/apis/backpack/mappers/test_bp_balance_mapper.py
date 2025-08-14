@@ -29,7 +29,11 @@ from cyberdelta.symbols.models import BaseSymbol
 
 
 def balance_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for balance amounts."""
+    """Generate decimal strings for balance amounts.
+
+    Returns:
+        A Hypothesis strategy for decimal balance strings.
+    """
     return st.one_of([
         # Common balance amounts
         st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=8).map(str),
@@ -43,7 +47,11 @@ def balance_decimal_strategy() -> SearchStrategy[str]:
 
 
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbols."""
+    """Generate valid asset symbols.
+
+    Returns:
+        A Hypothesis strategy for asset symbol strings.
+    """
     return st.one_of([
         # Common crypto assets
         st.sampled_from(["BTC", "ETH", "SOL", "USDC", "USDT"]),
@@ -134,9 +142,7 @@ class TestBalanceTransformationProperties:
             mapper = BackpackBalanceMapper()
             total_balance = str(available_dec + locked_dec)
             result = mapper.transform_balance_data_to_spot_balance(
-                asset="BTC", 
-                total_balance=total_balance, 
-                available_balance=available
+                asset="BTC", total_balance=total_balance, available_balance=available
             )
 
             # Property: All balance amounts should be non-negative
@@ -164,9 +170,7 @@ class TestBalanceTransformationProperties:
 
         try:
             result = mapper.transform_balance_data_to_spot_balance(
-                asset=asset, 
-                total_balance="110.0", 
-                available_balance="100.0"
+                asset=asset, total_balance="110.0", available_balance="100.0"
             )
 
             # Property: Asset should be properly created
@@ -310,9 +314,7 @@ class TestBalanceValidationProperties:
 
         with pytest.raises(Exception):  # Should raise some form of validation error
             mapper.transform_balance_data_to_spot_balance(
-                asset="BTC", 
-                total_balance="0", 
-                available_balance=available
+                asset="BTC", total_balance="0", available_balance=available
             )
 
     @given(available=st.decimals(min_value=Decimal(-1000), max_value=Decimal("-0.01"), places=8))
@@ -322,9 +324,7 @@ class TestBalanceValidationProperties:
 
         try:
             result = mapper.transform_balance_data_to_spot_balance(
-                asset="BTC", 
-                total_balance=str(available), 
-                available_balance=str(available)
+                asset="BTC", total_balance=str(available), available_balance=str(available)
             )
 
             # Property: How negative balances are handled should be consistent
@@ -384,14 +384,10 @@ class TestBalanceMapperIntegrationProperties:
             # Transform the same data twice
             total_balance = str(Decimal(available) + Decimal(locked))
             result1 = mapper.transform_balance_data_to_spot_balance(
-                asset=asset, 
-                total_balance=total_balance, 
-                available_balance=available
+                asset=asset, total_balance=total_balance, available_balance=available
             )
             result2 = mapper.transform_balance_data_to_spot_balance(
-                asset=asset, 
-                total_balance=total_balance, 
-                available_balance=available
+                asset=asset, total_balance=total_balance, available_balance=available
             )
 
             # Property: Same input should give same output
@@ -404,9 +400,7 @@ class TestBalanceMapperIntegrationProperties:
             with pytest.raises(Exception):
                 total_balance = str(Decimal(available) + Decimal(locked))
                 mapper.transform_balance_data_to_spot_balance(
-                    asset=asset, 
-                    total_balance=total_balance, 
-                    available_balance=available
+                    asset=asset, total_balance=total_balance, available_balance=available
                 )
 
     @given(balance_data=balance_data_strategy())

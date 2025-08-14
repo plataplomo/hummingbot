@@ -34,29 +34,28 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import HealthCheck, assume, given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions import PositionLogicError
-from cyberdelta.exceptions.field_validation import FieldNameMissingError, TypeFieldError
-from cyberdelta.exceptions.parsing import ParsingError
+from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.models.derivative_position import (
     BackpackPositionDetails,
     DerivativePosition,
     HyperliquidPositionDetails,
 )
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -87,7 +86,7 @@ def financial_decimal_strategy(
         Decimal: A valid decimal for financial calculations
     """
     if allow_zero and draw(st.booleans()):
-        return Decimal("0")
+        return Decimal(0)
 
     # Generate values based on allowed ranges
     if not allow_negative:
@@ -158,8 +157,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for position data."""
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -188,11 +187,11 @@ def consistent_position_data_strategy(draw: st.DrawFn) -> tuple[Decimal, OrderSi
     """
     size = draw(position_size_strategy())
 
-    if size == Decimal("0"):
+    if size == Decimal(0):
         # Flat position - side can be either, entry_price must be None
         side = draw(st.sampled_from([OrderSide.BUY, OrderSide.SELL]))
         entry_price = None
-    elif size > Decimal("0"):
+    elif size > Decimal(0):
         # Long position - side must be BUY, entry_price must be positive
         side = OrderSide.BUY
         entry_price = draw(positive_decimal_strategy())
@@ -320,7 +319,7 @@ class TestDerivativePositionModelProperties:
         assert position.bp_details is None
 
         # Properties: Business logic consistency
-        assert position.is_active() == (size != Decimal("0"))
+        assert position.is_active() == (size != Decimal(0))
 
     @given(
         position_symbol=valid_symbol_strategy(),
@@ -412,7 +411,7 @@ class TestDerivativePositionModelProperties:
         self, size: Decimal, side: OrderSide, entry_price: Decimal | None
     ) -> None:
         """Property: Position logic validation should enforce business rules."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "exchange": ExchangeName.HYPERLIQUID,
             "symbol": BTC_HL,
             "side": side,
@@ -425,19 +424,19 @@ class TestDerivativePositionModelProperties:
         has_logic_error = False
         error_pattern = ""
 
-        if size == Decimal("0") and entry_price is not None:
+        if size == Decimal(0) and entry_price is not None:
             has_logic_error = True
             error_pattern = "entry_price must be None if size is zero"
-        elif size != Decimal("0") and entry_price is None:
+        elif size != Decimal(0) and entry_price is None:
             has_logic_error = True
             error_pattern = "entry_price must be provided if size is non-zero"
-        elif size != Decimal("0") and entry_price is not None and entry_price <= Decimal("0"):
+        elif size != Decimal(0) and entry_price is not None and entry_price <= Decimal(0):
             has_logic_error = True
             error_pattern = "entry_price must be positive .* if size is non-zero"
-        elif size > Decimal("0") and side != OrderSide.BUY:
+        elif size > Decimal(0) and side != OrderSide.BUY:
             has_logic_error = True
             error_pattern = "side must be BUY if size is positive"
-        elif size < Decimal("0") and side != OrderSide.SELL:
+        elif size < Decimal(0) and side != OrderSide.SELL:
             has_logic_error = True
             error_pattern = "side must be SELL if size is negative"
 
@@ -454,7 +453,7 @@ class TestDerivativePositionModelProperties:
     @given(
         mark_price=positive_decimal_strategy(),
         entry_price=positive_decimal_strategy(),
-        size=position_size_strategy().filter(lambda x: x != Decimal("0")),
+        size=position_size_strategy().filter(lambda x: x != Decimal(0)),
         side=st.sampled_from([OrderSide.BUY, OrderSide.SELL]),
     )
     @settings(max_examples=200, deadline=None)
@@ -463,10 +462,7 @@ class TestDerivativePositionModelProperties:
     ) -> None:
         """Property: Unrealized PnL calculation should follow mathematical properties."""
         # Ensure side/size consistency
-        if size > 0:
-            side = OrderSide.BUY
-        else:
-            side = OrderSide.SELL
+        side = OrderSide.BUY if size > 0 else OrderSide.SELL
 
         position = DerivativePosition(
             exchange=ExchangeName.HYPERLIQUID,
@@ -537,7 +533,7 @@ class TestDerivativePositionModelProperties:
         position.timestamp = new_timestamp
         assert position.timestamp == new_timestamp
 
-        if size != Decimal("0"):
+        if size != Decimal(0):
             # For active positions, we can update mark price and PnL
             new_mark_price = Decimal("50000.0")
             position.mark_price = new_mark_price
@@ -564,7 +560,7 @@ class TestDerivativePositionModelProperties:
         bp_details: BackpackPositionDetails,
     ) -> None:
         """Property: Exchange-specific details should only be valid for correct exchange."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "side": OrderSide.BUY,
             "size": Decimal("1.0"),
@@ -613,7 +609,7 @@ class TestDerivativePositionModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Financial fields should reject invalid values."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "exchange": ExchangeName.HYPERLIQUID,
             "symbol": BTC_HL,
             "side": OrderSide.BUY,
@@ -622,7 +618,7 @@ class TestDerivativePositionModelProperties:
             "timestamp": datetime.now(UTC),
         }
 
-        kwargs = base_kwargs.copy()
+        kwargs: dict[str, Any] = base_kwargs.copy()
         kwargs[field_name] = invalid_value
 
         # Property: Invalid values should be rejected
@@ -636,7 +632,7 @@ class TestDerivativePositionModelProperties:
     def test_flat_position_properties(self, side: OrderSide) -> None:
         """Property: Flat positions should have specific behavior."""
         # Generate flat position directly
-        size = Decimal("0")
+        size = Decimal(0)
         entry_price = None
 
         position = DerivativePosition(
@@ -682,8 +678,7 @@ class TestHyperliquidPositionDetailsProperties:
     ) -> None:
         """Property: HyperliquidPositionDetails should handle all field combinations correctly."""
         # Ensure max_leverage >= leverage_value for business logic
-        if max_leverage < leverage_value:
-            max_leverage = leverage_value
+        max_leverage = max(max_leverage, leverage_value)
 
         details = HyperliquidPositionDetails(
             leverage_type=leverage_type,
@@ -711,13 +706,13 @@ class TestHyperliquidPositionDetailsProperties:
         self, field_name: str, invalid_value: int
     ) -> None:
         """Property: HyperliquidPositionDetails should validate field values correctly."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "leverage_type": "cross",
             "leverage_value": 10,
             "max_leverage": 20,
         }
 
-        kwargs = base_kwargs.copy()
+        kwargs: dict[str, Any] = base_kwargs.copy()
         kwargs[field_name] = invalid_value
 
         with pytest.raises((ValidationError, TypeFieldError)):
@@ -798,7 +793,7 @@ class TestBackpackPositionDetailsProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: BackpackPositionDetails should validate decimal field values correctly."""
-        kwargs = {field_name: invalid_value}
+        kwargs: dict[str, Any] = {field_name: invalid_value}
 
         with pytest.raises(ValidationError):
             BackpackPositionDetails(**kwargs)

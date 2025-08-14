@@ -143,7 +143,7 @@ class TestRecoveryStrategyCoverage:
         assert len(advanced_strategies) > 0, "Should have advanced strategies (400-499)"
 
     @pytest.mark.parametrize(
-        "strategy,error_codes", ErrorScenarioGenerator.get_recovery_strategy_scenarios()
+        ("strategy", "error_codes"), ErrorScenarioGenerator.get_recovery_strategy_scenarios()
     )
     def test_recovery_strategy_mapping(
         self,
@@ -162,7 +162,7 @@ class TestRecoveryStrategyCoverage:
             # Some errors might have different strategies based on context
             # but should be related
             if strategy == WebSocketRecoveryStrategy.NONE:
-                assert not error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE, (
+                assert error.get_recovery_strategy() == WebSocketRecoveryStrategy.NONE, (
                     f"Error {code.name} with NONE strategy should not be retryable"
                 )
             # For other strategies, error should be retryable
@@ -373,7 +373,7 @@ class TestRecoveryStrategyCoverage:
             assert error.recovery_strategy == WebSocketRecoveryStrategy.NONE, (
                 f"Error {code.name} should have no recovery strategy"
             )
-            assert not error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE, (
+            assert error.get_recovery_strategy() == WebSocketRecoveryStrategy.NONE, (
                 f"Error {code.name} with no recovery should not be retryable"
             )
 

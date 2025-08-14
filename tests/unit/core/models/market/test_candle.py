@@ -29,7 +29,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -37,20 +37,18 @@ import pytest
 from hypothesis import HealthCheck, assume, given, settings, strategies as st
 from pydantic import ValidationError
 
-from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.field_validation import DecimalFiniteError, FieldNameMissingError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError, ParsingError
 from cyberdelta.models.market.candle import Candle
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -99,7 +97,7 @@ def volume_strategy(draw: st.DrawFn) -> Decimal:
     """
     # Include zero volume for low-activity periods
     if draw(st.booleans()):
-        return Decimal("0")
+        return Decimal(0)
 
     value = draw(
         st.floats(
@@ -181,8 +179,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -273,7 +271,7 @@ class TestCandleModelProperties:
         assert candle.high >= max(candle.open, candle.close)
         assert candle.low <= min(candle.open, candle.close)
         assert candle.high >= candle.low
-        assert candle.volume >= Decimal("0")
+        assert candle.volume >= Decimal(0)
 
     @given(
         symbol=valid_symbol_strategy(),
@@ -329,7 +327,7 @@ class TestCandleModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Price and volume fields should reject invalid values."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "interval": "1h",
             "open_time": datetime.now(UTC),
@@ -398,7 +396,7 @@ class TestCandleModelProperties:
         self, open_price: Decimal, high: Decimal, low: Decimal, close: Decimal
     ) -> None:
         """Property: OHLC relationships should be validated correctly."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "interval": "1h",
             "open_time": datetime.now(UTC),
@@ -454,9 +452,10 @@ class TestCandleModelProperties:
             assume(parseable_inputs > 0)  # Ensure positive (not just non-negative)
 
         # For volume, we can use zero
-        volume_input = (
+        raw_volume = (
             0 if isinstance(parseable_inputs, int) and parseable_inputs == 1 else parseable_inputs
         )
+        volume_input = Decimal(str(raw_volume))
 
         candle = Candle(
             symbol=BTC_HL,
@@ -509,7 +508,7 @@ class TestCandleModelProperties:
     @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
     def test_interval_validation_properties(self, interval: str) -> None:
         """Property: Invalid interval formats should be validated or accepted as strings."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "interval": interval,
             "open_time": datetime.now(UTC),
@@ -540,7 +539,7 @@ class TestCandleModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None)
-    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
+    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: Any) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):
             Candle(

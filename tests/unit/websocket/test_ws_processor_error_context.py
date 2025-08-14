@@ -90,7 +90,7 @@ class MockContext:
 
     def model_dump(self, *, mode: str = "python") -> dict[str, object]:
         """Serialize context data.
-        
+
         Returns:
             dict[str, object]: Serialized context data.
         """
@@ -124,7 +124,7 @@ class MockContext:
 
     def get_transformer_params(self) -> dict[str, str]:
         """Get transformer parameters.
-        
+
         Returns:
             dict[str, str]: Transformer parameters.
         """
@@ -132,7 +132,7 @@ class MockContext:
 
     def get_symbol_param(self) -> dict[str, str] | None:
         """Get symbol parameter.
-        
+
         Returns:
             dict[str, str] | None: Symbol parameter or None.
         """
@@ -140,7 +140,7 @@ class MockContext:
 
     def get_coin_param(self) -> dict[str, str] | None:
         """Get coin parameter.
-        
+
         Returns:
             dict[str, str] | None: Coin parameter or None.
         """
@@ -174,7 +174,7 @@ class TestProcessorErrorContextBuilder:
 
         Returns:
             ValidationError: Pydantic validation error from invalid model data.
-            
+
         Raises:
             AssertionError: If ValidationError is not raised as expected.
         """
@@ -417,7 +417,7 @@ class TestProcessorErrorContextBuilder:
     def test_extract_payload_summary_dict(self) -> None:
         """Test extracting summary from dict payload."""
         # Arrange
-        payload = {"price": 150.50, "symbol": "BTC", "timestamp": 1234567890}
+        payload: dict[str, object] = {"price": 150.50, "symbol": "BTC", "timestamp": 1234567890}
 
         # Act
         result = ProcessorErrorContextBuilder.extract_payload_summary(payload, max_chars=100)

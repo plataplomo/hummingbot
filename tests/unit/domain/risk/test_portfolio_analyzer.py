@@ -61,7 +61,7 @@ def decimal_strategy(
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
     """Generate positive decimal values for financial calculations.
-    
+
     Returns:
         Strategy generating positive Decimal values for testing
     """
@@ -76,7 +76,7 @@ def positive_decimal_strategy() -> SearchStrategy[Decimal]:
 
 def position_size_strategy() -> SearchStrategy[Decimal]:
     """Generate position sizes (can be positive, negative, or zero).
-    
+
     Returns:
         Strategy generating position sizes including zero, positive, and negative values
     """
@@ -89,7 +89,7 @@ def position_size_strategy() -> SearchStrategy[Decimal]:
 
 def price_strategy() -> SearchStrategy[Decimal]:
     """Generate valid market prices.
-    
+
     Returns:
         Strategy generating valid positive price values
     """

@@ -14,7 +14,7 @@ import asyncio
 import contextlib
 from collections.abc import Iterator
 from decimal import Decimal
-from typing import Any, Protocol, TypeGuard, cast, runtime_checkable
+from typing import Any, Protocol, TypeGuard, cast
 
 import pytest
 from pydantic import ValidationError
@@ -953,14 +953,6 @@ class TestBackpackAllStreamModelConversions:
             MessageHandler: Handler function for processing WebSocket messages
         """
 
-        @runtime_checkable
-        class SerializableModel(Protocol):
-            """Protocol for models that can be serialized to dict."""
-
-            def model_dump(self) -> dict[str, object]:
-                """Pydantic v2 serialization method."""
-                ...
-
         async def handler(context: WebSocketContextProtocol) -> None:
             await asyncio.sleep(0)
 
@@ -974,29 +966,39 @@ class TestBackpackAllStreamModelConversions:
 
                 # Convert domain model to dict for analysis - domain models are Pydantic models
                 # that provide serialization methods returning dict[str, Any] structures
-                model_dict: dict[str, object]
-                if hasattr(domain_model, "model_dump") and callable(
-                    getattr(domain_model, "model_dump", None)
-                ):
-                    # Domain model has Pydantic v2 model_dump method
-                    dumped_result: object = domain_model.model_dump()
-                    if isinstance(dumped_result, dict):
-                        # Type narrowing: isinstance check confirms dict type
-                        model_dict = dumped_result
-                    else:
-                        model_dict = {"model": "invalid_model_dump_result"}
-                elif hasattr(domain_model, "dict") and callable(
-                    getattr(domain_model, "dict", None)
-                ):
-                    # Domain model has Pydantic v1 dict method
-                    dict_result: object = domain_model.dict()
-                    if isinstance(dict_result, dict):
-                        # Type narrowing: isinstance check confirms dict type
-                        model_dict = dict_result
-                    else:
-                        model_dict = {"model": "invalid_dict_result"}
+                model_dict: dict[str, Any] = {"model": str(domain_model)}  # Default fallback
+
+                # Try Pydantic v2 model_dump method
+                model_dump_method = getattr(domain_model, "model_dump", None)
+                if model_dump_method is not None and callable(model_dump_method):
+                    try:
+                        dumped_result = model_dump_method()
+                        if isinstance(dumped_result, dict):
+                            # Pydantic model_dump always returns dict[str, Any] - we know this from Pydantic API
+                            # Type safety justified: Pydantic guarantees string keys in serialization output
+                            # Runtime verification: isinstance check confirms dict type
+                            assert isinstance(dumped_result, dict)
+                            model_dict = cast(dict[str, Any], dumped_result)
+                        else:
+                            model_dict = {"model": "invalid_model_dump_result"}
+                    except Exception:
+                        model_dict = {"model": "model_dump_failed"}
                 else:
-                    model_dict = {"model": str(domain_model)}
+                    # Try Pydantic v1 dict method
+                    dict_method = getattr(domain_model, "dict", None)
+                    if dict_method is not None and callable(dict_method):
+                        try:
+                            dict_result = dict_method()
+                            if isinstance(dict_result, dict):
+                                # Pydantic dict always returns dict[str, Any] - we know this from Pydantic API
+                                # Type safety justified: Pydantic guarantees string keys in serialization output
+                                # Runtime verification: isinstance check confirms dict type
+                                assert isinstance(dict_result, dict)
+                                model_dict = cast(dict[str, Any], dict_result)
+                            else:
+                                model_dict = {"model": "invalid_dict_result"}
+                        except Exception:
+                            model_dict = {"model": "dict_method_failed"}
 
                 # Extract symbol from the model data
                 symbol = self._extract_symbol_from_model(model_dict)

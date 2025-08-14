@@ -217,13 +217,14 @@ class TestWebSocketRouterPerformance:
         handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Process 100 messages in bulk
-        messages: list[dict[str, object]] = []
-        for i in range(100):
-            messages.append({
+        messages: list[dict[str, object]] = [
+            {
                 "stream": "ticker",
                 "data": {"symbol": "BTC-USD", "price": str(50000 + i), "seq": i},
                 "timestamp": int(time.time()) + i,
-            })
+            }
+            for i in range(100)
+        ]
 
         # Bulk processing timing
         start_time = time.perf_counter()
@@ -414,7 +415,7 @@ class TestWebSocketRouterPerformance:
         handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Create mixed messages (70% success, 30% missing processor)
-        mixed_messages = []
+        mixed_messages: list[dict[str, Any]] = []
         for i in range(100):
             if i % 10 < 7:  # 70% success
                 mixed_messages.append({
@@ -470,13 +471,14 @@ class TestWebSocketRouterPerformance:
         handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Process messages with memory optimization
-        messages = []
-        for i in range(100):
-            messages.append({
+        messages = [
+            {
                 "stream": "ticker",
                 "data": {"symbol": "BTC-USD", "price": str(50000 + i), "id": i},
                 "timestamp": int(time.time()) + i,
-            })
+            }
+            for i in range(100)
+        ]
 
         # Memory optimized processing timing
         start_time = time.perf_counter()
@@ -519,7 +521,7 @@ class TestWebSocketRouterPerformance:
         performance_router.register_processor("stream2", processor2)
 
         # Test stats collection performance
-        stats_collection_times = []
+        stats_collection_times: list[float] = []
 
         for _ in range(100):
             start_time = time.perf_counter()
@@ -553,7 +555,7 @@ class TestWebSocketRouterPerformance:
         assert performance_router.error_recovery is not None
 
         # Test successful operation notification performance
-        success_notification_times = []
+        success_notification_times: list[float] = []
 
         for _ in range(50):
             start_time = time.perf_counter()
@@ -600,8 +602,8 @@ class TestWebSocketRouterPerformance:
     ) -> None:
         """Test performance of processor registration and management operations."""
         # Test processor registration performance
-        registration_times = []
-        processors = []
+        registration_times: list[float] = []
+        processors: list[PerformanceProcessor] = []
 
         for i in range(100):
             processor = PerformanceProcessor()
@@ -628,7 +630,7 @@ class TestWebSocketRouterPerformance:
         )
 
         # Test processor info retrieval performance
-        info_retrieval_times = []
+        info_retrieval_times: list[float] = []
 
         for _ in range(50):
             start_time = time.perf_counter()
@@ -665,9 +667,8 @@ class TestWebSocketRouterPerformance:
         handlers: dict[str, MessageHandler] = {"ticker": cast(MessageHandler, handler)}
 
         # Simulate high-frequency scenario: 1000 msgs/sec for 1 second
-        messages = []
-        for i in range(1000):
-            messages.append({
+        messages = [
+            {
                 "stream": "ticker",
                 "data": {
                     "symbol": "BTC-USD",
@@ -676,7 +677,9 @@ class TestWebSocketRouterPerformance:
                     "timestamp": int(time.time() * 1000) + i,  # Microsecond precision
                 },
                 "timestamp": int(time.time()) + i,
-            })
+            }
+            for i in range(1000)
+        ]
 
         # Process at high frequency
         start_time = time.perf_counter()

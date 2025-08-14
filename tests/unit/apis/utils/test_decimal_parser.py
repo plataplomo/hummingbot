@@ -72,6 +72,10 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
     - Typical trading amounts (0.00000001 to 1,000,000,000)
     - Common precision levels (2, 4, 6, 8 decimal places)
     - Edge cases around zero
+
+
+    Returns:
+        A Hypothesis strategy for testing.
     """
     return st.one_of([
         # Common financial precisions
@@ -95,7 +99,11 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
-    """Generate positive decimal values for testing."""
+    """Generate positive decimal values for testing.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.decimals(
         min_value=Decimal("0.00000001"),
         max_value=Decimal(1000000),
@@ -106,7 +114,11 @@ def positive_decimal_strategy() -> SearchStrategy[Decimal]:
 
 
 def non_positive_decimal_strategy() -> SearchStrategy[Decimal]:
-    """Generate non-positive decimal values for testing."""
+    """Generate non-positive decimal values for testing.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.decimals(
         min_value=Decimal(-1000000),
         max_value=Decimal(0),
@@ -117,7 +129,11 @@ def non_positive_decimal_strategy() -> SearchStrategy[Decimal]:
 
 
 def invalid_decimal_strategy() -> SearchStrategy[str]:
-    """Generate strings that should NOT be parseable as decimals."""
+    """Generate strings that should NOT be parseable as decimals.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just(""),
         st.just("   "),
@@ -134,7 +150,11 @@ def invalid_decimal_strategy() -> SearchStrategy[str]:
 
 
 def _is_valid_decimal_string(s: str) -> bool:
-    """Helper to check if string is valid decimal."""
+    """Helper to check if string is valid decimal.
+
+    Returns:
+        A boolean value.
+    """
     try:
         Decimal(s.strip())
         return True
@@ -143,7 +163,11 @@ def _is_valid_decimal_string(s: str) -> bool:
 
 
 def validation_context_strategy() -> SearchStrategy[ValidationContext]:
-    """Generate ValidationContext objects for testing."""
+    """Generate ValidationContext objects for testing.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.builds(
         ValidationContext,
         field_name=st.sampled_from(["price", "quantity", "amount", "balance", "fee", "total"]),
@@ -903,7 +927,8 @@ class TestDecimalParserIntegrationProperties:
             result = safe_parse_decimal(None, context)
             assert result == Decimal(0)
 
-            # DEFENSIVE CHECK: Ensure result is not None after default processing. Pypy=[reportArgumentType]
+            # DEFENSIVE CHECK: Ensure result is not None after default processing.
+            # Pypy=[reportArgumentType]
             if result is not None:
                 # Further processing should work with the default zero if range policy allows
                 if context.range_policy in [RangePolicy.ANY, RangePolicy.NON_NEGATIVE]:

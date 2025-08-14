@@ -80,6 +80,10 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
     - Typical trading amounts (0.00000001 to 1,000,000,000)
     - Common precision levels (2, 4, 6, 8 decimal places)
     - Edge cases around zero
+
+
+    Returns:
+        A Hypothesis strategy for testing.
     """
     return st.one_of([
         # Common financial precisions
@@ -103,7 +107,11 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 def invalid_decimal_strategy() -> SearchStrategy[str]:
-    """Generate strings that should NOT be parseable as decimals."""
+    """Generate strings that should NOT be parseable as decimals.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just(""),
         st.just("   "),
@@ -120,7 +128,11 @@ def invalid_decimal_strategy() -> SearchStrategy[str]:
 
 
 def _is_valid_decimal_string(s: str) -> bool:
-    """Helper to check if string is valid decimal."""
+    """Helper to check if string is valid decimal.
+
+    Returns:
+        A boolean value.
+    """
     try:
         Decimal(s.strip().replace(",", ""))
         return True
@@ -129,7 +141,11 @@ def _is_valid_decimal_string(s: str) -> bool:
 
 
 def timestamp_strategy() -> SearchStrategy[float]:
-    """Generate valid timestamp values in different scales."""
+    """Generate valid timestamp values in different scales.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     # Current timestamp ranges for different scales
     current_time = datetime.now().timestamp()
 
@@ -385,7 +401,11 @@ class TestParseDatetimeUtcProperties:
 
 
 def _is_valid_iso_datetime(s: str) -> bool:
-    """Helper to check if string is valid ISO datetime."""
+    """Helper to check if string is valid ISO datetime.
+
+    Returns:
+        A boolean value.
+    """
     try:
         datetime.fromisoformat(s)
         return True
@@ -394,7 +414,11 @@ def _is_valid_iso_datetime(s: str) -> bool:
 
 
 def _could_be_timestamp(s: str) -> bool:
-    """Helper to check if string could be a valid timestamp."""
+    """Helper to check if string could be a valid timestamp.
+
+    Returns:
+        A boolean value.
+    """
     try:
         float_val = float(s)
         return 0 <= float_val <= 1e20  # Reasonable timestamp range
@@ -434,7 +458,9 @@ class TestValidateStrFieldProperties:
             st.dictionaries(st.text(), st.text()),
         )
     )
-    def test_str_field_non_string_rejection(self, non_string: float | bool | list[str] | dict[str, str]) -> None:
+    def test_str_field_non_string_rejection(
+        self, non_string: float | bool | list[str] | dict[str, str]
+    ) -> None:
         """Property: Non-string input should raise TypeFieldError."""
         with pytest.raises(TypeFieldError) as exc_info:
             validate_str_field(non_string)
@@ -484,7 +510,9 @@ class TestValidateEnumFieldProperties:
         allowed_values=st.sets(st.text(min_size=1, max_size=20), min_size=1, max_size=10),
         chosen_value=st.data(),
     )
-    def test_enum_field_allowed_value_acceptance(self, allowed_values: set[str], chosen_value: DataObject) -> None:
+    def test_enum_field_allowed_value_acceptance(
+        self, allowed_values: set[str], chosen_value: DataObject
+    ) -> None:
         """Property: Values in allowed set should be accepted."""
         # Choose one of the allowed values
         value = chosen_value.draw(st.sampled_from(sorted(allowed_values)))
@@ -583,7 +611,9 @@ class TestTimeframeToMsProperties:
         invalid_timeframe=st.text().filter(lambda x: not _is_valid_timeframe(x)),
         default_minutes=st.integers(min_value=1, max_value=60),
     )
-    def test_timeframe_invalid_with_default(self, invalid_timeframe: str, default_minutes: int) -> None:
+    def test_timeframe_invalid_with_default(
+        self, invalid_timeframe: str, default_minutes: int
+    ) -> None:
         """Property: Invalid timeframes should use default when provided."""
         result = timeframe_to_ms(invalid_timeframe, default_to_minutes=default_minutes)
 
@@ -601,7 +631,11 @@ class TestTimeframeToMsProperties:
 
 
 def _is_valid_timeframe(s: str) -> bool:
-    """Helper to check if string is a valid timeframe."""
+    """Helper to check if string is a valid timeframe.
+
+    Returns:
+        A boolean value.
+    """
     if not s or not s.strip():
         return False
 
@@ -716,7 +750,7 @@ class TestParsingIntegrationProperties:
         invalid_timestamp = "invalid_timestamp_" + field_name
         try:
             parse_datetime_utc(invalid_timestamp, field_name=field_name)
-            assert False, "Should have raised an exception"
+            raise AssertionError("Should have raised an exception")
         except DateTimeParsingError as e:
             # Property: Field name should be in error message
             assert field_name in str(e)

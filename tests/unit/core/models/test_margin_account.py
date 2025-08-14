@@ -1,6 +1,7 @@
 """Property-based tests for the CyberDeltaEngine MarginAccountSummary model.
 
-This module provides comprehensive property-based testing of the MarginAccountSummary Pydantic model,
+This module provides comprehensive property-based testing of the MarginAccountSummary Pydantic
+model,
 which represents immutable snapshots of margin account state for trading positions.
 
 Key Testing Areas:
@@ -32,18 +33,10 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy
+from hypothesis import given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.field_validation import (
-    DecimalFieldError,
-    DecimalFiniteError,
-    RequiredFieldNoneError,
-    TypeFieldError,
-)
-from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 from cyberdelta.models.margin_account import (
     BackpackMarginDetails,
     HyperliquidMarginDetails,
@@ -110,16 +103,16 @@ def finite_decimal_strategy(
 
 
 @st.composite
-def exchange_name_strategy(draw: st.DrawFn) -> str:
+def exchange_name_strategy(draw: st.DrawFn) -> ExchangeName:
     """Generate valid exchange names.
 
     Args:
         draw: Hypothesis draw function
 
     Returns:
-        str: A valid exchange name
+        ExchangeName: A valid exchange enum value
     """
-    return draw(st.sampled_from([e.value for e in ExchangeName]))
+    return draw(st.sampled_from(list(ExchangeName)))
 
 
 @st.composite
@@ -134,8 +127,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -276,12 +269,14 @@ class TestMarginAccountSummaryProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_margin_summary_creation_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
     ) -> None:
-        """Property: Minimal MarginAccountSummary with only required fields should always be valid."""
+        """Property: Minimal MarginAccountSummary with only required fields should
+        always be valid.
+        """
         summary = MarginAccountSummary(
             exchange=exchange,
             timestamp=timestamp,
@@ -290,7 +285,7 @@ class TestMarginAccountSummaryProperties:
         )
 
         # Properties: Required fields should be set correctly
-        assert summary.exchange == ExchangeName(exchange)
+        assert summary.exchange == exchange
         assert summary.timestamp == timestamp
         assert summary.total_equity == total_equity
         assert summary.available_equity == available_equity
@@ -319,7 +314,7 @@ class TestMarginAccountSummaryProperties:
     @settings(max_examples=200, deadline=None)
     def test_complete_margin_summary_creation_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
@@ -328,7 +323,9 @@ class TestMarginAccountSummaryProperties:
         total_position_notional: Decimal | None,
         total_unrealized_pnl: Decimal | None,
     ) -> None:
-        """Property: Complete MarginAccountSummary with all core fields should maintain data integrity."""
+        """Property: Complete MarginAccountSummary with all core fields should maintain
+        data integrity.
+        """
         summary = MarginAccountSummary(
             exchange=exchange,
             timestamp=timestamp,
@@ -341,7 +338,7 @@ class TestMarginAccountSummaryProperties:
         )
 
         # Properties: All fields should be preserved exactly
-        assert summary.exchange == ExchangeName(exchange)
+        assert summary.exchange == exchange
         assert summary.timestamp == timestamp
         assert summary.total_equity == total_equity
         assert summary.available_equity == available_equity
@@ -351,7 +348,7 @@ class TestMarginAccountSummaryProperties:
         assert summary.total_unrealized_pnl == total_unrealized_pnl
 
     @given(
-        exchange=st.just("hyperliquid"),
+        exchange=st.just(ExchangeName.HYPERLIQUID),
         timestamp=valid_timestamp_strategy(),
         total_equity=finite_positive_decimal_strategy(),
         available_equity=finite_positive_decimal_strategy(),
@@ -360,7 +357,7 @@ class TestMarginAccountSummaryProperties:
     @settings(max_examples=150, deadline=None)
     def test_margin_summary_with_hyperliquid_details_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
@@ -385,7 +382,7 @@ class TestMarginAccountSummaryProperties:
         assert summary.hl_details.isolated_maintenance_margin_used >= 0
 
     @given(
-        exchange=st.just("backpack"),
+        exchange=st.just(ExchangeName.BACKPACK),
         timestamp=valid_timestamp_strategy(),
         total_equity=finite_positive_decimal_strategy(),
         available_equity=finite_positive_decimal_strategy(),
@@ -394,7 +391,7 @@ class TestMarginAccountSummaryProperties:
     @settings(max_examples=150, deadline=None)
     def test_margin_summary_with_backpack_details_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
@@ -423,12 +420,14 @@ class TestMarginAccountSummaryProperties:
     @settings(max_examples=200, deadline=None)
     def test_margin_summary_decimal_parsing_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Any,
         available_equity: Any,
     ) -> None:
-        """Property: MarginAccountSummary should correctly parse various numeric input types to Decimal."""
+        """Property: MarginAccountSummary should correctly parse various numeric input
+        types to Decimal.
+        """
         summary = MarginAccountSummary(
             exchange=exchange,
             timestamp=timestamp,
@@ -453,7 +452,7 @@ class TestMarginAccountSummaryProperties:
     @settings(max_examples=150, deadline=None)
     def test_margin_summary_immutability_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
@@ -490,11 +489,11 @@ class TestMarginAccountSummaryProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Required decimal fields should reject invalid values."""
-        base_kwargs = {
-            "exchange": "backpack",
+        base_kwargs: dict[str, Any] = {
+            "exchange": ExchangeName.BACKPACK,
             "timestamp": datetime.now(UTC),
-            "total_equity": Decimal("10000"),
-            "available_equity": Decimal("8000"),
+            "total_equity": Decimal(10000),
+            "available_equity": Decimal(8000),
         }
 
         kwargs = base_kwargs.copy()
@@ -521,11 +520,11 @@ class TestMarginAccountSummaryProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Optional positive decimal fields should reject negative/invalid values."""
-        base_kwargs = {
-            "exchange": "backpack",
+        base_kwargs: dict[str, Any] = {
+            "exchange": ExchangeName.BACKPACK,
             "timestamp": datetime.now(UTC),
-            "total_equity": Decimal("10000"),
-            "available_equity": Decimal("8000"),
+            "total_equity": Decimal(10000),
+            "available_equity": Decimal(8000),
         }
 
         kwargs = base_kwargs.copy()
@@ -544,13 +543,13 @@ class TestMarginAccountSummaryProperties:
     @settings(max_examples=150, deadline=None)
     def test_extra_fields_rejection_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
     ) -> None:
         """Property: Extra fields should always be rejected."""
-        margin_data = {
+        margin_data: dict[str, Any] = {
             "exchange": exchange,
             "timestamp": timestamp,
             "total_equity": total_equity,
@@ -613,10 +612,10 @@ class TestHyperliquidMarginDetailsProperties:
 
         # Property: Attempting to modify fields should fail (frozen=True)
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            details.cross_maintenance_margin_used = Decimal("1000")
+            details.cross_maintenance_margin_used = Decimal(1000)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            details.isolated_maintenance_margin_used = Decimal("500")
+            details.isolated_maintenance_margin_used = Decimal(500)
 
     @given(
         cross_maintenance_margin_used=finite_positive_decimal_strategy(),
@@ -631,11 +630,12 @@ class TestHyperliquidMarginDetailsProperties:
         extra_field: str,
     ) -> None:
         """Property: HyperliquidMarginDetails should ignore extra fields (extra='ignore')."""
-        details = HyperliquidMarginDetails(
-            cross_maintenance_margin_used=cross_maintenance_margin_used,
-            isolated_maintenance_margin_used=isolated_maintenance_margin_used,
-            extra_field_name=extra_field,
-        )
+        details_data: dict[str, Any] = {
+            "cross_maintenance_margin_used": cross_maintenance_margin_used,
+            "isolated_maintenance_margin_used": isolated_maintenance_margin_used,
+            "extra_field_name": extra_field,
+        }
+        details = HyperliquidMarginDetails(**details_data)
 
         # Property: Extra fields should be ignored
         assert not hasattr(details, "extra_field_name")
@@ -679,7 +679,7 @@ class TestBackpackMarginDetailsProperties:
         """Property: BackpackMarginDetails should be immutable after creation."""
         # Property: Attempting to modify fields should fail (frozen=True)
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            bp_details.assets_value = Decimal("10000")
+            bp_details.assets_value = Decimal(10000)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
             bp_details.margin_fraction = Decimal("0.5")
@@ -696,7 +696,7 @@ class TestBackpackMarginDetailsProperties:
     ) -> None:
         """Property: BackpackMarginDetails should ignore extra fields (extra='ignore')."""
         # Create new details with extra field
-        data = {
+        data: dict[str, Any] = {
             "assets_value": bp_details.assets_value,
             "liabilities_value": bp_details.liabilities_value,
             "locked_equity": bp_details.locked_equity,
@@ -728,7 +728,7 @@ class TestMarginAccountBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_margin_account_equity_relationship_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity_ratio: float,
@@ -759,7 +759,7 @@ class TestMarginAccountBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_margin_account_margin_requirements_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
@@ -777,8 +777,10 @@ class TestMarginAccountBusinessLogicProperties:
         )
 
         # Property: All margin values should be non-negative
-        assert summary.total_initial_margin_required >= 0
-        assert summary.total_maintenance_margin_required >= 0
+        if summary.total_initial_margin_required is not None:
+            assert summary.total_initial_margin_required >= 0
+        if summary.total_maintenance_margin_required is not None:
+            assert summary.total_maintenance_margin_required >= 0
 
         # Note: Initial margin is typically >= maintenance margin in practice,
         # but the model doesn't enforce this constraint
@@ -792,7 +794,7 @@ class TestMarginAccountBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_margin_account_serialization_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
@@ -829,7 +831,7 @@ class TestMarginAccountBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_margin_account_deterministic_creation_properties(
         self,
-        exchange: str,
+        exchange: ExchangeName,
         timestamp: datetime,
         total_equity: Decimal,
         available_equity: Decimal,
@@ -877,10 +879,10 @@ class TestMarginAccountEdgeCaseProperties:
         snapshot_time = base_time + timedelta(seconds=offset_seconds)
 
         summary = MarginAccountSummary(
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             timestamp=snapshot_time,
-            total_equity=Decimal("10000"),
-            available_equity=Decimal("8000"),
+            total_equity=Decimal(10000),
+            available_equity=Decimal(8000),
         )
 
         # Property: Timestamp relationships should be preserved
@@ -909,7 +911,7 @@ class TestMarginAccountEdgeCaseProperties:
         """Property: MarginAccountSummary should handle extreme values correctly."""
         # Property: Very small values should be handled correctly
         small_summary = MarginAccountSummary(
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             timestamp=datetime.now(UTC),
             total_equity=Decimal(str(very_small_values)),
             available_equity=Decimal(str(very_small_values * 0.8)),
@@ -920,7 +922,7 @@ class TestMarginAccountEdgeCaseProperties:
 
         # Property: Very large values should be handled correctly
         large_summary = MarginAccountSummary(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             timestamp=datetime.now(UTC),
             total_equity=Decimal(str(very_large_values)),
             available_equity=Decimal(str(very_large_values * 0.9)),
@@ -943,7 +945,7 @@ class TestMarginAccountEdgeCaseProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_multiple_margin_accounts_independence_properties(
-        self, summaries: list[tuple[str, datetime, Decimal, Decimal]]
+        self, summaries: list[tuple[ExchangeName, datetime, Decimal, Decimal]]
     ) -> None:
         """Property: Multiple margin accounts should be processed independently."""
         created_summaries = []
@@ -958,9 +960,11 @@ class TestMarginAccountEdgeCaseProperties:
             created_summaries.append(summary)
 
         # Property: Each summary should maintain its individual data
-        for i, (original_data, created_summary) in enumerate(zip(summaries, created_summaries)):
+        for i, (original_data, created_summary) in enumerate(
+            zip(summaries, created_summaries, strict=False)
+        ):
             exchange, timestamp, total_equity, available_equity = original_data
-            assert created_summary.exchange == ExchangeName(exchange)
+            assert created_summary.exchange == exchange
             assert created_summary.timestamp == timestamp
             assert created_summary.total_equity == total_equity
             assert created_summary.available_equity == available_equity

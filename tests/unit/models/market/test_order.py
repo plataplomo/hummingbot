@@ -32,7 +32,11 @@ from cyberdelta.symbols import exchanges
 
 
 def financial_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for financial amounts."""
+    """Generate decimal strings for financial amounts.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Common trading amounts with realistic precision
         st.decimals(
@@ -54,7 +58,11 @@ def positive_decimal_strategy() -> SearchStrategy[Decimal]:
 
 
 def price_strategy() -> SearchStrategy[Decimal]:
-    """Generate realistic price values."""
+    """Generate realistic price values.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.decimals(
         min_value=Decimal("0.01"),  # Minimum meaningful price
         max_value=Decimal(100000),
@@ -68,12 +76,20 @@ def quantity_strategy() -> SearchStrategy[Decimal]:
 
 
 def order_side_strategy() -> SearchStrategy[OrderSide]:
-    """Generate valid order sides."""
+    """Generate valid order sides.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([OrderSide.BUY, OrderSide.SELL])
 
 
 def order_type_strategy() -> SearchStrategy[OrderType]:
-    """Generate valid order types."""
+    """Generate valid order types.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([
         OrderType.MARKET,
         OrderType.LIMIT,
@@ -85,7 +101,11 @@ def order_type_strategy() -> SearchStrategy[OrderType]:
 
 
 def time_in_force_strategy() -> SearchStrategy[TimeInForce]:
-    """Generate valid time in force values."""
+    """Generate valid time in force values.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([
         TimeInForce.GTC,
         TimeInForce.IOC,
@@ -95,7 +115,11 @@ def time_in_force_strategy() -> SearchStrategy[TimeInForce]:
 
 
 def exchange_strategy() -> SearchStrategy[ExchangeName]:
-    """Generate valid exchange names."""
+    """Generate valid exchange names.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK])
 
 
@@ -115,7 +139,11 @@ def symbol_strategy() -> SearchStrategy[Any]:
 
 
 def order_status_strategy() -> SearchStrategy[OrderStatus]:
-    """Generate valid order statuses."""
+    """Generate valid order statuses.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([
         OrderStatus.NEW,
         OrderStatus.OPEN,
@@ -177,7 +205,8 @@ class TestOrderValidationProperties:
     def test_limit_order_creation_properties(self, order_data: dict[str, Any]) -> None:
         """Property: Valid limit orders should always be created successfully."""
         # Ensure price is provided for limit orders
-        assert order_data["price"] is not None and order_data["price"] > 0
+        assert order_data["price"] is not None
+        assert order_data["price"] > 0
 
         order = Order(**order_data)
 
@@ -227,7 +256,7 @@ class TestOrderValidationProperties:
 
         # Create Order explicitly to avoid mypy dict unpacking issues
         average_fill_price = Decimal("50000.0") if quantity_filled > 0 else None
-        
+
         order = Order(
             symbol=exchanges.hyperliquid(value="BTC"),
             side=OrderSide.BUY,
@@ -410,7 +439,8 @@ class TestOrderValidationProperties:
                     symbol=exchanges.hyperliquid(value="BTC"),
                     side=OrderSide.BUY,
                     order_type=OrderType.MARKET,
-                    quantity_requested=quantity_filled + Decimal("1.0"),  # Ensure valid relationship
+                    quantity_requested=quantity_filled
+                    + Decimal("1.0"),  # Ensure valid relationship
                     quantity_filled=quantity_filled,
                     average_fill_price=average_fill_price,
                     time_in_force=TimeInForce.GTC,
@@ -622,7 +652,9 @@ class TestOrderLifecycleProperties:
             OrderStatus.PARTIALLY_FILLED,
         ]),
     )
-    def test_order_status_transitions(self, initial_status: OrderStatus, final_status: OrderStatus) -> None:
+    def test_order_status_transitions(
+        self, initial_status: OrderStatus, final_status: OrderStatus
+    ) -> None:
         """Property: Order status transitions should maintain consistency."""
         order = Order(
             symbol=exchanges.hyperliquid(value="BTC"),
@@ -705,7 +737,8 @@ class TestOrderIntegrationProperties:
         order1 = Order(**order_data)
         order2 = Order(**order_data)
 
-        # Property: All field values should be identical (except client_order_id which has UUID default)
+        # Property: All field values should be identical (except client_order_id which has
+        # UUID default)
         assert order1.symbol == order2.symbol
         assert order1.side == order2.side
         assert order1.order_type == order2.order_type

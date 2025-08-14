@@ -15,6 +15,7 @@ calculations, or financial losses.
 
 from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
@@ -33,7 +34,14 @@ from cyberdelta.apis.backpack.models.bp_raw_fills import (
 
 
 def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
-    """Generate valid non-empty strings with reasonable length."""
+    """Generate valid non-empty strings with reasonable length.
+
+    Args:
+        max_length: Maximum length of generated strings
+
+    Returns:
+        Hypothesis strategy that generates valid string values
+    """
     return st.text(
         alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_."),
         min_size=1,
@@ -42,7 +50,11 @@ def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        Hypothesis strategy that generates valid financial decimal strings
+    """
     return st.one_of([
         # Normal decimal values
         st.decimals(
@@ -64,7 +76,11 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def fee_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid fee amounts (typically smaller values)."""
+    """Generate valid fee amounts (typically smaller values).
+
+    Returns:
+        Hypothesis strategy that generates valid fee decimal strings
+    """
     return st.one_of([
         st.decimals(
             min_value=Decimal(0),
@@ -81,7 +97,11 @@ def fee_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def iso_timestamp_strategy() -> SearchStrategy[str]:
-    """Generate valid ISO 8601 timestamp strings."""
+    """Generate valid ISO 8601 timestamp strings.
+
+    Returns:
+        Hypothesis strategy that generates valid ISO 8601 timestamp strings
+    """
     return st.datetimes(
         min_value=datetime(2020, 1, 1, tzinfo=UTC),
         max_value=datetime(2030, 1, 1, tzinfo=UTC),
@@ -89,12 +109,20 @@ def iso_timestamp_strategy() -> SearchStrategy[str]:
 
 
 def fill_side_strategy() -> SearchStrategy[str]:
-    """Generate valid fill sides (Backpack format)."""
+    """Generate valid fill sides (Backpack format).
+
+    Returns:
+        Hypothesis strategy that generates valid Backpack fill side strings
+    """
     return st.sampled_from(["Bid", "Ask"])
 
 
 def symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading symbols."""
+    """Generate valid trading symbols.
+
+    Returns:
+        Hypothesis strategy that generates valid trading symbol strings
+    """
     return st.sampled_from([
         "BTC_USDC",
         "SOL_USDC",
@@ -106,17 +134,29 @@ def symbol_strategy() -> SearchStrategy[str]:
 
 
 def fee_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid fee symbols."""
+    """Generate valid fee symbols.
+
+    Returns:
+        Hypothesis strategy that generates valid fee symbol strings
+    """
     return st.sampled_from(["USDC", "BTC", "SOL", "ETH"])
 
 
 def trade_id_strategy() -> SearchStrategy[int]:
-    """Generate valid trade IDs."""
+    """Generate valid trade IDs.
+
+    Returns:
+        Hypothesis strategy that generates valid trade ID integers
+    """
     return st.integers(min_value=0, max_value=2**31 - 1)
 
 
-def required_fill_fields_strategy() -> SearchStrategy[dict]:
-    """Generate required fields for a valid fill."""
+def required_fill_fields_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate required fields for a valid fill.
+
+    Returns:
+        Hypothesis strategy that generates dictionaries with required fill fields
+    """
     return st.fixed_dictionaries({
         "fee": fee_decimal_string_strategy(),
         "feeSymbol": fee_symbol_strategy(),
@@ -131,18 +171,39 @@ def required_fill_fields_strategy() -> SearchStrategy[dict]:
     })
 
 
-def optional_fill_fields_strategy() -> SearchStrategy[dict]:
-    """Generate optional fields for fills."""
+def optional_fill_fields_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate optional fields for fills.
+
+    Returns:
+        Hypothesis strategy that generates dictionaries with optional fill fields
+    """
     return st.fixed_dictionaries({
         "clientId": st.one_of(st.none(), valid_string_strategy(max_length=128)),
         "systemOrderType": st.one_of(st.none(), valid_string_strategy(max_length=128)),
     })
 
 
-def complete_fill_data_strategy() -> SearchStrategy[dict]:
-    """Generate complete fill data with both required and optional fields."""
+def _merge_fill_dicts(req: dict[str, Any], opt: dict[str, Any]) -> dict[str, Any]:
+    """Merge required and optional fill fields into complete dictionary.
+
+    Args:
+        req: Required fill field dictionary
+        opt: Optional fill field dictionary
+
+    Returns:
+        Merged dictionary containing all fill fields
+    """
+    return {**req, **opt}
+
+
+def complete_fill_data_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate complete fill data with both required and optional fields.
+
+    Returns:
+        Hypothesis strategy that generates complete fill data dictionaries
+    """
     return st.builds(
-        lambda req, opt: {**req, **opt},
+        _merge_fill_dicts,
         req=required_fill_fields_strategy(),
         opt=optional_fill_fields_strategy(),
     )
@@ -157,7 +218,7 @@ class TestBackpackRawFillResponseProperties:
     """Property-based tests for BackpackRawFillResponse validation."""
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_valid_fill_creation_properties(self, fill_data):
+    def test_valid_fill_creation_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Valid fill data should always create valid models."""
         fill = BackpackRawFillResponse.model_validate(fill_data)
 
@@ -199,7 +260,9 @@ class TestBackpackRawFillResponseProperties:
             "tradeId",
         ]),
     )
-    def test_missing_required_fields_rejection(self, required_fields, missing_field):
+    def test_missing_required_fields_rejection(
+        self, required_fields: dict[str, Any], missing_field: str
+    ) -> None:
         """Property: Fills missing required fields should always be rejected."""
         incomplete_data = required_fields.copy()
         del incomplete_data[missing_field]
@@ -209,7 +272,7 @@ class TestBackpackRawFillResponseProperties:
             BackpackRawFillResponse.model_validate(incomplete_data)
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_serialization_roundtrip_properties(self, fill_data):
+    def test_serialization_roundtrip_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Fills should survive serialization round trip."""
         fill = BackpackRawFillResponse.model_validate(fill_data)
 
@@ -247,7 +310,7 @@ class TestBackpackRawFillResponseProperties:
             st.just(""),
         )
     )
-    def test_invalid_decimal_fields_rejection(self, invalid_decimal):
+    def test_invalid_decimal_fields_rejection(self, invalid_decimal: str) -> None:
         """Property: Invalid decimal strings should be consistently rejected."""
         base_data = {
             "feeSymbol": "USDC",
@@ -278,7 +341,7 @@ class TestBackpackRawFillResponseProperties:
         base_data=required_fill_fields_strategy(),
         invalid_side=st.text(alphabet="xyz", min_size=1, max_size=10),
     )
-    def test_invalid_side_rejection(self, base_data, invalid_side):
+    def test_invalid_side_rejection(self, base_data: dict[str, Any], invalid_side: str) -> None:
         """Property: Invalid side values should be consistently rejected."""
         # Ensure we don't accidentally generate valid sides
         valid_sides = {"Bid", "Ask", "bid", "ask", "Buy", "Sell", "buy", "sell"}
@@ -292,7 +355,7 @@ class TestBackpackRawFillResponseProperties:
             BackpackRawFillResponse.model_validate(test_data)
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_immutability_properties(self, fill_data):
+    def test_immutability_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Fill models should be immutable after creation."""
         fill = BackpackRawFillResponse.model_validate(fill_data)
 
@@ -304,7 +367,7 @@ class TestBackpackRawFillResponseProperties:
             fill.trade_id = 99999
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_alias_mapping_properties(self, fill_data):
+    def test_alias_mapping_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Alias mapping should work consistently."""
         # The model should accept camelCase aliases
         fill = BackpackRawFillResponse.model_validate(fill_data)
@@ -324,7 +387,7 @@ class TestBackpackRawFillResponseProperties:
         assert fill.trade_id == fill_data["tradeId"]
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_extra_fields_rejection(self, fill_data):
+    def test_extra_fields_rejection(self, fill_data: dict[str, Any]) -> None:
         """Property: Extra fields should always be rejected."""
         # Add an extra field
         invalid_data = fill_data.copy()
@@ -342,7 +405,7 @@ class TestBackpackRawFillResponseProperties:
         price=financial_decimal_string_strategy(),
         quantity=financial_decimal_string_strategy(),
     )
-    def test_financial_precision_preservation(self, fee, price, quantity):
+    def test_financial_precision_preservation(self, fee: str, price: str, quantity: str) -> None:
         """Property: Financial values should preserve exact string precision."""
         fill_data = {
             "fee": fee,
@@ -379,7 +442,7 @@ class TestBackpackRawFillResponseProperties:
         assert total_cost.is_finite()
 
     @given(negative_trade_id=st.integers(min_value=-1000, max_value=-1))
-    def test_negative_trade_id_rejection(self, negative_trade_id):
+    def test_negative_trade_id_rejection(self, negative_trade_id: int) -> None:
         """Property: Negative trade IDs should be rejected."""
         fill_data = {
             "fee": "0.1",
@@ -408,7 +471,7 @@ class TestBackpackRawFillsListProperties:
     """Property-based tests for BackpackRawFillsList validation."""
 
     @given(fills_data=st.lists(complete_fill_data_strategy(), min_size=0, max_size=10))
-    def test_valid_fills_list_creation(self, fills_data):
+    def test_valid_fills_list_creation(self, fills_data: list[dict[str, Any]]) -> None:
         """Property: Valid fills list should always create valid models."""
         fills_list = BackpackRawFillsList.model_validate(fills_data)
 
@@ -424,7 +487,7 @@ class TestBackpackRawFillsListProperties:
             assert fill.trade_id == fill_data["tradeId"]
 
     @given(fills_data=st.lists(complete_fill_data_strategy(), min_size=1, max_size=5))
-    def test_fills_list_indexing_properties(self, fills_data):
+    def test_fills_list_indexing_properties(self, fills_data: list[dict[str, Any]]) -> None:
         """Property: Fills list should support proper indexing."""
         fills_list = BackpackRawFillsList.model_validate(fills_data)
 
@@ -447,7 +510,7 @@ class TestBackpackRawFillsListProperties:
             assert all(isinstance(f, BackpackRawFillResponse) for f in slice_result)
 
     @given(fills_data=st.lists(complete_fill_data_strategy(), min_size=0, max_size=10))
-    def test_fills_list_immutability(self, fills_data):
+    def test_fills_list_immutability(self, fills_data: list[dict[str, Any]]) -> None:
         """Property: Fills list should be immutable after creation."""
         fills_list = BackpackRawFillsList.model_validate(fills_data)
 
@@ -464,7 +527,9 @@ class TestBackpackRawFillsListProperties:
         fills_data=st.lists(complete_fill_data_strategy(), min_size=1, max_size=5),
         invalid_index=st.integers(min_value=0, max_value=2),
     )
-    def test_fills_list_with_invalid_fill(self, fills_data, invalid_index):
+    def test_fills_list_with_invalid_fill(
+        self, fills_data: list[dict[str, Any]], invalid_index: int
+    ) -> None:
         """Property: List with any invalid fill should be rejected."""
         # Ensure we have an index to corrupt
         assume(invalid_index < len(fills_data))
@@ -486,7 +551,7 @@ class TestBackpackRawFillIntegrationProperties:
     """Integration property tests for Backpack raw fill models."""
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_model_deterministic_creation(self, fill_data):
+    def test_model_deterministic_creation(self, fill_data: dict[str, Any]) -> None:
         """Property: Model creation should be deterministic for same inputs."""
         fill1 = BackpackRawFillResponse.model_validate(fill_data)
         fill2 = BackpackRawFillResponse.model_validate(fill_data)
@@ -505,7 +570,9 @@ class TestBackpackRawFillIntegrationProperties:
         fee=fee_decimal_string_strategy(),
         is_maker=st.booleans(),
     )
-    def test_fill_financial_calculations(self, price, quantity, fee, is_maker):
+    def test_fill_financial_calculations(
+        self, price: str, quantity: str, fee: str, is_maker: bool
+    ) -> None:
         """Property: Fill financial values should support accurate calculations."""
         fill_data = {
             "fee": fee,
@@ -538,16 +605,13 @@ class TestBackpackRawFillIntegrationProperties:
             assert fee_percentage.is_finite()
 
         # Property: Total cost calculation should work
-        if fill.side == "Bid":  # Buy
-            total_cost = notional + fee_decimal
-        else:  # Sell
-            total_cost = notional - fee_decimal
+        total_cost = notional + fee_decimal if fill.side == "Bid" else notional - fee_decimal
         assert total_cost.is_finite()
 
     @given(fills=st.lists(complete_fill_data_strategy(), min_size=2, max_size=10))
-    def test_multiple_fills_independence(self, fills):
+    def test_multiple_fills_independence(self, fills: list[dict[str, Any]]) -> None:
         """Property: Multiple fills should be processed independently."""
-        parsed_fills = []
+        parsed_fills: list[BackpackRawFillResponse] = []
 
         for fill_data in fills:
             fill = BackpackRawFillResponse.model_validate(fill_data)
@@ -562,10 +626,9 @@ class TestBackpackRawFillIntegrationProperties:
 
             # Property: Fills should not affect each other
             for j, other_fill in enumerate(parsed_fills):
-                if i != j:
+                if i != j and original_data["tradeId"] != fills[j]["tradeId"]:
                     # Trade IDs should be independent
-                    if original_data["tradeId"] != fills[j]["tradeId"]:
-                        assert parsed_fill.trade_id != other_fill.trade_id
+                    assert parsed_fill.trade_id != other_fill.trade_id
                     # Order IDs might be the same (multiple fills per order)
                     # but other fields should vary independently
 
@@ -573,7 +636,9 @@ class TestBackpackRawFillIntegrationProperties:
         fills_data=st.lists(complete_fill_data_strategy(), min_size=1, max_size=5),
         operation=st.sampled_from(["sum_quantities", "sum_fees", "avg_price"]),
     )
-    def test_fills_aggregation_properties(self, fills_data, operation):
+    def test_fills_aggregation_properties(
+        self, fills_data: list[dict[str, Any]], operation: str
+    ) -> None:
         """Property: Fills should support aggregation operations."""
         fills_list = BackpackRawFillsList.model_validate(fills_data)
 
@@ -610,7 +675,7 @@ class TestBackpackRawFillIntegrationProperties:
 
     @settings(max_examples=50)
     @given(timestamp=iso_timestamp_strategy(), trade_id=trade_id_strategy())
-    def test_fill_uniqueness_properties(self, timestamp, trade_id):
+    def test_fill_uniqueness_properties(self, timestamp: str, trade_id: int) -> None:
         """Property: Fills should have unique identifiers."""
         fill_data = {
             "fee": "0.1",

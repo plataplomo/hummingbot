@@ -28,11 +28,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy
+from hypothesis import given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.models.market.funding_rate import (
@@ -42,15 +41,15 @@ from cyberdelta.models.market.funding_rate import (
 )
 from cyberdelta.symbols import Symbol
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -194,8 +193,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -491,7 +490,7 @@ class TestFundingRateModelProperties:
             price_value = abs(float(str(parseable_inputs)))
             if price_value == 0:
                 price_value = 0.00001  # Use small positive value instead of 0
-            price_input = price_value
+            price_input = Decimal(str(price_value))
         except (ValueError, TypeError):
             price_input = None
 
@@ -560,6 +559,7 @@ class TestFundingRateModelProperties:
         )
 
         # Property: Next funding time should be in the future
+        assert fr.next_funding_time is not None
         assert fr.next_funding_time > fr.timestamp
 
         # Property: Time difference should match our offset
@@ -580,7 +580,9 @@ class TestHyperliquidFundingDetailsProperties:
     )
     @settings(max_examples=200, deadline=None)
     def test_minimal_hl_details_properties(self, hl_details: HyperliquidFundingDetails) -> None:
-        """Property: HyperliquidFundingDetails should be valid with any combination of optional fields."""
+        """Property: HyperliquidFundingDetails should be valid with any combination of
+        optional fields.
+        """
         # All fields are optional, so any combination is valid
         assert hl_details is not None
 
@@ -694,16 +696,22 @@ class TestFundingRateEdgeCaseProperties:
         )
 
         # Property: Price difference should be accurate
-        price_diff = fr.mark_price - fr.index_price  # type: ignore[operator]
+        assert fr.mark_price is not None
+        assert fr.index_price is not None
+        price_diff = fr.mark_price - fr.index_price
         assert isinstance(price_diff, Decimal)
         assert price_diff == mark_price - index_price
 
         # Property: Premium calculation basis
         if price_diff > 0:
             # Mark > Index indicates positive premium pressure
+            assert fr.mark_price is not None
+            assert fr.index_price is not None
             assert fr.mark_price > fr.index_price
         elif price_diff < 0:
             # Mark < Index indicates negative premium pressure
+            assert fr.mark_price is not None
+            assert fr.index_price is not None
             assert fr.mark_price < fr.index_price
         else:
             # Equal prices
@@ -732,17 +740,18 @@ class TestFundingRateEdgeCaseProperties:
         )
 
         # Property: Rate trend analysis
-        if fr.predicted_rate > fr.funding_rate:
-            # Rates expected to increase
-            rate_diff = fr.predicted_rate - fr.funding_rate
-            assert rate_diff > 0
-        elif fr.predicted_rate < fr.funding_rate:
-            # Rates expected to decrease
-            rate_diff = fr.predicted_rate - fr.funding_rate
-            assert rate_diff < 0
-        else:
-            # Rates expected to remain stable
-            assert fr.predicted_rate == fr.funding_rate
+        if fr.predicted_rate is not None and fr.funding_rate is not None:
+            if fr.predicted_rate > fr.funding_rate:
+                # Rates expected to increase
+                rate_diff = fr.predicted_rate - fr.funding_rate
+                assert rate_diff > 0
+            elif fr.predicted_rate < fr.funding_rate:
+                # Rates expected to decrease
+                rate_diff = fr.predicted_rate - fr.funding_rate
+                assert rate_diff < 0
+            else:
+                # Rates expected to remain stable
+                assert fr.predicted_rate == fr.funding_rate
 
     @given(
         symbol=valid_symbol_strategy(),

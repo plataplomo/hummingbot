@@ -248,7 +248,7 @@ class TestMultiExchangeErrors:
             await handler.handle_stream_error(auth_error)
 
             # Verify non-retryable
-            assert not auth_error.get_recovery_strategy() != WebSocketRecoveryStrategy.NONE
+            assert auth_error.get_recovery_strategy() == WebSocketRecoveryStrategy.NONE
             assert auth_error.recovery_strategy == WebSocketRecoveryStrategy.NONE
 
     async def test_exchange_specific_rate_limits(self) -> None:
@@ -385,7 +385,7 @@ class TestMultiExchangeErrors:
         assert len(results) == len(exchanges) * 3
 
         # Check metrics for each exchange
-        for _exchange, handler in handlers.items():
+        for handler in handlers.values():
             metrics = handler.get_metrics()
             metrics_typed = cast(ErrorMetricsProtocol, metrics)
             assert metrics_typed.total_errors >= 3

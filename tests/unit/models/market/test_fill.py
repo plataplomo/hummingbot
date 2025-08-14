@@ -33,7 +33,11 @@ from cyberdelta.symbols import exchanges
 
 
 def financial_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for financial amounts."""
+    """Generate decimal strings for financial amounts.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Common trading amounts with realistic precision
         st.decimals(
@@ -55,7 +59,11 @@ def positive_decimal_strategy() -> SearchStrategy[Decimal]:
 
 
 def price_strategy() -> SearchStrategy[Decimal]:
-    """Generate realistic price values."""
+    """Generate realistic price values.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.decimals(
         min_value=Decimal("0.01"),  # Minimum meaningful price
         max_value=Decimal(100000),
@@ -69,7 +77,11 @@ def quantity_strategy() -> SearchStrategy[Decimal]:
 
 
 def fee_strategy() -> SearchStrategy[Decimal]:
-    """Generate realistic fee values (can be negative for rebates)."""
+    """Generate realistic fee values (can be negative for rebates).
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.decimals(
         min_value=Decimal(-100),  # Negative for rebates
         max_value=Decimal(1000),
@@ -78,17 +90,29 @@ def fee_strategy() -> SearchStrategy[Decimal]:
 
 
 def order_side_strategy() -> SearchStrategy[OrderSide]:
-    """Generate valid order sides."""
+    """Generate valid order sides.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([OrderSide.BUY, OrderSide.SELL])
 
 
 def maker_taker_strategy() -> SearchStrategy[MakerTaker]:
-    """Generate valid maker/taker values."""
+    """Generate valid maker/taker values.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([MakerTaker.MAKER, MakerTaker.TAKER])
 
 
 def exchange_strategy() -> SearchStrategy[ExchangeName]:
-    """Generate valid exchange names."""
+    """Generate valid exchange names.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK])
 
 
@@ -108,7 +132,11 @@ def symbol_strategy() -> SearchStrategy[Any]:
 
 
 def fill_id_strategy() -> SearchStrategy[str]:
-    """Generate valid fill IDs."""
+    """Generate valid fill IDs.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.text(
         alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_"),
         min_size=1,
@@ -117,7 +145,11 @@ def fill_id_strategy() -> SearchStrategy[str]:
 
 
 def order_id_strategy() -> SearchStrategy[str]:
-    """Generate valid order IDs."""
+    """Generate valid order IDs.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.text(
         alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_"),
         min_size=1,
@@ -126,7 +158,11 @@ def order_id_strategy() -> SearchStrategy[str]:
 
 
 def asset_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbols for fee_asset."""
+    """Generate valid asset symbols for fee_asset.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from(["USDC", "USD", "BTC", "ETH", "SOL"])
 
 
@@ -421,7 +457,7 @@ class TestFillFinancialPrecisionProperties:
     ) -> None:
         """Property: All financial values should preserve exact decimal precision."""
         fee_asset = "USDC" if fee != Decimal(0) else None
-        
+
         fill = Fill(
             id="test_fill_123",
             symbol=exchanges.hyperliquid(value="BTC"),
@@ -457,9 +493,7 @@ class TestFillFinancialPrecisionProperties:
     @given(
         base_price=price_strategy(),
         base_quantity=quantity_strategy(),
-        fee_rate=st.decimals(
-            min_value=Decimal(0), max_value=Decimal("0.01"), places=6
-        ),  # 0-1% fee
+        fee_rate=st.decimals(min_value=Decimal(0), max_value=Decimal("0.01"), places=6),  # 0-1% fee
     )
     def test_fill_value_calculations(
         self, base_price: Decimal, base_quantity: Decimal, fee_rate: Decimal
@@ -502,7 +536,8 @@ class TestFillFinancialPrecisionProperties:
 
         # Property: All calculations should be finite and positive
         cost_value = cast(Decimal, fill.cost)
-        assert cost_value.is_finite() and cost_value > 0
+        assert cost_value.is_finite()
+        assert cost_value > 0
         assert fill.fee.is_finite()
 
 

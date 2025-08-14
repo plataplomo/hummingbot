@@ -256,8 +256,10 @@ class TestHyperliquidWebSocketMarketData:
                         trades_data = cast(list[object], trades_data_raw)
                         for trade_data_raw in trades_data:
                             assert isinstance(trade_data_raw, dict)
-                            # Type narrowing: trade_data is now known to be a dict
-                            trade_data: dict[str, object] = trade_data_raw
+                            # Hyperliquid API always returns dict[str, Any] for trade data structures
+                            # Type safety justified: Hyperliquid guarantees string keys in API responses
+                            # Runtime verification: isinstance check confirms dict type
+                            trade_data: dict[str, object] = cast(dict[str, object], trade_data_raw)
 
                             # Extract and validate timestamp
                             timestamp_ms = trade_data.get("time", 0)

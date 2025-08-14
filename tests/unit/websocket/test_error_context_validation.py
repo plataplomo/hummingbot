@@ -380,7 +380,8 @@ class TestErrorContextValidation:
 
         assert len(context.connection_id) == 128
         assert len(context.exchange) == 32
-        assert context.channel is not None and len(context.channel) == 64
+        assert context.channel is not None
+        assert len(context.channel) == 64
 
         # Test exceeding limits
         with pytest.raises(ValidationError):

@@ -14,6 +14,7 @@ calculations, or financial losses.
 """
 
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
@@ -29,7 +30,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_fill import HyperliquidRawFill
 
 
 def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
-    """Generate valid non-empty strings with reasonable length."""
+    """Generate valid non-empty strings with reasonable length.
+
+    Returns:
+        A Hypothesis strategy that generates valid non-empty strings.
+    """
     return st.text(
         alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_."),
         min_size=1,
@@ -38,7 +43,11 @@ def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        A Hypothesis strategy that generates valid decimal strings for prices and amounts.
+    """
     return st.one_of([
         # Normal decimal values
         st.decimals(
@@ -58,7 +67,11 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def position_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid position sizes (can be negative for shorts)."""
+    """Generate valid position sizes (can be negative for shorts).
+
+    Returns:
+        A Hypothesis strategy that generates position size strings (positive or negative).
+    """
     return st.one_of([
         st.decimals(
             min_value=Decimal(-100000),
@@ -76,7 +89,11 @@ def position_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def fee_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid fee amounts (typically smaller positive values)."""
+    """Generate valid fee amounts (typically smaller positive values).
+
+    Returns:
+        A Hypothesis strategy that generates fee amount strings.
+    """
     return st.one_of([
         st.decimals(
             min_value=Decimal(0),
@@ -93,12 +110,20 @@ def fee_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def trade_id_strategy() -> SearchStrategy[int]:
-    """Generate valid trade/order IDs."""
+    """Generate valid trade/order IDs.
+
+    Returns:
+        A Hypothesis strategy that generates valid trade/order ID integers.
+    """
     return st.integers(min_value=0, max_value=2**31 - 1)
 
 
 def timestamp_ms_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp in milliseconds."""
+    """Generate valid timestamp in milliseconds.
+
+    Returns:
+        A Hypothesis strategy that generates valid millisecond timestamps.
+    """
     # Unix timestamps in milliseconds for years 2020-2030
     return st.integers(
         min_value=1577836800000,  # 2020-01-01
@@ -107,7 +132,11 @@ def timestamp_ms_strategy() -> SearchStrategy[int]:
 
 
 def coin_strategy() -> SearchStrategy[str]:
-    """Generate valid coin/asset identifiers."""
+    """Generate valid coin/asset identifiers.
+
+    Returns:
+        A Hypothesis strategy that generates valid cryptocurrency symbols.
+    """
     return st.sampled_from([
         "BTC",
         "ETH",
@@ -124,12 +153,20 @@ def coin_strategy() -> SearchStrategy[str]:
 
 
 def side_strategy() -> SearchStrategy[str]:
-    """Generate valid fill sides (Hyperliquid format)."""
+    """Generate valid fill sides (Hyperliquid format).
+
+    Returns:
+        A Hypothesis strategy that generates valid order sides ('B' or 'A').
+    """
     return st.sampled_from(["B", "A"])  # Buy, Ask/Sell
 
 
 def direction_strategy() -> SearchStrategy[str]:
-    """Generate valid direction descriptions."""
+    """Generate valid direction descriptions.
+
+    Returns:
+        A Hypothesis strategy that generates valid trade direction strings.
+    """
     return st.sampled_from([
         "Open Long",
         "Close Long",
@@ -143,12 +180,20 @@ def direction_strategy() -> SearchStrategy[str]:
 
 
 def tx_hash_strategy() -> SearchStrategy[str]:
-    """Generate valid transaction hashes."""
+    """Generate valid transaction hashes.
+
+    Returns:
+        A Hypothesis strategy that generates valid blockchain transaction hashes.
+    """
     return st.text(alphabet="0123456789abcdef", min_size=32, max_size=32).map(lambda x: f"0x{x}")
 
 
 def cloid_strategy() -> SearchStrategy[str | None]:
-    """Generate valid client order IDs (Hyperliquid format)."""
+    """Generate valid client order IDs (Hyperliquid format).
+
+    Returns:
+        A Hypothesis strategy that generates valid client order IDs or None.
+    """
     return st.one_of([
         st.none(),
         # Hex format cloids
@@ -158,8 +203,12 @@ def cloid_strategy() -> SearchStrategy[str | None]:
     ])
 
 
-def required_fill_fields_strategy() -> SearchStrategy[dict]:
-    """Generate required fields for a valid fill."""
+def required_fill_fields_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate required fields for a valid fill.
+
+    Returns:
+        A Hypothesis strategy that generates dictionaries with all required fill fields.
+    """
     return st.fixed_dictionaries({
         "tid": trade_id_strategy(),
         "oid": trade_id_strategy(),
@@ -176,18 +225,30 @@ def required_fill_fields_strategy() -> SearchStrategy[dict]:
     })
 
 
-def optional_fill_fields_strategy() -> SearchStrategy[dict]:
-    """Generate optional fields for fills."""
+def optional_fill_fields_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate optional fields for fills.
+
+    Returns:
+        A Hypothesis strategy that generates dictionaries with optional fill fields.
+    """
     return st.fixed_dictionaries({
         "liquidationMarkPx": st.one_of(st.none(), financial_decimal_string_strategy()),
         "cloid": cloid_strategy(),
     })
 
 
-def complete_fill_data_strategy() -> SearchStrategy[dict]:
-    """Generate complete fill data with both required and optional fields."""
+def complete_fill_data_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate complete fill data with both required and optional fields.
+
+    Returns:
+        A Hypothesis strategy that generates complete fill data dictionaries.
+    """
+
+    def merge_dicts(req: dict[str, Any], opt: dict[str, Any]) -> dict[str, Any]:
+        return {**req, **opt}
+
     return st.builds(
-        lambda req, opt: {**req, **opt},
+        merge_dicts,
         req=required_fill_fields_strategy(),
         opt=optional_fill_fields_strategy(),
     )
@@ -202,7 +263,7 @@ class TestHyperliquidRawFillProperties:
     """Property-based tests for HyperliquidRawFill validation."""
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_valid_fill_creation_properties(self, fill_data):
+    def test_valid_fill_creation_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Valid fill data should always create valid models."""
         fill = HyperliquidRawFill.model_validate(fill_data)
 
@@ -248,7 +309,9 @@ class TestHyperliquidRawFillProperties:
             "isMaker",
         ]),
     )
-    def test_missing_required_fields_rejection(self, required_fields, missing_field):
+    def test_missing_required_fields_rejection(
+        self, required_fields: dict[str, Any], missing_field: str
+    ) -> None:
         """Property: Fills missing required fields should always be rejected."""
         incomplete_data = required_fields.copy()
         del incomplete_data[missing_field]
@@ -258,7 +321,7 @@ class TestHyperliquidRawFillProperties:
             HyperliquidRawFill.model_validate(incomplete_data)
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_serialization_roundtrip_properties(self, fill_data):
+    def test_serialization_roundtrip_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Fills should survive serialization round trip."""
         fill = HyperliquidRawFill.model_validate(fill_data)
 
@@ -298,7 +361,7 @@ class TestHyperliquidRawFillProperties:
             st.just(""),
         )
     )
-    def test_invalid_decimal_fields_rejection(self, invalid_decimal):
+    def test_invalid_decimal_fields_rejection(self, invalid_decimal: str) -> None:
         """Property: Invalid decimal strings should be consistently rejected."""
         base_data = {
             "tid": 12345,
@@ -342,7 +405,7 @@ class TestHyperliquidRawFillProperties:
         base_data=required_fill_fields_strategy(),
         invalid_side=st.text(alphabet="xyz", min_size=1, max_size=10),
     )
-    def test_invalid_side_rejection(self, base_data, invalid_side):
+    def test_invalid_side_rejection(self, base_data: dict[str, Any], invalid_side: str) -> None:
         """Property: Invalid side values should be consistently rejected."""
         # Ensure we don't accidentally generate valid sides
         valid_sides = {"B", "A", "b", "a"}
@@ -356,7 +419,7 @@ class TestHyperliquidRawFillProperties:
             HyperliquidRawFill.model_validate(test_data)
 
     @given(negative_id=st.integers(min_value=-1000, max_value=-1))
-    def test_negative_ids_rejection(self, negative_id):
+    def test_negative_ids_rejection(self, negative_id: int) -> None:
         """Property: Negative trade/order IDs should be rejected."""
         fill_data = {
             "tid": negative_id,  # Invalid negative
@@ -385,7 +448,7 @@ class TestHyperliquidRawFillProperties:
             HyperliquidRawFill.model_validate(fill_data)
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_immutability_properties(self, fill_data):
+    def test_immutability_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Fill models should be immutable after creation."""
         fill = HyperliquidRawFill.model_validate(fill_data)
 
@@ -397,7 +460,7 @@ class TestHyperliquidRawFillProperties:
             fill.tid = 99999
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_alias_mapping_properties(self, fill_data):
+    def test_alias_mapping_properties(self, fill_data: dict[str, Any]) -> None:
         """Property: Alias mapping should work consistently."""
         # The model should accept camelCase aliases
         fill = HyperliquidRawFill.model_validate(fill_data)
@@ -414,7 +477,7 @@ class TestHyperliquidRawFillProperties:
             assert fill.liquidation_mark_px == fill_data["liquidationMarkPx"]
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_extra_fields_rejection(self, fill_data):
+    def test_extra_fields_rejection(self, fill_data: dict[str, Any]) -> None:
         """Property: Extra fields should always be rejected."""
         # Add an extra field
         invalid_data = fill_data.copy()
@@ -433,7 +496,9 @@ class TestHyperliquidRawFillProperties:
         fee=fee_decimal_string_strategy(),
         start_position=position_decimal_string_strategy(),
     )
-    def test_financial_precision_preservation(self, px, sz, fee, start_position):
+    def test_financial_precision_preservation(
+        self, px: str, sz: str, fee: str, start_position: str
+    ) -> None:
         """Property: Financial values should preserve exact string precision."""
         fill_data = {
             "tid": 12345,
@@ -484,7 +549,7 @@ class TestHyperliquidRawFillProperties:
             st.just("0x" + "a" * 33),  # Too long
         )
     )
-    def test_invalid_hash_rejection(self, invalid_hash):
+    def test_invalid_hash_rejection(self, invalid_hash: str) -> None:
         """Property: Invalid transaction hashes should be rejected."""
         fill_data = {
             "tid": 12345,
@@ -515,7 +580,7 @@ class TestHyperliquidRawFillIntegrationProperties:
     """Integration property tests for Hyperliquid raw fill models."""
 
     @given(fill_data=complete_fill_data_strategy())
-    def test_model_deterministic_creation(self, fill_data):
+    def test_model_deterministic_creation(self, fill_data: dict[str, Any]) -> None:
         """Property: Model creation should be deterministic for same inputs."""
         fill1 = HyperliquidRawFill.model_validate(fill_data)
         fill2 = HyperliquidRawFill.model_validate(fill_data)
@@ -535,7 +600,9 @@ class TestHyperliquidRawFillIntegrationProperties:
         side=side_strategy(),
         is_maker=st.booleans(),
     )
-    def test_fill_financial_calculations(self, px, sz, fee, side, is_maker):
+    def test_fill_financial_calculations(
+        self, px: str, sz: str, fee: str, side: str, is_maker: bool
+    ) -> None:
         """Property: Fill financial values should support accurate calculations."""
         fill_data = {
             "tid": 12345,
@@ -568,16 +635,13 @@ class TestHyperliquidRawFillIntegrationProperties:
             assert fee_percentage.is_finite()
 
         # Property: Total cost calculation should work
-        if fill.side == "B":  # Buy
-            total_cost = notional + fee_decimal
-        else:  # Sell
-            total_cost = notional - fee_decimal
+        total_cost = notional + fee_decimal if fill.side == "B" else notional - fee_decimal
         assert total_cost.is_finite()
 
     @given(fills=st.lists(complete_fill_data_strategy(), min_size=2, max_size=10))
-    def test_multiple_fills_independence(self, fills):
+    def test_multiple_fills_independence(self, fills: list[dict[str, Any]]) -> None:
         """Property: Multiple fills should be processed independently."""
-        parsed_fills = []
+        parsed_fills: list[HyperliquidRawFill] = []
 
         for fill_data in fills:
             fill = HyperliquidRawFill.model_validate(fill_data)
@@ -592,17 +656,16 @@ class TestHyperliquidRawFillIntegrationProperties:
 
             # Property: Fills should not affect each other
             for j, other_fill in enumerate(parsed_fills):
-                if i != j:
+                if i != j and original_data["tid"] != fills[j]["tid"]:
                     # Trade IDs should be independent
-                    if original_data["tid"] != fills[j]["tid"]:
-                        assert parsed_fill.tid != other_fill.tid
+                    assert parsed_fill.tid != other_fill.tid
 
     @given(
         start_position=position_decimal_string_strategy(),
         sz=financial_decimal_string_strategy(),
         side=side_strategy(),
     )
-    def test_position_change_calculation(self, start_position, sz, side):
+    def test_position_change_calculation(self, start_position: str, sz: str, side: str) -> None:
         """Property: Position changes should be calculable from fill data."""
         fill_data = {
             "tid": 12345,
@@ -626,10 +689,7 @@ class TestHyperliquidRawFillIntegrationProperties:
         size = Decimal(fill.sz)
 
         # Calculate end position based on side
-        if fill.side == "B":  # Buy increases position
-            end_position = start_pos + size
-        else:  # Sell decreases position
-            end_position = start_pos - size
+        end_position = start_pos + size if fill.side == "B" else start_pos - size
 
         assert end_position.is_finite()
 
@@ -638,8 +698,8 @@ class TestHyperliquidRawFillIntegrationProperties:
         assert position_change == size
 
     @settings(max_examples=50)
-    @given(time=timestamp_ms_strategy(), tid=trade_id_strategy(), hash=tx_hash_strategy())
-    def test_fill_uniqueness_properties(self, time, tid, hash):
+    @given(time=timestamp_ms_strategy(), tid=trade_id_strategy(), tx_hash=tx_hash_strategy())
+    def test_fill_uniqueness_properties(self, time: int, tid: int, tx_hash: str) -> None:
         """Property: Fills should have unique identifiers."""
         fill_data = {
             "tid": tid,
@@ -652,7 +712,7 @@ class TestHyperliquidRawFillIntegrationProperties:
             "time": time,
             "side": "B",
             "dir": "Open Long",
-            "hash": hash,
+            "hash": tx_hash,
             "isMaker": True,
         }
 
@@ -662,11 +722,11 @@ class TestHyperliquidRawFillIntegrationProperties:
         assert fill.tid == tid
 
         # Property: Hash should be unique
-        assert fill.hash == hash
+        assert fill.hash == tx_hash
 
         # Property: Timestamp + tid + hash should form a unique key
         unique_key = f"{fill.time}_{fill.tid}_{fill.hash}"
-        assert unique_key == f"{time}_{tid}_{hash}"
+        assert unique_key == f"{time}_{tid}_{tx_hash}"
 
         # Property: Trade ID should be immutable
         with pytest.raises((AttributeError, ValidationError)):
@@ -676,7 +736,7 @@ class TestHyperliquidRawFillIntegrationProperties:
         liquidation_px=st.one_of(st.none(), financial_decimal_string_strategy()),
         is_liquidation=st.booleans(),
     )
-    def test_liquidation_handling(self, liquidation_px, is_liquidation):
+    def test_liquidation_handling(self, liquidation_px: str | None, is_liquidation: bool) -> None:
         """Property: Liquidation fields should be handled correctly."""
         fill_data = {
             "tid": 12345,
@@ -703,8 +763,9 @@ class TestHyperliquidRawFillIntegrationProperties:
         if is_liquidation and liquidation_px is not None:
             assert fill.liquidation_mark_px == liquidation_px
             # Should be able to parse as decimal
-            liq_px_decimal = Decimal(fill.liquidation_mark_px)
-            assert liq_px_decimal.is_finite()
-            assert liq_px_decimal > 0
+            if fill.liquidation_mark_px is not None:
+                liq_px_decimal = Decimal(fill.liquidation_mark_px)
+                assert liq_px_decimal.is_finite()
+                assert liq_px_decimal > 0
         else:
             assert fill.liquidation_mark_px is None

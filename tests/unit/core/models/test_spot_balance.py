@@ -44,15 +44,15 @@ from cyberdelta.models.spot_balance import (
     SpotBalance,
 )
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -83,7 +83,7 @@ def financial_decimal_strategy(
         Decimal: A valid decimal for financial calculations
     """
     if allow_zero and draw(st.booleans()):
-        return Decimal("0")
+        return Decimal(0)
 
     # Adjust minimum based on restrictions
     if not allow_negative:
@@ -144,8 +144,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for balance data."""
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -161,8 +161,8 @@ def consistent_balance_quantities_strategy(draw: st.DrawFn) -> tuple[Decimal, De
     total = draw(balance_quantity_strategy())
 
     # Generate available quantity that's <= total
-    if total == Decimal("0"):
-        available = Decimal("0")
+    if total == Decimal(0):
+        available = Decimal(0)
     else:
         # Generate a factor between 0 and 1 to multiply with total
         factor = draw(st.floats(min_value=0.0, max_value=1.0))
@@ -295,7 +295,7 @@ class TestSpotBalanceModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Financial quantity fields should reject invalid values."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "exchange": ExchangeName.BACKPACK,
             "asset": BTC_BP,
             "timestamp": datetime.now(UTC),
@@ -336,11 +336,11 @@ class TestSpotBalanceModelProperties:
         )
 
         # Property: Valid mutations should work
-        new_total = total_quantity + Decimal("10")
+        new_total = total_quantity + Decimal(10)
         balance.total_quantity = new_total
         assert balance.total_quantity == new_total
 
-        new_available = available_quantity + Decimal("5")
+        new_available = available_quantity + Decimal(5)
         balance.available_quantity = new_available
         assert balance.available_quantity == new_available
 
@@ -350,7 +350,7 @@ class TestSpotBalanceModelProperties:
 
         # Property: Invalid mutations should be rejected
         with pytest.raises(ValidationError):
-            balance.total_quantity = Decimal("-1")  # Negative quantity
+            balance.total_quantity = Decimal(-1)  # Negative quantity
 
     @given(
         exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
@@ -365,7 +365,7 @@ class TestSpotBalanceModelProperties:
         bp_details: BackpackSpotBalanceDetails,
     ) -> None:
         """Property: Exchange-specific details should be preserved correctly."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "asset": BTC_BP,
             "timestamp": datetime.now(UTC),
             "total_quantity": Decimal("100.0"),
@@ -391,8 +391,8 @@ class TestSpotBalanceModelProperties:
             # Property: BP details should be immutable
             if balance.bp_details is not None:
                 try:
-                    balance.bp_details.open_order_quantity = Decimal("999")
-                    assert False, "Expected ValidationError for modifying frozen model"
+                    balance.bp_details.open_order_quantity = Decimal(999)
+                    raise AssertionError("Expected ValidationError for modifying frozen model")
                 except (ValidationError, AttributeError):
                     pass
 
@@ -448,7 +448,7 @@ class TestSpotBalanceModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
-    def test_invalid_decimal_input_rejection_properties(self, invalid_input: str) -> None:
+    def test_invalid_decimal_input_rejection_properties(self, invalid_input: Any) -> None:
         """Property: Invalid decimal inputs should always raise ValidationError."""
         with pytest.raises(ValidationError):
             SpotBalance(
@@ -470,7 +470,7 @@ class TestSpotBalanceModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
-    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
+    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: Any) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):
             SpotBalance(
@@ -565,8 +565,8 @@ class TestBackpackSpotBalanceDetailsProperties:
 
         # Property: Should be immutable
         try:
-            details.open_order_quantity = Decimal("999")
-            assert False, "Expected ValidationError for modifying frozen model"
+            details.open_order_quantity = Decimal(999)
+            raise AssertionError("Expected ValidationError for modifying frozen model")
         except (ValidationError, AttributeError):
             pass
 

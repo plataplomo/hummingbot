@@ -486,7 +486,7 @@ class TestValidationServiceProperties:
     @pytest.mark.asyncio
     async def test_validation_always_returns_result(self, order: Order) -> None:
         """Property: Validation should always return a ValidationResult, never crash.
-        
+
         Raises:
             AssertionError: If validation system fails unexpectedly.
         """

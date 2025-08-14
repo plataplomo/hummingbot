@@ -37,7 +37,11 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_order import (
 
 
 def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
-    """Generate valid non-empty strings with reasonable length."""
+    """Generate valid non-empty strings with reasonable length.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.text(
         alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_."),
         min_size=1,
@@ -46,7 +50,11 @@ def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Normal decimal values
         st.decimals(
@@ -66,12 +74,20 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses."""
+    """Generate valid Ethereum addresses.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.text(alphabet="0123456789abcdef", min_size=40, max_size=40).map(lambda x: f"0x{x}")
 
 
 def cloid_strategy() -> SearchStrategy[str | None]:
-    """Generate valid client order IDs (Hyperliquid format)."""
+    """Generate valid client order IDs (Hyperliquid format).
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.none(),
         # Hex format cloids
@@ -82,27 +98,47 @@ def cloid_strategy() -> SearchStrategy[str | None]:
 
 
 def asset_index_strategy() -> SearchStrategy[int]:
-    """Generate valid asset indices."""
+    """Generate valid asset indices.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.integers(min_value=0, max_value=1000)
 
 
 def tif_strategy() -> SearchStrategy[str]:
-    """Generate valid time-in-force values for Hyperliquid."""
+    """Generate valid time-in-force values for Hyperliquid.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.sampled_from(["Alo", "Ioc", "Gtc"])
 
 
 def limit_order_type_strategy() -> SearchStrategy[HyperliquidRawLimitOrderTypeDetails]:
-    """Generate valid limit order type details."""
+    """Generate valid limit order type details.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.builds(HyperliquidRawLimitOrderTypeDetails, tif=tif_strategy())
 
 
 def market_order_type_strategy() -> SearchStrategy[HyperliquidRawMarketOrderTypeDetails]:
-    """Generate valid market order type details."""
+    """Generate valid market order type details.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.builds(HyperliquidRawMarketOrderTypeDetails)
 
 
 def trigger_info_strategy() -> SearchStrategy[HyperliquidRawTriggerInfo]:
-    """Generate valid trigger info for orders."""
+    """Generate valid trigger info for orders.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.builds(
         HyperliquidRawTriggerInfo,
         isMarket=st.booleans(),
@@ -112,7 +148,11 @@ def trigger_info_strategy() -> SearchStrategy[HyperliquidRawTriggerInfo]:
 
 
 def order_type_strategy() -> SearchStrategy[HyperliquidRawOrderType]:
-    """Generate valid order types (limit, market, or trigger)."""
+    """Generate valid order types (limit, market, or trigger).
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Limit order type
         st.builds(
@@ -332,21 +372,12 @@ class TestHyperliquidRawPlaceOrderActionProperties:
     def test_extra_fields_rejection(self, order_data: dict[str, Any]) -> None:
         """Property: Extra fields should always be rejected."""
         # Add an extra field
-        invalid_data = order_data.copy()
+        invalid_data: dict[str, Any] = order_data.copy()
         invalid_data["extraField"] = "should_not_be_allowed"
 
         # Property: Extra fields should cause validation error
         with pytest.raises(ValidationError) as exc_info:
-            HyperliquidRawPlaceOrderAction(
-                asset=cast(int, invalid_data["asset"]),
-                isBuy=cast(bool, invalid_data["isBuy"]),
-                limitPx=cast(str, invalid_data["limitPx"]),
-                sz=cast(str, invalid_data["sz"]),
-                reduceOnly=cast(bool, invalid_data["reduceOnly"]),
-                orderType=cast(HyperliquidRawOrderType, invalid_data["orderType"]),
-                cloid=cast(str | None, invalid_data.get("cloid")),
-                extraField=invalid_data["extraField"],
-            )
+            HyperliquidRawPlaceOrderAction(**invalid_data)
 
         # Property: Error should mention extra field
         assert "extra" in str(exc_info.value).lower()

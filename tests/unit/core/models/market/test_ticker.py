@@ -37,24 +37,23 @@ from hypothesis import HealthCheck, assume, given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.models.market.ticker import (
     BackpackTickerDetails,
     HyperliquidTickerDetails,
     Ticker,
 )
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     AVAX_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
-    DOGE_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -83,7 +82,7 @@ def financial_decimal_strategy(
         Decimal: A valid decimal for financial calculations
     """
     if allow_zero and draw(st.booleans()):
-        return Decimal("0")
+        return Decimal(0)
 
     # Generate financial precision values
     value = draw(
@@ -122,7 +121,7 @@ def bid_ask_spread_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
     bid = draw(price_strategy())
     # Generate ask price that's equal or higher than bid
     spread_pct = draw(st.floats(min_value=0.0, max_value=0.1))  # 0-10% spread
-    ask = bid * (Decimal("1") + Decimal(str(spread_pct)))
+    ask = bid * (Decimal(1) + Decimal(str(spread_pct)))
     return bid, ask
 
 
@@ -152,8 +151,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for ticker data."""
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     # Convert to UTC timezone-aware datetime
@@ -281,7 +280,7 @@ class TestTickerModelProperties:
         assert ticker.volume == volume
 
         # Properties: Mid-price calculation should be exact
-        expected_mid = (bid + ask) / Decimal("2")
+        expected_mid = (bid + ask) / Decimal(2)
         assert ticker.mid_price == expected_mid
 
     @given(
@@ -314,13 +313,21 @@ class TestTickerModelProperties:
 
         # Properties: Mathematical invariants for mid-price
         assert bid <= mid_price <= ask  # Mid-price should be between bid and ask
-        assert mid_price == (bid + ask) / Decimal("2")  # Exact arithmetic
+        assert mid_price == (bid + ask) / Decimal(2)  # Exact arithmetic
 
         # Properties: Precision preservation
         # If bid and ask have same precision, mid-price should have at most one more decimal place
-        bid_places = max(0, -bid.as_tuple().exponent)
-        ask_places = max(0, -ask.as_tuple().exponent)
-        mid_places = max(0, -mid_price.as_tuple().exponent)
+        bid_exp = bid.as_tuple().exponent
+        ask_exp = ask.as_tuple().exponent
+        mid_exp = mid_price.as_tuple().exponent
+
+        # Handle special values (infinity, NaN) - skip precision check for these
+        if isinstance(bid_exp, str) or isinstance(ask_exp, str) or isinstance(mid_exp, str):
+            return
+
+        bid_places = max(0, -bid_exp)
+        ask_places = max(0, -ask_exp)
+        mid_places = max(0, -mid_exp)
         max_input_places = max(bid_places, ask_places)
         assert mid_places <= max_input_places + 1
 
@@ -354,7 +361,7 @@ class TestTickerModelProperties:
             assert ticker.mid_price is None
         else:
             assert ticker.mid_price is not None
-            assert ticker.mid_price == (bid + ask) / Decimal("2")
+            assert ticker.mid_price == (bid + ask) / Decimal(2)
 
     @given(
         ticker_symbol=valid_symbol_strategy(),
@@ -427,7 +434,7 @@ class TestTickerModelProperties:
             ticker.timestamp = timestamp + timedelta(seconds=1)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.price = price + Decimal("1")
+            ticker.price = price + Decimal(1)
 
     @given(
         ticker_symbol=valid_symbol_strategy(),
@@ -526,7 +533,7 @@ class TestTickerModelProperties:
         self,
         ticker_symbol: Any,
         exchange: ExchangeName,
-        invalid_input: str,
+        invalid_input: Any,
     ) -> None:
         """Property: Invalid decimal inputs should always raise ValidationError."""
         with pytest.raises(ValidationError):
@@ -618,7 +625,7 @@ class TestBackpackTickerDetailsProperties:
 
         # Property: Should be immutable
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            details.first_price = Decimal("999")
+            details.first_price = Decimal(999)
 
     @given(
         field_name=st.sampled_from(["first_price", "high", "low", "quote_volume"]),
@@ -631,7 +638,7 @@ class TestBackpackTickerDetailsProperties:
         self, field_name: str, negative_value: Decimal
     ) -> None:
         """Property: Non-negative fields should reject negative values."""
-        kwargs = {field_name: negative_value}
+        kwargs: dict[str, Any] = {field_name: negative_value}
 
         with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
             BackpackTickerDetails(**kwargs)
@@ -647,7 +654,7 @@ class TestBackpackTickerDetailsProperties:
         self, field_name: str, negative_value: Decimal
     ) -> None:
         """Property: Price change fields should allow negative values."""
-        kwargs = {field_name: negative_value}
+        kwargs: dict[str, Any] = {field_name: negative_value}
 
         # Should not raise an error
         details = BackpackTickerDetails(**kwargs)

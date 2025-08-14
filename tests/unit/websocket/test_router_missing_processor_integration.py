@@ -167,7 +167,7 @@ class TestRouterMissingProcessorIntegration:
         # Verify missing processor handling by checking if proper exception is raised
         with pytest.raises(Exception) as exc_info:
             await router.route_message(unknown_message, handlers)
-        
+
         # The exception should indicate missing processor
         error_message = str(exc_info.value).lower()
         assert "processor" in error_message or "unknown" in error_message
@@ -209,7 +209,7 @@ class TestRouterMissingProcessorIntegration:
         # Verify missing processor handling by checking if proper exception is raised
         with pytest.raises(Exception) as exc_info:
             await router.route_message(unknown_message, handlers)
-        
+
         # The exception should indicate missing processor
         error_message = str(exc_info.value).lower()
         assert "processor" in error_message or "unknown" in error_message
@@ -252,7 +252,7 @@ class TestRouterMissingProcessorIntegration:
         # Verify missing processor handling by checking if proper exception is raised
         with pytest.raises(Exception) as exc_info:
             await router.route_message(unknown_message, handlers)
-        
+
         # The exception should indicate missing processor
         error_message = str(exc_info.value).lower()
         assert "processor" in error_message or "unknown" in error_message

@@ -32,8 +32,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy
+from hypothesis import given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.exceptions.field_validation import TypeFieldError
@@ -44,15 +43,15 @@ from cyberdelta.models.market.market import (
     Market,
 )
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -164,8 +163,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -454,7 +453,7 @@ class TestMarketModelProperties:
     @given(
         field_name=st.sampled_from(["tick_size", "step_size"]),
         invalid_value=st.one_of(
-            st.just(Decimal("0")),
+            st.just(Decimal(0)),
             st.just(Decimal("-0.001")),
             st.just(Decimal("NaN")),
             st.just(Decimal("Infinity")),
@@ -466,7 +465,7 @@ class TestMarketModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Positive decimal fields should reject invalid values."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "market_type": "Perpetual",
             "tick_size": Decimal("0.0001"),
@@ -474,7 +473,7 @@ class TestMarketModelProperties:
             "status": "Trading",
         }
 
-        kwargs = base_kwargs.copy()
+        kwargs: dict[str, Any] = base_kwargs.copy()
         kwargs[field_name] = invalid_value
 
         # Property: Invalid positive decimal values should be rejected
@@ -495,7 +494,7 @@ class TestMarketModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Non-negative decimal fields should reject negative/invalid values."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "market_type": "Perpetual",
             "tick_size": Decimal("0.0001"),
@@ -503,7 +502,7 @@ class TestMarketModelProperties:
             "status": "Trading",
         }
 
-        kwargs = base_kwargs.copy()
+        kwargs: dict[str, Any] = base_kwargs.copy()
         kwargs[field_name] = invalid_value
 
         # Property: Invalid non-negative decimal values should be rejected
@@ -597,7 +596,7 @@ class TestMarketModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_string_field_validation_properties(self, invalid_string: str, field_name: str) -> None:
         """Property: String fields should validate length and emptiness."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "market_type": "Perpetual",
             "tick_size": Decimal("0.0001"),
@@ -605,7 +604,7 @@ class TestMarketModelProperties:
             "status": "Trading",
         }
 
-        kwargs = base_kwargs.copy()
+        kwargs: dict[str, Any] = base_kwargs.copy()
         kwargs[field_name] = invalid_string
 
         # Property: Invalid string should be rejected
@@ -812,15 +811,21 @@ class TestMarketBusinessLogicProperties:
         assert market.tick_size > 0
         assert market.step_size > 0
 
-        # Property: Optional constraints should be non-negative
-        assert market.min_price >= 0
-        assert market.max_price >= 0
-        assert market.min_quantity >= 0
-        assert market.max_quantity >= 0
+        # Property: Optional constraints should be non-negative when present
+        if market.min_price is not None:
+            assert market.min_price >= 0
+        if market.max_price is not None:
+            assert market.max_price >= 0
+        if market.min_quantity is not None:
+            assert market.min_quantity >= 0
+        if market.max_quantity is not None:
+            assert market.max_quantity >= 0
 
-        # Property: Max should be >= Min
-        assert market.max_price >= market.min_price
-        assert market.max_quantity >= market.min_quantity
+        # Property: Max should be >= Min when both are present
+        if market.max_price is not None and market.min_price is not None:
+            assert market.max_price >= market.min_price
+        if market.max_quantity is not None and market.min_quantity is not None:
+            assert market.max_quantity >= market.min_quantity
 
     @given(
         symbol=valid_symbol_strategy(),
@@ -1009,7 +1014,9 @@ class TestMarketEdgeCaseProperties:
             created_markets.append(market)
 
         # Property: Each market should maintain its individual data
-        for i, (original_data, created_market) in enumerate(zip(markets, created_markets)):
+        for i, (original_data, created_market) in enumerate(
+            zip(markets, created_markets, strict=False)
+        ):
             symbol, market_type, tick_size, step_size, status = original_data
             assert created_market.symbol == symbol
             assert created_market.market_type == market_type

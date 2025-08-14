@@ -161,10 +161,12 @@ class TestPhase2Complete:
         # Create a mock transformer
         mock_transformer = Mock()
 
-        processor = PydanticWebSocketProcessor(
-            raw_model=TestMessage,
-            transformer=mock_transformer,
-            stream_error_handler=error_handler,
+        processor: PydanticWebSocketProcessor[TestMessage, TestDomainModel] = (
+            PydanticWebSocketProcessor(
+                raw_model=TestMessage,
+                transformer=mock_transformer,
+                stream_error_handler=error_handler,
+            )
         )
 
         # Create invalid message to trigger validation error
@@ -190,33 +192,15 @@ class TestPhase2Complete:
         """Test complete error flow from router to recovery."""
         # Note: BaseWebSocketRouter is abstract, would need concrete implementation
         # For this test, we'll focus on the processor and error handler components
-        # router = ConcreteWebSocketRouter(...)  # Would need concrete implementation
-
-        # Create processor
-        # processor = PydanticWebSocketProcessor(
-        #     raw_model=TestMessage,
-        #     transformer=mock_transformer,
-        #     stream_error_handler=error_handler,
-        # )
-
-        # Note: Router registration would happen here
-        # router.register_processor("test_message", processor)
 
         # Create message with missing routing key
-        message = TestMessage(type="unknown_type", data={})
-        context = TestContext(
+        TestMessage(type="unknown_type", data={})
+        TestContext(
             connection_id="test-conn-id",
             exchange="hyperliquid",
         )
 
-        # Route message (should handle missing processor error)
         # TODO: Implement concrete router or remove this test
-        # await router.route_message(message, context)
-
-        # Verify error was handled
-        # TODO: Implement concrete router or remove this test
-        # stats = router.get_stats()
-        # assert stats["errors"]["total_errors"] > 0
 
         # Skip this test for now since router is not implemented
         pytest.skip("Router implementation needed for this test")

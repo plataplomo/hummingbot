@@ -34,8 +34,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy
+from hypothesis import given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.enums import OrderSide, SignalType
@@ -43,20 +42,19 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.field_validation import ListFieldError, TypeFieldError
 from cyberdelta.exceptions.parsing import (
     DateTimeParsingError,
-    EmptyStringError,
     TimestampFormatError,
 )
 from cyberdelta.models.trade_signal import TradeSignal
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -176,8 +174,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -224,17 +222,16 @@ def exchange_strategy(draw: st.DrawFn) -> ExchangeName | list[ExchangeName]:
     if draw(st.booleans()):
         # Single exchange
         return draw(st.sampled_from(exchanges))
-    else:
-        # List of exchanges (1-3 exchanges)
-        num_exchanges = draw(st.integers(min_value=1, max_value=min(3, len(exchanges))))
-        return draw(
-            st.lists(
-                st.sampled_from(exchanges),
-                min_size=num_exchanges,
-                max_size=num_exchanges,
-                unique=True,
-            )
+    # List of exchanges (1-3 exchanges)
+    num_exchanges = draw(st.integers(min_value=1, max_value=min(3, len(exchanges))))
+    return draw(
+        st.lists(
+            st.sampled_from(exchanges),
+            min_size=num_exchanges,
+            max_size=num_exchanges,
+            unique=True,
         )
+    )
 
 
 @st.composite
@@ -298,7 +295,7 @@ def metadata_strategy(draw: st.DrawFn) -> dict[str, Any]:
         )
     )
 
-    return dict(zip(keys, values))
+    return dict(zip(keys, values, strict=False))
 
 
 # =============================================================================
@@ -526,7 +523,7 @@ class TestTradeSignalModelProperties:
     @given(
         field_name=st.sampled_from(["price", "quantity", "stop_loss", "take_profit"]),
         invalid_value=st.one_of(
-            st.just(Decimal("0")),
+            st.just(Decimal(0)),
             st.just(Decimal("-0.001")),
             st.just(Decimal("NaN")),
             st.just(Decimal("Infinity")),
@@ -538,7 +535,7 @@ class TestTradeSignalModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Decimal fields should reject invalid values according to constraints."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "signal_type": SignalType.ENTER_LONG,
             "side": OrderSide.BUY,
@@ -610,7 +607,9 @@ class TestTradeSignalModelProperties:
     )
     @settings(max_examples=200, deadline=None)
     def test_confidence_parsing_properties(self, confidence_input: Any) -> None:
-        """Property: Confidence field should correctly parse various numeric input types to float."""
+        """Property: Confidence field should correctly parse various numeric input types
+        to float.
+        """
         signal = TradeSignal(
             symbol=BTC_HL,
             signal_type=SignalType.ENTER_LONG,
@@ -753,8 +752,10 @@ class TestTradeSignalBusinessLogicProperties:
 
         # Property: All prices should be positive (validated by model)
         assert signal_long.price > 0
-        assert signal_long.stop_loss > 0
-        assert signal_long.take_profit > 0
+        if signal_long.stop_loss is not None:
+            assert signal_long.stop_loss > 0
+        if signal_long.take_profit is not None:
+            assert signal_long.take_profit > 0
 
         # For SHORT positions (SELL)
         signal_short = TradeSignal(
@@ -769,8 +770,10 @@ class TestTradeSignalBusinessLogicProperties:
 
         # Property: All prices should be positive (validated by model)
         assert signal_short.price > 0
-        assert signal_short.stop_loss > 0
-        assert signal_short.take_profit > 0
+        if signal_short.stop_loss is not None:
+            assert signal_short.stop_loss > 0
+        if signal_short.take_profit is not None:
+            assert signal_short.take_profit > 0
 
     @given(
         symbol=valid_symbol_strategy(),

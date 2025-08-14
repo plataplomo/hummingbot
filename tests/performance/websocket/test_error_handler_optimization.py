@@ -221,7 +221,11 @@ class TestErrorHandlerOptimization:
         """Test that async handling allows better concurrency."""
         # Mock slow recovery handler
         slow_recovery = AsyncMock()
-        slow_recovery.handle_recovery = AsyncMock(side_effect=lambda *args: asyncio.sleep(0.1))
+
+        async def slow_side_effect(*args: object) -> None:
+            await asyncio.sleep(0.1)
+
+        slow_recovery.handle_recovery = AsyncMock(side_effect=slow_side_effect)
 
         handler = WebSocketStreamErrorHandler(config, recovery_handler=slow_recovery)
 

@@ -162,7 +162,8 @@ class TestHyperliquidWebSocketUserEvents:
                             if event_type == "position" and "position" in data:
                                 position_data_raw: object = data["position"]
                                 assert isinstance(position_data_raw, dict)
-                                # Type narrowing: position_data is now known to be a dict[str, object]
+                                # Type narrowing: position_data is now known to be a
+                                # dict[str, object]
                                 position_data = cast(dict[str, object], position_data_raw)
                                 self._validate_position_data(position_data)
                             elif event_type == "order" and "order" in data:

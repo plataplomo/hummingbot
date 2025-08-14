@@ -27,7 +27,7 @@ from tests.utils.websocket.error_test_utils import ErrorTestFactory
 class ErrorPersistenceManager:
     """Manager for persisting error state to disk."""
 
-    def __init__(self, persistence_path: Path):
+    def __init__(self, persistence_path: Path) -> None:
         """Initialize persistence manager.
 
         Args:
@@ -42,7 +42,7 @@ class ErrorPersistenceManager:
         Args:
             errors: List of error dictionaries to persist
         """
-        with open(self.persistence_path, "w") as f:
+        with open(self.persistence_path, "w", encoding="utf-8") as f:
             json.dump(
                 {
                     "timestamp": datetime.now(UTC).isoformat(),
@@ -62,7 +62,7 @@ class ErrorPersistenceManager:
         if not self.persistence_path.exists():
             return []
 
-        with open(self.persistence_path) as f:
+        with open(self.persistence_path, encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
             errors: list[dict[str, Any]] = data.get("errors", [])
             return errors
@@ -76,7 +76,7 @@ class ErrorPersistenceManager:
 class ErrorHistoryTracker:
     """Track error history with time windows."""
 
-    def __init__(self, max_history_size: int = 1000):
+    def __init__(self, max_history_size: int = 1000) -> None:
         """Initialize history tracker.
 
         Args:
@@ -499,7 +499,7 @@ class TestErrorPersistence:
         """Test handling of corrupted persistence files."""
         # Create corrupted file
         temp_persistence_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(temp_persistence_path, "w") as f:
+        with open(temp_persistence_path, "w", encoding="utf-8") as f:
             f.write("{ invalid json content ]}")
 
         # Try to load with new manager

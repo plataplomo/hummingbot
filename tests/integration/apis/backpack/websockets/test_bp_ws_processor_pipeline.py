@@ -19,7 +19,7 @@ import gc
 import os
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 import psutil
 import pytest
@@ -564,14 +564,19 @@ class TestBackpackProcessorPipeline:
                     getattr(context.domain_model, "dict", None)
                 ):
                     # Legacy Pydantic v1 models or dict-like objects
-                    # DEFENSIVE CHECK: Access dict method safely. Pyright=[reportAttributeAccessIssue]
+                    # DEFENSIVE CHECK: Access dict method safely.
+                    # Pyright=[reportAttributeAccessIssue]
                     dict_method = getattr(context.domain_model, "dict", None)
                     if dict_method is not None and callable(dict_method):
                         dict_result = dict_method()
                         if isinstance(dict_result, dict):
-                            # Type narrowing: Pydantic dict() returns dict[str, Any]
-                            _symbol_value: object | None = dict_result.get("symbol")
-                            _price_value: object | None = dict_result.get("price")
+                            # Pydantic dict always returns dict[str, Any] - we know this from Pydantic API
+                            # Type safety justified: Pydantic guarantees string keys in serialization output
+                            # Runtime verification: isinstance check confirms dict type
+                            assert isinstance(dict_result, dict)
+                            typed_dict_result = cast(dict[str, Any], dict_result)
+                            _symbol_value: object | None = typed_dict_result.get("symbol")
+                            _price_value: object | None = typed_dict_result.get("price")
             end = asyncio.get_event_loop().time()
             processing_times.append(end - start)
             message_count += 1

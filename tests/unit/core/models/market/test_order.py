@@ -30,12 +30,12 @@ Architecture Compliance:
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import HealthCheck, assume, given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.core.enums import (
@@ -45,26 +45,23 @@ from cyberdelta.core.enums import (
     SelfTradePrevention,
     TriggerType,
 )
-from cyberdelta.enums import MakerTaker, OrderSide, OrderType, TimeInForce
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
-from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import (
     BackpackOrderDetails,
     HyperliquidOrderDetails,
     Order,
 )
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -95,7 +92,7 @@ def financial_decimal_strategy(
         Decimal: A valid decimal for financial calculations
     """
     if allow_zero and draw(st.booleans()):
-        return Decimal("0")
+        return Decimal(0)
 
     if allow_negative and draw(st.booleans()):
         # Generate negative values
@@ -177,8 +174,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for order data."""
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -346,6 +343,10 @@ class TestOrderModelProperties:
             time_in_force=time_in_force,
             exchange=exchange,
             created_at=created_at,
+            updated_at=created_at,
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
 
         # Properties: Required fields should be set correctly
@@ -361,7 +362,7 @@ class TestOrderModelProperties:
 
         # Properties: Optional fields should have correct defaults
         assert order.status == OrderStatus.NEW
-        assert order.quantity_filled == Decimal("0")
+        assert order.quantity_filled == Decimal(0)
         assert order.reduce_only is False
         assert order.post_only is False
         assert order.trades == []
@@ -421,10 +422,7 @@ class TestOrderModelProperties:
         quantity_filled = data.draw(filled_quantity_strategy(quantity_requested))
 
         # Generate average_fill_price based on quantity_filled
-        if quantity_filled > 0:
-            average_fill_price = data.draw(price_strategy())
-        else:
-            average_fill_price = None
+        average_fill_price = data.draw(price_strategy()) if quantity_filled > 0 else None
 
         quote_quantity_requested = data.draw(
             st.one_of(
@@ -537,7 +535,7 @@ class TestOrderModelProperties:
         self, order_type: OrderType, price: Decimal | None, stop_price: Decimal | None
     ) -> None:
         """Property: Order type and price combinations should follow business rules."""
-        base_order_data = {
+        base_order_data: dict[str, Any] = {
             "symbol": BTC_HL,
             "side": OrderSide.BUY,
             "order_type": order_type,
@@ -547,6 +545,10 @@ class TestOrderModelProperties:
             "time_in_force": TimeInForce.GTC,
             "exchange": ExchangeName.HYPERLIQUID,
             "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "triggered_at": None,
+            "strategy_name": None,
+            "signal_id": None,
         }
 
         # Property: Business rule validation for order types
@@ -593,7 +595,7 @@ class TestOrderModelProperties:
             )
         )
 
-        base_order_data = {
+        base_order_data: dict[str, Any] = {
             "symbol": BTC_HL,
             "side": OrderSide.BUY,
             "order_type": OrderType.LIMIT,
@@ -602,6 +604,10 @@ class TestOrderModelProperties:
             "time_in_force": TimeInForce.GTC,
             "exchange": ExchangeName.HYPERLIQUID,
             "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "triggered_at": None,
+            "strategy_name": None,
+            "signal_id": None,
             "quantity_filled": filled,
             "average_fill_price": average_fill_price,
         }
@@ -640,7 +646,7 @@ class TestOrderModelProperties:
         bp_details: BackpackOrderDetails | None,
     ) -> None:
         """Property: Exchange-specific details should only be valid for correct exchange."""
-        base_order_data = {
+        base_order_data: dict[str, Any] = {
             "symbol": BTC_HL,
             "side": OrderSide.BUY,
             "order_type": OrderType.LIMIT,
@@ -649,6 +655,10 @@ class TestOrderModelProperties:
             "time_in_force": TimeInForce.GTC,
             "exchange": exchange,
             "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "triggered_at": None,
+            "strategy_name": None,
+            "signal_id": None,
             "hl_details": hl_details,
             "bp_details": bp_details,
         }
@@ -680,7 +690,7 @@ class TestOrderModelProperties:
             "average_fill_price",
         ]),
         invalid_value=st.one_of(
-            st.just(Decimal("0")),
+            st.just(Decimal(0)),
             st.just(Decimal("-0.001")),
             st.just(Decimal("NaN")),
             st.just(Decimal("Infinity")),
@@ -692,7 +702,7 @@ class TestOrderModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Financial fields should reject invalid values."""
-        base_order_data = {
+        base_order_data: dict[str, Any] = {
             "symbol": BTC_HL,
             "side": OrderSide.BUY,
             "order_type": OrderType.LIMIT,
@@ -701,6 +711,10 @@ class TestOrderModelProperties:
             "time_in_force": TimeInForce.GTC,
             "exchange": ExchangeName.HYPERLIQUID,
             "created_at": datetime.now(UTC),
+            "updated_at": datetime.now(UTC),
+            "triggered_at": None,
+            "strategy_name": None,
+            "signal_id": None,
         }
 
         # Special handling for certain fields
@@ -709,7 +723,7 @@ class TestOrderModelProperties:
                 "0.5"
             )  # Required for average_fill_price validation
 
-        kwargs = base_order_data.copy()
+        kwargs: dict[str, Any] = base_order_data.copy()
         kwargs[field_name] = invalid_value
 
         # Property: Invalid values should be rejected
@@ -731,6 +745,10 @@ class TestOrderModelProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.HYPERLIQUID,
             created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
         )
 
         # Property: Valid mutations should work
@@ -769,6 +787,10 @@ class TestOrderModelProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.HYPERLIQUID,
             created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
             hl_details=hl_details,
         )
 
@@ -781,6 +803,10 @@ class TestOrderModelProperties:
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
             created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            triggered_at=None,
+            strategy_name=None,
+            signal_id=None,
             bp_details=bp_details,
         )
 
@@ -791,14 +817,14 @@ class TestOrderModelProperties:
         # Properties: Details should be immutable
         if order_hl.hl_details is not None and order_hl.hl_details.remaining_sz is not None:
             with pytest.raises(ValidationError, match="Instance is frozen"):
-                order_hl.hl_details.remaining_sz = Decimal("999")
+                order_hl.hl_details.remaining_sz = Decimal(999)
 
         if (
             order_bp.bp_details is not None
             and order_bp.bp_details.executed_quote_quantity is not None
         ):
             with pytest.raises(ValidationError, match="Instance is frozen"):
-                order_bp.bp_details.executed_quote_quantity = Decimal("999999")
+                order_bp.bp_details.executed_quote_quantity = Decimal(999999)
 
 
 # =============================================================================
@@ -824,7 +850,7 @@ class TestHyperliquidOrderDetailsProperties:
 
         # Property: Should be immutable
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            details.remaining_sz = Decimal("999")
+            details.remaining_sz = Decimal(999)
 
     @given(
         invalid_value=st.one_of(
@@ -875,7 +901,7 @@ class TestBackpackOrderDetailsProperties:
 
         # Property: Should be immutable
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            details.executed_quote_quantity = Decimal("999999")
+            details.executed_quote_quantity = Decimal(999999)
 
     @given(
         field_name=st.sampled_from([
@@ -897,7 +923,7 @@ class TestBackpackOrderDetailsProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: BackpackOrderDetails should validate decimal field values correctly."""
-        kwargs = {field_name: invalid_value}
+        kwargs: dict[str, Any] = {field_name: invalid_value}
 
         with pytest.raises(ValidationError):
             BackpackOrderDetails(**kwargs)

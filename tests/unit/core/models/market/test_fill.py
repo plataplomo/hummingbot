@@ -41,15 +41,15 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.models.market.fill import BackpackFillDetails, Fill, HyperliquidFillDetails
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -80,7 +80,7 @@ def financial_decimal_strategy(
         Decimal: A valid decimal for financial calculations
     """
     if allow_zero and draw(st.booleans()):
-        return Decimal("0")
+        return Decimal(0)
 
     if allow_negative and draw(st.booleans()):
         # Generate negative values for fees/rebates
@@ -154,8 +154,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for fill data."""
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -266,7 +266,7 @@ class TestFillModelProperties:
 
         # Properties: Optional fields should have correct defaults
         assert fill.client_order_id is None
-        assert fill.fee == Decimal("0")
+        assert fill.fee == Decimal(0)
         assert fill.fee_asset is None
         assert fill.maker_taker is None
         assert fill.hl_details is None
@@ -370,7 +370,7 @@ class TestFillModelProperties:
             quantity=quantity,
         )
 
-        cost = fill.cost
+        cost = fill.cost()
 
         # Properties: Mathematical invariants for cost
         assert cost == price * quantity  # Exact arithmetic
@@ -378,14 +378,22 @@ class TestFillModelProperties:
 
         # Properties: Precision preservation
         # Cost precision should be sum of price and quantity precisions
-        price_places = max(0, -price.as_tuple().exponent)
-        quantity_places = max(0, -quantity.as_tuple().exponent)
-        cost_places = max(0, -cost.as_tuple().exponent)
+        price_exp = price.as_tuple().exponent
+        quantity_exp = quantity.as_tuple().exponent
+        cost_exp = cost.as_tuple().exponent
+
+        # Handle special values (infinity, NaN) - skip precision check for these
+        if isinstance(price_exp, str) or isinstance(quantity_exp, str) or isinstance(cost_exp, str):
+            return
+
+        price_places = max(0, -price_exp)
+        quantity_places = max(0, -quantity_exp)
+        cost_places = max(0, -cost_exp)
         assert cost_places <= price_places + quantity_places
 
         # Properties: Scaling invariants
-        double_price = price * Decimal("2")
-        double_quantity = quantity * Decimal("2")
+        double_price = price * Decimal(2)
+        double_quantity = quantity * Decimal(2)
 
         fill_double_price = Fill(
             id="test_double_price",
@@ -424,7 +432,7 @@ class TestFillModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_fee_asset_validation_properties(self, fee: Decimal, fee_asset: str | None) -> None:
         """Property: Fee asset validation should enforce business rules correctly."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "id": "test_fee",
             "symbol": BTC_HL,
             "executed_at": datetime.now(UTC),
@@ -450,7 +458,7 @@ class TestFillModelProperties:
     @given(
         field_name=st.sampled_from(["price", "quantity"]),
         invalid_value=st.one_of(
-            st.just(Decimal("0")),
+            st.just(Decimal(0)),
             st.just(Decimal("-0.001")),
             st.just(Decimal("NaN")),
             st.just(Decimal("Infinity")),
@@ -462,7 +470,7 @@ class TestFillModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Financial fields should reject invalid values."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "id": "test_validation",
             "symbol": BTC_HL,
             "executed_at": datetime.now(UTC),
@@ -473,7 +481,7 @@ class TestFillModelProperties:
             "quantity": Decimal("1.0"),
         }
 
-        kwargs = base_kwargs.copy()
+        kwargs: dict[str, Any] = base_kwargs.copy()
         kwargs[field_name] = invalid_value
 
         # Property: Invalid values should be rejected
@@ -493,7 +501,7 @@ class TestFillModelProperties:
         self, string_field: str, invalid_string: str
     ) -> None:
         """Property: String fields should validate length and emptiness correctly."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "id": "test_string",
             "symbol": BTC_HL,
             "executed_at": datetime.now(UTC),
@@ -508,7 +516,7 @@ class TestFillModelProperties:
         if string_field in ["id", "order_id"] and not invalid_string.strip():
             assume(False)  # Skip empty string tests for required fields
 
-        kwargs = base_kwargs.copy()
+        kwargs: dict[str, Any] = base_kwargs.copy()
         kwargs[string_field] = invalid_string
 
         # Property: Invalid strings should be rejected
@@ -541,10 +549,10 @@ class TestFillModelProperties:
             fill.id = "new_id"
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            fill.price = price + Decimal("1")
+            fill.price = price + Decimal(1)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            fill.quantity = quantity + Decimal("1")
+            fill.quantity = quantity + Decimal(1)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
             fill.side = OrderSide.SELL

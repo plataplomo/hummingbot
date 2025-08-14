@@ -28,7 +28,11 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
 
 def hyperliquid_order_status_strategy() -> SearchStrategy[str]:
-    """Generate valid Hyperliquid order statuses."""
+    """Generate valid Hyperliquid order statuses.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just("open"),
         st.just("filled"),
@@ -60,7 +64,11 @@ def hyperliquid_order_status_strategy() -> SearchStrategy[str]:
 
 
 def hyperliquid_order_type_strategy() -> SearchStrategy[str]:
-    """Generate valid Hyperliquid order types."""
+    """Generate valid Hyperliquid order types.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just("Market"),
         st.just("Limit"),
@@ -83,7 +91,11 @@ def hyperliquid_order_type_strategy() -> SearchStrategy[str]:
 
 
 def hyperliquid_side_strategy() -> SearchStrategy[str]:
-    """Generate valid Hyperliquid order sides."""
+    """Generate valid Hyperliquid order sides.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just("B"),  # Buy
         st.just("A"),  # Ask/Sell
@@ -95,7 +107,11 @@ def hyperliquid_side_strategy() -> SearchStrategy[str]:
 
 
 def hyperliquid_financial_value_strategy() -> SearchStrategy[str]:
-    """Generate financial values typical for Hyperliquid."""
+    """Generate financial values typical for Hyperliquid.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Common trading amounts for crypto
         st.decimals(min_value=Decimal("0.0001"), max_value=1000000, places=4).map(str),

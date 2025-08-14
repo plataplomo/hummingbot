@@ -15,6 +15,7 @@ or system instability.
 
 import string
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from hypothesis import assume, given, strategies as st
@@ -34,7 +35,11 @@ from cyberdelta.apis.backpack.models.bp_raw_order import (
 
 
 def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
-    """Generate valid non-empty strings with reasonable length."""
+    """Generate valid non-empty strings with reasonable length.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid non-empty strings.
+    """
     return st.text(
         alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="-_."),
         min_size=1,
@@ -43,12 +48,14 @@ def valid_string_strategy(max_length: int = 64) -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid decimal strings.
+    """
     return st.one_of([
         # Normal decimal values
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(
-            str
-        ),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         # Scientific notation (allowed by project policy)
         st.sampled_from(["1e3", "2.5e-4", "1.23e+2", "9.99e-8"]),
         # Common edge cases
@@ -59,8 +66,12 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
     ])
 
 
-def timestamp_strategy() -> SearchStrategy:
-    """Generate valid timestamp values (int, float, or ISO string)."""
+def timestamp_strategy() -> SearchStrategy[Any]:
+    """Generate valid timestamp values (int, float, or ISO string).
+
+    Returns:
+        SearchStrategy[Any]: Strategy generating valid timestamp values.
+    """
     return st.one_of([
         st.integers(min_value=1000000000, max_value=2000000000),  # Unix timestamps
         st.floats(
@@ -72,12 +83,20 @@ def timestamp_strategy() -> SearchStrategy:
 
 
 def order_side_strategy() -> SearchStrategy[str]:
-    """Generate valid order sides."""
+    """Generate valid order sides.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid order sides.
+    """
     return st.sampled_from(["buy", "sell", "Bid", "Ask"])
 
 
 def order_type_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack order types."""
+    """Generate valid Backpack order types.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid order types.
+    """
     return st.sampled_from([
         "LIMIT",
         "MARKET",
@@ -94,7 +113,11 @@ def order_type_strategy() -> SearchStrategy[str]:
 
 
 def order_status_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack order statuses."""
+    """Generate valid Backpack order statuses.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid order statuses.
+    """
     return st.sampled_from([
         "NEW",
         "FILLED",
@@ -115,12 +138,20 @@ def order_status_strategy() -> SearchStrategy[str]:
 
 
 def boolean_strategy() -> SearchStrategy[bool]:
-    """Generate boolean values."""
+    """Generate boolean values.
+
+    Returns:
+        SearchStrategy[bool]: Strategy generating boolean values.
+    """
     return st.booleans()
 
 
-def required_order_fields_strategy() -> SearchStrategy[dict]:
-    """Generate required fields for a valid order."""
+def required_order_fields_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate required fields for a valid order.
+
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy generating required order fields.
+    """
     return st.fixed_dictionaries({
         "id": valid_string_strategy(),
         "symbol": valid_string_strategy(),
@@ -131,8 +162,12 @@ def required_order_fields_strategy() -> SearchStrategy[dict]:
     })
 
 
-def optional_order_fields_strategy() -> SearchStrategy[dict]:
-    """Generate optional fields for orders."""
+def optional_order_fields_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate optional fields for orders.
+
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy generating optional order fields.
+    """
     return st.fixed_dictionaries({
         "clientId": st.one_of(st.none(), valid_string_strategy()),
         "relatedOrderId": st.one_of(st.none(), valid_string_strategy()),
@@ -156,19 +191,31 @@ def optional_order_fields_strategy() -> SearchStrategy[dict]:
     })
 
 
-def complete_order_data_strategy() -> SearchStrategy[dict]:
-    """Generate complete order data with both required and optional fields."""
+def complete_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate complete order data with both required and optional fields.
+
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy generating complete order data.
+    """
+
+    def merge_dicts(req: dict[str, Any], opt: dict[str, Any]) -> dict[str, Any]:
+        return {**req, **opt}
+
     return st.builds(
-        lambda req, opt: {**req, **opt},
+        merge_dicts,
         req=required_order_fields_strategy(),
         opt=optional_order_fields_strategy(),
     )
 
 
-def order_book_data_strategy() -> SearchStrategy[dict]:
-    """Generate valid order book data."""
+def order_book_data_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate valid order book data.
 
-    def bid_ask_strategy():
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy generating valid order book data.
+    """
+
+    def bid_ask_strategy() -> SearchStrategy[list[tuple[str, str]]]:
         return st.lists(
             st.tuples(financial_decimal_string_strategy(), financial_decimal_string_strategy()),
             min_size=1,
@@ -183,8 +230,12 @@ def order_book_data_strategy() -> SearchStrategy[dict]:
     })
 
 
-def order_update_data_strategy() -> SearchStrategy[dict]:
-    """Generate valid order update data."""
+def order_update_data_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate valid order update data.
+
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy generating valid order update data.
+    """
     return st.fixed_dictionaries({
         "e": st.sampled_from(["orderAccepted", "orderFill", "orderCanceled"]),
         "E": timestamp_strategy(),
@@ -208,7 +259,7 @@ class TestBackpackRawOrderResponseProperties:
     """Property-based tests for BackpackRawOrderResponse validation."""
 
     @given(order_data=complete_order_data_strategy())
-    def test_valid_order_creation_properties(self, order_data):
+    def test_valid_order_creation_properties(self, order_data: dict[str, Any]) -> None:
         """Property: Valid order data should always create valid models."""
         order = BackpackRawOrderResponse.model_validate(order_data)
 
@@ -237,7 +288,9 @@ class TestBackpackRawOrderResponseProperties:
         required_fields=required_order_fields_strategy(),
         missing_field=st.sampled_from(["id", "symbol", "side", "orderType", "status", "createdAt"]),
     )
-    def test_missing_required_fields_rejection(self, required_fields, missing_field):
+    def test_missing_required_fields_rejection(
+        self, required_fields: dict[str, Any], missing_field: str
+    ) -> None:
         """Property: Orders missing required fields should always be rejected."""
         incomplete_data = required_fields.copy()
         del incomplete_data[missing_field]
@@ -247,7 +300,7 @@ class TestBackpackRawOrderResponseProperties:
             BackpackRawOrderResponse.model_validate(incomplete_data)
 
     @given(order_data=complete_order_data_strategy())
-    def test_serialization_roundtrip_properties(self, order_data):
+    def test_serialization_roundtrip_properties(self, order_data: dict[str, Any]) -> None:
         """Property: Orders should survive serialization round trip."""
         order = BackpackRawOrderResponse.model_validate(order_data)
 
@@ -255,10 +308,10 @@ class TestBackpackRawOrderResponseProperties:
         serialized = order.model_dump()
 
         # Property: All original fields should be present
-        for key in order_data:
-            if order_data[key] is not None:
+        for key, value in order_data.items():
+            if value is not None:
                 assert key in serialized
-                assert serialized[key] == order_data[key]
+                assert serialized[key] == value
 
         # Property: Re-parsing should produce identical result
         reparsed = BackpackRawOrderResponse.model_validate(serialized)
@@ -279,7 +332,7 @@ class TestBackpackRawOrderResponseProperties:
             st.just("not_a_number"),
         )
     )
-    def test_invalid_decimal_fields_rejection(self, invalid_decimal):
+    def test_invalid_decimal_fields_rejection(self, invalid_decimal: str) -> None:
         """Property: Invalid decimal strings should be consistently rejected."""
         base_data = {
             "id": "test123",
@@ -305,7 +358,9 @@ class TestBackpackRawOrderResponseProperties:
         base_data=required_order_fields_strategy(),
         invalid_enum=st.text(alphabet=string.ascii_lowercase, min_size=1, max_size=10),
     )
-    def test_invalid_enum_fields_rejection(self, base_data, invalid_enum):
+    def test_invalid_enum_fields_rejection(
+        self, base_data: dict[str, Any], invalid_enum: str
+    ) -> None:
         """Property: Invalid enum values should be consistently rejected."""
         # Ensure we don't accidentally generate valid enum values
         valid_sides = {"buy", "sell", "Bid", "Ask"}
@@ -361,7 +416,7 @@ class TestBackpackRawOrderResponseProperties:
             BackpackRawOrderResponse.model_validate(test_data)
 
     @given(order_data=complete_order_data_strategy())
-    def test_alias_mapping_properties(self, order_data):
+    def test_alias_mapping_properties(self, order_data: dict[str, Any]) -> None:
         """Property: Alias mapping should work consistently."""
         # Create aliased version of the data
         aliased_data = {}
@@ -406,7 +461,7 @@ class TestBackpackRawOrderResponseProperties:
         assert order.status == aliased_data["X"]
 
     @given(order_data=complete_order_data_strategy())
-    def test_extra_fields_rejection(self, order_data):
+    def test_extra_fields_rejection(self, order_data: dict[str, Any]) -> None:
         """Property: Extra fields should always be rejected."""
         # Add an extra field
         invalid_data = order_data.copy()
@@ -429,7 +484,7 @@ class TestBackpackRawOrderResponseProperties:
             "triggerPrice",
         ]),
     )
-    def test_financial_precision_preservation(self, financial_value, field_name):
+    def test_financial_precision_preservation(self, financial_value: str, field_name: str) -> None:
         """Property: Financial values should preserve exact string precision."""
         order_data = {
             "id": "test123",
@@ -450,7 +505,7 @@ class TestBackpackRawOrderResponseProperties:
         try:
             decimal_value = Decimal(financial_value)
             assert decimal_value.is_finite()
-        except:
+        except (ValueError, TypeError, OverflowError):
             # If not parseable as decimal, validation should have failed
             # This tests our decimal validation strategy
             pytest.fail("Invalid decimal passed validation")
@@ -465,7 +520,7 @@ class TestBackpackRawOrderBookProperties:
     """Property-based tests for BackpackRawOrderBook validation."""
 
     @given(book_data=order_book_data_strategy())
-    def test_valid_orderbook_creation_properties(self, book_data):
+    def test_valid_orderbook_creation_properties(self, book_data: dict[str, Any]) -> None:
         """Property: Valid order book data should always create valid models."""
         book = BackpackRawOrderBook.model_validate(book_data)
 
@@ -492,7 +547,7 @@ class TestBackpackRawOrderBookProperties:
             st.just([["50000.0", "Infinity"]]),
         ),
     )
-    def test_invalid_bid_ask_rejection(self, symbol, invalid_bid_ask):
+    def test_invalid_bid_ask_rejection(self, symbol: str, invalid_bid_ask: list[list[str]]) -> None:
         """Property: Invalid bid/ask data should be rejected."""
         book_data = {
             "symbol": symbol,
@@ -506,7 +561,7 @@ class TestBackpackRawOrderBookProperties:
             BackpackRawOrderBook.model_validate(book_data)
 
     @given(book_data=order_book_data_strategy())
-    def test_orderbook_serialization_roundtrip(self, book_data):
+    def test_orderbook_serialization_roundtrip(self, book_data: dict[str, Any]) -> None:
         """Property: Order books should survive serialization round trip."""
         book = BackpackRawOrderBook.model_validate(book_data)
 
@@ -530,7 +585,7 @@ class TestBackpackRawOrderUpdateProperties:
     """Property-based tests for BackpackRawOrderUpdate validation."""
 
     @given(update_data=order_update_data_strategy())
-    def test_valid_order_update_creation_properties(self, update_data):
+    def test_valid_order_update_creation_properties(self, update_data: dict[str, Any]) -> None:
         """Property: Valid order update data should always create valid models."""
         update = BackpackRawOrderUpdate.model_validate(update_data)
 
@@ -551,7 +606,9 @@ class TestBackpackRawOrderUpdateProperties:
         update_data=order_update_data_strategy(),
         missing_field=st.sampled_from(["e", "E", "s", "S", "o", "X"]),
     )
-    def test_order_update_missing_required_fields(self, update_data, missing_field):
+    def test_order_update_missing_required_fields(
+        self, update_data: dict[str, Any], missing_field: str
+    ) -> None:
         """Property: Order updates missing required fields should be rejected."""
         incomplete_data = update_data.copy()
         del incomplete_data[missing_field]
@@ -561,7 +618,7 @@ class TestBackpackRawOrderUpdateProperties:
             BackpackRawOrderUpdate.model_validate(incomplete_data)
 
     @given(update_data=order_update_data_strategy())
-    def test_order_update_immutability_properties(self, update_data):
+    def test_order_update_immutability_properties(self, update_data: dict[str, Any]) -> None:
         """Property: Order updates should be immutable after creation."""
         update = BackpackRawOrderUpdate.model_validate(update_data)
 
@@ -582,7 +639,7 @@ class TestBackpackRawOrderIntegrationProperties:
     """Integration property tests for Backpack raw order models."""
 
     @given(order_data=complete_order_data_strategy())
-    def test_model_deterministic_creation(self, order_data):
+    def test_model_deterministic_creation(self, order_data: dict[str, Any]) -> None:
         """Property: Model creation should be deterministic for same inputs."""
         order1 = BackpackRawOrderResponse.model_validate(order_data)
         order2 = BackpackRawOrderResponse.model_validate(order_data)
@@ -601,7 +658,7 @@ class TestBackpackRawOrderIntegrationProperties:
         decimal_value=financial_decimal_string_strategy(),
         operation=st.sampled_from(["addition", "multiplication", "precision_check"]),
     )
-    def test_financial_calculation_properties(self, decimal_value, operation):
+    def test_financial_calculation_properties(self, decimal_value: str, operation: str) -> None:
         """Property: Financial values should maintain precision for calculations."""
         order_data = {
             "id": "test123",
@@ -636,9 +693,9 @@ class TestBackpackRawOrderIntegrationProperties:
                 assert str(price_decimal) == order.price or price_decimal == Decimal(order.price)
 
     @given(orders=st.lists(complete_order_data_strategy(), min_size=2, max_size=10))
-    def test_multiple_orders_independence(self, orders):
+    def test_multiple_orders_independence(self, orders: list[dict[str, Any]]) -> None:
         """Property: Multiple orders should be processed independently."""
-        parsed_orders = []
+        parsed_orders: list[BackpackRawOrderResponse] = []
 
         for order_data in orders:
             order = BackpackRawOrderResponse.model_validate(order_data)
@@ -651,7 +708,6 @@ class TestBackpackRawOrderIntegrationProperties:
 
             # Property: Orders should not affect each other
             for j, other_order in enumerate(parsed_orders):
-                if i != j:
-                    # Orders should have independent IDs
-                    if original_data["id"] != orders[j]["id"]:
-                        assert parsed_order.id != other_order.id
+                # Orders should have independent IDs if they are different
+                if i != j and original_data["id"] != orders[j]["id"]:
+                    assert parsed_order.id != other_order.id

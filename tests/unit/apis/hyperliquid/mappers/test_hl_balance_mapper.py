@@ -11,14 +11,19 @@ calculations, wrong available balance reporting, or trading with insufficient fu
 """
 
 from decimal import Decimal
+from unittest.mock import MagicMock
 
 import pytest
 from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.apis.hyperliquid.mappers.account.hl_balance_mapper import HyperliquidBalanceMapper
+from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
+    HyperliquidRawClearinghouseState,
+)
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import SpotBalance
+from cyberdelta.symbols import exchanges
 
 
 # =============================================================================
@@ -27,7 +32,11 @@ from cyberdelta.models import SpotBalance
 
 
 def hyperliquid_balance_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for Hyperliquid balance amounts."""
+    """Generate decimal strings for Hyperliquid balance amounts.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Common balance amounts with Hyperliquid precision
         st.decimals(
@@ -49,7 +58,11 @@ def hyperliquid_balance_decimal_strategy() -> SearchStrategy[str]:
 
 
 def hyperliquid_asset_strategy() -> SearchStrategy[str]:
-    """Generate valid Hyperliquid asset symbols."""
+    """Generate valid Hyperliquid asset symbols.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Common Hyperliquid assets
         st.sampled_from(["USDC", "BTC", "ETH", "SOL", "DOGE", "AVAX", "ARB"]),
@@ -114,11 +127,6 @@ class TestHyperliquidBalanceTransformationProperties:
         try:
             mapper = HyperliquidBalanceMapper()
             # Create mock clearinghouse state
-            from unittest.mock import MagicMock
-
-            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawClearinghouseState,
-            )
 
             mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
             mock_state.margin_summary = MagicMock()
@@ -140,8 +148,8 @@ class TestHyperliquidBalanceTransformationProperties:
                 assert isinstance(result.available_quantity, Decimal)
 
                 # Property: Precision should be preserved
-                expected_hold = Decimal(balance_data["hold"])
-                expected_total = Decimal(balance_data["total"])
+                Decimal(balance_data["hold"])
+                Decimal(balance_data["total"])
 
                 # Property: Hyperliquid-specific balance logic
                 # (Implementation may vary - hold might be locked, total might be available)
@@ -157,17 +165,12 @@ class TestHyperliquidBalanceTransformationProperties:
     )
     def test_balance_mathematical_invariants(self, hold: str, total: str) -> None:
         """Property: Balance calculations should maintain mathematical invariants."""
-        hold_dec = Decimal(hold)
-        total_dec = Decimal(total)
+        Decimal(hold)
+        Decimal(total)
 
         try:
             mapper = HyperliquidBalanceMapper()
             # Create mock clearinghouse state
-            from unittest.mock import MagicMock
-
-            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawClearinghouseState,
-            )
 
             mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
             mock_state.margin_summary = MagicMock()
@@ -203,11 +206,6 @@ class TestHyperliquidBalanceTransformationProperties:
 
         try:
             # Create mock clearinghouse state
-            from unittest.mock import MagicMock
-
-            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawClearinghouseState,
-            )
 
             mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
             mock_state.margin_summary = MagicMock()
@@ -223,6 +221,7 @@ class TestHyperliquidBalanceTransformationProperties:
 
                 # Property: Asset should be properly created
                 from cyberdelta.symbols.models import BaseSymbol
+
                 assert isinstance(result.asset, BaseSymbol)
 
                 # Property: Exchange should be Hyperliquid
@@ -249,16 +248,10 @@ class TestHyperliquidBalanceTransformationProperties:
 
         try:
             # Create a symbol for the test
-            from cyberdelta.symbols import exchanges
 
             symbol = exchanges.hyperliquid("USDC")
 
             # Create mock raw clearinghouse state
-            from unittest.mock import MagicMock
-
-            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawClearinghouseState,
-            )
 
             mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
             mock_state.marginSummary = MagicMock()
@@ -421,14 +414,8 @@ class TestHyperliquidPerpBalanceProperties:
                 result = mapper.transform_perp_balance(perp_data)
 
                 # Property: If position size exists, entry price should exist (and vice versa)
-                has_position = (
-                    hasattr(result, "szi")
-                    and result.szi is not None
-                    and result.szi != 0
-                )
-                has_entry_price = (
-                    hasattr(result, "entryPx") and result.entryPx is not None
-                )
+                has_position = hasattr(result, "szi") and result.szi is not None and result.szi != 0
+                has_entry_price = hasattr(result, "entryPx") and result.entryPx is not None
 
                 if has_position and entry_px is not None:
                     # Should have entry price for non-zero positions
@@ -479,9 +466,7 @@ class TestHyperliquidBalanceValidationProperties:
             mapper.transform_raw_clearinghouse_state_to_spot_balances(mock_state)
 
     @given(
-        negative_balance=st.decimals(
-            min_value=Decimal(-1000), max_value=Decimal("-0.01"), places=6
-        )
+        negative_balance=st.decimals(min_value=Decimal(-1000), max_value=Decimal("-0.01"), places=6)
     )
     def test_negative_balance_handling(self, negative_balance: Decimal) -> None:
         """Property: Test handling of negative balances."""
@@ -489,11 +474,6 @@ class TestHyperliquidBalanceValidationProperties:
 
         try:
             # Create mock clearinghouse state with negative balance
-            from unittest.mock import MagicMock
-
-            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawClearinghouseState,
-            )
 
             mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
             mock_state.margin_summary = MagicMock()
@@ -539,11 +519,6 @@ class TestHyperliquidBalanceMapperIntegrationProperties:
 
         try:
             # Create mock clearinghouse state
-            from unittest.mock import MagicMock
-
-            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawClearinghouseState,
-            )
 
             def create_mock_state() -> MagicMock:
                 mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
@@ -556,9 +531,13 @@ class TestHyperliquidBalanceMapperIntegrationProperties:
                 return mock_state
 
             # Transform the same data twice
-            balances1 = mapper.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
-            balances2 = mapper.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
-            
+            balances1 = mapper.transform_raw_clearinghouse_state_to_spot_balances(
+                create_mock_state()
+            )
+            balances2 = mapper.transform_raw_clearinghouse_state_to_spot_balances(
+                create_mock_state()
+            )
+
             if "USDC" in balances1 and "USDC" in balances2:
                 result1 = balances1["USDC"]
                 result2 = balances2["USDC"]
@@ -584,11 +563,6 @@ class TestHyperliquidBalanceMapperIntegrationProperties:
 
         try:
             # Create mock clearinghouse state
-            from unittest.mock import MagicMock
-
-            from cyberdelta.apis.hyperliquid.models.hl_raw_user_state import (
-                HyperliquidRawClearinghouseState,
-            )
 
             def create_mock_state() -> MagicMock:
                 mock_state = MagicMock(spec=HyperliquidRawClearinghouseState)
@@ -600,9 +574,13 @@ class TestHyperliquidBalanceMapperIntegrationProperties:
                 mock_state.cross_positions = []
                 return mock_state
 
-            balances1 = mapper1.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
-            balances2 = mapper2.transform_raw_clearinghouse_state_to_spot_balances(create_mock_state())
-            
+            balances1 = mapper1.transform_raw_clearinghouse_state_to_spot_balances(
+                create_mock_state()
+            )
+            balances2 = mapper2.transform_raw_clearinghouse_state_to_spot_balances(
+                create_mock_state()
+            )
+
             if "USDC" in balances1 and "USDC" in balances2:
                 result1 = balances1["USDC"]
                 result2 = balances2["USDC"]

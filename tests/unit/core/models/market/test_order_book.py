@@ -32,8 +32,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy
+from hypothesis import given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.exceptions.field_validation import (
@@ -41,20 +40,19 @@ from cyberdelta.exceptions.field_validation import (
     DecimalFiniteError,
     ListFieldError,
     RangeFieldError,
-    RequiredFieldNoneError,
     TypeFieldError,
 )
 from cyberdelta.models.market.order_book import OrderBook
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -166,8 +164,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -462,7 +460,7 @@ class TestOrderBookModelProperties:
             order_book.bids = []
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            order_book.asks = [(Decimal("100"), Decimal("1"))]
+            order_book.asks = [(Decimal(100), Decimal(1))]
 
     @given(
         field_name=st.sampled_from(["bids", "asks"]),
@@ -478,7 +476,7 @@ class TestOrderBookModelProperties:
         self, field_name: str, invalid_list_value: Any
     ) -> None:
         """Property: Invalid list structures should be rejected."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "timestamp": datetime.now(UTC),
             "bids": [],
@@ -507,7 +505,7 @@ class TestOrderBookModelProperties:
         self, field_name: str, invalid_level: Any
     ) -> None:
         """Property: Invalid level structures should be rejected."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "timestamp": datetime.now(UTC),
             "bids": [],
@@ -536,7 +534,7 @@ class TestOrderBookModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_invalid_price_rejection_properties(self, field_name: str, invalid_price: Any) -> None:
         """Property: Invalid price values should be rejected."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "timestamp": datetime.now(UTC),
             "bids": [],
@@ -574,7 +572,7 @@ class TestOrderBookModelProperties:
         self, field_name: str, invalid_quantity: Any
     ) -> None:
         """Property: Invalid quantity values should be rejected."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
             "timestamp": datetime.now(UTC),
             "bids": [],
@@ -696,12 +694,16 @@ class TestOrderBookBusinessLogicProperties:
 
         # Property: Levels should support basic financial operations
         if order_book.bids:
-            total_bid_value = sum(price * quantity for price, quantity in order_book.bids)
+            total_bid_value = sum(
+                (price * quantity for price, quantity in order_book.bids), Decimal(0)
+            )
             assert total_bid_value.is_finite()
             assert total_bid_value >= 0
 
         if order_book.asks:
-            total_ask_value = sum(price * quantity for price, quantity in order_book.asks)
+            total_ask_value = sum(
+                (price * quantity for price, quantity in order_book.asks), Decimal(0)
+            )
             assert total_ask_value.is_finite()
             assert total_ask_value >= 0
 
@@ -840,8 +842,8 @@ class TestOrderBookEdgeCaseProperties:
         order_book = OrderBook(
             symbol=BTC_HL,
             timestamp=snapshot_time,
-            bids=[(Decimal("100"), Decimal("1"))],
-            asks=[(Decimal("101"), Decimal("1"))],
+            bids=[(Decimal(100), Decimal(1))],
+            asks=[(Decimal(101), Decimal(1))],
         )
 
         # Property: Timestamp relationships should be preserved
@@ -886,7 +888,7 @@ class TestOrderBookEdgeCaseProperties:
 
         # Property: Each order book should maintain its individual data
         for i, (original_data, created_order_book) in enumerate(
-            zip(order_books, created_order_books)
+            zip(order_books, created_order_books, strict=False)
         ):
             symbol, timestamp, bids, asks = original_data
             assert created_order_book.symbol == symbol
@@ -921,16 +923,16 @@ class TestOrderBookEdgeCaseProperties:
 
         # Property: Aggregation operations should work correctly
         if aggregation_operation == "total_value":
-            total_value = sum(price * quantity for price, quantity in order_book.bids)
+            total_value = sum((price * quantity for price, quantity in order_book.bids), Decimal(0))
             assert total_value.is_finite()
             assert total_value >= 0
 
         elif aggregation_operation == "average_price":
             if order_book.bids:
-                total_quantity = sum(quantity for _, quantity in order_book.bids)
+                total_quantity = sum((quantity for _, quantity in order_book.bids), Decimal(0))
                 if total_quantity > 0:
                     weighted_avg = (
-                        sum(price * quantity for price, quantity in order_book.bids)
+                        sum((price * quantity for price, quantity in order_book.bids), Decimal(0))
                         / total_quantity
                     )
                     assert weighted_avg.is_finite()

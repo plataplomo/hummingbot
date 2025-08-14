@@ -33,22 +33,21 @@ from typing import Any
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.mid_prices import MidPrices
 from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
-    BTC_HL,
-    ETH_HL,
-    SOL_HL,
-    DOGE_HL,
     BTC_BP,
-    ETH_BP,
-    SOL_BP,
+    BTC_HL,
     BTC_USDC_BP,
+    DOGE_HL,
+    ETH_BP,
+    ETH_HL,
     ETH_USDC_BP,
+    SOL_BP,
+    SOL_HL,
     SOL_USDC_BP,
 )
 
@@ -162,8 +161,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -242,7 +241,7 @@ def extreme_price_dict_strategy(draw: st.DrawFn) -> dict[Symbol, Decimal]:
         elif price_type == "very_large":
             price = Decimal(str(draw(st.floats(min_value=1e6, max_value=1e9))))
         elif price_type == "zero":
-            price = Decimal("0")
+            price = Decimal(0)
         elif price_type == "negative":
             price = Decimal(str(draw(st.floats(min_value=-1000, max_value=-0.01))))
         else:  # high_precision
@@ -413,12 +412,15 @@ class TestMidPricesModelProperties:
             assert mid_prices.get(symbol) == price
 
             # Property: Special value checks
+            retrieved_price = mid_prices.get(symbol)
+            assert retrieved_price is not None, f"Price for {symbol} should exist"
+
             if price == 0:
-                assert mid_prices.get(symbol) == Decimal("0")
+                assert retrieved_price == Decimal(0)
             elif price < 0:
-                assert mid_prices.get(symbol) < 0
+                assert retrieved_price < 0
             elif price > 1e6:
-                assert mid_prices.get(symbol) > Decimal("1000000")
+                assert retrieved_price > Decimal(1000000)
 
     @given(
         prices=price_dict_strategy(allow_negative=True),
@@ -438,9 +440,11 @@ class TestMidPricesModelProperties:
 
         # Properties: Negative values should be preserved
         for symbol, price in prices.items():
-            assert mid_prices.get(symbol) == price
+            retrieved_price = mid_prices.get(symbol)
+            assert retrieved_price == price
             if price < 0:
-                assert mid_prices.get(symbol) < 0
+                assert retrieved_price is not None
+                assert retrieved_price < 0
 
     @given(
         prices=price_dict_strategy(),
@@ -464,7 +468,7 @@ class TestMidPricesModelProperties:
         # Modify the original dict (should not affect MidPrices)
         if prices:
             first_symbol = next(iter(prices))
-            prices[first_symbol] = Decimal("999999")
+            prices[first_symbol] = Decimal(999999)
 
         # Property: MidPrices should be unaffected by external modifications
         for symbol, original_price in original_prices.items():
@@ -481,7 +485,7 @@ class TestMidPricesModelProperties:
         exchange: ExchangeName,
     ) -> None:
         """Property: Extra fields should always be rejected."""
-        mid_prices_data = {
+        mid_prices_data: dict[str, Any] = {
             "prices": prices,
             "exchange": exchange,
             "extra_field": "not_allowed",
@@ -565,7 +569,7 @@ class TestMidPricesBusinessLogicProperties:
         if prices:
             modified_prices = prices.copy()
             first_symbol = next(iter(modified_prices))
-            modified_prices[first_symbol] = Decimal("999999")
+            modified_prices[first_symbol] = Decimal(999999)
 
             mid_prices3 = MidPrices(
                 prices=modified_prices,
@@ -663,10 +667,8 @@ class TestMidPricesBusinessLogicProperties:
         # Property: String should contain at least one symbol if prices exist
         if prices:
             # At least one symbol should be mentioned
-            symbol_found = False
             for symbol in prices:
-                if str(symbol) in str_repr or symbol.symbol in str_repr:
-                    symbol_found = True
+                if str(symbol) in str_repr:
                     break
             # We can't guarantee all symbols are in string repr, but at least check it's not empty
             assert len(str_repr) > 0
@@ -768,7 +770,9 @@ class TestMidPricesEdgeCaseProperties:
             created_mid_prices.append(mid_prices)
 
         # Property: Each mid prices should maintain its individual data
-        for i, (original_data, created_mp) in enumerate(zip(mid_prices_list, created_mid_prices)):
+        for i, (original_data, created_mp) in enumerate(
+            zip(mid_prices_list, created_mid_prices, strict=False)
+        ):
             prices, exchange, timestamp = original_data
             assert created_mp.prices == prices
             assert created_mp.exchange == exchange

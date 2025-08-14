@@ -19,7 +19,8 @@ from hypothesis.strategies import SearchStrategy
 
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.core.enums import OrderStatus
-from cyberdelta.enums import OrderType, TimeInForce
+from cyberdelta.enums import OrderSide, OrderType, TimeInForce
+from cyberdelta.symbols import exchanges
 
 
 # =============================================================================
@@ -28,7 +29,11 @@ from cyberdelta.enums import OrderType, TimeInForce
 
 
 def backpack_order_status_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack order statuses."""
+    """Generate valid Backpack order statuses.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just("new"),
         st.just("filled"),
@@ -60,7 +65,11 @@ def backpack_order_status_strategy() -> SearchStrategy[str]:
 
 
 def backpack_order_type_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack order types."""
+    """Generate valid Backpack order types.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just("limit"),
         st.just("market"),
@@ -79,7 +88,11 @@ def backpack_order_type_strategy() -> SearchStrategy[str]:
 
 
 def backpack_time_in_force_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack time in force values."""
+    """Generate valid Backpack time in force values.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         st.just("GTC"),  # Good Till Cancelled
         st.just("IOC"),  # Immediate Or Cancel
@@ -100,12 +113,14 @@ def backpack_time_in_force_strategy() -> SearchStrategy[str]:
 
 
 def financial_decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate financial decimal strings for order values."""
+    """Generate financial decimal strings for order values.
+
+    Returns:
+        A Hypothesis strategy for testing.
+    """
     return st.one_of([
         # Common trading amounts
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(
-            str
-        ),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=2).map(str),
         # Edge cases
         st.just("0"),
@@ -355,7 +370,6 @@ class TestOrderTransformationProperties:
         """Property: Order transformation should preserve financial precision."""
         try:
             # Create a symbol for the test
-            from cyberdelta.symbols import exchanges
 
             symbol = exchanges.backpack(order_data["symbol"])
 
@@ -388,10 +402,10 @@ class TestOrderTransformationProperties:
 
             # Property: Symbol should be properly mapped
             # Check it's a BaseSymbol instance (Symbol is a type alias)
-            assert hasattr(result.symbol, "value") and hasattr(result.symbol, "exchange")
+            assert hasattr(result.symbol, "value")
+            assert hasattr(result.symbol, "exchange")
 
             # Property: Side should be properly mapped to enum
-            from cyberdelta.enums import OrderSide
 
             assert result.side in [OrderSide.BUY, OrderSide.SELL]
 
@@ -405,7 +419,6 @@ class TestOrderTransformationProperties:
         """Property: Transformed orders should maintain financial invariants."""
         try:
             # Create a symbol for the test
-            from cyberdelta.symbols import exchanges
 
             symbol = exchanges.backpack(order_data["symbol"])
 
@@ -457,25 +470,11 @@ class TestOrderTransformationProperties:
         assume(Decimal(valid_quantity) > Decimal(0))
 
         # Create minimal valid order data
-        order_data = {
-            "id": "test_order_123",
-            "symbol": "BTC_USDC",
-            "side": "Bid",
-            "orderType": "limit",
-            "status": "new",
-            "timeInForce": "GTC",
-            "quantity": valid_quantity,
-            "price": valid_price,
-            "postOnly": False,
-            "selfTradePrevention": "RejectTaker",
-            "timestamp": 1700000000000,
-        }
 
         try:
             mapper = BackpackOrderMapper()
 
             # Need to create a symbol for the test
-            from cyberdelta.symbols import exchanges
 
             symbol = exchanges.backpack("BTC_USDC")
 
@@ -537,7 +536,6 @@ class TestOrderMapperIntegrationProperties:
         """Property: Transformation errors should be safe and informative."""
         try:
             # Create a symbol for the test
-            from cyberdelta.symbols import exchanges
 
             symbol = exchanges.backpack(order_data["symbol"])
 

@@ -37,7 +37,7 @@ from cyberdelta.symbols import Symbol, exchanges, symbol as create_symbol_func
 
 def create_symbol(value: str, exchange: ExchangeName) -> Symbol:
     """Create a symbol for the given exchange.
-    
+
     Returns:
         Symbol for the specified exchange.
     """
@@ -48,7 +48,7 @@ def create_symbol(value: str, exchange: ExchangeName) -> Symbol:
 
 def balance_amount_strategy() -> SearchStrategy[Decimal]:
     """Generate valid balance amounts (non-negative).
-    
+
     Returns:
         Strategy for generating decimal balance amounts.
     """
@@ -63,7 +63,7 @@ def balance_amount_strategy() -> SearchStrategy[Decimal]:
 
 def balance_delta_strategy() -> SearchStrategy[Decimal]:
     """Generate balance delta values (can be negative).
-    
+
     Returns:
         Strategy for generating decimal delta values.
     """
@@ -78,7 +78,7 @@ def balance_delta_strategy() -> SearchStrategy[Decimal]:
 
 def price_strategy() -> SearchStrategy[Decimal]:
     """Generate valid price values.
-    
+
     Returns:
         Strategy for generating decimal price values.
     """
@@ -93,7 +93,7 @@ def price_strategy() -> SearchStrategy[Decimal]:
 
 def quantity_strategy() -> SearchStrategy[Decimal]:
     """Generate valid quantity values.
-    
+
     Returns:
         Strategy for generating decimal quantity values.
     """
@@ -108,7 +108,7 @@ def quantity_strategy() -> SearchStrategy[Decimal]:
 
 def fee_strategy() -> SearchStrategy[Decimal]:
     """Generate valid fee amounts.
-    
+
     Returns:
         Strategy for generating decimal fee amounts.
     """
@@ -123,7 +123,7 @@ def fee_strategy() -> SearchStrategy[Decimal]:
 
 def exchange_strategy() -> SearchStrategy[ExchangeName]:
     """Generate valid exchange names.
-    
+
     Returns:
         Strategy for generating exchange names.
     """
@@ -132,7 +132,7 @@ def exchange_strategy() -> SearchStrategy[ExchangeName]:
 
 def asset_strategy() -> SearchStrategy[str]:
     """Generate valid asset symbols.
-    
+
     Returns:
         Strategy for generating asset symbol strings.
     """
@@ -141,7 +141,7 @@ def asset_strategy() -> SearchStrategy[str]:
 
 def side_strategy() -> SearchStrategy[OrderSide]:
     """Generate valid order sides.
-    
+
     Returns:
         Strategy for generating order side enums.
     """
@@ -150,7 +150,7 @@ def side_strategy() -> SearchStrategy[OrderSide]:
 
 def spot_balance_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate valid spot balance data.
-    
+
     Returns:
         Strategy for generating spot balance dictionaries.
     """
@@ -171,7 +171,7 @@ def spot_balance_strategy() -> SearchStrategy[dict[str, Any]]:
 
 def fill_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate valid fill data for balance updates.
-    
+
     Returns:
         Strategy for generating fill data dictionaries.
     """
@@ -199,7 +199,7 @@ def fill_strategy() -> SearchStrategy[dict[str, Any]]:
 @pytest.fixture
 def mock_config() -> MagicMock:
     """Create mock application configuration.
-    
+
     Returns:
         Mock configuration object.
     """
@@ -215,7 +215,7 @@ def mock_config() -> MagicMock:
 @pytest.fixture
 def mock_state_manager() -> AsyncMock:
     """Create mock portfolio state manager.
-    
+
     Returns:
         Mock state manager object.
     """
@@ -230,7 +230,7 @@ def mock_state_manager() -> AsyncMock:
 @pytest.fixture
 def balance_manager(mock_config: MagicMock, mock_state_manager: AsyncMock) -> BalanceManager:
     """Create balance manager instance.
-    
+
     Returns:
         Configured balance manager instance.
     """

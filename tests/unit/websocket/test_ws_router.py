@@ -5,7 +5,7 @@ This test validates Step 43: Router Unit Tests Updates.
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Any, cast
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -245,7 +245,7 @@ class TestWebSocketRouter:
     ) -> None:
         """Test that routing fails when envelope validator is not set."""
         handlers: dict[str, MessageHandler] = {}
-        message = {"stream": "test", "data": {}}
+        message: dict[str, Any] = {"stream": "test", "data": {}}
 
         with pytest.raises(ValueError, match="Envelope validator is required"):
             await test_router.route_message(message, handlers)
@@ -363,7 +363,7 @@ class TestWebSocketRouter:
     ) -> None:
         """Test missing routing key error with typed handler."""
         # Message with empty stream (no routing key)
-        message = {"stream": "", "data": {}}
+        message: dict[str, Any] = {"stream": "", "data": {}}
         handlers: dict[str, MessageHandler] = {}
 
         await configured_router.route_message(message, handlers)
@@ -389,7 +389,7 @@ class TestWebSocketRouter:
     ) -> None:
         """Test missing handler error with typed handler."""
         # Message with routing key but no handler
-        message = {"stream": "unknown_stream", "data": {}}
+        message: dict[str, Any] = {"stream": "unknown_stream", "data": {}}
         handlers: dict[str, MessageHandler] = {
             "different_stream": cast(MessageHandler, Mock(spec=MessageHandler))
         }
@@ -454,7 +454,7 @@ class TestWebSocketRouter:
         mock_stream_error_handler: Mock,
     ) -> None:
         """Test message send failure with typed handler."""
-        message = {"stream": "test", "data": {}}
+        message: dict[str, Any] = {"stream": "test", "data": {}}
         send_error = ConnectionError("Send failed")
 
         await configured_router.handle_message_send_failure(message, send_error)
@@ -506,7 +506,7 @@ class TestWebSocketRouter:
 
         configured_router.envelope_validator = Mock(side_effect=failing_validator)
 
-        message = {"stream": "test", "data": {}}
+        message: dict[str, Any] = {"stream": "test", "data": {}}
         handlers: dict[str, MessageHandler] = {}
 
         await configured_router.route_message(message, handlers)

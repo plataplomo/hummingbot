@@ -309,7 +309,7 @@ class TestRecoverySystemPerformance:
         recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
 
         # Create various types of errors
-        errors = []
+        errors: list[WebSocketStreamError] = []
         error_codes = [
             WebSocketErrorCode.CONNECTION_LOST,
             WebSocketErrorCode.SEQUENCE_GAP,
