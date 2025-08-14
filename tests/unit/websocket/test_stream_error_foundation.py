@@ -20,10 +20,7 @@ from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
 from cyberdelta.apis.websocket.ws_exceptions import (
     WebSocketAuthenticationError,
-    WebSocketConnectionClosedError,
     WebSocketConnectionError,
-    WebSocketProtocolError,
-    WebSocketRateLimitError,
     WebSocketSecurityError,
     WebSocketSequenceError,
     WebSocketSubscriptionError,
@@ -631,16 +628,7 @@ class TestWebSocketExceptions:
         assert error.code == WebSocketErrorCode.CONNECTION_LOST
         assert error.recovery_strategy == WebSocketRecoveryStrategy.RECONNECT_SAME
 
-    def test_connection_closed_error(self, sample_context: StreamErrorContext) -> None:
-        """Test WebSocketConnectionClosedError."""
-        error = WebSocketConnectionClosedError(
-            context=sample_context,
-            close_code=1000,
-            close_reason="Normal closure",
-        )
-        assert "1000" in error.message
-        assert "Normal closure" in error.message
-        assert error.context.extra_context["close_code"] == 1000
+    # WebSocketConnectionClosedError removed - unused in production
 
     def test_authentication_error(self, sample_context: StreamErrorContext) -> None:
         """Test WebSocketAuthenticationError."""
@@ -698,16 +686,7 @@ class TestWebSocketExceptions:
         assert error.context.expected_sequence == 100
         assert error.context.sequence_number == 105
 
-    def test_rate_limit_error(self, sample_context: StreamErrorContext) -> None:
-        """Test WebSocketRateLimitError."""
-        error = WebSocketRateLimitError(
-            context=sample_context,
-            limit_type="messages",
-            retry_after_ms=5000,
-        )
-        assert "messages rate limit" in error.message
-        assert "5000ms" in error.message
-        assert error.context.metadata.backoff_ms == 5000
+    # WebSocketRateLimitError removed - unused in production
 
     def test_security_error(self, sample_context: StreamErrorContext) -> None:
         """Test WebSocketSecurityError."""
@@ -910,7 +889,7 @@ class TestFoundationIntegration:
             WebSocketAuthenticationError("Test", context),
             WebSocketSubscriptionError("Test", context),
             WebSocketValidationError("Test", context),
-            WebSocketProtocolError("Test", context),
+            WebSocketConnectionError("Test", context),
             WebSocketSecurityError("Test", context),
         ]
 

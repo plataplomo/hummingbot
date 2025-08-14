@@ -171,4 +171,4 @@ class WebSocketContextRegistry:
 
 
 # NOTE: No global registry instance
-# Use WebSocketRegistryFactory.create_configured_registry() instead
+# Use WebSocketRegistryFactory.create_registry() instead

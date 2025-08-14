@@ -43,7 +43,8 @@ from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter, EnvelopeValidatorNotSetError
+from cyberdelta.apis.websocket.ws_exceptions import EnvelopeValidatorNotSetError
+from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_transformer import (
     BatchMapperTransformer,
     ControlMessageTransformer,
@@ -69,7 +70,7 @@ if TYPE_CHECKING:
         PriceTickerMapperProtocol,
         TransactionMapperProtocol,
     )
-    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+    # BaseErrorHandler import removed - deprecated and not used
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 
 
@@ -113,7 +114,6 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
     def __init__(
         self,
-        error_handler: BaseErrorHandler,
         stream_error_handler: WebSocketStreamErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
         order_book_mapper: OrderBookMapperProtocol,
@@ -127,7 +127,6 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         """Initialize the Hyperliquid WebSocket router.
 
         Args:
-            error_handler: Error handler for centralized error management.
             stream_error_handler: Stream error handler for new architecture.
             typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book and trade transformations.
@@ -156,7 +155,6 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         super().__init__(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=error_handler,
             typed_processor=typed_processor,
             stream_error_handler=stream_error_handler,
             envelope_validator=validate_hyperliquid_envelope,

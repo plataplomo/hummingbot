@@ -17,13 +17,14 @@ from cyberdelta.apis.websocket.ws_memory_config import (
     get_recommended_mode_for_scenario,
 )
 from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+    from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 
 
 logger = get_logger(__name__)
@@ -35,7 +36,8 @@ class RouterConfiguration:
     def __init__(self) -> None:
         """Initialize router configuration builder."""
         self.exchange_name: ExchangeName | None = None
-        self.error_handler: BaseErrorHandler | None = None
+        self.stream_error_handler: WebSocketStreamErrorHandler | None = None
+        self.typed_processor: TypeSafeWebSocketProcessor | None = None
         self.envelope_validator: Callable[[dict[str, Any]], Any] | None = None
         self.payload_validator: WebSocketPayloadValidators | None = None
         self.metrics_collector: WebSocketMetricsCollector | None = None
@@ -55,16 +57,34 @@ class RouterConfiguration:
         self.exchange_name = exchange_name
         return self
 
-    def with_error_handler(self, error_handler: BaseErrorHandler) -> RouterConfiguration:
-        """Configure error handler.
+    def with_stream_error_handler(
+        self,
+        stream_error_handler: WebSocketStreamErrorHandler,
+    ) -> RouterConfiguration:
+        """Configure stream error handler.
 
         Args:
-            error_handler: Error handler instance
+            stream_error_handler: Stream error handler instance
 
         Returns:
             Updated configuration builder
         """
-        self.error_handler = error_handler
+        self.stream_error_handler = stream_error_handler
+        return self
+
+    def with_typed_processor(
+        self,
+        typed_processor: TypeSafeWebSocketProcessor,
+    ) -> RouterConfiguration:
+        """Configure typed processor.
+
+        Args:
+            typed_processor: Typed processor instance
+
+        Returns:
+            Updated configuration builder
+        """
+        self.typed_processor = typed_processor
         return self
 
     def with_envelope_validator(
@@ -132,29 +152,27 @@ class RouterConfiguration:
             msg = "Exchange name is required"
             raise ValueError(msg)
 
-        if not self.error_handler:
-            msg = "Error handler is required"
+        if not self.stream_error_handler:
+            msg = "Stream error handler is required"
+            raise ValueError(msg)
+
+        if not self.typed_processor:
+            msg = "Typed processor is required"
             raise ValueError(msg)
 
         # Get memory configuration or use standard preset
         memory_config = self.memory_config or PerformanceModePresets.standard()
 
-        # Determine if memory optimization should be enabled
-        enable_memory_optimization = (
-            memory_config.enable_pooling
-            or memory_config.enable_slots_optimization
-            or self.performance_mode != PerformanceMode.STANDARD
-        )
+        # Performance modes configure memory optimization automatically via memory_config
 
         kwargs = {
             "exchange_name": self.exchange_name,
-            "error_handler": self.error_handler,
+            "stream_error_handler": self.stream_error_handler,
+            "typed_processor": self.typed_processor,
             "envelope_validator": self.envelope_validator,
             "payload_validator": self.payload_validator,
             "metrics_collector": self.metrics_collector,
             "recovery_config": self.recovery_config,
-            "enable_error_recovery": True,  # Always enabled for production reliability
-            "enable_memory_optimization": enable_memory_optimization,
             "memory_pool_size": memory_config.pool_size,
         }
 
@@ -164,14 +182,16 @@ class RouterConfiguration:
 
 def create_standard_router(
     exchange_name: ExchangeName,
-    error_handler: BaseErrorHandler,
+    stream_error_handler: WebSocketStreamErrorHandler,
+    typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
 ) -> RouterConfiguration:
     """Create a standard router configuration for regular trading scenarios.
 
     Args:
-        exchange_name: Exchange name string
-        error_handler: Error handler instance
+        exchange_name: Exchange name enum
+        stream_error_handler: Stream error handler instance
+        typed_processor: Typed processor instance
         envelope_validator: Optional envelope validator
 
     Returns:
@@ -180,7 +200,8 @@ def create_standard_router(
     config = (
         RouterConfiguration()
         .with_exchange(exchange_name)
-        .with_error_handler(error_handler)
+        .with_stream_error_handler(stream_error_handler)
+        .with_typed_processor(typed_processor)
         .with_performance_mode(PerformanceMode.STANDARD)
     )
 
@@ -198,15 +219,17 @@ def create_standard_router(
 
 def create_high_frequency_router(
     exchange_name: ExchangeName,
-    error_handler: BaseErrorHandler,
+    stream_error_handler: WebSocketStreamErrorHandler,
+    typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     message_rate_per_second: int | None = None,
 ) -> RouterConfiguration:
     """Create a high-frequency trading router configuration.
 
     Args:
-        exchange_name: Exchange name string
-        error_handler: Error handler instance
+        exchange_name: Exchange name enum
+        stream_error_handler: Stream error handler instance
+        typed_processor: Typed processor instance
         envelope_validator: Optional envelope validator
         message_rate_per_second: Expected message rate for pool sizing
 
@@ -222,7 +245,8 @@ def create_high_frequency_router(
     config = (
         RouterConfiguration()
         .with_exchange(exchange_name)
-        .with_error_handler(error_handler)
+        .with_stream_error_handler(stream_error_handler)
+        .with_typed_processor(typed_processor)
         .with_performance_mode(PerformanceMode.HIGH_FREQUENCY)
         .with_custom_memory_config(memory_config)
     )
@@ -243,14 +267,16 @@ def create_high_frequency_router(
 
 def create_ultra_low_latency_router(
     exchange_name: ExchangeName,
-    error_handler: BaseErrorHandler,
+    stream_error_handler: WebSocketStreamErrorHandler,
+    typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
 ) -> RouterConfiguration:
     """Create an ultra-low latency router configuration for market making.
 
     Args:
         exchange_name: ExchangeName enum
-        error_handler: Error handler instance
+        stream_error_handler: Stream error handler instance
+        typed_processor: Typed processor instance
         envelope_validator: Optional envelope validator
 
     Returns:
@@ -259,7 +285,8 @@ def create_ultra_low_latency_router(
     config = (
         RouterConfiguration()
         .with_exchange(exchange_name)
-        .with_error_handler(error_handler)
+        .with_stream_error_handler(stream_error_handler)
+        .with_typed_processor(typed_processor)
         .with_performance_mode(PerformanceMode.ULTRA_LOW_LATENCY)
     )
 
@@ -277,15 +304,17 @@ def create_ultra_low_latency_router(
 
 def create_memory_optimized_router(
     exchange_name: ExchangeName,
-    error_handler: BaseErrorHandler,
+    stream_error_handler: WebSocketStreamErrorHandler,
+    typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     memory_limit_mb: float | None = None,
 ) -> RouterConfiguration:
     """Create a memory-optimized router configuration.
 
     Args:
-        exchange_name: Exchange name string
-        error_handler: Error handler instance
+        exchange_name: Exchange name enum
+        stream_error_handler: Stream error handler instance
+        typed_processor: Typed processor instance
         envelope_validator: Optional envelope validator
         memory_limit_mb: Memory limit in megabytes
 
@@ -302,7 +331,8 @@ def create_memory_optimized_router(
     config = (
         RouterConfiguration()
         .with_exchange(exchange_name)
-        .with_error_handler(error_handler)
+        .with_stream_error_handler(stream_error_handler)
+        .with_typed_processor(typed_processor)
         .with_performance_mode(PerformanceMode.MEMORY_OPTIMIZED)
         .with_custom_memory_config(memory_config)
     )
@@ -323,7 +353,8 @@ def create_memory_optimized_router(
 
 def auto_configure_router(
     exchange_name: ExchangeName,
-    error_handler: BaseErrorHandler,
+    stream_error_handler: WebSocketStreamErrorHandler,
+    typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     message_rate_per_second: int | None = None,
     memory_limit_mb: float | None = None,
@@ -332,8 +363,9 @@ def auto_configure_router(
     """Automatically configure router based on requirements.
 
     Args:
-        exchange_name: Exchange name string
-        error_handler: Error handler instance
+        exchange_name: Exchange name enum
+        stream_error_handler: Stream error handler instance
+        typed_processor: Typed processor instance
         envelope_validator: Optional envelope validator
         message_rate_per_second: Expected message processing rate
         memory_limit_mb: Memory limit in megabytes
@@ -362,24 +394,32 @@ def auto_configure_router(
     if recommended_mode == PerformanceMode.HIGH_FREQUENCY:
         return create_high_frequency_router(
             exchange_name,
-            error_handler,
+            stream_error_handler,
+            typed_processor,
             envelope_validator,
             message_rate_per_second,
         )
     if recommended_mode == PerformanceMode.ULTRA_LOW_LATENCY:
         return create_ultra_low_latency_router(
             exchange_name,
-            error_handler,
+            stream_error_handler,
+            typed_processor,
             envelope_validator,
         )
     if recommended_mode == PerformanceMode.MEMORY_OPTIMIZED:
         return create_memory_optimized_router(
             exchange_name,
-            error_handler,
+            stream_error_handler,
+            typed_processor,
             envelope_validator,
             memory_limit_mb,
         )
-    return create_standard_router(exchange_name, error_handler, envelope_validator)
+    return create_standard_router(
+        exchange_name,
+        stream_error_handler,
+        typed_processor,
+        envelope_validator,
+    )
 
 
 # Example usage

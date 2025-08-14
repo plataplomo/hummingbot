@@ -101,5 +101,5 @@ class TypeSafeWebSocketProcessor:
 
 
 # NOTE: No global instance - create via factory pattern.
-# Use WebSocketRegistryFactory.create_configured_registry() to get a registry,
+# Use WebSocketRegistryFactory.create_registry() to get a registry,
 # then pass it to TypeSafeWebSocketProcessor constructor.

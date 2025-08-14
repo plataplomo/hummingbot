@@ -58,7 +58,8 @@ from cyberdelta.apis.models.service_args.trading import (
     GetTradeHistoryArgs,
     PlaceOrderArgs,
 )
-from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+
+# BaseErrorHandler import removed - deprecated and not used
 from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHandlerFactory
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
@@ -364,8 +365,6 @@ class HyperliquidAPI(ExchangeAPI):
         self._is_connected = False
 
         # Initialize enhanced WebSocket router with new architecture
-        error_handler = BaseErrorHandler(exchange_name=exchange_config.exchange_name)
-
         # Create stream error handler for new architecture
         default_error_config = WebSocketErrorConfig()
         stream_error_handler = WebSocketErrorHandlerFactory.create_handler(
@@ -379,7 +378,6 @@ class HyperliquidAPI(ExchangeAPI):
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         self._hl_ws_router = HyperliquidWebSocketRouter(
-            error_handler=error_handler,
             stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=factory.create_order_book_mapper(),

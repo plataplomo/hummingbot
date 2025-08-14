@@ -40,7 +40,8 @@ from cyberdelta.apis.exceptions.configuration import (
     TestnetConfigurationError,
 )
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
-from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+
+# BaseErrorHandler import removed - deprecated and not used
 from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHandlerFactory
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
@@ -202,8 +203,6 @@ class BackpackAPI(ExchangeAPI):
         )
 
         # Initialize enhanced WebSocket router with new architecture
-        error_handler = BaseErrorHandler(exchange_name=exchange_config.exchange_name)
-
         # Create stream error handler for new architecture
         default_error_config = WebSocketErrorConfig()
         stream_error_handler = WebSocketErrorHandlerFactory.create_handler(
@@ -217,7 +216,6 @@ class BackpackAPI(ExchangeAPI):
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         self._bp_ws_router = BackpackWebSocketRouter(
-            error_handler=error_handler,
             stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=factory.create_order_book_mapper(),

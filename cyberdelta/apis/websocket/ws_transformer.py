@@ -21,22 +21,6 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
 
-class SymbolNotFoundError(KeyError):
-    """Raised when symbol is not found in context for Backpack transformation."""
-
-    def __init__(self) -> None:
-        """Initialize symbol not found error."""
-        super().__init__("Symbol not found in context for Backpack transformation")
-
-
-class CoinNotFoundError(KeyError):
-    """Raised when coin is not found in context for Hyperliquid transformation."""
-
-    def __init__(self) -> None:
-        """Initialize coin not found error."""
-        super().__init__("Coin not found in context for Hyperliquid transformation")
-
-
 class ControlMessageTransformer[T: BaseModel]:
     """Transformer for control/system messages that don't map to domain models.
 
@@ -188,85 +172,3 @@ class AsyncMapperTransformer[T: BaseModel, U]:
 
         # Simple async transformation without context
         return await self.async_mapper_method(validated)
-
-
-# Context extractor utility functions
-def extract_symbol_from_context(context: WebSocketContextProtocol) -> dict[str, str]:
-    """Extract symbol parameter from context for transformers.
-
-    Uses the Protocol method for type-safe, exchange-agnostic extraction.
-
-    Args:
-        context: Typed context containing symbol information
-
-    Returns:
-        Dictionary with symbol parameter for mapper method
-
-    Raises:
-        SymbolNotFoundError: If symbol is not found in context
-    """
-    # Use the Protocol method for exchange-agnostic extraction
-    symbol_param = context.get_symbol_param()
-    if symbol_param:
-        return symbol_param
-
-    # No symbol available for this context
-    raise SymbolNotFoundError
-
-
-def extract_coin_from_context(context: WebSocketContextProtocol) -> dict[str, str]:
-    """Extract coin parameter from context for transformers.
-
-    Uses the Protocol method for type-safe, exchange-agnostic extraction.
-
-    Args:
-        context: Typed context containing coin information
-
-    Returns:
-        Dictionary with coin parameter for mapper method
-
-    Raises:
-        CoinNotFoundError: If coin is not found in context
-    """
-    # Use the Protocol method for exchange-agnostic extraction
-    coin_param = context.get_coin_param()
-    if coin_param:
-        return coin_param
-
-    # No coin available for this context
-    raise CoinNotFoundError
-
-
-def extract_transformer_params(context: WebSocketContextProtocol) -> dict[str, str]:
-    """Extract all transformer parameters from context.
-
-    Uses the Protocol method for type-safe, exchange-agnostic extraction.
-    This is the most flexible approach as it returns all parameters
-    that the exchange deems necessary for transformation.
-
-    Args:
-        context: Typed context containing transformer parameters
-
-    Returns:
-        Dictionary with all transformer parameters for the exchange
-
-    Raises:
-        KeyError: If no parameters are available
-    """
-    params = context.get_transformer_params()
-    if not params:
-        msg = "No transformer parameters available"
-        raise KeyError(msg)
-    return params
-
-
-def no_context_extraction(context: dict[str, Any]) -> dict[str, Any]:
-    """No-op context extractor for transformers that don't need context.
-
-    Args:
-        context: Processing context (ignored)
-
-    Returns:
-        Empty dictionary
-    """
-    return {}

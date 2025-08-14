@@ -26,8 +26,8 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
     HyperliquidPriceTickerMapper,
 )
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
-from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
@@ -37,22 +37,13 @@ class TestHyperliquidWebSocketRouter:
     """Test HyperliquidWebSocketRouter functionality."""
 
     @pytest.fixture
-    def error_handler(self) -> AsyncMock:
-        """Create mock error handler.
-
-        Returns:
-            AsyncMock: Mock BaseErrorHandler instance for testing.
-        """
-        return AsyncMock(spec=BaseErrorHandler)
-
-    @pytest.fixture
-    def stream_error_handler(self) -> MagicMock:
+    def stream_error_handler(self) -> AsyncMock:
         """Create mock stream error handler.
 
         Returns:
-            MagicMock: Mock WebSocketStreamErrorHandler instance for testing.
+            AsyncMock: Mock WebSocketStreamErrorHandler instance for testing.
         """
-        return MagicMock(spec=WebSocketStreamErrorHandler)
+        return AsyncMock(spec=WebSocketStreamErrorHandler)
 
     @pytest.fixture
     def order_book_mapper(self) -> MagicMock:
@@ -120,8 +111,7 @@ class TestHyperliquidWebSocketRouter:
     @pytest.fixture
     def router(
         self,
-        error_handler: AsyncMock,
-        stream_error_handler: MagicMock,
+        stream_error_handler: AsyncMock,
         order_book_mapper: MagicMock,
         price_ticker_mapper: MagicMock,
         balance_mapper: MagicMock,
@@ -136,11 +126,10 @@ class TestHyperliquidWebSocketRouter:
             HyperliquidWebSocketRouter: Configured router instance with mocked dependencies.
         """
         # Create typed processor for testing
-        registry = WebSocketRegistryFactory.create_configured_registry()
+        registry = WebSocketRegistryFactory.create_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         return HyperliquidWebSocketRouter(
-            error_handler=error_handler,
             stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=order_book_mapper,
@@ -165,7 +154,7 @@ class TestHyperliquidWebSocketRouter:
 
     @pytest.mark.asyncio
     async def test_routing_key_extraction_through_route_message(
-        self, router: HyperliquidWebSocketRouter, error_handler: AsyncMock
+        self, router: HyperliquidWebSocketRouter, stream_error_handler: AsyncMock
     ) -> None:
         """Test routing key extraction through the public route_message interface."""
         # Test l2Book channel routing
@@ -184,7 +173,7 @@ class TestHyperliquidWebSocketRouter:
 
     @pytest.mark.asyncio
     async def test_invalid_channel_handling(
-        self, router: HyperliquidWebSocketRouter, error_handler: AsyncMock
+        self, router: HyperliquidWebSocketRouter, stream_error_handler: AsyncMock
     ) -> None:
         """Test invalid channel handling through the public interface."""
         # Unknown channel should trigger unroutable message handling
@@ -284,7 +273,7 @@ class TestHyperliquidWebSocketRouter:
 
     @pytest.mark.asyncio
     async def test_route_message_success(
-        self, router: HyperliquidWebSocketRouter, error_handler: AsyncMock
+        self, router: HyperliquidWebSocketRouter, stream_error_handler: AsyncMock
     ) -> None:
         """Test successful message routing."""
         # Setup

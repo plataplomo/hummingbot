@@ -919,42 +919,6 @@ def analyze_pipeline_performance() -> dict[str, Any]:
     return pipeline_tuner.analyze_performance()
 
 
-def tune_for_speed(model_type: type[BaseModel]) -> OptimizationResult:
-    """Tune pipeline for maximum speed.
-
-    Args:
-        model_type: Model type to optimize for speed
-
-    Returns:
-        Optimization result with speed-focused configuration
-    """
-    return pipeline_tuner.tune_pipeline(model_type, OptimizationObjective.MINIMIZE_LATENCY)
-
-
-def tune_for_memory(model_type: type[BaseModel]) -> OptimizationResult:
-    """Tune pipeline for minimal memory usage.
-
-    Args:
-        model_type: Model type to optimize for memory usage
-
-    Returns:
-        Optimization result with memory-focused configuration
-    """
-    return pipeline_tuner.tune_pipeline(model_type, OptimizationObjective.MINIMIZE_MEMORY)
-
-
-def tune_for_throughput(model_type: type[BaseModel]) -> OptimizationResult:
-    """Tune pipeline for maximum throughput.
-
-    Args:
-        model_type: Model type to optimize for throughput
-
-    Returns:
-        Optimization result with throughput-focused configuration
-    """
-    return pipeline_tuner.tune_pipeline(model_type, OptimizationObjective.MAXIMIZE_THROUGHPUT)
-
-
 # Example usage and demonstration
 if __name__ == "__main__":
     from typing import Any

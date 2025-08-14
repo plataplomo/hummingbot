@@ -17,21 +17,11 @@ from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from cyberdelta.apis.base.rate_limit_behavior import RateLimitBehavior
 
-
-class BurstSizeTooLargeError(ValueError):
-    """Raised when burst size is too large for the configured rate."""
-
-    def __init__(self, burst_size: int, rate: float) -> None:
-        """Initialize with burst size and rate values."""
-        super().__init__(f"Burst size {burst_size} too large for rate {rate}/s")
-
-
-class UnsupportedAlgorithmError(ValueError):
-    """Raised when an unsupported rate limiting algorithm is specified."""
-
-    def __init__(self, algorithm: str) -> None:
-        """Initialize with algorithm name."""
-        super().__init__(f"Unsupported algorithm: {algorithm}")
+from cyberdelta.apis.websocket.ws_exceptions import (
+    BurstSizeTooLargeError,
+    RateLimitError,
+    UnsupportedAlgorithmError,
+)
 
 
 class RateLimitType(StrEnum):
@@ -242,7 +232,9 @@ class WebSocketRateLimiter:
             return TokenBucket(config.requests_per_second, config.burst_size)
         if config.algorithm == RateLimitAlgorithm.SLIDING_WINDOW:
             return SlidingWindowCounter(config.requests_per_second, config.window_size_seconds)
-        raise UnsupportedAlgorithmError(config.algorithm)
+        # Provide list of supported algorithms for error message
+        supported = [str(alg) for alg in RateLimitAlgorithm]
+        raise UnsupportedAlgorithmError(str(config.algorithm), supported)
 
     def _get_limiter_key(
         self,
@@ -413,18 +405,7 @@ class WebSocketRateLimiter:
             self.global_limiter = self._create_limiter(config)
 
 
-class RateLimitError(Exception):
-    """Exception raised when rate limit is exceeded."""
-
-    def __init__(self, result: RateLimitResult, message: str | None = None) -> None:
-        """Initialize rate limit error.
-
-        Args:
-            result: Rate limit check result
-            message: Optional error message
-        """
-        self.result = result
-        super().__init__(message or f"Rate limit exceeded for {result.limit_type}")
+# RateLimitError is now imported from ws_exceptions
 
 
 class RateLimitMiddleware:
@@ -462,6 +443,11 @@ class RateLimitMiddleware:
         result = self.rate_limiter.check_rate_limit(connection_id, message_type, user_id)
 
         if not result.allowed and behavior.should_raise:
-            raise RateLimitError(result)
+            # Create RateLimitError with unified signature
+            message = f"Rate limit exceeded for {result.limit_type}"
+            error = RateLimitError(message=message, retry_after=result.retry_after_seconds)
+            # Store result as attribute for compatibility
+            error.result = result  # type: ignore[attr-defined]
+            raise error
 
         return result

@@ -16,9 +16,9 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
@@ -27,22 +27,13 @@ class TestBackpackWebSocketRouter:
     """Test BackpackWebSocketRouter with decomposed mappers."""
 
     @pytest.fixture
-    def error_handler(self) -> AsyncMock:
-        """Create mock error handler.
-
-        Returns:
-            AsyncMock: Mock BaseErrorHandler instance for testing.
-        """
-        return AsyncMock(spec=BaseErrorHandler)
-
-    @pytest.fixture
-    def stream_error_handler(self) -> MagicMock:
+    def stream_error_handler(self) -> AsyncMock:
         """Create mock stream error handler.
 
         Returns:
-            MagicMock: Mock WebSocketStreamErrorHandler instance for testing.
+            AsyncMock: Mock WebSocketStreamErrorHandler instance for testing.
         """
-        return MagicMock(spec=WebSocketStreamErrorHandler)
+        return AsyncMock(spec=WebSocketStreamErrorHandler)
 
     @pytest.fixture
     def order_book_mapper(self) -> MagicMock:
@@ -110,8 +101,7 @@ class TestBackpackWebSocketRouter:
     @pytest.fixture
     def router(
         self,
-        error_handler: AsyncMock,
-        stream_error_handler: MagicMock,
+        stream_error_handler: AsyncMock,
         order_book_mapper: MagicMock,
         ticker_mapper: MagicMock,
         trade_mapper: MagicMock,
@@ -126,11 +116,10 @@ class TestBackpackWebSocketRouter:
             BackpackWebSocketRouter: Configured router instance with mocked dependencies.
         """
         # Create typed processor for testing
-        registry = WebSocketRegistryFactory.create_configured_registry()
+        registry = WebSocketRegistryFactory.create_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
 
         return BackpackWebSocketRouter(
-            error_handler=error_handler,
             stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
             order_book_mapper=order_book_mapper,

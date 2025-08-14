@@ -30,37 +30,15 @@ class WebSocketRegistryFactory:
         """Create an empty registry for WebSocket contexts.
 
         This method creates a clean registry instance. Each exchange should
-        register itself when initialized.
+        register itself when initialized to avoid circular imports.
 
         Returns:
             Empty WebSocketContextRegistry instance
 
         Examples:
             >>> registry = WebSocketRegistryFactory.create_registry()
-            >>> # Exchange registers itself
+            >>> # Exchange registers itself during initialization
             >>> from cyberdelta.apis.backpack.bp_ws_init import initialize_backpack_ws
             >>> initialize_backpack_ws(registry)
-        """
-        return WebSocketContextRegistry()
-
-    @staticmethod
-    def create_configured_registry() -> WebSocketContextRegistry:
-        """Create registry with exchanges self-registering when needed.
-
-        Note: This method returns an empty registry. Each exchange is responsible
-        for registering itself when initialized to avoid circular imports.
-
-        Returns:
-            Empty WebSocketContextRegistry instance
-        """
-        # Return empty registry - exchanges will register themselves when needed
-        return WebSocketContextRegistry()
-
-    @staticmethod
-    def create_empty_registry() -> WebSocketContextRegistry:
-        """Create an empty registry for testing purposes.
-
-        Returns:
-            Empty WebSocketContextRegistry instance
         """
         return WebSocketContextRegistry()

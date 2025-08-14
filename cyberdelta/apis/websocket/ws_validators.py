@@ -11,119 +11,25 @@ import time
 from typing import Any
 
 from cyberdelta.apis.base.validation_policies import TimestampPolicy
+
+# Import exceptions from unified hierarchy (Step 30: Migration completed)
+from cyberdelta.apis.websocket.ws_exceptions import (
+    InvalidFieldTypeError,
+    InvalidFormatError,
+    InvalidItemTypeError,
+    InvalidNumericValueError,
+    InvalidPayloadTypeError,
+    InvalidTimestampError,
+    MissingRequiredFieldsError,
+    NumericRangeError,
+    PayloadSizeError,
+    UnexpectedFieldsError,
+)
 from cyberdelta.config.structlog_config import get_logger
 
 
 # Type alias for validation input - covers all possible invalid input types
 ValidationInput = dict[str, Any] | list[Any] | str | float | int | None
-
-
-class InvalidPayloadTypeError(TypeError):
-    """Raised when payload type is invalid for WebSocket processing."""
-
-    def __init__(self, context: str, actual_type: type, expected_type: str) -> None:
-        """Initialize with context and type information."""
-        super().__init__(
-            f"Invalid {context} payload type: {actual_type.__name__}. Expected {expected_type}.",
-        )
-
-
-class MissingRequiredFieldsError(ValueError):
-    """Raised when required fields are missing from payload."""
-
-    def __init__(self, context: str, missing_fields: list[str]) -> None:
-        """Initialize with context and missing fields."""
-        super().__init__(f"Missing required fields in {context}: {missing_fields}")
-
-
-class InvalidItemTypeError(TypeError):
-    """Raised when an item in a list has an invalid type."""
-
-    def __init__(
-        self,
-        context: str,
-        index: int,
-        actual_type: type[Any],
-        expected_type: type[Any],
-    ) -> None:
-        """Initialize with context and type information."""
-        super().__init__(
-            f"{context} payload item {index} has invalid type: "
-            f"{actual_type.__name__}. Expected {expected_type.__name__}.",
-        )
-
-
-class InvalidFieldTypeError(TypeError):
-    """Raised when a field has an invalid type."""
-
-    def __init__(self, context: str, actual_type: type[Any], expected_type: str) -> None:
-        """Initialize with context and type information."""
-        super().__init__(
-            f"Invalid {context} type: {actual_type.__name__}. Expected {expected_type}.",
-        )
-
-
-class PayloadSizeError(ValueError):
-    """Raised when payload size constraints are violated."""
-
-    def __init__(
-        self,
-        context: str,
-        actual: int,
-        constraint: str,
-        limit: int,
-        unit: str = "keys",
-    ) -> None:
-        """Initialize with size constraint details."""
-        super().__init__(f"{context} payload must have {constraint} {limit} {unit}, got {actual}")
-
-
-class UnexpectedFieldsError(ValueError):
-    """Raised when unexpected fields are found in payload."""
-
-    def __init__(
-        self,
-        context: str,
-        unexpected_fields: list[str],
-        allowed_fields: list[str],
-    ) -> None:
-        """Initialize with field information."""
-        super().__init__(
-            f"Unexpected fields in {context}: {unexpected_fields}. "
-            f"Allowed fields: {allowed_fields}",
-        )
-
-
-class InvalidFormatError(ValueError):
-    """Raised when a value doesn't match the expected format pattern."""
-
-    def __init__(self, context: str, value: str, pattern: str) -> None:
-        """Initialize with format validation details."""
-        super().__init__(f"Invalid {context} format: '{value}'. Must match pattern: {pattern}")
-
-
-class InvalidNumericValueError(ValueError):
-    """Raised when a string cannot be converted to a number."""
-
-    def __init__(self, context: str, value: str) -> None:
-        """Initialize with numeric validation details."""
-        super().__init__(f"Invalid {context}: '{value}' is not a valid number")
-
-
-class NumericRangeError(ValueError):
-    """Raised when a numeric value is outside the allowed range."""
-
-    def __init__(self, context: str, value: float, constraint: str, limit: float) -> None:
-        """Initialize with range validation details."""
-        super().__init__(f"Invalid {context}: {value} must be {constraint} {limit}")
-
-
-class InvalidTimestampError(ValueError):
-    """Raised when timestamp validation fails."""
-
-    def __init__(self, context: str, value: int, reason: str) -> None:
-        """Initialize with timestamp validation details."""
-        super().__init__(f"{context} {reason}: {value}")
 
 
 # Constants for validation
@@ -425,13 +331,14 @@ class WebSocketPayloadValidators:
         try:
             numeric_value = float(value)
         except ValueError as e:
-            raise InvalidNumericValueError(context, value) from e
+            reason = f"'{value}' is not a valid number"
+            raise InvalidNumericValueError(context, value, reason) from e
 
         if min_value is not None and numeric_value < min_value:
-            raise NumericRangeError(context, numeric_value, "at least", min_value)
+            raise NumericRangeError(context, numeric_value, min_value=min_value)
 
         if max_value is not None and numeric_value > max_value:
-            raise NumericRangeError(context, numeric_value, "at most", max_value)
+            raise NumericRangeError(context, numeric_value, max_value=max_value)
 
         return value
 

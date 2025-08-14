@@ -22,54 +22,16 @@ MAX_PAYLOAD_DICT_SIZE = 1000
 MAX_PAYLOAD_LIST_SIZE = 10000
 
 
-# Custom exception classes for specific error types
-class EmptyRoutingKeyError(ValueError):
-    """Raised when routing key is empty or None."""
+# ============================================================================
+# Exception Imports (Step 30: Migration to unified hierarchy completed)
+# ============================================================================
 
-    def __init__(self) -> None:
-        """Initialize empty routing key error."""
-        super().__init__("Routing key cannot be empty or None")
-
-
-class InvalidRoutingKeyFormatError(ValueError):
-    """Raised when routing key has invalid format."""
-
-    def __init__(self, routing_key: str) -> None:
-        """Initialize invalid routing key format error."""
-        super().__init__(f"Invalid routing key format: {routing_key}")
-
-
-class PayloadNoneError(ValueError):
-    """Raised when payload is None."""
-
-    def __init__(self) -> None:
-        """Initialize payload None error."""
-        super().__init__("Payload cannot be None")
-
-
-class PayloadTooLargeError(ValueError):
-    """Raised when payload exceeds size limits."""
-
-    def __init__(self, payload_type: str, size: int, limit: int) -> None:
-        """Initialize payload too large error."""
-        last_part = payload_type.rsplit(maxsplit=1)[-1]
-        super().__init__(f"Payload {payload_type} too large: {size} {last_part}")
-
-
-class InvalidPayloadTypeError(TypeError):
-    """Raised when payload has invalid type."""
-
-    def __init__(self, payload_type: type) -> None:
-        """Initialize invalid payload type error."""
-        super().__init__(f"Payload must be dict or list, got {payload_type.__name__}")
-
-
-class EnvelopeValidationFailedError(Exception):
-    """Raised when envelope validation fails."""
-
-    def __init__(self, exchange_name: str, original_error: str) -> None:
-        """Initialize envelope validation failed error."""
-        super().__init__(f"Envelope validation failed for {exchange_name}: {original_error}")
+from cyberdelta.apis.websocket.ws_exceptions import (
+    EmptyRoutingKeyError,
+    EnvelopeValidationFailedError,
+    InvalidRoutingKeyFormatError,
+    PayloadTooLargeError,
+)
 
 
 @runtime_checkable
@@ -188,40 +150,9 @@ class BaseEnvelopeValidator:
         return payload
 
 
-class EnvelopeValidationError(ValueError):
-    """Raised when envelope validation fails.
-
-    This exception provides structured information about envelope
-    validation failures, including the envelope data and validation
-    context for better error handling and debugging.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        envelope_data: dict[str, Any] | None = None,
-        validation_context: dict[str, Any] | None = None,
-    ) -> None:
-        """Initialize envelope validation error.
-
-        Args:
-            message: Error message describing the validation failure.
-            envelope_data: The envelope data that failed validation.
-            validation_context: Additional context about the validation failure.
-        """
-        super().__init__(message)
-        self.envelope_data = envelope_data
-        self.validation_context = validation_context or {}
-
-    def __str__(self) -> str:
-        """Return detailed error message with context."""
-        base_message = super().__str__()
-
-        if self.validation_context:
-            context_str = ", ".join(f"{k}={v}" for k, v in self.validation_context.items())
-            return f"{base_message} (context: {context_str})"
-
-        return base_message
+# ============================================================================
+# Envelope Validation Utilities
+# ============================================================================
 
 
 def create_envelope_validator_decorator(

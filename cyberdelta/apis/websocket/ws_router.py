@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -24,7 +24,10 @@ from cyberdelta.apis.websocket.ws_error_recovery import (
     ErrorRecoveryConfig,
     WebSocketErrorRecovery,
 )
-from cyberdelta.apis.websocket.ws_exceptions import WebSocketValidationError
+from cyberdelta.apis.websocket.ws_exceptions import (
+    EnvelopeValidatorNotSetError,
+    WebSocketValidationError,
+)
 from cyberdelta.apis.websocket.ws_memory_optimized import (
     MemoryOptimizedMessageContext,
     MemoryPool,
@@ -46,14 +49,6 @@ ContextType = TypeVar("ContextType", bound="WebSocketMessageContext[BaseModel]")
 MessageHandler = Callable[[WebSocketContextProtocol], Awaitable[None]]
 
 
-class EnvelopeValidatorNotSetError(ValueError):
-    """Raised when envelope validator is required but not set."""
-
-    def __init__(self) -> None:
-        """Initialize with descriptive message."""
-        super().__init__("Envelope validator is required but not set")
-
-
 class MessageProcessor(Protocol):
     """Protocol for message processors."""
 
@@ -67,8 +62,7 @@ class MessageProcessor(Protocol):
         ...
 
 
-if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
+# BaseErrorHandler import removed - deprecated and not used
 
 
 class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
@@ -85,7 +79,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
     def __init__(
         self,
         exchange_name: ExchangeName,
-        error_handler: BaseErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
         stream_error_handler: WebSocketStreamErrorHandler,
         envelope_validator: Callable[[dict[str, Any]], EnvelopeType] | None = None,
@@ -100,7 +93,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         Args:
             exchange_name: ExchangeName enum for the exchange.
-            error_handler: Error handler for centralized error management.
             typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             envelope_validator: Optional envelope validator for type-safe message validation.
             payload_validator: Optional payload validator (default instance created if None).
@@ -114,7 +106,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         """
         self.exchange_name = exchange_name  # Store enum for proper typing
-        self.error_handler = error_handler
         self.envelope_validator = envelope_validator
         self.payload_validator = payload_validator or WebSocketPayloadValidators()
         self.metrics_collector = metrics_collector or WebSocketMetricsCollector(exchange_name)

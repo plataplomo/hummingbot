@@ -178,40 +178,6 @@ class MemoryOptimizedConfig:
     )
 
 
-# Configuration selector utility
-def get_config_for_context(context: str) -> ConfigDict:
-    """Get optimized configuration for specific use context.
-
-    Utility function to select the optimal configuration based on the
-    specific use case context.
-
-    Args:
-        context: Use case context ('raw_api', 'internal', 'envelope',
-                'backpack', 'hyperliquid', 'high_frequency', 'memory')
-
-    Returns:
-        Optimized ConfigDict for the specified context
-
-    Raises:
-        ValueError: If context is not recognized
-    """
-    configs = {
-        "raw_api": RawAPIModelConfig.model_config,
-        "internal": InternalModelConfig.model_config,
-        "envelope": EnvelopeModelConfig.model_config,
-        "backpack": BackpackModelConfig.model_config,
-        "hyperliquid": HyperliquidModelConfig.model_config,
-        "high_frequency": HighFrequencyModelConfig.model_config,
-        "memory": MemoryOptimizedConfig.model_config,
-    }
-
-    if context not in configs:
-        msg = f"Unknown context: {context}. Available: {list(configs.keys())}"
-        raise ValueError(msg)
-
-    return configs[context]
-
-
 # Performance comparison utility
 def compare_config_performance() -> dict[str, dict[str, Any]]:
     """Compare performance characteristics of different configurations.
@@ -287,5 +253,5 @@ if __name__ == "__main__":
 
     logger.info(
         "configuration_selection_hint",
-        hint="Use get_config_for_context() to select optimal configuration",
+        hint="Use specific config classes directly for optimal configuration",
     )

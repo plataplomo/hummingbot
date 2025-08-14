@@ -21,6 +21,18 @@ from cyberdelta.apis.websocket.ws_type_guards import (
     is_secure_list,
 )
 
+# Import security exceptions from unified hierarchy (Step 30: Migration completed)
+from cyberdelta.apis.websocket.ws_exceptions import (
+    BlockedPatternFoundError,
+    MessageSizeExceedsLimitError,
+    MessageSizeValidationFailedError,
+    NestingDepthExceedsLimitError,
+    ObjectKeysExceedLimitError,
+    ArrayLengthExceedsLimitError,
+    StringLengthExceedsLimitError,
+    SecurityValidationError,
+)
+
 
 # Type alias for JSON-like data structures
 JSONLike = dict[str, Any] | list[Any] | str | int | float | bool | None
@@ -39,75 +51,6 @@ MAX_CONTENT_PREVIEW_LENGTH = 100
 MAX_OBJECT_SIZE_FOR_LOGGING = 10000
 MAX_DICT_SIZE_FOR_LOGGING = 100
 MAX_LIST_SIZE_FOR_LOGGING = 1000
-
-
-class BlockedPatternFoundError(Exception):
-    """Raised when a blocked pattern is found in content."""
-
-    def __init__(self, pattern: str, content_preview: str) -> None:
-        """Initialize blocked pattern found error."""
-        super().__init__(f"Blocked pattern '{pattern}' found in content")
-        self.pattern = pattern
-        self.content_preview = content_preview
-
-
-class MessageSizeExceedsLimitError(Exception):
-    """Raised when message size exceeds configured limits."""
-
-    def __init__(self, message_size: int, limit: int) -> None:
-        """Initialize message size exceeds limit error."""
-        super().__init__(f"Message size {message_size} bytes exceeds limit of {limit} bytes")
-        self.message_size = message_size
-        self.limit = limit
-
-
-class MessageSizeValidationFailedError(Exception):
-    """Raised when message size validation fails due to encoding or memory errors."""
-
-    def __init__(self, original_error: str) -> None:
-        """Initialize message size validation failed error."""
-        super().__init__(f"Message size validation failed: {original_error}")
-        self.original_error = original_error
-
-
-class NestingDepthExceedsLimitError(Exception):
-    """Raised when nesting depth exceeds configured limits."""
-
-    def __init__(self, current_depth: int, limit: int) -> None:
-        """Initialize nesting depth exceeds limit error."""
-        super().__init__(f"Message nesting depth {current_depth} exceeds limit of {limit}")
-        self.current_depth = current_depth
-        self.limit = limit
-
-
-class ObjectKeysExceedLimitError(Exception):
-    """Raised when object key count exceeds configured limits."""
-
-    def __init__(self, key_count: int, limit: int) -> None:
-        """Initialize object keys exceed limit error."""
-        super().__init__(f"Object has {key_count} keys, exceeds limit of {limit}")
-        self.key_count = key_count
-        self.limit = limit
-
-
-class ArrayLengthExceedsLimitError(Exception):
-    """Raised when array length exceeds configured limits."""
-
-    def __init__(self, array_length: int, limit: int) -> None:
-        """Initialize array length exceeds limit error."""
-        super().__init__(f"Array has {array_length} items, exceeds limit of {limit}")
-        self.array_length = array_length
-        self.limit = limit
-
-
-class StringLengthExceedsLimitError(Exception):
-    """Raised when string length exceeds configured limits."""
-
-    def __init__(self, string_length: int, limit: int) -> None:
-        """Initialize string length exceeds limit error."""
-        super().__init__(f"String has {string_length} characters, exceeds limit of {limit}")
-        self.string_length = string_length
-        self.limit = limit
 
 
 class SecurityConfig(BaseModel):
@@ -173,39 +116,6 @@ class SecurityConfig(BaseModel):
         frozen=True,
         validate_assignment=True,
     )
-
-
-class SecurityValidationError(ValueError):
-    """Raised when security validation fails.
-
-    This exception provides structured information about security
-    validation failures for better error handling and logging.
-    """
-
-    def __init__(
-        self,
-        message: str,
-        violation_type: str,
-        message_data: dict[str, Any] | None = None,
-        security_context: dict[str, Any] | None = None,
-    ) -> None:
-        """Initialize security validation error.
-
-        Args:
-            message: Error message describing the security violation.
-            violation_type: Type of security violation (size, depth, content, etc.).
-            message_data: The message data that caused the violation (sanitized).
-            security_context: Additional security context for logging.
-        """
-        super().__init__(message)
-        self.violation_type = violation_type
-        self.message_data = message_data
-        self.security_context = security_context or {}
-
-    def __str__(self) -> str:
-        """Return detailed error message with violation type."""
-        base_message = super().__str__()
-        return f"Security violation ({self.violation_type}): {base_message}"
 
 
 class SecurityValidator:

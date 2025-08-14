@@ -12,26 +12,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from cyberdelta.apis.websocket.ws_exceptions import (
+    AuthenticationErrorMismatchError,
+    SuccessErrorMismatchError,
+)
 from cyberdelta.apis.websocket.websocket_states import FieldPresenceState
-
-
-class SuccessErrorMismatchError(ValueError):
-    """Raised when success and error fields don't match."""
-
-    def __init__(self, success_state: FieldPresenceState, error_state: FieldPresenceState) -> None:
-        """Initialize SuccessErrorMismatchError with success/error state."""
-        if success_state.is_present and error_state.is_present:
-            super().__init__("Cannot have error when success is True")
-        else:
-            super().__init__("Must have error message when success is False")
-
-
-class AuthenticationErrorMismatchError(ValueError):
-    """Raised when authenticated and error fields don't match."""
-
-    def __init__(self) -> None:
-        """Initialize AuthenticationErrorMismatchError."""
-        super().__init__("Cannot have error when authenticated is True")
 
 
 class BaseWebSocketMessage(BaseModel, ABC):
@@ -137,13 +122,13 @@ class BaseSubscriptionResponse(BaseWebSocketMessage):
         """
         if info.data.get("success") and v is not None:
             raise SuccessErrorMismatchError(
-                success_state=FieldPresenceState.PRESENT,
-                error_state=FieldPresenceState.PRESENT,
+                success=True,
+                has_error=True,
             )
         if not info.data.get("success") and v is None:
             raise SuccessErrorMismatchError(
-                success_state=FieldPresenceState.PRESENT,
-                error_state=FieldPresenceState.ABSENT,
+                success=False,
+                has_error=False,
             )
         return v
 
@@ -281,5 +266,8 @@ class BaseAuthenticationResponse(BaseWebSocketMessage):
             AuthenticationErrorMismatchError: If error is present when authenticated is True
         """
         if info.data.get("authenticated") and v is not None:
-            raise AuthenticationErrorMismatchError
+            raise AuthenticationErrorMismatchError(
+                authenticated=True,
+                auth_error=v,
+            )
         return v
