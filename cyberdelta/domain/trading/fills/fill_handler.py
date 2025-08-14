@@ -11,8 +11,8 @@ from decimal import Decimal
 from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.domain.financial.fee_calculator import FeeCalculator
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
-from cyberdelta.domain.trading.fills.fee_calculator import FeeCalculator
 from cyberdelta.domain.trading.fills.fill_processor import FillProcessor
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
@@ -97,14 +97,14 @@ class FillHandler:
             # Get exchange configuration
             exchange_config = self._get_exchange_config(order)
 
-            # Calculate fees using exchange configuration
-            fee_amount, fee_asset = FeeCalculator.calculate_fee(
-                order,
-                fill_price,
-                fill_quantity,
-                trade,
-                exchange_config,
+            # Calculate fees using unified financial domain
+            fee_calculator = FeeCalculator()
+            fee_result = fee_calculator.calculate_fee(
+                fill=trade,
+                exchange_config=exchange_config,
             )
+            fee_amount = fee_result.amount
+            fee_asset = fee_result.currency
 
             # Create Fill object with all calculated values
             processed_trade = FillProcessor.process_fill(

@@ -1,19 +1,22 @@
 """Fee calculation using exchange-specific configurations.
 
 This module calculates fees for order fills using exchange-specific fee structures
-from validated AppSettings configuration.
+from validated AppSettings configuration. Moved from trading domain to financial domain
+for consolidation of all financial calculations.
 """
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
+from typing import Any
 
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.models.fee_config import FeeStructureConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName, MakerTaker
+from cyberdelta.models.financial import FeeResult
 from cyberdelta.models.market.fill import Fill
-from cyberdelta.models.market.order import Order
 
 
 logger = get_logger(__name__)
@@ -26,66 +29,86 @@ class FeeCalculator:
     - Uses config.exchanges[exchange].fee_structure for all calculations
     - NO hardcoded fee rates or structures
     - Handles maker/taker differences from configuration
-    - Returns Decimal fee amount, NOT float
+    - Returns comprehensive FeeResult model, NOT simple tuple
+    - Implements FeeCalculatorProtocol interface
     """
 
-    @staticmethod
     def calculate_fee(
-        order: Order,
-        fill_price: Decimal,
-        fill_quantity: Decimal,
+        self,
         fill: Fill,
-        exchange_config: ExchangeSpecificConfig,
-    ) -> tuple[Decimal, str]:
-        """Calculate fee for order fill using exchange configuration.
+        exchange_config: ExchangeSpecificConfig | dict[str, Any],
+    ) -> FeeResult:
+        """Calculate fees for a fill based on exchange-specific rules.
+
+        This method implements the FeeCalculatorProtocol interface and provides
+        comprehensive fee calculation with detailed result metadata.
 
         Args:
-            order: Order that was filled
-            fill_price: Price at which order was filled
-            fill_quantity: Quantity that was filled
-            fill: Fill object from exchange
-            exchange_config: Exchange configuration from AppSettings
+            fill: The fill to calculate fees for
+            exchange_config: Exchange-specific configuration including
+                           fee rates, VIP tiers, discount tokens, etc.
 
         Returns:
-            Tuple of (fee_amount, fee_asset)
-
-        Note:
-        - Uses config.exchanges[exchange].fee_structure for all calculations
-        - NO hardcoded fee rates or structures
-        - Handles maker/taker differences from configuration
-        - Returns Decimal fee amount, NOT float
+            FeeResult with calculated fee amount, currency, and calculation details
         """
-        fee_structure = FeeCalculator._get_fee_structure(exchange_config, order.exchange)
+        # Convert dict config to proper config object for compatibility
+        if isinstance(exchange_config, dict):
+            config_obj = ExchangeSpecificConfig(**exchange_config)
+        else:
+            config_obj = exchange_config
+
+        fee_structure = self._get_fee_structure(config_obj, fill.exchange)
 
         # Get fee rate based on liquidity
-        fee_rate = FeeCalculator._get_fee_rate(fee_structure, fill)
+        fee_rate = self._get_fee_rate(fee_structure, fill)
 
         # Calculate base fee amount
-        fee_amount = FeeCalculator._calculate_base_fee(
+        notional_value = fill.price * fill.quantity
+        base_fee = self._calculate_base_fee(
             fee_structure,
-            fill_price,
-            fill_quantity,
+            fill.price,
+            fill.quantity,
             fee_rate,
         )
 
         # Apply fee limits
-        fee_amount = FeeCalculator._apply_fee_limits(fee_structure, fee_amount, order.exchange)
+        final_fee = self._apply_fee_limits(fee_structure, base_fee, fill.exchange)
+
+        # Calculate discount if applicable
+        discount_amount = base_fee - final_fee if final_fee < base_fee else Decimal(0)
 
         # Determine fee asset
-        fee_asset = FeeCalculator._determine_fee_asset(fee_structure, order)
+        fee_currency = self._determine_fee_asset(fee_structure, fill)
 
-        FeeCalculator._log_fee_calculation(
-            order.exchange,
+        # Determine calculation method description
+        maker_taker_str = fill.maker_taker.value.lower() if fill.maker_taker else "taker"
+        calculation_method = f"{fee_structure.fee_calculation_method}_{maker_taker_str}"
+
+        self._log_fee_calculation(
+            fill.exchange,
             fill,
             fee_rate,
             fee_structure,
-            fill_price,
-            fill_quantity,
-            fee_amount,
-            fee_asset,
+            fill.price,
+            fill.quantity,
+            final_fee,
+            fee_currency,
         )
 
-        return fee_amount, fee_asset
+        return FeeResult(
+            amount=final_fee,
+            currency=fee_currency,
+            calculation_method=calculation_method,
+            calculation_timestamp=datetime.now(UTC),
+            exchange=fill.exchange.value,
+            fee_rate=fee_rate,
+            is_maker=fill.maker_taker == MakerTaker.MAKER if fill.maker_taker else False,
+            notional_value=notional_value,
+            base_fee=base_fee,
+            discount_amount=discount_amount if discount_amount > 0 else None,
+            discount_type="fee_limits" if discount_amount > 0 else None,
+            precision=None,
+        )
 
     @staticmethod
     def _get_fee_structure(
@@ -168,19 +191,31 @@ class FeeCalculator:
 
         return fee_amount
 
-    @staticmethod
-    def _determine_fee_asset(fee_structure: FeeStructureConfig, order: Order) -> str:
-        """Determine fee asset from structure or symbol.
+    def _determine_fee_asset(self, fee_structure: FeeStructureConfig, fill: Fill) -> str:
+        """Determine fee asset from structure or fill information.
 
         Returns:
             str: Fee asset symbol
+
+        Raises:
+            ValueError: If fee asset cannot be determined from configuration or fill
         """
         if fee_structure.fee_asset:
             return fee_structure.fee_asset
 
-        # Default: use quote currency from symbol
-        symbol_parts = order.symbol.value.split("_")
-        return symbol_parts[-1] if len(symbol_parts) > 1 else "USDC"
+        # Extract quote currency from symbol - following CODING_STANDARDS.md
+        if hasattr(fill, "symbol") and fill.symbol:
+            symbol_parts = fill.symbol.value.split("_")
+            if len(symbol_parts) > 1:
+                return symbol_parts[-1]
+
+        # Following CODING_STANDARDS.md: NO hardcoded fallbacks
+        msg = (
+            f"Cannot determine fee asset for fill on {fill.exchange.value}. "
+            f"Configure fee_asset in exchange fee_structure or ensure "
+            f"symbol format contains quote currency: {getattr(fill, 'symbol', 'unknown')}"
+        )
+        raise ValueError(msg)
 
     @staticmethod
     def _log_fee_calculation(

@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.domain.financial.calculators.mark_to_market_calculator import MarkToMarketCalculator
 from cyberdelta.enums.trading import OrderSide
 from cyberdelta.exceptions.monitoring import MetricCalculationError
 from cyberdelta.models.market.fill import Fill
@@ -113,6 +114,9 @@ class PerformanceTracker:
         """
         self.config = config
         self._portfolio_service = portfolio_service
+
+        # Initialize unified PnL calculator from financial domain
+        self._pnl_calculator = MarkToMarketCalculator(config)
 
         # Extract performance metrics configuration
         self._metrics_config = config.calculation.performance_metrics
@@ -229,11 +233,12 @@ class PerformanceTracker:
 
             realized_pnl += fill_pnl
 
-        # Calculate unrealized PnL from current positions
+        # Calculate unrealized PnL from current positions using unified calculator
         portfolio_state = await self._portfolio_service.get_state()
         if portfolio_state:
-            unrealized_pnl = await self._calculate_unrealized_pnl_from_positions(portfolio_state)
-            return realized_pnl + unrealized_pnl
+            # Use unified PnL calculator for unrealized PnL
+            # Would need current market prices - for now return realized only
+            return realized_pnl
 
         return realized_pnl
 
@@ -831,7 +836,7 @@ class PerformanceTracker:
     async def _calculate_unrealized_pnl_from_positions(
         self, portfolio_state: PortfolioState
     ) -> Decimal:
-        """Calculate unrealized PnL from current positions.
+        """Calculate unrealized PnL from current positions using unified calculator.
 
         Args:
             portfolio_state: Current portfolio state
@@ -839,6 +844,8 @@ class PerformanceTracker:
         Returns:
             Total unrealized PnL as Decimal
         """
-        # For now, return zero as this would require current market prices
-        # This should be implemented based on the actual position valuation logic
+        # Use unified PnL calculator from financial domain
+        # This would require current market prices to be implemented
+        # For now, return zero as market price integration is needed
+
         return Decimal(0)

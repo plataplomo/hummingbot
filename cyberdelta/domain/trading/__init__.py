@@ -9,7 +9,7 @@ validation, fill processing, and simulation following CODING_STANDARDS.md.
 from cyberdelta.domain.trading.execution import ExecutionEngine, OrderTracker
 
 # Fill processing components
-from cyberdelta.domain.trading.fills import FeeCalculator, FillHandler, FillProcessor
+from cyberdelta.domain.trading.fills import FillHandler, FillProcessor
 
 # Simulation components
 from cyberdelta.domain.trading.simulation import SafeModeWrapper
@@ -25,7 +25,6 @@ from cyberdelta.infrastructure.validation import ValidationService
 
 __all__ = [
     "ExecutionEngine",
-    "FeeCalculator",
     "FillHandler",
     "FillProcessor",
     "OrderTracker",

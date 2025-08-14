@@ -43,6 +43,14 @@ from .field_validation import (
     TypeFieldError,
 )
 
+# Financial exceptions
+from .financial import (
+    BalanceLockTimeoutError,
+    CurrencyMismatchError,
+    DivisionByZeroError,
+    InvalidAmountError,
+)
+
 # Funding exceptions - removed as they're not used anymore
 # The APIs have their own funding exceptions
 # Market data exceptions
@@ -81,6 +89,7 @@ from .portfolio import (
     PortfolioNotInitializedError,
     PortfolioStateError,
     ReconciliationError,
+    StorageError,
 )
 
 # Reconciliation exceptions - removed as they're not used anymore
@@ -146,13 +155,16 @@ from .trading import (
 
 __all__ = [
     "BalanceLockError",
+    "BalanceLockTimeoutError",
     # Note: APIError, APIErrorCode, TransformationError are not exported here
     # Import them directly from cyberdelta.apis.common when needed
     "BooleanFieldError",
+    "CurrencyMismatchError",
     "CyberDeltaSystemError",
     "DateTimeParsingError",
     "DecimalFieldError",
     "DecimalFiniteError",
+    "DivisionByZeroError",
     "EmptyStringError",
     "EmptyStringParameterError",
     "EnumFieldError",
@@ -161,6 +173,7 @@ __all__ = [
     "FieldNameMissingError",
     "IntegerConversionError",
     "InvalidAccountTypeError",
+    "InvalidAmountError",
     "InvalidFormatError",
     "InvalidMetricError",
     "InvalidPositionDataError",
@@ -203,6 +216,7 @@ __all__ = [
     "RiskAssessmentError",
     "ServiceValidationError",
     "SignalDataError",
+    "StorageError",
     "SymbolMappingConfigurationError",
     "SymbolMappingError",
     "SymbolMappingErrorMessages",

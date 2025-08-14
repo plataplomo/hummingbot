@@ -19,6 +19,7 @@ from cyberdelta.config.models.execution_config import (
     ExecutionCompensationSettings,
     ExecutionSettings,
 )
+from cyberdelta.config.models.financial_config import FinancialCalculationConfig
 from cyberdelta.config.models.funding_strategy_models import (
     StrategiesSettings,
     StrategyConfigHLPerpBPSpot,
@@ -143,6 +144,12 @@ class AppSettings(BaseModel):
 
     websocket_processor: WebSocketProcessorConfig = Field(
         default_factory=WebSocketProcessorConfig, description="WebSocket processor configuration"
+    )
+
+    # Financial calculations
+    financial: FinancialCalculationConfig = Field(
+        default_factory=lambda: FinancialCalculationConfig(),  # noqa: PLW0108
+        description="Financial calculation settings (PnL, fees, performance metrics, currency)",
     )
 
     # Portfolio management

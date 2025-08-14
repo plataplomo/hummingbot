@@ -99,3 +99,27 @@ class MissingBalanceDataError(PortfolioError):
         super().__init__(
             f"Balance event for {symbol} missing {missing_field} - cannot update balance"
         )
+
+
+class StorageError(Exception):
+    """Exception raised for storage operation failures."""
+
+    def __init__(
+        self, message: str, operation: str, original_error: Exception | None = None
+    ) -> None:
+        """Initialize storage error.
+
+        Args:
+            message: Human-readable error description
+            operation: Storage operation that failed (save, load, delete, etc.)
+            original_error: The underlying exception that caused the failure
+        """
+        self.message = message
+        self.operation = operation
+        self.original_error = original_error
+
+        formatted_message = f"Storage operation '{operation}' failed: {message}"
+        if original_error:
+            formatted_message += f" (caused by: {original_error})"
+
+        super().__init__(formatted_message)

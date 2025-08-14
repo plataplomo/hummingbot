@@ -77,26 +77,3 @@ class PortfolioStorageProtocol(Protocol):
             StorageError: If delete operation fails
         """
         ...
-
-
-class StorageError(Exception):
-    """Exception raised for storage operation failures.
-
-    IMPORTANT: Following CODING_STANDARDS.md:
-    - Explicit error messages with context
-    - NO silent failures
-    """
-
-    def __init__(
-        self, message: str, operation: str, original_error: Exception | None = None
-    ) -> None:
-        """Initialize storage error.
-
-        Args:
-            message: Human-readable error message
-            operation: Storage operation that failed (save, load, etc.)
-            original_error: Original exception that caused the failure
-        """
-        super().__init__(message)
-        self.operation = operation
-        self.original_error = original_error

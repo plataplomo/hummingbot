@@ -2,6 +2,20 @@
 
 This module provides typed Pydantic models to replace dict[str, Any] patterns
 in PnL calculations, ensuring type safety for financial reporting.
+
+TODO: ADD BalanceTransition model here for balance state change tracking
+This model should capture balance state transitions for proper audit trails:
+
+class BalanceTransition(BaseModel):
+    old_balance: SpotBalance
+    new_balance: SpotBalance
+    change_reason: Fill | ReconciliationAdjustment | ManualAdjustment
+    timestamp: datetime
+    transaction_id: str
+    exchange: ExchangeName
+    asset: Symbol
+
+This will eliminate unsafe balance reverse-engineering in portfolio_service.
 """
 
 from __future__ import annotations

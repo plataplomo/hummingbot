@@ -3,7 +3,7 @@
 This is the main orchestrator that uses all the specialized modules:
 - PortfolioStateManager: State initialization and persistence
 - ReconciliationEngine: Exchange reconciliation
-- PnLCalculator: PnL calculations
+- MarkToMarketCalculator: PnL calculations
 - BalanceManager: Balance operations
 - PositionManager: Position operations
 """
@@ -17,8 +17,9 @@ from typing import TYPE_CHECKING
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.domain.financial.calculators.mark_to_market_calculator import MarkToMarketCalculator
 from cyberdelta.enums.exchange_names import ExchangeName
-from cyberdelta.enums.monitoring import BalanceEventType, ServiceType
+from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.enums.trading import OrderSide, PositionEventType
 from cyberdelta.exceptions.portfolio import (
     PortfolioNotInitializedError,
@@ -26,7 +27,7 @@ from cyberdelta.exceptions.portfolio import (
 )
 from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models import DerivativePosition, SpotBalance
-from cyberdelta.models.events import BalanceEvent, PositionEvent
+from cyberdelta.models.events import PositionEvent
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.portfolio.pnl_report import (
@@ -37,11 +38,11 @@ from cyberdelta.models.portfolio.pnl_report import (
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 from cyberdelta.protocols import HealthCheckable
+from cyberdelta.protocols.domain.market_data import MarketDataServiceProtocol
 from cyberdelta.protocols.domain.portfolio import PortfolioStorageProtocol
 from cyberdelta.symbols.models import Symbol
 
 from .balance_manager import BalanceManager
-from .pnl_calculator import PnLCalculator
 from .position_manager import PositionManager
 from .reconciliation_engine import ReconciliationEngine
 from .state_manager import PortfolioStateManager
@@ -74,6 +75,7 @@ class PortfolioService(HealthCheckable):
         event_bus: EventBus,
         api_clients: dict[str, ExchangeAPI] | None = None,
         performance_tracker: PerformanceTracker | None = None,
+        market_data_service: MarketDataServiceProtocol | None = None,
     ) -> None:
         """Initialize portfolio service with all modules.
 
@@ -83,11 +85,13 @@ class PortfolioService(HealthCheckable):
             event_bus: Event bus for publishing portfolio events
             api_clients: Optional exchange API clients for reconciliation
             performance_tracker: Optional performance tracker for metrics
+            market_data_service: Optional market data service for price data
         """
         self.config = config
         self._event_bus = event_bus
         self._api_clients = api_clients or {}
         self._performance_tracker = performance_tracker
+        self._market_data_service = market_data_service
         # Initialize modules
         self._state_manager = PortfolioStateManager(config, storage)
         self._balance_manager = BalanceManager(config, self._state_manager)
@@ -95,7 +99,7 @@ class PortfolioService(HealthCheckable):
         self._reconciliation_engine = ReconciliationEngine(
             config, storage, self._balance_manager, self._position_manager
         )
-        self._pnl_calculator = PnLCalculator(config, self._state_manager)
+        self._pnl_calculator = MarkToMarketCalculator(config)
 
         # Health tracking attributes
         self._operation_count = 0
@@ -103,11 +107,18 @@ class PortfolioService(HealthCheckable):
         self._error_count = 0
         self._last_activity = datetime.now(UTC)
 
+        # Cache financial settings
+        self._financial_config = config.financial
+        self._base_currency = self._financial_config.currency.base_currency
+        self._include_fees_default = self._financial_config.pnl.include_fees_in_pnl
+        self._stablecoin_list = set(self._financial_config.currency.stablecoin_list)
+
         logger.info(
             "portfolio_service_initialized",
             modules_initialized=5,
             api_clients_count=len(self._api_clients),
             performance_tracking_enabled=performance_tracker is not None,
+            market_data_service_enabled=market_data_service is not None,
         )
 
     async def _publish_position_update_event(
@@ -151,55 +162,38 @@ class PortfolioService(HealthCheckable):
 
         Args:
             fill: Fill that caused the balance update
+
+        TODO: ARCHITECTURAL ISSUE - This method contains unsafe assumptions and reverse-engineering
+
+        PROBLEMS:
+        1. We're trying to reverse-engineer old_balance from current balance - this is impossible
+           and incorrect because we don't know what other operations happened in between
+        2. We're making assumptions about which currency was affected and how
+        3. We're calculating balance changes after the fact instead of tracking transitions
+        4. This approach fails with concurrent operations and multiple fills
+
+        SOLUTION NEEDED:
+        - Implement proper BalanceTransition tracking in BalanceManager
+        - BalanceManager should capture old_balance BEFORE updates
+        - Return BalanceTransition objects that contain both old and new state
+        - Use these transitions for accurate event publishing
+
+        FOR NOW: Skipping balance event publishing to avoid unsafe assumptions
+        This will be properly implemented when BalanceTransition architecture is added.
         """
-        try:
-            # Determine the currency affected by the fill
-            if fill.side == OrderSide.BUY:
-                # Buying: spent quote currency, received base currency
-                affected_currency = (
-                    str(fill.symbol.quote_asset)
-                    if hasattr(fill.symbol, "quote_asset")
-                    else str(fill.symbol)
-                )
-            else:
-                # Selling: spent base currency, received quote currency
-                # Fill.symbol is a Symbol object, convert to string for now
-                affected_currency = (
-                    str(fill.symbol.base_asset)
-                    if hasattr(fill.symbol, "base_asset")
-                    else str(fill.symbol)
-                )
+        # TODO: Remove this entire method once BalanceTransition architecture is implemented
+        # Current implementation makes unsafe assumptions about balance state transitions
+        # and tries to reverse-engineer old balance from current state, which is wrong
 
-            # Get current balance for the affected currency
-            balances = await self._balance_manager.get_exchange_balances(fill.exchange)
-            current_balance = next(
-                (b for b in balances.values() if str(b.asset) == affected_currency), None
-            )
+        logger.debug(
+            "balance_event_publishing_skipped",
+            fill_id=fill.id,
+            symbol=fill.symbol.value,
+            exchange=fill.exchange.value,
+            reason="Unsafe assumptions removed - awaiting BalanceTransition architecture",
+        )
 
-            balance_event = BalanceEvent(
-                account_id=f"portfolio_{fill.exchange.value}",
-                currency=affected_currency,
-                exchange=fill.exchange,
-                event_type=BalanceEventType.UPDATED,
-                old_balance=Decimal(0),  # We don't track old balance in fill
-                new_balance=current_balance.total_quantity if current_balance else Decimal(0),
-                locked_amount=(
-                    (current_balance.total_quantity - current_balance.available_quantity)
-                    if current_balance
-                    else Decimal(0)
-                ),
-                timestamp=time.time(),
-            )
-            await self._event_bus.publish(balance_event)
-
-        except (ValueError, TypeError, ConnectionError, TimeoutError) as e:
-            logger.warning(
-                "balance_event_publishing_failed",
-                fill_id=fill.id,
-                symbol=fill.symbol.value,
-                error=str(e),
-            )
-            # Don't re-raise - event publishing failure shouldn't cancel portfolio update
+        # TODO: Replace this skip with proper BalanceTransition-based implementation
 
     async def initialize(self) -> None:
         """Initialize portfolio service by loading state."""
@@ -415,8 +409,97 @@ class PortfolioService(HealthCheckable):
 
         Returns:
             Typed comprehensive PnL report
+
+        Raises:
+            PortfolioNotInitializedError: If portfolio state is not initialized
         """
-        return await self._pnl_calculator.calculate_pnl()
+        # Get current portfolio state
+        portfolio_state = await self.get_state()
+        if not portfolio_state:
+            raise PortfolioNotInitializedError
+
+        # Fetch current market prices for all positions
+        mark_prices: dict[str, Decimal] = {}
+        total_equity_usd = Decimal(0)
+        total_exposure_usd = Decimal(0)
+        position_pnls: dict[str, PositionPnLDetail] = {}
+
+        # Calculate individual position PnL and aggregate data
+        for position_key, position in portfolio_state.positions.items():
+            if position.size == Decimal(0):
+                continue
+
+            # Extract symbol and exchange from position
+            symbol = position.symbol
+            exchange = position.exchange
+
+            # Get current market price
+            current_price = await self._get_current_market_price(symbol, exchange)
+            if current_price is None:
+                logger.warning(
+                    "pnl_calculation_missing_price",
+                    position_key=position_key,
+                    symbol=symbol.value,
+                    exchange=exchange.value,
+                    reason="Market price unavailable - position excluded from PnL",
+                )
+                continue
+
+            # Store price for portfolio calculation
+            symbol_key = symbol.value
+            mark_prices[symbol_key] = current_price
+
+            # Calculate position PnL
+            position_pnl = self._pnl_calculator.calculate_unrealized_pnl(
+                position=position, mark_price=current_price, include_fees=True
+            )
+
+            # Calculate market value
+            market_value_usd = current_price * abs(position.size)
+            total_exposure_usd += market_value_usd
+
+            # Create position PnL detail
+            position_detail = PositionPnLDetail(
+                symbol=symbol,
+                exchange=exchange,
+                unrealized_pnl_usd=position_pnl.amount,
+                realized_pnl_usd=Decimal(0),  # Realized PnL tracked separately
+                total_pnl_usd=position_pnl.amount,
+                entry_price=position.entry_price or Decimal(0),
+                current_price=current_price,
+                quantity=position.size,
+                market_value_usd=market_value_usd,
+            )
+            position_pnls[position_key] = position_detail
+
+        # Calculate portfolio PnL using fetched prices
+        portfolio_pnl_result = self._pnl_calculator.calculate_portfolio_pnl(
+            positions=list(portfolio_state.positions.values()),
+            mark_prices=mark_prices,
+            include_fees=True,
+        )
+
+        # Calculate total equity (balances + position values)
+        for balance in portfolio_state.balances.values():
+            # Convert balance to USD equivalent using configured stablecoins
+            if balance.asset.value in self._stablecoin_list:
+                total_equity_usd += balance.total_quantity
+
+        # Add unrealized PnL to equity
+        total_equity_usd += portfolio_pnl_result.amount
+
+        return PnLReport(
+            total_unrealized_pnl_usd=portfolio_pnl_result.amount,
+            total_realized_pnl_usd=Decimal(0),  # Would need fill tracking for this
+            net_pnl_usd=portfolio_pnl_result.amount,
+            total_equity_usd=total_equity_usd,
+            total_exposure_usd=total_exposure_usd,
+            calculation_timestamp=portfolio_pnl_result.calculation_timestamp,
+            calculation_method=portfolio_pnl_result.calculation_method,
+            fees_included=self._include_fees_default,
+            base_currency=self._base_currency,
+            position_pnls=position_pnls,
+        )
 
     async def calculate_position_pnl(
         self,
@@ -432,7 +515,64 @@ class PortfolioService(HealthCheckable):
         Returns:
             Typed PnL data for the position or None if not found
         """
-        return await self._pnl_calculator.calculate_position_pnl(symbol, exchange)
+        # Get current portfolio state
+        portfolio_state = await self.get_state()
+        if not portfolio_state:
+            return None
+
+        # Find the specific position using the key format
+        position_key = f"{exchange.value}:{symbol.value}"
+        position = portfolio_state.positions.get(position_key)
+
+        if not position:
+            return None
+
+        # Skip zero positions
+        if position.size == Decimal(0):
+            return None
+
+        # Get current market price
+        current_price = await self._get_current_market_price(symbol, exchange)
+        if current_price is None:
+            logger.warning(
+                "position_pnl_calculation_no_price",
+                position_key=position_key,
+                symbol=symbol.value,
+                exchange=exchange.value,
+                reason="Market price unavailable for position PnL calculation",
+            )
+            # Return detail with zero values if price unavailable
+            return PositionPnLDetail(
+                symbol=symbol,
+                exchange=exchange,
+                unrealized_pnl_usd=Decimal(0),
+                realized_pnl_usd=Decimal(0),
+                total_pnl_usd=Decimal(0),
+                entry_price=position.entry_price or Decimal(0),
+                current_price=Decimal(0),
+                quantity=position.size,
+                market_value_usd=Decimal(0),
+            )
+
+        # Calculate unrealized PnL for this position
+        pnl_result = self._pnl_calculator.calculate_unrealized_pnl(
+            position=position, mark_price=current_price, include_fees=True
+        )
+
+        # Calculate market value
+        market_value_usd = current_price * abs(position.size)
+
+        return PositionPnLDetail(
+            symbol=symbol,
+            exchange=exchange,
+            unrealized_pnl_usd=pnl_result.amount,
+            realized_pnl_usd=Decimal(0),  # Realized PnL tracked separately
+            total_pnl_usd=pnl_result.amount,
+            entry_price=position.entry_price or Decimal(0),
+            current_price=current_price,
+            quantity=position.size,
+            market_value_usd=market_value_usd,
+        )
 
     # Reconciliation operations (delegated to reconciliation engine)
 
@@ -484,7 +624,7 @@ class PortfolioService(HealthCheckable):
                 position_count = len(state.positions)
                 # Note: State age could be calculated here if needed for future health checks
             except PortfolioNotInitializedError:
-                position_count = 0
+                position_count = 0  # This is a count, not financial - OK to hardcode
 
             # Calculate success rate
             success_rate = (
@@ -504,9 +644,9 @@ class PortfolioService(HealthCheckable):
             return ExecutionStatistics(
                 order_tracking=order_stats,
                 api_clients_available=len(self._api_clients),
-                safe_mode_enabled=False,
-                max_slippage_pct=Decimal(0),
-                max_retries=0,
+                safe_mode_enabled=self.config.general.safe_mode,
+                max_slippage_pct=self.config.execution.max_slippage_pct,
+                max_retries=self.config.execution.max_retries,
             )
 
         except Exception as e:
@@ -526,9 +666,9 @@ class PortfolioService(HealthCheckable):
             return ExecutionStatistics(
                 order_tracking=order_stats,
                 api_clients_available=0,
-                safe_mode_enabled=False,
-                max_slippage_pct=Decimal(0),
-                max_retries=0,
+                safe_mode_enabled=self.config.general.safe_mode,
+                max_slippage_pct=self.config.execution.max_slippage_pct,
+                max_retries=self.config.execution.max_retries,
             )
 
     def get_service_type(self) -> ServiceType:
@@ -610,15 +750,45 @@ class PortfolioService(HealthCheckable):
         Returns:
             Current market price or None if unavailable
         """
-        # This would integrate with MarketDataService
-        # For now, return None to indicate price unavailable
-        logger.debug(
-            "market_price_request",
-            symbol=symbol.value,
-            exchange=exchange.value,
-            reason="market_data_service_integration_pending",
-        )
-        return None
+        if self._market_data_service is None:
+            logger.debug(
+                "market_price_unavailable_no_service",
+                symbol=symbol.value,
+                exchange=exchange.value,
+                reason="No market data service configured",
+            )
+            return None
+
+        try:
+            ticker = await self._market_data_service.get_ticker(symbol)
+        except (ValueError, TypeError, ConnectionError, TimeoutError) as e:
+            logger.warning(
+                "market_price_fetch_error",
+                symbol=symbol.value,
+                exchange=exchange.value,
+                error=str(e),
+            )
+            return None
+
+        if ticker is None:
+            logger.debug(
+                "market_price_unavailable_no_ticker",
+                symbol=symbol.value,
+                exchange=exchange.value,
+                reason="Ticker data not available",
+            )
+            return None
+
+        if ticker.price is None:
+            logger.debug(
+                "market_price_unavailable_no_price",
+                symbol=symbol.value,
+                exchange=exchange.value,
+                reason="Price not available in ticker",
+            )
+            return None
+
+        return ticker.price
 
     # Compatibility methods for existing code
 
@@ -691,18 +861,19 @@ class PortfolioService(HealthCheckable):
         """
         symbol_str = symbol.value
 
+        # Try underscore separator first
         if "_" in symbol_str:
             return symbol_str.split("_")[-1]
-        if "USD" in symbol_str:
-            return "USD"
-        if "USDC" in symbol_str:
-            return "USDC"
-        if "USDT" in symbol_str:
-            return "USDT"
 
+        # Check against configured stablecoins
+        for stablecoin in self._stablecoin_list:
+            if stablecoin in symbol_str:
+                return stablecoin
+
+        # Fallback to configured base currency
         logger.warning(
             "quote_asset_extraction_fallback",
             symbol=symbol_str,
-            fallback="USDC",
+            fallback=self._base_currency,
         )
-        return "USDC"
+        return self._base_currency

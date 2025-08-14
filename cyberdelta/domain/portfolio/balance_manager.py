@@ -34,6 +34,35 @@ class BalanceManager(BalanceManagerProtocol):
     - Balance tracking and updates from trades
     - Balance validation against exchange data
     - Cross-exchange balance aggregation
+
+    TODO: CRITICAL ARCHITECTURE MISSING - BalanceTransition Tracking
+
+    CURRENT PROBLEM:
+    - We update balance state but don't track transitions
+    - Portfolio service tries to reverse-engineer old balance (impossible/unsafe)
+    - No audit trail of balance changes
+    - Concurrent operations can corrupt state tracking
+
+    REQUIRED ARCHITECTURE:
+    1. BalanceTransition model to capture state changes:
+       - old_balance: SpotBalance (captured before update)
+       - new_balance: SpotBalance (after update)
+       - change_reason: Fill | Reconciliation | ManualAdjustment
+       - timestamp: datetime
+       - transaction_id: str
+
+    2. Modify update_balance_from_fill() to return BalanceTransition:
+       - Capture current balance BEFORE applying fill
+       - Apply fill changes to get new balance
+       - Store new balance in state
+       - Return BalanceTransition with old->new state
+
+    3. Add atomic balance update operations:
+       - Lock balance during update to prevent races
+       - Ensure balance transitions are atomic
+       - Support rollback on failure
+
+    This will eliminate unsafe assumptions in portfolio_service._publish_balance_update_event
     """
 
     def __init__(
@@ -106,6 +135,23 @@ class BalanceManager(BalanceManagerProtocol):
 
         Args:
             fill: Executed fill
+
+        TODO: ARCHITECTURAL ISSUE - This method should return BalanceTransition
+
+        CURRENT PROBLEM:
+        - Updates balance state but doesn't return transition information
+        - Portfolio service can't get old_balance for event publishing
+        - No way to track what actually changed
+        - No atomic guarantee for balance updates
+
+        REQUIRED CHANGES:
+        1. Change return type to BalanceTransition
+        2. Capture old_balance BEFORE any updates
+        3. Apply fill changes to calculate new_balance
+        4. Update state atomically
+        5. Return BalanceTransition(old_balance, new_balance, fill, timestamp)
+
+        This will enable proper event publishing without unsafe reverse-engineering.
         """
         # Get quote asset from fill symbol
         quote_asset = self._get_quote_asset(fill.symbol)
