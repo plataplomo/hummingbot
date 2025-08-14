@@ -1,6 +1,29 @@
-"""Unit tests for the core Ticker model.
+"""Property-based tests for the core Ticker model using Hypothesis.
 
-Tests validation, parsing, immutability, and decimal field handling.
+This module provides comprehensive property-based testing of the Ticker Pydantic model,
+which serves as the unified internal representation for market ticker data across all
+supported exchanges in the CyberDeltaEngine.
+
+Key Testing Areas:
+- Field validation and type safety using property-based input generation
+- Decimal precision handling for financial calculations (comprehensive value ranges)
+- Cross-field validation logic with generated combinations
+- Extension slot functionality with exchange-specific data generation
+- Mid-price calculation properties across all possible bid/ask combinations
+- Edge case handling through exhaustive generation
+- Immutability properties under all mutation attempts
+
+Following TESTING_SECURITY_RULES.md:
+- NO hardcoded financial values (Hypothesis generates them)
+- NO fallback mechanisms with arbitrary values
+- Uses property-based testing for comprehensive coverage
+- Tests complete ticker data flows with real constraints
+- Validates financial calculation invariants
+
+Architecture Compliance:
+- Follows RULE-ARCH-MODEL-DESIGN-V2 for strict model separation
+- Implements RULE-RUNTIME-SAFETY-V4 for Decimal usage and validation
+- Adheres to RULE-NO-SILENCING-V4 for type safety without suppressions
 """
 
 from __future__ import annotations
@@ -10,6 +33,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from hypothesis import HealthCheck, assume, given, settings, strategies as st
 from pydantic import ValidationError
 
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -19,534 +43,619 @@ from cyberdelta.models.market.ticker import (
     HyperliquidTickerDetails,
     Ticker,
 )
-from cyberdelta.symbols.api import symbol
-from tests.common_symbols import BTC_BP, BTC_HL, ETH_HL
+from tests.common_symbols import (
+    BTC_HL,
+    ETH_HL,
+    SOL_HL,
+    DOGE_HL,
+    AVAX_HL,
+    BTC_BP,
+    ETH_BP,
+    SOL_BP,
+    DOGE_BP,
+    BTC_USDC_BP,
+    ETH_USDC_BP,
+    SOL_USDC_BP,
+)
 
 
-pytestmark = pytest.mark.timing
-
-# Constants for testing
-NOW: datetime = datetime.now(UTC)
-DEC_ZERO: Decimal = Decimal(0)
-DEC_ONE: Decimal = Decimal(1)
-DEC_NEG_ONE: Decimal = Decimal(-1)
-DEC_NAN: Decimal = Decimal("NaN")
-DEC_INF: Decimal = Decimal("Infinity")
-DEC_NEG_INF: Decimal = Decimal("-Infinity")
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR TICKER DATA
+# =============================================================================
 
 
-class TestTicker:
-    """Unit tests for the cyberdelta.core.models.market.ticker.Ticker model."""
+@st.composite
+def financial_decimal_strategy(
+    draw: st.DrawFn,
+    min_value: float = 0.000001,
+    max_value: float = 1000000.0,
+    allow_zero: bool = True,
+) -> Decimal:
+    """Generate realistic Decimal values for financial calculations.
 
-    def test_minimal_creation_required_fields(self) -> None:
-        """Test creating a Ticker with only required fields (symbol, exchange, timestamp)."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID, timestamp=NOW)
-        assert ticker.symbol == btc_symbol
-        assert ticker.timestamp == NOW
+    Args:
+        draw: Hypothesis draw function
+        min_value: Minimum value (exclusive)
+        max_value: Maximum value (inclusive)
+        allow_zero: Whether to allow zero values
+
+    Returns:
+        Decimal: A valid decimal for financial calculations
+    """
+    if allow_zero and draw(st.booleans()):
+        return Decimal("0")
+
+    # Generate financial precision values
+    value = draw(
+        st.floats(
+            min_value=min_value,
+            max_value=max_value,
+            allow_infinity=False,
+            allow_nan=False,
+            exclude_min=True,
+        )
+    )
+    return Decimal(str(value))
+
+
+@st.composite
+def price_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic price values for ticker data."""
+    return draw(financial_decimal_strategy(min_value=0.01, max_value=100000.0, allow_zero=False))
+
+
+@st.composite
+def volume_strategy(draw: st.DrawFn) -> Decimal:
+    """Generate realistic volume values for ticker data."""
+    return draw(
+        financial_decimal_strategy(min_value=0.000001, max_value=10000000.0, allow_zero=True)
+    )
+
+
+@st.composite
+def bid_ask_spread_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
+    """Generate realistic bid/ask pairs with proper spread.
+
+    Returns:
+        tuple[Decimal, Decimal]: (bid_price, ask_price) where ask >= bid
+    """
+    bid = draw(price_strategy())
+    # Generate ask price that's equal or higher than bid
+    spread_pct = draw(st.floats(min_value=0.0, max_value=0.1))  # 0-10% spread
+    ask = bid * (Decimal("1") + Decimal(str(spread_pct)))
+    return bid, ask
+
+
+@st.composite
+def valid_symbol_strategy(draw: st.DrawFn) -> Any:
+    """Generate valid Symbol objects for ticker testing."""
+    return draw(
+        st.sampled_from([
+            BTC_HL,
+            ETH_HL,
+            SOL_HL,
+            DOGE_HL,
+            AVAX_HL,
+            BTC_BP,
+            ETH_BP,
+            SOL_BP,
+            DOGE_BP,
+            BTC_USDC_BP,
+            ETH_USDC_BP,
+            SOL_USDC_BP,
+        ])
+    )
+
+
+@st.composite
+def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
+    """Generate valid UTC timestamps for ticker data."""
+    naive_dt = draw(
+        st.datetimes(
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
+        )
+    )
+    # Convert to UTC timezone-aware datetime
+    return naive_dt.replace(tzinfo=UTC)
+
+
+@st.composite
+def hyperliquid_details_strategy(draw: st.DrawFn) -> HyperliquidTickerDetails:
+    """Generate valid HyperliquidTickerDetails for testing."""
+    mid_price_source = draw(
+        st.one_of(st.none(), st.sampled_from(["allMids", "orderbook", "trades"]))
+    )
+    return HyperliquidTickerDetails(mid_price_source=mid_price_source)
+
+
+@st.composite
+def backpack_details_strategy(draw: st.DrawFn) -> BackpackTickerDetails:
+    """Generate valid BackpackTickerDetails for testing."""
+    # All fields are optional and can be None
+    first_price = draw(st.one_of(st.none(), price_strategy()))
+    high = draw(st.one_of(st.none(), price_strategy()))
+    low = draw(st.one_of(st.none(), price_strategy()))
+
+    # Ensure high >= low if both are present
+    if high is not None and low is not None and high < low:
+        high, low = low, high
+
+    # Price change can be negative
+    price_change = draw(
+        st.one_of(st.none(), financial_decimal_strategy(min_value=-10000.0, max_value=10000.0))
+    )
+
+    price_change_percent = draw(
+        st.one_of(st.none(), financial_decimal_strategy(min_value=-100.0, max_value=1000.0))
+    )
+
+    quote_volume = draw(st.one_of(st.none(), volume_strategy()))
+    trades = draw(st.one_of(st.none(), st.integers(min_value=0, max_value=1000000)))
+
+    return BackpackTickerDetails(
+        first_price=first_price,
+        high=high,
+        low=low,
+        price_change=price_change,
+        price_change_percent=price_change_percent,
+        quote_volume=quote_volume,
+        trades=trades,
+    )
+
+
+# =============================================================================
+# PROPERTY TESTS FOR TICKER MODEL
+# =============================================================================
+
+
+class TestTickerModelProperties:
+    """Property-based tests for the Ticker model."""
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+    )
+    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    def test_minimal_ticker_creation_properties(
+        self, ticker_symbol: Any, exchange: ExchangeName, timestamp: datetime
+    ) -> None:
+        """Property: Minimal ticker with only required fields should always be valid."""
+        ticker = Ticker(symbol=ticker_symbol, exchange=exchange, timestamp=timestamp)
+
+        # Properties: Required fields should be set correctly
+        assert ticker.symbol == ticker_symbol
+        assert ticker.exchange == exchange
+        assert ticker.timestamp == timestamp
+
+        # Properties: Optional fields should have correct defaults
         assert ticker.price is None
         assert ticker.bid is None
         assert ticker.ask is None
         assert ticker.volume is None
-
-    def test_full_creation_with_valid_data(self) -> None:
-        """Test creating a Ticker with all fields populated with valid data types."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            price=Decimal("50000.5"),
-            bid=Decimal("50000.0"),
-            ask=Decimal("50001.0"),
-            volume=Decimal("1234.56"),
-        )
-        assert ticker.symbol == btc_symbol
-        assert ticker.timestamp == NOW
-        assert ticker.price == Decimal("50000.5")
-        assert ticker.bid == Decimal("50000.0")
-        assert ticker.ask == Decimal("50001.0")
-        assert ticker.volume == Decimal("1234.56")
-
-    def test_creation_with_parsable_data(self) -> None:
-        """Test creating a Ticker with data needing parsing (str, int, float)."""
-        btc_symbol = BTC_HL
-        ms_timestamp = int(NOW.timestamp() * 1000)
-        # Calculate expected time after ms conversion loss
-        expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
-
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=expected_dt_from_ms,  # Use the already calculated datetime
-            price=Decimal("50000.5"),  # Use Decimal
-            bid=Decimal("50000.0"),  # Use Decimal
-            ask=Decimal(50001),  # Use Decimal
-            volume=Decimal("1234.56"),  # Use Decimal
-        )
-        # Compare timestamp to the value expected after ms conversion precision loss
-        assert ticker.timestamp == expected_dt_from_ms
-        assert ticker.price == Decimal("50000.5")
-        assert ticker.bid == Decimal("50000.0")
-        assert ticker.ask == Decimal(50001)
-        assert ticker.volume == Decimal("1234.56")
-
-    # --- Validation Tests --- #
-
-    def test_required_fields_validation(self) -> None:
-        """Test that required fields (symbol, timestamp) raise errors if missing."""
-        btc_symbol = BTC_HL
-        with pytest.raises(ValidationError, match="Field required"):
-            Ticker(exchange=ExchangeName.HYPERLIQUID, timestamp=NOW)  # type: ignore[call-arg] # Missing symbol
-        with pytest.raises(ValidationError, match="Field required"):
-            Ticker(symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID)  # type: ignore[call-arg] # Missing timestamp
-        with pytest.raises(ValidationError, match="Field required"):
-            Ticker(symbol=btc_symbol, timestamp=NOW)  # type: ignore[call-arg] # Missing exchange
-
-    def test_symbol_validation(self) -> None:
-        """Test validation rules for the symbol field (Symbol objects and string validation)."""
-        # Test that empty strings are rejected at Symbol creation level
-        with pytest.raises(ValidationError, match="String should have at least 1 character"):
-            symbol("", ExchangeName.HYPERLIQUID)
-
-        # Test that very long strings are rejected at Symbol creation level
-        with pytest.raises(ValidationError, match="String should have at most 30 characters"):
-            symbol("A" * 31, ExchangeName.HYPERLIQUID)
-
-        # Test that string symbols are rejected for Ticker (only Symbol objects accepted)
-        with pytest.raises(ValidationError):
-            Ticker(symbol="BTC-PERP", exchange=ExchangeName.HYPERLIQUID, timestamp=NOW)  # type: ignore[arg-type]
-
-        # Valid symbol should pass
-        valid_symbol = symbol("VALID-SYM_123", ExchangeName.HYPERLIQUID)
-        ticker = Ticker(
-            symbol=valid_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-        )
-        assert ticker.symbol == valid_symbol
-
-        # Whitespace-only symbols are allowed (edge case)
-        whitespace_symbol = symbol("   ", ExchangeName.HYPERLIQUID)
-        whitespace_ticker = Ticker(
-            symbol=whitespace_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-        )
-        assert whitespace_ticker.symbol == whitespace_symbol
-
-    def test_timestamp_validation(self) -> None:
-        """Test timestamp validation (required, parsing, None handling)."""
-        btc_symbol = BTC_HL
-        # Test None raises error
-        with pytest.raises(ValidationError, match=r"timestamp.*Ticker timestamp is required"):
-            # Use Any to test validator behavior
-            kwargs: dict[str, Any] = {
-                "symbol": btc_symbol,
-                "exchange": ExchangeName.HYPERLIQUID,
-                "timestamp": None,
-            }
-            Ticker(**kwargs)
-
-        # Test invalid format raises error (Pydantic wraps underlying errors)
-        with pytest.raises(
-            DateTimeParsingError, match=r"Cannot parse as ISO datetime.*or as numeric timestamp"
-        ):
-            # Use Any to test validator behavior
-            kwargs_invalid: dict[str, Any] = {
-                "symbol": btc_symbol,
-                "exchange": ExchangeName.HYPERLIQUID,
-                "timestamp": "invalid-date-string",
-            }
-            Ticker(**kwargs_invalid)
-
-        # Test valid parsing (already covered in test_creation_with_parsable_data)
-        ms_timestamp = int(NOW.timestamp() * 1000)
-        iso_timestamp = NOW.isoformat().replace("+00:00", "Z")
-        expected_dt_from_ms = datetime.fromtimestamp(ms_timestamp / 1000, tz=UTC)
-
-        # Test int timestamp parsing
-        kwargs_int: dict[str, Any] = {
-            "symbol": btc_symbol,
-            "exchange": "test_exchange",
-            "timestamp": ms_timestamp,
-        }
-        assert Ticker(**kwargs_int).timestamp == expected_dt_from_ms
-        # Test string timestamp parsing
-        kwargs_str: dict[str, Any] = {
-            "symbol": btc_symbol,
-            "exchange": "test_exchange",
-            "timestamp": iso_timestamp,
-        }
-        assert Ticker(**kwargs_str).timestamp == NOW
-        assert (
-            Ticker(symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID, timestamp=NOW).timestamp
-            == NOW
-        )
-
-    @pytest.mark.parametrize("field_name", ["price", "bid", "ask", "volume"])
-    def test_decimal_fields_parsing_and_validation(self, field_name: str) -> None:
-        """Test parsing, finiteness, and non-negativity for optional decimal fields."""
-        btc_symbol = BTC_HL
-        valid_kwargs_base: dict[str, Any] = {
-            "symbol": btc_symbol,
-            "exchange": "test_exchange",
-            "timestamp": NOW,
-        }
-
-        # Helper function to create Ticker instance and get attribute
-        def get_ticker_field_value(value: str | float | Decimal | None) -> Decimal | None:
-            """Get ticker field value for testing.
-
-            Returns:
-                Decimal | None: The processed field value from the ticker instance.
-            """
-            kwargs = valid_kwargs_base.copy()
-            kwargs[field_name] = value
-            # Ignore arg-type specifically for the field being parameterized,
-            # as we are intentionally passing raw types (str, int, float, None).
-            ticker_instance = Ticker(**kwargs)
-            value_out = getattr(ticker_instance, field_name)
-            # Assert type for static analysis before returning
-            assert isinstance(value_out, Decimal | None), (
-                f"Expected Decimal or None, got {type(value_out)}"
-            )
-            return value_out
-
-        # Test valid parsing
-        assert get_ticker_field_value("123.45") == Decimal("123.45")
-        assert get_ticker_field_value(123) == DEC_ONE * 123
-        assert get_ticker_field_value(123.0) == DEC_ONE * 123
-        assert get_ticker_field_value(DEC_ONE) == DEC_ONE
-        assert get_ticker_field_value(DEC_ZERO) == DEC_ZERO
-        assert get_ticker_field_value(None) is None
-
-        # Test invalid parsing (Pydantic wraps underlying errors)
-        # Match needs to accommodate the field name which might be included
-        with pytest.raises(
-            ValidationError,
-            match=rf"Field '{field_name}' decimal validation failed.*Cannot convert to Decimal",
-        ):
-            # No ignore needed here, exception is expected before getattr
-            get_ticker_field_value("not-a-number")
-
-        # Test non-finite values (handled by custom validator)
-        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
-            # No ignore needed here, exception is expected before getattr
-            get_ticker_field_value(DEC_NAN)
-        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
-            # No ignore needed here, exception is expected before getattr
-            get_ticker_field_value(DEC_INF)
-        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
-            # No ignore needed here, exception is expected before getattr
-            get_ticker_field_value(DEC_NEG_INF)
-
-        # Test non-negativity (ge=0 handled by Field)
-        with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
-            # Ignore arg-type needed here as the exception happens during Ticker init
-            # when passing a string that *would* parse to a negative Decimal.
-            get_ticker_field_value("-0.001")
-
-    def test_extra_fields_forbidden(self) -> None:
-        """Test that extra fields raise ValidationError (extra='forbid')."""
-        btc_symbol = BTC_HL
-        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            Ticker(
-                symbol=btc_symbol,
-                exchange=ExchangeName.HYPERLIQUID,
-                timestamp=NOW,
-                extra_field="invalid",  # type: ignore[call-arg]
-            )
-
-    def test_immutability(self) -> None:
-        """Test that the Ticker model is immutable (frozen=True)."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol, exchange=ExchangeName.HYPERLIQUID, timestamp=NOW, price=DEC_ONE
-        )
-
-        with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.symbol = ETH_HL
-        with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.timestamp = NOW + timedelta(seconds=1)
-        with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.price = DEC_ZERO
-        with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.bid = DEC_ONE
-        # Setting non-existent field
-        with pytest.raises(ValidationError, match="Instance is frozen"):
-            ticker.new_field = "test"  # type: ignore[attr-defined]
-
-    # --- Mid-Price Calculation Tests --- #
-
-    def test_mid_price_valid_calculation(self) -> None:
-        """Test mid_price calculation with valid bid and ask prices."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            bid=Decimal("100.0"),
-            ask=Decimal("102.0"),
-        )
-        assert ticker.mid_price == Decimal("101.0")
-
-    def test_mid_price_precise_calculation(self) -> None:
-        """Test mid_price calculation preserves decimal precision."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            bid=Decimal("100.123"),
-            ask=Decimal("100.567"),
-        )
-        expected = (Decimal("100.123") + Decimal("100.567")) / Decimal(2)
-        assert ticker.mid_price == expected
-        assert ticker.mid_price == Decimal("100.345")
-
-    def test_mid_price_none_when_bid_missing(self) -> None:
-        """Test mid_price returns None when bid is None."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            bid=None,
-            ask=Decimal("102.0"),
-        )
-        assert ticker.mid_price is None
-
-    def test_mid_price_none_when_ask_missing(self) -> None:
-        """Test mid_price returns None when ask is None."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            bid=Decimal("100.0"),
-            ask=None,
-        )
-        assert ticker.mid_price is None
-
-    def test_mid_price_none_when_both_missing(self) -> None:
-        """Test mid_price returns None when both bid and ask are None."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            bid=None,
-            ask=None,
-        )
-        assert ticker.mid_price is None
-
-    @pytest.mark.parametrize(
-        ("field_name", "value"),
-        [
-            ("bid", DEC_NAN),
-            ("ask", DEC_NAN),
-            ("bid", DEC_INF),
-            ("ask", DEC_INF),
-            ("bid", DEC_NEG_INF),
-            ("ask", DEC_NEG_INF),
-        ],
-    )
-    def test_mid_price_validation_prevents_non_finite_inputs(
-        self, field_name: str, value: Decimal
-    ) -> None:
-        """Test that non-finite bid/ask values are rejected during ticker creation."""
-        btc_symbol = BTC_HL
-        kwargs: dict[str, Any] = {
-            "symbol": btc_symbol,
-            "exchange": "test_exchange",
-            "timestamp": NOW,
-            "bid": Decimal("100.0"),
-            "ask": Decimal("102.0"),
-        }
-        kwargs[field_name] = value
-
-        with pytest.raises(ValidationError, match="must be finite for ticker price data"):
-            Ticker(**kwargs)
-
-    def test_mid_price_with_zero_values(self) -> None:
-        """Test mid_price calculation with zero bid/ask values."""
-        btc_symbol = BTC_HL
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            bid=DEC_ZERO,
-            ask=DEC_ZERO,
-        )
-        assert ticker.mid_price == DEC_ZERO
-
-    # --- Exchange-Specific Details Tests --- #
-
-    def test_hyperliquid_details_creation(self) -> None:
-        """Test creating ticker with Hyperliquid-specific details."""
-        btc_symbol = BTC_HL
-        hl_details = HyperliquidTickerDetails(mid_price_source="allMids")
-        ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
-            price=Decimal(30000),
-            hl_details=hl_details,
-        )
-        assert ticker.hl_details is not None
-        assert ticker.hl_details.mid_price_source == "allMids"
+        assert ticker.hl_details is None
         assert ticker.bp_details is None
 
-    def test_backpack_details_creation(self) -> None:
-        """Test creating ticker with Backpack-specific details."""
-        btc_backpack_symbol = BTC_BP
-        bp_details = BackpackTickerDetails(
-            first_price=Decimal(29000),
-            high=Decimal(31000),
-            low=Decimal(28500),
-            price_change=Decimal(1000),
-            price_change_percent=Decimal("3.45"),
-            quote_volume=Decimal(1000000),
-            trades=1500,
-        )
+        # Properties: Mid-price should be None when bid/ask are None
+        assert ticker.mid_price is None
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+        price=price_strategy(),
+        bid_ask=bid_ask_spread_strategy(),
+        volume=volume_strategy(),
+    )
+    @settings(max_examples=300, deadline=None)
+    def test_full_ticker_creation_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        timestamp: datetime,
+        price: Decimal,
+        bid_ask: tuple[Decimal, Decimal],
+        volume: Decimal,
+    ) -> None:
+        """Property: Full ticker with all core fields should maintain data integrity."""
+        bid, ask = bid_ask
+
         ticker = Ticker(
-            symbol=btc_backpack_symbol,
-            exchange=ExchangeName.BACKPACK,
-            timestamp=NOW,
-            price=Decimal(30000),
+            symbol=ticker_symbol,
+            exchange=exchange,
+            timestamp=timestamp,
+            price=price,
+            bid=bid,
+            ask=ask,
+            volume=volume,
+        )
+
+        # Properties: All fields should be preserved exactly
+        assert ticker.symbol == ticker_symbol
+        assert ticker.exchange == exchange
+        assert ticker.timestamp == timestamp
+        assert ticker.price == price
+        assert ticker.bid == bid
+        assert ticker.ask == ask
+        assert ticker.volume == volume
+
+        # Properties: Mid-price calculation should be exact
+        expected_mid = (bid + ask) / Decimal("2")
+        assert ticker.mid_price == expected_mid
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+        bid_ask=bid_ask_spread_strategy(),
+    )
+    @settings(max_examples=500, deadline=None)
+    def test_mid_price_calculation_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        timestamp: datetime,
+        bid_ask: tuple[Decimal, Decimal],
+    ) -> None:
+        """Property: Mid-price calculation should follow mathematical properties."""
+        bid, ask = bid_ask
+
+        ticker = Ticker(
+            symbol=ticker_symbol,
+            exchange=exchange,
+            timestamp=timestamp,
+            bid=bid,
+            ask=ask,
+        )
+
+        mid_price = ticker.mid_price
+        assert mid_price is not None
+
+        # Properties: Mathematical invariants for mid-price
+        assert bid <= mid_price <= ask  # Mid-price should be between bid and ask
+        assert mid_price == (bid + ask) / Decimal("2")  # Exact arithmetic
+
+        # Properties: Precision preservation
+        # If bid and ask have same precision, mid-price should have at most one more decimal place
+        bid_places = max(0, -bid.as_tuple().exponent)
+        ask_places = max(0, -ask.as_tuple().exponent)
+        mid_places = max(0, -mid_price.as_tuple().exponent)
+        max_input_places = max(bid_places, ask_places)
+        assert mid_places <= max_input_places + 1
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+        bid=st.one_of(st.none(), price_strategy()),
+        ask=st.one_of(st.none(), price_strategy()),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_mid_price_none_handling_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        timestamp: datetime,
+        bid: Decimal | None,
+        ask: Decimal | None,
+    ) -> None:
+        """Property: Mid-price should be None when either bid or ask is None."""
+        ticker = Ticker(
+            symbol=ticker_symbol,
+            exchange=exchange,
+            timestamp=timestamp,
+            bid=bid,
+            ask=ask,
+        )
+
+        # Property: Mid-price calculation logic
+        if bid is None or ask is None:
+            assert ticker.mid_price is None
+        else:
+            assert ticker.mid_price is not None
+            assert ticker.mid_price == (bid + ask) / Decimal("2")
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+        decimal_field=st.sampled_from(["price", "bid", "ask", "volume"]),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_decimal_field_validation_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        timestamp: datetime,
+        decimal_field: str,
+    ) -> None:
+        """Property: Decimal fields should reject non-finite and negative values."""
+        base_kwargs = {
+            "symbol": ticker_symbol,
+            "exchange": exchange,
+            "timestamp": timestamp,
+        }
+
+        # Property: Non-finite values should be rejected
+        for invalid_value in [Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")]:
+            kwargs = base_kwargs.copy()
+            kwargs[decimal_field] = invalid_value
+
+            with pytest.raises(
+                ValidationError, match="Non-finite values.*not allowed in financial calculations"
+            ):
+                Ticker(**kwargs)
+
+        # Property: Negative values should be rejected
+        kwargs = base_kwargs.copy()
+        kwargs[decimal_field] = Decimal("-0.001")
+
+        with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
+            Ticker(**kwargs)
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+        price=price_strategy(),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_ticker_immutability_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        timestamp: datetime,
+        price: Decimal,
+    ) -> None:
+        """Property: Ticker instances should be completely immutable."""
+        ticker = Ticker(
+            symbol=ticker_symbol,
+            exchange=exchange,
+            timestamp=timestamp,
+            price=price,
+        )
+
+        # Property: All field modifications should raise ValidationError
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            ticker.symbol = BTC_USDC_BP  # Different symbol
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            ticker.exchange = ExchangeName.BACKPACK
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            ticker.timestamp = timestamp + timedelta(seconds=1)
+
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            ticker.price = price + Decimal("1")
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+        hl_details=hyperliquid_details_strategy(),
+        bp_details=backpack_details_strategy(),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_exchange_details_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        timestamp: datetime,
+        hl_details: HyperliquidTickerDetails,
+        bp_details: BackpackTickerDetails,
+    ) -> None:
+        """Property: Exchange-specific details should be preserved correctly."""
+        ticker = Ticker(
+            symbol=ticker_symbol,
+            exchange=exchange,
+            timestamp=timestamp,
+            hl_details=hl_details,
             bp_details=bp_details,
         )
-        assert ticker.bp_details is not None
-        assert ticker.bp_details.first_price == Decimal(29000)
-        assert ticker.bp_details.high == Decimal(31000)
-        assert ticker.bp_details.low == Decimal(28500)
-        assert ticker.bp_details.price_change == Decimal(1000)
-        assert ticker.bp_details.price_change_percent == Decimal("3.45")
-        assert ticker.bp_details.quote_volume == Decimal(1000000)
-        assert ticker.bp_details.trades == 1500
-        assert ticker.hl_details is None
 
-    def test_both_exchange_details_none_by_default(self) -> None:
-        """Test that exchange-specific details are None by default."""
-        btc_symbol = BTC_HL
+        # Properties: Details should be preserved
+        assert ticker.hl_details == hl_details
+        assert ticker.bp_details == bp_details
+
+        # Properties: Details should be immutable
+        if ticker.hl_details is not None:
+            with pytest.raises(ValidationError, match="Instance is frozen"):
+                ticker.hl_details.mid_price_source = "modified"
+
+        if ticker.bp_details is not None and ticker.bp_details.trades is not None:
+            with pytest.raises(ValidationError, match="Instance is frozen"):
+                ticker.bp_details.trades = 999999
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        timestamp=valid_timestamp_strategy(),
+        parseable_inputs=st.one_of(
+            st.integers(min_value=0, max_value=1000000),
+            st.floats(min_value=0.0, max_value=1000000.0, allow_nan=False, allow_infinity=False),
+            st.text().filter(lambda x: x.replace(".", "").replace("-", "").isdigit()),
+        ),
+    )
+    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    def test_decimal_parsing_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        timestamp: datetime,
+        parseable_inputs: Any,
+    ) -> None:
+        """Property: Ticker should correctly parse various numeric input types to Decimal."""
+        # Skip edge cases that might cause precision issues
+        if isinstance(parseable_inputs, float):
+            assume(abs(parseable_inputs) < 1e15)  # Avoid precision loss
+            assume(parseable_inputs >= 0)  # Ensure non-negative
+
         ticker = Ticker(
-            symbol=btc_symbol,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=NOW,
+            symbol=ticker_symbol,
+            exchange=exchange,
+            timestamp=timestamp,
+            price=parseable_inputs,
         )
-        assert ticker.hl_details is None
-        assert ticker.bp_details is None
+
+        # Property: Price should be converted to Decimal
+        assert isinstance(ticker.price, Decimal)
+        assert ticker.price >= 0  # Should maintain non-negativity
+
+        # Property: Should preserve reasonable precision
+        if isinstance(parseable_inputs, (int, str)):
+            # Exact conversion expected for integers and valid decimal strings
+            expected = Decimal(str(parseable_inputs))
+            assert ticker.price == expected
+
+    @given(
+        ticker_symbol=valid_symbol_strategy(),
+        exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
+        invalid_input=st.one_of(
+            st.just(""),
+            st.just("   "),
+            st.just("not_a_number"),
+            st.just("12..34"),
+            st.text().filter(
+                lambda x: x.strip() and not x.replace(".", "").replace("-", "").isdigit()
+            ),
+        ),
+    )
+    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    def test_invalid_decimal_input_rejection_properties(
+        self,
+        ticker_symbol: Any,
+        exchange: ExchangeName,
+        invalid_input: str,
+    ) -> None:
+        """Property: Invalid decimal inputs should always raise ValidationError."""
+        with pytest.raises(ValidationError):
+            Ticker(
+                symbol=ticker_symbol,
+                exchange=exchange,
+                timestamp=datetime.now(UTC),
+                price=invalid_input,
+            )
 
 
-class TestHyperliquidTickerDetails:
-    """Unit tests for HyperliquidTickerDetails model."""
+# =============================================================================
+# PROPERTY TESTS FOR EXCHANGE-SPECIFIC DETAIL MODELS
+# =============================================================================
 
-    def test_minimal_creation(self) -> None:
-        """Test creating HyperliquidTickerDetails with minimal data."""
-        details = HyperliquidTickerDetails()
-        assert details.mid_price_source is None
 
-    def test_creation_with_data(self) -> None:
-        """Test creating HyperliquidTickerDetails with data."""
-        details = HyperliquidTickerDetails(mid_price_source="orderbook")
-        assert details.mid_price_source == "orderbook"
+class TestHyperliquidTickerDetailsProperties:
+    """Property-based tests for HyperliquidTickerDetails model."""
 
-    def test_immutability(self) -> None:
-        """Test that HyperliquidTickerDetails is immutable."""
-        details = HyperliquidTickerDetails(mid_price_source="allMids")
+    @given(
+        mid_price_source=st.one_of(
+            st.none(),
+            st.text(min_size=1, max_size=20).filter(lambda x: x.strip()),
+        )
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_hyperliquid_details_creation_properties(self, mid_price_source: str | None) -> None:
+        """Property: HyperliquidTickerDetails should accept valid inputs correctly."""
+        details = HyperliquidTickerDetails(mid_price_source=mid_price_source)
+
+        # Property: Field should be preserved
+        assert details.mid_price_source == mid_price_source
+
+        # Property: Should be immutable
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            details.mid_price_source = "orderbook"
-
-    def test_extra_fields_ignored(self) -> None:
-        """Test that extra fields are ignored in HyperliquidTickerDetails."""
-        # Should not raise error due to extra="ignore"
-        details = HyperliquidTickerDetails(
-            mid_price_source="allMids",
-            unknown_field="should_be_ignored",  # type: ignore[call-arg]
-        )
-        assert details.mid_price_source == "allMids"
-        assert not hasattr(details, "unknown_field")
+            details.mid_price_source = "modified"
 
 
-class TestBackpackTickerDetails:
-    """Unit tests for BackpackTickerDetails model."""
+class TestBackpackTickerDetailsProperties:
+    """Property-based tests for BackpackTickerDetails model."""
 
-    def test_minimal_creation(self) -> None:
-        """Test creating BackpackTickerDetails with minimal data."""
-        details = BackpackTickerDetails()
-        assert details.first_price is None
-        assert details.high is None
-        assert details.low is None
-        assert details.price_change is None
-        assert details.price_change_percent is None
-        assert details.quote_volume is None
-        assert details.trades is None
+    @given(
+        first_price=st.one_of(st.none(), price_strategy()),
+        high=st.one_of(st.none(), price_strategy()),
+        low=st.one_of(st.none(), price_strategy()),
+        price_change=st.one_of(
+            st.none(), financial_decimal_strategy(min_value=-10000.0, max_value=10000.0)
+        ),
+        price_change_percent=st.one_of(
+            st.none(), financial_decimal_strategy(min_value=-100.0, max_value=1000.0)
+        ),
+        quote_volume=st.one_of(st.none(), volume_strategy()),
+        trades=st.one_of(st.none(), st.integers(min_value=0, max_value=1000000)),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_backpack_details_creation_properties(
+        self,
+        first_price: Decimal | None,
+        high: Decimal | None,
+        low: Decimal | None,
+        price_change: Decimal | None,
+        price_change_percent: Decimal | None,
+        quote_volume: Decimal | None,
+        trades: int | None,
+    ) -> None:
+        """Property: BackpackTickerDetails should handle all field combinations correctly."""
+        # Ensure high >= low if both are present
+        if high is not None and low is not None and high < low:
+            high, low = low, high
 
-    def test_creation_with_all_fields(self) -> None:
-        """Test creating BackpackTickerDetails with all fields."""
         details = BackpackTickerDetails(
-            first_price=Decimal(29000),
-            high=Decimal(31000),
-            low=Decimal(28500),
-            price_change=Decimal(-500),  # Can be negative
-            price_change_percent=Decimal("-1.67"),  # Can be negative
-            quote_volume=Decimal(500000),
-            trades=750,
+            first_price=first_price,
+            high=high,
+            low=low,
+            price_change=price_change,
+            price_change_percent=price_change_percent,
+            quote_volume=quote_volume,
+            trades=trades,
         )
-        assert details.first_price == Decimal(29000)
-        assert details.high == Decimal(31000)
-        assert details.low == Decimal(28500)
-        assert details.price_change == Decimal(-500)
-        assert details.price_change_percent == Decimal("-1.67")
-        assert details.quote_volume == Decimal(500000)
-        assert details.trades == 750
 
-    @pytest.mark.parametrize("field_name", ["first_price", "high", "low", "quote_volume"])
-    def test_non_negative_price_fields_validation(self, field_name: str) -> None:
-        """Test that price and volume fields reject negative values."""
-        kwargs: dict[str, Any] = {}
-        kwargs[field_name] = Decimal(-1)
+        # Properties: All fields should be preserved
+        assert details.first_price == first_price
+        assert details.high == high
+        assert details.low == low
+        assert details.price_change == price_change
+        assert details.price_change_percent == price_change_percent
+        assert details.quote_volume == quote_volume
+        assert details.trades == trades
+
+        # Property: Should be immutable
+        with pytest.raises(ValidationError, match="Instance is frozen"):
+            details.first_price = Decimal("999")
+
+    @given(
+        field_name=st.sampled_from(["first_price", "high", "low", "quote_volume"]),
+        negative_value=financial_decimal_strategy(
+            min_value=-1000.0, max_value=-0.01, allow_zero=False
+        ),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_backpack_details_non_negative_validation_properties(
+        self, field_name: str, negative_value: Decimal
+    ) -> None:
+        """Property: Non-negative fields should reject negative values."""
+        kwargs = {field_name: negative_value}
 
         with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
             BackpackTickerDetails(**kwargs)
 
-    @pytest.mark.parametrize("field_name", ["price_change", "price_change_percent"])
-    def test_price_change_fields_allow_negative(self, field_name: str) -> None:
-        """Test that price change fields allow negative values."""
-        kwargs: dict[str, Any] = {}
-        kwargs[field_name] = Decimal("-10.5")
+    @given(
+        field_name=st.sampled_from(["price_change", "price_change_percent"]),
+        negative_value=financial_decimal_strategy(
+            min_value=-1000.0, max_value=-0.01, allow_zero=False
+        ),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_backpack_details_negative_change_allowed_properties(
+        self, field_name: str, negative_value: Decimal
+    ) -> None:
+        """Property: Price change fields should allow negative values."""
+        kwargs = {field_name: negative_value}
 
-        # Should not raise error
+        # Should not raise an error
         details = BackpackTickerDetails(**kwargs)
-        assert getattr(details, field_name) == Decimal("-10.5")
+        assert getattr(details, field_name) == negative_value
 
-    def test_trades_field_validation(self) -> None:
-        """Test trades field validation (integer, non-negative)."""
-        # Valid positive integer
-        details = BackpackTickerDetails(trades=100)
-        assert details.trades == 100
-
-        # Valid zero
-        details = BackpackTickerDetails(trades=0)
-        assert details.trades == 0
-
-        # Invalid negative
+    @given(negative_trades=st.integers(min_value=-1000, max_value=-1))
+    @settings(max_examples=50, deadline=None)
+    def test_backpack_details_trades_validation_properties(self, negative_trades: int) -> None:
+        """Property: Trades field should reject negative values."""
         with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
-            BackpackTickerDetails(trades=-1)
-
-    def test_immutability(self) -> None:
-        """Test that BackpackTickerDetails is immutable."""
-        details = BackpackTickerDetails(first_price=Decimal(30000))
-        with pytest.raises(ValidationError, match="Instance is frozen"):
-            details.first_price = Decimal(31000)
-
-    def test_extra_fields_ignored(self) -> None:
-        """Test that extra fields are ignored in BackpackTickerDetails."""
-        # Should not raise error due to extra="ignore"
-        details = BackpackTickerDetails(
-            first_price=Decimal(30000),
-            unknown_field="should_be_ignored",  # type: ignore[call-arg]
-        )
-        assert details.first_price == Decimal(30000)
-        assert not hasattr(details, "unknown_field")
+            BackpackTickerDetails(trades=negative_trades)

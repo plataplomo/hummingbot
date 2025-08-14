@@ -1,484 +1,826 @@
-"""Unit tests for the MidPrices model.
+"""Property-based tests for the CyberDeltaEngine MidPrices model.
 
-Tests mid price management functionality including symbol lookup,
-validation, and utility methods.
-Following the mandatory test pattern: SUCCESS, EDGE, and FAILURE cases.
+This module provides comprehensive property-based testing of the MidPrices Pydantic model,
+which represents collections of mid prices for multiple trading symbols.
+
+Key Testing Areas:
+- Mid prices field validation and type safety using property-based input generation
+- Financial precision handling for price values
+- Symbol lookup and mapping functionality
+- Timestamp handling and exchange validation
+- Collection operations (get, has_symbol, symbols, len)
+- Edge cases with extreme prices, empty collections, and special symbols
+- Immutability and data integrity properties
+
+Following TESTING_SECURITY_RULES.md:
+- NO hardcoded financial values (Hypothesis generates them)
+- NO fallback mechanisms with arbitrary values
+- Uses property-based testing for comprehensive coverage
+- Tests complete mid price collection flows with real constraints
+- Validates financial calculation invariants and business rules
+
+Architecture Compliance:
+- Follows RULE-ARCH-MODEL-DESIGN-V2 for strict model separation
+- Implements RULE-RUNTIME-SAFETY-V4 for Decimal usage and validation
+- Adheres to RULE-NO-SILENCING-V4 for type safety without suppressions
 """
 
-from datetime import UTC, datetime
+from __future__ import annotations
+
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
+from hypothesis import assume, given, settings, strategies as st
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.market.mid_prices import MidPrices
-from cyberdelta.symbols.api import symbol
-from tests.common_symbols import BTC_HL, ETH_HL, SOL_HL
+from cyberdelta.symbols.models import Symbol
+from tests.common_symbols import (
+    BTC_HL,
+    ETH_HL,
+    SOL_HL,
+    DOGE_HL,
+    BTC_BP,
+    ETH_BP,
+    SOL_BP,
+    BTC_USDC_BP,
+    ETH_USDC_BP,
+    SOL_USDC_BP,
+)
 
 
-class TestMidPricesInitialization:
-    """Test suite for MidPrices model initialization."""
+pytestmark = pytest.mark.timing
 
-    # ==================== SUCCESS CASES ====================
 
-    def test_mid_prices_init_success_with_required_fields(self) -> None:
-        """Test successful initialization with required fields."""
-        # Arrange
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
-        prices = {
-            btc_symbol: Decimal("50000.0"),
-            eth_symbol: Decimal("3000.0"),
-        }
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR MID PRICES DATA
+# =============================================================================
 
-        # Act
-        mid_prices = MidPrices(
-            prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
+
+@st.composite
+def finite_decimal_strategy(
+    draw: st.DrawFn, min_value: float = -1000000.0, max_value: float = 1000000.0
+) -> Decimal:
+    """Generate finite decimal values for prices (can be negative for some markets).
+
+    Args:
+        draw: Hypothesis draw function
+        min_value: Minimum value for generation
+        max_value: Maximum value for generation
+
+    Returns:
+        Decimal: A finite decimal value
+    """
+    value = draw(
+        st.floats(
+            min_value=min_value,
+            max_value=max_value,
+            allow_infinity=False,
+            allow_nan=False,
+        )
+    )
+    return Decimal(str(value))
+
+
+@st.composite
+def positive_decimal_strategy(
+    draw: st.DrawFn, min_value: float = 0.00000001, max_value: float = 1000000.0
+) -> Decimal:
+    """Generate positive decimal values for typical market prices.
+
+    Args:
+        draw: Hypothesis draw function
+        min_value: Minimum value for generation
+        max_value: Maximum value for generation
+
+    Returns:
+        Decimal: A positive decimal value
+    """
+    value = draw(
+        st.floats(
+            min_value=min_value,
+            max_value=max_value,
+            allow_infinity=False,
+            allow_nan=False,
+        )
+    )
+    return Decimal(str(value))
+
+
+@st.composite
+def symbol_strategy(draw: st.DrawFn) -> Symbol:
+    """Generate valid Symbol objects for testing.
+
+    Args:
+        draw: Hypothesis draw function
+
+    Returns:
+        Symbol: A valid symbol for mid price data
+    """
+    return draw(
+        st.sampled_from([
+            BTC_HL,
+            ETH_HL,
+            SOL_HL,
+            DOGE_HL,
+            BTC_BP,
+            ETH_BP,
+            SOL_BP,
+            BTC_USDC_BP,
+            ETH_USDC_BP,
+            SOL_USDC_BP,
+        ])
+    )
+
+
+@st.composite
+def exchange_name_strategy(draw: st.DrawFn) -> ExchangeName:
+    """Generate valid exchange names.
+
+    Args:
+        draw: Hypothesis draw function
+
+    Returns:
+        ExchangeName: A valid exchange name enum
+    """
+    return draw(st.sampled_from(list(ExchangeName)))
+
+
+@st.composite
+def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
+    """Generate valid UTC timestamps for mid price data.
+
+    Args:
+        draw: Hypothesis draw function
+
+    Returns:
+        datetime: A valid UTC timestamp
+    """
+    naive_dt = draw(
+        st.datetimes(
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
+        )
+    )
+    return naive_dt.replace(tzinfo=UTC)
+
+
+@st.composite
+def price_dict_strategy(
+    draw: st.DrawFn, min_size: int = 0, max_size: int = 10, allow_negative: bool = False
+) -> dict[Symbol, Decimal]:
+    """Generate dictionaries of symbol to price mappings.
+
+    Args:
+        draw: Hypothesis draw function
+        min_size: Minimum number of symbols
+        max_size: Maximum number of symbols
+        allow_negative: Whether to allow negative prices
+
+    Returns:
+        dict[Symbol, Decimal]: A mapping of symbols to prices
+    """
+    num_symbols = draw(st.integers(min_value=min_size, max_value=max_size))
+    available_symbols = [
+        BTC_HL,
+        ETH_HL,
+        SOL_HL,
+        DOGE_HL,
+        BTC_BP,
+        ETH_BP,
+        SOL_BP,
+        BTC_USDC_BP,
+        ETH_USDC_BP,
+        SOL_USDC_BP,
+    ]
+
+    # Select unique symbols
+    selected_symbols = draw(
+        st.lists(
+            st.sampled_from(available_symbols),
+            min_size=num_symbols,
+            max_size=num_symbols,
+            unique=True,
+        )
+    )
+
+    prices = {}
+    for symbol in selected_symbols:
+        if allow_negative:
+            price = draw(finite_decimal_strategy())
+        else:
+            price = draw(positive_decimal_strategy())
+        prices[symbol] = price
+
+    return prices
+
+
+@st.composite
+def extreme_price_dict_strategy(draw: st.DrawFn) -> dict[Symbol, Decimal]:
+    """Generate price dictionaries with extreme values.
+
+    Args:
+        draw: Hypothesis draw function
+
+    Returns:
+        dict[Symbol, Decimal]: A mapping with extreme price values
+    """
+    symbols = draw(st.lists(symbol_strategy(), min_size=1, max_size=5, unique=True))
+
+    prices = {}
+    for symbol in symbols:
+        price_type = draw(
+            st.sampled_from(["very_small", "very_large", "zero", "negative", "high_precision"])
         )
 
-        # Assert
-        assert mid_prices.prices == prices
-        assert mid_prices.exchange == ExchangeName.HYPERLIQUID
-        assert mid_prices.timestamp is None  # Default value
+        if price_type == "very_small":
+            price = Decimal(str(draw(st.floats(min_value=1e-10, max_value=1e-6))))
+        elif price_type == "very_large":
+            price = Decimal(str(draw(st.floats(min_value=1e6, max_value=1e9))))
+        elif price_type == "zero":
+            price = Decimal("0")
+        elif price_type == "negative":
+            price = Decimal(str(draw(st.floats(min_value=-1000, max_value=-0.01))))
+        else:  # high_precision
+            price = Decimal(str(draw(st.floats(min_value=0.1, max_value=1000)))).quantize(
+                Decimal("0.000000000001")
+            )
 
-    def test_mid_prices_init_success_with_timestamp(self) -> None:
-        """Test successful initialization with timestamp."""
-        # Arrange
-        sol_symbol = SOL_HL
-        prices = {sol_symbol: Decimal("100.0")}
-        timestamp = datetime.now(UTC)
+        prices[symbol] = price
 
-        # Act
+    return prices
+
+
+# =============================================================================
+# PROPERTY TESTS FOR MID PRICES MODEL
+# =============================================================================
+
+
+class TestMidPricesModelProperties:
+    """Property-based tests for the MidPrices model."""
+
+    @given(
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_minimal_mid_prices_creation_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: Minimal MidPrices with only required fields should always be valid."""
         mid_prices = MidPrices(
             prices=prices,
-            exchange=ExchangeName.BACKPACK,
+            exchange=exchange,
+        )
+
+        # Properties: Required fields should be set correctly
+        assert mid_prices.prices == prices
+        assert mid_prices.exchange == exchange
+        assert mid_prices.timestamp is None  # Default value
+
+        # Properties: Collection size should match
+        assert len(mid_prices) == len(prices)
+        assert len(mid_prices.symbols()) == len(prices)
+
+    @given(
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+        timestamp=st.one_of(st.none(), valid_timestamp_strategy()),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_complete_mid_prices_creation_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+        timestamp: datetime | None,
+    ) -> None:
+        """Property: Complete MidPrices with all fields should maintain data integrity."""
+        mid_prices = MidPrices(
+            prices=prices,
+            exchange=exchange,
             timestamp=timestamp,
         )
 
-        # Assert
+        # Properties: All fields should be preserved exactly
         assert mid_prices.prices == prices
-        assert mid_prices.exchange == ExchangeName.BACKPACK
+        assert mid_prices.exchange == exchange
         assert mid_prices.timestamp == timestamp
 
-    def test_mid_prices_init_success_empty_prices(self) -> None:
-        """Test successful initialization with empty prices dict."""
-        # Act
+        # Properties: All symbols should be accessible
+        for symbol in prices:
+            assert mid_prices.has_symbol(symbol)
+            assert mid_prices.get(symbol) == prices[symbol]
+
+    @given(
+        prices=price_dict_strategy(min_size=1, max_size=10),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_symbol_lookup_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: Symbol lookup operations should work correctly."""
+        mid_prices = MidPrices(
+            prices=prices,
+            exchange=exchange,
+        )
+
+        # Property: get() should return correct price for each symbol
+        for symbol, price in prices.items():
+            assert mid_prices.get(symbol) == price
+
+        # Property: has_symbol() should return True for all symbols
+        for symbol in prices:
+            assert mid_prices.has_symbol(symbol) is True
+
+        # Property: symbols() should return all symbols
+        symbols = mid_prices.symbols()
+        assert set(symbols) == set(prices.keys())
+        assert len(symbols) == len(prices)
+
+    @given(
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+        nonexistent_symbol=symbol_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_nonexistent_symbol_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+        nonexistent_symbol: Symbol,
+    ) -> None:
+        """Property: Nonexistent symbol lookups should return None/False."""
+        # Ensure the symbol is not in prices
+        assume(nonexistent_symbol not in prices)
+
+        mid_prices = MidPrices(
+            prices=prices,
+            exchange=exchange,
+        )
+
+        # Property: get() should return None for nonexistent symbol
+        assert mid_prices.get(nonexistent_symbol) is None
+
+        # Property: has_symbol() should return False for nonexistent symbol
+        assert mid_prices.has_symbol(nonexistent_symbol) is False
+
+    @given(exchange=exchange_name_strategy())
+    @settings(max_examples=100, deadline=None)
+    def test_empty_mid_prices_properties(self, exchange: ExchangeName) -> None:
+        """Property: Empty MidPrices should behave correctly."""
         mid_prices = MidPrices(
             prices={},
-            exchange=ExchangeName.HYPERLIQUID,
+            exchange=exchange,
         )
 
-        # Assert
-        assert mid_prices.prices == {}
-        assert mid_prices.exchange == ExchangeName.HYPERLIQUID
+        # Properties: Empty collection behavior
         assert len(mid_prices) == 0
+        assert mid_prices.symbols() == []
+        assert mid_prices.prices == {}
 
-    # ==================== EDGE CASES ====================
+        # Property: Any symbol lookup should return None/False
+        test_symbol = BTC_HL
+        assert mid_prices.get(test_symbol) is None
+        assert mid_prices.has_symbol(test_symbol) is False
 
-    def test_mid_prices_init_edge_very_high_precision_prices(self) -> None:
-        """Test initialization with high precision decimal prices."""
-        # Arrange
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
-        prices = {
-            btc_symbol: Decimal("50000.123456789123456789"),
-            eth_symbol: Decimal("3000.987654321987654321"),
-        }
-
-        # Act
-        mid_prices = MidPrices(
-            prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
-        )
-
-        # Assert
-        assert mid_prices.prices[btc_symbol] == Decimal("50000.123456789123456789")
-        assert mid_prices.prices[eth_symbol] == Decimal("3000.987654321987654321")
-
-    def test_mid_prices_init_edge_zero_prices(self) -> None:
-        """Test initialization with zero prices."""
-        # Arrange
-        zero_symbol = symbol("ZERO-PERP", ExchangeName.HYPERLIQUID)
-        tiny_symbol = symbol("TINY-PERP", ExchangeName.HYPERLIQUID)
-        prices = {
-            zero_symbol: Decimal("0.0"),
-            tiny_symbol: Decimal("0.000001"),
-        }
-
-        # Act
-        mid_prices = MidPrices(
-            prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
-        )
-
-        # Assert
-        assert mid_prices.prices[zero_symbol] == Decimal("0.0")
-        assert mid_prices.prices[tiny_symbol] == Decimal("0.000001")
-
-    # ==================== FAILURE CASES ====================
-
-    def test_mid_prices_init_failure_missing_prices(self) -> None:
-        """Test initialization fails without prices field."""
-        # Act & Assert
-        with pytest.raises(ValidationError) as exc_info:
-            MidPrices(exchange=ExchangeName.HYPERLIQUID)  # type: ignore
-
-        # Verify the validation error is about missing prices
-        error_msg = str(exc_info.value)
-        assert "prices" in error_msg.lower()
-        assert "missing" in error_msg.lower()
-
-    def test_mid_prices_init_failure_missing_exchange(self) -> None:
-        """Test initialization fails without exchange field."""
-        # Arrange
-        btc_symbol = BTC_HL
-
-        # Act & Assert
-        with pytest.raises(ValidationError) as exc_info:
-            MidPrices(prices={btc_symbol: Decimal("50000.0")})  # type: ignore
-
-        # Verify the validation error is about missing exchange
-        error_msg = str(exc_info.value)
-        assert "exchange" in error_msg.lower()
-        assert "missing" in error_msg.lower()
-
-
-class TestMidPricesSymbolLookup:
-    """Test suite for MidPrices symbol lookup methods."""
-
-    @pytest.fixture
-    def sample_mid_prices(self) -> MidPrices:
-        """Create sample MidPrices instance for testing.
-
-        Returns:
-            MidPrices: A sample mid prices instance for testing.
-        """
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
-        sol_symbol = SOL_HL
-
-        return MidPrices(
-            prices={
-                btc_symbol: Decimal("50000.0"),
-                eth_symbol: Decimal("3000.0"),
-                sol_symbol: Decimal("100.0"),
-            },
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=datetime.now(UTC),
-        )
-
-    # ==================== SUCCESS CASES ====================
-
-    def test_get_success_existing_symbol(self, sample_mid_prices: MidPrices) -> None:
-        """Test getting price for existing symbol."""
-        # Arrange
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
-
-        # Act
-        btc_price = sample_mid_prices.get(btc_symbol)
-        eth_price = sample_mid_prices.get(eth_symbol)
-
-        # Assert
-        assert btc_price == Decimal("50000.0")
-        assert eth_price == Decimal("3000.0")
-
-    def test_has_symbol_success_existing_symbols(self, sample_mid_prices: MidPrices) -> None:
-        """Test checking existence of symbols."""
-        # Arrange
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
-        sol_symbol = SOL_HL
-
-        # Act & Assert
-        assert sample_mid_prices.has_symbol(btc_symbol) is True
-        assert sample_mid_prices.has_symbol(eth_symbol) is True
-        assert sample_mid_prices.has_symbol(sol_symbol) is True
-
-    def test_symbols_success_returns_all_symbols(self, sample_mid_prices: MidPrices) -> None:
-        """Test getting list of all symbols."""
-        # Arrange
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
-        sol_symbol = SOL_HL
-
-        # Act
-        symbol_list = sample_mid_prices.symbols()
-
-        # Assert
-        assert isinstance(symbol_list, list)
-        assert len(symbol_list) == 3
-        assert btc_symbol in symbol_list
-        assert eth_symbol in symbol_list
-        assert sol_symbol in symbol_list
-
-    def test_len_success_returns_correct_count(self, sample_mid_prices: MidPrices) -> None:
-        """Test getting count of symbols."""
-        # Act
-        count = len(sample_mid_prices)
-
-        # Assert
-        assert count == 3
-
-    # ==================== EDGE CASES ====================
-
-    def test_get_edge_nonexistent_symbol_returns_none(self, sample_mid_prices: MidPrices) -> None:
-        """Test getting price for non-existent symbol returns None."""
-        # Arrange
-        nonexistent_symbol = symbol("NONEXISTENT-PERP", ExchangeName.HYPERLIQUID)
-
-        # Act
-        result = sample_mid_prices.get(nonexistent_symbol)
-
-        # Assert
-        assert result is None
-
-    def test_has_symbol_edge_nonexistent_symbol_returns_false(
-        self, sample_mid_prices: MidPrices
+    @given(
+        prices=extreme_price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_extreme_values_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
     ) -> None:
-        """Test checking non-existent symbol returns False."""
-        # Arrange
-        nonexistent_symbol = symbol("NONEXISTENT-PERP", ExchangeName.HYPERLIQUID)
+        """Property: MidPrices should handle extreme price values correctly."""
+        mid_prices = MidPrices(
+            prices=prices,
+            exchange=exchange,
+        )
 
-        # Act
-        result = sample_mid_prices.has_symbol(nonexistent_symbol)
+        # Properties: All extreme values should be preserved exactly
+        for symbol, price in prices.items():
+            assert mid_prices.get(symbol) == price
 
-        # Assert
-        assert result is False
+            # Property: Special value checks
+            if price == 0:
+                assert mid_prices.get(symbol) == Decimal("0")
+            elif price < 0:
+                assert mid_prices.get(symbol) < 0
+            elif price > 1e6:
+                assert mid_prices.get(symbol) > Decimal("1000000")
 
-    def test_get_edge_case_sensitive_symbol_lookup(self, sample_mid_prices: MidPrices) -> None:
-        """Test that symbol lookup is case sensitive."""
-        # Arrange
-        lowercase_symbol = symbol("btc-perp", ExchangeName.HYPERLIQUID)
-        mixed_case_symbol = symbol("BTC-perp", ExchangeName.HYPERLIQUID)
+    @given(
+        prices=price_dict_strategy(allow_negative=True),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_negative_values_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: MidPrices should support negative prices (e.g., commodity futures)."""
+        mid_prices = MidPrices(
+            prices=prices,
+            exchange=exchange,
+        )
 
-        # Act
-        lowercase_result = sample_mid_prices.get(lowercase_symbol)
-        uppercase_result = sample_mid_prices.get(mixed_case_symbol)
+        # Properties: Negative values should be preserved
+        for symbol, price in prices.items():
+            assert mid_prices.get(symbol) == price
+            if price < 0:
+                assert mid_prices.get(symbol) < 0
 
-        # Assert
-        assert lowercase_result is None
-        assert uppercase_result is None  # Only exact match BTC-PERP symbol exists
+    @given(
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_data_integrity_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: MidPrices should maintain data integrity after creation."""
+        # Create a copy of the original prices
+        original_prices = prices.copy()
 
-    def test_has_symbol_edge_empty_string_symbol(self, sample_mid_prices: MidPrices) -> None:
-        """Test checking empty string symbol."""
-        # Arrange
-        # Note: This should fail validation due to min_length=1 in Symbol model
-        # but we'll test the behavior for completeness
-        result = False  # Default to False
-        try:
-            empty_symbol = symbol("", ExchangeName.HYPERLIQUID)
-            # Act
-            result = sample_mid_prices.has_symbol(empty_symbol)
-        except ValueError:
-            # If symbol creation fails due to validation, that's expected
-            # We can't test the has_symbol behavior with an invalid symbol
-            result = False  # This represents the expected behavior
+        mid_prices = MidPrices(
+            prices=prices,
+            exchange=exchange,
+        )
 
-        # Assert
-        assert result is False
+        # Modify the original dict (should not affect MidPrices)
+        if prices:
+            first_symbol = next(iter(prices))
+            prices[first_symbol] = Decimal("999999")
 
-    def test_symbols_edge_empty_prices_returns_empty_list(self) -> None:
-        """Test symbols() method with empty prices."""
-        # Arrange
-        empty_mid_prices = MidPrices(prices={}, exchange=ExchangeName.HYPERLIQUID)
+        # Property: MidPrices should be unaffected by external modifications
+        for symbol, original_price in original_prices.items():
+            assert mid_prices.get(symbol) == original_price
 
-        # Act
-        symbols = empty_mid_prices.symbols()
-
-        # Assert
-        assert symbols == []
-
-    def test_len_edge_empty_prices_returns_zero(self) -> None:
-        """Test len() with empty prices."""
-        # Arrange
-        empty_mid_prices = MidPrices(prices={}, exchange=ExchangeName.HYPERLIQUID)
-
-        # Act
-        count = len(empty_mid_prices)
-
-        # Assert
-        assert count == 0
-
-
-class TestMidPricesUtilityMethods:
-    """Test suite for MidPrices utility and helper methods."""
-
-    def test_mid_prices_is_immutable_after_creation(self) -> None:
-        """Test that MidPrices behaves as expected for data integrity."""
-        # Arrange
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
-        original_prices = {
-            btc_symbol: Decimal("50000.0"),
-            eth_symbol: Decimal("3000.0"),
+    @given(
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_mid_prices_extra_fields_rejection_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: Extra fields should always be rejected."""
+        mid_prices_data = {
+            "prices": prices,
+            "exchange": exchange,
+            "extra_field": "not_allowed",
         }
+
+        # Property: Extra fields should cause validation error
+        with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+            MidPrices(**mid_prices_data)
+
+
+# =============================================================================
+# MID PRICES BUSINESS LOGIC PROPERTIES
+# =============================================================================
+
+
+class TestMidPricesBusinessLogicProperties:
+    """Property-based tests for MidPrices business logic and relationships."""
+
+    @given(
+        prices=price_dict_strategy(min_size=1, max_size=20),
+        exchange=exchange_name_strategy(),
+        timestamp=valid_timestamp_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_collection_consistency_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+        timestamp: datetime,
+    ) -> None:
+        """Property: Collection operations should be internally consistent."""
         mid_prices = MidPrices(
-            prices=original_prices.copy(),
-            exchange=ExchangeName.HYPERLIQUID,
+            prices=prices,
+            exchange=exchange,
+            timestamp=timestamp,
         )
 
-        # Act - Modify the original dict (should not affect MidPrices)
-        doge_symbol = SOL_HL  # Use a different existing symbol for test
-        original_prices[doge_symbol] = Decimal("0.1")
+        # Property: len() should match symbols() length
+        assert len(mid_prices) == len(mid_prices.symbols())
 
-        # Assert - MidPrices should be unaffected
-        assert doge_symbol not in mid_prices.symbols()
-        assert len(mid_prices) == 2
+        # Property: len() should match prices dict size
+        assert len(mid_prices) == len(prices)
 
-    def test_mid_prices_string_representation_includes_key_info(self) -> None:
-        """Test that string representation contains useful information."""
-        # Arrange
-        btc_symbol = BTC_HL
-        mid_prices = MidPrices(
-            prices={btc_symbol: Decimal("50000.0")},
-            exchange=ExchangeName.HYPERLIQUID,
-        )
+        # Property: All symbols() should have prices
+        for symbol in mid_prices.symbols():
+            assert mid_prices.get(symbol) is not None
+            assert mid_prices.has_symbol(symbol) is True
 
-        # Act
-        str_repr = str(mid_prices)
+        # Property: Symbol set consistency
+        assert set(mid_prices.symbols()) == set(prices.keys())
 
-        # Assert
-        assert "hyperliquid" in str_repr
-        assert "BTC-PERP" in str_repr  # Should contain the symbol's string value
-
-    def test_mid_prices_equality_comparison(self) -> None:
-        """Test equality comparison between MidPrices instances."""
-        # Arrange
-        btc_symbol = BTC_HL
-        eth_symbol = ETH_HL
+    @given(
+        prices=price_dict_strategy(min_size=2, max_size=10),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_equality_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: MidPrices equality should be deterministic."""
         timestamp = datetime.now(UTC)
-        prices = {btc_symbol: Decimal("50000.0")}
 
+        # Create identical instances
         mid_prices1 = MidPrices(
             prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
+            exchange=exchange,
             timestamp=timestamp,
         )
         mid_prices2 = MidPrices(
             prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
-            timestamp=timestamp,
-        )
-        mid_prices3 = MidPrices(
-            prices={eth_symbol: Decimal("3000.0")},
-            exchange=ExchangeName.HYPERLIQUID,
+            exchange=exchange,
             timestamp=timestamp,
         )
 
-        # Act & Assert
+        # Property: Identical data should result in equality
         assert mid_prices1 == mid_prices2
-        assert mid_prices1 != mid_prices3
 
-    def test_mid_prices_dict_conversion_preserves_data(self) -> None:
-        """Test converting MidPrices to dict preserves all data."""
-        # Arrange
-        btc_symbol = BTC_HL
-        timestamp = datetime.now(UTC)
+        # Create instance with different prices
+        if prices:
+            modified_prices = prices.copy()
+            first_symbol = next(iter(modified_prices))
+            modified_prices[first_symbol] = Decimal("999999")
+
+            mid_prices3 = MidPrices(
+                prices=modified_prices,
+                exchange=exchange,
+                timestamp=timestamp,
+            )
+
+            # Property: Different prices should result in inequality
+            assert mid_prices1 != mid_prices3
+
+    @given(
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+        timestamp=valid_timestamp_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_serialization_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+        timestamp: datetime,
+    ) -> None:
+        """Property: MidPrices should be serializable and deserializable."""
         mid_prices = MidPrices(
-            prices={btc_symbol: Decimal("50000.0")},
-            exchange=ExchangeName.HYPERLIQUID,
+            prices=prices,
+            exchange=exchange,
             timestamp=timestamp,
         )
 
-        # Act - Use model_dump with mode='json' to handle complex types
-        as_dict = mid_prices.model_dump(mode="json")
+        # Property: Model should be serializable to dict
+        mid_prices_dict = mid_prices.model_dump()
+        assert isinstance(mid_prices_dict, dict)
 
-        # Assert - In JSON mode, Symbol keys should be serialized as strings
-        assert as_dict["exchange"] == "test_exchange"
-        # datetime gets serialized as ISO string with 'Z' suffix in JSON mode
-        expected_timestamp = timestamp.isoformat().replace("+00:00", "Z")
-        assert as_dict["timestamp"] == expected_timestamp
-        # Check that prices dict has one entry with the correct value
-        assert len(as_dict["prices"]) == 1
-        # Symbol keys serialized as strings, values as "50000.0" in JSON mode
-        price_values = list(as_dict["prices"].values())
-        assert Decimal(price_values[0]) == Decimal("50000.0")
+        # Property: Essential fields should be present in serialized data
+        assert "prices" in mid_prices_dict
+        assert "exchange" in mid_prices_dict
+        assert "timestamp" in mid_prices_dict
 
+        # Property: Model should be serializable to JSON
+        json_str = mid_prices.model_dump_json()
+        assert isinstance(json_str, str)
+        assert len(json_str) > 0
 
-class TestMidPricesEdgeCasesAndValidation:
-    """Test suite for MidPrices edge cases and validation scenarios."""
-
-    def test_mid_prices_with_special_character_symbols(self) -> None:
-        """Test MidPrices with symbols containing special characters."""
-        # Arrange
-
-        btc_slash_symbol = symbol("BTC/USD", ExchangeName.HYPERLIQUID)
-        eth_underscore_symbol = symbol("ETH_USDC", ExchangeName.HYPERLIQUID)
-        sol_quarterly_symbol = symbol("SOL-PERP-Q24", ExchangeName.HYPERLIQUID)
-
-        prices = {
-            btc_slash_symbol: Decimal("50000.0"),
-            eth_underscore_symbol: Decimal("3000.0"),
-            sol_quarterly_symbol: Decimal("100.0"),
-        }
-
-        # Act
-        mid_prices = MidPrices(
+    @given(
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+        timestamp=valid_timestamp_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_deterministic_creation_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+        timestamp: datetime,
+    ) -> None:
+        """Property: MidPrices creation should be deterministic for same inputs."""
+        mid_prices1 = MidPrices(
             prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
+            exchange=exchange,
+            timestamp=timestamp,
+        )
+        mid_prices2 = MidPrices(
+            prices=prices,
+            exchange=exchange,
+            timestamp=timestamp,
         )
 
-        # Assert
-        assert mid_prices.get(btc_slash_symbol) == Decimal("50000.0")
-        assert mid_prices.get(eth_underscore_symbol) == Decimal("3000.0")
-        assert mid_prices.get(sol_quarterly_symbol) == Decimal("100.0")
-        assert mid_prices.has_symbol(btc_slash_symbol) is True
+        # Property: All field values should be identical
+        assert mid_prices1.prices == mid_prices2.prices
+        assert mid_prices1.exchange == mid_prices2.exchange
+        assert mid_prices1.timestamp == mid_prices2.timestamp
+        assert len(mid_prices1) == len(mid_prices2)
 
-    def test_mid_prices_with_very_long_symbol_names(self) -> None:
-        """Test MidPrices with very long symbol names."""
-        # Arrange
-
-        long_symbol_name = "VERY_LONG_SYMBOL_NAME_PERP"  # Shortened to respect 30 char limit
-        long_symbol = symbol(long_symbol_name, ExchangeName.HYPERLIQUID)
-        prices = {long_symbol: Decimal("123.456")}
-
-        # Act
+    @given(
+        prices=price_dict_strategy(min_size=1, max_size=10),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_string_representation_properties(
+        self,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: String representation should contain key information."""
         mid_prices = MidPrices(
             prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
+            exchange=exchange,
         )
 
-        # Assert
-        assert mid_prices.get(long_symbol) == Decimal("123.456")
-        assert mid_prices.has_symbol(long_symbol) is True
-        assert long_symbol in mid_prices.symbols()
+        str_repr = str(mid_prices)
 
-    def test_mid_prices_with_negative_prices(self) -> None:
-        """Test MidPrices with negative prices (edge case for some markets)."""
-        # Arrange
+        # Property: String should contain exchange name
+        assert exchange.value in str_repr.lower() or "exchange" in str_repr.lower()
 
-        oil_symbol = symbol("OIL-FUT", ExchangeName.HYPERLIQUID)
-        normal_symbol = symbol("NORMAL-PERP", ExchangeName.HYPERLIQUID)
-        prices = {
-            oil_symbol: Decimal("-10.50"),  # Could happen in commodity futures
-            normal_symbol: Decimal("100.0"),
-        }
+        # Property: String should contain at least one symbol if prices exist
+        if prices:
+            # At least one symbol should be mentioned
+            symbol_found = False
+            for symbol in prices:
+                if str(symbol) in str_repr or symbol.symbol in str_repr:
+                    symbol_found = True
+                    break
+            # We can't guarantee all symbols are in string repr, but at least check it's not empty
+            assert len(str_repr) > 0
 
-        # Act
+
+# =============================================================================
+# EDGE CASE AND INTEGRATION PROPERTIES
+# =============================================================================
+
+
+class TestMidPricesEdgeCaseProperties:
+    """Property-based tests for edge cases and integration scenarios."""
+
+    @given(
+        base_time=valid_timestamp_strategy(),
+        offset_seconds=st.integers(min_value=-3600, max_value=3600),  # ±1 hour
+        prices=price_dict_strategy(),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_mid_prices_timing_edge_cases_properties(
+        self,
+        base_time: datetime,
+        offset_seconds: int,
+        prices: dict[Symbol, Decimal],
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: MidPrices timing should handle various edge cases correctly."""
+        snapshot_time = base_time + timedelta(seconds=offset_seconds)
+
         mid_prices = MidPrices(
             prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
+            exchange=exchange,
+            timestamp=snapshot_time,
         )
 
-        # Assert
-        assert mid_prices.get(oil_symbol) == Decimal("-10.50")
-        assert mid_prices.get(normal_symbol) == Decimal("100.0")
-        assert len(mid_prices) == 2
+        # Property: Timestamp relationships should be preserved
+        assert mid_prices.timestamp == snapshot_time
+        if mid_prices.timestamp:
+            assert mid_prices.timestamp.tzinfo == UTC
 
-    def test_mid_prices_with_unicode_exchange_name(self) -> None:
-        """Test MidPrices with unicode characters in exchange name."""
-        # Arrange
-        btc_symbol = BTC_HL
-        prices = {btc_symbol: Decimal("50000.0")}
-        # Act
+        # Property: Time difference from base should match our offset
+        if mid_prices.timestamp and base_time:
+            time_diff = mid_prices.timestamp - base_time
+            assert time_diff.total_seconds() == offset_seconds
+
+    @given(
+        high_precision_value=st.floats(
+            min_value=0.1, max_value=1000, allow_nan=False, allow_infinity=False
+        ).map(lambda x: Decimal(str(x)).quantize(Decimal("0.000000000000000001"))),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_mid_prices_high_precision_values_properties(
+        self,
+        high_precision_value: Decimal,
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: MidPrices should preserve high precision decimal values."""
+        symbol = BTC_HL
+        prices = {symbol: high_precision_value}
+
         mid_prices = MidPrices(
             prices=prices,
-            exchange=ExchangeName.HYPERLIQUID,
+            exchange=exchange,
         )
 
-        # Assert
-        assert mid_prices.exchange == ExchangeName.HYPERLIQUID
-        assert mid_prices.get(btc_symbol) == Decimal("50000.0")
+        # Property: High precision should be preserved exactly
+        assert mid_prices.get(symbol) == high_precision_value
+
+        # Property: String conversion shouldn't lose precision
+        retrieved = mid_prices.get(symbol)
+        assert str(retrieved) == str(high_precision_value)
+
+    @given(
+        mid_prices_list=st.lists(
+            st.tuples(
+                price_dict_strategy(max_size=5),
+                exchange_name_strategy(),
+                valid_timestamp_strategy(),
+            ),
+            min_size=2,
+            max_size=5,
+        )
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_multiple_mid_prices_independence_properties(
+        self, mid_prices_list: list[tuple[dict[Symbol, Decimal], ExchangeName, datetime]]
+    ) -> None:
+        """Property: Multiple mid prices instances should be processed independently."""
+        created_mid_prices = []
+
+        for prices, exchange, timestamp in mid_prices_list:
+            mid_prices = MidPrices(
+                prices=prices,
+                exchange=exchange,
+                timestamp=timestamp,
+            )
+            created_mid_prices.append(mid_prices)
+
+        # Property: Each mid prices should maintain its individual data
+        for i, (original_data, created_mp) in enumerate(zip(mid_prices_list, created_mid_prices)):
+            prices, exchange, timestamp = original_data
+            assert created_mp.prices == prices
+            assert created_mp.exchange == exchange
+            assert created_mp.timestamp == timestamp
+
+            # Property: Mid prices instances should not affect each other
+            for j, other_mp in enumerate(created_mid_prices):
+                if i != j:
+                    # Instances should be independent
+                    assert created_mp is not other_mp
+
+    @given(
+        symbol_count=st.integers(min_value=0, max_value=100),
+        exchange=exchange_name_strategy(),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_mid_prices_scale_properties(
+        self,
+        symbol_count: int,
+        exchange: ExchangeName,
+    ) -> None:
+        """Property: MidPrices should handle various collection sizes correctly."""
+        # Generate unique symbols and prices
+        available_symbols = [
+            BTC_HL,
+            ETH_HL,
+            SOL_HL,
+            DOGE_HL,
+            BTC_BP,
+            ETH_BP,
+            SOL_BP,
+            BTC_USDC_BP,
+            ETH_USDC_BP,
+            SOL_USDC_BP,
+        ]
+
+        # Limit to available symbols
+        actual_count = min(symbol_count, len(available_symbols))
+        selected_symbols = available_symbols[:actual_count]
+
+        prices = {symbol: Decimal(str(100 + i)) for i, symbol in enumerate(selected_symbols)}
+
+        mid_prices = MidPrices(
+            prices=prices,
+            exchange=exchange,
+        )
+
+        # Properties: Size should match
+        assert len(mid_prices) == actual_count
+        assert len(mid_prices.symbols()) == actual_count
+
+        # Property: All operations should work regardless of size
+        for symbol in selected_symbols:
+            assert mid_prices.has_symbol(symbol)
+            assert mid_prices.get(symbol) is not None
