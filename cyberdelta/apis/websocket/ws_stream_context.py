@@ -7,13 +7,17 @@ including connection details, channel information, and sequence tracking.
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, field_validator
 
 from cyberdelta.apis.common.error_foundation import ErrorChain, ErrorMetadata
 from cyberdelta.apis.websocket.exceptions import WebSocketFieldValidationError
-from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
+from cyberdelta.apis.websocket.validation import StreamErrorContextValidator
+
+
+if TYPE_CHECKING:
+    pass
 
 
 # Helper factory for type inference

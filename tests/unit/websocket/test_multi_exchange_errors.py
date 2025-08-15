@@ -12,7 +12,7 @@ from typing import Any, Protocol, cast
 import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_handler_registry import WebSocketErrorHandlerRegistry
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig

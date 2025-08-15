@@ -10,14 +10,16 @@ from typing import TYPE_CHECKING
 
 # Import required types for subscription errors
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-
-# Import existing stream error for compatibility
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
 
 from .base import WebSocketConfigurationError, WebSocketError
 
+# Import core stream error class
+from .stream_error import WebSocketStreamError
+
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 __all__ = [
     "AuthenticationErrorMismatchError",
@@ -42,10 +44,6 @@ __all__ = [
     "WebSocketTransformerError",
     "WebSocketValidationError",
 ]
-
-
-if TYPE_CHECKING:
-    pass
 
 
 class WebSocketSubscriptionError(WebSocketStreamError):

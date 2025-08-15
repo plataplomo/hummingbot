@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
 )
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_metrics_collector import (
     MetricsAggregator,
     WebSocketErrorMetricsCollector,

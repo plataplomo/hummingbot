@@ -71,7 +71,9 @@ if TYPE_CHECKING:
         TransactionMapperProtocol,
     )
     # BaseErrorHandler import removed - deprecated and not used
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
 
 
 class UserAddressRequiredError(ValueError):

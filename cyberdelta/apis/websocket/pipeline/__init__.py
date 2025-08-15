@@ -74,10 +74,8 @@ if current_metrics:
 
 from __future__ import annotations
 
-from .optimization_engine import OptimizationEngine
-
 # Import main components from each module
-from .performance_monitoring import (
+from cyberdelta.apis.websocket.metrics.performance_monitoring import (
     CRITICAL_ERROR_RATE_PCT,
     CRITICAL_MEMORY_USAGE_MB,
     CRITICAL_PROCESSING_TIME_MS,
@@ -91,6 +89,8 @@ from .performance_monitoring import (
     PerformanceMetrics,
     PerformanceMonitor,
 )
+
+from .optimization_engine import OptimizationEngine
 from .pipeline_tuning import (
     OptimizationObjective,
     PipelineTuner,

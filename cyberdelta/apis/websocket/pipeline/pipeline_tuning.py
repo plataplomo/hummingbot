@@ -19,16 +19,14 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel
 
 # Import our configuration modules
-from cyberdelta.apis.websocket.ws_config_inheritance import (
+from cyberdelta.apis.websocket.config.config_inheritance import (
     ConfigurationContext,
     ConfigurationManager,
     PerformanceProfile,
 )
 
-from .optimization_engine import OptimizationEngine
-
 # Import components from the decomposed modules
-from .performance_monitoring import (
+from cyberdelta.apis.websocket.metrics.performance_monitoring import (
     HIGH_ERROR_RATE_PCT,
     HIGH_MEMORY_USAGE_MB,
     HIGH_VALIDATION_TIME_MS,
@@ -37,9 +35,11 @@ from .performance_monitoring import (
     PerformanceMonitor,
 )
 
+from .optimization_engine import OptimizationEngine
+
 
 if TYPE_CHECKING:
-    from .performance_monitoring import OptimizationResult
+    from cyberdelta.apis.websocket.metrics.performance_monitoring import OptimizationResult
 
 
 class OptimizationObjective(StrEnum):
@@ -257,92 +257,3 @@ def analyze_pipeline_performance() -> dict[str, Any]:
         Comprehensive performance analysis dictionary
     """
     return pipeline_tuner.analyze_performance()
-
-
-# Example usage and demonstration
-if __name__ == "__main__":
-    from typing import Any
-
-    from pydantic import BaseModel, Field
-
-    from cyberdelta.config.structlog_config import get_logger
-
-    logger = get_logger(__name__)
-
-    # Example model for testing
-    class TestWebSocketMessage(BaseModel):
-        """Test WebSocket message model for optimization benchmarking."""
-
-        channel: str = Field(..., min_length=1, max_length=64)
-        data: dict[str, Any] = Field(...)
-        timestamp: float = Field(...)
-
-    logger.info(
-        "pipeline_tuning_demonstration",
-        component="PipelineTuning",
-        action="optimization_demo",
-    )
-
-    # Generate test data
-    test_data = [
-        {
-            "channel": f"test_channel_{i}",
-            "data": {"message": f"test_{i}", "value": i},
-            "timestamp": time.time(),
-        }
-        for i in range(100)
-    ]
-
-    # Tune for different objectives
-    objectives = [
-        OptimizationObjective.MINIMIZE_LATENCY,
-        OptimizationObjective.MAXIMIZE_THROUGHPUT,
-        OptimizationObjective.MINIMIZE_MEMORY,
-        OptimizationObjective.BALANCED,
-    ]
-
-    for objective in objectives:
-        logger.info("optimization_objective", objective=objective.value)
-        result = pipeline_tuner.tune_pipeline(TestWebSocketMessage, objective, test_data)
-        logger.info(
-            "optimization_result",
-            improvement_percent=round(result.improvement_percent, 1),
-            optimization_applied=result.optimization_applied,
-        )
-
-        # Show key metrics
-        orig = result.original_metrics
-        opt = result.optimized_metrics
-        logger.info(
-            "performance_comparison",
-            validation_time_before_ms=round(orig.validation_time_ms, 3),
-            validation_time_after_ms=round(opt.validation_time_ms, 3),
-            throughput_before=round(orig.validations_per_second, 1),
-            throughput_after=round(opt.validations_per_second, 1),
-        )
-
-    # Show performance analysis
-    logger.info("performance_analysis_header")
-    analysis = pipeline_tuner.analyze_performance()
-
-    if analysis["bottlenecks"]:
-        logger.warning("bottlenecks_detected")
-        for bottleneck, details in analysis["bottlenecks"].items():
-            logger.warning(
-                "bottleneck_details",
-                bottleneck=bottleneck,
-                severity=details["severity"],
-            )
-    else:
-        logger.info("no_bottlenecks_detected")
-
-    logger.info("recommendations_header")
-    for rec in analysis["recommendations"]:
-        logger.info("recommendation", recommendation=rec)
-
-    # Show optimization summary
-    logger.info("optimization_summary_header")
-    summary = pipeline_tuner.get_optimization_summary()
-    for key, value in summary.items():
-        if not isinstance(value, (dict, list)):
-            logger.info("summary_item", key=key, value=value)

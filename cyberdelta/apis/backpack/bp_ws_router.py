@@ -37,15 +37,14 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
 )
 from cyberdelta.apis.common.types import MessageHandler
-from cyberdelta.apis.websocket.exceptions import WebSocketSubscriptionError
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.websocket.exceptions import WebSocketStreamError, WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_transformer import (
     ControlMessageTransformer,
     MapperTransformer,
@@ -67,7 +66,9 @@ if TYPE_CHECKING:
         TransactionMapperProtocol,
     )
     # BaseErrorHandler import removed - deprecated and not used
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
 
 
 class TransformationError(ValueError):

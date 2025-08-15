@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_stream_recovery import StreamRecoverySystem
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorRecoveryConfig
 from tests.utils.websocket.error_test_utils import (

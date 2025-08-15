@@ -9,9 +9,9 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
+from cyberdelta.apis.websocket.security.type_guards import WebSocketTypeGuards
 from cyberdelta.apis.websocket.ws_context_registry import WebSocketContextRegistry
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_type_guards import WebSocketTypeGuards
 from cyberdelta.enums import ExchangeName
 
 

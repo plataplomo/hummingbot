@@ -17,7 +17,7 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 

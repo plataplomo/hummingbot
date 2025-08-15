@@ -1,4 +1,4 @@
-"""Discriminated Unions for Ultra-Fast WebSocket Validation.
+"""Cross-Exchange Discriminated Unions for Ultra-Fast WebSocket Validation.
 
 This module implements discriminated unions to optimize validation performance
 by leveraging Pydantic v2's optimized union validation (measured: ~14% improvement).
@@ -10,17 +10,16 @@ validation by avoiding the need to check multiple models sequentially.
 from __future__ import annotations
 
 import time
-from typing import TYPE_CHECKING, Annotated, Any, Literal, TypeVar
+from typing import TYPE_CHECKING, Annotated, Any, TypeVar
 
-from pydantic import ConfigDict, Field, TypeAdapter
+from pydantic import Field, TypeAdapter
 
-# Import envelope models - needed for inheritance
-from cyberdelta.apis.backpack.models.bp_ws_envelope import (
-    BackpackRawWebSocketEnvelope,
+from cyberdelta.apis.backpack.models.bp_ws_discriminated_envelope import (
+    DiscriminatedBackpackEnvelope,
 )
-from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import (
-    HyperliquidRawWebSocketEnvelope,
-    HyperliquidUserEventEnvelope,
+from cyberdelta.apis.hyperliquid.models.hl_ws_discriminated_envelope import (
+    DiscriminatedHyperliquidEnvelope,
+    DiscriminatedHyperliquidUserEvent,
 )
 
 
@@ -28,63 +27,19 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-class DiscriminatedBackpackEnvelope(BackpackRawWebSocketEnvelope):
-    """Backpack envelope with discriminator for ultra-fast validation.
-
-    Adds discriminator field to enable Pydantic's optimized union validation pathway.
-    """
-
-    envelope_type: Literal["backpack"] = Field(
-        default="backpack",
-        description="Discriminator field for fast union validation",
-    )
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        validate_assignment=True,
-        # Performance optimizations for high-frequency validation
-        validate_default=False,  # Skip default validation for speed
-        str_strip_whitespace=True,
-        use_enum_values=True,
-    )
-
-
-class DiscriminatedHyperliquidEnvelope(HyperliquidRawWebSocketEnvelope):
-    """Hyperliquid envelope with discriminator for ultra-fast validation."""
-
-    envelope_type: Literal["hyperliquid"] = Field(
-        default="hyperliquid",
-        description="Discriminator field for fast union validation",
-    )
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        validate_assignment=True,
-        # Performance optimizations
-        validate_default=False,
-        str_strip_whitespace=True,
-        use_enum_values=True,
-    )
-
-
-class DiscriminatedHyperliquidUserEvent(HyperliquidUserEventEnvelope):
-    """Hyperliquid user event envelope with discriminator for fast validation."""
-
-    envelope_type: Literal["hyperliquid_user_event"] = Field(
-        default="hyperliquid_user_event",
-        description="Discriminator field for user event validation",
-    )
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        validate_assignment=True,
-        validate_default=False,
-        str_strip_whitespace=True,
-        use_enum_values=True,
-    )
+__all__ = [
+    "DiscriminatedBackpackEnvelope",
+    "DiscriminatedHyperliquidEnvelope",
+    "DiscriminatedHyperliquidUserEvent",
+    "WebSocketEnvelopeUnion",
+    "benchmark_validation",
+    "detect_and_add_discriminator",
+    "envelope_adapter",
+    "validate_backpack_fast",
+    "validate_envelope_ultra_fast",
+    "validate_hyperliquid_fast",
+    "validate_hyperliquid_user_event_fast",
+]
 
 
 # High-performance discriminated union for all WebSocket envelopes
@@ -244,40 +199,3 @@ def benchmark_validation[T](
 
     avg_time_ms = ((end_time - start_time) / iterations) * 1000
     return result, avg_time_ms
-
-
-# Example usage and performance comparison
-if __name__ == "__main__":
-    from cyberdelta.config.structlog_config import get_logger
-
-    logger = get_logger(__name__)
-
-    # Sample Backpack message
-    backpack_msg: dict[str, Any] = {
-        "stream": "depth.SOL_USDC",
-        "data": {"coin": "SOL", "levels": []},
-    }
-
-    # Sample Hyperliquid message
-    hyperliquid_msg: dict[str, Any] = {"channel": "l2Book", "data": {"coin": "BTC", "levels": []}}
-
-    logger.info(
-        "discriminated_union_performance_comparison",
-        component="DiscriminatedUnions",
-        action="benchmark",
-    )
-
-    # Benchmark ultra-fast validation
-    _, fast_time = benchmark_validation(validate_envelope_ultra_fast, backpack_msg)
-    logger.info(
-        "ultra_fast_validation_result",
-        avg_time_ms=round(fast_time, 3),
-        validation_method="discriminated_union",
-    )
-
-    # Show performance improvement
-    logger.info(
-        "expected_performance_improvement",
-        improvement_range="50-80%",
-        comparison="vs_traditional_validation",
-    )

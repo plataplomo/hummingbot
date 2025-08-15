@@ -7,7 +7,7 @@ keeping exchange-specific code within the exchange package.
 from __future__ import annotations
 
 from cyberdelta.apis.common.base_types import InvalidTopicFormatError, InvalidTopicTypeError
-from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
+from cyberdelta.apis.websocket.security.validators import WebSocketPayloadValidators
 
 
 class BackpackValidators:

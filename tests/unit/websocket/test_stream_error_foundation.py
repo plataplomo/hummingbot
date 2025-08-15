@@ -16,7 +16,9 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorTimestampMixin,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
+from cyberdelta.apis.websocket.ws_exceptions import (
     WebSocketAuthenticationError,
     WebSocketConnectionError,
     WebSocketSecurityError,

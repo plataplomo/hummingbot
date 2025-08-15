@@ -9,37 +9,38 @@ from __future__ import annotations
 import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import Any, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.base.infrastructure_config_domain import (
-    ErrorRecoveryMode,
     MemoryOptimizationMode,
+)
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+
+# Old error_recovery imports removed - using unified recovery system
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import (
     EnvelopeValidatorNotSetError,
     WebSocketValidationError,
 )
-from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_recovery import (
-    ConnectionRecovery,
-    ErrorRecoveryConfig,
-    WebSocketErrorRecovery,
-)
-from cyberdelta.apis.websocket.ws_memory_optimized import (
+from cyberdelta.apis.websocket.memory.memory_optimized import (
     MemoryOptimizedMessageContext,
     MemoryPool,
 )
-from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.security.validators import WebSocketPayloadValidators
+from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_router_error_context import RouterErrorContextBuilder
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
-from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
+
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 
 # Type variable for context types
@@ -84,8 +85,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         envelope_validator: Callable[[dict[str, Any]], EnvelopeType] | None = None,
         payload_validator: WebSocketPayloadValidators | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
-        recovery_config: ErrorRecoveryConfig | None = None,
-        error_recovery_mode: ErrorRecoveryMode = ErrorRecoveryMode.ENABLED,
         memory_optimization_mode: MemoryOptimizationMode = MemoryOptimizationMode.DISABLED,
         memory_pool_size: int = 1000,
     ) -> None:
@@ -98,8 +97,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             payload_validator: Optional payload validator (default instance created if None).
             metrics_collector: Optional metrics collector for monitoring.
             stream_error_handler: Optional typed WebSocket stream error handler.
-            recovery_config: Configuration for error recovery system.
-            error_recovery_mode: Mode for automatic error recovery.
             memory_optimization_mode: Mode for memory optimization in
                 high-frequency scenarios.
             memory_pool_size: Size of the memory pool for object reuse.
@@ -116,14 +113,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self.logger = get_logger(f"WebSocketRouter.{exchange_name.value}")
         self._connection_id = str(uuid.uuid4())[:8]  # Short connection ID for context
 
-        # Error recovery system
-        self.error_recovery_mode = error_recovery_mode
-        self.error_recovery: WebSocketErrorRecovery | None
-        if error_recovery_mode.is_enabled:
-            recovery_config = recovery_config or ErrorRecoveryConfig()
-            self.error_recovery = WebSocketErrorRecovery(self._connection_id, recovery_config)
-        else:
-            self.error_recovery = None
+        # Error recovery is handled by stream_error_handler using unified recovery system
 
         # Memory optimization system
         self.memory_optimization_mode = memory_optimization_mode
@@ -143,7 +133,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             "websocket_router_initialized",
             exchange=exchange_name,
             processors=list(self.processors.keys()),
-            error_recovery_mode=error_recovery_mode.value,
             memory_optimization_mode=memory_optimization_mode.value,
             memory_pool_size=memory_pool_size if memory_optimization_mode.is_enabled else None,
         )
@@ -452,17 +441,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             # Handle with typed error system
             await self.stream_error_handler.handle_stream_error(ws_error)
 
-            # Notify error recovery system if enabled
-            if self.error_recovery:
-                # Create structured WebSocketStreamError for better error handling
-                websocket_error = WebSocketErrorRecovery.create_websocket_stream_error(
-                    message=f"WebSocket routing error: {e!s}",
-                    error_code=WebSocketErrorCode.CONNECTION_FAILED,
-                    connection_id=self._connection_id,
-                    exchange=self.exchange_name,
-                    original_exception=e,
-                )
-                await self.error_recovery.handle_connection_error(websocket_error)
+            # Error recovery is handled by stream_error_handler with unified recovery system
 
     async def _route_with_envelope_validation(
         self,
@@ -514,9 +493,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         processor = self.processors.get(routing_key)
         if processor:
             await processor.process(payload, handler, typed_context)
-            # Notify error recovery of successful operation
-            if self.error_recovery:
-                await self.error_recovery.handle_successful_operation()
+            # Success handling is managed by stream_error_handler unified recovery system
         else:
             await self._handle_missing_processor(routing_key, payload, typed_context)
 
@@ -579,89 +556,6 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             return True
         return False
 
-    async def start_error_recovery(self, connection: ConnectionRecovery) -> None:
-        """Start error recovery system with connection implementation.
-
-        Args:
-            connection: Connection implementation that implements ConnectionRecovery protocol
-        """
-        if self.error_recovery:
-            await self.error_recovery.start_recovery(connection)
-            self.logger.info(
-                "error_recovery_started",
-                exchange=self.exchange_name.value,
-                connection_id=self._connection_id,
-            )
-
-    async def stop_error_recovery(self) -> None:
-        """Stop error recovery system."""
-        if self.error_recovery:
-            await self.error_recovery.stop_recovery()
-            self.logger.info(
-                "error_recovery_stopped",
-                exchange=self.exchange_name.value,
-                connection_id=self._connection_id,
-            )
-
-    async def handle_successful_operation(self) -> None:
-        """Notify error recovery system of successful operation."""
-        if self.error_recovery:
-            await self.error_recovery.handle_successful_operation()
-
-    async def handle_message_send_failure(self, message: dict[str, Any], error: Exception) -> None:
-        """Handle message sending failure.
-
-        Args:
-            message: Failed message
-            error: Failure reason
-        """
-        # Use typed error system for all error recovery
-        # Create typed error context using RouterErrorContextBuilder (always available)
-        error_context = RouterErrorContextBuilder.from_routing_error(
-            router=self,
-            error=error,
-            message=message,
-            routing_stage="message_send",
-        )
-
-        # Create typed WebSocket error
-        ws_error = WebSocketValidationError(
-            message=f"Failed to send WebSocket message: {error}",
-            context=error_context,
-            code=WebSocketErrorCode.ROUTER_ERROR,
-            cause=error,
-            field="message_send",
-            value=message,
-        )
-
-        # Handle with typed error system
-        await self.stream_error_handler.handle_stream_error(ws_error)
-
-        # Always use error recovery for message send failures
-        if self.error_recovery:
-            await self.error_recovery.handle_message_failure(message, error)
-
-    def get_connection_health(self) -> dict[str, Any] | None:
-        """Get current connection health status.
-
-        Returns:
-            Health status dict or None if recovery is disabled
-        """
-        if self.error_recovery:
-            health = self.error_recovery.get_health_status()
-            return health.model_dump()
-        return None
-
-    def get_recovery_stats(self) -> dict[str, Any] | None:
-        """Get error recovery statistics.
-
-        Returns:
-            Recovery stats dict or None if recovery is disabled
-        """
-        if self.error_recovery:
-            return self.error_recovery.get_recovery_stats()
-        return None
-
     def get_memory_stats(self) -> dict[str, Any] | None:
         """Get memory optimization statistics.
 
@@ -684,20 +578,15 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             "connection_id": self._connection_id,
         }
 
-        # Add error recovery stats if available
-        recovery_stats = self.get_recovery_stats()
+        # Add unified recovery system stats from error handler
+        recovery_stats = self.stream_error_handler.get_statistics()
         if recovery_stats:
-            stats["error_recovery"] = recovery_stats
+            stats["recovery_system"] = recovery_stats
 
         # Add memory optimization stats if available
         memory_stats = self.get_memory_stats()
         if memory_stats:
             stats["memory_optimization"] = memory_stats
-
-        # Add connection health if available
-        health_stats = self.get_connection_health()
-        if health_stats:
-            stats["connection_health"] = health_stats
 
         return stats
 

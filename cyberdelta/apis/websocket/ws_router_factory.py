@@ -9,22 +9,29 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
-from cyberdelta.apis.websocket.ws_error_recovery import ErrorRecoveryConfig
-from cyberdelta.apis.websocket.ws_memory_config import (
+from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+    WebSocketErrorHandlerFactory,
+)
+
+# Old import removed - using unified recovery system ErrorRecoveryConfig
+from cyberdelta.apis.websocket.memory.memory_config import (
     MemoryOptimizationConfig,
     PerformanceMode,
     PerformanceModePresets,
     get_recommended_mode_for_scenario,
 )
-from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.security.validators import WebSocketPayloadValidators
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
-from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
+from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+    from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+        WebSocketStreamErrorHandler,
+    )
 
 
 logger = get_logger(__name__)
@@ -41,7 +48,7 @@ class RouterConfiguration:
         self.envelope_validator: Callable[[dict[str, Any]], Any] | None = None
         self.payload_validator: WebSocketPayloadValidators | None = None
         self.metrics_collector: WebSocketMetricsCollector | None = None
-        self.recovery_config: ErrorRecoveryConfig | None = None
+        self.websocket_error_config: WebSocketErrorConfig | None = None
         self.memory_config: MemoryOptimizationConfig | None = None
         self.performance_mode: PerformanceMode = PerformanceMode.STANDARD
 
@@ -127,16 +134,19 @@ class RouterConfiguration:
         self.memory_config = config
         return self
 
-    def with_recovery_config(self, config: ErrorRecoveryConfig) -> RouterConfiguration:
-        """Configure error recovery settings.
+    def with_websocket_error_config(self, config: WebSocketErrorConfig) -> RouterConfiguration:
+        """Configure WebSocket error handling configuration.
+
+        This allows the factory to create error handlers from configuration
+        instead of requiring pre-configured error handlers.
 
         Args:
-            config: Error recovery configuration
+            config: WebSocket error configuration
 
         Returns:
             Updated configuration builder
         """
-        self.recovery_config = config
+        self.websocket_error_config = config
         return self
 
     def get_router_kwargs(self) -> dict[str, Any]:
@@ -152,8 +162,15 @@ class RouterConfiguration:
             msg = "Exchange name is required"
             raise ValueError(msg)
 
-        if not self.stream_error_handler:
-            msg = "Stream error handler is required"
+        # Create error handler if not provided but config is available
+        stream_error_handler = self.stream_error_handler
+        if stream_error_handler is None and self.websocket_error_config is not None:
+            stream_error_handler = WebSocketErrorHandlerFactory.create_handler(
+                exchange=self.exchange_name,
+                config=self.websocket_error_config,
+            )
+        elif stream_error_handler is None:
+            msg = "Stream error handler required or provide websocket_error_config"
             raise ValueError(msg)
 
         if not self.typed_processor:
@@ -167,17 +184,54 @@ class RouterConfiguration:
 
         kwargs = {
             "exchange_name": self.exchange_name,
-            "stream_error_handler": self.stream_error_handler,
+            "stream_error_handler": stream_error_handler,  # Use created or provided handler
             "typed_processor": self.typed_processor,
             "envelope_validator": self.envelope_validator,
             "payload_validator": self.payload_validator,
             "metrics_collector": self.metrics_collector,
-            "recovery_config": self.recovery_config,
             "memory_pool_size": memory_config.pool_size,
         }
 
-        # Filter out None values
+        # Filter out None values (recovery_config removed - handled by error handler)
         return {k: v for k, v in kwargs.items() if v is not None}
+
+
+def create_router_from_config(
+    exchange_name: ExchangeName,
+    websocket_error_config: WebSocketErrorConfig,
+    typed_processor: TypeSafeWebSocketProcessor,
+    envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
+) -> RouterConfiguration:
+    """Create router configuration from WebSocket error configuration.
+
+    Args:
+        exchange_name: Exchange name enum
+        websocket_error_config: Complete WebSocket error configuration
+        typed_processor: Typed processor instance
+        envelope_validator: Optional envelope validator
+
+    Returns:
+        Router configuration with error handler created from config
+    """
+    config = (
+        RouterConfiguration()
+        .with_exchange(exchange_name)
+        .with_websocket_error_config(websocket_error_config)
+        .with_typed_processor(typed_processor)
+        .with_performance_mode(PerformanceMode.STANDARD)
+    )
+
+    if envelope_validator:
+        config = config.with_envelope_validator(envelope_validator)
+
+    logger.info(
+        "router_configuration_created_from_config",
+        exchange=exchange_name,
+        recovery_enabled=websocket_error_config.recovery.circuit_breaker_enabled,
+        max_recovery_attempts=websocket_error_config.recovery.max_recovery_attempts,
+    )
+
+    return config
 
 
 def create_standard_router(

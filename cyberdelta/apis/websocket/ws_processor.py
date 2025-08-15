@@ -14,19 +14,21 @@ from typing import TYPE_CHECKING, Any, Protocol, TypeVar
 import orjson
 from pydantic import BaseModel, ValidationError
 
+from cyberdelta.apis.websocket.metrics.processing_metrics import ProcessingMetrics, ProcessorMetrics
 from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
-from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics, ProcessorMetrics
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_metrics import WebSocketMetricsCollector
+    from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
 
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
+from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 
 
 # Type variables for input and output models

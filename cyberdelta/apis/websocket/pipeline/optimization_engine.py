@@ -20,17 +20,17 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, ValidationError
 
 # Import our configuration and performance modules
-from cyberdelta.apis.websocket.ws_config_inheritance import (
+from cyberdelta.apis.websocket.config.config_inheritance import (
     ConfigurationContext,
     ConfigurationManager,
     PerformanceProfile,
 )
-from cyberdelta.apis.websocket.ws_performance_integration import (
+from cyberdelta.apis.websocket.metrics.performance_integration import (
     WebSocketPerformanceProcessor,
 )
 
 # Import performance monitoring components
-from .performance_monitoring import (
+from cyberdelta.apis.websocket.metrics.performance_monitoring import (
     HIGH_ERROR_RATE_PCT,
     HIGH_MEMORY_USAGE_MB,
     HIGH_VALIDATION_TIME_MS,
@@ -41,7 +41,7 @@ from .performance_monitoring import (
 
 
 if TYPE_CHECKING:
-    from .performance_monitoring import PerformanceMonitor
+    from cyberdelta.apis.websocket.metrics.performance_monitoring import PerformanceMonitor
 
 
 class OptimizationEngine:

@@ -73,6 +73,10 @@ class WebSocketErrorRecoveryConfig(BaseModel):
         default=1, ge=1, le=5, description="Number of test requests in half-open state"
     )
 
+    circuit_breaker_success_threshold: int = Field(
+        default=3, ge=1, le=10, description="Number of successes to close circuit breaker"
+    )
+
     # ========================================================================
     # Sequence Gap Handling
     # ========================================================================
@@ -105,6 +109,21 @@ class WebSocketErrorRecoveryConfig(BaseModel):
             msg = f"Invalid recovery method: {v}. Must be one of {valid_methods}"
             raise ValueError(msg)
         return v
+
+    # ========================================================================
+    # Strategy Selection (Unified Recovery System)
+    # ========================================================================
+    enable_adaptive_strategy: bool = Field(
+        default=False, description="Enable adaptive strategy selection based on error patterns"
+    )
+
+    prefer_reconnect_for_connection_errors: bool = Field(
+        default=True, description="Prefer reconnection for connection-related errors"
+    )
+
+    prefer_resubscribe_for_subscription_errors: bool = Field(
+        default=True, description="Prefer resubscription for subscription-related errors"
+    )
 
 
 class WebSocketErrorMetricsConfig(BaseModel):

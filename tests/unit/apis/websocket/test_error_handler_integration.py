@@ -30,7 +30,12 @@ from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHan
 from cyberdelta.apis.websocket.ws_error_handler_registry import (
     WebSocketErrorHandlerRegistry,
 )
-from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
+from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
+from cyberdelta.apis.websocket.ws_exceptions import (
+    WebSocketConfigurationError,
+    WebSocketConnectionError,
+    WebSocketSubscriptionError,
+)
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler

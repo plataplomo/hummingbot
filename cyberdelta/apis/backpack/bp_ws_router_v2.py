@@ -63,7 +63,9 @@ class SymbolExtractionError(ValueError):
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+    from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+        WebSocketStreamErrorHandler,
+    )
     from cyberdelta.models.market import (
         Fill,
         OrderBook,
