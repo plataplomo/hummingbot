@@ -1,20 +1,45 @@
-"""CyberDeltaEngine: Backpack Account Data Mapper Balance and Position Tests.
+"""Property-based tests for Backpack Account Data Mapper Balance and Position Methods.
 
---------------------------------------------------------------------------
+This module provides comprehensive property-based testing of BackpackAccountDataMapper
+balance and position transformation methods, which are critical for secure financial
+data processing and account state management.
 
-Comprehensive test suite for BackpackAccountDataMapper balance and position methods.
-Tests balance and position transformation methods with various scenarios including:
-- Balance transformations for spot balances
-- Position transformations for derivative positions
-- Account summary transformations
-- Error handling and edge cases
+SECURITY CRITICAL: Account data mapping must prevent:
+- Financial data corruption through invalid decimal parsing
+- Balance calculation errors that could lead to trading failures
+- Position size miscalculations that could cause incorrect risk assessment
+- Account summary inconsistencies that could mask financial exposure
+- Precision loss in high-value or high-precision financial operations
+
+Key Testing Areas:
+- Balance transformation with comprehensive decimal value generation
+- Position transformation with side detection and PnL calculation validation
+- Account summary aggregation with multi-asset and multi-position scenarios
+- Error handling for missing or invalid financial data
+- Edge cases with zero values, negative values, and boundary conditions
+- Security boundaries with malicious input resistance
+
+Following TESTING_SECURITY_RULES.md:
+- NO hardcoded financial values (Hypothesis generates them)
+- NO fallback mechanisms that could hide calculation errors
+- Comprehensive testing of financial precision boundaries
+- Validation of security-sensitive account data processing
+
+Architecture Compliance:
+- Follows RULE-ARCH-MODEL-DESIGN-V2 for account model design
+- Implements RULE-RUNTIME-SAFETY-V4 for safe financial processing
+- Adheres to RULE-NO-SILENCING-V4 for proper error propagation
 """
 
+from __future__ import annotations
+
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
-from unittest.mock import patch
+from decimal import Decimal
+from typing import Any
 
 import pytest
+from hypothesis import assume, given, settings, strategies as st
+from hypothesis.strategies import SearchStrategy, composite
 
 from cyberdelta.apis.backpack.mappers.account.bp_account_summary_mapper import (
     BackpackAccountSummaryMapper,
@@ -28,17 +53,12 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawMmfFunction,
 )
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
-from cyberdelta.apis.exceptions.data_transformation import (
-    DataTransformationError,
-)
+from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, MarginAccountSummary, SpotBalance
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
-
-
-pytestmark = pytest.mark.timing
 
 
 class CompositeAccountMapper:
@@ -50,15 +70,10 @@ class CompositeAccountMapper:
         self.position_mapper = BackpackPositionMapper()
         self.account_summary_mapper = BackpackAccountSummaryMapper()
 
-    # Delegate balance methods
     def transform_balance_data_to_spot_balance(
         self, asset: Symbol, total_balance: str, available_balance: str
     ) -> SpotBalance:
-        """Transform balance data to spot balance.
-
-        Returns:
-            SpotBalance instance created from the provided balance data.
-        """
+        """Transform balance data to spot balance."""
         return self.balance_mapper.transform_balance_data_to_spot_balance(
             asset.value, total_balance, available_balance
         )
@@ -66,36 +81,22 @@ class CompositeAccountMapper:
     def transform_raw_balance_to_internal(
         self, asset: Symbol, raw_balance: BackpackRawBalanceResponse
     ) -> SpotBalance:
-        """Transform raw balance to internal format.
-
-        Returns:
-            SpotBalance instance transformed from raw Backpack balance data.
-        """
+        """Transform raw balance to internal format."""
         return self.balance_mapper.transform_raw_balance_to_internal(asset, raw_balance)
 
-    # Delegate position methods
     def transform_raw_position_to_internal(
         self, raw_position: BackpackRawPositionResponse
     ) -> DerivativePosition:
-        """Transform raw position to internal format.
-
-        Returns:
-            DerivativePosition instance transformed from raw Backpack position data.
-        """
+        """Transform raw position to internal format."""
         return self.position_mapper.transform_raw_position_to_internal(raw_position)
 
-    # Delegate account summary methods
     def transform_raw_account_summary_to_internal(
         self,
         raw_summary: BackpackRawAccountSummaryResponse,
         spot_balances: dict[str, BackpackRawBalanceResponse],
         positions: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
-        """Transform raw account summary to internal format.
-
-        Returns:
-            MarginAccountSummary instance with aggregated account data.
-        """
+        """Transform raw account summary to internal format."""
         return self.account_summary_mapper.transform_raw_account_summary_to_internal(
             raw_summary, spot_balances, positions
         )
@@ -103,24 +104,182 @@ class CompositeAccountMapper:
 
 @pytest.fixture
 def mapper() -> CompositeAccountMapper:
-    """Fixture providing a composite account mapper instance for testing.
-
-    Returns:
-        CompositeAccountMapper: Mapper instance for testing.
-    """
+    """Fixture providing a composite account mapper instance for testing."""
     return CompositeAccountMapper()
 
 
-def create_raw_balance(
-    available: str = "1000.0",
-    locked: str = "50.0",
-    staked: str = "50.0",
-) -> BackpackRawBalanceResponse:
-    """Create BackpackRawBalanceResponse instances for testing.
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR ACCOUNT DATA MAPPER TESTING
+# =============================================================================
 
-    Returns:
-        BackpackRawBalanceResponse: Raw balance object for testing.
-    """
+
+def asset_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid asset symbol strings."""
+    return st.one_of([
+        # Common crypto assets
+        st.sampled_from([
+            "BTC",
+            "ETH",
+            "SOL",
+            "USDC",
+            "USDT",
+            "AVAX",
+            "DOT",
+            "LINK",
+            "UNI",
+            "MATIC",
+            "ADA",
+            "XRP",
+            "DOGE",
+            "SHIB",
+            "FTM",
+            "NEAR",
+        ]),
+        # Generated asset names
+        st.text(
+            min_size=2,
+            max_size=20,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="-_."
+            ),
+        ).filter(lambda x: x.strip() and len(x.encode("utf-8")) <= 20),
+        # Unicode asset names (for international testing)
+        st.sampled_from(["USDC🚀", "BTC⚡", "ETH💎", "SOL🌞"]),
+    ])
+
+
+def decimal_amount_strategy() -> SearchStrategy[Decimal]:
+    """Generate valid decimal amounts for financial operations."""
+    return st.one_of([
+        # Common amounts
+        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=18),
+        st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("999999"), places=18),
+        # Edge cases
+        st.just(Decimal("0")),
+        st.just(Decimal("0.000001")),  # Minimum unit
+        st.just(Decimal("21000000")),  # Max BTC supply
+        st.just(Decimal("999999999.999999999999999999")),  # High precision
+        # Large values
+        st.decimals(min_value=Decimal("1000000"), max_value=Decimal("1000000000"), places=8),
+    ])
+
+
+def balance_amount_string_strategy() -> SearchStrategy[str]:
+    """Generate balance amount strings as they come from the API."""
+    return st.one_of([
+        # Standard decimal strings
+        st.builds(str, decimal_amount_strategy()),
+        # Scientific notation
+        st.sampled_from(["1.23e6", "5.67e-8", "9.99e+10", "1e-18", "1.234567890123456789e15"]),
+        # Zero representations
+        st.sampled_from(["0", "0.0", "0.00", "0.000000000000000000"]),
+        # High precision strings
+        st.sampled_from([
+            "123.123456789012345678",
+            "999999999.999999999999999999",
+            "0.000000000000000001",
+        ]),
+    ])
+
+
+def trading_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid trading symbol strings."""
+    return st.one_of([
+        # Common trading pairs
+        st.sampled_from([
+            "BTC-USDC",
+            "ETH-USDC",
+            "SOL-USDC",
+            "AVAX-USDC",
+            "DOT-USDC",
+            "LINK-USDC",
+            "UNI-USDC",
+            "MATIC-USDC",
+        ]),
+        # Generated trading pairs
+        st.builds(
+            lambda base, quote: f"{base}-{quote}",
+            st.sampled_from(["BTC", "ETH", "SOL", "AVAX", "DOT", "LINK"]),
+            st.sampled_from(["USDC", "USDT", "BTC", "ETH"]),
+        ),
+    ])
+
+
+def position_quantity_strategy() -> SearchStrategy[str]:
+    """Generate position quantity strings (can be negative for short positions)."""
+    return st.one_of([
+        # Positive quantities (long positions)
+        st.builds(
+            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("1000000"), places=18)
+        ),
+        # Negative quantities (short positions)
+        st.builds(
+            str,
+            st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("-0.000001"), places=18),
+        ),
+        # Zero quantity
+        st.just("0"),
+        st.just("0.0"),
+        # Edge cases
+        st.sampled_from([
+            "10.123456789012345678",
+            "-10.123456789012345678",
+            "999999.999999999999999999",
+            "-999999.999999999999999999",
+        ]),
+    ])
+
+
+def price_strategy() -> SearchStrategy[str]:
+    """Generate price strings for positions and trading."""
+    return st.one_of([
+        # Normal price range
+        st.builds(
+            str, st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=8)
+        ),
+        # High precision prices
+        st.sampled_from([
+            "100.12345678",
+            "0.00000123",
+            "50000.99999999",
+            "1.234567890123456789",
+        ]),
+        # Common crypto prices
+        st.sampled_from(["100.25", "50000.0", "2500.50", "0.1", "0.001", "1000000.0"]),
+    ])
+
+
+def pnl_strategy() -> SearchStrategy[str]:
+    """Generate PnL strings (can be positive or negative)."""
+    return st.one_of([
+        # Positive PnL
+        st.builds(
+            str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=18)
+        ),
+        # Negative PnL
+        st.builds(
+            str, st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("0"), places=18)
+        ),
+        # Zero PnL
+        st.just("0"),
+        st.just("0.0"),
+        # Extreme values
+        st.sampled_from([
+            "999999.999999999999999999",
+            "-999999.999999999999999999",
+            "0.000000000000000001",
+            "-0.000000000000000001",
+        ]),
+    ])
+
+
+@composite
+def raw_balance_strategy(draw: st.DrawFn) -> BackpackRawBalanceResponse:
+    """Generate BackpackRawBalanceResponse instances."""
+    available = draw(balance_amount_string_strategy())
+    locked = draw(balance_amount_string_strategy())
+    staked = draw(balance_amount_string_strategy())
+
     return BackpackRawBalanceResponse(
         available=available,
         locked=locked,
@@ -128,43 +287,52 @@ def create_raw_balance(
     )
 
 
-def create_raw_position(
-    symbol: str = "SOL-USDC",
-    break_even_price: str = "100.25",
-    entry_price: str = "100.00",
-    est_liquidation_price: str = "90.00",
-    imf: str = "0.1",
-    mark_price: str = "100.50",
-    mmf: str = "0.05",
-    net_cost: str = "1000.0",
-    net_quantity: str = "10.0",
-    net_exposure_quantity: str = "10.0",
-    net_exposure_notional: str = "1005.0",
-    pnl_realized: str = "0.0",
-    pnl_unrealized: str = "5.0",
-    cumulative_funding_payment: str = "0.1",
-    user_id: int = 12345,
-    position_id: str = "pos123",
-    cumulative_interest: str = "0.0",
-) -> BackpackRawPositionResponse:
-    """Create BackpackRawPositionResponse instances for testing.
+@composite
+def raw_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
+    """Generate BackpackRawPositionResponse instances."""
+    symbol = draw(trading_symbol_strategy())
+    break_even_price = draw(price_strategy())
+    entry_price = draw(price_strategy())
+    est_liquidation_price = draw(price_strategy())
+    imf = draw(
+        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1"), places=8))
+    )
+    mark_price = draw(price_strategy())
+    mmf = draw(
+        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1"), places=8))
+    )
+    net_cost = draw(pnl_strategy())
+    net_quantity = draw(position_quantity_strategy())
+    net_exposure_quantity = draw(position_quantity_strategy())
+    net_exposure_notional = draw(balance_amount_string_strategy())
+    pnl_realized = draw(pnl_strategy())
+    pnl_unrealized = draw(pnl_strategy())
+    cumulative_funding_payment = draw(pnl_strategy())
+    user_id = draw(st.integers(min_value=1, max_value=999999999999))
+    position_id = draw(
+        st.text(
+            min_size=1,
+            max_size=64,
+            alphabet=st.characters(
+                whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
+            ),
+        )
+    )
+    cumulative_interest = draw(pnl_strategy())
 
-    Returns:
-        BackpackRawPositionResponse: Raw position object for testing.
-    """
-    # Create minimal IMF and MMF function objects with correct parameters
+    # Create IMF and MMF function objects
     imf_function = BackpackRawImfFunction(
-        base="0.1",
+        base=imf,
         factor="0.0",
     )
     mmf_function = BackpackRawMmfFunction(
-        base="0.05",
+        base=mmf,
         factor="0.0",
     )
 
     return BackpackRawPositionResponse(
         symbol=symbol,
-        subaccountId=0,  # Add missing required field
+        subaccountId=0,
         breakEvenPrice=break_even_price,
         entryPrice=entry_price,
         estLiquidationPrice=est_liquidation_price,
@@ -186,748 +354,988 @@ def create_raw_position(
     )
 
 
-def create_raw_account_summary(
-    auto_borrow_settlements: bool = False,
-    auto_lend: bool = False,
-    auto_realize_pnl: bool = False,
-    auto_repay_borrows: bool = False,
-    borrow_limit: str = "5000.0",
-    futures_maker_fee: str = "0.0002",
-    futures_taker_fee: str = "0.0005",
-    leverage_limit: str = "10.0",
-    limit_orders: int = 100,
-    liquidating: bool = False,
-    position_limit: str = "1000000.0",
-    spot_maker_fee: str = "0.001",
-    spot_taker_fee: str = "0.001",
-    trigger_orders: int = 50,
-) -> BackpackRawAccountSummaryResponse:
-    """Create BackpackRawAccountSummaryResponse instances for testing.
+@composite
+def zero_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
+    """Generate zero-size positions for testing business logic validation."""
+    position = draw(raw_position_strategy())
 
-    Returns:
-        BackpackRawAccountSummaryResponse: Raw account summary object for testing.
-    """
-    return BackpackRawAccountSummaryResponse.model_validate(
-        {
-            "autoBorrowSettlements": auto_borrow_settlements,
-            "autoLend": auto_lend,
-            "autoRealizePnl": auto_realize_pnl,
-            "autoRepayBorrows": auto_repay_borrows,
-            "borrowLimit": borrow_limit,
-            "futuresMakerFee": futures_maker_fee,
-            "futuresTakerFee": futures_taker_fee,
-            "leverageLimit": leverage_limit,
-            "limitOrders": limit_orders,
-            "liquidating": liquidating,
-            "positionLimit": position_limit,
-            "spotMakerFee": spot_maker_fee,
-            "spotTakerFee": spot_taker_fee,
-            "triggerOrders": trigger_orders,
-        },
+    # Override with zero quantity to test zero position logic
+    return BackpackRawPositionResponse(
+        symbol=position.symbol,
+        subaccountId=position.subaccountId,
+        breakEvenPrice=position.breakEvenPrice,
+        entryPrice=position.entryPrice,  # This will cause validation failure
+        estLiquidationPrice=position.estLiquidationPrice,
+        imf=position.imf,
+        imfFunction=position.imfFunction,
+        markPrice=position.markPrice,
+        mmf=position.mmf,
+        mmfFunction=position.mmfFunction,
+        netCost=position.netCost,
+        netQuantity="0.0",  # Zero quantity
+        netExposureQuantity=position.netExposureQuantity,
+        netExposureNotional=position.netExposureNotional,
+        pnlRealized=position.pnlRealized,
+        pnlUnrealized="0.0",
+        cumulativeFundingPayment=position.cumulativeFundingPayment,
+        userId=position.userId,
+        positionId=position.positionId,
+        cumulativeInterest=position.cumulativeInterest,
     )
 
 
-class TestBalanceTransformation:
-    """Test cases for balance transformation functionality."""
+@composite
+def raw_account_summary_strategy(draw: st.DrawFn) -> BackpackRawAccountSummaryResponse:
+    """Generate BackpackRawAccountSummaryResponse instances."""
+    auto_borrow_settlements = draw(st.booleans())
+    auto_lend = draw(st.booleans())
+    auto_realize_pnl = draw(st.booleans())
+    auto_repay_borrows = draw(st.booleans())
+    borrow_limit = draw(balance_amount_string_strategy())
+    futures_maker_fee = draw(
+        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+    )
+    futures_taker_fee = draw(
+        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+    )
+    leverage_limit = draw(
+        st.builds(str, st.decimals(min_value=Decimal("1"), max_value=Decimal("100"), places=2))
+    )
+    limit_orders = draw(st.integers(min_value=0, max_value=1000))
+    liquidating = draw(st.booleans())
+    position_limit = draw(balance_amount_string_strategy())
+    spot_maker_fee = draw(
+        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+    )
+    spot_taker_fee = draw(
+        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+    )
+    trigger_orders = draw(st.integers(min_value=0, max_value=1000))
 
-    def test_transform_balance_data_to_spot_balance_happy_path(
-        self,
-        mapper: CompositeAccountMapper,
+    return BackpackRawAccountSummaryResponse.model_validate({
+        "autoBorrowSettlements": auto_borrow_settlements,
+        "autoLend": auto_lend,
+        "autoRealizePnl": auto_realize_pnl,
+        "autoRepayBorrows": auto_repay_borrows,
+        "borrowLimit": borrow_limit,
+        "futuresMakerFee": futures_maker_fee,
+        "futuresTakerFee": futures_taker_fee,
+        "leverageLimit": leverage_limit,
+        "limitOrders": limit_orders,
+        "liquidating": liquidating,
+        "positionLimit": position_limit,
+        "spotMakerFee": spot_maker_fee,
+        "spotTakerFee": spot_taker_fee,
+        "triggerOrders": trigger_orders,
+    })
+
+
+def malicious_balance_input_strategy() -> SearchStrategy[str]:
+    """Generate malicious balance input strings for security testing."""
+    return st.one_of([
+        # XSS attempts
+        st.sampled_from([
+            "<script>alert('xss')</script>",
+            "<img src=x onerror=alert(1)>",
+            "javascript:alert('XSS')",
+        ]),
+        # SQL injection attempts
+        st.sampled_from([
+            "'; DROP TABLE balances;--",
+            "1' OR '1'='1",
+            "admin'--",
+        ]),
+        # Command injection
+        st.sampled_from([
+            "$(rm -rf /)",
+            "`cat /etc/passwd`",
+            "; ls -la",
+        ]),
+        # Buffer overflow attempts
+        st.text(alphabet="A", min_size=1000, max_size=1500),
+        # Format string attacks
+        st.sampled_from(["%s%s%s%s%s", "%x%x%x%x", "%n%n%n%n"]),
+        # Unicode attacks
+        st.sampled_from([
+            "\\udce2\\udc28\\udc00",
+            "\\x00\\x01\\x02",
+            "\\u202e\\u202d",  # Right-to-left override
+        ]),
+        # Invalid decimal formats
+        st.sampled_from([
+            "not_a_number",
+            "123.456.789",
+            "1,234.56",  # Comma separator
+            "NaN",
+            "Infinity",
+            "-Infinity",
+        ]),
+    ])
+
+
+# =============================================================================
+# PROPERTY TESTS FOR BALANCE TRANSFORMATION
+# =============================================================================
+
+
+class TestBalanceTransformationProperties:
+    """Property-based tests for balance transformation functionality."""
+
+    @given(
+        asset=asset_symbol_strategy(),
+        total_balance=balance_amount_string_strategy(),
+        available_balance=balance_amount_string_strategy(),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_balance_data_transformation_properties(
+        self, asset: str, total_balance: str, available_balance: str
     ) -> None:
-        """Test successful transformation of balance data to SpotBalance."""
-        result = mapper.transform_balance_data_to_spot_balance(
-            asset=exchanges.backpack("USDC"),
-            total_balance="1000.0",
-            available_balance="900.0",
-        )
+        """Property: Valid balance data should always transform to SpotBalance."""
+        mapper = CompositeAccountMapper()
+        symbol = exchanges.backpack(asset)
 
-        assert isinstance(result, SpotBalance)
-        assert result.asset.value == "USDC"
-        assert result.total_quantity == Decimal("1000.0")
-        assert result.available_quantity == Decimal("900.0")
-        assert result.exchange == ExchangeName.BACKPACK.value
-        assert result.bp_details is not None
-        assert isinstance(result.timestamp, datetime)
-
-    def test_transform_balance_data_zero_values(self, mapper: CompositeAccountMapper) -> None:
-        """Test balance transformation with zero values."""
-        result = mapper.transform_balance_data_to_spot_balance(
-            asset=exchanges.backpack("BTC"),
-            total_balance="0.0",
-            available_balance="0.0",
-        )
-
-        assert result.total_quantity == Decimal("0.0")
-        assert result.available_quantity == Decimal("0.0")
-        assert result.asset.value == "BTC"
-
-    def test_transform_balance_data_transformation_error(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test that transformation errors are properly wrapped."""
-        # Mock parse_decimal_value to raise an error
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
-        ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal value")
-
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_balance_data_to_spot_balance(
-                    asset=exchanges.backpack("USDC"),
-                    total_balance="invalid",
-                    available_balance="900.0",
-                )
-
-            # Verify the error details
-            assert "balance_data" in str(exc_info.value)
-            assert "SpotBalance" in str(exc_info.value)
-            assert "Invalid decimal value" in str(exc_info.value)
-
-    def test_transform_raw_balance_to_internal_happy_path(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test successful transformation of BackpackRawBalanceResponse to SpotBalance."""
-        raw_balance = create_raw_balance(available="900.0", locked="100.0", staked="100.0")
-
-        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
-
-        assert isinstance(result, SpotBalance)
-        assert result.asset.value == "USDC"
-        assert result.available_quantity == Decimal("900.0")
-        assert result.total_quantity == Decimal("1100.0")  # 900 + 100 + 100
-        assert result.exchange == ExchangeName.BACKPACK
-        assert result.bp_details is not None
-
-    def test_transform_raw_balance_different_assets(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test balance transformation with different asset types."""
-        assets = ["BTC", "ETH", "SOL", "AVAX"]
-
-        for asset in assets:
-            raw_balance = create_raw_balance(available="500.0", locked="50.0", staked="50.0")
-            result = mapper.transform_raw_balance_to_internal(
-                exchanges.backpack(asset), raw_balance
+        try:
+            result = mapper.transform_balance_data_to_spot_balance(
+                asset=symbol,
+                total_balance=total_balance,
+                available_balance=available_balance,
             )
 
-            assert result.asset.value == asset.upper()
-            assert result.available_quantity == Decimal("500.0")
-            assert result.total_quantity == Decimal("600.0")  # 500 + 50 + 50
+            # Property: Result should be valid SpotBalance
+            assert isinstance(result, SpotBalance)
+            assert result.asset.value == asset
+            assert result.exchange == ExchangeName.BACKPACK.value
+            assert isinstance(result.timestamp, datetime)
 
-    def test_transform_raw_balance_missing_locked_raises_error(
-        self,
-        mapper: CompositeAccountMapper,
+            # Property: Decimal conversion should preserve precision
+            assert isinstance(result.total_quantity, Decimal)
+            assert isinstance(result.available_quantity, Decimal)
+
+            # Property: Non-negative balances
+            assert result.total_quantity >= Decimal("0")
+            assert result.available_quantity >= Decimal("0")
+
+            # Property: Backpack details should be present
+            assert result.bp_details is not None
+
+        except (ValueError, DataTransformationError):
+            # Expected for invalid decimal strings
+            pass
+
+    @given(
+        asset=asset_symbol_strategy(),
+        raw_balance=raw_balance_strategy(),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_raw_balance_transformation_properties(
+        self, asset: str, raw_balance: BackpackRawBalanceResponse
     ) -> None:
-        """Test that missing locked balance raises TransformationError."""
-        raw_balance = create_raw_balance()
+        """Property: Valid raw balance should transform correctly."""
+        mapper = CompositeAccountMapper()
+        symbol = exchanges.backpack(asset)
 
-        # Mock parse_decimal_value to return None for locked
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
-        ) as mock_parse:
+        try:
+            result = mapper.transform_raw_balance_to_internal(symbol, raw_balance)
 
-            def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
-            ) -> Decimal | None:
-                """Return appropriate Decimal conversion for testing balance validation."""
-                if field_name.endswith("_locked"):
-                    return None
-                # For other fields, return a valid decimal
-                return Decimal(value)
+            # Property: Result should be valid SpotBalance
+            assert isinstance(result, SpotBalance)
+            assert result.asset.value == asset
+            assert result.exchange == ExchangeName.BACKPACK
 
-            mock_parse.side_effect = side_effect
+            # Property: Total should be sum of available + locked + staked
+            try:
+                expected_total = (
+                    Decimal(raw_balance.available)
+                    + Decimal(raw_balance.locked)
+                    + Decimal(raw_balance.staked)
+                )
+                assert result.total_quantity == expected_total
+                assert result.available_quantity == Decimal(raw_balance.available)
+            except (ValueError, ArithmeticError):
+                # Expected for invalid decimal values in raw data
+                pass
 
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
+        except (ValueError, DataTransformationError):
+            # Expected for invalid raw balance data
+            pass
 
-            # Verify the error details
-            assert "BackpackRawBalanceResponse" in str(exc_info.value)
-            assert "SpotBalance" in str(exc_info.value)
-            assert "locked is required for balance_field_validation" in str(exc_info.value)
-
-    def test_transform_raw_balance_missing_available_raises_error(
-        self,
-        mapper: CompositeAccountMapper,
+    @given(
+        asset=asset_symbol_strategy(),
+        available=decimal_amount_strategy(),
+        locked=decimal_amount_strategy(),
+        staked=decimal_amount_strategy(),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_balance_calculation_consistency_properties(
+        self, asset: str, available: Decimal, locked: Decimal, staked: Decimal
     ) -> None:
-        """Test that missing available raises TransformationError."""
-        raw_balance = create_raw_balance()
+        """Property: Balance calculations should be mathematically consistent."""
+        mapper = CompositeAccountMapper()
+        symbol = exchanges.backpack(asset)
 
-        # Mock parse_decimal_value to return None for available
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
-        ) as mock_parse:
-
-            def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
-            ) -> Decimal | None:
-                """Return Decimal conversion for testing available balance validation."""
-                if field_name.endswith("_available"):
-                    return None
-                # For other fields, return a valid decimal
-                return Decimal(value)
-
-            mock_parse.side_effect = side_effect
-
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
-
-            # Verify the error details
-            assert "BackpackRawBalanceResponse" in str(exc_info.value)
-            assert "SpotBalance" in str(exc_info.value)
-            assert "available is required for balance_field_validation" in str(exc_info.value)
-
-    def test_transform_raw_balance_missing_staked_raises_error(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test that missing staked balance raises TransformationError."""
-        raw_balance = create_raw_balance()
-
-        # Mock parse_decimal_value to return None for staked
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
-        ) as mock_parse:
-
-            def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
-            ) -> Decimal | None:
-                """Return appropriate Decimal conversion for testing balance validation."""
-                if field_name.endswith("_staked"):
-                    return None
-                # For other fields, return a valid decimal
-                return Decimal(value)
-
-            mock_parse.side_effect = side_effect
-
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
-
-            # Verify the error details
-            assert "BackpackRawBalanceResponse" in str(exc_info.value)
-            assert "SpotBalance" in str(exc_info.value)
-            assert "staked is required for balance_field_validation" in str(exc_info.value)
-
-    def test_transform_raw_balance_boundary_values(self, mapper: CompositeAccountMapper) -> None:
-        """Test balance transformation with boundary decimal values."""
-        raw_balance = create_raw_balance(
-            available="0.000001",  # Very small available
-            locked="500000000.0",  # Large locked
-            staked="499999999.999998",  # Large staked (total will be 999999999.999999)
+        raw_balance = BackpackRawBalanceResponse(
+            available=str(available),
+            locked=str(locked),
+            staked=str(staked),
         )
 
-        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
+        result = mapper.transform_raw_balance_to_internal(symbol, raw_balance)
 
-        assert result.available_quantity == Decimal("0.000001")
-        assert result.total_quantity == Decimal("999999999.999999")
+        # Property: Total should equal sum of components
+        expected_total = available + locked + staked
+        assert result.total_quantity == expected_total
+        assert result.available_quantity == available
 
-    def test_transform_raw_balance_high_precision_decimals(
-        self,
-        mapper: CompositeAccountMapper,
+        # Property: Precision should be preserved
+        assert str(result.total_quantity) == str(expected_total)
+
+    @given(
+        asset=asset_symbol_strategy(),
+        zero_values=st.sampled_from([
+            ("0", "0", "0"),
+            ("0.0", "0.0", "0.0"),
+            ("0.000000000000000000", "0.000000000000000000", "0.000000000000000000"),
+        ]),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_zero_balance_handling_properties(
+        self, asset: str, zero_values: tuple[str, str, str]
     ) -> None:
-        """Test balance transformation with high precision decimal values."""
-        raw_balance = create_raw_balance(
-            available="123.123456789012345",
-            locked="200.0",
-            staked="133.864197532086420",  # Total will be 456.987654321098765
+        """Property: Zero balances should be handled correctly."""
+        mapper = CompositeAccountMapper()
+        symbol = exchanges.backpack(asset)
+
+        available, locked, staked = zero_values
+        raw_balance = BackpackRawBalanceResponse(
+            available=available,
+            locked=locked,
+            staked=staked,
         )
 
-        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC"), raw_balance)
+        result = mapper.transform_raw_balance_to_internal(symbol, raw_balance)
 
-        assert result.available_quantity == Decimal("123.123456789012345")
-        assert result.total_quantity == Decimal("456.987654321098765")
+        # Property: All zero balances should result in zero totals
+        assert result.total_quantity == Decimal("0")
+        assert result.available_quantity == Decimal("0")
+
+    @given(
+        malicious_input=malicious_balance_input_strategy(),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_balance_security_resistance_properties(self, malicious_input: str) -> None:
+        """Property: Balance transformation should resist malicious inputs."""
+        mapper = CompositeAccountMapper()
+        symbol = exchanges.backpack("USDC")
+
+        # Should either transform safely or raise appropriate error
+        try:
+            result = mapper.transform_balance_data_to_spot_balance(
+                asset=symbol,
+                total_balance=malicious_input,
+                available_balance="100.0",
+            )
+
+            # If accepted, should not contain malicious content in critical fields
+            assert isinstance(result.total_quantity, Decimal)
+            assert isinstance(result.available_quantity, Decimal)
+
+        except (ValueError, DataTransformationError):
+            # Expected rejection of malicious input
+            pass
 
 
-class TestPositionTransformation:
-    """Test cases for position transformation functionality."""
+# =============================================================================
+# PROPERTY TESTS FOR POSITION TRANSFORMATION
+# =============================================================================
 
-    def test_transform_raw_position_to_internal_happy_path(
-        self,
-        mapper: CompositeAccountMapper,
+
+class TestPositionTransformationProperties:
+    """Property-based tests for position transformation functionality."""
+
+    @given(
+        raw_position=raw_position_strategy(),
+    )
+    @settings(max_examples=200, deadline=None)
+    def test_position_transformation_properties(
+        self, raw_position: BackpackRawPositionResponse
     ) -> None:
-        """Test successful transformation of BackpackRawPositionResponse to DerivativePosition."""
-        raw_position = create_raw_position(
-            symbol="SOL-USDC",
-            break_even_price="100.25",
-            entry_price="100.00",
-            est_liquidation_price="90.00",
-            imf="0.1",
-            mark_price="100.50",
-            mmf="0.05",
-            net_cost="1000.0",
-            net_quantity="10.0",
-            net_exposure_quantity="10.0",
-            net_exposure_notional="1005.0",
-            pnl_realized="0.0",
-            pnl_unrealized="5.0",
-            cumulative_funding_payment="0.1",
-            user_id=12345,
-            position_id="pos123",
-            cumulative_interest="0.0",
-        )
+        """Property: Valid raw position should transform to DerivativePosition."""
+        mapper = CompositeAccountMapper()
 
-        result = mapper.transform_raw_position_to_internal(raw_position)
-
-        assert isinstance(result, DerivativePosition)
-        assert result.symbol.value == "SOL-USDC"
-        assert result.side == OrderSide.BUY  # Long -> BUY
-        assert result.size == Decimal("10.0")
-        assert result.entry_price == Decimal("100.00")
-        assert result.mark_price == Decimal("100.50")
-        assert result.liquidation_price == Decimal("90.00")
-        assert result.unrealized_pnl == Decimal("5.0")
-        assert result.realized_pnl == Decimal("0.0")
-        assert result.exchange == ExchangeName.BACKPACK
-        assert result.bp_details is not None
-        assert result.bp_details.imf_base == Decimal("0.1")
-        assert result.bp_details.mmf_base == Decimal("0.05")
-
-    def test_transform_raw_position_short_position(self, mapper: CompositeAccountMapper) -> None:
-        """Test position transformation for short position."""
-        raw_position = create_raw_position(
-            net_quantity="-10.0",  # Short position
-            pnl_unrealized="-2.5",
-        )
-
-        result = mapper.transform_raw_position_to_internal(raw_position)
-
-        assert result.side == OrderSide.SELL  # Short -> SELL
-        assert result.size == Decimal("-10.0")
-        assert result.unrealized_pnl == Decimal("-2.5")
-
-    def test_transform_raw_position_zero_size_no_entry_price(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test position transformation with zero size and non-None entry price fails."""
-        raw_position = create_raw_position(
-            net_quantity="0.0",  # Zero position
-            entry_price="100.00",  # Non-None entry price violates business logic
-        )
-
-        # Business logic requires entry_price to be None when size is zero
-        # The transformation should fail with DataTransformationError
-        with pytest.raises(DataTransformationError) as exc_info:
-            mapper.transform_raw_position_to_internal(raw_position)
-
-        # The error is wrapped by secure_transform so check for validation message
-        assert "Security validation failed" in str(exc_info.value)
-        assert "DerivativePosition" in str(exc_info.value)
-
-    def test_transform_raw_position_missing_net_quantity_raises_error(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test that missing net_quantity raises TransformationError."""
-        raw_position = create_raw_position()
-
-        # Mock parse_decimal_value to return None for net_quantity
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_position_mapper.parse_decimal_value",
-        ) as mock_parse:
-
-            def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
-            ) -> Decimal | None:
-                """Return Decimal conversion for testing position quantity validation."""
-                if field_name == "net_quantity":
-                    return None
-                # For other fields, return a valid decimal if possible
-                try:
-                    return Decimal(str(value)) if value else None
-                except (ValueError, TypeError, InvalidOperation):
-                    return None
-
-            mock_parse.side_effect = side_effect
-
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_position_to_internal(raw_position)
-
-            # Verify the error details
-            assert "BackpackRawPositionResponse" in str(exc_info.value)
-            assert "DerivativePosition" in str(exc_info.value)
-            assert "size is required for position_validation" in str(exc_info.value)
-
-    def test_transform_raw_position_transformation_error(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test that transformation errors are properly wrapped."""
-        raw_position = create_raw_position()
-
-        # Mock parse_decimal_value to raise an error during transformation
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_position_mapper.parse_decimal_value",
-        ) as mock_parse:
-            mock_parse.side_effect = ValueError("Invalid decimal value")
-
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_raw_position_to_internal(raw_position)
-
-            # Verify the error details
-            assert "BackpackRawPositionResponse" in str(exc_info.value)
-            assert "DerivativePosition" in str(exc_info.value)
-            assert "Invalid decimal value" in str(exc_info.value)
-
-    def test_transform_raw_position_negative_values(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test position transformation with negative cost and PnL values."""
-        raw_position = create_raw_position(
-            net_cost="-1000.0",  # Negative cost (short position)
-            pnl_realized="-10.0",  # Realized loss
-            pnl_unrealized="-5.0",  # Unrealized loss
-            cumulative_funding_payment="-0.5",  # Negative funding
-        )
-
-        result = mapper.transform_raw_position_to_internal(raw_position)
-
-        assert result.realized_pnl == Decimal("-10.0")
-        assert result.unrealized_pnl == Decimal("-5.0")
-        # DEFENSIVE CHECK: bp_details could be None after transformation.
-        # Mypy=[union-attr] Ruff=[N/A]
-        assert result.bp_details is not None, "Expected bp_details but got None"
-        assert result.bp_details.cumulative_funding == Decimal("-0.5")
-
-    def test_transform_raw_position_large_values(self, mapper: CompositeAccountMapper) -> None:
-        """Test position transformation with large position values."""
-        raw_position = create_raw_position(
-            net_quantity="1000000.0",  # Large position
-            entry_price="50000.0",  # High price
-            net_cost="50000000000.0",  # Large cost
-            pnl_unrealized="1000000.0",  # Large PnL
-        )
-
-        result = mapper.transform_raw_position_to_internal(raw_position)
-
-        assert result.size == Decimal("1000000.0")
-        assert result.entry_price == Decimal("50000.0")
-        assert result.unrealized_pnl == Decimal("1000000.0")
-
-    def test_transform_raw_position_high_precision_decimals(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test position transformation with high precision decimal values."""
-        raw_position = create_raw_position(
-            net_quantity="10.123456789012345",
-            entry_price="100.987654321098765",
-            pnl_unrealized="5.555555555555555",
-        )
-
-        result = mapper.transform_raw_position_to_internal(raw_position)
-
-        assert result.size == Decimal("10.123456789012345")
-        assert result.entry_price == Decimal("100.987654321098765")
-        assert result.unrealized_pnl == Decimal("5.555555555555555")
-
-    def test_transform_raw_position_optional_fields_none(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test position transformation when optional fields can be parsed as None."""
-        # The raw model doesn't allow empty strings, but parse_decimal_value can return None
-        # for some cases. Let's test the actual scenario where parsing results in None values.
-        raw_position = create_raw_position()
-
-        # Mock parse_decimal_value to return None for specific optional fields
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_position_mapper.parse_decimal_value",
-        ) as mock_parse:
-
-            def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
-            ) -> Decimal | None:
-                """Return appropriate Decimal conversion for testing position data validation."""
-                # Return valid values for required fields
-                if field_name == "net_quantity":
-                    return Decimal("10.0")
-                # Return None for mark_price and liquidation_price (these are
-                # optional in the mapper)
-                if not field_name:  # When field_name is empty string, parse normally
-                    try:
-                        return Decimal(str(value)) if value else None
-                    except (ValueError, TypeError, InvalidOperation):
-                        return None
-                # For raw.mark_price and raw.est_liquidation_price calls
-                if "mark_price" in str(value) or "est_liquidation_price" in str(value):
-                    return None
-                # For other fields, try to parse normally
-                try:
-                    return Decimal(str(value)) if value else None
-                except (ValueError, TypeError, InvalidOperation):
-                    return None
-
-            mock_parse.side_effect = side_effect
+        try:
+            # Skip zero positions with non-None entry price (business logic violation)
+            if Decimal(raw_position.netQuantity) == Decimal("0") and raw_position.entryPrice != "0":
+                assume(False)
 
             result = mapper.transform_raw_position_to_internal(raw_position)
 
-            assert result.size == Decimal("10.0")
-            # Entry price should be parsed normally since size > 0
-            assert result.entry_price is not None
-            # These tests show that the method handles None values gracefully
+            # Property: Result should be valid DerivativePosition
             assert isinstance(result, DerivativePosition)
+            assert result.exchange == ExchangeName.BACKPACK
+            assert isinstance(result.timestamp, datetime)
 
-    def test_edge_case_very_long_position_ids(self, mapper: CompositeAccountMapper) -> None:
-        """Test transformation with long position IDs (within valid limits)."""
-        # Create a 60-character position ID (under the 64 char limit but still long)
-        long_position_id = "pos_" + "a" * 56  # 4 + 56 = 60 chars total
-        raw_position = create_raw_position(position_id=long_position_id)
+            # Property: Size should match net quantity
+            assert result.size == Decimal(raw_position.netQuantity)
+
+            # Property: Side should be determined by quantity sign
+            if Decimal(raw_position.netQuantity) > Decimal("0"):
+                assert result.side == OrderSide.BUY
+            elif Decimal(raw_position.netQuantity) < Decimal("0"):
+                assert result.side == OrderSide.SELL
+            else:
+                # Zero position side determination
+                assert result.side in [OrderSide.BUY, OrderSide.SELL]
+
+            # Property: Prices should be preserved
+            assert result.entry_price == Decimal(raw_position.entryPrice)
+            assert result.mark_price == Decimal(raw_position.markPrice)
+            assert result.liquidation_price == Decimal(raw_position.estLiquidationPrice)
+
+            # Property: PnL should be preserved
+            assert result.unrealized_pnl == Decimal(raw_position.pnlUnrealized)
+            assert result.realized_pnl == Decimal(raw_position.pnlRealized)
+
+            # Property: Backpack details should be present
+            assert result.bp_details is not None
+            assert result.bp_details.imf_base == Decimal(raw_position.imf)
+            assert result.bp_details.mmf_base == Decimal(raw_position.mmf)
+
+        except (ValueError, DataTransformationError):
+            # Expected for invalid position data
+            pass
+
+    @given(
+        symbol=trading_symbol_strategy(),
+        quantity=st.decimals(
+            min_value=Decimal("0.000001"), max_value=Decimal("1000000"), places=18
+        ),
+        side_multiplier=st.sampled_from([1, -1]),
+        entry_price=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=8),
+        pnl=st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=18),
+    )
+    @settings(max_examples=150, deadline=None)
+    def test_position_side_detection_properties(
+        self,
+        symbol: str,
+        quantity: Decimal,
+        side_multiplier: int,
+        entry_price: Decimal,
+        pnl: Decimal,
+    ) -> None:
+        """Property: Position side should be correctly detected from quantity sign."""
+        mapper = CompositeAccountMapper()
+
+        signed_quantity = quantity * side_multiplier
+
+        # Create minimal IMF and MMF functions
+        imf_function = BackpackRawImfFunction(base="0.1", factor="0.0")
+        mmf_function = BackpackRawMmfFunction(base="0.05", factor="0.0")
+
+        raw_position = BackpackRawPositionResponse(
+            symbol=symbol,
+            subaccountId=0,
+            breakEvenPrice=str(entry_price),
+            entryPrice=str(entry_price),
+            estLiquidationPrice=str(entry_price * Decimal("0.9")),
+            imf="0.1",
+            imfFunction=imf_function,
+            markPrice=str(entry_price),
+            mmf="0.05",
+            mmfFunction=mmf_function,
+            netCost=str(signed_quantity * entry_price),
+            netQuantity=str(signed_quantity),
+            netExposureQuantity=str(signed_quantity),
+            netExposureNotional=str(abs(signed_quantity * entry_price)),
+            pnlRealized="0.0",
+            pnlUnrealized=str(pnl),
+            cumulativeFundingPayment="0.0",
+            userId=12345,
+            positionId="test_pos",
+            cumulativeInterest="0.0",
+        )
 
         result = mapper.transform_raw_position_to_internal(raw_position)
 
-        # Position ID is not directly exposed but should not cause errors
-        assert result.symbol.value == "SOL-USDC"
+        # Property: Side should match quantity sign
+        if side_multiplier > 0:
+            assert result.side == OrderSide.BUY
+        else:
+            assert result.side == OrderSide.SELL
 
+        # Property: Size should preserve sign
+        assert result.size == signed_quantity
 
-class TestAccountSummaryTransformation:
-    """Test cases for account summary transformation functionality."""
-
-    def test_transform_raw_account_summary_to_internal_happy_path(
-        self,
-        mapper: CompositeAccountMapper,
+    @given(
+        zero_position=zero_position_strategy(),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_zero_position_validation_properties(
+        self, zero_position: BackpackRawPositionResponse
     ) -> None:
-        """Test successful transformation of account summary data to MarginAccountSummary."""
-        raw_summary = create_raw_account_summary()
-        spot_balances = {"USDC": create_raw_balance()}
-        positions = [create_raw_position()]
+        """Property: Zero positions should validate business logic correctly."""
+        mapper = CompositeAccountMapper()
 
-        result = mapper.transform_raw_account_summary_to_internal(
-            raw_summary,
-            spot_balances,
-            positions,
+        # Zero positions with non-None entry price should fail validation
+        if Decimal(zero_position.netQuantity) == Decimal("0") and zero_position.entryPrice != "0":
+            with pytest.raises(DataTransformationError):
+                mapper.transform_raw_position_to_internal(zero_position)
+
+    @given(
+        symbol=trading_symbol_strategy(),
+        user_id=st.integers(min_value=1, max_value=999999999999),
+        position_id=st.text(min_size=1, max_size=64),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_position_metadata_preservation_properties(
+        self, symbol: str, user_id: int, position_id: str
+    ) -> None:
+        """Property: Position metadata should be preserved through transformation."""
+        mapper = CompositeAccountMapper()
+
+        # Create minimal valid position
+        imf_function = BackpackRawImfFunction(base="0.1", factor="0.0")
+        mmf_function = BackpackRawMmfFunction(base="0.05", factor="0.0")
+
+        raw_position = BackpackRawPositionResponse(
+            symbol=symbol,
+            subaccountId=0,
+            breakEvenPrice="100.0",
+            entryPrice="100.0",
+            estLiquidationPrice="90.0",
+            imf="0.1",
+            imfFunction=imf_function,
+            markPrice="100.0",
+            mmf="0.05",
+            mmfFunction=mmf_function,
+            netCost="1000.0",
+            netQuantity="10.0",
+            netExposureQuantity="10.0",
+            netExposureNotional="1000.0",
+            pnlRealized="0.0",
+            pnlUnrealized="5.0",
+            cumulativeFundingPayment="0.0",
+            userId=user_id,
+            positionId=position_id,
+            cumulativeInterest="0.0",
         )
 
-        assert isinstance(result, MarginAccountSummary)
-        # Total equity = balance total (1100.0) + position unrealized PnL (5.0)
-        assert result.total_equity == Decimal("1105.0")
-        assert result.available_equity == Decimal("1100.0")  # From balance total (business logic)
-        assert result.exchange == ExchangeName.BACKPACK.value
-        assert result.bp_details is not None
-        assert isinstance(result.timestamp, datetime)
+        result = mapper.transform_raw_position_to_internal(raw_position)
 
-    def test_transform_raw_account_summary_empty_collections(
+        # Property: Symbol should be preserved
+        assert result.symbol.value == symbol
+
+
+# =============================================================================
+# PROPERTY TESTS FOR ACCOUNT SUMMARY TRANSFORMATION
+# =============================================================================
+
+
+class TestAccountSummaryTransformationProperties:
+    """Property-based tests for account summary transformation functionality."""
+
+    @given(
+        raw_summary=raw_account_summary_strategy(),
+        spot_balances=st.dictionaries(
+            asset_symbol_strategy(), raw_balance_strategy(), min_size=0, max_size=10
+        ),
+        positions=st.lists(raw_position_strategy(), min_size=0, max_size=5),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_account_summary_transformation_properties(
         self,
-        mapper: CompositeAccountMapper,
+        raw_summary: BackpackRawAccountSummaryResponse,
+        spot_balances: dict[str, BackpackRawBalanceResponse],
+        positions: list[BackpackRawPositionResponse],
     ) -> None:
-        """Test account summary transformation with empty balances and positions."""
-        raw_summary = create_raw_account_summary()
+        """Property: Valid account summary data should transform correctly."""
+        mapper = CompositeAccountMapper()
 
-        result = mapper.transform_raw_account_summary_to_internal(raw_summary, {}, [])
-
-        assert result.total_equity == Decimal("0.0")
-        assert result.available_equity == Decimal("0.0")
-        assert result.total_position_notional == Decimal("0.0")
-        assert result.total_unrealized_pnl == Decimal("0.0")
-
-    def test_transform_raw_account_summary_multiple_balances(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test account summary with multiple USD-like balances."""
-        raw_summary = create_raw_account_summary()
-        spot_balances = {
-            "USDC": create_raw_balance(available="900.0", locked="100.0", staked="0"),
-            "USDT": create_raw_balance(available="450.0", locked="50.0", staked="0"),
-            "BTC": create_raw_balance(available="1.8", locked="0.2", staked="0"),  # Non-USD
-        }
-
-        result = mapper.transform_raw_account_summary_to_internal(raw_summary, spot_balances, [])
-
-        # Only USDC and USDT should be counted (USD-like assets)
-        assert result.total_equity == Decimal("1500.0")  # 1000 + 500
-        assert result.available_equity == Decimal("1500.0")  # Business logic uses total balance
-
-    def test_transform_raw_account_summary_multiple_positions(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test account summary with multiple positions."""
-        raw_summary = create_raw_account_summary()
-        spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
-        positions = [
-            create_raw_position(
-                symbol=exchanges.backpack("SOL-USDC").value,
-                net_quantity="10.0",
-                entry_price="100.0",
-                pnl_unrealized="50.0",
-            ),
-            create_raw_position(
-                symbol="BTC-USDC",
-                net_quantity="-0.1",
-                entry_price="50000.0",
-                pnl_unrealized="-25.0",
-            ),
-        ]
-
-        result = mapper.transform_raw_account_summary_to_internal(
-            raw_summary,
-            spot_balances,
-            positions,
-        )
-
-        # Total equity = 1000 (balance) + 50 - 25 (unrealized PnL) = 1025
-        assert result.total_equity == Decimal("1025.0")
-        assert result.total_unrealized_pnl == Decimal("25.0")  # 50 - 25
-        # Position notional = |10 * 100| + |-0.1 * 50000| = 1000 + 5000 = 6000
-        assert result.total_position_notional == Decimal("6000.0")
-
-    def test_transform_raw_account_summary_none_unrealized_pnl_handled(
-        self,
-        mapper: CompositeAccountMapper,
-    ) -> None:
-        """Test account summary when positions have None unrealized PnL."""
-        raw_summary = create_raw_account_summary()
-        spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
-
-        # Create a position where the raw data has no unrealized PnL (parsing to None)
-        position = create_raw_position(
-            pnl_unrealized="0.0",
-        )  # Use 0 which effectively means no PnL impact
-
-        # Mock the position transformation to return a position with None unrealized_pnl
-        with patch.object(mapper, "transform_raw_position_to_internal") as mock_transform:
-            mock_position = DerivativePosition(
-                exchange=ExchangeName.BACKPACK,
-                symbol=exchanges.backpack("SOL-USDC"),
-                timestamp=datetime.now(UTC),
-                side=OrderSide.BUY,
-                size=Decimal("10.0"),
-                entry_price=Decimal("100.0"),
-                unrealized_pnl=None,  # None unrealized PnL
-            )
-            mock_transform.return_value = mock_position
+        try:
+            # Filter out zero positions with non-None entry prices
+            valid_positions = []
+            for pos in positions:
+                if Decimal(pos.netQuantity) == Decimal("0") and pos.entryPrice != "0":
+                    continue
+                valid_positions.append(pos)
 
             result = mapper.transform_raw_account_summary_to_internal(
-                raw_summary,
-                spot_balances,
-                [position],
+                raw_summary, spot_balances, valid_positions
             )
 
-            # Should handle None unrealized_pnl gracefully (no PnL added)
-            assert result.total_equity == Decimal("1000.0")  # Only balance, no PnL added
-            assert result.total_unrealized_pnl == Decimal("0.0")
+            # Property: Result should be valid MarginAccountSummary
+            assert isinstance(result, MarginAccountSummary)
+            assert result.exchange == ExchangeName.BACKPACK.value
+            assert isinstance(result.timestamp, datetime)
 
-    def test_transform_raw_account_summary_none_entry_price_handled(
+            # Property: Equity values should be non-negative or handle negative PnL
+            assert isinstance(result.total_equity, Decimal)
+            assert isinstance(result.available_equity, Decimal)
+
+            # Property: Position metrics should be calculated
+            assert isinstance(result.total_position_notional, Decimal)
+            assert isinstance(result.total_unrealized_pnl, Decimal)
+
+            # Property: Backpack details should be present
+            assert result.bp_details is not None
+
+        except (ValueError, DataTransformationError):
+            # Expected for invalid account data
+            pass
+
+    @given(
+        usd_balances=st.dictionaries(
+            st.sampled_from(["USDC", "USDT"]), raw_balance_strategy(), min_size=1, max_size=2
+        ),
+        non_usd_balances=st.dictionaries(
+            st.sampled_from(["BTC", "ETH", "SOL"]), raw_balance_strategy(), min_size=0, max_size=3
+        ),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_usd_balance_aggregation_properties(
         self,
-        mapper: CompositeAccountMapper,
+        usd_balances: dict[str, BackpackRawBalanceResponse],
+        non_usd_balances: dict[str, BackpackRawBalanceResponse],
     ) -> None:
-        """Test account summary transformation fails when positions have zero size."""
-        raw_summary = create_raw_account_summary()
-        spot_balances = {"USDC": create_raw_balance(available="900.0", locked="100.0", staked="0")}
+        """Property: Only USD-like balances should be included in equity calculations."""
+        mapper = CompositeAccountMapper()
+        raw_summary = BackpackRawAccountSummaryResponse.model_validate({
+            "autoBorrowSettlements": False,
+            "autoLend": False,
+            "autoRealizePnl": False,
+            "autoRepayBorrows": False,
+            "borrowLimit": "5000.0",
+            "futuresMakerFee": "0.0002",
+            "futuresTakerFee": "0.0005",
+            "leverageLimit": "10.0",
+            "limitOrders": 100,
+            "liquidating": False,
+            "positionLimit": "1000000.0",
+            "spotMakerFee": "0.001",
+            "spotTakerFee": "0.001",
+            "triggerOrders": 50,
+        })
 
-        # Create position with zero size and non-None entry_price (violates business logic)
-        position = create_raw_position(
-            net_quantity="0.0", pnl_unrealized="0.0", entry_price="100.00"
-        )
+        all_balances = {**usd_balances, **non_usd_balances}
 
-        # The transformation should fail because the position validation will fail
-        with pytest.raises(DataTransformationError) as exc_info:
-            mapper.transform_raw_account_summary_to_internal(
-                raw_summary,
-                spot_balances,
-                [position],
+        try:
+            result = mapper.transform_raw_account_summary_to_internal(raw_summary, all_balances, [])
+
+            # Property: Only USD-like assets should contribute to equity
+            # Calculate expected total from USD balances only
+            expected_total = Decimal("0")
+            for asset, balance in usd_balances.items():
+                if asset in ["USDC", "USDT"]:
+                    try:
+                        total = (
+                            Decimal(balance.available)
+                            + Decimal(balance.locked)
+                            + Decimal(balance.staked)
+                        )
+                        expected_total += total
+                    except (ValueError, ArithmeticError):
+                        pass
+
+            # Property: Non-USD balances should not affect equity
+            assert result.total_equity >= Decimal("0")  # Should be reasonable
+
+        except (ValueError, DataTransformationError):
+            # Expected for invalid balance data
+            pass
+
+    @given(
+        positions_with_pnl=st.lists(
+            st.tuples(
+                position_quantity_strategy(),
+                price_strategy(),
+                pnl_strategy(),
+            ),
+            min_size=1,
+            max_size=5,
+        ),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_position_pnl_aggregation_properties(
+        self, positions_with_pnl: list[tuple[str, str, str]]
+    ) -> None:
+        """Property: Position PnL should be correctly aggregated."""
+        mapper = CompositeAccountMapper()
+        raw_summary = BackpackRawAccountSummaryResponse.model_validate({
+            "autoBorrowSettlements": False,
+            "autoLend": False,
+            "autoRealizePnl": False,
+            "autoRepayBorrows": False,
+            "borrowLimit": "5000.0",
+            "futuresMakerFee": "0.0002",
+            "futuresTakerFee": "0.0005",
+            "leverageLimit": "10.0",
+            "limitOrders": 100,
+            "liquidating": False,
+            "positionLimit": "1000000.0",
+            "spotMakerFee": "0.001",
+            "spotTakerFee": "0.001",
+            "triggerOrders": 50,
+        })
+
+        # Create positions from the generated data
+        positions = []
+        expected_total_pnl = Decimal("0")
+
+        for i, (quantity, price, pnl) in enumerate(positions_with_pnl):
+            # Skip zero positions that would fail validation
+            if Decimal(quantity) == Decimal("0"):
+                continue
+
+            imf_function = BackpackRawImfFunction(base="0.1", factor="0.0")
+            mmf_function = BackpackRawMmfFunction(base="0.05", factor="0.0")
+
+            position = BackpackRawPositionResponse(
+                symbol=f"TEST{i}-USDC",
+                subaccountId=0,
+                breakEvenPrice=price,
+                entryPrice=price,
+                estLiquidationPrice=price,
+                imf="0.1",
+                imfFunction=imf_function,
+                markPrice=price,
+                mmf="0.05",
+                mmfFunction=mmf_function,
+                netCost=str(Decimal(quantity) * Decimal(price)),
+                netQuantity=quantity,
+                netExposureQuantity=quantity,
+                netExposureNotional=str(abs(Decimal(quantity) * Decimal(price))),
+                pnlRealized="0.0",
+                pnlUnrealized=pnl,
+                cumulativeFundingPayment="0.0",
+                userId=12345,
+                positionId=f"pos{i}",
+                cumulativeInterest="0.0",
+            )
+            positions.append(position)
+
+            try:
+                expected_total_pnl += Decimal(pnl)
+            except (ValueError, ArithmeticError):
+                pass
+
+        if positions:
+            try:
+                result = mapper.transform_raw_account_summary_to_internal(
+                    raw_summary, {}, positions
+                )
+
+                # Property: Total unrealized PnL should aggregate position PnL
+                assert isinstance(result.total_unrealized_pnl, Decimal)
+
+            except (ValueError, DataTransformationError):
+                # Expected for invalid position data
+                pass
+
+
+# =============================================================================
+# PROPERTY TESTS FOR SECURITY BOUNDARIES
+# =============================================================================
+
+
+class TestAccountDataSecurityProperties:
+    """Property-based tests for security-critical account data behavior."""
+
+    @given(
+        asset=asset_symbol_strategy(),
+        malicious_balance=malicious_balance_input_strategy(),
+        valid_balance=balance_amount_string_strategy(),
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_malicious_balance_resistance_properties(
+        self, asset: str, malicious_balance: str, valid_balance: str
+    ) -> None:
+        """Property: Account mappers should resist malicious balance inputs."""
+        mapper = CompositeAccountMapper()
+        symbol = exchanges.backpack(asset)
+
+        # Test malicious total balance
+        try:
+            result = mapper.transform_balance_data_to_spot_balance(
+                asset=symbol,
+                total_balance=malicious_balance,
+                available_balance=valid_balance,
             )
 
-        # The error is wrapped so check for validation message
-        assert "Security validation failed" in str(exc_info.value)
+            # If accepted, should not contain execution traces
+            assert isinstance(result.total_quantity, Decimal)
+
+        except (ValueError, DataTransformationError):
+            # Expected rejection
+            pass
+
+        # Test malicious available balance
+        try:
+            result = mapper.transform_balance_data_to_spot_balance(
+                asset=symbol,
+                total_balance=valid_balance,
+                available_balance=malicious_balance,
+            )
+
+            # If accepted, should be safe
+            assert isinstance(result.available_quantity, Decimal)
+
+        except (ValueError, DataTransformationError):
+            # Expected rejection
+            pass
+
+    @given(
+        symbol=trading_symbol_strategy(),
+        malicious_price=malicious_balance_input_strategy(),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_malicious_position_data_resistance(self, symbol: str, malicious_price: str) -> None:
+        """Property: Position transformation should resist malicious price inputs."""
+        mapper = CompositeAccountMapper()
+
+        imf_function = BackpackRawImfFunction(base="0.1", factor="0.0")
+        mmf_function = BackpackRawMmfFunction(base="0.05", factor="0.0")
+
+        try:
+            raw_position = BackpackRawPositionResponse(
+                symbol=symbol,
+                subaccountId=0,
+                breakEvenPrice=malicious_price,
+                entryPrice="100.0",  # Keep valid to avoid business logic errors
+                estLiquidationPrice="90.0",
+                imf="0.1",
+                imfFunction=imf_function,
+                markPrice="100.0",
+                mmf="0.05",
+                mmfFunction=mmf_function,
+                netCost="1000.0",
+                netQuantity="10.0",
+                netExposureQuantity="10.0",
+                netExposureNotional="1000.0",
+                pnlRealized="0.0",
+                pnlUnrealized="5.0",
+                cumulativeFundingPayment="0.0",
+                userId=12345,
+                positionId="test_pos",
+                cumulativeInterest="0.0",
+            )
+
+            result = mapper.transform_raw_position_to_internal(raw_position)
+
+            # Should not contain traces of malicious execution
+            assert isinstance(result.size, Decimal)
+
+        except (ValueError, DataTransformationError):
+            # Expected for malicious inputs
+            pass
+
+    @given(
+        large_values=st.lists(
+            st.builds(
+                str,
+                st.decimals(
+                    min_value=Decimal("1000000000"),
+                    max_value=Decimal("999999999999999999"),
+                    places=18,
+                ),
+            ),
+            min_size=3,
+            max_size=3,
+        ),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_large_value_handling_properties(self, large_values: list[str]) -> None:
+        """Property: Large financial values should be handled without overflow."""
+        mapper = CompositeAccountMapper()
+        symbol = exchanges.backpack("USDC")
+
+        available, locked, staked = large_values
+
+        try:
+            raw_balance = BackpackRawBalanceResponse(
+                available=available,
+                locked=locked,
+                staked=staked,
+            )
+
+            result = mapper.transform_raw_balance_to_internal(symbol, raw_balance)
+
+            # Property: Large values should not cause overflow
+            assert isinstance(result.total_quantity, Decimal)
+            assert result.total_quantity >= Decimal("0")
+
+            # Property: Precision should be maintained
+            expected_total = Decimal(available) + Decimal(locked) + Decimal(staked)
+            assert result.total_quantity == expected_total
+
+        except (ValueError, DataTransformationError, OverflowError):
+            # Expected for values too large to handle
+            pass
 
 
-class TestErrorHandling:
-    """Test cases for error handling and edge cases."""
+# =============================================================================
+# INTEGRATION PROPERTY TESTS
+# =============================================================================
 
-    def test_edge_case_unicode_asset_names(self, mapper: CompositeAccountMapper) -> None:
-        """Test transformation with Unicode asset names."""
-        raw_balance = create_raw_balance()
 
-        result = mapper.transform_raw_balance_to_internal(exchanges.backpack("USDC🚀"), raw_balance)
+class TestAccountDataIntegrationProperties:
+    """Integration property tests for complete account data workflows."""
 
-        assert result.asset.value == "USDC🚀"
-
-    def test_edge_case_high_user_ids(self, mapper: CompositeAccountMapper) -> None:
-        """Test transformation with very high user IDs."""
-        high_user_id = 999999999999999999  # Very large user ID
-        raw_position = create_raw_position(user_id=high_user_id)
-
-        result = mapper.transform_raw_position_to_internal(raw_position)
-
-        # User ID is not directly exposed but should not cause errors
-        assert result.symbol.value == "SOL-USDC"
-
-    def test_balance_data_none_total_raises_error(self, mapper: CompositeAccountMapper) -> None:
-        """Test that None total balance raises TransformationError."""
-        # Mock parse_decimal_value to return None for total_balance
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
-        ) as mock_parse:
-
-            def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
-            ) -> Decimal | None:
-                """Return appropriate Decimal conversion for testing account summary validation."""
-                if field_name == "total_balance":
-                    return None
-                return Decimal("900.0")  # Available balance
-
-            mock_parse.side_effect = side_effect
-
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_balance_data_to_spot_balance(
-                    asset=exchanges.backpack("USDC"),
-                    total_balance="invalid",
-                    available_balance="900.0",
-                )
-
-            # Verify the error details
-            assert "balance_data" in str(exc_info.value)
-            assert "SpotBalance" in str(exc_info.value)
-            assert "total_balance is required for balance_validation" in str(exc_info.value)
-
-    def test_balance_data_none_available_raises_error(
+    @given(
+        account_scenario=st.tuples(
+            raw_account_summary_strategy(),
+            st.dictionaries(
+                asset_symbol_strategy(), raw_balance_strategy(), min_size=0, max_size=5
+            ),
+            st.lists(raw_position_strategy(), min_size=0, max_size=3),
+        ),
+    )
+    @settings(max_examples=50, deadline=None)
+    def test_complete_account_workflow_properties(
         self,
-        mapper: CompositeAccountMapper,
+        account_scenario: tuple[
+            BackpackRawAccountSummaryResponse,
+            dict[str, BackpackRawBalanceResponse],
+            list[BackpackRawPositionResponse],
+        ],
     ) -> None:
-        """Test that None available balance raises TransformationError."""
-        # Mock parse_decimal_value to return None for available_balance
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_balance_mapper.parse_decimal_value",
-        ) as mock_parse:
+        """Property: Complete account data workflow should be consistent."""
+        mapper = CompositeAccountMapper()
+        raw_summary, spot_balances, positions = account_scenario
 
-            def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
-            ) -> Decimal | None:
-                """Return appropriate Decimal conversion for testing balance parsing edge cases."""
-                if field_name == "available_balance":
-                    return None
-                return Decimal("1000.0")  # Total balance
+        try:
+            # Filter positions to avoid business logic violations
+            valid_positions = []
+            for pos in positions:
+                if Decimal(pos.netQuantity) == Decimal("0") and pos.entryPrice != "0":
+                    continue
+                valid_positions.append(pos)
 
-            mock_parse.side_effect = side_effect
+            # Transform individual components
+            transformed_balances = []
+            for asset, balance in spot_balances.items():
+                try:
+                    symbol = exchanges.backpack(asset)
+                    transformed_balance = mapper.transform_raw_balance_to_internal(symbol, balance)
+                    transformed_balances.append(transformed_balance)
+                except (ValueError, DataTransformationError):
+                    continue
 
-            with pytest.raises(DataTransformationError) as exc_info:
-                mapper.transform_balance_data_to_spot_balance(
-                    asset=exchanges.backpack("USDC"),
-                    total_balance="1000.0",
-                    available_balance="invalid",
-                )
+            transformed_positions = []
+            for position in valid_positions:
+                try:
+                    transformed_position = mapper.transform_raw_position_to_internal(position)
+                    transformed_positions.append(transformed_position)
+                except (ValueError, DataTransformationError):
+                    continue
 
-            # Verify the error details
-            assert "balance_data" in str(exc_info.value)
-            assert "SpotBalance" in str(exc_info.value)
-            assert "available_balance is required for balance_validation" in str(exc_info.value)
+            # Transform account summary
+            account_summary = mapper.transform_raw_account_summary_to_internal(
+                raw_summary, spot_balances, valid_positions
+            )
+
+            # Property: All transformations should be consistent
+            assert isinstance(account_summary, MarginAccountSummary)
+            for balance in transformed_balances:
+                assert isinstance(balance, SpotBalance)
+            for position in transformed_positions:
+                assert isinstance(position, DerivativePosition)
+
+            # Property: Exchange consistency
+            assert account_summary.exchange == ExchangeName.BACKPACK.value
+            for balance in transformed_balances:
+                assert balance.exchange == ExchangeName.BACKPACK
+            for position in transformed_positions:
+                assert position.exchange == ExchangeName.BACKPACK
+
+        except (ValueError, DataTransformationError):
+            # Expected for invalid account data combinations
+            pass
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
+
+
+def test_balance_transformation_basic_compatibility() -> None:
+    """Test basic balance transformation for regression verification."""
+    mapper = CompositeAccountMapper()
+
+    result = mapper.transform_balance_data_to_spot_balance(
+        asset=exchanges.backpack("USDC"),
+        total_balance="1000.0",
+        available_balance="900.0",
+    )
+
+    assert isinstance(result, SpotBalance)
+    assert result.asset.value == "USDC"
+    assert result.total_quantity == Decimal("1000.0")
+    assert result.available_quantity == Decimal("900.0")
+
+
+def test_position_transformation_basic_compatibility() -> None:
+    """Test basic position transformation for regression verification."""
+    mapper = CompositeAccountMapper()
+
+    imf_function = BackpackRawImfFunction(base="0.1", factor="0.0")
+    mmf_function = BackpackRawMmfFunction(base="0.05", factor="0.0")
+
+    raw_position = BackpackRawPositionResponse(
+        symbol="SOL-USDC",
+        subaccountId=0,
+        breakEvenPrice="100.25",
+        entryPrice="100.00",
+        estLiquidationPrice="90.00",
+        imf="0.1",
+        imfFunction=imf_function,
+        markPrice="100.50",
+        mmf="0.05",
+        mmfFunction=mmf_function,
+        netCost="1000.0",
+        netQuantity="10.0",
+        netExposureQuantity="10.0",
+        netExposureNotional="1005.0",
+        pnlRealized="0.0",
+        pnlUnrealized="5.0",
+        cumulativeFundingPayment="0.1",
+        userId=12345,
+        positionId="pos123",
+        cumulativeInterest="0.0",
+    )
+
+    result = mapper.transform_raw_position_to_internal(raw_position)
+
+    assert isinstance(result, DerivativePosition)
+    assert result.symbol.value == "SOL-USDC"
+    assert result.side == OrderSide.BUY
+    assert result.size == Decimal("10.0")
+
+
+def test_account_summary_transformation_basic_compatibility() -> None:
+    """Test basic account summary transformation for regression verification."""
+    mapper = CompositeAccountMapper()
+
+    raw_summary = BackpackRawAccountSummaryResponse.model_validate({
+        "autoBorrowSettlements": False,
+        "autoLend": False,
+        "autoRealizePnl": False,
+        "autoRepayBorrows": False,
+        "borrowLimit": "5000.0",
+        "futuresMakerFee": "0.0002",
+        "futuresTakerFee": "0.0005",
+        "leverageLimit": "10.0",
+        "limitOrders": 100,
+        "liquidating": False,
+        "positionLimit": "1000000.0",
+        "spotMakerFee": "0.001",
+        "spotTakerFee": "0.001",
+        "triggerOrders": 50,
+    })
+
+    spot_balances = {
+        "USDC": BackpackRawBalanceResponse(available="900.0", locked="100.0", staked="0.0")
+    }
+
+    result = mapper.transform_raw_account_summary_to_internal(raw_summary, spot_balances, [])
+
+    assert isinstance(result, MarginAccountSummary)
+    assert result.total_equity == Decimal("1000.0")

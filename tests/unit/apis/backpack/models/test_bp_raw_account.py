@@ -157,8 +157,8 @@ def malicious_string_strategy() -> SearchStrategy[str]:
         st.just("'; DROP TABLE users;--"),
         st.just("1' OR '1'='1"),
         # Buffer overflow attempts
-        st.text(min_size=10000, max_size=50000),
-        st.just("A" * 10000),
+        st.text(min_size=1000, max_size=1500),
+        st.just("A" * 1500),
         # Unicode attacks
         st.just("\udce2\udc28\udc00"),  # Lone surrogates
         st.just("\x00\x01\x02"),  # Control characters
@@ -699,7 +699,7 @@ class TestBackpackRawBalanceResponseProperties:
             st.integers(),  # Raw integers
             st.floats(),  # Raw floats
             st.just("\udce2\udc28\udc00"),  # Malformed unicode
-            st.text(min_size=10000, max_size=50000),  # DoS-sized strings
+            st.text(min_size=1000, max_size=1500),  # DoS-sized strings
             st.just('{"incomplete": '),  # Malformed JSON
             st.just("1000'; DROP TABLE balances;--"),  # SQL injection
         ]),

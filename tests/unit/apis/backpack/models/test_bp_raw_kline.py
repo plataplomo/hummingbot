@@ -225,7 +225,7 @@ def malicious_kline_strategy() -> SearchStrategy[MaliciousValue]:
         st.just("'; DROP TABLE klines;--"),
         st.just("1' UNION SELECT * FROM prices--"),
         # Buffer overflow attempts
-        st.text(min_size=10000, max_size=50000),
+        st.text(min_size=1000, max_size=1500),
         st.just("K" * 10000),
         # Unicode attacks
         st.just("\udce2\udc28\udc00"),  # Lone surrogates

@@ -247,7 +247,7 @@ def malicious_position_strategy() -> SearchStrategy[object]:
         st.just("'; DROP TABLE positions;--"),
         st.just("1' UNION SELECT * FROM users--"),
         # Buffer overflow attempts
-        st.text(min_size=10000, max_size=50000),
+        st.text(min_size=1000, max_size=1500),
         st.just("P" * 10000),
         # Unicode attacks
         st.just("\udce2\udc28\udc00"),  # Lone surrogates

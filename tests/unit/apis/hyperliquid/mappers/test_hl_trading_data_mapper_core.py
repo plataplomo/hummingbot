@@ -1,24 +1,30 @@
-"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Core Tests.
+"""CyberDeltaEngine: Hyperliquid Trading Data Mapper Core Tests with Property-Based Testing.
 
------------------------------------------------------------
+---------------------------------------------------------------------------
 
-Comprehensive test suite for HyperliquidOrderMapper core transformation methods.
+Comprehensive property-based test suite for HyperliquidOrderMapper core transformation methods.
 Tests fundamental transformation logic including:
-- Order side mapping (B/A -> BUY/SELL)
+- Order side mapping (B/A -> BUY/SELL) with generated inputs
 - Order status mapping (open/filled/canceled -> OPEN/FILLED/CANCELED)
 - Order type detection and mapping (limit/market/stop/take_profit)
 - Time-in-force mapping (Gtc/Ioc/Alo -> GTC/IOC/ALO)
 - Core validation and enum transformations
+- Edge cases and boundary value testing with hundreds of generated inputs
+- Malicious input resistance testing
+- Decimal precision boundary testing
 """
 
 from __future__ import annotations
 
+import string
 from decimal import Decimal
 from typing import Any
 
 import pytest
 import structlog.testing
 from _pytest.logging import LogCaptureFixture
+from hypothesis import given, settings, strategies as st
+from hypothesis.strategies import SearchStrategy, composite
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
@@ -35,6 +41,383 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 logger = get_logger(__name__)
+
+
+# =======================
+# Property-Based Testing Strategies
+# =======================
+
+
+def hl_side_strategy() -> SearchStrategy[str]:
+    """Generate valid Hyperliquid order sides.
+
+    Returns:
+        SearchStrategy[str]: Strategy for valid order sides.
+    """
+    return st.sampled_from(["B", "A"])
+
+
+def hl_status_strategy() -> SearchStrategy[str]:
+    """Generate valid Hyperliquid order statuses.
+
+    Returns:
+        SearchStrategy[str]: Strategy for valid order statuses.
+    """
+    return st.sampled_from(["open", "filled", "canceled", "rejected", "expired"])
+
+
+def hl_historical_status_strategy() -> SearchStrategy[str]:
+    """Generate valid Hyperliquid historical order statuses (non-open).
+
+    Returns:
+        SearchStrategy[str]: Strategy for historical order statuses.
+    """
+    return st.sampled_from(["filled", "canceled", "rejected", "expired"])
+
+
+def hl_tif_strategy() -> SearchStrategy[str]:
+    """Generate valid Hyperliquid time-in-force values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for valid TIF values.
+    """
+    return st.sampled_from(["Gtc", "Ioc", "Alo", "GTC", "IOC", "ALO"])
+
+
+def invalid_hl_tif_strategy() -> SearchStrategy[str]:
+    """Generate invalid Hyperliquid time-in-force values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for invalid TIF values.
+    """
+    return st.one_of([
+        st.sampled_from(["unknown", "invalid", "gtc", "ioc", "alo", "", "FOK", "DAY"]),
+        st.text(min_size=1, max_size=20).filter(
+            lambda x: x not in ["Gtc", "Ioc", "Alo", "GTC", "IOC", "ALO"]
+        ),
+    ])
+
+
+def hl_symbol_strategy() -> SearchStrategy[str]:
+    """Generate valid Hyperliquid symbols within 20-character limit.
+
+    Returns:
+        SearchStrategy[str]: Strategy for valid symbols.
+    """
+    return st.sampled_from([
+        "ETH-PERP",
+        "BTC-PERP",
+        "SOL-PERP",
+        "AVAX-PERP",
+        "DOGE-PERP",
+        "MATIC-PERP",
+        "ADA-PERP",
+        "DOT-PERP",
+        "LINK-PERP",
+        "UNI-PERP",
+        "AAVE-PERP",
+        "COMP-PERP",
+        "YFI-PERP",
+        "SUSHI-PERP",
+        "CRV-PERP",
+        "MKR-PERP",
+        "SNX-PERP",
+        "ALPHA-PERP",
+        "RUNE-PERP",
+        "FTM-PERP",
+    ])
+
+
+def decimal_string_strategy() -> SearchStrategy[str]:
+    """Generate valid decimal strings for prices and quantities.
+
+    Returns:
+        SearchStrategy[str]: Strategy for decimal strings.
+    """
+    return st.one_of([
+        # Normal decimals
+        st.builds(
+            lambda integer, fractional: f"{integer}.{fractional}",
+            st.integers(min_value=1, max_value=99999),
+            st.text(alphabet=string.digits, min_size=1, max_size=18),
+        ),
+        # Small decimals
+        st.sampled_from(["0.000001", "0.00001", "0.0001", "0.001", "0.01", "0.1"]),
+        # Large decimals
+        st.sampled_from(["1000000", "999999.999999", "50000.123456", "10000.0"]),
+        # High precision
+        st.sampled_from([
+            "1234.123456789012345",
+            "10.987654321098765",
+            "0.000000000000001",
+            "99999.999999999999",
+        ]),
+    ])
+
+
+def hl_order_id_strategy() -> SearchStrategy[int]:
+    """Generate valid Hyperliquid order IDs.
+
+    Returns:
+        SearchStrategy[int]: Strategy for order IDs.
+    """
+    return st.integers(min_value=1, max_value=2**63 - 1)
+
+
+def hl_client_order_id_strategy() -> SearchStrategy[str | None]:
+    """Generate valid Hyperliquid client order IDs.
+
+    Returns:
+        SearchStrategy[str | None]: Strategy for client order IDs.
+    """
+    return st.one_of([
+        st.none(),
+        st.text(min_size=1, max_size=50),
+        st.builds(lambda n: f"client_{n}", st.integers(min_value=1, max_value=999999)),
+    ])
+
+
+def timestamp_strategy() -> SearchStrategy[int]:
+    """Generate valid timestamps in milliseconds.
+
+    Returns:
+        SearchStrategy[int]: Strategy for timestamps.
+    """
+    return st.integers(min_value=1640995200000, max_value=2000000000000)  # 2022-2033
+
+
+@composite
+def hl_limit_order_type_strategy(draw: st.DrawFn) -> dict[str, dict[str, str]]:
+    """Generate valid Hyperliquid limit order type dictionaries.
+
+    Args:
+        draw: Hypothesis draw function.
+
+    Returns:
+        dict[str, dict[str, str]]: Valid limit order type.
+    """
+    tif = draw(hl_tif_strategy())
+    return {"limit": {"tif": tif}}
+
+
+@composite
+def hl_market_order_type_strategy(draw: st.DrawFn) -> dict[str, dict[str, Any]]:
+    """Generate valid Hyperliquid market order type dictionaries.
+
+    Args:
+        draw: Hypothesis draw function.
+
+    Returns:
+        dict[str, dict[str, Any]]: Valid market order type.
+    """
+    return {"market": {}}
+
+
+@composite
+def hl_trigger_order_type_strategy(draw: st.DrawFn) -> dict[str, dict[str, Any]]:
+    """Generate valid Hyperliquid trigger order type dictionaries.
+
+    Args:
+        draw: Hypothesis draw function.
+
+    Returns:
+        dict[str, dict[str, Any]]: Valid trigger order type.
+    """
+    trigger_px = draw(decimal_string_strategy())
+    is_market = draw(st.booleans())
+    tpsl = draw(st.sampled_from(["sl", "tp"]))
+
+    return {
+        "trigger": {
+            "triggerPx": trigger_px,
+            "isMarket": is_market,
+            "tpsl": tpsl,
+        }
+    }
+
+
+def hl_order_type_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate valid Hyperliquid order type dictionaries.
+
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy for order types.
+    """
+    return st.one_of([
+        hl_limit_order_type_strategy(),
+        hl_market_order_type_strategy(),
+        hl_trigger_order_type_strategy(),
+    ])
+
+
+def invalid_hl_order_type_strategy() -> SearchStrategy[dict[str, Any]]:
+    """Generate invalid Hyperliquid order type dictionaries.
+
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy for invalid order types.
+    """
+    return st.one_of([
+        st.just({}),
+        st.just({"unknown": {}}),
+        st.just({"invalid_type": {"some": "data"}}),
+        st.just({"limit": {"invalid_field": "value"}}),
+        st.builds(
+            lambda k, v: {k: v},
+            st.text(min_size=1, max_size=20),
+            st.dictionaries(st.text(), st.text()),
+        ),
+    ])
+
+
+@composite
+def hl_raw_order_strategy(draw: st.DrawFn) -> HyperliquidRawOrder:
+    """Generate valid HyperliquidRawOrder instances.
+
+    Args:
+        draw: Hypothesis draw function.
+
+    Returns:
+        HyperliquidRawOrder: Valid raw order for testing.
+    """
+    order_type = draw(hl_order_type_strategy())
+    remaining_sz = draw(decimal_string_strategy())
+
+    return HyperliquidRawOrder(
+        oid=draw(hl_order_id_strategy()),
+        cloid=draw(hl_client_order_id_strategy()),
+        asset=draw(hl_symbol_strategy()),
+        side=draw(hl_side_strategy()),
+        limitPx=draw(decimal_string_strategy()),
+        sz=draw(decimal_string_strategy()),
+        timestamp=draw(timestamp_strategy()),
+        orderType=order_type,
+        reduceOnly=draw(st.booleans()),
+        remainingSz=remaining_sz,
+        status="open",  # Raw orders are always open
+        statusTimestamp=draw(timestamp_strategy()),
+    )
+
+
+@composite
+def hl_raw_historical_order_strategy(draw: st.DrawFn) -> HyperliquidRawHistoricalOrder:
+    """Generate valid HyperliquidRawHistoricalOrder instances.
+
+    Args:
+        draw: Hypothesis draw function.
+
+    Returns:
+        HyperliquidRawHistoricalOrder: Valid historical order for testing.
+    """
+    order_type_dict = draw(hl_order_type_strategy())
+
+    # Extract order type string for historical orders
+    if "limit" in order_type_dict:
+        order_type_str = "limit"
+        tif = order_type_dict["limit"].get("tif", "Gtc")
+    elif "market" in order_type_dict:
+        order_type_str = "market"
+        tif = "Ioc"
+    elif "trigger" in order_type_dict:
+        order_type_str = "trigger"
+        tif = "Gtc"
+    else:
+        order_type_str = "limit"
+        tif = "Gtc"
+
+    # Ensure TIF is valid string for historical orders
+    if not isinstance(tif, str) or tif.lower() not in ["gtc", "ioc", "alo"]:
+        tif = "Gtc"
+
+    orig_sz = draw(decimal_string_strategy())
+    remaining_sz = draw(decimal_string_strategy())
+
+    return HyperliquidRawHistoricalOrder(
+        oid=draw(hl_order_id_strategy()),
+        cloid=draw(hl_client_order_id_strategy()),
+        coin=draw(hl_symbol_strategy()),
+        side=draw(hl_side_strategy()),
+        limitPx=draw(decimal_string_strategy()),
+        sz=remaining_sz,
+        timestamp=draw(timestamp_strategy()),
+        orderType=order_type_str,
+        reduceOnly=draw(st.booleans()),
+        origSz=orig_sz,
+        tif=tif,
+        status=draw(hl_historical_status_strategy()),
+        statusTimestamp=draw(timestamp_strategy()),
+        triggerCondition=None,
+        isTrigger=None,
+        triggerPx=None,
+        children=None,
+        isPositionTpsl=None,
+    )
+
+
+def extreme_decimal_strategy() -> SearchStrategy[str]:
+    """Generate extreme decimal values for boundary testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for extreme decimal values.
+    """
+    return st.one_of([
+        # Very small values
+        st.sampled_from(["0.000000000000001", "0.00000001", "1e-18", "1e-15"]),
+        # Very large values
+        st.sampled_from(["999999999999.999999", "1e15", "1e12", "999999999"]),
+        # High precision values
+        st.builds(
+            lambda mantissa, precision: f"{mantissa}.{''.join(precision)}",
+            st.integers(min_value=1, max_value=9999),
+            st.lists(st.sampled_from(string.digits), min_size=15, max_size=25),
+        ),
+        # Scientific notation
+        st.builds(
+            lambda m, e: f"{m}e{e}",
+            st.floats(min_value=1.0, max_value=9.999, allow_nan=False, allow_infinity=False),
+            st.integers(min_value=-15, max_value=15),
+        ),
+    ])
+
+
+def malicious_string_strategy() -> SearchStrategy[str]:
+    """Generate potentially malicious string inputs.
+
+    Returns:
+        SearchStrategy[str]: Strategy for malicious inputs.
+    """
+    return st.one_of([
+        # SQL injection attempts
+        st.sampled_from([
+            "'; DROP TABLE orders; --",
+            "1' OR '1'='1",
+            "admin'--",
+            "1; DELETE FROM fills WHERE 1=1; --",
+        ]),
+        # XSS attempts
+        st.sampled_from([
+            "<script>alert('XSS')</script>",
+            "<img src=x onerror=alert('XSS')>",
+            "javascript:alert('XSS')",
+        ]),
+        # Buffer overflow attempts
+        st.text(alphabet="A", min_size=1000, max_size=10000),
+        # Format string attacks
+        st.sampled_from(["%s%s%s%s", "%x%x%x%x", "%n%n%n"]),
+        # Path traversal
+        st.sampled_from(["../../../etc/passwd", "..\\\\windows\\\\system32"]),
+        # Command injection
+        st.sampled_from(["$(rm -rf /)", "`cat /etc/passwd`", "; ls -la"]),
+        # Unicode attacks
+        st.text(
+            alphabet=st.characters(min_codepoint=0x1F300, max_codepoint=0x1F6FF),
+            min_size=1,
+            max_size=50,
+        ),
+    ])
+
+
+# =======================
+# Legacy Fixtures (Maintained for Compatibility)
+# =======================
 
 
 # --- Fixtures ---
@@ -554,3 +937,497 @@ class TestCoreValidationLogic:
 
         assert raw_result.exchange == ExchangeName.HYPERLIQUID.value
         assert historical_result.exchange == ExchangeName.HYPERLIQUID.value
+
+
+# =======================
+# Property-Based Test Classes
+# =======================
+
+
+class TestPropertyBasedOrderSideMapping:
+    """Property-based tests for order side mapping."""
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        side=hl_side_strategy(),
+    )
+    @settings(max_examples=50)
+    def test_raw_order_side_mapping_property_based(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        side: str,
+    ) -> None:
+        """Test order side mapping with property-based testing for raw orders."""
+        raw_order.side = side
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        expected_side = OrderSide.BUY if side == "B" else OrderSide.SELL
+        assert result.side == expected_side
+
+    @given(
+        historical_order=hl_raw_historical_order_strategy(),
+        side=hl_side_strategy(),
+    )
+    @settings(max_examples=50)
+    def test_historical_order_side_mapping_property_based(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        historical_order: HyperliquidRawHistoricalOrder,
+        side: str,
+    ) -> None:
+        """Test order side mapping with property-based testing for historical orders."""
+        historical_order.side = side
+
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(historical_order)
+
+        expected_side = OrderSide.BUY if side == "B" else OrderSide.SELL
+        assert result.side == expected_side
+
+
+class TestPropertyBasedOrderStatusMapping:
+    """Property-based tests for order status mapping."""
+
+    @given(
+        historical_order=hl_raw_historical_order_strategy(),
+        status=hl_historical_status_strategy(),
+    )
+    @settings(max_examples=30)
+    def test_order_status_mapping_property_based(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        historical_order: HyperliquidRawHistoricalOrder,
+        status: str,
+    ) -> None:
+        """Test order status mapping with property-based testing."""
+        historical_order.status = status
+
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(historical_order)
+
+        expected_status_map = {
+            "filled": OrderStatus.FILLED,
+            "canceled": OrderStatus.CANCELED,
+            "rejected": OrderStatus.REJECTED,
+            "expired": OrderStatus.UNKNOWN,
+        }
+
+        expected_status = expected_status_map[status]
+        assert result.status == expected_status
+
+
+class TestPropertyBasedOrderTypeMapping:
+    """Property-based tests for order type mapping."""
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        order_type=hl_order_type_strategy(),
+    )
+    @settings(max_examples=100)
+    def test_order_type_mapping_raw_orders(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        order_type: dict[str, Any],
+    ) -> None:
+        """Test order type mapping for raw orders with property-based testing."""
+        raw_order.order_type = order_type
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        # Determine expected order type based on structure
+        if "limit" in order_type:
+            expected_type = OrderType.LIMIT
+        elif "market" in order_type:
+            expected_type = OrderType.MARKET
+        elif "trigger" in order_type:
+            trigger_info = order_type["trigger"]
+            is_market = trigger_info.get("isMarket", False)
+            tpsl = trigger_info.get("tpsl", "")
+
+            if tpsl == "sl":
+                expected_type = OrderType.STOP_MARKET if is_market else OrderType.STOP_LIMIT
+            elif tpsl == "tp":
+                expected_type = (
+                    OrderType.TAKE_PROFIT_MARKET if is_market else OrderType.TAKE_PROFIT_LIMIT
+                )
+            else:
+                expected_type = OrderType.LIMIT  # Default fallback
+        else:
+            expected_type = OrderType.LIMIT  # Default fallback
+
+        assert result.order_type == expected_type
+
+    @given(
+        historical_order=hl_raw_historical_order_strategy(),
+        order_type=hl_order_type_strategy(),
+    )
+    @settings(max_examples=50)
+    def test_order_type_mapping_historical_orders(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        historical_order: HyperliquidRawHistoricalOrder,
+        order_type: dict[str, Any],
+    ) -> None:
+        """Test order type mapping for historical orders with property-based testing."""
+
+        # Extract order type string for historical orders
+        if "limit" in order_type:
+            historical_order.order_type = "limit"
+            expected_type = OrderType.LIMIT
+        elif "market" in order_type:
+            historical_order.order_type = "market"
+            expected_type = OrderType.LIMIT  # Market orders treated as limit IOC in historical
+        else:
+            historical_order.order_type = "limit"
+            expected_type = OrderType.LIMIT
+
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(historical_order)
+        assert result.order_type == expected_type
+
+
+class TestPropertyBasedTimeInForceMapping:
+    """Property-based tests for time-in-force mapping."""
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        tif=hl_tif_strategy(),
+    )
+    @settings(max_examples=30)
+    def test_tif_mapping_property_based(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        tif: str,
+    ) -> None:
+        """Test time-in-force mapping with property-based testing."""
+        order_type: dict[str, object] = {"limit": {"tif": tif}}
+        raw_order.order_type = order_type
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        expected_tif_map = {
+            "Gtc": TimeInForce.GTC,
+            "GTC": TimeInForce.GTC,
+            "Ioc": TimeInForce.IOC,
+            "IOC": TimeInForce.IOC,
+            "Alo": TimeInForce.ALO,
+            "ALO": TimeInForce.ALO,
+        }
+
+        expected_tif = expected_tif_map[tif]
+        assert result.time_in_force == expected_tif
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        invalid_tif=invalid_hl_tif_strategy(),
+    )
+    @settings(max_examples=20)
+    def test_invalid_tif_defaults_to_gtc(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        invalid_tif: str,
+    ) -> None:
+        """Test that invalid TIF values default to GTC."""
+        order_type: dict[str, object] = {"limit": {"tif": invalid_tif}}
+        raw_order.order_type = order_type
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        assert result.time_in_force == TimeInForce.GTC
+
+
+class TestPropertyBasedSymbolHandling:
+    """Property-based tests for symbol handling."""
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        historical_order=hl_raw_historical_order_strategy(),
+        symbol=hl_symbol_strategy(),
+    )
+    @settings(max_examples=30)
+    def test_symbol_consistency_property_based(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        historical_order: HyperliquidRawHistoricalOrder,
+        symbol: str,
+    ) -> None:
+        """Test symbol handling consistency with property-based testing."""
+        raw_order.asset = symbol
+        historical_order.coin = symbol
+
+        raw_result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        historical_result = trading_data_mapper.transform_raw_historical_order_to_internal(
+            historical_order
+        )
+
+        assert raw_result.symbol.value == symbol
+        assert historical_result.symbol.value == symbol
+        assert raw_result.symbol.exchange.value == "hyperliquid"
+        assert historical_result.symbol.exchange.value == "hyperliquid"
+
+
+class TestPropertyBasedDecimalPrecision:
+    """Property-based tests for decimal precision handling."""
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        price=decimal_string_strategy(),
+        quantity=decimal_string_strategy(),
+        remaining=decimal_string_strategy(),
+    )
+    @settings(max_examples=100)
+    def test_decimal_precision_handling(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        price: str,
+        quantity: str,
+        remaining: str,
+    ) -> None:
+        """Test decimal precision handling with property-based testing."""
+        raw_order.limit_px = price
+        raw_order.sz = quantity
+        raw_order.remaining_sz = remaining
+
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        # Verify decimal types
+        assert isinstance(result.price, Decimal)
+        assert isinstance(result.quantity_requested, Decimal)
+
+        # Verify positive values
+        assert result.price > 0
+        assert result.quantity_requested > 0
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        extreme_price=extreme_decimal_strategy(),
+        extreme_quantity=extreme_decimal_strategy(),
+    )
+    @settings(max_examples=50)
+    def test_extreme_decimal_values(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        extreme_price: str,
+        extreme_quantity: str,
+    ) -> None:
+        """Test handling of extreme decimal values."""
+        raw_order.limit_px = extreme_price
+        raw_order.sz = extreme_quantity
+
+        try:
+            result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+            # If transformation succeeds, verify basic properties
+            assert isinstance(result.price, Decimal)
+            assert isinstance(result.quantity_requested, Decimal)
+            assert result.price > 0
+            assert result.quantity_requested > 0
+        except (ValueError, ValidationError):
+            # Some extreme values might fail validation, which is acceptable
+            pass
+
+
+class TestPropertyBasedInvalidInputHandling:
+    """Property-based tests for invalid input handling."""
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        invalid_order_type=invalid_hl_order_type_strategy(),
+    )
+    @settings(max_examples=30)
+    def test_invalid_order_type_handling(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        invalid_order_type: dict[str, Any],
+    ) -> None:
+        """Test handling of invalid order types with property-based testing."""
+        raw_order.order_type = invalid_order_type
+
+        with structlog.testing.capture_logs() as captured_logs:
+            result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        # Should default to LIMIT for unknown order types
+        assert result.order_type == OrderType.LIMIT
+
+        # Should log a warning for unknown order types
+        if invalid_order_type and not any(
+            key in invalid_order_type for key in ["limit", "market", "trigger"]
+        ):
+            warning_logs = [log for log in captured_logs if log.get("log_level") == "warning"]
+            assert len(warning_logs) > 0
+
+
+class TestPropertyBasedMaliciousInputResistance:
+    """Property-based tests for malicious input resistance."""
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        malicious_symbol=malicious_string_strategy(),
+    )
+    @settings(max_examples=20)
+    def test_malicious_symbol_resistance(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        malicious_symbol: str,
+    ) -> None:
+        """Test resistance to malicious input in symbols."""
+        # Limit symbol length to avoid hitting length constraints
+        if len(malicious_symbol) > 50:
+            malicious_symbol = malicious_symbol[:50]
+
+        try:
+            # Some malicious inputs might fail at the raw model level (which is good)
+            raw_order.asset = malicious_symbol
+            result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+            # If it succeeds, the symbol should be safely stored
+            assert isinstance(result.symbol.value, str)
+            # The malicious string should not have been executed or interpreted
+            assert result.symbol.value == malicious_symbol
+
+        except (ValidationError, ValueError):
+            # Rejecting malicious input is also acceptable
+            pass
+
+    @given(
+        raw_order=hl_raw_order_strategy(),
+        malicious_client_id=malicious_string_strategy(),
+    )
+    @settings(max_examples=20)
+    def test_malicious_client_id_resistance(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+        malicious_client_id: str,
+    ) -> None:
+        """Test resistance to malicious input in client order IDs."""
+        # Limit client ID length to avoid hitting length constraints
+        if len(malicious_client_id) > 100:
+            malicious_client_id = malicious_client_id[:100]
+
+        try:
+            raw_order.cloid = malicious_client_id
+            result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+            # If it succeeds, the client ID should be safely stored
+            if result.client_order_id is not None:
+                assert isinstance(result.client_order_id, str)
+                assert result.client_order_id == malicious_client_id
+
+        except (ValidationError, ValueError):
+            # Rejecting malicious input is also acceptable
+            pass
+
+
+class TestPropertyBasedComprehensiveTransformation:
+    """Comprehensive property-based tests combining multiple aspects."""
+
+    @given(raw_order=hl_raw_order_strategy())
+    @settings(max_examples=100)
+    def test_comprehensive_raw_order_transformation(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        raw_order: HyperliquidRawOrder,
+    ) -> None:
+        """Test comprehensive raw order transformation with property-based testing."""
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+
+        # Verify basic field mappings
+        assert result.exchange_order_id == str(raw_order.oid)
+        assert result.client_order_id == raw_order.cloid
+        assert result.symbol.value == raw_order.asset
+        assert result.exchange == ExchangeName.HYPERLIQUID.value
+
+        # Verify side mapping
+        expected_side = OrderSide.BUY if raw_order.side == "B" else OrderSide.SELL
+        assert result.side == expected_side
+
+        # Verify status (raw orders are always open)
+        assert result.status == OrderStatus.OPEN
+
+        # Verify decimal types and positive values
+        assert isinstance(result.price, Decimal)
+        assert isinstance(result.quantity_requested, Decimal)
+        assert result.price > 0
+        assert result.quantity_requested > 0
+
+    @given(historical_order=hl_raw_historical_order_strategy())
+    @settings(max_examples=100)
+    def test_comprehensive_historical_order_transformation(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+        historical_order: HyperliquidRawHistoricalOrder,
+    ) -> None:
+        """Test comprehensive historical order transformation with property-based testing."""
+        result = trading_data_mapper.transform_raw_historical_order_to_internal(historical_order)
+
+        # Verify basic field mappings
+        assert result.exchange_order_id == str(historical_order.oid)
+        assert result.client_order_id == historical_order.cloid
+        assert result.symbol.value == historical_order.coin
+        assert result.exchange == ExchangeName.HYPERLIQUID.value
+
+        # Verify side mapping
+        expected_side = OrderSide.BUY if historical_order.side == "B" else OrderSide.SELL
+        assert result.side == expected_side
+
+        # Verify status mapping
+        status_map = {
+            "filled": OrderStatus.FILLED,
+            "canceled": OrderStatus.CANCELED,
+            "rejected": OrderStatus.REJECTED,
+            "expired": OrderStatus.UNKNOWN,
+        }
+        expected_status = status_map[historical_order.status]
+        assert result.status == expected_status
+
+        # Verify decimal types and positive values
+        assert isinstance(result.price, Decimal)
+        assert isinstance(result.quantity_requested, Decimal)
+        assert result.price > 0
+        assert result.quantity_requested > 0
+
+
+class TestPropertyBasedLegacyCompatibility:
+    """Tests to ensure property-based tests don't break legacy functionality."""
+
+    def test_legacy_consistency_with_property_based(
+        self,
+        trading_data_mapper: HyperliquidOrderMapper,
+    ) -> None:
+        """Test that legacy and property-based approaches yield consistent results."""
+        # Create same order using legacy method
+        legacy_order = create_raw_order(
+            side="B",
+            status="open",
+            order_type={"limit": {"tif": "Gtc"}},
+            limit_px="3000.50",
+            sz="1.5",
+            remaining_sz="0.5",
+        )
+
+        # Create equivalent order using the factory function
+        pb_order = create_raw_order(
+            side="B",
+            status="open",
+            order_type={"limit": {"tif": "Gtc"}},
+            limit_px="3000.50",
+            sz="1.5",
+            remaining_sz="0.5",
+        )
+
+        legacy_result = trading_data_mapper.transform_raw_order_to_internal(legacy_order)
+        pb_result = trading_data_mapper.transform_raw_order_to_internal(pb_order)
+
+        # Key fields should match
+        assert legacy_result.side == pb_result.side
+        assert legacy_result.order_type == pb_result.order_type
+        assert legacy_result.time_in_force == pb_result.time_in_force
+        assert legacy_result.price == pb_result.price
+        assert legacy_result.quantity_requested == pb_result.quantity_requested

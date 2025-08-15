@@ -1,9 +1,16 @@
-"""Unit tests for BackpackTradingRequestBuilder order management methods."""
+"""Unit tests for BackpackTradingRequestBuilder order management methods with property-based testing.
+
+Enhanced with Hypothesis for comprehensive property-based testing to ensure
+robust handling of edge cases, security boundaries, and data transformations.
+"""
 
 from decimal import Decimal
 from typing import Any
 
 import pytest
+from hypothesis import given, strategies as st, assume, settings
+from hypothesis.strategies import SearchStrategy, composite
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
     BackpackRawOrderCancelAllRequest,
@@ -32,186 +39,394 @@ from tests.common_symbols import (
 )
 
 
+# =======================
+# Strategy Builders
+# =======================
+
+
+def symbol_strategy() -> SearchStrategy[Symbol]:
+    """Generate valid Symbol instances for testing.
+
+    Returns:
+        SearchStrategy[Symbol]: Strategy for Symbol instances.
+    """
+    return st.sampled_from([SOL_USDC_BP, BTC_USDT_BP, ETH_BP, ETH_USDC_PERP_BP])
+
+
+def decimal_price_strategy() -> SearchStrategy[Decimal]:
+    """Generate valid price values as Decimal.
+
+    Returns:
+        SearchStrategy[Decimal]: Strategy for price decimals.
+    """
+    return st.one_of([
+        # Normal prices
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=2),
+        # High precision prices
+        st.decimals(min_value=Decimal("0.00001"), max_value=Decimal("999999"), places=8),
+        # Edge case prices
+        st.sampled_from([
+            Decimal("0.01"),
+            Decimal("0.99"),
+            Decimal("1.00"),
+            Decimal("99.99"),
+            Decimal("100.00"),
+            Decimal("999.99"),
+            Decimal("9999.99"),
+            Decimal("10000.00"),
+            Decimal("99999.99"),
+        ]),
+    ])
+
+
+def decimal_quantity_strategy() -> SearchStrategy[Decimal]:
+    """Generate valid quantity values as Decimal.
+
+    Returns:
+        SearchStrategy[Decimal]: Strategy for quantity decimals.
+    """
+    return st.one_of([
+        # Normal quantities
+        st.decimals(min_value=Decimal("0.001"), max_value=Decimal("10000"), places=3),
+        # High precision quantities
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000"), places=8),
+        # Edge case quantities
+        st.sampled_from([
+            Decimal("0.001"),
+            Decimal("0.01"),
+            Decimal("0.1"),
+            Decimal("1"),
+            Decimal("10"),
+            Decimal("100"),
+            Decimal("1000"),
+        ]),
+    ])
+
+
+def order_side_strategy() -> SearchStrategy[OrderSide]:
+    """Generate OrderSide enum values.
+
+    Returns:
+        SearchStrategy[OrderSide]: Strategy for order sides.
+    """
+    return st.sampled_from(list(OrderSide))
+
+
+def order_type_strategy() -> SearchStrategy[OrderType]:
+    """Generate OrderType enum values.
+
+    Returns:
+        SearchStrategy[OrderType]: Strategy for order types.
+    """
+    return st.sampled_from([
+        OrderType.LIMIT,
+        OrderType.MARKET,
+        OrderType.STOP_MARKET,
+        OrderType.STOP_LIMIT,
+    ])
+
+
+def time_in_force_strategy() -> SearchStrategy[TimeInForce]:
+    """Generate TimeInForce enum values.
+
+    Returns:
+        SearchStrategy[TimeInForce]: Strategy for time in force values.
+    """
+    return st.sampled_from(list(TimeInForce))
+
+
+def client_order_id_strategy() -> SearchStrategy[str]:
+    """Generate valid client order IDs.
+
+    Returns:
+        SearchStrategy[str]: Strategy for client order IDs.
+    """
+    return st.one_of([
+        # Numeric IDs
+        st.integers(min_value=1, max_value=2**31 - 1).map(str),
+        # Alphanumeric IDs
+        st.text(
+            alphabet=st.characters(whitelist_categories=["Ll", "Lu", "Nd"]), min_size=1, max_size=64
+        ),
+        # UUID-like IDs
+        st.builds(
+            lambda a, b, c, d: f"{a}-{b}-{c}-{d}",
+            st.text(alphabet="0123456789abcdef", min_size=8, max_size=8),
+            st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
+            st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
+            st.text(alphabet="0123456789abcdef", min_size=12, max_size=12),
+        ),
+    ])
+
+
+def order_id_strategy() -> SearchStrategy[str]:
+    """Generate valid exchange order IDs.
+
+    Returns:
+        SearchStrategy[str]: Strategy for order IDs.
+    """
+    return st.text(
+        alphabet=st.characters(whitelist_categories=["Ll", "Lu", "Nd"]), min_size=1, max_size=128
+    )
+
+
+def timestamp_strategy() -> SearchStrategy[int]:
+    """Generate valid timestamps in milliseconds.
+
+    Returns:
+        SearchStrategy[int]: Strategy for timestamps.
+    """
+    # Timestamps from 2020-01-01 to 2030-01-01 in milliseconds
+    return st.integers(min_value=1577836800000, max_value=1893456000000)
+
+
+def limit_strategy() -> SearchStrategy[int]:
+    """Generate valid limit values for queries.
+
+    Returns:
+        SearchStrategy[int]: Strategy for limit values.
+    """
+    return st.integers(min_value=1, max_value=1000)
+
+
+@composite
+def order_execution_strategy(draw: Any) -> OrderExecution:
+    """Generate OrderExecution instances with various configurations.
+
+    Args:
+        draw: Hypothesis draw function.
+
+    Returns:
+        OrderExecution: Order execution configuration.
+    """
+    liquidity = draw(
+        st.sampled_from([
+            None,  # Default
+            LiquidityRequirement.POST_ONLY,
+            LiquidityRequirement.IMMEDIATE_OR_CANCEL,
+            LiquidityRequirement.FILL_OR_KILL,
+        ])
+    )
+
+    if liquidity is None:
+        return OrderExecution()
+    return OrderExecution(liquidity_requirement=liquidity)
+
+
+@composite
+def place_order_params_strategy(draw: Any) -> dict[str, Any]:
+    """Generate valid parameters for place_order_payload.
+
+    Args:
+        draw: Hypothesis draw function.
+
+    Returns:
+        dict: Valid parameters for order placement.
+    """
+    symbol = draw(symbol_strategy())
+    order_side = draw(order_side_strategy())
+    order_type = draw(order_type_strategy())
+    quantity = draw(decimal_quantity_strategy())
+    time_in_force = draw(time_in_force_strategy())
+
+    params: dict[str, Any] = {
+        "symbol": symbol,
+        "order_side": order_side,
+        "order_type": order_type,
+        "quantity": quantity,
+        "time_in_force": time_in_force,
+    }
+
+    # Add price for limit orders
+    if order_type in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+        params["price"] = draw(decimal_price_strategy())
+
+    # Add stop price for stop orders
+    if order_type in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]:
+        params["stop_price"] = draw(decimal_price_strategy())
+
+    # Optionally add client order ID
+    if draw(st.booleans()):
+        params["client_order_id"] = draw(client_order_id_strategy())
+
+    # Optionally add execution configuration
+    if draw(st.booleans()):
+        params["execution"] = draw(order_execution_strategy())
+
+    return params
+
+
+# =======================
+# Property-Based Tests
+# =======================
+
+
 class TestBuildPlaceOrderPayload:
-    """Tests for build_place_order_payload method."""
+    """Property-based tests for build_place_order_payload method."""
 
-    def test_build_place_order_payload_limit_gtc(
+    @given(params=place_order_params_strategy())
+    @settings(max_examples=100)
+    def test_place_order_payload_properties(self, params: dict[str, Any]) -> None:
+        """Test build_place_order_payload with various parameter combinations."""
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(**params)
+
+        # Verify we get the correct model type
+        assert isinstance(payload, BackpackRawOrderExecuteRequest)
+
+        # Verify required fields are present
+        assert payload.symbol == params["symbol"].value
+        assert payload.quantity is not None
+
+        # Verify side mapping
+        if params["order_side"] == OrderSide.BUY:
+            assert payload.side == "Bid"
+        else:
+            assert payload.side == "Ask"
+
+        # Verify order type mapping
+        if params["order_type"] == OrderType.LIMIT:
+            assert payload.orderType == "Limit"
+        elif params["order_type"] in [OrderType.MARKET, OrderType.STOP_MARKET]:
+            assert payload.orderType == "Market"
+        elif params["order_type"] == OrderType.STOP_LIMIT:
+            assert payload.orderType == "Limit"
+
+        # Verify price presence for limit orders
+        if params["order_type"] in [OrderType.LIMIT, OrderType.STOP_LIMIT]:
+            assert payload.price is not None
+
+        # Verify trigger price for stop orders
+        if params["order_type"] in [OrderType.STOP_MARKET, OrderType.STOP_LIMIT]:
+            assert payload.triggerPrice is not None
+
+    @given(
+        symbol=symbol_strategy(),
+        side=order_side_strategy(),
+        quantity=decimal_quantity_strategy(),
+        price=decimal_price_strategy(),
+    )
+    def test_limit_order_consistency(
         self,
-        symbol_spot: Symbol,
-        buy_order_side: OrderSide,
-        limit_order_type: OrderType,
-        standard_quantity: Decimal,
-        gtc_time_in_force: TimeInForce,
-        standard_price: Decimal,
+        symbol: Symbol,
+        side: OrderSide,
+        quantity: Decimal,
+        price: Decimal,
     ) -> None:
-        """Test build_place_order_payload for a GTC LIMIT order."""
-        # Use integer client_order_id to match RawBpUint32 expectation
-        client_order_id = 12345
-        execution = OrderExecution()  # Defaults to ANY liquidity, OPEN_OR_INCREASE position
+        """Test LIMIT order creation maintains data consistency."""
         payload = BackpackTradingRequestBuilder.build_place_order_payload(
-            symbol=symbol_spot,
-            order_side=buy_order_side,
-            order_type=limit_order_type,
-            quantity=standard_quantity,
-            time_in_force=gtc_time_in_force,
-            price=standard_price,
-            client_order_id=str(client_order_id),
+            symbol=symbol,
+            order_side=side,
+            order_type=OrderType.LIMIT,
+            quantity=quantity,
+            time_in_force=TimeInForce.GTC,
+            price=price,
+        )
+
+        assert payload.orderType == "Limit"
+        assert payload.price is not None
+        assert Decimal(payload.price) == price
+        assert payload.quantity is not None
+        assert Decimal(payload.quantity) == quantity
+        assert payload.timeInForce == "GTC"
+
+    @given(
+        symbol=symbol_strategy(),
+        side=order_side_strategy(),
+        quantity=decimal_quantity_strategy(),
+    )
+    def test_market_order_no_price(
+        self,
+        symbol: Symbol,
+        side: OrderSide,
+        quantity: Decimal,
+    ) -> None:
+        """Test MARKET orders don't have price field."""
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
+            symbol=symbol,
+            order_side=side,
+            order_type=OrderType.MARKET,
+            quantity=quantity,
+            time_in_force=TimeInForce.IOC,
+        )
+
+        assert payload.orderType == "Market"
+        assert payload.price is None
+        assert payload.quantity is not None
+        assert Decimal(payload.quantity) == quantity
+
+    @given(
+        symbol=symbol_strategy(),
+        side=order_side_strategy(),
+        quantity=decimal_quantity_strategy(),
+        stop_price=decimal_price_strategy(),
+    )
+    def test_stop_market_order_trigger(
+        self,
+        symbol: Symbol,
+        side: OrderSide,
+        quantity: Decimal,
+        stop_price: Decimal,
+    ) -> None:
+        """Test STOP_MARKET orders have trigger price."""
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
+            symbol=symbol,
+            order_side=side,
+            order_type=OrderType.STOP_MARKET,
+            quantity=quantity,
+            time_in_force=TimeInForce.GTC,
+            stop_price=stop_price,
+        )
+
+        assert payload.orderType == "Market"
+        assert payload.triggerPrice is not None
+        assert Decimal(payload.triggerPrice) == stop_price
+        assert payload.triggerQuantity is not None
+
+    @given(client_id=client_order_id_strategy())
+    def test_client_order_id_handling(self, client_id: str) -> None:
+        """Test client order ID is properly handled."""
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
+            symbol=SOL_USDC_BP,
+            order_side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=Decimal("1"),
+            time_in_force=TimeInForce.GTC,
+            price=Decimal("100"),
+            client_order_id=client_id,
+        )
+
+        # Client ID should be converted appropriately
+        assert payload.clientId is not None
+
+    @given(
+        symbol=symbol_strategy(),
+        side=order_side_strategy(),
+        quantity=decimal_quantity_strategy(),
+        price=decimal_price_strategy(),
+    )
+    def test_post_only_order_flag(
+        self,
+        symbol: Symbol,
+        side: OrderSide,
+        quantity: Decimal,
+        price: Decimal,
+    ) -> None:
+        """Test post-only orders have correct flag."""
+        execution = OrderExecution(liquidity_requirement=LiquidityRequirement.POST_ONLY)
+
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
+            symbol=symbol,
+            order_side=side,
+            order_type=OrderType.LIMIT,
+            quantity=quantity,
+            time_in_force=TimeInForce.GTC,
+            price=price,
             execution=execution,
         )
 
-        # Assert that we get the correct Pydantic model type
-        assert isinstance(payload, BackpackRawOrderExecuteRequest)
+        assert payload.postOnly is True
 
-        # Convert to dict for comparison using aliases
-        payload_dict = payload.model_dump(by_alias=True)
-        expected_payload = {
-            "symbol": symbol_spot.value,
-            "side": "Bid",
-            "orderType": "Limit",
-            "quantity": "10.5",
-            "timeInForce": "GTC",
-            "price": "140.00",
-            "clientId": client_order_id,
-        }
-
-        # Compare only the fields that should be present
-        for key, expected_value in expected_payload.items():
-            assert payload_dict[key] == expected_value
-
-    def test_build_place_order_payload_market_ioc(
-        self,
-        symbol_btc_spot: Symbol,
-        sell_order_side: OrderSide,
-        market_order_type: OrderType,
-        ioc_time_in_force: TimeInForce,
-    ) -> None:
-        """Test build_place_order_payload for an IOC MARKET order."""
-        payload = BackpackTradingRequestBuilder.build_place_order_payload(
-            symbol=symbol_btc_spot,
-            order_side=sell_order_side,
-            order_type=market_order_type,
-            quantity=Decimal("0.5"),
-            time_in_force=ioc_time_in_force,
-        )
-
-        assert isinstance(payload, BackpackRawOrderExecuteRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {
-            "symbol": symbol_btc_spot,
-            "side": "Ask",
-            "orderType": "Market",
-            "quantity": "0.5",
-        }
-
-        for key, expected_value in expected_payload.items():
-            assert payload_dict[key] == expected_value
-
-    def test_build_place_order_payload_limit_post_only(
-        self,
-        symbol_eth_spot: Symbol,
-        buy_order_side: OrderSide,
-        limit_order_type: OrderType,
-        gtc_time_in_force: TimeInForce,
-    ) -> None:
-        """Test build_place_order_payload for a post-only LIMIT order."""
-        execution = OrderExecution(
-            liquidity_requirement=LiquidityRequirement.POST_ONLY,
-        )
-        payload = BackpackTradingRequestBuilder.build_place_order_payload(
-            symbol=symbol_eth_spot,
-            order_side=buy_order_side,
-            order_type=limit_order_type,
-            quantity=Decimal("1.0"),
-            time_in_force=gtc_time_in_force,
-            price=Decimal("1800.00"),
-            execution=execution,
-        )
-
-        assert isinstance(payload, BackpackRawOrderExecuteRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {
-            "symbol": symbol_eth_spot,
-            "side": "Bid",
-            "orderType": "Limit",
-            "quantity": "1.0",
-            "timeInForce": "GTC",
-            "price": "1800.00",
-            "postOnly": True,
-        }
-
-        for key, expected_value in expected_payload.items():
-            assert payload_dict[key] == expected_value
-
-    def test_build_place_order_payload_stop_market(
-        self,
-        symbol_spot: Symbol,
-        sell_order_side: OrderSide,
-        stop_market_order_type: OrderType,
-        gtc_time_in_force: TimeInForce,
-        trigger_price: Decimal,
-    ) -> None:
-        """Test build_place_order_payload for a STOP_MARKET order."""
-        payload = BackpackTradingRequestBuilder.build_place_order_payload(
-            symbol=symbol_spot,
-            order_side=sell_order_side,
-            order_type=stop_market_order_type,
-            quantity=Decimal(5),
-            time_in_force=gtc_time_in_force,
-            stop_price=trigger_price,
-        )
-
-        assert isinstance(payload, BackpackRawOrderExecuteRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-
-        # For STOP_MARKET, we expect orderType to be "Market" with triggerPrice
-        expected_fields = {
-            "symbol": symbol_spot,
-            "side": "Ask",
-            "orderType": "Market",
-            "triggerQuantity": "5",
-        }
-
-        for key, expected_value in expected_fields.items():
-            assert payload_dict[key] == expected_value
-
-        # Check that trigger price is present
-        assert "triggerPrice" in payload_dict
-        assert payload_dict["triggerPrice"] == str(trigger_price)
-
-    def test_build_place_order_payload_stop_limit(
-        self,
-        symbol_eth_spot: Symbol,
-        buy_order_side: OrderSide,
-        stop_limit_order_type: OrderType,
-        gtc_time_in_force: TimeInForce,
-    ) -> None:
-        """Test build_place_order_payload for a STOP_LIMIT order."""
-        payload = BackpackTradingRequestBuilder.build_place_order_payload(
-            symbol=symbol_eth_spot,
-            order_side=buy_order_side,
-            order_type=stop_limit_order_type,
-            quantity=Decimal("0.1"),
-            time_in_force=gtc_time_in_force,
-            price=Decimal(1700),
-            stop_price=Decimal(1690),
-        )
-
-        assert isinstance(payload, BackpackRawOrderExecuteRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-
-        expected_fields = {
-            "symbol": symbol_eth_spot,
-            "side": "Bid",
-            "orderType": "Limit",
-            "price": "1700",
-            "timeInForce": "GTC",
-            "triggerPrice": "1690",
-            "triggerQuantity": "0.1",
-        }
-
-        for key, expected_value in expected_fields.items():
-            assert payload_dict[key] == expected_value
-
+    # Legacy parametrized tests for specific mappings
     @pytest.mark.parametrize(
         ("side", "expected_side_str"),
         [
@@ -271,43 +486,71 @@ class TestBuildPlaceOrderPayload:
 
 
 class TestBuildCancelOrderPayload:
-    """Tests for build_cancel_order_payload method."""
+    """Property-based tests for build_cancel_order_payload method."""
 
-    def test_build_cancel_order_payload_order_id(self, symbol_spot: Symbol, order_id: str) -> None:
-        """Test build_cancel_order_payload with order ID."""
+    @given(
+        symbol=symbol_strategy(),
+        order_id=order_id_strategy(),
+    )
+    def test_cancel_with_order_id(self, symbol: Symbol, order_id: str) -> None:
+        """Test cancel order payload with order ID."""
         payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
-            symbol_spot, order_id=order_id
+            symbol, order_id=order_id
         )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {"symbol": symbol_spot.value, "orderId": order_id}
-        assert payload_dict == expected_payload
+        assert payload.symbol == symbol.value
+        assert payload.orderId == order_id
+        assert payload.clientId is None
 
-    def test_build_cancel_order_payload_client_id(self, symbol_spot: Symbol) -> None:
-        """Test build_cancel_order_payload with client order ID."""
-        client_order_id = 98765  # Use integer for RawBpUint32
+    @given(
+        symbol=symbol_strategy(),
+        client_id=client_order_id_strategy(),
+    )
+    def test_cancel_with_client_id(self, symbol: Symbol, client_id: str) -> None:
+        """Test cancel order payload with client order ID."""
         payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
-            symbol_spot,
-            client_order_id=str(client_order_id),
+            symbol, client_order_id=client_id
         )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {"symbol": symbol_spot.value, "clientId": client_order_id}
-        assert payload_dict == expected_payload
+        assert payload.symbol == symbol.value
+        assert payload.orderId is None
+        # Client ID might be converted to integer
+        assert payload.clientId is not None
 
-    def test_build_cancel_order_payload_formats_symbol(self, order_id: str) -> None:
-        """Test build_cancel_order_payload passes symbol as-is (no formatting)."""
+    @given(
+        symbol=symbol_strategy(),
+        order_id=st.one_of(st.none(), order_id_strategy()),
+        client_id=st.one_of(st.none(), client_order_id_strategy()),
+    )
+    def test_cancel_id_exclusivity(
+        self,
+        symbol: Symbol,
+        order_id: str | None,
+        client_id: str | None,
+    ) -> None:
+        """Test that either order_id or client_id is provided, not both."""
+        if order_id is None and client_id is None:
+            # Should handle the case where neither is provided
+            return
+
         payload = BackpackTradingRequestBuilder.build_cancel_order_payload(
-            SOL_USDC_BP, order_id=order_id
+            symbol,
+            order_id=order_id,
+            client_order_id=client_id,
         )
 
         assert isinstance(payload, BackpackRawOrderCancelRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        expected_payload = {"symbol": SOL_USDC_BP.value, "orderId": order_id}
-        assert payload_dict == expected_payload
+        assert payload.symbol == symbol.value
 
+        # Only one ID type should be present
+        if order_id:
+            assert payload.orderId == order_id
+        if client_id:
+            assert payload.clientId is not None
+
+    # Legacy parametrized test
     @pytest.mark.parametrize(
         ("symbol", "order_id", "client_id_int", "expected_payload"),
         [
@@ -337,33 +580,32 @@ class TestBuildCancelOrderPayload:
 
 
 class TestBuildGetOpenOrdersParams:
-    """Tests for build_get_open_orders_params method."""
+    """Property-based tests for build_get_open_orders_params method."""
 
-    def test_build_get_open_orders_params_no_symbol(self) -> None:
-        """Test build_get_open_orders_params without symbol."""
-        params = BackpackTradingRequestBuilder.build_get_open_orders_params(None)
-
-        assert isinstance(params, BackpackRawGetOpenOrdersParams)
-        params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        # When symbol is None, the model should not include it in the output
-        assert params_dict == {}
-
-    def test_build_get_open_orders_params_with_symbol(self, symbol_spot: Symbol) -> None:
-        """Test build_get_open_orders_params with symbol."""
-        params = BackpackTradingRequestBuilder.build_get_open_orders_params(symbol_spot)
+    @given(symbol=st.one_of(st.none(), symbol_strategy()))
+    def test_open_orders_params(self, symbol: Symbol | None) -> None:
+        """Test get open orders params with optional symbol."""
+        params = BackpackTradingRequestBuilder.build_get_open_orders_params(symbol)
 
         assert isinstance(params, BackpackRawGetOpenOrdersParams)
+
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": symbol_spot.value}
+        if symbol is None:
+            assert params_dict == {}
+        else:
+            assert params_dict == {"symbol": symbol.value}
 
-    def test_build_get_open_orders_params_formats_symbol(self) -> None:
-        """Test build_get_open_orders_params passes symbol as-is (no formatting)."""
-        params = BackpackTradingRequestBuilder.build_get_open_orders_params(SOL_USDC_BP)
+    @given(symbol=symbol_strategy())
+    def test_symbol_format_preservation(self, symbol: Symbol) -> None:
+        """Test that symbol format is preserved."""
+        params = BackpackTradingRequestBuilder.build_get_open_orders_params(symbol)
 
-        assert isinstance(params, BackpackRawGetOpenOrdersParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": SOL_USDC_BP.value}
+        # Some symbols might have format transformations
+        assert "symbol" in params_dict
+        assert isinstance(params_dict["symbol"], str)
 
+    # Legacy parametrized test
     @pytest.mark.parametrize(
         ("symbol", "expected_dict"),
         [
@@ -387,24 +629,18 @@ class TestBuildGetOpenOrdersParams:
 
 
 class TestBuildGetOrderParams:
-    """Tests for build_get_order_params method."""
+    """Property-based tests for build_get_order_params method."""
 
-    def test_build_get_order_params_basic(self, symbol_spot: Symbol) -> None:
-        """Test build_get_order_params with basic symbol."""
-        params = BackpackTradingRequestBuilder.build_get_order_params(symbol_spot)
-
-        assert isinstance(params, BackpackRawGetOrderParams)
-        params_dict = params.model_dump(by_alias=True)
-        assert params_dict == {"symbol": symbol_spot.value}
-
-    def test_build_get_order_params_formats_symbol(self) -> None:
-        """Test build_get_order_params passes symbol as-is (no formatting)."""
-        params = BackpackTradingRequestBuilder.build_get_order_params(SOL_USDC_BP)
+    @given(symbol=symbol_strategy())
+    def test_get_order_params(self, symbol: Symbol) -> None:
+        """Test get order params with symbol."""
+        params = BackpackTradingRequestBuilder.build_get_order_params(symbol)
 
         assert isinstance(params, BackpackRawGetOrderParams)
         params_dict = params.model_dump(by_alias=True)
-        assert params_dict == {"symbol": SOL_USDC_BP.value}
+        assert params_dict["symbol"] == symbol.value
 
+    # Legacy parametrized test
     @pytest.mark.parametrize(
         ("input_symbol", "expected_symbol"),
         [
@@ -427,71 +663,77 @@ class TestBuildGetOrderParams:
 
 
 class TestBuildGetOrderHistoryParams:
-    """Tests for build_get_order_history_params method."""
+    """Property-based tests for build_get_order_history_params method."""
 
-    def test_build_get_order_history_params_all_fields(
+    @given(
+        symbol=st.one_of(st.none(), symbol_strategy()),
+        start_time=st.one_of(st.none(), timestamp_strategy()),
+        end_time=st.one_of(st.none(), timestamp_strategy()),
+        limit=st.one_of(st.none(), limit_strategy()),
+        order_id=st.one_of(st.none(), order_id_strategy()),
+        client_id=st.one_of(st.none(), client_order_id_strategy()),
+    )
+    def test_order_history_params_combinations(
         self,
-        symbol_spot: Symbol,
-        current_timestamp_ms: int,
-        past_timestamp_ms: int,
-        order_id: str,
+        symbol: Symbol | None,
+        start_time: int | None,
+        end_time: int | None,
+        limit: int | None,
+        order_id: str | None,
+        client_id: str | None,
     ) -> None:
-        """Test build_get_order_history_params with all fields."""
+        """Test order history params with various combinations."""
+        # Ensure time range is valid
+        if start_time and end_time:
+            if start_time > end_time:
+                start_time, end_time = end_time, start_time
+
         params = BackpackTradingRequestBuilder.build_get_order_history_params(
-            symbol=symbol_spot,
-            start_time=past_timestamp_ms,
-            end_time=current_timestamp_ms,
-            limit=50,
+            symbol=symbol,
+            start_time=start_time,
+            end_time=end_time,
+            limit=limit if limit else 100,
             order_id=order_id,
+            client_id=client_id,
         )
 
         assert isinstance(params, BackpackRawGetOrderHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {
-            "symbol": symbol_spot.value,
-            "from": past_timestamp_ms,
-            "to": current_timestamp_ms,
-            "limit": 50,
-            "orderId": order_id,
-        }
-        assert params_dict == expected
 
-    def test_build_get_order_history_params_client_id(self, symbol_eth_spot: Symbol) -> None:
-        """Test build_get_order_history_params with client order ID."""
-        client_order_id = 789012  # Use integer for RawBpUint32
-        params = BackpackTradingRequestBuilder.build_get_order_history_params(
-            symbol=symbol_eth_spot,
-            client_id=str(client_order_id),
-            # Use defaults for optional params
-        )
+        # Verify fields are set correctly
+        if symbol:
+            assert params_dict.get("symbol") == symbol.value
+        if start_time:
+            assert params_dict.get("from") == start_time
+        if end_time:
+            assert params_dict.get("to") == end_time
+        assert params_dict.get("limit") == (limit if limit else 100)
+        if order_id:
+            assert params_dict.get("orderId") == order_id
+        if client_id:
+            assert "clientId" in params_dict
 
-        assert isinstance(params, BackpackRawGetOrderHistoryParams)
-        params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        expected = {"symbol": symbol_eth_spot, "clientId": str(client_order_id), "limit": 100}
-        assert params_dict == expected
+    @given(
+        start_time=timestamp_strategy(),
+        end_time=timestamp_strategy(),
+    )
+    def test_time_range_validation(self, start_time: int, end_time: int) -> None:
+        """Test that time ranges are handled correctly."""
+        # Ensure valid time range
+        if start_time > end_time:
+            start_time, end_time = end_time, start_time
 
-    def test_build_get_order_history_params_minimal(self) -> None:
-        """Test build_get_order_history_params with minimal parameters."""
-        params = BackpackTradingRequestBuilder.build_get_order_history_params(
-            symbol=None,
-            # Use defaults for optional params
-        )
-
-        assert isinstance(params, BackpackRawGetOrderHistoryParams)
-        params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"limit": 100}
-
-    def test_build_get_order_history_params_formats_symbol(self) -> None:
-        """Test build_get_order_history_params passes symbol as-is (no formatting)."""
         params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol=SOL_USDC_BP,
-            # Use defaults for optional params
+            start_time=start_time,
+            end_time=end_time,
         )
 
-        assert isinstance(params, BackpackRawGetOrderHistoryParams)
         params_dict = params.model_dump(by_alias=True, exclude_none=True)
-        assert params_dict == {"symbol": SOL_USDC_BP.value, "limit": 100}
+        assert params_dict["from"] == start_time
+        assert params_dict["to"] == end_time
 
+    # Legacy parametrized test
     @pytest.mark.parametrize(
         ("symbol", "limit", "expected_base"),
         [
@@ -520,24 +762,18 @@ class TestBuildGetOrderHistoryParams:
 
 
 class TestBuildCancelAllOrdersPayload:
-    """Tests for build_cancel_all_orders_payload method."""
+    """Property-based tests for build_cancel_all_orders_payload method."""
 
-    def test_build_cancel_all_orders_payload_with_symbol(self, symbol_spot: Symbol) -> None:
-        """Test build_cancel_all_orders_payload with symbol."""
-        payload = BackpackTradingRequestBuilder.build_cancel_all_orders_payload(symbol_spot)
-
-        assert isinstance(payload, BackpackRawOrderCancelAllRequest)
-        payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        assert payload_dict == {"symbol": symbol_spot.value}
-
-    def test_build_cancel_all_orders_payload_formats_symbol(self) -> None:
-        """Test build_cancel_all_orders_payload passes symbol as-is (no formatting)."""
-        payload = BackpackTradingRequestBuilder.build_cancel_all_orders_payload(SOL_USDC_BP)
+    @given(symbol=symbol_strategy())
+    def test_cancel_all_orders(self, symbol: Symbol) -> None:
+        """Test cancel all orders payload with symbol."""
+        payload = BackpackTradingRequestBuilder.build_cancel_all_orders_payload(symbol)
 
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
-        assert payload_dict == {"symbol": SOL_USDC_BP.value}
+        assert payload_dict == {"symbol": symbol.value}
 
+    # Legacy parametrized test
     @pytest.mark.parametrize(
         ("symbol", "expected_dict"),
         [
@@ -557,3 +793,97 @@ class TestBuildCancelAllOrdersPayload:
         assert isinstance(payload, BackpackRawOrderCancelAllRequest)
         payload_dict = payload.model_dump(by_alias=True, exclude_none=True)
         assert payload_dict == expected_dict
+
+
+class TestEdgeCases:
+    """Property-based tests for edge cases and boundary conditions."""
+
+    @given(
+        quantity=st.decimals(
+            min_value=Decimal("0.00000001"),
+            max_value=Decimal("999999999"),
+            places=8,
+        ),
+        price=st.decimals(
+            min_value=Decimal("0.00000001"),
+            max_value=Decimal("999999999"),
+            places=8,
+        ),
+    )
+    def test_extreme_decimal_precision(self, quantity: Decimal, price: Decimal) -> None:
+        """Test handling of extreme decimal precision."""
+        payload = BackpackTradingRequestBuilder.build_place_order_payload(
+            symbol=SOL_USDC_BP,
+            order_side=OrderSide.BUY,
+            order_type=OrderType.LIMIT,
+            quantity=quantity,
+            time_in_force=TimeInForce.GTC,
+            price=price,
+        )
+
+        # Verify decimals are preserved (as strings)
+        assert payload.quantity is not None
+        assert Decimal(payload.quantity) == quantity
+        assert payload.price is not None
+        assert Decimal(payload.price) == price
+
+    @given(
+        client_id=st.text(
+            alphabet=st.characters(whitelist_categories=["Ll", "Lu", "Nd", "Pc"]),
+            min_size=65,
+            max_size=200,
+        )
+    )
+    def test_long_client_order_ids(self, client_id: str) -> None:
+        """Test handling of very long client order IDs."""
+        # This might be truncated or rejected depending on implementation
+        try:
+            payload = BackpackTradingRequestBuilder.build_place_order_payload(
+                symbol=SOL_USDC_BP,
+                order_side=OrderSide.BUY,
+                order_type=OrderType.LIMIT,
+                quantity=Decimal("1"),
+                time_in_force=TimeInForce.GTC,
+                price=Decimal("100"),
+                client_order_id=client_id,
+            )
+            # If it succeeds, verify it's handled somehow
+            assert payload.clientId is not None
+        except (ValueError, ValidationError):
+            # Long IDs might be rejected, which is acceptable
+            pass
+
+    @given(
+        symbol=symbol_strategy(),
+        quantities=st.lists(
+            decimal_quantity_strategy(),
+            min_size=2,
+            max_size=5,
+        ),
+    )
+    def test_multiple_orders_consistency(
+        self,
+        symbol: Symbol,
+        quantities: list[Decimal],
+    ) -> None:
+        """Test consistency when creating multiple orders."""
+        payloads = []
+
+        for qty in quantities:
+            payload = BackpackTradingRequestBuilder.build_place_order_payload(
+                symbol=symbol,
+                order_side=OrderSide.BUY,
+                order_type=OrderType.MARKET,
+                quantity=qty,
+                time_in_force=TimeInForce.IOC,
+            )
+            payloads.append(payload)
+
+        # All orders should have the same symbol
+        symbols = [p.symbol for p in payloads]
+        assert all(s == symbol.value for s in symbols)
+
+        # Each should have its specific quantity
+        for payload, qty in zip(payloads, quantities):
+            assert payload.quantity is not None
+            assert Decimal(payload.quantity) == qty
