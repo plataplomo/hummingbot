@@ -32,8 +32,9 @@ Architecture Compliance:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 import pytest
@@ -378,9 +379,10 @@ class TestWebSocketTickerTransformationProperties:
     @given(ticker_event=ticker_event_strategy())
     @settings(max_examples=200, deadline=None)
     def test_ticker_transformation_preserves_essential_data(
-        self, ticker_event: BackpackRawTickerEvent, ticker_mapper: BackpackTickerMapper
+        self, ticker_event: BackpackRawTickerEvent
     ) -> None:
         """Property: Ticker transformation should preserve all essential market data."""
+        ticker_mapper = BackpackTickerMapper()
         result = ticker_mapper.transform_ws_ticker_event_to_internal(ticker_event)
 
         # Property: Result should be valid Ticker instance
@@ -409,15 +411,16 @@ class TestWebSocketTickerTransformationProperties:
     )
     @settings(max_examples=150, deadline=None)
     def test_ticker_transformation_decimal_precision(
-        self, symbol: str, price: str, timestamp: int, ticker_mapper: BackpackTickerMapper
+        self, symbol: str, price: str, timestamp: int
     ) -> None:
         """Property: Ticker transformation should preserve decimal precision."""
         # Skip invalid decimal values
         try:
             expected_price = Decimal(price)
-        except Exception:
+        except (InvalidOperation, ValueError, TypeError):
             assume(False)
 
+        ticker_mapper = BackpackTickerMapper()
         ticker_event = BackpackRawTickerEvent(
             s=symbol,
             c=price,
@@ -443,9 +446,9 @@ class TestWebSocketTickerTransformationProperties:
         self,
         base_event: BackpackRawTickerEvent,
         malicious_symbol: object,
-        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: Ticker transformation should resist malicious symbol inputs."""
+        ticker_mapper = BackpackTickerMapper()
         if not isinstance(malicious_symbol, str):
             malicious_symbol = str(malicious_symbol)
 
@@ -489,9 +492,9 @@ class TestWebSocketTickerTransformationProperties:
         self,
         symbols: list[str],
         base_event: BackpackRawTickerEvent,
-        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: Ticker transformation should be consistent across different symbols."""
+        ticker_mapper = BackpackTickerMapper()
         results = []
 
         for symbol in symbols:
@@ -535,9 +538,9 @@ class TestWebSocketDepthTransformationProperties:
     def test_depth_transformation_preserves_order_book_structure(
         self,
         depth_data: tuple[BackpackRawDepthUpdateEvent, str],
-        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should preserve order book structure."""
+        order_book_mapper = BackpackOrderBookMapper()
         raw_depth, symbol_str = depth_data
         symbol = exchanges.backpack(symbol_str)
 
@@ -576,7 +579,6 @@ class TestWebSocketDepthTransformationProperties:
         bid_levels: list[tuple[str, str]],
         ask_levels: list[tuple[str, str]],
         timestamp: int,
-        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should preserve price level precision."""
         # Skip if any level has invalid decimal format
@@ -584,8 +586,10 @@ class TestWebSocketDepthTransformationProperties:
             for price_str, qty_str in bid_levels + ask_levels:
                 Decimal(price_str)
                 Decimal(qty_str)
-        except Exception:
+        except (InvalidOperation, ValueError, TypeError):
             assume(False)
+
+        order_book_mapper = BackpackOrderBookMapper()
 
         raw_depth = BackpackRawDepthUpdateEvent(
             u="123456",
@@ -624,9 +628,9 @@ class TestWebSocketDepthTransformationProperties:
         self,
         base_depth: tuple[BackpackRawDepthUpdateEvent, str],
         malicious_levels: list[tuple[Any, Any]],
-        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should resist malicious price level inputs."""
+        order_book_mapper = BackpackOrderBookMapper()
         raw_depth, symbol_str = base_depth
         symbol = exchanges.backpack(symbol_str)
 
@@ -679,9 +683,9 @@ class TestWebSocketDepthTransformationProperties:
         empty_book_scenario: tuple[list[tuple[str, str]], list[tuple[str, str]]],
         symbol: str,
         timestamp: int,
-        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should handle empty bid/ask levels correctly."""
+        order_book_mapper = BackpackOrderBookMapper()
         bids, asks = empty_book_scenario
 
         raw_depth = BackpackRawDepthUpdateEvent(
@@ -711,7 +715,7 @@ class TestWebSocketTradeTransformationProperties:
     @given(trade_event=trade_event_strategy())
     @settings(max_examples=200, deadline=None)
     def test_trade_transformation_preserves_essential_data(
-        self, trade_event: BackpackRawPublicTradeEvent, trade_mapper: BackpackFillMapper
+        self, trade_event: BackpackRawPublicTradeEvent
     ) -> None:
         """Property: Trade transformation should preserve all essential trade data."""
         # Skip zero values as they're invalid for trades
@@ -720,8 +724,10 @@ class TestWebSocketTradeTransformationProperties:
             qty_decimal = Decimal(trade_event.quantity)
             if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                 assume(False)
-        except Exception:
+        except (InvalidOperation, ValueError, TypeError):
             assume(False)
+
+        trade_mapper = BackpackFillMapper()
 
         result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
 
@@ -769,7 +775,6 @@ class TestWebSocketTradeTransformationProperties:
         quantity: str,
         trade_id: str,
         timestamp: int,
-        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Trade side mapping should be consistent based on buyer maker flag."""
         # Skip invalid financial values
@@ -778,8 +783,10 @@ class TestWebSocketTradeTransformationProperties:
             qty_decimal = Decimal(quantity)
             if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                 assume(False)
-        except Exception:
+        except (InvalidOperation, ValueError, TypeError):
             assume(False)
+
+        trade_mapper = BackpackFillMapper()
 
         trade_event = BackpackRawPublicTradeEvent(
             s=symbol,
@@ -810,9 +817,9 @@ class TestWebSocketTradeTransformationProperties:
         self,
         base_trade: BackpackRawPublicTradeEvent,
         malicious_data: object,
-        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Trade transformation should resist malicious inputs."""
+        trade_mapper = BackpackFillMapper()
         if not isinstance(malicious_data, str):
             malicious_data = str(malicious_data)
 
@@ -849,9 +856,10 @@ class TestWebSocketTradeTransformationProperties:
     @given(trades_batch=st.lists(trade_event_strategy(), min_size=2, max_size=10))
     @settings(max_examples=50, deadline=None)
     def test_trade_transformation_batch_consistency(
-        self, trades_batch: list[BackpackRawPublicTradeEvent], trade_mapper: BackpackFillMapper
+        self, trades_batch: list[BackpackRawPublicTradeEvent]
     ) -> None:
         """Property: Trade transformation should be consistent across batches."""
+        trade_mapper = BackpackFillMapper()
         results = []
 
         for trade_event in trades_batch:
@@ -864,7 +872,8 @@ class TestWebSocketTradeTransformationProperties:
 
                 result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
                 results.append((trade_event, result))
-            except Exception:
+            except (InvalidOperation, ValueError, TypeError, TransformationError):
+                # Skip invalid trade events during property testing
                 continue
 
         # Skip if no valid trades
@@ -898,9 +907,9 @@ class TestWebSocketTradeTransformationProperties:
         symbol: str,
         trade_id: str,
         timestamp: int,
-        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Trade transformation should reject zero price/quantity values."""
+        trade_mapper = BackpackFillMapper()
         price, quantity = zero_value_scenario
 
         trade_event = BackpackRawPublicTradeEvent(
@@ -946,9 +955,9 @@ class TestWebSocketTransformationSecurityProperties:
         self,
         ticker_event: BackpackRawTickerEvent,
         injection_attempt: str,
-        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: Ticker transformation should resist injection attacks."""
+        ticker_mapper = BackpackTickerMapper()
         # Test injection in price field
         malicious_ticker = BackpackRawTickerEvent(
             s=ticker_event.symbol,
@@ -981,9 +990,9 @@ class TestWebSocketTransformationSecurityProperties:
         self,
         large_symbol: str,
         base_event: BackpackRawTickerEvent,
-        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: WebSocket transformations should handle large inputs safely."""
+        ticker_mapper = BackpackTickerMapper()
         large_ticker = BackpackRawTickerEvent(
             s=large_symbol,
             c=base_event.last_price,
@@ -1024,9 +1033,9 @@ class TestWebSocketTransformationSecurityProperties:
         self,
         unicode_data: str,
         base_event: BackpackRawTickerEvent,
-        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: WebSocket transformations should handle Unicode data safely."""
+        ticker_mapper = BackpackTickerMapper()
         unicode_ticker = BackpackRawTickerEvent(
             s=f"{base_event.symbol}-{unicode_data}",
             c=base_event.last_price,
@@ -1047,8 +1056,6 @@ class TestWebSocketTransformationSecurityProperties:
             assert unicode_data in result.symbol.value
 
             # Should be JSON serializable
-            import json
-
             json.dumps(str(result))
 
         except (TransformationError, ValueError, UnicodeError):
@@ -1075,11 +1082,11 @@ class TestWebSocketTransformationIntegrationProperties:
     def test_mixed_event_processing_consistency(
         self,
         mixed_events: list[Any],
-        ticker_mapper: BackpackTickerMapper,
-        order_book_mapper: BackpackOrderBookMapper,
-        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Mixed event processing should be consistent and error-free."""
+        ticker_mapper = BackpackTickerMapper()
+        order_book_mapper = BackpackOrderBookMapper()
+        trade_mapper = BackpackFillMapper()
         results = []
 
         for event in mixed_events:
@@ -1100,14 +1107,16 @@ class TestWebSocketTransformationIntegrationProperties:
                         qty_decimal = Decimal(event.quantity)
                         if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                             continue
-                    except Exception:
+                    except (InvalidOperation, ValueError, TypeError):
+                        # Skip invalid financial values during property testing
                         continue
                     result = trade_mapper.transform_ws_fill_event_to_internal_fill(event)
                 else:
                     continue
 
                 results.append(result)
-            except Exception:
+            except (InvalidOperation, ValueError, TypeError, TransformationError):
+                # Skip invalid events during property testing
                 continue
 
         # Property: All successful transformations should be valid
@@ -1121,9 +1130,10 @@ class TestWebSocketTransformationIntegrationProperties:
     @given(event_stream=st.lists(trade_event_strategy(), min_size=5, max_size=20))
     @settings(max_examples=30, deadline=None)
     def test_real_time_event_stream_processing(
-        self, event_stream: list[BackpackRawPublicTradeEvent], trade_mapper: BackpackFillMapper
+        self, event_stream: list[BackpackRawPublicTradeEvent]
     ) -> None:
         """Property: Real-time event stream processing should maintain data integrity."""
+        trade_mapper = BackpackFillMapper()
         processed_trades = []
 
         for trade_event in event_stream:
@@ -1136,7 +1146,8 @@ class TestWebSocketTransformationIntegrationProperties:
 
                 result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
                 processed_trades.append((trade_event, result))
-            except Exception:
+            except (InvalidOperation, ValueError, TypeError, TransformationError):
+                # Skip invalid trade events during property testing
                 continue
 
         # Property: Processed trades should maintain temporal ordering

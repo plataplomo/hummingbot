@@ -372,10 +372,10 @@ class TestFillTransformationProperties:
     @settings(max_examples=100)
     def test_transform_raw_fill_properties(
         self,
-        mapper: BackpackTransactionMapper,
         raw_fill: BackpackRawFillResponse,
     ) -> None:
         """Test fill transformation with various property combinations."""
+        mapper = BackpackTransactionMapper()
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 
         # Result can be None for zero price/quantity
@@ -424,13 +424,13 @@ class TestFillTransformationProperties:
     )
     def test_decimal_precision_preservation(
         self,
-        mapper: BackpackTransactionMapper,
         price: str,
         quantity: str,
         fee: str,
         side: str,
     ) -> None:
         """Test that decimal precision is preserved during transformation."""
+        mapper = BackpackTransactionMapper()
         raw_fill = create_raw_fill(
             price=price,
             quantity=quantity,
@@ -453,12 +453,12 @@ class TestFillTransformationProperties:
     )
     def test_metadata_preservation(
         self,
-        mapper: BackpackTransactionMapper,
         is_maker: bool,
         trade_id: int,
         symbol: str,
     ) -> None:
         """Test that metadata is preserved during transformation."""
+        mapper = BackpackTransactionMapper()
         raw_fill = create_raw_fill(
             is_maker=is_maker,
             trade_id=trade_id,
@@ -479,11 +479,11 @@ class TestFillTransformationProperties:
     )
     def test_zero_value_handling(
         self,
-        mapper: BackpackTransactionMapper,
         zero_value: str,
         field: str,
     ) -> None:
         """Test that zero values are handled correctly."""
+        mapper = BackpackTransactionMapper()
         if field == "price":
             raw_fill = create_raw_fill(price=zero_value)
         elif field == "quantity":
@@ -502,11 +502,11 @@ class TestFillTransformationProperties:
     )
     def test_id_handling(
         self,
-        mapper: BackpackTransactionMapper,
         client_id: str | None,
         order_id: str,
     ) -> None:
         """Test that various ID formats are handled correctly."""
+        mapper = BackpackTransactionMapper()
         raw_fill = create_raw_fill(
             client_id=client_id,
             order_id=order_id,
@@ -797,10 +797,10 @@ class TestWebSocketFillTransformationProperties:
     @settings(max_examples=50)
     def test_ws_fill_event_properties(
         self,
-        mapper: BackpackTransactionMapper,
         raw_fill: BackpackRawFillResponse,
     ) -> None:
         """Test WebSocket fill event transformation with various inputs."""
+        mapper = BackpackTransactionMapper()
         result = mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         # Should produce same result as regular fill transformation
@@ -826,11 +826,11 @@ class TestWebSocketFillTransformationProperties:
     )
     def test_ws_fill_event_symbol_side_consistency(
         self,
-        mapper: BackpackTransactionMapper,
         symbol: str,
         side: str,
     ) -> None:
         """Test WebSocket fill event symbol and side consistency."""
+        mapper = BackpackTransactionMapper()
         raw_fill = create_raw_fill(symbol=symbol, side=side)
 
         result = mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
@@ -903,10 +903,10 @@ class TestWebSocketPositionUpdateTransformationProperties:
     @settings(max_examples=50)
     def test_ws_position_update_properties(
         self,
-        position_mapper: BackpackPositionMapper,
         raw_position: BackpackRawPositionUpdate,
     ) -> None:
         """Test WebSocket position update transformation with various inputs."""
+        position_mapper = BackpackPositionMapper()
         # Skip if net_quantity is None (required for position)
         if raw_position.net_quantity is None:
             assume(False)
@@ -955,10 +955,10 @@ class TestWebSocketPositionUpdateTransformationProperties:
     )
     def test_position_side_mapping(
         self,
-        position_mapper: BackpackPositionMapper,
         net_quantity: str,
     ) -> None:
         """Test position side mapping based on quantity sign."""
+        position_mapper = BackpackPositionMapper()
         raw_position = create_raw_position_update(net_quantity=net_quantity)
 
         result = position_mapper.transform_ws_position_update_to_internal_position(raw_position)
@@ -1070,11 +1070,11 @@ class TestErrorHandlingProperties:
     )
     def test_malicious_input_resistance(
         self,
-        mapper: BackpackTransactionMapper,
         malicious_string: str,
         field: str,
     ) -> None:
         """Test resistance to malicious inputs."""
+        mapper = BackpackTransactionMapper()
         try:
             if field == "order_id":
                 raw_fill = create_raw_fill(order_id=malicious_string)
@@ -1107,11 +1107,11 @@ class TestErrorHandlingProperties:
     )
     def test_negative_value_handling(
         self,
-        mapper: BackpackTransactionMapper,
         negative_value: str,
         field: str,
     ) -> None:
         """Test handling of negative values."""
+        mapper = BackpackTransactionMapper()
         if field == "price":
             kwargs = {"price": negative_value}
         elif field == "quantity":
@@ -1143,11 +1143,11 @@ class TestErrorHandlingProperties:
     )
     def test_unicode_handling(
         self,
-        mapper: BackpackTransactionMapper,
         unicode_string: str,
         field: str,
     ) -> None:
         """Test handling of unicode characters."""
+        mapper = BackpackTransactionMapper()
         try:
             if field == "symbol":
                 raw_fill = create_raw_fill(symbol=unicode_string)
@@ -1175,10 +1175,10 @@ class TestErrorHandlingProperties:
     )
     def test_long_client_id_handling(
         self,
-        mapper: BackpackTransactionMapper,
         long_id: str,
     ) -> None:
         """Test handling of very long client IDs."""
+        mapper = BackpackTransactionMapper()
         # Client IDs over 64 characters should raise an error
         with pytest.raises(DataTransformationError):
             raw_fill = create_raw_fill(client_id=long_id)
@@ -1187,10 +1187,10 @@ class TestErrorHandlingProperties:
     @given(extreme_trade_id=st.integers(min_value=10**15, max_value=10**18))
     def test_extreme_trade_id_handling(
         self,
-        mapper: BackpackTransactionMapper,
         extreme_trade_id: int,
     ) -> None:
         """Test handling of extreme trade ID values."""
+        mapper = BackpackTransactionMapper()
         raw_fill = create_raw_fill(trade_id=extreme_trade_id)
         result = mapper.transform_raw_fill_to_internal(raw_fill)
 

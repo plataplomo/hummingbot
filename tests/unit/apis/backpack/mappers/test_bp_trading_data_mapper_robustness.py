@@ -258,10 +258,8 @@ def iso_datetime_strategy() -> SearchStrategy[str]:
         A Hypothesis strategy for ISO datetime strings.
     """
     return st.builds(
-        lambda dt: dt.isoformat(),
-        st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC), max_value=datetime(2030, 12, 31, tzinfo=UTC)
-        ),
+        lambda dt: dt.replace(tzinfo=UTC).isoformat(),
+        st.datetimes(min_value=datetime(2020, 1, 1), max_value=datetime(2030, 12, 31)),
     )
 
 
@@ -407,7 +405,7 @@ class TestTradingDataTransformationRobustnessProperties:
     @given(raw_order=backpack_raw_order_strategy())
     @settings(max_examples=200, deadline=None)
     def test_order_transformation_preserves_essential_data(
-        self, raw_order: BackpackRawOrderResponse, trading_data_mapper: BackpackOrderMapper
+        self, raw_order: BackpackRawOrderResponse
     ) -> None:
         """Property: Order transformation should preserve all essential trading data."""
         # Skip invalid decimal values
@@ -428,6 +426,7 @@ class TestTradingDataTransformationRobustnessProperties:
         except Exception:
             assume(False)
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Result should be valid Order instance
@@ -466,9 +465,7 @@ class TestTradingDataTransformationRobustnessProperties:
         ]),
     )
     @settings(max_examples=100, deadline=None)
-    def test_extreme_value_handling(
-        self, extreme_quantity: str, extreme_price: str, trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_extreme_value_handling(self, extreme_quantity: str, extreme_price: str) -> None:
         """Property: Transformation should handle extreme financial values safely."""
         # Skip invalid values
         try:
@@ -505,6 +502,7 @@ class TestTradingDataTransformationRobustnessProperties:
             origin=None,
         )
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Extreme values should be preserved exactly
@@ -523,9 +521,7 @@ class TestTradingDataTransformationRobustnessProperties:
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_decimal_precision_preservation(
-        self, precision_scenario: str, trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_decimal_precision_preservation(self, precision_scenario: str) -> None:
         """Property: Decimal precision should be preserved in financial calculations."""
         raw_order = BackpackRawOrderResponse(
             id="precision_test",
@@ -553,6 +549,7 @@ class TestTradingDataTransformationRobustnessProperties:
             origin=None,
         )
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Precision should be maintained within Decimal limits
@@ -581,7 +578,7 @@ class TestTradingDataTransformationRobustnessProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_unicode_support_comprehensive(
-        self, unicode_symbol: str, unicode_client_id: str, trading_data_mapper: BackpackOrderMapper
+        self, unicode_symbol: str, unicode_client_id: str
     ) -> None:
         """Property: Unicode characters should be handled correctly in all fields."""
         raw_order = BackpackRawOrderResponse(
@@ -610,6 +607,7 @@ class TestTradingDataTransformationRobustnessProperties:
             origin=None,
         )
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Unicode should be preserved exactly
@@ -640,9 +638,7 @@ class TestTradingDataErrorHandlingProperties:
         field_type=st.sampled_from(["symbol", "client_id", "order_id", "side", "status"]),
     )
     @settings(max_examples=100, deadline=None)
-    def test_malicious_input_resistance(
-        self, malicious_field: object, field_type: str, trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_malicious_input_resistance(self, malicious_field: object, field_type: str) -> None:
         """Property: Transformation should resist malicious inputs across all fields."""
         if not isinstance(malicious_field, str):
             malicious_field = str(malicious_field)
@@ -686,6 +682,7 @@ class TestTradingDataErrorHandlingProperties:
         )
 
         try:
+            trading_data_mapper = BackpackOrderMapper()
             result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
             # If transformation succeeds, should not execute malicious content
@@ -709,7 +706,6 @@ class TestTradingDataErrorHandlingProperties:
     def test_parsing_error_handling_consistency(
         self,
         parsing_error_scenario: str,
-        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Property: Parsing errors should be handled consistently with clear error messages."""
@@ -761,6 +757,7 @@ class TestTradingDataErrorHandlingProperties:
             mock_datetime.side_effect = ValueError("Datetime parsing error")
 
         # Property: Should raise TransformationError with clear message
+        trading_data_mapper = BackpackOrderMapper()
         with pytest.raises(TransformationError) as exc_info:
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
@@ -779,9 +776,7 @@ class TestTradingDataErrorHandlingProperties:
         )
     )
     @settings(max_examples=50, deadline=None)
-    def test_invalid_decimal_field_handling(
-        self, invalid_field_values: dict[str, str], trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_invalid_decimal_field_handling(self, invalid_field_values: dict[str, str]) -> None:
         """Property: Invalid decimal fields should be handled gracefully with proper errors."""
         # Create base order with valid defaults
         order_data = {
@@ -817,6 +812,7 @@ class TestTradingDataErrorHandlingProperties:
         raw_order = BackpackRawOrderResponse.model_validate(order_data)
 
         # Property: Should raise TransformationError for invalid decimal fields
+        trading_data_mapper = BackpackOrderMapper()
         with pytest.raises(TransformationError):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
@@ -834,9 +830,7 @@ class TestTradingDataPerformanceProperties:
         order_variation=st.sampled_from(["identical", "varied", "extreme"]),
     )
     @settings(max_examples=20, deadline=None)
-    def test_batch_transformation_efficiency(
-        self, batch_size: int, order_variation: str, trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_batch_transformation_efficiency(self, batch_size: int, order_variation: str) -> None:
         """Property: Batch transformations should be efficient and consistent."""
         orders = []
 
@@ -888,6 +882,7 @@ class TestTradingDataPerformanceProperties:
             orders.append(raw_order)
 
         # Transform all orders
+        trading_data_mapper = BackpackOrderMapper()
         results = []
         for order in orders:
             result = trading_data_mapper.transform_raw_order_to_internal(order)
@@ -908,9 +903,7 @@ class TestTradingDataPerformanceProperties:
         field_type=st.sampled_from(["order_id", "client_id", "symbol"]),
     )
     @settings(max_examples=50, deadline=None)
-    def test_large_string_field_handling(
-        self, large_string_field: str, field_type: str, trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_large_string_field_handling(self, large_string_field: str, field_type: str) -> None:
         """Property: Large string fields should be handled efficiently without memory issues."""
         # Create order with large string in specified field
         order_data = {"id": "normal_id", "clientId": "normal_client", "symbol": "BTC-USDC"}
@@ -943,6 +936,7 @@ class TestTradingDataPerformanceProperties:
         )
 
         try:
+            trading_data_mapper = BackpackOrderMapper()
             result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
             # Property: Large strings should be handled without memory issues
@@ -969,10 +963,9 @@ class TestTradingDataPerformanceProperties:
         )
     )
     @settings(max_examples=30, deadline=None)
-    def test_concurrent_transformation_safety(
-        self, concurrent_orders: list[str], trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_concurrent_transformation_safety(self, concurrent_orders: list[str]) -> None:
         """Property: Concurrent transformations should be safe and not interfere."""
+        trading_data_mapper = BackpackOrderMapper()
         results = []
 
         for order_id in concurrent_orders:
@@ -1039,11 +1032,12 @@ class TestTradingDataConsistencyProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_status_mapping_consistency_property(
-        self, status_mapping: tuple[str, OrderStatus], trading_data_mapper: BackpackOrderMapper
+        self, status_mapping: tuple[str, OrderStatus]
     ) -> None:
         """Property: Status mapping should be consistent regardless of case."""
         input_status, expected_status = status_mapping
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="test_status",
             symbol=SOL_USDC_BP,
@@ -1070,11 +1064,11 @@ class TestTradingDataConsistencyProperties:
     def test_case_insensitive_enum_mappings(
         self,
         enum_mappings: tuple[str, str, str, str | None],
-        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Property: All enum mappings should be case insensitive."""
         side, order_type, status, time_in_force = enum_mappings
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="case_test",
             symbol=SOL_USDC_BP,
@@ -1100,9 +1094,7 @@ class TestTradingDataConsistencyProperties:
 
     @given(precision_values=st.lists(financial_decimal_string_strategy(), min_size=3, max_size=5))
     @settings(max_examples=100, deadline=None)
-    def test_decimal_precision_consistency_across_fields(
-        self, precision_values: list[str], trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_decimal_precision_consistency_across_fields(self, precision_values: list[str]) -> None:
         """Property: Decimal precision should be maintained consistently across all fields."""
         # Skip invalid values
         valid_values = []
@@ -1152,6 +1144,7 @@ class TestTradingDataConsistencyProperties:
             origin=None,
         )
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Precision should be maintained exactly
@@ -1169,9 +1162,7 @@ class TestTradingDataConsistencyProperties:
         ])
     )
     @settings(max_examples=50, deadline=None)
-    def test_none_value_handling_consistency(
-        self, none_scenario: str, trading_data_mapper: BackpackOrderMapper
-    ) -> None:
+    def test_none_value_handling_consistency(self, none_scenario: str) -> None:
         """Property: None values should be handled consistently across transformations."""
         if none_scenario == "market_order":
             order_data = {
@@ -1230,6 +1221,7 @@ class TestTradingDataConsistencyProperties:
             origin=None,
         )
 
+        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: None values should be handled appropriately
@@ -1256,9 +1248,9 @@ class TestTradingDataIntegrationProperties:
     def test_mixed_order_processing_workflow(
         self,
         mixed_order_batch: list[BackpackRawOrderResponse],
-        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Property: Mixed order processing should be consistent and reliable."""
+        trading_data_mapper = BackpackOrderMapper()
         successful_transformations = []
         failed_transformations = []
 
@@ -1301,9 +1293,9 @@ class TestTradingDataIntegrationProperties:
     def test_transformation_sequence_consistency(
         self,
         transformation_sequence: list[tuple[BackpackRawOrderResponse, str]],
-        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Property: Transformation sequences should maintain consistency."""
+        trading_data_mapper = BackpackOrderMapper()
         transformation_results = []
 
         for raw_order, operation in transformation_sequence:

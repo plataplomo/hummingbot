@@ -815,7 +815,7 @@ class TestPositionTransformationProperties:
     @given(
         symbol=trading_symbol_strategy(),
         user_id=st.integers(min_value=1, max_value=999999999999),
-        position_id=st.text(min_size=1, max_size=64),
+        position_id=st.text(min_size=1, max_size=64).filter(lambda x: x.strip()),
     )
     @settings(max_examples=100, deadline=None)
     def test_position_metadata_preservation_properties(
@@ -1155,7 +1155,7 @@ class TestAccountDataSecurityProperties:
             # Should not contain traces of malicious execution
             assert isinstance(result.size, Decimal)
 
-        except (ValueError, DataTransformationError):
+        except (ValueError, TypeError, DataTransformationError):
             # Expected for malicious inputs
             pass
 

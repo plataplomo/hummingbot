@@ -221,7 +221,7 @@ def bp_order_side_strategy() -> SearchStrategy[str]:
     Returns:
         A Hypothesis strategy for Backpack order sides.
     """
-    return st.sampled_from(["Buy", "Sell", "Bid", "Ask"])
+    return st.sampled_from(["Bid", "Ask"])
 
 
 def bp_order_status_strategy() -> SearchStrategy[str]:
@@ -366,10 +366,16 @@ def raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
     if order_type == "STOP":
         trigger_price = draw(decimal_price_strategy())
 
-    executed_quantity = draw(decimal_quantity_strategy())
+    requested_quantity = draw(decimal_quantity_strategy())
+    # Executed quantity must not exceed requested quantity
+    executed_quantity_decimal = Decimal(requested_quantity) * draw(
+        st.floats(min_value=0.0, max_value=1.0)
+    )
+    executed_quantity = str(executed_quantity_decimal)
+
     # If executed_quantity > 0, we need avg_fill_price
     avg_fill_price = None
-    if Decimal(executed_quantity) > 0:
+    if executed_quantity_decimal > 0:
         avg_fill_price = draw(decimal_price_strategy())
 
     return BackpackRawOrderResponse(
@@ -378,7 +384,7 @@ def raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
         symbol=draw(trading_symbol_strategy()),
         side=draw(bp_order_side_strategy()),
         orderType=order_type,
-        quantity=draw(decimal_quantity_strategy()),
+        quantity=requested_quantity,
         price=draw(decimal_price_strategy()),
         status=draw(bp_order_status_strategy()),
         timeInForce=draw(bp_time_in_force_strategy()),

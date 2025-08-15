@@ -1521,11 +1521,11 @@ class TestEdgeCasesProperties:
     )
     def test_malicious_input_resistance(
         self,
-        mapper: CompositeMarketDataMapper,
         malicious_string: str,
         field: str,
     ) -> None:
         """Test resistance to malicious inputs in market data."""
+        mapper = CompositeMarketDataMapper()
         try:
             if field == "symbol":
                 raw_market = create_raw_market(symbol=malicious_string)
@@ -1553,11 +1553,11 @@ class TestEdgeCasesProperties:
     )
     def test_zero_value_handling(
         self,
-        mapper: CompositeMarketDataMapper,
         zero_values: str,
         field: str,
     ) -> None:
         """Test handling of zero values in critical fields."""
+        mapper = CompositeMarketDataMapper()
         kwargs = {
             "tick_size": "0.01",
             "step_size": "0.01",
@@ -1592,10 +1592,10 @@ class TestEdgeCasesProperties:
     )
     def test_unicode_symbol_handling(
         self,
-        mapper: CompositeMarketDataMapper,
         unicode_symbol: str,
     ) -> None:
         """Test handling of unicode characters in symbols."""
+        mapper = CompositeMarketDataMapper()
         try:
             raw_market = create_raw_market(symbol=unicode_symbol)
             result = mapper.transform_raw_market_to_internal(raw_market)
@@ -1616,10 +1616,10 @@ class TestEdgeCasesProperties:
     )
     def test_extreme_decimal_precision(
         self,
-        mapper: CompositeMarketDataMapper,
         extreme_decimal: str,
     ) -> None:
         """Test handling of extreme decimal precision values."""
+        mapper = CompositeMarketDataMapper()
         try:
             raw_market = create_raw_market(
                 tick_size=extreme_decimal,

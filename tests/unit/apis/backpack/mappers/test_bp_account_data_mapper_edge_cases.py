@@ -340,12 +340,12 @@ class TestBoundaryValues:
     @settings(max_examples=50)
     def test_extreme_decimal_values(
         self,
-        mapper: BackpackTransactionMapper,
         price: str,
         quantity: str,
         fee: str,
     ) -> None:
         """Test handling of extreme decimal values."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee=fee,
             feeSymbol="USDC",
@@ -385,12 +385,12 @@ class TestBoundaryValues:
     )
     def test_zero_value_handling(
         self,
-        mapper: BackpackTransactionMapper,
         zero_price: str,
         zero_quantity: str,
         zero_fee: str,
     ) -> None:
         """Test handling of various zero representations."""
+        mapper = BackpackTransactionMapper()
         # Test zero price
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
@@ -433,10 +433,10 @@ class TestUnicodeHandling:
     @settings(max_examples=30)
     def test_unicode_symbols(
         self,
-        mapper: BackpackTransactionMapper,
         symbol: str,
     ) -> None:
         """Test handling of unicode characters in symbols."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
             feeSymbol="USDC",
@@ -471,10 +471,10 @@ class TestUnicodeHandling:
     @settings(max_examples=20)
     def test_unicode_fee_symbols(
         self,
-        mapper: BackpackTransactionMapper,
         fee_symbol: str,
     ) -> None:
         """Test handling of unicode characters in fee symbols."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
             feeSymbol=fee_symbol,
@@ -503,10 +503,10 @@ class TestSpecialCharacters:
     @settings(max_examples=30)
     def test_special_char_symbols(
         self,
-        mapper: BackpackTransactionMapper,
         symbol: str,
     ) -> None:
         """Test handling of special characters in symbols."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
             feeSymbol="USDC",
@@ -539,12 +539,12 @@ class TestWhitespaceHandling:
     @settings(max_examples=30)
     def test_whitespace_in_values(
         self,
-        mapper: BackpackTransactionMapper,
         price: str,
         quantity: str,
         fee: str,
     ) -> None:
         """Test handling of whitespace in numeric values."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee=fee,
             feeSymbol="USDC",
@@ -581,11 +581,11 @@ class TestLongIds:
     @settings(max_examples=20)
     def test_long_id_handling(
         self,
-        mapper: BackpackTransactionMapper,
         order_id: str,
         client_id: str,
     ) -> None:
         """Test handling of very long ID values."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
             feeSymbol="USDC",
@@ -622,11 +622,11 @@ class TestScientificNotation:
     @settings(max_examples=30)
     def test_scientific_notation(
         self,
-        mapper: BackpackTransactionMapper,
         mantissa: float,
         exponent: int,
     ) -> None:
         """Test handling of scientific notation in numeric fields."""
+        mapper = BackpackTransactionMapper()
         sci_value = f"{mantissa}e{exponent}"
 
         raw_fill = BackpackRawFillResponse(
@@ -665,10 +665,10 @@ class TestLargeNumbers:
     @settings(max_examples=30)
     def test_large_trade_ids(
         self,
-        mapper: BackpackTransactionMapper,
         trade_id: int,
     ) -> None:
         """Test handling of large trade ID values."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
             feeSymbol="USDC",
@@ -698,10 +698,10 @@ class TestMaliciousInputs:
     @settings(max_examples=30)
     def test_malicious_symbol_resistance(
         self,
-        mapper: BackpackTransactionMapper,
         malicious: str,
     ) -> None:
         """Test resistance to malicious input in symbols."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
             feeSymbol="USDC",
@@ -733,10 +733,10 @@ class TestMaliciousInputs:
     @settings(max_examples=20)
     def test_malicious_numeric_resistance(
         self,
-        mapper: BackpackTransactionMapper,
         malicious: str,
     ) -> None:
         """Test resistance to malicious input in numeric fields."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee=malicious,
             feeSymbol="USDC",
@@ -768,10 +768,10 @@ class TestErrorHandling:
     @given(raw_fill=valid_raw_fill_strategy())
     def test_decimal_parsing_errors(
         self,
-        mapper: BackpackTransactionMapper,
         raw_fill: BackpackRawFillResponse,
     ) -> None:
         """Test error handling during decimal parsing."""
+        mapper = BackpackTransactionMapper()
         with patch(
             "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
         ) as mock_parse:
@@ -787,10 +787,10 @@ class TestErrorHandling:
     @given(raw_fill=valid_raw_fill_strategy())
     def test_timestamp_parsing_errors(
         self,
-        mapper: BackpackTransactionMapper,
         raw_fill: BackpackRawFillResponse,
     ) -> None:
         """Test error handling during timestamp parsing."""
+        mapper = BackpackTransactionMapper()
         with patch(
             "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_datetime_utc",
         ) as mock_parse:
@@ -810,10 +810,10 @@ class TestCombinedExtreme:
     @settings(max_examples=50)
     def test_combined_extreme_values(
         self,
-        mapper: BackpackTransactionMapper,
         raw_fill: BackpackRawFillResponse,
     ) -> None:
         """Test handling of fills with multiple extreme values."""
+        mapper = BackpackTransactionMapper()
         try:
             result = mapper.transform_raw_fill_to_internal(raw_fill)
 
@@ -851,10 +851,10 @@ class TestNegativeValues:
     )
     def test_negative_value_rejection(
         self,
-        mapper: BackpackTransactionMapper,
         negative: str,
     ) -> None:
         """Test that negative values are properly rejected."""
+        mapper = BackpackTransactionMapper()
         # Test negative price
         raw_fill = BackpackRawFillResponse(
             fee="0.05",
@@ -884,8 +884,9 @@ class TestNegativeValues:
 class TestLegacyCompatibility:
     """Tests to ensure legacy test cases still work."""
 
-    def test_legacy_boundary_decimals(self, mapper: BackpackTransactionMapper) -> None:
+    def test_legacy_boundary_decimals(self) -> None:
         """Legacy test for boundary decimal values."""
+        mapper = BackpackTransactionMapper()
         raw_fill = BackpackRawFillResponse(
             fee="0.000000001",
             feeSymbol="USDC",
@@ -908,8 +909,9 @@ class TestLegacyCompatibility:
         assert result.quantity == Decimal("999999999.999999")
         assert result.fee == Decimal("0.000000001")
 
-    def test_legacy_mixed_case_sides(self, mapper: BackpackTransactionMapper) -> None:
+    def test_legacy_mixed_case_sides(self) -> None:
         """Legacy test for mixed case side values."""
+        mapper = BackpackTransactionMapper()
         for side in ["Ask", "Bid"]:
             raw_fill = BackpackRawFillResponse(
                 fee="0.05",
