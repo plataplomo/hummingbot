@@ -10,8 +10,8 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from cyberdelta.apis.exceptions.request_validation import MissingRequiredParameterError
+from cyberdelta.apis.websocket.exceptions import WebSocketContextCreationError
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
-from cyberdelta.apis.websocket.ws_exceptions import WebSocketContextCreationError
 from cyberdelta.apis.websocket.ws_protocols import (
     WebSocketContextProtocol,
     WebSocketEnvelopeProtocol,

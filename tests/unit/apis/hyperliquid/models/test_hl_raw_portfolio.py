@@ -100,7 +100,7 @@ def vlm_decimal_strategy() -> SearchStrategy[str]:
 
 def timeframe_strategy() -> SearchStrategy[str]:
     """Generate valid timeframe strings.
-    
+
     Returns:
         SearchStrategy for valid timeframe strings.
     """
@@ -119,7 +119,7 @@ def timeframe_strategy() -> SearchStrategy[str]:
 @st.composite
 def valid_history_entry_list_data(draw: st.DrawFn) -> list[Any]:
     """Generate valid history entry as list [timestamp, value].
-    
+
     Returns:
         List containing timestamp and value for history entry.
     """
@@ -132,7 +132,7 @@ def valid_history_entry_list_data(draw: st.DrawFn) -> list[Any]:
 @st.composite
 def valid_history_entry_dict_data(draw: st.DrawFn) -> dict[int, Any]:
     """Generate valid history entry as dict {0: timestamp, 1: value}.
-    
+
     Returns:
         Dict with timestamp and value for history entry.
     """
@@ -145,7 +145,7 @@ def valid_history_entry_dict_data(draw: st.DrawFn) -> dict[int, Any]:
 @st.composite
 def valid_timeframe_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid timeframe data.
-    
+
     Returns:
         Dict containing timeframe data with account value history.
     """
@@ -161,7 +161,7 @@ def valid_timeframe_data(draw: st.DrawFn) -> dict[str, Any]:
 @st.composite
 def valid_portfolio_tuple_item_data(draw: st.DrawFn) -> list[Any]:
     """Generate valid portfolio tuple item as [timeframe, timeframe_data].
-    
+
     Returns:
         List containing timeframe and timeframe data.
     """
@@ -174,7 +174,7 @@ def valid_portfolio_tuple_item_data(draw: st.DrawFn) -> list[Any]:
 @st.composite
 def valid_portfolio_response_data(draw: st.DrawFn) -> list[list[Any]]:
     """Generate valid portfolio response as list of tuple items.
-    
+
     Returns:
         List of portfolio tuple items.
     """
@@ -183,7 +183,7 @@ def valid_portfolio_response_data(draw: st.DrawFn) -> list[list[Any]]:
 
 def malicious_portfolio_strategy() -> SearchStrategy[object]:
     """Generate malicious values for portfolio security testing.
-    
+
     Returns:
         SearchStrategy for malicious portfolio values.
     """
@@ -266,7 +266,7 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
         self, history_data: dict[int, Any]
     ) -> None:
         """Property: Valid history entry dict data should always create valid HyperliquidRaw.
-        
+
         PortfolioHistoryEntry
         objects.
         """
@@ -387,7 +387,7 @@ class TestHyperliquidRawPortfolioTimeframeDataProperties:
         self, timeframe_data: dict[str, Any]
     ) -> None:
         """Property: Valid timeframe data should always create valid HyperliquidRaw.
-        
+
         PortfolioTimeframeData
         objects.
         """
@@ -522,7 +522,7 @@ class TestHyperliquidRawPortfolioTupleItemProperties:
         self, tuple_item_data: list[Any]
     ) -> None:
         """Property: Valid portfolio tuple item data should always create valid HyperliquidRaw.
-        
+
         PortfolioTupleItem
         objects.
         """
@@ -611,7 +611,7 @@ class TestHyperliquidRawPortfolioResponseProperties:
         self, portfolio_data: list[list[Any]]
     ) -> None:
         """Property: Valid portfolio response data should always create valid HyperliquidRaw.
-        
+
         PortfolioResponse
         objects.
         """

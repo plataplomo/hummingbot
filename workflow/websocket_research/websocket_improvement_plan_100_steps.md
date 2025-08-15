@@ -1,7 +1,15 @@
 # WebSocket Module Comprehensive Improvement Plan (100 Steps)
 
+## ⚠️ **PLAN STATUS: SUPERSEDED**
+
+**This 100-step plan has been replaced with a more practical approach.**
+
+**👉 See UPDATED_PRACTICAL_IMPROVEMENT_PLAN.md for the current strategy.**
+
 ## Overview
 This plan systematically addresses all issues identified in the WebSocket module analysis. Steps are organized in phases with clear dependencies and priorities.
+
+**NOTE**: After implementation attempt and analysis, this plan proved overly complex and led to coding standard violations. The updated plan focuses on immediate compliance fixes and practical improvements.
 
 ---
 

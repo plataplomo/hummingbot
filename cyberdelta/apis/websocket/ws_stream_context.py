@@ -12,8 +12,8 @@ from typing import Any
 from pydantic import BaseModel, Field, field_validator
 
 from cyberdelta.apis.common.error_foundation import ErrorChain, ErrorMetadata
+from cyberdelta.apis.websocket.exceptions import WebSocketFieldValidationError
 from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
-from cyberdelta.apis.websocket.ws_exceptions import WebSocketFieldValidationError
 
 
 # Helper factory for type inference
@@ -165,7 +165,11 @@ class StreamErrorContext(BaseModel):
             WebSocketFieldValidationError: If sequence number is negative.
         """
         if v is not None and v < 0:
-            raise WebSocketFieldValidationError("sequence_number", "sequence_non_negative")
+            raise WebSocketFieldValidationError(
+                field_name="sequence_number",
+                field_value=v,
+                validation_error="Sequence number must be non-negative",
+            )
         return v
 
     @field_validator("active_subscriptions", "pending_messages", "reconnect_count")
@@ -180,7 +184,9 @@ class StreamErrorContext(BaseModel):
             WebSocketFieldValidationError: If value is negative.
         """
         if v < 0:
-            raise WebSocketFieldValidationError("field", "non_negative")
+            raise WebSocketFieldValidationError(
+                field_name="field", field_value=v, validation_error="Field must be non-negative"
+            )
         return v
 
     @field_validator("raw_message_size")
@@ -195,7 +201,11 @@ class StreamErrorContext(BaseModel):
             WebSocketFieldValidationError: If message size is negative.
         """
         if v is not None and v < 0:
-            raise WebSocketFieldValidationError("message_size", "message_size_non_negative")
+            raise WebSocketFieldValidationError(
+                field_name="message_size",
+                field_value=v,
+                validation_error="Message size must be non-negative",
+            )
         return v
 
     @field_validator(
@@ -217,11 +227,19 @@ class StreamErrorContext(BaseModel):
         if v is None:
             return v
         if v < 0:
-            raise WebSocketFieldValidationError("timestamp", "timestamp_non_negative")
+            raise WebSocketFieldValidationError(
+                field_name="timestamp",
+                field_value=v,
+                validation_error="Timestamp must be non-negative",
+            )
         # Check for future timestamps (more than 5 seconds in future)
         now_ms = int(datetime.now(UTC).timestamp() * 1000)
         if v > now_ms + 5000:  # 5 seconds tolerance
-            raise WebSocketFieldValidationError("timestamp", "timestamp_future", v)
+            raise WebSocketFieldValidationError(
+                field_name="timestamp",
+                field_value=v,
+                validation_error=f"Timestamp is in the future: {v}",
+            )
         return v
 
     # ========================================================================

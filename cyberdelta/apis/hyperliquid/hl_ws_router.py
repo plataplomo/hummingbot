@@ -39,11 +39,11 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsTradesSubscriptionPayload,
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
+from cyberdelta.apis.websocket.exceptions import EnvelopeValidatorNotSetError
 from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_exceptions import EnvelopeValidatorNotSetError
 from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_transformer import (
     BatchMapperTransformer,

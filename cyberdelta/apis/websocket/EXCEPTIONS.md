@@ -1,11 +1,11 @@
-# WebSocket Exception Hierarchy
+# WebSocket Error Hierarchy
 
-This document provides comprehensive documentation for the WebSocket exception system, including usage examples and migration guidance.
+This document provides comprehensive documentation for the WebSocket error system, including usage examples and migration guidance.
 
-## Exception Hierarchy Overview
+## Error Hierarchy Overview
 
 ```
-WebSocketException (base for all WebSocket errors)
+WebSocketError (base for all WebSocket errors)
 ├── WebSocketDataValidationError (validation-time errors)
 │   ├── PayloadValidationError (payload-specific validation)
 │   │   ├── InvalidPayloadTypeError (type mismatches)
@@ -46,7 +46,7 @@ WebSocketException (base for all WebSocket errors)
 
 ## Key Features
 
-### Base WebSocketException Features
+### Base WebSocketError Features
 - **Automatic error ID generation** for unique tracking
 - **Correlation ID support** for linking related errors
 - **Timestamp tracking** for chronological analysis
@@ -126,7 +126,7 @@ assert validation_error.correlation_id == security_error.correlation_id
 ### 3. Error Categorization and Handling
 
 ```python
-from cyberdelta.apis.websocket.ws_exceptions import WebSocketException
+from cyberdelta.apis.websocket.exceptions import WebSocketError
 
 def handle_websocket_error(error: Exception) -> None:
     if isinstance(error, WebSocketDataValidationError):
@@ -143,16 +143,16 @@ def handle_websocket_error(error: Exception) -> None:
         logger.info(f"Stream error: {error.code}")
 
     # All WebSocket errors provide troubleshooting guidance
-    if isinstance(error, WebSocketException):
+    if isinstance(error, WebSocketError):
         logger.info(f"Troubleshooting: {error.get_troubleshooting_guide()}")
 ```
 
 ### 4. Batch Error Creation
 
 ```python
-from cyberdelta.apis.websocket.ws_exception_factory import create_exception_factory
+from cyberdelta.apis.websocket.exceptions import create_error_factory
 
-factory = create_exception_factory()
+factory = create_error_factory()
 
 # Create multiple related errors for comprehensive validation
 errors = factory.create_batch_validation_errors([
@@ -183,7 +183,7 @@ correlation_id = errors[0].correlation_id
 # All WebSocket exceptions can be serialized for structured logging
 try:
     process_websocket_message(data)
-except WebSocketException as e:
+except WebSocketError as e:
     # Serialize exception for logging/monitoring
     log_data = e.to_dict()
     logger.error("WebSocket processing failed", extra=log_data)
@@ -284,9 +284,9 @@ error2 = factory.create_message_size_exceeds_limit_error(
 # Both errors share correlation ID and have consistent interfaces
 ```
 
-## Exception Factory Methods
+## Error Factory Methods
 
-The `WebSocketExceptionFactory` provides specialized creation methods:
+The `WebSocketErrorFactory` provides specialized creation methods:
 
 ### Payload Validation
 - `create_invalid_payload_type_error()`

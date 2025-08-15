@@ -245,7 +245,7 @@ def parseable_decimal_strategy(draw: st.DrawFn) -> Decimal | int | float | str:
 
 def _is_valid_decimal_string(s: str) -> bool:
     """Check if a string can be parsed as a valid Decimal.
-    
+
     Returns:
         True if string can be parsed as Decimal, False otherwise.
     """
@@ -280,7 +280,7 @@ class TestMarginAccountSummaryProperties:
         available_equity: Decimal,
     ) -> None:
         """Property: Minimal MarginAccountSummary with only required fields should be valid.
-        
+
         always be valid.
         """
         summary = MarginAccountSummary(
@@ -330,7 +330,7 @@ class TestMarginAccountSummaryProperties:
         total_unrealized_pnl: Decimal | None,
     ) -> None:
         """Property: Complete MarginAccountSummary with all core fields should maintain integrity.
-        
+
         data integrity.
         """
         summary = MarginAccountSummary(
@@ -434,7 +434,7 @@ class TestMarginAccountSummaryProperties:
         available_equity: Decimal | float | str,
     ) -> None:
         """Property: MarginAccountSummary should correctly parse various numeric types.
-        
+
         types to Decimal.
         """
         summary = MarginAccountSummary(

@@ -13,7 +13,7 @@ from typing import Any
 from cyberdelta.apis.base.validation_policies import TimestampPolicy
 
 # Import exceptions from unified hierarchy (Step 30: Migration completed)
-from cyberdelta.apis.websocket.ws_exceptions import (
+from cyberdelta.apis.websocket.exceptions import (
     InvalidFieldTypeError,
     InvalidFormatError,
     InvalidItemTypeError,
@@ -175,7 +175,7 @@ class WebSocketPayloadValidators:
         """
         unexpected_fields = [field for field in payload if field not in allowed_fields]
         if unexpected_fields:
-            raise UnexpectedFieldsError(context, unexpected_fields, allowed_fields)
+            raise UnexpectedFieldsError(context, unexpected_fields)
         return payload
 
     @classmethod
@@ -201,11 +201,23 @@ class WebSocketPayloadValidators:
 
         """
         if not isinstance(symbol, str):
-            raise InvalidFieldTypeError(context, type(symbol), "str")
+            raise InvalidFieldTypeError(
+                error_context=context,
+                field_name="symbol",
+                actual_type=type(symbol),
+                expected_type=str,
+                context=None,
+            )
 
         # Pattern-based validation
         if not cls.SYMBOL_PATTERN.match(symbol):
-            raise InvalidFormatError(context, symbol, cls.SYMBOL_PATTERN.pattern)
+            raise InvalidFormatError(
+                error_context=context,
+                field_name="symbol",
+                field_value=symbol,
+                expected_format=cls.SYMBOL_PATTERN.pattern,
+                context=None,
+            )
 
         return symbol
 
@@ -237,11 +249,23 @@ class WebSocketPayloadValidators:
         elif isinstance(symbol, str):
             symbol_str = symbol
         else:
-            raise InvalidFieldTypeError(context, type(symbol), "string or integer")
+            raise InvalidFieldTypeError(
+                error_context=context,
+                field_name="symbol",
+                actual_type=type(symbol),
+                expected_type=str,  # Use str as the expected type
+                context=None,
+            )
 
         # Apply pattern validation
         if not cls.SYMBOL_PATTERN.match(symbol_str):
-            raise InvalidFormatError(context, symbol_str, cls.SYMBOL_PATTERN.pattern)
+            raise InvalidFormatError(
+                error_context=context,
+                field_name="symbol",
+                field_value=symbol_str,
+                expected_format=cls.SYMBOL_PATTERN.pattern,
+                context=None,
+            )
 
         return symbol_str
 
@@ -266,10 +290,22 @@ class WebSocketPayloadValidators:
 
         """
         if not isinstance(topic, str):
-            raise InvalidFieldTypeError(context, type(topic), "str")
+            raise InvalidFieldTypeError(
+                error_context=context,
+                field_name="topic",
+                actual_type=type(topic),
+                expected_type=str,
+                context=None,
+            )
 
         if not cls.TOPIC_PATTERN.match(topic):
-            raise InvalidFormatError(context, topic, cls.TOPIC_PATTERN.pattern)
+            raise InvalidFormatError(
+                error_context=context,
+                field_name="topic",
+                field_value=topic,
+                expected_format=cls.TOPIC_PATTERN.pattern,
+                context=None,
+            )
 
         return topic
 
@@ -294,10 +330,22 @@ class WebSocketPayloadValidators:
 
         """
         if not isinstance(id_value, str):
-            raise InvalidFieldTypeError(context, type(id_value), "str")
+            raise InvalidFieldTypeError(
+                error_context=context,
+                field_name="id",
+                actual_type=type(id_value),
+                expected_type=str,
+                context=None,
+            )
 
         if not cls.ID_PATTERN.match(id_value):
-            raise InvalidFormatError(context, id_value, cls.ID_PATTERN.pattern)
+            raise InvalidFormatError(
+                error_context=context,
+                field_name="id",
+                field_value=id_value,
+                expected_format=cls.ID_PATTERN.pattern,
+                context=None,
+            )
 
         return id_value
 
@@ -326,19 +374,41 @@ class WebSocketPayloadValidators:
 
         """
         if not isinstance(value, str):
-            raise InvalidFieldTypeError(context, type(value), "str")
+            raise InvalidFieldTypeError(
+                error_context=context,
+                field_name="enum_value",
+                actual_type=type(value),
+                expected_type=str,
+                context=None,
+            )
 
         try:
             numeric_value = float(value)
         except ValueError as e:
-            reason = f"'{value}' is not a valid number"
-            raise InvalidNumericValueError(context, value, reason) from e
+            raise InvalidNumericValueError(
+                error_context=context,
+                field_name="numeric_value",
+                field_value=value,
+                context=None,
+            ) from e
 
         if min_value is not None and numeric_value < min_value:
-            raise NumericRangeError(context, numeric_value, min_value=min_value)
+            raise NumericRangeError(
+                error_context=context,
+                field_name="value",
+                field_value=numeric_value,
+                min_value=min_value,
+                context=None,
+            )
 
         if max_value is not None and numeric_value > max_value:
-            raise NumericRangeError(context, numeric_value, max_value=max_value)
+            raise NumericRangeError(
+                error_context=context,
+                field_name="value",
+                field_value=numeric_value,
+                max_value=max_value,
+                context=None,
+            )
 
         return value
 
@@ -366,15 +436,30 @@ class WebSocketPayloadValidators:
         # Type is guaranteed by function signature annotation
 
         if timestamp < 0:
-            raise InvalidTimestampError(context, timestamp, "cannot be negative")
+            raise InvalidTimestampError(
+                error_context=context,
+                field_name="timestamp",
+                field_value=f"{timestamp} (cannot be negative)",
+                context=None,
+            )
 
         # Basic sanity check - not before year 2000 or too far in future
         if timestamp < YEAR_2000_TIMESTAMP:
-            raise InvalidTimestampError(context, timestamp, "is too old")
+            raise InvalidTimestampError(
+                error_context=context,
+                field_name="timestamp",
+                field_value=f"{timestamp} (is too old)",
+                context=None,
+            )
 
         if timestamp_policy == TimestampPolicy.RESTRICT_TO_PAST:
             current_time = int(time.time())
             if timestamp > current_time:
-                raise InvalidTimestampError(context, timestamp, "cannot be in the future")
+                raise InvalidTimestampError(
+                    error_context=context,
+                    field_name="timestamp",
+                    field_value=f"{timestamp} (cannot be in the future)",
+                    context=None,
+                )
 
         return timestamp

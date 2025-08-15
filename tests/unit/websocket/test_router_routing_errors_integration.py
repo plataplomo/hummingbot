@@ -156,6 +156,7 @@ class TestRouterRoutingErrorsIntegration:
         # Set up envelope validator - callable that creates TestEnvelopeModel from dict
         def envelope_validator(data: dict[str, Any]) -> TestEnvelopeModel:
             return TestEnvelopeModel(**data)
+
         router.envelope_validator = envelope_validator
 
         # Empty handlers dict to test routing behavior

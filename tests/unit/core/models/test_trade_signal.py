@@ -90,7 +90,7 @@ ParseableInput = str | int | float | Decimal
 
 def _is_valid_decimal_string(s: str) -> bool:
     """Check if a string can be parsed as a valid Decimal.
-    
+
     Returns:
         True if string can be parsed as Decimal, False otherwise.
     """

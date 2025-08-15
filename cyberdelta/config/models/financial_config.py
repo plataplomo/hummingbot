@@ -252,23 +252,23 @@ class FinancialCalculationConfig(BaseModel):
 
     # Core calculation configurations
     pnl: PnLCalculationConfig = Field(
-        default_factory=lambda: PnLCalculationConfig(),
-        description="PnL calculation settings",  # noqa: PLW0108
+        default_factory=PnLCalculationConfig,
+        description="PnL calculation settings",
     )
 
     fees: FeeCalculationConfig = Field(
-        default_factory=lambda: FeeCalculationConfig(),
-        description="Fee calculation settings",  # noqa: PLW0108
+        default_factory=FeeCalculationConfig,
+        description="Fee calculation settings",
     )
 
     currency: CurrencyConfig = Field(
-        default_factory=lambda: CurrencyConfig(),
-        description="Currency handling settings",  # noqa: PLW0108
+        default_factory=CurrencyConfig,
+        description="Currency handling settings",
     )
 
     precision: PrecisionConfig = Field(
-        default_factory=lambda: PrecisionConfig(),
-        description="Precision and rounding settings",  # noqa: PLW0108
+        default_factory=PrecisionConfig,
+        description="Precision and rounding settings",
     )
 
     performance: PerformanceMetricsConfig = Field(
@@ -277,8 +277,8 @@ class FinancialCalculationConfig(BaseModel):
     )
 
     risk_analytics: RiskAnalyticsConfig = Field(
-        default_factory=lambda: RiskAnalyticsConfig(),
-        description="Risk analytics settings",  # noqa: PLW0108
+        default_factory=RiskAnalyticsConfig,
+        description="Risk analytics settings",
     )
 
     # Global financial settings

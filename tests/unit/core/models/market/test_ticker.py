@@ -101,7 +101,7 @@ def financial_decimal_strategy(
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic price values for ticker data.
-    
+
     Returns:
         Decimal price value for ticker testing.
     """
@@ -111,7 +111,7 @@ def price_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def volume_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic volume values for ticker data.
-    
+
     Returns:
         Decimal volume value for ticker testing.
     """
@@ -137,7 +137,7 @@ def bid_ask_spread_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
 @st.composite
 def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for ticker testing.
-    
+
     Returns:
         Valid Symbol object for testing.
     """
@@ -162,7 +162,7 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for ticker data.
-    
+
     Returns:
         UTC datetime object for ticker testing.
     """
@@ -179,7 +179,7 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 @st.composite
 def hyperliquid_details_strategy(draw: st.DrawFn) -> HyperliquidTickerDetails:
     """Generate valid HyperliquidTickerDetails for testing.
-    
+
     Returns:
         Valid HyperliquidTickerDetails object for testing.
     """
@@ -192,7 +192,7 @@ def hyperliquid_details_strategy(draw: st.DrawFn) -> HyperliquidTickerDetails:
 @st.composite
 def backpack_details_strategy(draw: st.DrawFn) -> BackpackTickerDetails:
     """Generate valid BackpackTickerDetails for testing.
-    
+
     Returns:
         Valid BackpackTickerDetails object for testing.
     """

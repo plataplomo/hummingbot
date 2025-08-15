@@ -107,7 +107,7 @@ def financial_decimal_strategy(
 @st.composite
 def positive_decimal_strategy(draw: st.DrawFn) -> Decimal:
     """Generate positive decimal values for prices and entry prices.
-    
+
     Returns:
         Positive Decimal value for testing.
     """
@@ -121,7 +121,7 @@ def positive_decimal_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def position_size_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic position size values (can be positive, negative, or zero).
-    
+
     Returns:
         Decimal position size value for testing.
     """
@@ -135,7 +135,7 @@ def position_size_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def pnl_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic PnL values (can be negative).
-    
+
     Returns:
         Decimal PnL value for testing.
     """
@@ -149,7 +149,7 @@ def pnl_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for position testing.
-    
+
     Returns:
         Valid Symbol object for testing.
     """
@@ -172,7 +172,7 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for position data.
-    
+
     Returns:
         UTC datetime object for position testing.
     """
@@ -188,7 +188,7 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 @st.composite
 def valid_id_strategy(draw: st.DrawFn) -> str:
     """Generate valid ID strings for position testing.
-    
+
     Returns:
         Valid ID string for testing.
     """
@@ -231,7 +231,7 @@ def consistent_position_data_strategy(draw: st.DrawFn) -> tuple[Decimal, OrderSi
 @st.composite
 def hyperliquid_position_details_strategy(draw: st.DrawFn) -> HyperliquidPositionDetails:
     """Generate valid HyperliquidPositionDetails for testing.
-    
+
     Returns:
         Valid HyperliquidPositionDetails object for testing.
     """
@@ -258,7 +258,7 @@ def hyperliquid_position_details_strategy(draw: st.DrawFn) -> HyperliquidPositio
 @st.composite
 def backpack_position_details_strategy(draw: st.DrawFn) -> BackpackPositionDetails:
     """Generate valid BackpackPositionDetails for testing.
-    
+
     Returns:
         Valid BackpackPositionDetails object for testing.
     """

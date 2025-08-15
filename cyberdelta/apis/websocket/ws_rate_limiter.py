@@ -16,8 +16,7 @@ from typing import Any
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from cyberdelta.apis.base.rate_limit_behavior import RateLimitBehavior
-
-from cyberdelta.apis.websocket.ws_exceptions import (
+from cyberdelta.apis.websocket.exceptions import (
     BurstSizeTooLargeError,
     RateLimitError,
     UnsupportedAlgorithmError,
@@ -405,7 +404,7 @@ class WebSocketRateLimiter:
             self.global_limiter = self._create_limiter(config)
 
 
-# RateLimitError is now imported from ws_exceptions
+# RateLimitError is imported from exceptions module
 
 
 class RateLimitMiddleware:
@@ -436,9 +435,6 @@ class RateLimitMiddleware:
 
         Returns:
             Rate limit check result
-
-        Raises:
-            RateLimitError: If rate limit exceeded and behavior is RAISE_ERROR
         """
         result = self.rate_limiter.check_rate_limit(connection_id, message_type, user_id)
 

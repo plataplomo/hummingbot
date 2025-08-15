@@ -242,13 +242,14 @@ def parse_decimal_value(
                 value=value,
                 reason="Non-finite values (infinity, NaN) not allowed in financial calculations",
             )
-        return decimal_result
     except (InvalidOperation, TypeError) as e:
         raise DecimalFieldError(
             field_name=field_name or "decimal",
             value=value,
             reason=f"Cannot convert to Decimal: {e}",
         ) from e
+    else:
+        return decimal_result
 
 
 def validate_str_field(

@@ -104,7 +104,7 @@ def financial_decimal_strategy(
 @st.composite
 def balance_quantity_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic balance quantity values (non-negative).
-    
+
     Returns:
         Non-negative Decimal balance quantity for testing.
     """
@@ -118,7 +118,7 @@ def balance_quantity_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def collateral_weight_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic collateral weight values (0 to 1.0).
-    
+
     Returns:
         Decimal collateral weight between 0 and 1 for testing.
     """
@@ -132,7 +132,7 @@ def collateral_weight_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for balance testing.
-    
+
     Returns:
         Valid Symbol object for testing.
     """
@@ -155,7 +155,7 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for balance data.
-    
+
     Returns:
         UTC datetime object for balance testing.
     """
@@ -191,7 +191,7 @@ def consistent_balance_quantities_strategy(draw: st.DrawFn) -> tuple[Decimal, De
 @st.composite
 def backpack_balance_details_strategy(draw: st.DrawFn) -> BackpackSpotBalanceDetails:
     """Generate valid BackpackSpotBalanceDetails for testing.
-    
+
     Returns:
         Valid BackpackSpotBalanceDetails object for testing.
     """

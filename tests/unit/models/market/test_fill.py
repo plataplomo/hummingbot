@@ -56,7 +56,7 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
     """Generate positive Decimal values for financial calculations.
-    
+
     Returns:
         SearchStrategy for positive Decimal values.
     """
@@ -78,7 +78,7 @@ def price_strategy() -> SearchStrategy[Decimal]:
 
 def quantity_strategy() -> SearchStrategy[Decimal]:
     """Generate realistic quantity values.
-    
+
     Returns:
         SearchStrategy for realistic quantity values.
     """
@@ -127,7 +127,7 @@ def exchange_strategy() -> SearchStrategy[ExchangeName]:
 
 def symbol_strategy() -> SearchStrategy[object]:
     """Generate valid Symbol objects.
-    
+
     Returns:
         SearchStrategy for valid Symbol objects.
     """
@@ -181,7 +181,7 @@ def asset_strategy() -> SearchStrategy[str]:
 
 def basic_fill_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for valid basic fills.
-    
+
     Returns:
         SearchStrategy for basic fill data dictionaries.
     """
@@ -199,7 +199,7 @@ def basic_fill_data_strategy() -> SearchStrategy[dict[str, Any]]:
 
 def fill_with_fee_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for fills with fees.
-    
+
     Returns:
         SearchStrategy for fill data with fee information.
     """

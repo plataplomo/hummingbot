@@ -124,7 +124,7 @@ def financial_decimal_strategy(
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic price values for order data.
-    
+
     Returns:
         Decimal price value for order testing.
     """
@@ -134,7 +134,7 @@ def price_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic quantity values for order data.
-    
+
     Returns:
         Decimal quantity value for order testing.
     """
@@ -162,7 +162,7 @@ def filled_quantity_strategy(draw: st.DrawFn, max_quantity: Decimal) -> Decimal:
 @st.composite
 def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for order testing.
-    
+
     Returns:
         Valid Symbol object for testing.
     """
@@ -185,7 +185,7 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for order data.
-    
+
     Returns:
         UTC datetime object for order testing.
     """
@@ -201,7 +201,7 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 @st.composite
 def valid_id_strategy(draw: st.DrawFn) -> str:
     """Generate valid ID strings for order testing.
-    
+
     Returns:
         Valid ID string for testing.
     """
@@ -219,7 +219,7 @@ def valid_id_strategy(draw: st.DrawFn) -> str:
 @st.composite
 def hyperliquid_order_details_strategy(draw: st.DrawFn) -> HyperliquidOrderDetails:
     """Generate valid HyperliquidOrderDetails for testing.
-    
+
     Returns:
         Valid HyperliquidOrderDetails object for testing.
     """
@@ -235,7 +235,7 @@ def hyperliquid_order_details_strategy(draw: st.DrawFn) -> HyperliquidOrderDetai
 @st.composite
 def backpack_order_details_strategy(draw: st.DrawFn) -> BackpackOrderDetails:
     """Generate valid BackpackOrderDetails for testing.
-    
+
     Returns:
         Valid BackpackOrderDetails object for testing.
     """

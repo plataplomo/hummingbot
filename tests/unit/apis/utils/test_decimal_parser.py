@@ -795,8 +795,10 @@ class TestDecimalParserIntegrationProperties:
 
             # DEFENSIVE CHECK: Ensure result is not None after default processing.
             # Pypy reports argument type issue here
-            if (result is not None and 
-                context.range_policy in [RangePolicy.ANY, RangePolicy.NON_NEGATIVE]):
+            if result is not None and context.range_policy in [
+                RangePolicy.ANY,
+                RangePolicy.NON_NEGATIVE,
+            ]:
                 # Further processing should work with the default zero if range policy allows
                 validated = validate_positive_decimal(result, context)
                 formatted = format_decimal_for_exchange(validated, decimal_places)

@@ -9,9 +9,10 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol
+from uuid import uuid4
 
+from cyberdelta.apis.websocket.exceptions import WebSocketConfigurationError
 from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
-from cyberdelta.apis.websocket.ws_exceptions import WebSocketConfigurationError
 from cyberdelta.apis.websocket.ws_stream_error_handler import (
     RecoveryHandlerProtocol,
     WebSocketStreamErrorHandler,
@@ -108,10 +109,16 @@ class WebSocketErrorHandlerFactory:
         # Validate supported exchanges
         supported_exchanges = {ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK}
         if exchange not in supported_exchanges:
+            supported_list = [e.value for e in supported_exchanges]
+            error_msg = (
+                f"Unsupported exchange '{exchange.value}'. "
+                f"Supported exchanges are: {', '.join(supported_list)}. "
+                f"Please provide a valid exchange from the supported list."
+            )
             raise WebSocketConfigurationError(
-                component="ErrorHandlerFactory",
-                issue=f"Unsupported exchange '{exchange.value}'",
-                available_options=[e.value for e in supported_exchanges],
+                message=error_msg,
+                error_id=str(uuid4()),
+                correlation_id=str(uuid4()),
             )
 
         # Create exchange-specific logger
@@ -171,18 +178,30 @@ class WebSocketErrorHandlerFactory:
         # Validate inputs
         supported_exchanges = {ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK}
         if exchange not in supported_exchanges:
+            supported_list = [e.value for e in supported_exchanges]
+            error_msg = (
+                f"Unsupported exchange '{exchange.value}'. "
+                f"Supported exchanges are: {', '.join(supported_list)}. "
+                f"Please provide a valid exchange from the supported list."
+            )
             raise WebSocketConfigurationError(
-                component="ErrorHandlerFactory",
-                issue=f"Unsupported exchange '{exchange.value}'",
-                available_options=[e.value for e in supported_exchanges],
+                message=error_msg,
+                error_id=str(uuid4()),
+                correlation_id=str(uuid4()),
             )
 
         supported_envs = {"production", "staging", "development", "test"}
         if environment not in supported_envs:
+            supported_list = sorted(supported_envs)
+            error_msg = (
+                f"Unsupported environment '{environment}'. "
+                f"Supported environments are: {', '.join(supported_list)}. "
+                f"Please provide a valid environment from the supported list."
+            )
             raise WebSocketConfigurationError(
-                component="ErrorHandlerFactory",
-                issue=f"Unsupported environment '{environment}'",
-                available_options=sorted(supported_envs),
+                message=error_msg,
+                error_id=str(uuid4()),
+                correlation_id=str(uuid4()),
             )
 
         # Create exchange-specific recovery configuration
@@ -234,13 +253,7 @@ class WebSocketErrorHandlerFactory:
                 sequence_gap_recovery_method="full_resync",
             )
 
-        else:
-            # This should never happen due to validation above
-            raise WebSocketConfigurationError(
-                component="ErrorHandlerFactory",
-                issue=f"Unsupported exchange: {exchange}",
-                available_options=[],
-            )
+        # Note: No else clause needed - validation above ensures only supported exchanges reach here
 
         # Adjust settings based on environment
         if environment == "development":

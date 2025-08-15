@@ -136,7 +136,7 @@ def side_strategy() -> SearchStrategy[OrderSide]:
 
 def signal_strategy() -> SearchStrategy[TradeSignal]:
     """Generate valid trade signal.
-    
+
     Returns:
         SearchStrategy for TradeSignal objects.
     """
@@ -164,7 +164,7 @@ def signal_strategy() -> SearchStrategy[TradeSignal]:
 @pytest.fixture
 def mock_config_simple() -> MagicMock:
     """Create mock configuration for simple sizing method.
-    
+
     Returns:
         Mock AppSettings configured for simple sizing.
     """
@@ -192,7 +192,7 @@ def mock_config_simple() -> MagicMock:
 @pytest.fixture
 def mock_config_kelly() -> MagicMock:
     """Create mock configuration for Kelly sizing method.
-    
+
     Returns:
         Mock AppSettings configured for Kelly sizing.
     """
@@ -221,7 +221,7 @@ def mock_config_kelly() -> MagicMock:
 @pytest.fixture
 def simple_sizer(mock_config_simple: MagicMock) -> PositionSizer:
     """Create position sizer with simple method.
-    
+
     Returns:
         PositionSizer configured for simple sizing.
     """
@@ -231,7 +231,7 @@ def simple_sizer(mock_config_simple: MagicMock) -> PositionSizer:
 @pytest.fixture
 def kelly_sizer(mock_config_kelly: MagicMock) -> PositionSizer:
     """Create position sizer with Kelly method.
-    
+
     Returns:
         PositionSizer configured for Kelly sizing.
     """
@@ -248,7 +248,7 @@ class TestPositionSizeConstraints:
 
     def _create_simple_sizer(self) -> PositionSizer:
         """Create a simple sizer for testing.
-        
+
         Returns:
             PositionSizer with default simple configuration.
         """

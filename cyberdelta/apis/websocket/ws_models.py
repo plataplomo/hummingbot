@@ -12,11 +12,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
-from cyberdelta.apis.websocket.ws_exceptions import (
+from cyberdelta.apis.websocket.exceptions import (
     AuthenticationErrorMismatchError,
     SuccessErrorMismatchError,
 )
-from cyberdelta.apis.websocket.websocket_states import FieldPresenceState
 
 
 class BaseWebSocketMessage(BaseModel, ABC):

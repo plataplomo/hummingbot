@@ -12,6 +12,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
+from cyberdelta.apis.websocket.exceptions import (
+    EmptyRoutingKeyError,
+    EnvelopeValidationFailedError,
+    InvalidRoutingKeyFormatError,
+    PayloadTooLargeError,
+)
+
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -20,18 +27,6 @@ if TYPE_CHECKING:
 # Constants for validation limits
 MAX_PAYLOAD_DICT_SIZE = 1000
 MAX_PAYLOAD_LIST_SIZE = 10000
-
-
-# ============================================================================
-# Exception Imports (Step 30: Migration to unified hierarchy completed)
-# ============================================================================
-
-from cyberdelta.apis.websocket.ws_exceptions import (
-    EmptyRoutingKeyError,
-    EnvelopeValidationFailedError,
-    InvalidRoutingKeyFormatError,
-    PayloadTooLargeError,
-)
 
 
 @runtime_checkable

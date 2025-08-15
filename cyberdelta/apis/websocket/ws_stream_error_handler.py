@@ -18,15 +18,15 @@ from cyberdelta.apis.common.error_foundation import (
     TypedLogger,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_metrics import AggregatedMetrics, WebSocketErrorMetrics
-from cyberdelta.apis.websocket.ws_exceptions import (
+from cyberdelta.apis.websocket.exceptions import (
     WebSocketConnectionError,
     WebSocketMessageFormatError,
     WebSocketSequenceError,
     WebSocketStreamInterruptedError,
     WebSocketValidationError,
 )
+from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_error_metrics import AggregatedMetrics, WebSocketErrorMetrics
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
@@ -263,10 +263,10 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             raise TypeError(type(error_context_obj).__name__)
         error_context = error_context_obj
 
-        # Extract validation details
+        # Extract validation details for more informative error messages
         field_errors = error.errors()
 
-        # Extract field name and value safely
+        # Extract field name and value for better error reporting
         field_name: str | None = None
         field_value: object | None = None
 
@@ -284,13 +284,23 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
             if "input" in first_error:
                 field_value = first_error["input"]
 
+        # Create more informative error message using extracted field info
+        if field_name and field_value is not None:
+            message = (
+                f"Validation failed for field '{field_name}' with value '{field_value}': {error}"
+            )
+        elif field_name:
+            message = f"Validation failed for field '{field_name}': {error}"
+        else:
+            message = f"Validation failed: {error}"
+
         # Create typed WebSocket error
         ws_error = WebSocketValidationError(
-            message=f"Validation failed: {error}",
+            message=message,
             context=error_context,
+            cause=error,
             field=field_name,
             value=field_value,
-            cause=error,
         )
 
         # Handle the error
@@ -326,7 +336,7 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         error_context_obj = context.create_error_context()
         if not isinstance(error_context_obj, StreamErrorContext):
             raise TypeError(type(error_context_obj).__name__)
-        error_context = error_context_obj
+        # error_context_obj is created, type-checked, and passed to the error constructor below
 
         # Determine actual format
         actual_format = type(actual_data).__name__
@@ -337,21 +347,10 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         elif isinstance(actual_data, str):
             actual_format = "string"
 
-        # Convert actual_data to string for raw_message
-        raw_message: str | None = None
-        if actual_data is not None:
-            data_str = str(actual_data)
-            raw_message = (
-                data_str[:RAW_MESSAGE_TRUNCATE_LENGTH]
-                if len(data_str) > RAW_MESSAGE_TRUNCATE_LENGTH
-                else data_str
-            )
-
         ws_error = WebSocketMessageFormatError(
-            context=error_context,
-            expected_format=expected_format,
-            actual_format=actual_format,
-            raw_message=raw_message,
+            message=f"Invalid message format: expected {expected_format}, got {actual_format}",
+            context=error_context_obj,
+            code=WebSocketErrorCode.INVALID_MESSAGE_FORMAT,
         )
 
         await self.handle_stream_error(ws_error)
@@ -385,11 +384,16 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
 
         gap_size = abs(actual_seq - expected_seq) if actual_seq > expected_seq else 0
 
+        gap_msg = f" (gap of {gap_size} messages)" if gap_size > 0 else ""
+        error_code = (
+            WebSocketErrorCode.SEQUENCE_OUT_OF_ORDER
+            if actual_seq > expected_seq
+            else WebSocketErrorCode.SEQUENCE_DUPLICATE
+        )
         ws_error = WebSocketSequenceError(
+            message=f"Sequence error: expected {expected_seq}, got {actual_seq}{gap_msg}",
             context=error_context,
-            expected_seq=expected_seq,
-            actual_seq=actual_seq,
-            gap_size=gap_size if gap_size > 0 else None,
+            code=error_code,
         )
 
         await self.handle_stream_error(ws_error)
@@ -458,11 +462,12 @@ class WebSocketStreamErrorHandler(TypedLogger[WebSocketStreamLogData]):
         error_context_obj = context.create_error_context()
         if not isinstance(error_context_obj, StreamErrorContext):
             raise TypeError(type(error_context_obj).__name__)
-        error_context = error_context_obj
+        # error_context_obj is created, type-checked, and passed to the error constructor below
 
         ws_error = WebSocketStreamInterruptedError(
-            context=error_context,
-            reason=reason,
+            message=f"WebSocket stream interrupted: {reason}",
+            context=error_context_obj,
+            code=WebSocketErrorCode.STREAM_INTERRUPTED,
         )
 
         await self.handle_stream_error(ws_error)

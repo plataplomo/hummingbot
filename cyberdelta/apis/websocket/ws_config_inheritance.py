@@ -18,10 +18,11 @@ import time
 from abc import ABC, abstractmethod
 from enum import StrEnum
 from typing import Any, NotRequired, TypedDict, Unpack, cast
+from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
-from cyberdelta.apis.websocket.ws_exceptions import WebSocketConfigurationError
+from cyberdelta.apis.websocket.exceptions import WebSocketConfigurationError
 
 # Import existing performance configurations
 from cyberdelta.apis.websocket.ws_performance_configs import (
@@ -216,10 +217,16 @@ class HierarchicalConfigurationStrategy(ConfigurationStrategy):
                 return self._config_hierarchy[base_class.__name__]
 
         # No fallback - require explicit configuration for all models
+        available_models = list(self._config_hierarchy.keys())
+        error_msg = (
+            f"Missing configuration for model type '{model_type.__name__}'. "
+            f"Available configured models: {', '.join(available_models)}. "
+            f"Please add an entry for this model in the configuration hierarchy."
+        )
         raise WebSocketConfigurationError(
-            component=f"model {model_type.__name__}",
-            issue="No configuration found",
-            available_options=list(self._config_hierarchy.keys()),
+            message=error_msg,
+            error_id=str(uuid4()),
+            correlation_id=str(uuid4()),
         )
 
     def _merge_configs(self, base_config: ConfigDict, modifiers: dict[str, Any]) -> ConfigDict:
@@ -338,6 +345,8 @@ class PerformanceProfileStrategy(ConfigurationStrategy):
         Returns:
             ConfigDict based on performance profile associated with the context
         """
+        # model_type is not used in this strategy but is required by the interface
+        _ = model_type
         # Map context to performance profile
         profile = self._context_profile_mapping.get(context, PerformanceProfile.BALANCED)
 
@@ -399,10 +408,16 @@ class CompositeConfigurationStrategy(ConfigurationStrategy):
                 return strategy.get_config(model_type, context)
 
         # No fallback - require explicit strategy support
+        supported_contexts = [s.__class__.__name__ for s in self.strategies]
+        error_msg = (
+            f"No strategy supports configuration context '{context.name}'. "
+            f"Supported contexts: {', '.join(supported_contexts)}. "
+            f"Available strategies do not handle this context type."
+        )
         raise WebSocketConfigurationError(
-            component="configuration strategies",
-            issue=f"No strategy supports context {context}",
-            available_options=[s.__class__.__name__ for s in self.strategies],
+            message=error_msg,
+            error_id=str(uuid4()),
+            correlation_id=str(uuid4()),
         )
 
     def supports_context(self, context: ConfigurationContext) -> bool:

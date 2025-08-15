@@ -152,7 +152,7 @@ class TestErrorPersistence:
     @pytest.fixture
     def temp_persistence_path(self) -> Generator[Path]:
         """Create temporary persistence path.
-        
+
         Yields:
             Path: Temporary file path for error persistence.
         """

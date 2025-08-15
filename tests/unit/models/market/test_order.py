@@ -54,7 +54,7 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
     """Generate positive Decimal values for financial calculations.
-    
+
     Returns:
         SearchStrategy for positive Decimal values.
     """
@@ -76,7 +76,7 @@ def price_strategy() -> SearchStrategy[Decimal]:
 
 def quantity_strategy() -> SearchStrategy[Decimal]:
     """Generate realistic quantity values.
-    
+
     Returns:
         SearchStrategy for realistic quantity values.
     """
@@ -133,7 +133,7 @@ def exchange_strategy() -> SearchStrategy[ExchangeName]:
 
 def symbol_strategy() -> SearchStrategy[object]:
     """Generate valid Symbol objects.
-    
+
     Returns:
         SearchStrategy for valid Symbol objects.
     """
@@ -168,7 +168,7 @@ def order_status_strategy() -> SearchStrategy[OrderStatus]:
 
 def limit_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for valid limit orders.
-    
+
     Returns:
         SearchStrategy for limit order data dictionaries.
     """
@@ -185,7 +185,7 @@ def limit_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
 
 def market_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for valid market orders.
-    
+
     Returns:
         SearchStrategy for market order data dictionaries.
     """
@@ -201,7 +201,7 @@ def market_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
 
 def stop_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate data for valid stop orders.
-    
+
     Returns:
         SearchStrategy for stop order data dictionaries.
     """

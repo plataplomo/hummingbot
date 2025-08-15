@@ -17,16 +17,16 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     ErrorRecoveryMode,
     MemoryOptimizationMode,
 )
+from cyberdelta.apis.websocket.exceptions import (
+    EnvelopeValidatorNotSetError,
+    WebSocketValidationError,
+)
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_recovery import (
     ConnectionRecovery,
     ErrorRecoveryConfig,
     WebSocketErrorRecovery,
-)
-from cyberdelta.apis.websocket.ws_exceptions import (
-    EnvelopeValidatorNotSetError,
-    WebSocketValidationError,
 )
 from cyberdelta.apis.websocket.ws_memory_optimized import (
     MemoryOptimizedMessageContext,
@@ -311,10 +311,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         ws_error = WebSocketValidationError(
             message=f"Invalid message envelope format: {error}",
             context=error_context,
-            field="envelope",
-            value=message,
             code=WebSocketErrorCode.VALIDATION_FAILED,
             cause=error,
+            field="envelope",
+            value=message,
         )
 
         # Handle with typed error system
@@ -338,10 +338,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         ws_error = WebSocketValidationError(
             message="Unable to extract routing key from validated envelope",
             context=error_context,
-            field="routing_key",
-            value=envelope,
             code=WebSocketErrorCode.ROUTER_ERROR,
             cause=ValueError("No routing key found in envelope"),
+            field="routing_key",
+            value=envelope,
         )
 
         # Handle with typed error system
@@ -369,10 +369,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         ws_error = WebSocketValidationError(
             message=f"No handler found for routing key: {routing_key}",
             context=error_context,
-            field="routing_key",
-            value=routing_key,
             code=WebSocketErrorCode.HANDLER_ERROR,
             cause=ValueError(f"No handler registered for routing key: {routing_key}"),
+            field="routing_key",
+            value=routing_key,
         )
 
         # Handle with typed error system
@@ -398,10 +398,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         error = WebSocketValidationError(
             message=f"No processor found for routing key: {routing_key}",
             context=error_context,
-            field="routing_key",
-            value=routing_key,
             code=WebSocketErrorCode.PROCESSOR_ERROR,
             cause=ValueError(f"No processor found for routing key: {routing_key}"),
+            field="routing_key",
+            value=routing_key,
         )
 
         # Handle with typed error system
@@ -443,10 +443,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             ws_error = WebSocketValidationError(
                 message=f"WebSocket routing error: {e!s}",
                 context=error_context,
-                field="message_routing",
-                value=message,
                 code=WebSocketErrorCode.ROUTER_ERROR,
                 cause=e,
+                field="message_routing",
+                value=message,
             )
 
             # Handle with typed error system
@@ -628,10 +628,10 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         ws_error = WebSocketValidationError(
             message=f"Failed to send WebSocket message: {error}",
             context=error_context,
-            field="message_send",
-            value=message,
             code=WebSocketErrorCode.ROUTER_ERROR,
             cause=error,
+            field="message_send",
+            value=message,
         )
 
         # Handle with typed error system

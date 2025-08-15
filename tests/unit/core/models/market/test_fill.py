@@ -112,7 +112,7 @@ def financial_decimal_strategy(
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic price values for fill data.
-    
+
     Returns:
         Decimal price value for fill testing.
     """
@@ -122,7 +122,7 @@ def price_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic quantity values for fill data.
-    
+
     Returns:
         Decimal quantity value for fill testing.
     """
@@ -132,7 +132,7 @@ def quantity_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def fee_strategy(draw: st.DrawFn) -> Decimal:
     """Generate realistic fee values (can be negative for rebates).
-    
+
     Returns:
         Decimal fee value for fill testing.
     """
@@ -146,7 +146,7 @@ def fee_strategy(draw: st.DrawFn) -> Decimal:
 @st.composite
 def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for fill testing.
-    
+
     Returns:
         Valid Symbol object for testing.
     """
@@ -169,7 +169,7 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """Generate valid UTC timestamps for fill data.
-    
+
     Returns:
         UTC datetime object for fill testing.
     """
@@ -185,7 +185,7 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 @st.composite
 def valid_id_strategy(draw: st.DrawFn) -> str:
     """Generate valid ID strings for fill testing.
-    
+
     Returns:
         Valid ID string for testing.
     """
@@ -203,7 +203,7 @@ def valid_id_strategy(draw: st.DrawFn) -> str:
 @st.composite
 def fee_asset_strategy(draw: st.DrawFn) -> str:
     """Generate valid fee asset names.
-    
+
     Returns:
         Valid fee asset name string.
     """
@@ -213,7 +213,7 @@ def fee_asset_strategy(draw: st.DrawFn) -> str:
 @st.composite
 def hyperliquid_fill_details_strategy(draw: st.DrawFn) -> HyperliquidFillDetails:
     """Generate valid HyperliquidFillDetails for testing.
-    
+
     Returns:
         Valid HyperliquidFillDetails object for testing.
     """
@@ -238,7 +238,7 @@ def hyperliquid_fill_details_strategy(draw: st.DrawFn) -> HyperliquidFillDetails
 @st.composite
 def backpack_fill_details_strategy(draw: st.DrawFn) -> BackpackFillDetails:
     """Generate valid BackpackFillDetails for testing.
-    
+
     Returns:
         Valid BackpackFillDetails object for testing.
     """

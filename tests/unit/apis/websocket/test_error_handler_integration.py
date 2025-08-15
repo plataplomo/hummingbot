@@ -480,7 +480,7 @@ class TestErrorHandlerIntegration:
         error_context: StreamErrorContext,
     ) -> None:
         """Test complete validation error handling flow.
-        
+
         Raises:
             AssertionError: If validation or error handling doesn't work as expected.
         """

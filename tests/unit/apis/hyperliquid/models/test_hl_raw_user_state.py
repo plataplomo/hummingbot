@@ -44,11 +44,11 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 
 def _format_ethereum_address(prefix: str, hex_part: str) -> str:
     """Format Ethereum address from prefix and hex part.
-    
+
     Args:
         prefix: Address prefix (usually '0x')
         hex_part: Hexadecimal part of the address
-        
+
     Returns:
         Formatted Ethereum address
     """
@@ -340,7 +340,7 @@ class TestHyperliquidRawLeverageProperties:
     @given(leverage_data=valid_leverage_data())
     def test_leverage_validation_success_properties(self, leverage_data: dict[str, Any]) -> None:
         """Property: Valid leverage data should always create valid HyperliquidRaw.
-        
+
         Leverage
         objects.
         """
@@ -458,7 +458,7 @@ class TestHyperliquidRawMarginSummaryProperties:
         self, margin_data: dict[str, Any]
     ) -> None:
         """Property: Valid margin summary data should always create valid HyperliquidRaw.
-        
+
         MarginSummary
         objects.
         """
@@ -614,7 +614,7 @@ class TestHyperliquidRawPositionInfoProperties:
         self, position_data: dict[str, Any]
     ) -> None:
         """Property: Valid position info data should always create valid HyperliquidRaw.
-        
+
         PositionInfo
         objects.
         """
@@ -751,7 +751,7 @@ class TestHyperliquidRawAssetPositionProperties:
         self, asset_position_data: dict[str, Any]
     ) -> None:
         """Property: Valid asset position data should always create valid HyperliquidRaw.
-        
+
         AssetPosition
         objects.
         """
@@ -844,7 +844,7 @@ class TestHyperliquidRawClearinghouseStateProperties:
         self, state_data: dict[str, Any]
     ) -> None:
         """Property: Valid clearinghouse state data should always create valid HyperliquidRaw.
-        
+
         ClearinghouseState
         objects.
         """
@@ -982,7 +982,7 @@ class TestHyperliquidRawUserStateRequestPayloadProperties:
         self, request_data: dict[str, Any]
     ) -> None:
         """Property: Valid user state request data should always create valid HyperliquidRaw.
-        
+
         UserStateRequestPayload
         objects.
         """
