@@ -7,9 +7,11 @@ ensuring thread safety, proper resource management, and no race conditions.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import random
 import time
-from typing import Protocol, cast
+from collections.abc import Awaitable
+from typing import Any, Protocol, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -25,6 +27,32 @@ from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorRecoveryConfig,
 )
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
+
+
+# Deterministic test data generation
+_test_counter = 0
+
+
+def _get_deterministic_float(seed: str, min_val: float, max_val: float) -> float:
+    """Generate deterministic float for test reproducibility.
+
+    Returns:
+        float: Deterministic float value between min_val and max_val.
+    """
+    hash_value = int(hashlib.sha256(seed.encode()).hexdigest()[:8], 16)
+    normalized = (hash_value % 10000) / 10000.0  # 0.0 to 1.0
+    return min_val + (max_val - min_val) * normalized
+
+
+def _get_deterministic_choice(seed: str, choices: list[WebSocketErrorCode]) -> WebSocketErrorCode:
+    """Generate deterministic choice for test reproducibility.
+
+    Returns:
+        WebSocketErrorCode: Deterministically selected choice from the list.
+    """
+    hash_value = int(hashlib.sha256(seed.encode()).hexdigest()[:8], 16)
+    index = hash_value % len(choices)
+    return choices[index]
 
 
 class MetricsProtocol(Protocol):
@@ -93,8 +121,10 @@ class TestConcurrentErrorHandling:
         Returns:
             bool: True if reconnection successful (80% success rate).
         """
-        await asyncio.sleep(random.uniform(0.01, 0.05))
-        return random.random() > 0.2  # 80% success rate
+        delay = _get_deterministic_float("reconnect_delay", 0.01, 0.05)
+        await asyncio.sleep(delay)
+        success_rate = _get_deterministic_float("reconnect_success", 0.0, 1.0)
+        return success_rate > 0.2  # 80% success rate
 
     async def _simulate_reset(self) -> bool:
         """Simulate connection reset with delay.
@@ -102,7 +132,8 @@ class TestConcurrentErrorHandling:
         Returns:
             bool: True indicating successful reset.
         """
-        await asyncio.sleep(random.uniform(0.02, 0.08))
+        delay = _get_deterministic_float("reset_delay", 0.02, 0.08)
+        await asyncio.sleep(delay)
         return True
 
     async def test_concurrent_same_error_type(
@@ -155,9 +186,9 @@ class TestConcurrentErrorHandling:
             WebSocketErrorCode.SEQUENCE_GAP,
         ]
 
-        errors = []
+        errors: list[WebSocketStreamError] = []
         for i in range(25):
-            code = random.choice(error_types)
+            code = _get_deterministic_choice(f"error_type_{i}", error_types)
             errors.append(
                 ErrorTestFactory.create_test_error(
                     code=code,
@@ -166,8 +197,8 @@ class TestConcurrentErrorHandling:
             )
 
         # Handle all concurrently
-        tasks = [handler.handle_stream_error(error) for error in errors]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        tasks: list[Awaitable[None]] = [handler.handle_stream_error(error) for error in errors]
+        results: list[Any] = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify all were handled
         assert len(results) == 25
@@ -235,7 +266,7 @@ class TestConcurrentErrorHandling:
         ]
 
         # Handle concurrently
-        tasks = [handler.handle_stream_error(error) for error in errors]
+        tasks: list[Awaitable[None]] = [handler.handle_stream_error(error) for error in errors]
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # If there were race conditions, counter would be less than 50
@@ -310,7 +341,7 @@ class TestConcurrentErrorHandling:
             WebSocketErrorCode.AUTH_FAILED: 15,
         }
 
-        errors = []
+        errors: list[WebSocketStreamError] = []
         for code, count in error_counts.items():
             errors.extend([ErrorTestFactory.create_test_error(code=code) for _ in range(count)])
 
@@ -318,7 +349,7 @@ class TestConcurrentErrorHandling:
         random.shuffle(errors)
 
         # Handle concurrently
-        tasks = [handler.handle_stream_error(error) for error in errors]
+        tasks: list[Awaitable[None]] = [handler.handle_stream_error(error) for error in errors]
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify metrics accuracy
@@ -338,7 +369,7 @@ class TestConcurrentErrorHandling:
     ) -> None:
         """Test that the system doesn't deadlock under concurrent load."""
         # Create multiple recovery systems that might compete for resources
-        systems = []
+        systems: list[StreamRecoverySystem] = []
         for _ in range(3):
             system = StreamRecoverySystem(
                 config=recovery_config,
@@ -351,18 +382,18 @@ class TestConcurrentErrorHandling:
             systems.append(system)
 
         # Create errors for each system
-        all_tasks = []
+        all_tasks: list[Awaitable[bool]] = []
         for system in systems:
             errors = [
                 ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
                 for _ in range(10)
             ]
-            tasks = [system.handle_stream_error(error) for error in errors]
+            tasks: list[Awaitable[bool]] = [system.handle_stream_error(error) for error in errors]
             all_tasks.extend(tasks)
 
         # Run with timeout to detect deadlock
         try:
-            results = await asyncio.wait_for(
+            results: list[Any] = await asyncio.wait_for(
                 asyncio.gather(*all_tasks, return_exceptions=True), timeout=5.0
             )
             assert len(results) == 30
@@ -377,7 +408,7 @@ class TestConcurrentErrorHandling:
         handler = WebSocketStreamErrorHandler(config=error_config)
 
         # Create sequence of errors with sequence numbers
-        errors = []
+        errors: list[WebSocketStreamError] = []
         for i in range(20):
             error = ErrorTestFactory.create_test_error(
                 code=WebSocketErrorCode.SEQUENCE_GAP,
@@ -387,7 +418,7 @@ class TestConcurrentErrorHandling:
             errors.append(error)
 
         # Track processing order
-        processed_sequences = []
+        processed_sequences: list[int] = []
         original_handle = handler.handle_stream_error
 
         async def tracking_handle(error: WebSocketStreamError) -> None:
@@ -400,7 +431,7 @@ class TestConcurrentErrorHandling:
         handler.handle_stream_error = AsyncMock(side_effect=tracking_handle)  # type: ignore[method-assign]
 
         # Handle concurrently
-        tasks = [handler.handle_stream_error(error) for error in errors]
+        tasks: list[Awaitable[None]] = [handler.handle_stream_error(error) for error in errors]
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # For sequence errors, order might be important
@@ -451,8 +482,8 @@ class TestConcurrentErrorHandling:
     ) -> None:
         """Test that resources are properly cleaned up under concurrent load."""
         # Track resource allocation
-        resources_allocated = []
-        resources_freed = []
+        resources_allocated: list[str] = []
+        resources_freed: list[str] = []
 
         class TrackedRecoverySystem(StreamRecoverySystem):
             """Recovery system that tracks resource usage."""
@@ -492,7 +523,7 @@ class TestConcurrentErrorHandling:
             for _ in range(50)
         ]
 
-        tasks = [system.handle_stream_error(error) for error in errors]
+        tasks: list[Awaitable[bool]] = [system.handle_stream_error(error) for error in errors]
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify all resources were cleaned up
@@ -528,7 +559,9 @@ class TestConcurrentErrorHandling:
         ]
 
         start_time = time.time()
-        tasks = [handler.handle_stream_error(error) for error in concurrent_errors]
+        tasks: list[Awaitable[None]] = [
+            handler.handle_stream_error(error) for error in concurrent_errors
+        ]
         await asyncio.gather(*tasks, return_exceptions=True)
         concurrent_time = time.time() - start_time
 

@@ -12,7 +12,7 @@ Following TESTING_SECURITY_RULES.md:
 
 from __future__ import annotations
 
-import random
+import hashlib
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import Mock
@@ -528,8 +528,10 @@ def draw_aligned_price(tick_size: Decimal) -> Decimal:
     Returns:
         Price aligned to the tick size.
     """
-    # Generate a random multiplier
-    multiplier = random.randint(1, 100000)
+    # Generate deterministic multiplier based on tick_size for test reproducibility
+    hash_input = f"price_{tick_size}".encode()
+    hash_value = int(hashlib.sha256(hash_input).hexdigest()[:8], 16)
+    multiplier = (hash_value % 99999) + 1  # 1 to 100000 range
     return Decimal(multiplier) * tick_size
 
 
@@ -539,8 +541,10 @@ def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
     Returns:
         Quantity aligned to the lot size.
     """
-    # Generate a random multiplier
-    multiplier = random.randint(1, 10000)
+    # Generate deterministic multiplier based on lot_size for test reproducibility
+    hash_input = f"quantity_{lot_size}".encode()
+    hash_value = int(hashlib.sha256(hash_input).hexdigest()[:8], 16)
+    multiplier = (hash_value % 9999) + 1  # 1 to 10000 range
     return Decimal(multiplier) * lot_size
 
 

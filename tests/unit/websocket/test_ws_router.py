@@ -154,7 +154,6 @@ class TestWebSocketRouter:
         """
         return TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_stream_error_handler,
         )
@@ -174,7 +173,6 @@ class TestWebSocketRouter:
         """
         return TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_stream_error_handler,
             envelope_validator=envelope_validator,
@@ -202,7 +200,6 @@ class TestWebSocketRouter:
 
         router = TestRouterImpl(
             exchange_name=ExchangeName.BACKPACK,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             envelope_validator=envelope_validator,
             payload_validator=payload_validator,

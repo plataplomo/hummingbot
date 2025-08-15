@@ -22,12 +22,12 @@ if TYPE_CHECKING:
     class VCRRequest(Protocol):
         """Protocol for VCR request objects."""
 
-        body: Any
+        body: object
 
     class VCRResponse(Protocol):
         """Protocol for VCR response objects."""
 
-        body: Any
+        body: object
 
 else:
     # At runtime, these are just Any to avoid import issues

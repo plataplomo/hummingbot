@@ -40,6 +40,7 @@ from cyberdelta.enums import ExchangeName, MakerTaker, OrderSide
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.models.market.fill import BackpackFillDetails, Fill, HyperliquidFillDetails
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -110,19 +111,31 @@ def financial_decimal_strategy(
 
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic price values for fill data."""
+    """Generate realistic price values for fill data.
+    
+    Returns:
+        Decimal price value for fill testing.
+    """
     return draw(financial_decimal_strategy(min_value=0.01, max_value=100000.0, allow_zero=False))
 
 
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic quantity values for fill data."""
+    """Generate realistic quantity values for fill data.
+    
+    Returns:
+        Decimal quantity value for fill testing.
+    """
     return draw(financial_decimal_strategy(min_value=0.000001, max_value=10000.0, allow_zero=False))
 
 
 @st.composite
 def fee_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic fee values (can be negative for rebates)."""
+    """Generate realistic fee values (can be negative for rebates).
+    
+    Returns:
+        Decimal fee value for fill testing.
+    """
     return draw(
         financial_decimal_strategy(
             min_value=0.000001, max_value=1000.0, allow_zero=True, allow_negative=True
@@ -131,8 +144,12 @@ def fee_strategy(draw: st.DrawFn) -> Decimal:
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
-    """Generate valid Symbol objects for fill testing."""
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
+    """Generate valid Symbol objects for fill testing.
+    
+    Returns:
+        Valid Symbol object for testing.
+    """
     return draw(
         st.sampled_from([
             BTC_HL,
@@ -151,7 +168,11 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Any:
 
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
-    """Generate valid UTC timestamps for fill data."""
+    """Generate valid UTC timestamps for fill data.
+    
+    Returns:
+        UTC datetime object for fill testing.
+    """
     naive_dt = draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
@@ -163,7 +184,11 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 
 @st.composite
 def valid_id_strategy(draw: st.DrawFn) -> str:
-    """Generate valid ID strings for fill testing."""
+    """Generate valid ID strings for fill testing.
+    
+    Returns:
+        Valid ID string for testing.
+    """
     return draw(
         st.text(
             alphabet=st.characters(
@@ -177,13 +202,21 @@ def valid_id_strategy(draw: st.DrawFn) -> str:
 
 @st.composite
 def fee_asset_strategy(draw: st.DrawFn) -> str:
-    """Generate valid fee asset names."""
+    """Generate valid fee asset names.
+    
+    Returns:
+        Valid fee asset name string.
+    """
     return draw(st.sampled_from(["USDC", "USD", "BTC", "ETH", "SOL", "DOGE"]))
 
 
 @st.composite
 def hyperliquid_fill_details_strategy(draw: st.DrawFn) -> HyperliquidFillDetails:
-    """Generate valid HyperliquidFillDetails for testing."""
+    """Generate valid HyperliquidFillDetails for testing.
+    
+    Returns:
+        Valid HyperliquidFillDetails object for testing.
+    """
     fill_hash = draw(valid_id_strategy())
     liquidation_mark_px = draw(st.one_of(st.none(), price_strategy()))
     start_position = draw(
@@ -204,7 +237,11 @@ def hyperliquid_fill_details_strategy(draw: st.DrawFn) -> HyperliquidFillDetails
 
 @st.composite
 def backpack_fill_details_strategy(draw: st.DrawFn) -> BackpackFillDetails:
-    """Generate valid BackpackFillDetails for testing."""
+    """Generate valid BackpackFillDetails for testing.
+    
+    Returns:
+        Valid BackpackFillDetails object for testing.
+    """
     system_order_type = draw(
         st.one_of(st.none(), st.sampled_from(["LIMIT", "MARKET", "STOP_LOSS", "TAKE_PROFIT"]))
     )
@@ -234,7 +271,7 @@ class TestFillModelProperties:
     def test_minimal_fill_creation_properties(
         self,
         fill_id: str,
-        fill_symbol: Any,
+        fill_symbol: Symbol,
         executed_at: datetime,
         side: OrderSide,
         order_id: str,
@@ -295,7 +332,7 @@ class TestFillModelProperties:
     def test_full_fill_creation_properties(
         self,
         fill_id: str,
-        fill_symbol: Any,
+        fill_symbol: Symbol,
         executed_at: datetime,
         side: OrderSide,
         order_id: str,
@@ -599,7 +636,7 @@ class TestFillModelProperties:
     def test_serialization_properties(self, data: st.DataObject) -> None:
         """Property: Fill serialization should preserve all data correctly."""
         # Generate a complete fill with random data
-        fill_data = {
+        fill_data: dict[str, Any] = {
             "id": data.draw(valid_id_strategy()),
             "symbol": data.draw(valid_symbol_strategy()),
             "executed_at": data.draw(valid_timestamp_strategy()),

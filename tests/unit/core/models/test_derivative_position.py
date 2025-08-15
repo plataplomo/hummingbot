@@ -46,6 +46,7 @@ from cyberdelta.models.derivative_position import (
     DerivativePosition,
     HyperliquidPositionDetails,
 )
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -105,7 +106,11 @@ def financial_decimal_strategy(
 
 @st.composite
 def positive_decimal_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate positive decimal values for prices and entry prices."""
+    """Generate positive decimal values for prices and entry prices.
+    
+    Returns:
+        Positive Decimal value for testing.
+    """
     return draw(
         financial_decimal_strategy(
             min_value=0.000001, max_value=100000.0, allow_zero=False, allow_negative=False
@@ -115,7 +120,11 @@ def positive_decimal_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def position_size_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic position size values (can be positive, negative, or zero)."""
+    """Generate realistic position size values (can be positive, negative, or zero).
+    
+    Returns:
+        Decimal position size value for testing.
+    """
     return draw(
         financial_decimal_strategy(
             min_value=-10000.0, max_value=10000.0, allow_zero=True, allow_negative=True
@@ -125,7 +134,11 @@ def position_size_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def pnl_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic PnL values (can be negative)."""
+    """Generate realistic PnL values (can be negative).
+    
+    Returns:
+        Decimal PnL value for testing.
+    """
     return draw(
         financial_decimal_strategy(
             min_value=-100000.0, max_value=100000.0, allow_zero=True, allow_negative=True
@@ -134,8 +147,12 @@ def pnl_strategy(draw: st.DrawFn) -> Decimal:
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
-    """Generate valid Symbol objects for position testing."""
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
+    """Generate valid Symbol objects for position testing.
+    
+    Returns:
+        Valid Symbol object for testing.
+    """
     return draw(
         st.sampled_from([
             BTC_HL,
@@ -154,7 +171,11 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Any:
 
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
-    """Generate valid UTC timestamps for position data."""
+    """Generate valid UTC timestamps for position data.
+    
+    Returns:
+        UTC datetime object for position testing.
+    """
     naive_dt = draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
@@ -166,7 +187,11 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 
 @st.composite
 def valid_id_strategy(draw: st.DrawFn) -> str:
-    """Generate valid ID strings for position testing."""
+    """Generate valid ID strings for position testing.
+    
+    Returns:
+        Valid ID string for testing.
+    """
     return draw(
         st.text(
             alphabet=st.characters(
@@ -205,7 +230,11 @@ def consistent_position_data_strategy(draw: st.DrawFn) -> tuple[Decimal, OrderSi
 
 @st.composite
 def hyperliquid_position_details_strategy(draw: st.DrawFn) -> HyperliquidPositionDetails:
-    """Generate valid HyperliquidPositionDetails for testing."""
+    """Generate valid HyperliquidPositionDetails for testing.
+    
+    Returns:
+        Valid HyperliquidPositionDetails object for testing.
+    """
     leverage_type = draw(st.sampled_from(["cross", "isolated"]))
     leverage_value = draw(st.integers(min_value=0, max_value=100))
     max_leverage = draw(st.integers(min_value=leverage_value, max_value=200))  # max >= current
@@ -228,7 +257,11 @@ def hyperliquid_position_details_strategy(draw: st.DrawFn) -> HyperliquidPositio
 
 @st.composite
 def backpack_position_details_strategy(draw: st.DrawFn) -> BackpackPositionDetails:
-    """Generate valid BackpackPositionDetails for testing."""
+    """Generate valid BackpackPositionDetails for testing.
+    
+    Returns:
+        Valid BackpackPositionDetails object for testing.
+    """
     leverage = draw(st.one_of(st.none(), st.integers(min_value=0, max_value=100)))
     imf_base = draw(
         st.one_of(
@@ -283,7 +316,7 @@ class TestDerivativePositionModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_position_creation_properties(
         self,
-        position_symbol: Any,
+        position_symbol: Symbol,
         exchange: ExchangeName,
         position_data: tuple[Decimal, OrderSide, Decimal | None],
         timestamp: datetime,
@@ -331,7 +364,7 @@ class TestDerivativePositionModelProperties:
     @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
     def test_full_position_creation_properties(
         self,
-        position_symbol: Any,
+        position_symbol: Symbol,
         exchange: ExchangeName,
         position_data: tuple[Decimal, OrderSide, Decimal | None],
         timestamp: datetime,
@@ -511,7 +544,7 @@ class TestDerivativePositionModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_position_mutability_properties(
         self,
-        position_symbol: Any,
+        position_symbol: Symbol,
         exchange: ExchangeName,
         position_data: tuple[Decimal, OrderSide, Decimal | None],
         timestamp: datetime,
@@ -579,7 +612,7 @@ class TestDerivativePositionModelProperties:
             # Invalid: HL exchange with BP details
             with pytest.raises(
                 (ValidationError, PositionLogicError),
-                match="Backpack details .* must be None for a Hyperliquid position",
+                match=r"Backpack details .* must be None for a Hyperliquid position",
             ):
                 DerivativePosition(**base_kwargs, bp_details=bp_details)
         else:
@@ -591,7 +624,7 @@ class TestDerivativePositionModelProperties:
             # Invalid: BP exchange with HL details
             with pytest.raises(
                 (ValidationError, PositionLogicError),
-                match="Hyperliquid details .* must be None for a Backpack position",
+                match=r"Hyperliquid details .* must be None for a Backpack position",
             ):
                 DerivativePosition(**base_kwargs, hl_details=hl_details)
 

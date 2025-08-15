@@ -179,7 +179,11 @@ def order_type_strategy() -> SearchStrategy[HyperliquidRawOrderType]:
 
 
 def place_order_action_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate valid place order action data."""
+    """Generate valid place order action data.
+
+    Returns:
+        SearchStrategy for dict[str, Any] place order action data.
+    """
     return st.fixed_dictionaries({
         "asset": asset_index_strategy(),
         "isBuy": st.booleans(),
@@ -192,7 +196,11 @@ def place_order_action_strategy() -> SearchStrategy[dict[str, Any]]:
 
 
 def historical_orders_request_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate valid historical orders request data."""
+    """Generate valid historical orders request data.
+
+    Returns:
+        SearchStrategy for dict[str, Any] historical orders request data.
+    """
     return st.fixed_dictionaries({
         "type": st.just("historicalOrders"),
         "user": ethereum_address_strategy(),
@@ -307,7 +315,7 @@ class TestHyperliquidRawPlaceOrderActionProperties:
     )
     def test_invalid_decimal_fields_rejection(self, invalid_decimal: str) -> None:
         """Property: Invalid decimal strings should be consistently rejected."""
-        base_data = {
+        base_data: dict[str, int | bool | HyperliquidRawOrderType | str] = {
             "asset": 0,
             "isBuy": True,
             "reduceOnly": False,

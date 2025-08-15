@@ -66,11 +66,11 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
     ])
 
 
-def timestamp_strategy() -> SearchStrategy[Any]:
+def timestamp_strategy() -> SearchStrategy[object]:
     """Generate valid timestamp values (int, float, or ISO string).
 
     Returns:
-        SearchStrategy[Any]: Strategy generating valid timestamp values.
+        SearchStrategy[object]: Strategy generating valid timestamp values.
     """
     return st.one_of([
         st.integers(min_value=1000000000, max_value=2000000000),  # Unix timestamps

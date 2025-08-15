@@ -348,9 +348,7 @@ class TestRecoveryStrategyRouter:
                 and handler.__class__.__name__ == "ImmediateRetryHandler"
             ):
                 # Mock the handle method to simulate failure
-                import unittest.mock
-
-                handler.handle = unittest.mock.AsyncMock(side_effect=RuntimeError("Handler failed"))  # type: ignore[method-assign] # Mock assignment for testing
+                handler.handle = AsyncMock(side_effect=RuntimeError("Handler failed"))  # type: ignore[method-assign] # Mock assignment for testing
                 break
 
         result = await router.route_recovery(error, mock_recovery)

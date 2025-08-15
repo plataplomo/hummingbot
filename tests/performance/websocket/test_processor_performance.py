@@ -19,7 +19,6 @@ from pydantic import BaseModel, Field
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_processor import (
     MessageTransformer,
     PydanticWebSocketProcessor,
@@ -99,7 +98,7 @@ def mock_error_handler() -> AsyncMock:
     Returns:
         Mock error handler for testing.
     """
-    return AsyncMock(spec=BaseErrorHandler)
+    return AsyncMock(spec=WebSocketStreamErrorHandler)
 
 
 @pytest.fixture

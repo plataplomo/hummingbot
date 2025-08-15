@@ -19,6 +19,7 @@ from typing import Any, cast
 import pytest
 from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
+from pydantic import ValidationError
 
 from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
@@ -54,7 +55,11 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
-    """Generate positive Decimal values for financial calculations."""
+    """Generate positive Decimal values for financial calculations.
+    
+    Returns:
+        SearchStrategy for positive Decimal values.
+    """
     return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8)
 
 
@@ -72,7 +77,11 @@ def price_strategy() -> SearchStrategy[Decimal]:
 
 
 def quantity_strategy() -> SearchStrategy[Decimal]:
-    """Generate realistic quantity values."""
+    """Generate realistic quantity values.
+    
+    Returns:
+        SearchStrategy for realistic quantity values.
+    """
     return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(10000), places=8)
 
 
@@ -116,8 +125,12 @@ def exchange_strategy() -> SearchStrategy[ExchangeName]:
     return st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK])
 
 
-def symbol_strategy() -> SearchStrategy[Any]:
-    """Generate valid Symbol objects."""
+def symbol_strategy() -> SearchStrategy[object]:
+    """Generate valid Symbol objects.
+    
+    Returns:
+        SearchStrategy for valid Symbol objects.
+    """
 
     def create_symbol(exchange: ExchangeName, asset: str) -> object:
         if exchange == ExchangeName.HYPERLIQUID:
@@ -167,7 +180,11 @@ def asset_strategy() -> SearchStrategy[str]:
 
 
 def basic_fill_data_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate data for valid basic fills."""
+    """Generate data for valid basic fills.
+    
+    Returns:
+        SearchStrategy for basic fill data dictionaries.
+    """
     return st.fixed_dictionaries({
         "id": fill_id_strategy(),
         "symbol": symbol_strategy(),
@@ -181,7 +198,11 @@ def basic_fill_data_strategy() -> SearchStrategy[dict[str, Any]]:
 
 
 def fill_with_fee_data_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate data for fills with fees."""
+    """Generate data for fills with fees.
+    
+    Returns:
+        SearchStrategy for fill data with fee information.
+    """
     return st.fixed_dictionaries({
         "id": fill_id_strategy(),
         "symbol": symbol_strategy(),
@@ -329,7 +350,7 @@ class TestFillValidationProperties:
     ) -> None:
         """Property: Negative prices and quantities should be rejected."""
         # Test negative price
-        with pytest.raises(Exception):  # Pydantic validation error
+        with pytest.raises(ValidationError):  # Pydantic validation error
             Fill(
                 id="test_fill_123",
                 symbol=exchanges.hyperliquid(value="BTC"),
@@ -342,7 +363,7 @@ class TestFillValidationProperties:
             )
 
         # Test negative quantity
-        with pytest.raises(Exception):  # Pydantic validation error
+        with pytest.raises(ValidationError):  # Pydantic validation error
             Fill(
                 id="test_fill_123",
                 symbol=exchanges.hyperliquid(value="BTC"),
@@ -555,13 +576,13 @@ class TestFillImmutabilityProperties:
         fill = Fill(**fill_data)
 
         # Property: Attempting to modify fields should fail
-        with pytest.raises(Exception):  # Pydantic ValidationError for immutable model
+        with pytest.raises(ValidationError):  # Pydantic ValidationError for immutable model
             fill.price = Decimal("99999.99")
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             fill.quantity = Decimal("0.5")
 
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             fill.fee = Decimal("10.0")
 
         # Property: Original values should be preserved

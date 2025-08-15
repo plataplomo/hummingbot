@@ -448,20 +448,26 @@ class TestErrorHandlingPerformance:
         # Note: Adjusted for CI/container environment
         assert errors_per_second > 1000, f"Concurrent handling too slow: {errors_per_second:.0f}/s"
 
-    async def test_validation_error_handling_speed(
-        self,
-        performance_config: dict[str, int],
-        test_handler: WebSocketStreamErrorHandler,
-    ) -> None:
-        """Benchmark validation error handling speed."""
-        iterations = performance_config["error_handling_iterations"]
+    def _create_test_model_class(self) -> type[BaseModel]:
+        """Create test model class for validation error testing.
 
-        # Create test model and validation errors
+        Returns:
+            BaseModel class for testing validation errors.
+        """
+
         class TestModel(BaseModel):
             required_field: str
             numeric_field: int = Field(gt=0)
 
-        # Mock context implementing WebSocketContextProtocol
+        return TestModel
+
+    def _create_mock_context_class(self) -> type:
+        """Create mock context class for validation error testing.
+
+        Returns:
+            Mock context class implementing WebSocketContextProtocol.
+        """
+
         class MockContext:
             def __init__(self) -> None:
                 # Required by WebSocketContextProtocol
@@ -507,6 +513,19 @@ class TestErrorHandlingPerformance:
             def get_coin_param(self) -> dict[str, str] | None:
                 return None
 
+        return MockContext
+
+    async def test_validation_error_handling_speed(
+        self,
+        performance_config: dict[str, int],
+        test_handler: WebSocketStreamErrorHandler,
+    ) -> None:
+        """Benchmark validation error handling speed."""
+        iterations = performance_config["error_handling_iterations"]
+
+        # Create test model and validation errors
+        TestModel = self._create_test_model_class()
+        MockContext = self._create_mock_context_class()
         mock_context = MockContext()
         mock_payload = TestModel(required_field="test", numeric_field=1)
 
@@ -514,7 +533,7 @@ class TestErrorHandlingPerformance:
         validation_errors: list[ValidationError] = []
         for i in range(iterations):
             try:
-                TestModel(required_field=None, numeric_field=-i)  # type: ignore
+                TestModel(required_field=None, numeric_field=-i)
             except ValidationError as e:
                 validation_errors.append(e)
 

@@ -207,7 +207,7 @@ def price_dict_strategy(
         )
     )
 
-    prices = {}
+    prices: dict[Symbol, Decimal] = {}
     for symbol in selected_symbols:
         if allow_negative:
             price = draw(finite_decimal_strategy())
@@ -230,7 +230,7 @@ def extreme_price_dict_strategy(draw: st.DrawFn) -> dict[Symbol, Decimal]:
     """
     symbols = draw(st.lists(symbol_strategy(), min_size=1, max_size=5, unique=True))
 
-    prices = {}
+    prices: dict[Symbol, Decimal] = {}
     for symbol in symbols:
         price_type = draw(
             st.sampled_from(["very_small", "very_large", "zero", "negative", "high_precision"])
@@ -312,9 +312,9 @@ class TestMidPricesModelProperties:
         assert mid_prices.timestamp == timestamp
 
         # Properties: All symbols should be accessible
-        for symbol in prices:
+        for symbol, price in prices.items():
             assert mid_prices.has_symbol(symbol)
-            assert mid_prices.get(symbol) == prices[symbol]
+            assert mid_prices.get(symbol) == price
 
     @given(
         prices=price_dict_strategy(min_size=1, max_size=10),
@@ -759,7 +759,7 @@ class TestMidPricesEdgeCaseProperties:
         self, mid_prices_list: list[tuple[dict[Symbol, Decimal], ExchangeName, datetime]]
     ) -> None:
         """Property: Multiple mid prices instances should be processed independently."""
-        created_mid_prices = []
+        created_mid_prices: list[MidPrices] = []
 
         for prices, exchange, timestamp in mid_prices_list:
             mid_prices = MidPrices(

@@ -15,7 +15,7 @@ excessive risk exposure, account liquidation, or catastrophic losses.
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from hypothesis import HealthCheck, assume, given, settings, strategies as st
@@ -32,6 +32,7 @@ from cyberdelta.domain.risk.position_sizer import PositionSizer
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.exceptions.trading import SignalDataError
 from cyberdelta.models import TradeSignal
+from cyberdelta.models.risk.assessment import PositionSize
 from cyberdelta.symbols import exchanges
 
 
@@ -134,7 +135,11 @@ def side_strategy() -> SearchStrategy[OrderSide]:
 
 
 def signal_strategy() -> SearchStrategy[TradeSignal]:
-    """Generate valid trade signal."""
+    """Generate valid trade signal.
+    
+    Returns:
+        SearchStrategy for TradeSignal objects.
+    """
     return st.builds(
         TradeSignal,
         price=price_strategy(),
@@ -158,7 +163,11 @@ def signal_strategy() -> SearchStrategy[TradeSignal]:
 
 @pytest.fixture
 def mock_config_simple() -> MagicMock:
-    """Create mock configuration for simple sizing method."""
+    """Create mock configuration for simple sizing method.
+    
+    Returns:
+        Mock AppSettings configured for simple sizing.
+    """
     config = MagicMock(spec=AppSettings)
 
     # Risk configuration
@@ -182,7 +191,11 @@ def mock_config_simple() -> MagicMock:
 
 @pytest.fixture
 def mock_config_kelly() -> MagicMock:
-    """Create mock configuration for Kelly sizing method."""
+    """Create mock configuration for Kelly sizing method.
+    
+    Returns:
+        Mock AppSettings configured for Kelly sizing.
+    """
     config = MagicMock(spec=AppSettings)
 
     # Risk configuration
@@ -207,13 +220,21 @@ def mock_config_kelly() -> MagicMock:
 
 @pytest.fixture
 def simple_sizer(mock_config_simple: MagicMock) -> PositionSizer:
-    """Create position sizer with simple method."""
+    """Create position sizer with simple method.
+    
+    Returns:
+        PositionSizer configured for simple sizing.
+    """
     return PositionSizer(mock_config_simple)
 
 
 @pytest.fixture
 def kelly_sizer(mock_config_kelly: MagicMock) -> PositionSizer:
-    """Create position sizer with Kelly method."""
+    """Create position sizer with Kelly method.
+    
+    Returns:
+        PositionSizer configured for Kelly sizing.
+    """
     return PositionSizer(mock_config_kelly)
 
 
@@ -226,7 +247,11 @@ class TestPositionSizeConstraints:
     """Property-based tests for position size constraints."""
 
     def _create_simple_sizer(self) -> PositionSizer:
-        """Create a simple sizer for testing."""
+        """Create a simple sizer for testing.
+        
+        Returns:
+            PositionSizer with default simple configuration.
+        """
         config = MagicMock(spec=AppSettings)
         config.risk = MagicMock(spec=EnhancedRiskSettings)
         config.risk.sizing = MagicMock(spec=SizingSettings)
@@ -278,7 +303,7 @@ class TestPositionSizeConstraints:
         position_size = simple_sizer.calculate_position_size(signal, total_equity, current_exposure)
 
         # Property: Value must not exceed configured max
-        max_position = simple_sizer._max_position_usd
+        max_position = simple_sizer.config.risk.global_risk.max_position_usd
         assert position_size.value_usd <= max_position
 
     @given(
@@ -298,7 +323,7 @@ class TestPositionSizeConstraints:
         position_size = simple_sizer.calculate_position_size(signal, total_equity, current_exposure)
 
         # Property: New exposure must not exceed limit
-        max_exposure = simple_sizer._max_exposure_usd
+        max_exposure = simple_sizer.config.risk.global_risk.max_total_exposure_usd
         new_total_exposure = current_exposure + position_size.value_usd
         assert new_total_exposure <= max_exposure or position_size.value_usd == Decimal(0)
 
@@ -338,15 +363,25 @@ class TestSimpleSizingProperties:
         mock_config_simple.risk.sizing.simple_fixed_fraction = fraction
         sizer = PositionSizer(mock_config_simple)
 
+        # Create a test signal to trigger calculation through public API
+        signal = TradeSignal(
+            signal_id="test_123",
+            symbol=exchanges.hyperliquid("BTC"),
+            side=OrderSide.BUY,
+            signal_type=SignalType.ENTER_LONG,
+            price=Decimal("50000.00"),  # Use realistic price for calculation
+            exchange=ExchangeName.HYPERLIQUID,
+        )
+
+        # Calculate position size using public API
+        position_size = sizer.calculate_position_size(signal, total_equity, Decimal(0))
+
         # Calculate expected size
         expected_size = total_equity * fraction
-        expected_size = min(expected_size, sizer._max_position_usd)
+        expected_size = min(expected_size, sizer.config.risk.global_risk.max_position_usd)
 
-        # Calculate actual size
-        actual_size = sizer._calculate_simple_size(total_equity, Decimal(0))
-
-        # Property: Size should match fraction calculation
-        assert actual_size == expected_size
+        # Property: Position value should match fraction calculation
+        assert position_size.value_usd == expected_size
 
     @given(
         signal=signal_strategy(),
@@ -506,15 +541,17 @@ class TestKellySizingProperties:
         position_size = kelly_sizer.calculate_position_size(signal, total_equity, Decimal(0))
 
         # Property: Should not exceed max allocation percentage
-        max_allocation = kelly_sizer._kelly_max_allocation
+        max_allocation = kelly_sizer.config.risk.sizing.kelly_max_allocation
         max_value_from_allocation = total_equity * max_allocation
 
         # Also constrained by global max position
-        max_value = min(max_value_from_allocation, kelly_sizer._max_position_usd)
+        max_value = min(
+            max_value_from_allocation, kelly_sizer.config.risk.global_risk.max_position_usd
+        )
 
         # The Kelly sizer may still exceed limits due to minimum quantity constraints
         # So we check that either the limit is respected OR position is at minimum size
-        min_quantity = kelly_sizer._sizing_config.min_position_size
+        min_quantity = kelly_sizer.config.risk.sizing.min_position_size
         min_value = min_quantity * signal.price if signal.price > 0 else Decimal(0)
 
         # Position should respect max allocation OR be at minimum size due to constraints
@@ -567,11 +604,21 @@ class TestMathematicalConsistency:
             mock_config_simple.risk.sizing.simple_fixed_fraction = fraction
             sizer = PositionSizer(mock_config_simple)
 
-            size = sizer._calculate_simple_size(total_equity, Decimal(0))
-            expected = min(total_equity * fraction, sizer._max_position_usd)
+            # Create test signal for calculation through public API
+            signal = TradeSignal(
+                signal_id="test_123",
+                symbol=exchanges.hyperliquid("BTC"),
+                side=OrderSide.BUY,
+                signal_type=SignalType.ENTER_LONG,
+                price=Decimal("50000.00"),
+                exchange=ExchangeName.HYPERLIQUID,
+            )
 
-            assert size == expected
-            total_allocated += size
+            position_size = sizer.calculate_position_size(signal, total_equity, Decimal(0))
+            expected = min(total_equity * fraction, sizer.config.risk.global_risk.max_position_usd)
+
+            assert position_size.value_usd == expected
+            total_allocated += position_size.value_usd
 
         # Property: Total should not exceed equity (if no max position limits)
         if all(
@@ -619,8 +666,6 @@ class TestEdgeCases:
     def test_zero_price_handling(self, simple_sizer: PositionSizer, total_equity: Decimal) -> None:
         """Property: Zero or negative price should result in zero position."""
         # Test zero price using mock since TradeSignal validates price > 0
-        from unittest.mock import Mock
-
         signal = Mock()
         signal.price = Decimal(0)
         signal.side = OrderSide.BUY
@@ -655,7 +700,7 @@ class TestEdgeCases:
     ) -> None:
         """Property: Should return zero when max exposure is reached."""
         # Set current exposure at max
-        max_exposure = simple_sizer._max_exposure_usd
+        max_exposure = simple_sizer.config.risk.global_risk.max_total_exposure_usd
         position_size = simple_sizer.calculate_position_size(signal, total_equity, max_exposure)
 
         # Property: No new position when at max exposure
@@ -722,7 +767,7 @@ class TestEdgeCases:
             assert position_size.quantity < position_size.value_usd
 
             # Property: Should respect min quantity constraint
-            min_quantity = simple_sizer._sizing_config.min_position_size
+            min_quantity = simple_sizer.config.risk.sizing.min_position_size
             assert position_size.quantity >= min_quantity or position_size.quantity == Decimal(0)
 
 
@@ -921,7 +966,7 @@ class TestPositionSizerIntegration:
     ) -> None:
         """Property: Multiple positions should respect cumulative limits."""
         total_exposure = Decimal(0)
-        positions = []
+        positions: list[PositionSize] = []
 
         for signal in signals:
             position_size = simple_sizer.calculate_position_size(
@@ -932,11 +977,11 @@ class TestPositionSizerIntegration:
             total_exposure += position_size.value_usd
 
         # Property: Total exposure should not exceed limit
-        assert total_exposure <= simple_sizer._max_exposure_usd
+        assert total_exposure <= simple_sizer.config.risk.global_risk.max_total_exposure_usd
 
         # Property: Each position should respect individual limit
         for position in positions:
-            assert position.value_usd <= simple_sizer._max_position_usd
+            assert position.value_usd <= simple_sizer.config.risk.global_risk.max_position_usd
 
     @given(price=price_strategy(), total_equity=equity_strategy(), confidence=confidence_strategy())
     @settings(max_examples=50, suppress_health_check=[HealthCheck.function_scoped_fixture])

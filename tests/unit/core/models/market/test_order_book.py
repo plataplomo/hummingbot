@@ -28,8 +28,12 @@ Architecture Compliance:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING, Any, cast
+
+
+if TYPE_CHECKING:
+    pass
 
 import pytest
 from hypothesis import given, settings, strategies as st
@@ -43,6 +47,7 @@ from cyberdelta.exceptions.field_validation import (
     TypeFieldError,
 )
 from cyberdelta.models.market.order_book import OrderBook
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -61,17 +66,36 @@ pytestmark = pytest.mark.timing
 
 
 # =============================================================================
+# TYPE DEFINITIONS FOR ORDER BOOK MODEL TESTING
+# =============================================================================
+
+# General malicious value types
+MaliciousValue = str | int | float | bytes | list[str] | dict[str, str] | None
+
+# Malicious price/quantity types that can be parseable or unparseable
+ParseableValue = str | int | float | Decimal
+
+# OrderBook creation parameters - keeping flexible for test variations
+# Note: Uses Any for test flexibility when testing invalid inputs
+OrderBookKwargs = dict[str, Any]
+
+# =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
 
 
 def _is_valid_decimal_string(s: str) -> bool:
-    """Check if a string can be parsed as a valid Decimal."""
+    """Check if a string can be parsed as a valid Decimal.
+    
+    Returns:
+        True if string can be parsed as Decimal, False otherwise.
+    """
     try:
         Decimal(s)
-        return True
-    except:
+    except (ValueError, TypeError, InvalidOperation):
         return False
+    else:
+        return True
 
 
 # =============================================================================
@@ -127,7 +151,7 @@ def finite_non_negative_decimal_strategy(draw: st.DrawFn, max_value: float = 100
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for order book testing.
 
     Args:
@@ -217,7 +241,7 @@ def order_book_levels_strategy(
 
 
 @st.composite
-def parseable_price_strategy(draw: st.DrawFn) -> Any:
+def parseable_price_strategy(draw: st.DrawFn) -> ParseableValue:
     """Generate parseable price values in various formats.
 
     Args:
@@ -248,7 +272,7 @@ def parseable_price_strategy(draw: st.DrawFn) -> Any:
 
 
 @st.composite
-def parseable_quantity_strategy(draw: st.DrawFn) -> Any:
+def parseable_quantity_strategy(draw: st.DrawFn) -> ParseableValue:
     """Generate parseable quantity values in various formats.
 
     Args:
@@ -279,7 +303,7 @@ def parseable_quantity_strategy(draw: st.DrawFn) -> Any:
 
 
 @st.composite
-def parseable_level_strategy(draw: st.DrawFn) -> tuple[Any, Any]:
+def parseable_level_strategy(draw: st.DrawFn) -> tuple[ParseableValue, ParseableValue]:
     """Generate parseable order book levels in mixed formats.
 
     Args:
@@ -296,7 +320,7 @@ def parseable_level_strategy(draw: st.DrawFn) -> tuple[Any, Any]:
 @st.composite
 def parseable_levels_strategy(
     draw: st.DrawFn, min_size: int = 0, max_size: int = 10
-) -> list[tuple[Any, Any]]:
+) -> list[tuple[ParseableValue, ParseableValue]]:
     """Generate lists of parseable order book levels in mixed formats.
 
     Args:
@@ -325,7 +349,7 @@ class TestOrderBookModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_order_book_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
     ) -> None:
         """Property: Minimal OrderBook with empty bids/asks should always be valid."""
@@ -351,7 +375,7 @@ class TestOrderBookModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_complete_order_book_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
         bids: list[tuple[Decimal, Decimal]],
         asks: list[tuple[Decimal, Decimal]],
@@ -396,17 +420,18 @@ class TestOrderBookModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_order_book_parsing_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
-        bids: list[tuple[Any, Any]],
-        asks: list[tuple[Any, Any]],
+        bids: list[tuple[ParseableValue, ParseableValue]],
+        asks: list[tuple[ParseableValue, ParseableValue]],
     ) -> None:
         """Property: OrderBook should correctly parse various input formats to Decimal."""
+        # Cast to Any to allow testing with ParseableValue types which are valid runtime inputs
         order_book = OrderBook(
             symbol=symbol,
             timestamp=timestamp,
-            bids=bids,
-            asks=asks,
+            bids=cast(Any, bids),
+            asks=cast(Any, asks),
         )
 
         # Property: All levels should be converted to Decimal tuples
@@ -437,7 +462,7 @@ class TestOrderBookModelProperties:
     @settings(max_examples=150, deadline=None)
     def test_order_book_immutability_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
         bids: list[tuple[Decimal, Decimal]],
     ) -> None:
@@ -473,7 +498,7 @@ class TestOrderBookModelProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_invalid_list_structure_rejection_properties(
-        self, field_name: str, invalid_list_value: Any
+        self, field_name: str, invalid_list_value: MaliciousValue
     ) -> None:
         """Property: Invalid list structures should be rejected."""
         base_kwargs: dict[str, Any] = {
@@ -488,7 +513,7 @@ class TestOrderBookModelProperties:
 
         # Property: Invalid list structure should be rejected
         with pytest.raises(ListFieldError):
-            OrderBook(**kwargs)
+            OrderBook(**cast(Any, kwargs))
 
     @given(
         field_name=st.sampled_from(["bids", "asks"]),
@@ -502,7 +527,7 @@ class TestOrderBookModelProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_invalid_level_structure_rejection_properties(
-        self, field_name: str, invalid_level: Any
+        self, field_name: str, invalid_level: MaliciousValue
     ) -> None:
         """Property: Invalid level structures should be rejected."""
         base_kwargs: dict[str, Any] = {
@@ -517,7 +542,7 @@ class TestOrderBookModelProperties:
 
         # Property: Invalid level structure should be rejected
         with pytest.raises((ListFieldError, RangeFieldError, ValidationError)):
-            OrderBook(**kwargs)
+            OrderBook(**cast(Any, kwargs))
 
     @given(
         field_name=st.sampled_from(["bids", "asks"]),
@@ -532,7 +557,9 @@ class TestOrderBookModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None)
-    def test_invalid_price_rejection_properties(self, field_name: str, invalid_price: Any) -> None:
+    def test_invalid_price_rejection_properties(
+        self, field_name: str, invalid_price: MaliciousValue
+    ) -> None:
         """Property: Invalid price values should be rejected."""
         base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
@@ -551,7 +578,7 @@ class TestOrderBookModelProperties:
             DecimalFiniteError,
             ValidationError,
         )):
-            OrderBook(**kwargs)
+            OrderBook(**cast(Any, kwargs))
 
     @given(
         field_name=st.sampled_from(["bids", "asks"]),
@@ -569,7 +596,7 @@ class TestOrderBookModelProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_invalid_quantity_rejection_properties(
-        self, field_name: str, invalid_quantity: Any
+        self, field_name: str, invalid_quantity: MaliciousValue
     ) -> None:
         """Property: Invalid quantity values should be rejected."""
         base_kwargs: dict[str, Any] = {
@@ -590,7 +617,7 @@ class TestOrderBookModelProperties:
             RangeFieldError,
             ValidationError,
         )):
-            OrderBook(**kwargs)
+            OrderBook(**cast(Any, kwargs))
 
     @given(
         timestamp_input=st.one_of(
@@ -609,12 +636,12 @@ class TestOrderBookModelProperties:
         ),
     )
     @settings(max_examples=150, deadline=None)
-    def test_timestamp_parsing_properties(self, timestamp_input: Any) -> None:
+    def test_timestamp_parsing_properties(self, timestamp_input: MaliciousValue) -> None:
         """Property: Timestamp fields should parse various input types correctly."""
         try:
             order_book = OrderBook(
                 symbol=BTC_HL,
-                timestamp=timestamp_input,
+                timestamp=cast(Any, timestamp_input),
                 bids=[],
                 asks=[],
             )
@@ -636,7 +663,7 @@ class TestOrderBookModelProperties:
     @settings(max_examples=150, deadline=None)
     def test_extra_fields_rejection_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
         bids: list[tuple[Decimal, Decimal]],
         asks: list[tuple[Decimal, Decimal]],
@@ -652,7 +679,7 @@ class TestOrderBookModelProperties:
 
         # Property: Extra fields should cause validation error
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            OrderBook(**order_book_data)
+            OrderBook(**cast(Any, order_book_data))
 
 
 # =============================================================================
@@ -672,7 +699,7 @@ class TestOrderBookBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_order_book_financial_invariants_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
         bids: list[tuple[Decimal, Decimal]],
         asks: list[tuple[Decimal, Decimal]],
@@ -716,7 +743,7 @@ class TestOrderBookBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_order_book_serialization_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
         bids: list[tuple[Decimal, Decimal]],
         asks: list[tuple[Decimal, Decimal]],
@@ -753,7 +780,7 @@ class TestOrderBookBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_order_book_deterministic_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         timestamp: datetime,
         bids: list[tuple[Decimal, Decimal]],
         asks: list[tuple[Decimal, Decimal]],
@@ -871,11 +898,11 @@ class TestOrderBookEdgeCaseProperties:
     def test_multiple_order_books_independence_properties(
         self,
         order_books: list[
-            tuple[Any, datetime, list[tuple[Decimal, Decimal]], list[tuple[Decimal, Decimal]]]
+            tuple[Symbol, datetime, list[tuple[Decimal, Decimal]], list[tuple[Decimal, Decimal]]]
         ],
     ) -> None:
         """Property: Multiple order books should be processed independently."""
-        created_order_books = []
+        created_order_books: list[OrderBook] = []
 
         for symbol, timestamp, bids, asks in order_books:
             order_book = OrderBook(

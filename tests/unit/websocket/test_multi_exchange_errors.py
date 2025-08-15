@@ -7,15 +7,17 @@ to ensure consistent behavior while respecting exchange-specific requirements.
 from __future__ import annotations
 
 import asyncio
-from typing import Protocol, cast
+from typing import Any, Protocol, cast
 
 import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_handler_registry import WebSocketErrorHandlerRegistry
+from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
+from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
 class ErrorMetricsProtocol(Protocol):
@@ -23,9 +25,6 @@ class ErrorMetricsProtocol(Protocol):
 
     total_errors: int
     errors_by_exchange: dict[str, int]
-
-
-from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
 @pytest.mark.asyncio
@@ -168,7 +167,7 @@ class TestMultiExchangeErrors:
         bp_handler = handler_registry.get_handler(ExchangeName.BACKPACK, error_config)
 
         # Simulate correlated network issues
-        network_errors = []
+        network_errors: list[WebSocketStreamError] = []
         for exchange, handler in [("hyperliquid", hl_handler), ("backpack", bp_handler)]:
             error = ErrorTestFactory.create_test_error(
                 code=WebSocketErrorCode.CONNECTION_TIMEOUT,
@@ -367,7 +366,7 @@ class TestMultiExchangeErrors:
         }
 
         # Create errors for all exchanges
-        tasks = []
+        tasks: list[Any] = []
         for exchange, handler in handlers.items():
             for error_code in [
                 WebSocketErrorCode.CONNECTION_LOST,

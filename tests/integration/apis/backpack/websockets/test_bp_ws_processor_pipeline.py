@@ -17,6 +17,7 @@ Security Compliance:
 import asyncio
 import gc
 import os
+from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, Protocol, cast, runtime_checkable
@@ -525,12 +526,33 @@ class TestBackpackProcessorPipeline:
 
         return messages_per_second, avg_processing_time_ms
 
-    @pytest.mark.asyncio
-    async def test_processor_pipeline_performance(
-        self,
-        bp_api_for_test_env: BackpackAPI,
-    ) -> None:
-        """Test processor pipeline performance with multiple messages."""
+    def _process_domain_model_for_test(self, domain_model: object) -> None:
+        """Process domain model to ensure it's fully loaded for performance testing."""
+        if isinstance(domain_model, BaseModel):
+            # Modern Pydantic v2 models
+            model_data = domain_model.model_dump()
+            _ = model_data.get("symbol")
+            _ = model_data.get("price")
+        elif hasattr(domain_model, "dict") and callable(getattr(domain_model, "dict", None)):
+            # Legacy Pydantic v1 models or dict-like objects
+            dict_method = getattr(domain_model, "dict", None)
+            if dict_method is not None and callable(dict_method):
+                dict_result = dict_method()
+                if isinstance(dict_result, dict):
+                    # Pydantic dict always returns dict[str, Any] - we know this from API
+                    # Type safety justified: Pydantic guarantees string keys
+                    # Runtime verification: isinstance check confirms dict type
+                    assert isinstance(dict_result, dict)
+                    typed_dict_result = cast(dict[str, Any], dict_result)
+                    _symbol_value: object | None = typed_dict_result.get("symbol")
+                    _price_value: object | None = typed_dict_result.get("price")
+
+    async def _setup_performance_test(self, bp_api_for_test_env: BackpackAPI) -> Symbol:
+        """Set up performance test and return symbol for testing.
+
+        Returns:
+            Symbol to use for performance testing.
+        """
         # Ensure WebSocket is connected
         await self._ensure_websocket_connected(bp_api_for_test_env)
 
@@ -541,7 +563,41 @@ class TestBackpackProcessorPipeline:
             pytest.fail("Ticker processor not found for performance testing")
 
         # Get real market for testing
-        symbol = await self._get_test_symbol(bp_api_for_test_env)
+        return await self._get_test_symbol(bp_api_for_test_env)
+
+    async def _collect_performance_messages(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+        symbol: Symbol,
+        performance_handler: Callable[[WebSocketContextProtocol], Awaitable[None]],
+    ) -> float:
+        """Subscribe to ticker stream and collect messages for performance testing.
+
+        Returns:
+            Start time of the collection period.
+        """
+        # Subscribe to real ticker stream
+        await bp_api_for_test_env.subscribe(f"ticker.{symbol.value}", performance_handler)
+
+        # Collect messages for 5 seconds
+        test_duration = 5.0
+        start_time = asyncio.get_event_loop().time()
+
+        elapsed = 0.0
+        while elapsed < test_duration:
+            await asyncio.sleep(0.1)
+            elapsed = asyncio.get_event_loop().time() - start_time
+
+        # No need to unsubscribe - cleanup happens on test end
+        return start_time
+
+    @pytest.mark.asyncio
+    async def test_processor_pipeline_performance(
+        self,
+        bp_api_for_test_env: BackpackAPI,
+    ) -> None:
+        """Test processor pipeline performance with multiple messages."""
+        symbol = await self._setup_performance_test(bp_api_for_test_env)
 
         # Track performance metrics
         message_count = 0
@@ -554,46 +610,15 @@ class TestBackpackProcessorPipeline:
             start = asyncio.get_event_loop().time()
             # Simulate some processing work
             if hasattr(context, "domain_model") and context.domain_model:
-                # Access the model to ensure it's fully processed - use protocol methods
-                if isinstance(context.domain_model, BaseModel):
-                    # Modern Pydantic v2 models
-                    model_data = context.domain_model.model_dump()
-                    _ = model_data.get("symbol")
-                    _ = model_data.get("price")
-                elif hasattr(context.domain_model, "dict") and callable(
-                    getattr(context.domain_model, "dict", None)
-                ):
-                    # Legacy Pydantic v1 models or dict-like objects
-                    # DEFENSIVE CHECK: Access dict method safely.
-                    # Pyright=[reportAttributeAccessIssue]
-                    dict_method = getattr(context.domain_model, "dict", None)
-                    if dict_method is not None and callable(dict_method):
-                        dict_result = dict_method()
-                        if isinstance(dict_result, dict):
-                            # Pydantic dict always returns dict[str, Any] - we know this from Pydantic API
-                            # Type safety justified: Pydantic guarantees string keys in serialization output
-                            # Runtime verification: isinstance check confirms dict type
-                            assert isinstance(dict_result, dict)
-                            typed_dict_result = cast(dict[str, Any], dict_result)
-                            _symbol_value: object | None = typed_dict_result.get("symbol")
-                            _price_value: object | None = typed_dict_result.get("price")
+                self._process_domain_model_for_test(context.domain_model)
             end = asyncio.get_event_loop().time()
             processing_times.append(end - start)
             message_count += 1
 
-        # Subscribe to real ticker stream
-        await bp_api_for_test_env.subscribe(f"ticker.{symbol}", performance_handler)
-
-        # Collect messages for 5 seconds
-        test_duration = 5.0
-        start_time = asyncio.get_event_loop().time()
-
-        elapsed = 0.0
-        while elapsed < test_duration:
-            await asyncio.sleep(0.1)
-            elapsed = asyncio.get_event_loop().time() - start_time
-
-        # No need to unsubscribe - cleanup happens on test end
+        # Subscribe and collect messages
+        start_time = await self._collect_performance_messages(
+            bp_api_for_test_env, symbol, performance_handler
+        )
 
         # Calculate and log metrics
         messages_per_second, avg_processing_time_ms = self._calculate_performance_metrics(

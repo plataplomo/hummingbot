@@ -164,7 +164,6 @@ class TestWebSocketRouterPerformance:
         """
         return TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_stream_error_handler,
             envelope_validator=envelope_validator,

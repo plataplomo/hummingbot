@@ -42,7 +42,7 @@ class ErrorPersistenceManager:
         Args:
             errors: List of error dictionaries to persist
         """
-        with open(self.persistence_path, "w", encoding="utf-8") as f:
+        with self.persistence_path.open("w", encoding="utf-8") as f:
             json.dump(
                 {
                     "timestamp": datetime.now(UTC).isoformat(),
@@ -62,7 +62,7 @@ class ErrorPersistenceManager:
         if not self.persistence_path.exists():
             return []
 
-        with open(self.persistence_path, encoding="utf-8") as f:
+        with self.persistence_path.open(encoding="utf-8") as f:
             data: dict[str, Any] = json.load(f)
             errors: list[dict[str, Any]] = data.get("errors", [])
             return errors
@@ -124,7 +124,7 @@ class ErrorHistoryTracker:
         if window_end is None:
             window_end = datetime.now(UTC)
 
-        filtered_errors = []
+        filtered_errors: list[dict[str, Any]] = []
         for error in self.error_history:
             error_time = datetime.fromisoformat(error["timestamp"])
             if window_start <= error_time <= window_end:
@@ -151,7 +151,11 @@ class TestErrorPersistence:
 
     @pytest.fixture
     def temp_persistence_path(self) -> Generator[Path]:
-        """Create temporary persistence path."""
+        """Create temporary persistence path.
+        
+        Yields:
+            Path: Temporary file path for error persistence.
+        """
         with tempfile.TemporaryDirectory() as tmpdir:
             yield Path(tmpdir) / "error_state.json"
 
@@ -381,7 +385,7 @@ class TestErrorPersistence:
     ) -> None:
         """Test persistence of error events."""
         # Create error events
-        events = []
+        events: list[dict[str, Any]] = []
         for i in range(5):
             error = ErrorTestFactory.create_test_error(
                 code=WebSocketErrorCode.STREAM_INTERRUPTED,
@@ -499,7 +503,7 @@ class TestErrorPersistence:
         """Test handling of corrupted persistence files."""
         # Create corrupted file
         temp_persistence_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(temp_persistence_path, "w", encoding="utf-8") as f:
+        with temp_persistence_path.open("w", encoding="utf-8") as f:
             f.write("{ invalid json content ]}")
 
         # Try to load with new manager

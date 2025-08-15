@@ -97,7 +97,6 @@ class TestRouterRoutingErrorsIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
         )
@@ -127,16 +126,14 @@ class TestRouterRoutingErrorsIntegration:
         # Create router with typed error handler but we'll test the fallback scenario
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
         )
 
         # Test setup completed - router properly configured
 
-        # Test that router has proper legacy handler fallback setup
-        assert router.error_handler is not None  # Legacy handler
-        assert router.stream_error_handler is None  # No typed handler in this configuration
+        # Test that router has proper stream error handler setup
+        assert router.stream_error_handler is not None  # Stream error handler is configured
 
     @pytest.mark.asyncio
     async def test_missing_routing_key_error_with_typed_handler(
@@ -149,16 +146,17 @@ class TestRouterRoutingErrorsIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
         )
 
         # Test message with empty stream will trigger missing routing key
-        message = {"stream": "", "data": {}}
+        message: dict[str, Any] = {"stream": "", "data": {}}
 
         # Set up envelope validator - callable that creates TestEnvelopeModel from dict
-        router.envelope_validator = lambda data: TestEnvelopeModel(**data)
+        def envelope_validator(data: dict[str, Any]) -> TestEnvelopeModel:
+            return TestEnvelopeModel(**data)
+        router.envelope_validator = envelope_validator
 
         # Empty handlers dict to test routing behavior
         handlers: dict[str, Any] = {}
@@ -200,14 +198,13 @@ class TestRouterRoutingErrorsIntegration:
         # Create router with typed error handler and failing envelope validator
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
             envelope_validator=failing_envelope_validator,
         )
 
         # Test message and empty handlers
-        message = {"stream": "test", "data": {}}
+        message: dict[str, Any] = {"stream": "test", "data": {}}
         handlers: dict[str, MessageHandler] = {}
 
         # Call route_message which should trigger RuntimeError during envelope validation
@@ -248,7 +245,6 @@ class TestRouterRoutingErrorsIntegration:
         # Create router with typed error handler and failing envelope validator
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
             envelope_validator=failing_envelope_validator,

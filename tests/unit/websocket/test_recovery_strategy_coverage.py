@@ -121,10 +121,10 @@ class TestRecoveryStrategyCoverage:
     def test_strategy_value_ranges(self) -> None:
         """Test that recovery strategies have logical value ranges."""
         # Group strategies by category (based on value ranges)
-        retry_strategies = []
-        connection_strategies = []
-        subscription_strategies = []
-        advanced_strategies = []
+        retry_strategies: list[WebSocketRecoveryStrategy] = []
+        connection_strategies: list[WebSocketRecoveryStrategy] = []
+        subscription_strategies: list[WebSocketRecoveryStrategy] = []
+        advanced_strategies: list[WebSocketRecoveryStrategy] = []
 
         for strategy in WebSocketRecoveryStrategy:
             if 100 <= strategy.value < 200:
@@ -385,7 +385,7 @@ class TestRecoveryStrategyCoverage:
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
 
         # Attempt recovery beyond the limit
-        successes = []
+        successes: list[bool] = []
         for _ in range(5):  # Max attempts is 3
             success = await recovery_system.handle_stream_error(error)
             successes.append(success)

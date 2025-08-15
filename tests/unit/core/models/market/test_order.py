@@ -30,7 +30,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -52,6 +52,7 @@ from cyberdelta.models.market.order import (
     HyperliquidOrderDetails,
     Order,
 )
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -122,13 +123,21 @@ def financial_decimal_strategy(
 
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic price values for order data."""
+    """Generate realistic price values for order data.
+    
+    Returns:
+        Decimal price value for order testing.
+    """
     return draw(financial_decimal_strategy(min_value=0.01, max_value=100000.0, allow_zero=False))
 
 
 @st.composite
 def quantity_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic quantity values for order data."""
+    """Generate realistic quantity values for order data.
+    
+    Returns:
+        Decimal quantity value for order testing.
+    """
     return draw(financial_decimal_strategy(min_value=0.000001, max_value=10000.0, allow_zero=False))
 
 
@@ -151,8 +160,12 @@ def filled_quantity_strategy(draw: st.DrawFn, max_quantity: Decimal) -> Decimal:
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
-    """Generate valid Symbol objects for order testing."""
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
+    """Generate valid Symbol objects for order testing.
+    
+    Returns:
+        Valid Symbol object for testing.
+    """
     return draw(
         st.sampled_from([
             BTC_HL,
@@ -171,7 +184,11 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Any:
 
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
-    """Generate valid UTC timestamps for order data."""
+    """Generate valid UTC timestamps for order data.
+    
+    Returns:
+        UTC datetime object for order testing.
+    """
     naive_dt = draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
@@ -183,7 +200,11 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 
 @st.composite
 def valid_id_strategy(draw: st.DrawFn) -> str:
-    """Generate valid ID strings for order testing."""
+    """Generate valid ID strings for order testing.
+    
+    Returns:
+        Valid ID string for testing.
+    """
     return draw(
         st.text(
             alphabet=st.characters(
@@ -197,7 +218,11 @@ def valid_id_strategy(draw: st.DrawFn) -> str:
 
 @st.composite
 def hyperliquid_order_details_strategy(draw: st.DrawFn) -> HyperliquidOrderDetails:
-    """Generate valid HyperliquidOrderDetails for testing."""
+    """Generate valid HyperliquidOrderDetails for testing.
+    
+    Returns:
+        Valid HyperliquidOrderDetails object for testing.
+    """
     remaining_sz = draw(
         st.one_of(
             st.none(), financial_decimal_strategy(min_value=0.0, max_value=10000.0, allow_zero=True)
@@ -209,7 +234,11 @@ def hyperliquid_order_details_strategy(draw: st.DrawFn) -> HyperliquidOrderDetai
 
 @st.composite
 def backpack_order_details_strategy(draw: st.DrawFn) -> BackpackOrderDetails:
-    """Generate valid BackpackOrderDetails for testing."""
+    """Generate valid BackpackOrderDetails for testing.
+    
+    Returns:
+        Valid BackpackOrderDetails object for testing.
+    """
     executed_quote_quantity = draw(
         st.one_of(
             st.none(),
@@ -322,7 +351,7 @@ class TestOrderModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_order_creation_properties(
         self,
-        order_symbol: Any,
+        order_symbol: Symbol,
         side: OrderSide,
         order_type_price: tuple[OrderType, Decimal | None, Decimal | None],
         quantity_requested: Decimal,
@@ -393,7 +422,7 @@ class TestOrderModelProperties:
     @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
     def test_full_order_creation_properties(
         self,
-        order_symbol: Any,
+        order_symbol: Symbol,
         side: OrderSide,
         order_type_price: tuple[OrderType, Decimal | None, Decimal | None],
         quantity_requested: Decimal,
@@ -618,7 +647,7 @@ class TestOrderModelProperties:
             # For this test, set a valid average_fill_price to avoid the other validation
             base_order_data["average_fill_price"] = Decimal("50000.0")
             with pytest.raises(
-                ValidationError, match="quantity_filled .* cannot exceed quantity_requested"
+                ValidationError, match=r"quantity_filled .* cannot exceed quantity_requested"
             ):
                 Order(**base_order_data)
         # Test average_fill_price validation when quantity_filled > 0
@@ -666,12 +695,12 @@ class TestOrderModelProperties:
         # Property: Exchange details validation
         if exchange == ExchangeName.HYPERLIQUID and bp_details is not None:
             with pytest.raises(
-                ValidationError, match="Backpack details .* must be None for a Hyperliquid order"
+                ValidationError, match=r"Backpack details .* must be None for a Hyperliquid order"
             ):
                 Order(**base_order_data)
         elif exchange == ExchangeName.BACKPACK and hl_details is not None:
             with pytest.raises(
-                ValidationError, match="Hyperliquid details .* must be None for a Backpack order"
+                ValidationError, match=r"Hyperliquid details .* must be None for a Backpack order"
             ):
                 Order(**base_order_data)
         else:

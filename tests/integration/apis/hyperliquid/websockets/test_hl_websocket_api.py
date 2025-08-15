@@ -256,8 +256,8 @@ class TestHyperliquidWebSocketMarketData:
                         trades_data = cast(list[object], trades_data_raw)
                         for trade_data_raw in trades_data:
                             assert isinstance(trade_data_raw, dict)
-                            # Hyperliquid API always returns dict[str, Any] for trade data structures
-                            # Type safety justified: Hyperliquid guarantees string keys in API responses
+                            # Hyperliquid API returns dict[str, Any] for trade data
+                            # Type safety justified: Hyperliquid guarantees string keys in API
                             # Runtime verification: isinstance check confirms dict type
                             trade_data: dict[str, object] = cast(dict[str, object], trade_data_raw)
 

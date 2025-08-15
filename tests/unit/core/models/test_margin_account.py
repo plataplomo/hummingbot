@@ -29,8 +29,8 @@ Architecture Compliance:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, cast
 
 import pytest
 from hypothesis import given, settings, strategies as st
@@ -213,14 +213,14 @@ def backpack_details_strategy(draw: st.DrawFn) -> BackpackMarginDetails:
 
 
 @st.composite
-def parseable_decimal_strategy(draw: st.DrawFn) -> Any:
+def parseable_decimal_strategy(draw: st.DrawFn) -> Decimal | int | float | str:
     """Generate parseable decimal values in various formats.
 
     Args:
         draw: Hypothesis draw function
 
     Returns:
-        Any: A value that can be parsed to a Decimal
+        A value that can be parsed to a Decimal.
     """
     return draw(
         st.one_of(
@@ -244,12 +244,17 @@ def parseable_decimal_strategy(draw: st.DrawFn) -> Any:
 
 
 def _is_valid_decimal_string(s: str) -> bool:
-    """Check if a string can be parsed as a valid Decimal."""
+    """Check if a string can be parsed as a valid Decimal.
+    
+    Returns:
+        True if string can be parsed as Decimal, False otherwise.
+    """
     try:
         Decimal(s)
-        return True
-    except:
+    except (ValueError, TypeError, InvalidOperation):
         return False
+    else:
+        return True
 
 
 # =============================================================================
@@ -274,7 +279,8 @@ class TestMarginAccountSummaryProperties:
         total_equity: Decimal,
         available_equity: Decimal,
     ) -> None:
-        """Property: Minimal MarginAccountSummary with only required fields should
+        """Property: Minimal MarginAccountSummary with only required fields should be valid.
+        
         always be valid.
         """
         summary = MarginAccountSummary(
@@ -323,7 +329,8 @@ class TestMarginAccountSummaryProperties:
         total_position_notional: Decimal | None,
         total_unrealized_pnl: Decimal | None,
     ) -> None:
-        """Property: Complete MarginAccountSummary with all core fields should maintain
+        """Property: Complete MarginAccountSummary with all core fields should maintain integrity.
+        
         data integrity.
         """
         summary = MarginAccountSummary(
@@ -378,6 +385,7 @@ class TestMarginAccountSummaryProperties:
         assert summary.bp_details is None
 
         # Properties: Details should be accessible
+        assert summary.hl_details is not None
         assert summary.hl_details.cross_maintenance_margin_used >= 0
         assert summary.hl_details.isolated_maintenance_margin_used >= 0
 
@@ -422,17 +430,18 @@ class TestMarginAccountSummaryProperties:
         self,
         exchange: ExchangeName,
         timestamp: datetime,
-        total_equity: Any,
-        available_equity: Any,
+        total_equity: Decimal | float | str,
+        available_equity: Decimal | float | str,
     ) -> None:
-        """Property: MarginAccountSummary should correctly parse various numeric input
+        """Property: MarginAccountSummary should correctly parse various numeric types.
+        
         types to Decimal.
         """
         summary = MarginAccountSummary(
             exchange=exchange,
             timestamp=timestamp,
-            total_equity=total_equity,
-            available_equity=available_equity,
+            total_equity=cast(Decimal, total_equity),
+            available_equity=cast(Decimal, available_equity),
         )
 
         # Property: All financial fields should be converted to Decimal
@@ -948,7 +957,7 @@ class TestMarginAccountEdgeCaseProperties:
         self, summaries: list[tuple[ExchangeName, datetime, Decimal, Decimal]]
     ) -> None:
         """Property: Multiple margin accounts should be processed independently."""
-        created_summaries = []
+        created_summaries: list[MarginAccountSummary] = []
 
         for exchange, timestamp, total_equity, available_equity in summaries:
             summary = MarginAccountSummary(

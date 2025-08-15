@@ -12,7 +12,7 @@ Following TESTING_SECURITY_RULES.md:
 
 from __future__ import annotations
 
-import random
+import hashlib
 from datetime import UTC, datetime
 from decimal import Decimal
 from unittest.mock import Mock
@@ -616,7 +616,10 @@ def draw_aligned_price(tick_size: Decimal) -> Decimal:
     Returns:
         Decimal: An aligned price value.
     """
-    multiplier = random.randint(1, 100000)
+    # Generate deterministic multiplier based on tick_size for test reproducibility
+    hash_input = f"price_{tick_size}".encode()
+    hash_value = int(hashlib.sha256(hash_input).hexdigest()[:8], 16)
+    multiplier = (hash_value % 99999) + 1  # 1 to 100000 range
     return Decimal(multiplier) * tick_size
 
 
@@ -630,7 +633,9 @@ def draw_misaligned_price(tick_size: Decimal) -> Decimal:
     tick_size = max(tick_size, Decimal("0.001"))
 
     # Generate aligned price first
-    multiplier = random.randint(100, 100000)
+    hash_input = f"misaligned_price_{tick_size}".encode()
+    hash_value = int(hashlib.sha256(hash_input).hexdigest()[:8], 16)
+    multiplier = (hash_value % 99900) + 100  # 100 to 100000 range
     aligned_price = Decimal(multiplier) * tick_size
 
     # Add misalignment that's NOT a multiple of tick size
@@ -653,7 +658,10 @@ def draw_aligned_quantity(lot_size: Decimal) -> Decimal:
     Returns:
         Decimal: An aligned quantity value.
     """
-    multiplier = random.randint(1, 10000)
+    # Generate deterministic multiplier based on lot_size for test reproducibility
+    hash_input = f"quantity_{lot_size}".encode()
+    hash_value = int(hashlib.sha256(hash_input).hexdigest()[:8], 16)
+    multiplier = (hash_value % 9999) + 1  # 1 to 10000 range
     return Decimal(multiplier) * lot_size
 
 
@@ -667,7 +675,9 @@ def draw_misaligned_quantity(lot_size: Decimal) -> Decimal:
     lot_size = max(lot_size, Decimal("0.001"))
 
     # Generate aligned quantity first
-    multiplier = random.randint(10, 10000)
+    hash_input = f"misaligned_quantity_{lot_size}".encode()
+    hash_value = int(hashlib.sha256(hash_input).hexdigest()[:8], 16)
+    multiplier = (hash_value % 9990) + 10  # 10 to 10000 range
     aligned_quantity = Decimal(multiplier) * lot_size
 
     # Add misalignment that's NOT a multiple of lot size

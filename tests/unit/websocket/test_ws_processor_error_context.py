@@ -232,7 +232,8 @@ class TestProcessorErrorContextBuilder:
         validation_error: ValidationError,
         mock_payload: dict[str, Any],
     ) -> None:
-        """Test creating error context using fallback when context has no
+        """Test creating error context using fallback when context has no method.
+
         create_error_context method.
         """
         # Create mock context without create_error_context method

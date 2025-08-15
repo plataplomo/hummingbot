@@ -17,7 +17,12 @@ import pytest
 from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 
+from cyberdelta.apis.exceptions.data_transformation import UnknownEnumError
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
+from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
+    HyperliquidTradingEnumMapper,
+)
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 from cyberdelta.core.enums import OrderStatus
 from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 
@@ -124,7 +129,11 @@ def hyperliquid_financial_value_strategy() -> SearchStrategy[str]:
 
 
 def hyperliquid_order_data_strategy() -> SearchStrategy[dict[str, object]]:
-    """Generate Hyperliquid order data for transformation testing."""
+    """Generate Hyperliquid order data for transformation testing.
+
+    Returns:
+        SearchStrategy for dict[str, object] order data.
+    """
     return st.fixed_dictionaries({
         "oid": st.integers(min_value=1, max_value=2**63 - 1),  # Order ID
         "user": st.text(min_size=10, max_size=42),  # Ethereum address format
@@ -154,10 +163,6 @@ class TestHyperliquidOrderStatusMappingProperties:
     @given(hl_status=hyperliquid_order_status_strategy())
     def test_status_mapping_consistency(self, hl_status: str) -> None:
         """Property: Status mapping should be consistent and deterministic."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         # Map the status twice
         result1 = HyperliquidTradingEnumMapper.map_status_to_internal(hl_status)
         result2 = HyperliquidTradingEnumMapper.map_status_to_internal(hl_status)
@@ -171,10 +176,6 @@ class TestHyperliquidOrderStatusMappingProperties:
     @given(hl_status=st.sampled_from(["open", "filled", "canceled", "rejected"]))
     def test_known_status_mapping_correctness(self, hl_status: str) -> None:
         """Property: Known status values should map to correct internal values."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         result = HyperliquidTradingEnumMapper.map_status_to_internal(hl_status)
 
         # Property: Known statuses should not map to UNKNOWN
@@ -198,10 +199,6 @@ class TestHyperliquidOrderStatusMappingProperties:
     )
     def test_unknown_status_mapping(self, hl_status: str) -> None:
         """Property: Unknown status values should map to UNKNOWN."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         result = HyperliquidTradingEnumMapper.map_status_to_internal(hl_status)
 
         # Property: Unknown statuses should map to UNKNOWN
@@ -219,10 +216,6 @@ class TestHyperliquidOrderTypeMappingProperties:
     @given(hl_type=hyperliquid_order_type_strategy())
     def test_type_mapping_consistency(self, hl_type: str) -> None:
         """Property: Type mapping should be consistent and deterministic."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         # Hyperliquid order types need to be in dict format
         order_type_dict: dict[str, dict[str, object]] = {hl_type.lower(): {}}
 
@@ -239,10 +232,6 @@ class TestHyperliquidOrderTypeMappingProperties:
     @given(hl_type=st.sampled_from(["Market", "Limit"]))
     def test_known_type_mapping_correctness(self, hl_type: str) -> None:
         """Property: Known type values should map to correct internal values."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         # Convert to dict format expected by Hyperliquid mapper
         order_type_dict: dict[str, dict[str, object]] = {hl_type.lower(): {}}
         result = HyperliquidTradingEnumMapper.map_type_to_internal(order_type_dict, None)
@@ -268,11 +257,6 @@ class TestHyperliquidSideMappingProperties:
     @given(hl_side=hyperliquid_side_strategy())
     def test_side_mapping_consistency(self, hl_side: str) -> None:
         """Property: Side mapping should be consistent and deterministic."""
-        from cyberdelta.apis.exceptions.data_transformation import UnknownEnumError
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         try:
             # Map the side twice
             result1 = HyperliquidTradingEnumMapper.map_side_to_internal(hl_side)
@@ -291,10 +275,6 @@ class TestHyperliquidSideMappingProperties:
 
     def test_known_side_mapping_correctness(self) -> None:
         """Property: Known side values should map correctly."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         # Test standard Hyperliquid format
         assert HyperliquidTradingEnumMapper.map_side_to_internal("B") == OrderSide.BUY
         assert HyperliquidTradingEnumMapper.map_side_to_internal("A") == OrderSide.SELL
@@ -303,21 +283,17 @@ class TestHyperliquidSideMappingProperties:
         try:
             buy_result = HyperliquidTradingEnumMapper.map_side_to_internal("buy")
             assert buy_result == OrderSide.BUY
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             pass  # May not support alternative formats
 
     @given(hl_side=st.text().filter(lambda x: x not in ["B", "A", "buy", "sell", "BUY", "SELL"]))
     def test_invalid_side_handling(self, hl_side: str) -> None:
         """Property: Invalid side values should be handled consistently."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         try:
             result = HyperliquidTradingEnumMapper.map_side_to_internal(hl_side)
             # If it doesn't raise, result should be a valid OrderSide
             assert isinstance(result, OrderSide)
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             # Invalid sides should raise exceptions
             pass
 
@@ -342,7 +318,6 @@ class TestHyperliquidOrderTransformationProperties:
 
         try:
             # Create mock raw order data for testing
-            from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 
             # Skip this test if we can't create valid mock data
             if not order_data.get("sz") or not order_data.get("side"):
@@ -385,9 +360,9 @@ class TestHyperliquidOrderTransformationProperties:
             # Property: Side should be properly mapped
             assert result.side in [OrderSide.BUY, OrderSide.SELL]
 
-        except Exception as e:
-            # If transformation fails, it should be for a valid reason
-            assert isinstance(e, (ValueError, TypeError, AttributeError))
+        except (ValueError, TypeError, AttributeError):
+            # Expected exceptions for invalid data
+            pass
 
     @given(order_data=hyperliquid_order_data_strategy())
     def test_order_transformation_financial_invariants(self, order_data: dict[str, object]) -> None:
@@ -405,7 +380,6 @@ class TestHyperliquidOrderTransformationProperties:
                 return
 
             # Create mock raw order for testing
-            from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 
             raw_order = HyperliquidRawOrder(
                 oid=int(cast(int, order_data["oid"])),
@@ -441,7 +415,7 @@ class TestHyperliquidOrderTransformationProperties:
             if result.price is not None:
                 assert result.price.is_finite()
 
-        except Exception:
+        except (ValueError, TypeError, AttributeError):
             # Expected for invalid input data
             pass
 
@@ -476,7 +450,6 @@ class TestHyperliquidOrderTransformationProperties:
 
         try:
             # Create mock raw order for testing
-            from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 
             raw_order = HyperliquidRawOrder(
                 oid=int(cast(int, order_data["oid"])),
@@ -510,7 +483,7 @@ class TestHyperliquidOrderTransformationProperties:
                 assert result.price.is_finite()
                 assert result.price > 0
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError) as e:
             # Should not fail for valid financial inputs
             pytest.fail(f"Valid financial data rejected: {e}")
 
@@ -526,10 +499,6 @@ class TestHyperliquidTimeInForceMappingProperties:
     @given(hl_tif=st.sampled_from(["Gtc", "Ioc", "Alo"]))
     def test_tif_mapping_consistency(self, hl_tif: str) -> None:
         """Property: Time in force mapping should be consistent."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         # TIF mapping expects order type dict format
         order_type_dict = {"limit": {"tif": hl_tif}}
 
@@ -544,10 +513,6 @@ class TestHyperliquidTimeInForceMappingProperties:
 
     def test_known_tif_mapping_correctness(self) -> None:
         """Property: Known TIF values should map correctly."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         expected_mappings = {
             "Gtc": TimeInForce.GTC,
             "Ioc": TimeInForce.IOC,
@@ -575,10 +540,6 @@ class TestHyperliquidOrderMapperIntegrationProperties:
     )
     def test_enum_mapping_consistency(self, status: str, order_type: str, tif: str) -> None:
         """Property: All enum mappings should be consistent."""
-        from cyberdelta.apis.hyperliquid.mappers.trading.hl_trading_enum_mapper import (
-            HyperliquidTradingEnumMapper,
-        )
-
         mapped_status = HyperliquidTradingEnumMapper.map_status_to_internal(status)
 
         order_type_dict = {order_type.lower(): {"tif": tif}}
@@ -602,7 +563,6 @@ class TestHyperliquidOrderMapperIntegrationProperties:
         """Property: Transformation errors should be safe and informative."""
         try:
             # Create mock raw order for testing error handling
-            from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawOrder
 
             # Use potentially invalid data to test error handling
             raw_order = HyperliquidRawOrder(
@@ -622,15 +582,15 @@ class TestHyperliquidOrderMapperIntegrationProperties:
 
             mapper = HyperliquidOrderMapper()
             mapper.transform_raw_order_to_internal(raw_order)
-        except Exception as e:
-            # Property: Errors should be specific exception types (not generic Exception)
-            assert not isinstance(e, Exception) or type(e) is not Exception
-
+        except (ValueError, TypeError, AttributeError) as e:
             # Property: Error messages should be informative (contain relevant info)
             error_msg = str(e)
-            assert len(error_msg) > 0
+            if len(error_msg) == 0:
+                pytest.fail("Error message should not be empty")
 
             # Property: Should not contain sensitive information
-            assert "password" not in error_msg.lower()
-            assert "secret" not in error_msg.lower()
+            if "password" in error_msg.lower():
+                pytest.fail("Error message should not contain sensitive information")
+            if "secret" in error_msg.lower():
+                pytest.fail("Error message should not contain sensitive information")
             # Note: Skip 'key' check as it may appear in randomly generated test data

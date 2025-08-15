@@ -53,7 +53,11 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_strategy() -> SearchStrategy[Decimal]:
-    """Generate positive Decimal values for financial calculations."""
+    """Generate positive Decimal values for financial calculations.
+    
+    Returns:
+        SearchStrategy for positive Decimal values.
+    """
     return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8)
 
 
@@ -71,7 +75,11 @@ def price_strategy() -> SearchStrategy[Decimal]:
 
 
 def quantity_strategy() -> SearchStrategy[Decimal]:
-    """Generate realistic quantity values."""
+    """Generate realistic quantity values.
+    
+    Returns:
+        SearchStrategy for realistic quantity values.
+    """
     return st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(10000), places=8)
 
 
@@ -123,8 +131,12 @@ def exchange_strategy() -> SearchStrategy[ExchangeName]:
     return st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK])
 
 
-def symbol_strategy() -> SearchStrategy[Any]:
-    """Generate valid Symbol objects."""
+def symbol_strategy() -> SearchStrategy[object]:
+    """Generate valid Symbol objects.
+    
+    Returns:
+        SearchStrategy for valid Symbol objects.
+    """
 
     def create_symbol(exchange: ExchangeName, asset: str) -> object:
         if exchange == ExchangeName.HYPERLIQUID:
@@ -155,7 +167,11 @@ def order_status_strategy() -> SearchStrategy[OrderStatus]:
 
 
 def limit_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate data for valid limit orders."""
+    """Generate data for valid limit orders.
+    
+    Returns:
+        SearchStrategy for limit order data dictionaries.
+    """
     return st.fixed_dictionaries({
         "symbol": symbol_strategy(),
         "side": order_side_strategy(),
@@ -168,7 +184,11 @@ def limit_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
 
 
 def market_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate data for valid market orders."""
+    """Generate data for valid market orders.
+    
+    Returns:
+        SearchStrategy for market order data dictionaries.
+    """
     return st.fixed_dictionaries({
         "symbol": symbol_strategy(),
         "side": order_side_strategy(),
@@ -180,7 +200,11 @@ def market_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
 
 
 def stop_order_data_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate data for valid stop orders."""
+    """Generate data for valid stop orders.
+    
+    Returns:
+        SearchStrategy for stop order data dictionaries.
+    """
     return st.fixed_dictionaries({
         "symbol": symbol_strategy(),
         "side": order_side_strategy(),
@@ -589,6 +613,7 @@ class TestOrderFinancialPrecisionProperties:
         # Property: Exact precision preserved
         assert order.price == price
         assert order.quantity_requested == quantity
+        assert order.price is not None
 
         # Property: String representation should be consistent
         assert str(order.price) == str(price)
@@ -717,7 +742,7 @@ class TestOrderLifecycleProperties:
             # Property: Average fill price should be positive for filled orders
             if order.quantity_filled > 0:
                 assert order.average_fill_price > Decimal(0)
-        except Exception:
+        except (ValueError, TypeError, AttributeError):
             # Model validation might prevent invalid updates - this is acceptable
             pass
 

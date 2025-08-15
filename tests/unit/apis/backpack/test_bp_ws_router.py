@@ -19,7 +19,6 @@ from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrd
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 

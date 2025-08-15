@@ -148,6 +148,23 @@ def side_strategy() -> SearchStrategy[OrderSide]:
     return st.sampled_from([OrderSide.BUY, OrderSide.SELL])
 
 
+def _create_spot_balance_dict(
+    exchange: ExchangeName, asset: str, total: Decimal, available: Decimal
+) -> dict[str, Any]:
+    """Create a spot balance dictionary.
+
+    Returns:
+        Dictionary with spot balance data.
+    """
+    return {
+        "exchange": exchange,
+        "asset": asset,
+        "total_quantity": total,
+        "available_quantity": min(available, total),  # Available <= Total
+        "timestamp": datetime.now(UTC),
+    }
+
+
 def spot_balance_strategy() -> SearchStrategy[dict[str, Any]]:
     """Generate valid spot balance data.
 
@@ -155,18 +172,29 @@ def spot_balance_strategy() -> SearchStrategy[dict[str, Any]]:
         Strategy for generating spot balance dictionaries.
     """
     return st.builds(
-        lambda exchange, asset, total, available: {
-            "exchange": exchange,
-            "asset": asset,
-            "total_quantity": total,
-            "available_quantity": min(available, total),  # Available <= Total
-            "timestamp": datetime.now(UTC),
-        },
+        _create_spot_balance_dict,
         exchange=exchange_strategy(),
         asset=asset_strategy(),
         total=balance_amount_strategy(),
         available=balance_amount_strategy(),
     )
+
+
+def _create_fill_dict(
+    price: Decimal, quantity: Decimal, fee: Decimal, side: OrderSide, exchange: ExchangeName
+) -> dict[str, Any]:
+    """Create a fill dictionary.
+
+    Returns:
+        Dictionary with fill data.
+    """
+    return {
+        "price": price,
+        "quantity": quantity,
+        "fee": fee,
+        "side": side,
+        "exchange": exchange,
+    }
 
 
 def fill_strategy() -> SearchStrategy[dict[str, Any]]:
@@ -176,13 +204,7 @@ def fill_strategy() -> SearchStrategy[dict[str, Any]]:
         Strategy for generating fill data dictionaries.
     """
     return st.builds(
-        lambda price, quantity, fee, side, exchange: {
-            "price": price,
-            "quantity": quantity,
-            "fee": fee,
-            "side": side,
-            "exchange": exchange,
-        },
+        _create_fill_dict,
         price=price_strategy(),
         quantity=quantity_strategy(),
         fee=fee_strategy(),
@@ -253,7 +275,7 @@ class TestBalanceInvariants:
         # Create balance with constraint
         effective_available = min(available_quantity, total_quantity)
 
-        # Property: Available <= Total
+        # Property: Available must be less than or equal to Total
         assert effective_available <= total_quantity
 
         # Property: Both should be non-negative
@@ -553,7 +575,7 @@ class TestBalanceReconciliationProperties:
         mock_state_manager.get_state.return_value = state
 
         # Create exchange balance objects
-        exchange_balance_objects = []
+        exchange_balance_objects: list[SpotBalance] = []
         for asset, amount in exchange_balances:
             symbol = create_symbol_func(value=asset, exchange=exchange)
             balance = SpotBalance(
@@ -608,7 +630,7 @@ class TestBalanceReconciliationProperties:
         mock_state_manager.get_state.return_value = state
 
         # Create exchange balances
-        exchange_balances = []
+        exchange_balances: list[SpotBalance] = []
         for asset, amount in zip(assets, amounts, strict=False):
             symbol = create_symbol_func(value=asset, exchange=exchange)
             balance = SpotBalance(

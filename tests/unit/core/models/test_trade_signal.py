@@ -30,8 +30,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    pass
 
 import pytest
 from hypothesis import given, settings, strategies as st
@@ -45,6 +49,7 @@ from cyberdelta.exceptions.parsing import (
     TimestampFormatError,
 )
 from cyberdelta.models.trade_signal import TradeSignal
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -66,14 +71,35 @@ pytestmark = pytest.mark.timing
 # HELPER FUNCTIONS
 # =============================================================================
 
+# =============================================================================
+# TYPE DEFINITIONS FOR TRADE SIGNAL TESTING
+# =============================================================================
+
+# Metadata values that can be stored in trade signal metadata
+MetadataValue = str | int | float | bool
+MetadataDict = dict[str, MetadataValue]
+
+# Trade signal creation parameters
+TradeSignalKwargs = dict[str, Any]
+
+# Various parseable input types for testing
+ParseableInput = str | int | float | Decimal
+
+# =============================================================================
+
 
 def _is_valid_decimal_string(s: str) -> bool:
-    """Check if a string can be parsed as a valid Decimal."""
+    """Check if a string can be parsed as a valid Decimal.
+    
+    Returns:
+        True if string can be parsed as Decimal, False otherwise.
+    """
     try:
         Decimal(s)
-        return True
-    except:
+    except (ValueError, TypeError, InvalidOperation):
         return False
+    else:
+        return True
 
 
 # =============================================================================
@@ -137,7 +163,7 @@ def confidence_strategy(draw: st.DrawFn) -> float:
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for trade signal testing.
 
     Args:
@@ -256,14 +282,14 @@ def strategy_name_strategy(draw: st.DrawFn) -> str:
 
 
 @st.composite
-def metadata_strategy(draw: st.DrawFn) -> dict[str, Any]:
+def metadata_strategy(draw: st.DrawFn) -> MetadataDict:
     """Generate valid metadata dictionaries.
 
     Args:
         draw: Hypothesis draw function
 
     Returns:
-        dict[str, Any]: Valid metadata for trade signals
+        MetadataDict: Valid metadata for trade signals
     """
     # Generate 0-5 key-value pairs
     num_items = draw(st.integers(min_value=0, max_value=5))
@@ -316,7 +342,7 @@ class TestTradeSignalModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_trade_signal_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         signal_type: SignalType,
         side: OrderSide,
         price: Decimal,
@@ -372,7 +398,7 @@ class TestTradeSignalModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_complete_trade_signal_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         signal_type: SignalType,
         side: OrderSide,
         price: Decimal,
@@ -383,7 +409,7 @@ class TestTradeSignalModelProperties:
         source_strategy: str,
         stop_loss: Decimal,
         take_profit: Decimal,
-        metadata: dict[str, Any],
+        metadata: MetadataDict,
     ) -> None:
         """Property: Complete TradeSignal with all fields should maintain data integrity."""
         # Generate an expiration time in the future
@@ -431,7 +457,7 @@ class TestTradeSignalModelProperties:
     @settings(max_examples=150, deadline=None)
     def test_signal_expiration_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         signal_type: SignalType,
         side: OrderSide,
         price: Decimal,
@@ -482,7 +508,7 @@ class TestTradeSignalModelProperties:
     @settings(max_examples=150, deadline=None)
     def test_trade_signal_mutability_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         signal_type: SignalType,
         side: OrderSide,
         price: Decimal,
@@ -535,7 +561,7 @@ class TestTradeSignalModelProperties:
         self, field_name: str, invalid_value: Decimal
     ) -> None:
         """Property: Decimal fields should reject invalid values according to constraints."""
-        base_kwargs: dict[str, Any] = {
+        base_kwargs: TradeSignalKwargs = {
             "symbol": BTC_HL,
             "signal_type": SignalType.ENTER_LONG,
             "side": OrderSide.BUY,
@@ -569,16 +595,16 @@ class TestTradeSignalModelProperties:
         ),
     )
     @settings(max_examples=200, deadline=None)
-    def test_decimal_parsing_properties(self, parseable_inputs: Any) -> None:
+    def test_decimal_parsing_properties(self, parseable_inputs: ParseableInput) -> None:
         """Property: TradeSignal should correctly parse various numeric input types to Decimal."""
         signal = TradeSignal(
             symbol=BTC_HL,
             signal_type=SignalType.ENTER_LONG,
             side=OrderSide.BUY,
-            price=parseable_inputs,
-            quantity=parseable_inputs,
-            stop_loss=parseable_inputs,
-            take_profit=parseable_inputs,
+            price=parseable_inputs,  # type: ignore[arg-type]  # Testing type conversion
+            quantity=parseable_inputs,  # type: ignore[arg-type]  # Testing type conversion
+            stop_loss=parseable_inputs,  # type: ignore[arg-type]  # Testing type conversion
+            take_profit=parseable_inputs,  # type: ignore[arg-type]  # Testing type conversion
             exchange=ExchangeName.HYPERLIQUID,
         )
 
@@ -606,8 +632,9 @@ class TestTradeSignalModelProperties:
         ),
     )
     @settings(max_examples=200, deadline=None)
-    def test_confidence_parsing_properties(self, confidence_input: Any) -> None:
-        """Property: Confidence field should correctly parse various numeric input types
+    def test_confidence_parsing_properties(self, confidence_input: ParseableInput) -> None:
+        """Property: Confidence field should correctly parse various numeric input types.
+
         to float.
         """
         signal = TradeSignal(
@@ -616,7 +643,7 @@ class TestTradeSignalModelProperties:
             side=OrderSide.BUY,
             price=Decimal("100.0"),
             exchange=ExchangeName.HYPERLIQUID,
-            confidence=confidence_input,
+            confidence=confidence_input,  # type: ignore[arg-type]  # Testing confidence conversion
         )
 
         # Property: Confidence should be converted to float
@@ -633,7 +660,7 @@ class TestTradeSignalModelProperties:
         ),
     )
     @settings(max_examples=150, deadline=None)
-    def test_timestamp_parsing_properties(self, timestamp_input: Any) -> None:
+    def test_timestamp_parsing_properties(self, timestamp_input: ParseableInput) -> None:
         """Property: Timestamp fields should parse various input types correctly."""
         signal = TradeSignal(
             symbol=BTC_HL,
@@ -641,7 +668,7 @@ class TestTradeSignalModelProperties:
             side=OrderSide.BUY,
             price=Decimal("100.0"),
             exchange=ExchangeName.HYPERLIQUID,
-            timestamp=timestamp_input,
+            timestamp=timestamp_input,  # type: ignore[arg-type]  # Testing timestamp conversion
         )
 
         # Property: Timestamp should be converted to UTC datetime
@@ -683,7 +710,9 @@ class TestTradeSignalModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None)
-    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: Any) -> None:
+    def test_invalid_timestamp_rejection_properties(
+        self, invalid_timestamp: ParseableInput
+    ) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, TimestampFormatError)):
             TradeSignal(
@@ -692,7 +721,7 @@ class TestTradeSignalModelProperties:
                 side=OrderSide.BUY,
                 price=Decimal("100.0"),
                 exchange=ExchangeName.HYPERLIQUID,
-                timestamp=invalid_timestamp,
+                timestamp=invalid_timestamp,  # type: ignore[arg-type]  # Testing invalid timestamp
             )
 
     @given(
@@ -704,7 +733,7 @@ class TestTradeSignalModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None)
-    def test_invalid_exchange_rejection_properties(self, invalid_exchange: Any) -> None:
+    def test_invalid_exchange_rejection_properties(self, invalid_exchange: ParseableInput) -> None:
         """Property: Invalid exchange inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, ListFieldError, TypeFieldError)):
             TradeSignal(
@@ -712,7 +741,7 @@ class TestTradeSignalModelProperties:
                 signal_type=SignalType.ENTER_LONG,
                 side=OrderSide.BUY,
                 price=Decimal("100.0"),
-                exchange=invalid_exchange,
+                exchange=invalid_exchange,  # type: ignore[arg-type]  # Testing invalid exchange
             )
 
 
@@ -733,7 +762,7 @@ class TestTradeSignalBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_stop_loss_take_profit_relationships_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         price: Decimal,
         stop_loss: Decimal,
         take_profit: Decimal,
@@ -785,7 +814,7 @@ class TestTradeSignalBusinessLogicProperties:
     @settings(max_examples=200, deadline=None)
     def test_signal_consistency_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         signal_type: SignalType,
         side: OrderSide,
         price: Decimal,
@@ -822,14 +851,14 @@ class TestTradeSignalBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_signal_enrichment_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         signal_type: SignalType,
         side: OrderSide,
         price: Decimal,
         exchange: ExchangeName | list[ExchangeName],
         quantity: Decimal,
         confidence: float,
-        metadata: dict[str, Any],
+        metadata: MetadataDict,
     ) -> None:
         """Property: Signals should support enrichment by downstream systems."""
         # Create minimal signal
@@ -874,11 +903,11 @@ class TestTradeSignalEdgeCaseProperties:
     @settings(max_examples=150, deadline=None)
     def test_signal_id_uniqueness_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         source_strategy: str,
     ) -> None:
         """Property: Each signal should have a unique ID."""
-        signals = []
+        signals: list[TradeSignal] = []
 
         # Generate multiple signals
         for _ in range(10):
@@ -909,10 +938,10 @@ class TestTradeSignalEdgeCaseProperties:
     @settings(max_examples=150, deadline=None)
     def test_signal_serialization_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         price: Decimal,
         exchange: ExchangeName | list[ExchangeName],
-        metadata: dict[str, Any],
+        metadata: MetadataDict,
     ) -> None:
         """Property: Signals should be serializable and deserializable."""
         signal = TradeSignal(
@@ -948,7 +977,7 @@ class TestTradeSignalEdgeCaseProperties:
     @settings(max_examples=150, deadline=None)
     def test_signal_timing_edge_cases_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         base_time: datetime,
         offset_seconds: int,
     ) -> None:
@@ -968,6 +997,7 @@ class TestTradeSignalEdgeCaseProperties:
         # Property: Timestamp relationships should be preserved
         assert signal.timestamp == base_time
         assert signal.expiration == expiration_time
+        assert signal.expiration is not None
 
         # Property: Time difference should match our offset
         time_diff = signal.expiration - signal.timestamp

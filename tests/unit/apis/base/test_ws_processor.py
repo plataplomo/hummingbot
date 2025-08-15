@@ -11,7 +11,6 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.ws_error_handler import BaseErrorHandler
 from cyberdelta.apis.websocket.ws_processing_metrics import ProcessingMetrics
 from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
@@ -19,6 +18,7 @@ from cyberdelta.apis.websocket.ws_processor import (
     SimpleDictTransformer,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.enums import ExchangeName
 
 
@@ -125,9 +125,9 @@ class TestPydanticWebSocketProcessor:
         """Create mock error handler.
 
         Returns:
-            AsyncMock: Mocked BaseErrorHandler for testing.
+            AsyncMock: Mocked WebSocketStreamErrorHandler for testing.
         """
-        return AsyncMock(spec=BaseErrorHandler)
+        return AsyncMock(spec=WebSocketStreamErrorHandler)
 
     @pytest.fixture
     def transformer(self) -> TestTransformer:
@@ -416,7 +416,7 @@ class TestProcessorFactory:
 
     def test_create_simple_processor(self) -> None:
         """Test creating simple processor."""
-        error_handler = MagicMock(spec=BaseErrorHandler)
+        error_handler = MagicMock(spec=WebSocketStreamErrorHandler)
 
         processor = ProcessorFactory.create_simple_processor(
             raw_model=MessageModel,
@@ -431,7 +431,7 @@ class TestProcessorFactory:
 
     def test_create_processor(self) -> None:
         """Test creating processor with custom transformer."""
-        error_handler = MagicMock(spec=BaseErrorHandler)
+        error_handler = MagicMock(spec=WebSocketStreamErrorHandler)
         transformer = TestTransformer()
 
         processor: PydanticWebSocketProcessor[MessageModel, Any] = (

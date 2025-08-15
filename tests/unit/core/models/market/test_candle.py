@@ -29,9 +29,9 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from hypothesis import HealthCheck, assume, given, settings, strategies as st
@@ -39,6 +39,7 @@ from pydantic import ValidationError
 
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError, ParsingError
 from cyberdelta.models.market.candle import Candle
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -142,7 +143,7 @@ def interval_strategy(draw: st.DrawFn) -> str:
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for candle testing.
 
     Args:
@@ -234,7 +235,7 @@ class TestCandleModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_candle_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         interval: str,
         open_time: datetime,
         ohlc_prices: tuple[Decimal, Decimal, Decimal, Decimal],
@@ -283,7 +284,7 @@ class TestCandleModelProperties:
     @settings(max_examples=300, deadline=None)
     def test_full_candle_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         interval: str,
         open_time: datetime,
         ohlc_prices: tuple[Decimal, Decimal, Decimal, Decimal],
@@ -355,7 +356,7 @@ class TestCandleModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_candle_immutability_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         interval: str,
         open_time: datetime,
         ohlc_prices: tuple[Decimal, Decimal, Decimal, Decimal],
@@ -444,7 +445,7 @@ class TestCandleModelProperties:
         ),
     )
     @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
-    def test_decimal_parsing_properties(self, parseable_inputs: Any) -> None:
+    def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: Candle should correctly parse various numeric input types to Decimal."""
         # Skip edge cases that might cause precision issues
         if isinstance(parseable_inputs, float):
@@ -457,14 +458,15 @@ class TestCandleModelProperties:
         )
         volume_input = Decimal(str(raw_volume))
 
+        decimal_input = Decimal(str(parseable_inputs))
         candle = Candle(
             symbol=BTC_HL,
             interval="1h",
             open_time=datetime.now(UTC),
-            open=parseable_inputs,
-            high=parseable_inputs,
-            low=parseable_inputs,
-            close=parseable_inputs,
+            open=decimal_input,
+            high=decimal_input,
+            low=decimal_input,
+            close=decimal_input,
             volume=volume_input,  # Volume can be 0
         )
 
@@ -539,13 +541,13 @@ class TestCandleModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None)
-    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: Any) -> None:
+    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):
             Candle(
                 symbol=BTC_HL,
                 interval="1h",
-                open_time=invalid_timestamp,
+                open_time=cast(datetime, invalid_timestamp),
                 open=Decimal("100.0"),
                 high=Decimal("105.0"),
                 low=Decimal("95.0"),

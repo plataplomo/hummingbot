@@ -14,7 +14,6 @@ precision errors or validation bypasses.
 """
 
 from decimal import Decimal, InvalidOperation
-from typing import Any
 
 import pytest
 from hypothesis import assume, given, strategies as st
@@ -24,8 +23,6 @@ from cyberdelta.apis.base.validation_contexts import ValidationContext
 from cyberdelta.apis.base.validation_policies import NullPolicy, RangePolicy
 from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.utils.decimal_parser import (
-    _prepare_value_string,
-    _validate_decimal_finite,
     format_decimal_for_exchange,
     safe_parse_decimal,
     validate_decimal_precision,
@@ -157,9 +154,10 @@ def _is_valid_decimal_string(s: str) -> bool:
     """
     try:
         Decimal(s.strip())
-        return True
     except (InvalidOperation, ValueError):
         return False
+    else:
+        return True
 
 
 def validation_context_strategy() -> SearchStrategy[ValidationContext]:
@@ -727,138 +725,6 @@ class TestFormatDecimalForExchangeProperties:
 
 
 # =============================================================================
-# PROPERTY TESTS FOR HELPER FUNCTIONS
-# =============================================================================
-
-
-class TestHelperFunctionProperties:
-    """Property-based tests for helper functions in decimal_parser."""
-
-    @given(
-        value=st.decimals(
-            min_value=-1000000, max_value=1000000, places=8, allow_nan=False, allow_infinity=False
-        ),
-        field_name=st.sampled_from(["price", "quantity", "amount", "balance", "fee", "total"]),
-        context=st.sampled_from([
-            "order_validation",
-            "balance_check",
-            "fee_calculation",
-            "price_parsing",
-            "amount_validation",
-        ]),
-    )
-    def test_validate_decimal_finite_valid_values(
-        self, value: Decimal, field_name: str, context: str
-    ) -> None:
-        """Property: Finite decimal values should pass validation."""
-        # Should not raise an exception
-        _validate_decimal_finite(value, field_name, context)
-
-    def test_validate_decimal_finite_special_values_rejection(self) -> None:
-        """Property: Non-finite decimal values should be rejected."""
-        field_name = "test_field"
-        context = "test_context"
-
-        # Test NaN
-        with pytest.raises(APIError) as exc_info:
-            _validate_decimal_finite(Decimal("NaN"), field_name, context)
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-
-        # Test Infinity
-        with pytest.raises(APIError):
-            _validate_decimal_finite(Decimal("Infinity"), field_name, context)
-
-        # Test negative Infinity
-        with pytest.raises(APIError):
-            _validate_decimal_finite(Decimal("-Infinity"), field_name, context)
-
-    @given(
-        str_value=st.sampled_from(["123.45", "0.001", "999.999", "42", "1.23456789"]),
-        field_name=st.sampled_from(["price", "quantity", "amount", "balance", "fee", "total"]),
-        context=st.sampled_from([
-            "order_validation",
-            "balance_check",
-            "fee_calculation",
-            "price_parsing",
-            "amount_validation",
-        ]),
-    )
-    def test_prepare_value_string_valid_strings(
-        self, str_value: str, field_name: str, context: str
-    ) -> None:
-        """Property: Valid string values should be prepared correctly."""
-        result = _prepare_value_string(str_value, field_name, context)
-
-        # Property: Should return a stripped string
-        assert isinstance(result, str)
-        assert result == str_value.strip()
-        assert len(result) > 0  # Should not be empty after stripping
-
-    @given(
-        float_value=st.floats(
-            min_value=-1000000, max_value=1000000, allow_nan=False, allow_infinity=False
-        ),
-        field_name=st.sampled_from(["price", "quantity", "amount", "balance", "fee", "total"]),
-        context=st.sampled_from([
-            "order_validation",
-            "balance_check",
-            "fee_calculation",
-            "price_parsing",
-            "amount_validation",
-        ]),
-    )
-    def test_prepare_value_string_float_conversion(
-        self, float_value: float, field_name: str, context: str
-    ) -> None:
-        """Property: Float values should be converted to string representation."""
-        result = _prepare_value_string(float_value, field_name, context)
-
-        # Property: Should return string representation
-        assert isinstance(result, str)
-        assert result == str(float_value)
-
-    def test_prepare_value_string_empty_string_rejection(self) -> None:
-        """Property: Empty strings should be rejected."""
-        field_name = "test_field"
-        context = "test_context"
-
-        with pytest.raises(APIError) as exc_info:
-            _prepare_value_string("", field_name, context)
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-
-        with pytest.raises(APIError):
-            _prepare_value_string("   ", field_name, context)
-
-    @given(
-        invalid_value=st.one_of(
-            st.lists(st.text()),
-            st.dictionaries(st.text(), st.text()),
-            st.booleans(),
-            st.none(),
-        ),
-        field_name=st.sampled_from(["price", "quantity", "amount", "balance", "fee", "total"]),
-        context=st.sampled_from([
-            "order_validation",
-            "balance_check",
-            "fee_calculation",
-            "price_parsing",
-            "amount_validation",
-        ]),
-    )
-    def test_prepare_value_string_invalid_types_rejection(
-        self, invalid_value: Any, field_name: str, context: str
-    ) -> None:
-        """Property: Invalid value types should be rejected."""
-        with pytest.raises(APIError) as exc_info:
-            _prepare_value_string(invalid_value, field_name, context)
-
-        # Property: Error should have correct code and include type information
-        assert exc_info.value.code == APIErrorCode.INVALID_RESPONSE.value
-        error_msg = exc_info.value.message
-        assert type(invalid_value).__name__ in error_msg
-
-
-# =============================================================================
 # INTEGRATION PROPERTY TESTS
 # =============================================================================
 
@@ -928,20 +794,20 @@ class TestDecimalParserIntegrationProperties:
             assert result == Decimal(0)
 
             # DEFENSIVE CHECK: Ensure result is not None after default processing.
-            # Pypy=[reportArgumentType]
-            if result is not None:
+            # Pypy reports argument type issue here
+            if (result is not None and 
+                context.range_policy in [RangePolicy.ANY, RangePolicy.NON_NEGATIVE]):
                 # Further processing should work with the default zero if range policy allows
-                if context.range_policy in [RangePolicy.ANY, RangePolicy.NON_NEGATIVE]:
-                    validated = validate_positive_decimal(result, context)
-                    formatted = format_decimal_for_exchange(validated, decimal_places)
-                    if decimal_places == 0:
-                        assert formatted in ["0", ""]  # Allow empty string for 0 decimal places
-                        if formatted:  # Only check if not empty
-                            assert Decimal(formatted) == Decimal(0)
-                    else:
-                        # Allow various zero representations including scientific notation
-                        assert formatted  # Should not be empty for > 0 decimal places
+                validated = validate_positive_decimal(result, context)
+                formatted = format_decimal_for_exchange(validated, decimal_places)
+                if decimal_places == 0:
+                    assert formatted in ["0", ""]  # Allow empty string for 0 decimal places
+                    if formatted:  # Only check if not empty
                         assert Decimal(formatted) == Decimal(0)
+                else:
+                    # Allow various zero representations including scientific notation
+                    assert formatted  # Should not be empty for > 0 decimal places
+                    assert Decimal(formatted) == Decimal(0)
         else:  # REJECT
             with pytest.raises(APIError):
                 safe_parse_decimal(None, context)

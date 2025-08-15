@@ -135,9 +135,10 @@ def _is_valid_decimal_string(s: str) -> bool:
     """
     try:
         Decimal(s.strip().replace(",", ""))
-        return True
     except (InvalidOperation, ValueError):
         return False
+    else:
+        return True
 
 
 def timestamp_strategy() -> SearchStrategy[float]:
@@ -147,10 +148,10 @@ def timestamp_strategy() -> SearchStrategy[float]:
         A Hypothesis strategy for testing.
     """
     # Current timestamp ranges for different scales
-    current_time = datetime.now().timestamp()
+    current_time = datetime.now(tz=UTC).timestamp()
 
     return st.one_of([
-        # Seconds (1970-2100)
+        # Seconds in range from 1970 to 2100
         st.floats(min_value=0, max_value=4102444800),
         # Milliseconds
         st.floats(
@@ -209,7 +210,9 @@ class TestParseDecimalValueProperties:
     def test_decimal_input_types_consistency(self, value: str | Decimal | float) -> None:
         """Property: Function should handle string, Decimal, and float inputs consistently."""
         # Skip problematic float values that lose precision
-        if isinstance(value, float) and (abs(value) > 1e15 or (value != 0 and abs(value) < 1e-15)):
+        if isinstance(value, float) and (
+            abs(value) > 1e15 or (abs(value) > 0 and abs(value) < 1e-15)
+        ):
             assume(False)
 
         # Parse different representations of the same value
@@ -352,6 +355,7 @@ class TestParseDatetimeUtcProperties:
 
         # Property: Should return the same datetime
         assert result == dt
+        assert result is not None
         assert result.tzinfo == UTC
 
     @given(dt=st.datetimes(timezones=st.none()))
@@ -408,9 +412,10 @@ def _is_valid_iso_datetime(s: str) -> bool:
     """
     try:
         datetime.fromisoformat(s)
-        return True
     except ValueError:
         return False
+    else:
+        return True
 
 
 def _could_be_timestamp(s: str) -> bool:
@@ -421,9 +426,10 @@ def _could_be_timestamp(s: str) -> bool:
     """
     try:
         float_val = float(s)
-        return 0 <= float_val <= 1e20  # Reasonable timestamp range
     except ValueError:
         return False
+    else:
+        return 0 <= float_val <= 1e20  # Reasonable timestamp range
 
 
 # =============================================================================
@@ -647,16 +653,18 @@ def _is_valid_timeframe(s: str) -> bool:
             try:
                 num_part = s_lower.replace(suffix, "")
                 int(num_part)
-                return True
             except ValueError:
                 continue
+            else:
+                return True
 
     # Check for raw number
     try:
         int(s_lower)
-        return True
     except ValueError:
         return False
+    else:
+        return True
 
 
 # =============================================================================
@@ -702,7 +710,7 @@ class TestCheckStrParsableToFiniteDecimalProperties:
             st.booleans(),
         )
     )
-    def test_non_string_input_rejection(self, non_string: float | None | bool) -> None:
+    def test_non_string_input_rejection(self, non_string: float | bool | None) -> None:
         """Property: Non-string input should be rejected."""
         with pytest.raises(TypeFieldError):
             check_str_parsable_to_finite_decimal(non_string)
@@ -748,9 +756,10 @@ class TestParsingIntegrationProperties:
 
         # Invalid timestamp should include field name in error
         invalid_timestamp = "invalid_timestamp_" + field_name
-        try:
+        with pytest.raises(DateTimeParsingError) as exc_info:
             parse_datetime_utc(invalid_timestamp, field_name=field_name)
-            raise AssertionError("Should have raised an exception")
-        except DateTimeParsingError as e:
-            # Property: Field name should be in error message
-            assert field_name in str(e)
+
+        # Property: Field name should be in error message
+        error_message = str(exc_info.value)
+        if field_name not in error_message:
+            pytest.fail(f"Field name '{field_name}' should be in error message: {error_message}")

@@ -130,6 +130,93 @@ class TestBackpackAllStreamModelConversions:
             return list(model_dict.keys())
         return "NOT_A_DICT"
 
+    def _convert_domain_model_to_dict(self, domain_model: object) -> dict[str, Any]:
+        """Convert domain model to dict for analysis.
+
+        Domain models are Pydantic models that provide serialization methods
+        returning dict[str, Any] structures.
+
+        Args:
+            domain_model: The domain model to convert
+
+        Returns:
+            dict[str, Any]: Dictionary representation of the model
+        """
+        # Default fallback
+        model_dict: dict[str, Any] = {"model": str(domain_model)}
+
+        # Try Pydantic v2 model_dump method
+        model_dump_method = getattr(domain_model, "model_dump", None)
+        if model_dump_method is not None and callable(model_dump_method):
+            try:
+                dumped_result = model_dump_method()
+                if isinstance(dumped_result, dict):
+                    # Pydantic model_dump returns dict[str, Any] - verified by API
+                    # Type safety: Pydantic guarantees string keys in output
+                    # Runtime verification: isinstance check confirms dict type
+                    assert isinstance(dumped_result, dict)
+                    model_dict = cast(dict[str, Any], dumped_result)
+                else:
+                    model_dict = {"model": "invalid_model_dump_result"}
+            except (TypeError, ValueError, AttributeError) as e:
+                logger.warning("model_dump failed", error=str(e))
+                model_dict = {"model": "model_dump_failed"}
+        else:
+            # Try Pydantic v1 dict method
+            dict_method = getattr(domain_model, "dict", None)
+            if dict_method is not None and callable(dict_method):
+                try:
+                    dict_result = dict_method()
+                    if isinstance(dict_result, dict):
+                        # Pydantic dict returns dict[str, Any] - verified by API
+                        # Type safety: Pydantic guarantees string keys in output
+                        # Runtime verification: isinstance check confirms dict type
+                        assert isinstance(dict_result, dict)
+                        model_dict = cast(dict[str, Any], dict_result)
+                    else:
+                        model_dict = {"model": "invalid_dict_result"}
+                except (TypeError, ValueError, AttributeError) as e:
+                    logger.warning("dict method failed", error=str(e))
+                    model_dict = {"model": "dict_method_failed"}
+
+        return model_dict
+
+    def _process_domain_model_for_consistency(
+        self,
+        stream_type: str,
+        domain_model: object,
+        model_data: dict[str, dict[str, Any]],
+    ) -> None:
+        """Process domain model for consistency tracking.
+
+        Args:
+            stream_type: Type of stream being processed
+            domain_model: The domain model to process
+            model_data: Dictionary to store model data for consistency tracking
+        """
+        model_type = type(domain_model).__name__
+
+        # Convert domain model to dict for analysis
+        model_dict = self._convert_domain_model_to_dict(domain_model)
+
+        # Extract symbol from the model data
+        symbol = self._extract_symbol_from_model(model_dict)
+        if symbol is not None:
+            if symbol not in model_data[stream_type]:
+                model_data[stream_type][symbol] = []
+
+            # Store the model dict with its type
+            model_data[stream_type][symbol].append({"type": model_type, "data": model_dict})
+            self._log_consistency_data_collected(stream_type, symbol, model_dict)
+        else:
+            logger.warning(
+                "consistency_handler_no_symbol",
+                stream_type=stream_type,
+                model_type=model_type,
+                model_dict_keys=self._get_model_dict_keys(model_dict),
+                message="Model dict missing symbol field",
+            )
+
     def _extract_trades(self, items: SupportsIteration) -> list[Fill]:
         """Extract Fill objects from iterable with proper typing.
 
@@ -962,61 +1049,7 @@ class TestBackpackAllStreamModelConversions:
             # Check for domain model on the context object (set by processor)
             if hasattr(context, "domain_model") and context.domain_model is not None:
                 domain_model = context.domain_model
-                model_type = type(domain_model).__name__
-
-                # Convert domain model to dict for analysis - domain models are Pydantic models
-                # that provide serialization methods returning dict[str, Any] structures
-                model_dict: dict[str, Any] = {"model": str(domain_model)}  # Default fallback
-
-                # Try Pydantic v2 model_dump method
-                model_dump_method = getattr(domain_model, "model_dump", None)
-                if model_dump_method is not None and callable(model_dump_method):
-                    try:
-                        dumped_result = model_dump_method()
-                        if isinstance(dumped_result, dict):
-                            # Pydantic model_dump always returns dict[str, Any] - we know this from Pydantic API
-                            # Type safety justified: Pydantic guarantees string keys in serialization output
-                            # Runtime verification: isinstance check confirms dict type
-                            assert isinstance(dumped_result, dict)
-                            model_dict = cast(dict[str, Any], dumped_result)
-                        else:
-                            model_dict = {"model": "invalid_model_dump_result"}
-                    except Exception:
-                        model_dict = {"model": "model_dump_failed"}
-                else:
-                    # Try Pydantic v1 dict method
-                    dict_method = getattr(domain_model, "dict", None)
-                    if dict_method is not None and callable(dict_method):
-                        try:
-                            dict_result = dict_method()
-                            if isinstance(dict_result, dict):
-                                # Pydantic dict always returns dict[str, Any] - we know this from Pydantic API
-                                # Type safety justified: Pydantic guarantees string keys in serialization output
-                                # Runtime verification: isinstance check confirms dict type
-                                assert isinstance(dict_result, dict)
-                                model_dict = cast(dict[str, Any], dict_result)
-                            else:
-                                model_dict = {"model": "invalid_dict_result"}
-                        except Exception:
-                            model_dict = {"model": "dict_method_failed"}
-
-                # Extract symbol from the model data
-                symbol = self._extract_symbol_from_model(model_dict)
-                if symbol is not None:
-                    if symbol not in model_data[stream_type]:
-                        model_data[stream_type][symbol] = []
-
-                    # Store the model dict with its type
-                    model_data[stream_type][symbol].append({"type": model_type, "data": model_dict})
-                    self._log_consistency_data_collected(stream_type, symbol, model_dict)
-                    return
-                logger.warning(
-                    "consistency_handler_no_symbol",
-                    stream_type=stream_type,
-                    model_type=model_type,
-                    model_dict_keys=self._get_model_dict_keys(model_dict),
-                    message="Model dict missing symbol field",
-                )
+                self._process_domain_model_for_consistency(stream_type, domain_model, model_data)
 
         return handler
 

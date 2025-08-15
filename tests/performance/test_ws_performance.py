@@ -43,8 +43,8 @@ from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import Hyperliq
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from tests.common_symbols import BTC_USDC_BP
 
 
@@ -155,8 +155,6 @@ class TestMessageRoutingPerformance:
     async def test_backpack_router_throughput(self) -> None:
         """Test Backpack router throughput."""
         # Setup router
-        from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
-
         error_config = WebSocketErrorConfig()
         stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()
@@ -204,8 +202,6 @@ class TestMessageRoutingPerformance:
     async def test_hyperliquid_router_throughput(self) -> None:
         """Test Hyperliquid router throughput."""
         # Setup router
-        from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
-
         error_config = WebSocketErrorConfig()
         stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()
@@ -289,8 +285,6 @@ class TestMemoryEfficiency:
     async def test_processor_memory_reuse(self) -> None:
         """Test that processors efficiently reuse memory."""
         # This is a simplified test - in production, you'd use memory profilers
-        from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
-
         error_config = WebSocketErrorConfig()
         stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()
@@ -329,8 +323,6 @@ class TestConcurrentProcessing:
     @pytest.mark.timing
     async def test_concurrent_routing(self) -> None:
         """Test routing multiple messages concurrently."""
-        from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
-
         error_config = WebSocketErrorConfig()
         stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()

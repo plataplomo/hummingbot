@@ -119,7 +119,6 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
         )
@@ -154,7 +153,6 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler but we'll test the fallback scenario
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
         )
@@ -194,7 +192,6 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
         )
@@ -239,7 +236,6 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            error_handler=mock_legacy_error_handler,
             typed_processor=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
         )

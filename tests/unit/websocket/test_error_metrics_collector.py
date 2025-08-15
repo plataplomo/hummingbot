@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
 )
@@ -174,7 +172,9 @@ class TestWebSocketErrorMetricsCollector:
 
         # Rate should be 10 errors / 60 seconds
         summary = collector.get_summary()
-        assert summary.error_rate_per_second == pytest.approx(10 / 60.0, rel=0.01)
+        expected_rate = 10 / 60.0
+        # Check approximation manually to avoid pyright issues with pytest.approx
+        assert abs(summary.error_rate_per_second - expected_rate) <= expected_rate * 0.01
 
     def test_peak_rate_tracking(self) -> None:
         """Test peak error rate tracking."""

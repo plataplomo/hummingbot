@@ -141,7 +141,7 @@ class TestErrorContextValidation:
         with pytest.raises(ValueError, match="Expected sequence requires sequence number"):
             StreamErrorContextValidator.validate_sequence_consistency(None, 100, None)
 
-        # Invalid: sequence >= expected
+        # Invalid: sequence greater than or equal to expected
         with pytest.raises(ValueError, match="Expected sequence must be greater"):
             StreamErrorContextValidator.validate_sequence_consistency(100, 100, None)
 
