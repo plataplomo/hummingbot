@@ -19,17 +19,17 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.parsing import ParsingError, StructureTypeError
 from cyberdelta.apis.hyperliquid.models.hl_raw_candles import (
-    HyperliquidRawCandleSnapshot,
     HyperliquidRawCandleRequestDetails,
+    HyperliquidRawCandleSnapshot,
     HyperliquidRawCandleSnapshotRequestPayload,
     HyperliquidRawWsCandle,
 )
-from cyberdelta.apis.exceptions.parsing import ParsingError, StructureTypeError
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
@@ -114,10 +114,8 @@ def ohlcv_decimal_strategy() -> SearchStrategy[str]:
     """Generate decimal strings for OHLCV values."""
     return st.one_of([
         # Common price values
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0.01"),  # Small price
         st.just("1.0"),  # Unit price
@@ -136,8 +134,8 @@ def volume_decimal_strategy() -> SearchStrategy[str]:
     """Generate decimal strings for volume (positive only)."""
     return st.one_of([
         # Common volume values
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("10000000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(10000000), places=6).map(str),
         # Common values
         st.just("0"),  # Zero volume
         st.just("0.01"),  # Small volume
@@ -165,7 +163,7 @@ def status_string_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_candle_snapshot_data(draw, num_candles=None) -> dict[str, Any]:
+def valid_candle_snapshot_data(draw: st.DrawFn, num_candles: int | None = None) -> dict[str, Any]:
     """Generate valid candle snapshot data."""
     if num_candles is None:
         num_candles = draw(st.integers(min_value=0, max_value=100))
@@ -189,7 +187,7 @@ def valid_candle_snapshot_data(draw, num_candles=None) -> dict[str, Any]:
 
 
 @st.composite
-def valid_candle_request_details_data(draw) -> dict[str, Any]:
+def valid_candle_request_details_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid candle request details data."""
     start_time = draw(timestamp_ms_strategy())
     end_time = draw(
@@ -205,7 +203,7 @@ def valid_candle_request_details_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_ws_candle_data(draw) -> dict[str, Any]:
+def valid_ws_candle_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid WebSocket candle data."""
     timestamp = draw(timestamp_ms_strategy())
 
@@ -371,12 +369,12 @@ class TestHyperliquidRawCandleSnapshotProperties:
         }
 
         # Create mismatch
-        if num_candles > mismatch_delta:
-            candle_data[mismatched_field] = candle_data[mismatched_field][:-mismatch_delta]
-        else:
-            candle_data[mismatched_field] = (
-                candle_data[mismatched_field] + ["100.0"] * mismatch_delta
-            )
+        current_list = candle_data[mismatched_field]
+        if isinstance(current_list, list):
+            if num_candles > mismatch_delta:
+                candle_data[mismatched_field] = current_list[:-mismatch_delta]
+            else:
+                candle_data[mismatched_field] = current_list + ["100.0"] * mismatch_delta
 
         # Property: Mismatched lengths should be rejected
         with pytest.raises(ParsingError) as exc_info:
@@ -624,7 +622,7 @@ class TestHyperliquidRawWsCandleProperties:
 
         # Property: All fields should be preserved with correct types
         assert obj.t == ws_candle_data["t"]
-        assert obj.T == ws_candle_data["T"]
+        assert ws_candle_data["T"] == obj.T
         assert obj.s == ws_candle_data["s"]
         assert obj.i == ws_candle_data["i"]
         assert isinstance(obj.o, str)

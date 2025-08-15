@@ -40,7 +40,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
@@ -53,7 +53,6 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Fill, Order
 from cyberdelta.symbols import exchanges
-from cyberdelta.utils.parsing import parse_decimal_value
 
 
 # =============================================================================
@@ -134,11 +133,11 @@ def decimal_price_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common price ranges
         st.builds(
-            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("100000"), places=18)
+            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(100000), places=18)
         ),
-        st.builds(str, st.decimals(min_value=Decimal("0.01"), max_value=Decimal("1000"), places=6)),
+        st.builds(str, st.decimals(min_value=Decimal("0.01"), max_value=Decimal(1000), places=6)),
         # High precision values
-        st.builds(str, st.decimals(min_value=Decimal("1"), max_value=Decimal("10000"), places=15)),
+        st.builds(str, st.decimals(min_value=Decimal(1), max_value=Decimal(10000), places=15)),
         # Common crypto prices
         st.sampled_from([
             "100.50",
@@ -164,11 +163,11 @@ def decimal_quantity_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common quantity ranges
         st.builds(
-            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("1000000"), places=18)
+            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(1000000), places=18)
         ),
-        st.builds(str, st.decimals(min_value=Decimal("0.1"), max_value=Decimal("10000"), places=8)),
+        st.builds(str, st.decimals(min_value=Decimal("0.1"), max_value=Decimal(10000), places=8)),
         # High precision values
-        st.builds(str, st.decimals(min_value=Decimal("1"), max_value=Decimal("100000"), places=15)),
+        st.builds(str, st.decimals(min_value=Decimal(1), max_value=Decimal(100000), places=15)),
         # Common trading quantities
         st.sampled_from([
             "10.0",
@@ -193,11 +192,11 @@ def decimal_fee_strategy() -> SearchStrategy[str]:
     """
     return st.one_of([
         # Common fee ranges (usually small)
-        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1000"), places=18)),
-        st.builds(str, st.decimals(min_value=Decimal("0.001"), max_value=Decimal("100"), places=6)),
+        st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal(1000), places=18)),
+        st.builds(str, st.decimals(min_value=Decimal("0.001"), max_value=Decimal(100), places=6)),
         # High precision fees
         st.builds(
-            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("10"), places=15)
+            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(10), places=15)
         ),
         # Common fee amounts
         st.sampled_from([
@@ -517,9 +516,9 @@ class TestFillTransformationProperties:
         assert result.fee == Decimal(raw_fill.fee)
 
         # Property: String fields should be preserved
-        assert result.id == str(raw_fill.tradeId)
-        assert result.order_id == raw_fill.orderId
-        assert result.fee_asset == raw_fill.feeSymbol
+        assert result.id == str(raw_fill.trade_id)
+        assert result.order_id == raw_fill.order_id
+        assert result.fee_asset == raw_fill.fee_symbol
 
         # Property: Exchange should be set correctly
         assert result.exchange == ExchangeName.BACKPACK.value
@@ -658,8 +657,8 @@ class TestOrderTransformationProperties:
         assert isinstance(result, Order)
 
         # Property: Financial values should be preserved exactly
-        assert result.quantity_requested == Decimal(raw_order.quantity)
-        assert result.price == Decimal(raw_order.price)
+        assert result.quantity_requested == Decimal(raw_order.quantity or "0")
+        assert result.price == Decimal(raw_order.price or "0")
 
         # Property: Executed quantities should be preserved
         if raw_order.executedQuantity:
@@ -908,7 +907,12 @@ class TestTransactionMapperErrorHandlingProperties:
             ) -> Decimal | None:
                 if field_name == "price":
                     return None
-                return parse_decimal_value(value, allow_none=allow_none, field_name=field_name)
+                # Import the actual function to call
+                from cyberdelta.utils.parsing import parse_decimal_value as real_parse
+
+                if allow_none:
+                    return real_parse(value, allow_none=True, field_name=field_name)
+                return real_parse(value, allow_none=False, field_name=field_name)
 
             mock_parse.side_effect = side_effect
 
@@ -1021,7 +1025,7 @@ class TestTransactionMapperSecurityProperties:
         kwargs[field_name] = large_string
 
         try:
-            raw_fill = BackpackRawFillResponse(**kwargs)
+            raw_fill = BackpackRawFillResponse.model_validate(kwargs)
 
             # Should handle large inputs without crashing
             result = mapper.transform_raw_fill_to_internal(raw_fill)
@@ -1069,25 +1073,25 @@ class TestTransactionMapperIntegrationProperties:
         order_results = []
         for order in orders:
             try:
-                result = mapper.transform_raw_order_to_internal(order)
-                if result is not None:
-                    order_results.append(result)
+                order_result = mapper.transform_raw_order_to_internal(order)
+                if order_result is not None:
+                    order_results.append(order_result)
             except DataTransformationError:
                 # Expected for some invalid inputs
                 pass
 
         # Property: All successful results should be valid
-        for fill in fill_results:
-            assert isinstance(fill, Fill)
-            assert fill.exchange == ExchangeName.BACKPACK.value
-            assert isinstance(fill.price, Decimal)
-            assert isinstance(fill.quantity, Decimal)
+        for fill_result in fill_results:
+            assert isinstance(fill_result, Fill)
+            assert fill_result.exchange == ExchangeName.BACKPACK.value
+            assert isinstance(fill_result.price, Decimal)
+            assert isinstance(fill_result.quantity, Decimal)
 
-        for order in order_results:
-            assert isinstance(order, Order)
-            assert order.exchange == ExchangeName.BACKPACK.value
-            assert isinstance(order.quantity_requested, Decimal)
-            assert isinstance(order.price, Decimal)
+        for order_result in order_results:
+            assert isinstance(order_result, Order)
+            assert order_result.exchange == ExchangeName.BACKPACK.value
+            assert isinstance(order_result.quantity_requested, Decimal)
+            assert isinstance(order_result.price, Decimal)
 
     @given(
         symbol=trading_symbol_strategy(),

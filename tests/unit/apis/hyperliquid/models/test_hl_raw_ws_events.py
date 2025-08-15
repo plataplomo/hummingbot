@@ -17,12 +17,13 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of WebSocket event edge cases and adversarial inputs.
 """
 
+import string
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -98,7 +99,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
         # Common trading values
         st.decimals(
             min_value=Decimal("0.00000001"),
-            max_value=Decimal("1000000"),
+            max_value=Decimal(1000000),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -148,7 +149,7 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated valid addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -166,7 +167,7 @@ def valid_cloid_strategy() -> SearchStrategy[str]:
         # Generated valid CLOIDs (128-bit = 32 hex chars)
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=32, max_size=32, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=32, max_size=32, alphabet=string.hexdigits),
         ),
     ])
 
@@ -175,10 +176,10 @@ def invalid_cloid_strategy() -> SearchStrategy[str]:
     """Generate invalid client order IDs."""
     return st.one_of([
         # Wrong length
-        st.text(min_size=1, max_size=31, alphabet="0123456789abcdefABCDEF"),
-        st.text(min_size=33, max_size=100, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=1, max_size=31, alphabet=string.hexdigits),
+        st.text(min_size=33, max_size=100, alphabet=string.hexdigits),
         # Missing 0x prefix
-        st.text(min_size=32, max_size=32, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=32, max_size=32, alphabet=string.hexdigits),
         # Invalid characters
         st.builds(
             lambda hex_part: f"0x{hex_part}",
@@ -214,7 +215,7 @@ def invalid_timestamp_strategy() -> SearchStrategy[int]:
 def valid_hash_strategy() -> SearchStrategy[str]:
     """Generate valid hash strings."""
     return st.one_of([
-        st.text(min_size=1, max_size=64, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=1, max_size=64, alphabet=string.hexdigits),
         st.just("abc123"),
         st.just("deadbeef"),
         st.just("0123456789abcdef"),
@@ -232,7 +233,7 @@ def valid_trade_id_strategy() -> SearchStrategy[int]:
 
 
 @st.composite
-def valid_book_level_strategy(draw) -> dict[str, Any]:
+def valid_book_level_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid order book level data."""
     return {
         "px": draw(financial_decimal_string_strategy()),
@@ -242,7 +243,7 @@ def valid_book_level_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_book_levels_strategy(draw) -> list[list[dict[str, Any]]]:
+def valid_book_levels_strategy(draw: st.DrawFn) -> list[list[dict[str, Any]]]:
     """Generate valid book levels (bids and asks)."""
     bids = draw(st.lists(valid_book_level_strategy(), min_size=0, max_size=10))
     asks = draw(st.lists(valid_book_level_strategy(), min_size=0, max_size=10))
@@ -250,7 +251,7 @@ def valid_book_levels_strategy(draw) -> list[list[dict[str, Any]]]:
 
 
 @st.composite
-def valid_position_info_strategy(draw) -> dict[str, Any]:
+def valid_position_info_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid position info data."""
     return {
         "coin": draw(valid_coin_symbol_strategy()),
@@ -270,7 +271,7 @@ def valid_position_info_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_fill_event_strategy(draw) -> dict[str, Any]:
+def valid_fill_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid WebSocket fill event data."""
     return {
         "coin": draw(valid_coin_symbol_strategy()),
@@ -286,7 +287,7 @@ def valid_fill_event_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_book_update_strategy(draw) -> dict[str, Any]:
+def valid_book_update_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid WebSocket book update data."""
     return {
         "coin": draw(valid_coin_symbol_strategy()),
@@ -296,7 +297,7 @@ def valid_book_update_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_trade_event_strategy(draw) -> dict[str, Any]:
+def valid_trade_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid WebSocket trade event data."""
     return {
         "coin": draw(valid_coin_symbol_strategy()),
@@ -311,7 +312,7 @@ def valid_trade_event_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_order_update_strategy(draw) -> dict[str, Any]:
+def valid_order_update_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid WebSocket order update data."""
     return {
         "eventType": draw(st.text(min_size=1, max_size=50)),
@@ -327,7 +328,7 @@ def valid_order_update_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_position_update_event_strategy(draw) -> dict[str, Any]:
+def valid_position_update_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid WebSocket position update event data."""
     return {
         "asset": draw(valid_coin_symbol_strategy()),
@@ -850,23 +851,25 @@ class TestHyperliquidRawWsEventsIntegrationProperties:
         self, events: list[dict[str, Any]], malicious_value: Any
     ) -> None:
         """Property: Multiple WebSocket events should be processed independently."""
-        valid_events = []
+        valid_events: list[
+            HyperliquidRawWsFillEvent | HyperliquidRawWsTradeEvent | HyperliquidRawWsOrderUpdate
+        ] = []
 
         for event_data in events:
             # Try to validate each event type
             try:
                 if "isMaker" in event_data:  # Fill event
                     if self._is_valid_fill_event(event_data):
-                        event = HyperliquidRawWsFillEvent.model_validate(event_data)
-                        valid_events.append(event)
+                        fill_event = HyperliquidRawWsFillEvent.model_validate(event_data)
+                        valid_events.append(fill_event)
                 elif "tid" in event_data:  # Trade event
                     if self._is_valid_trade_event(event_data):
-                        event = HyperliquidRawWsTradeEvent.model_validate(event_data)
-                        valid_events.append(event)
+                        trade_event = HyperliquidRawWsTradeEvent.model_validate(event_data)
+                        valid_events.append(trade_event)
                 elif "eventType" in event_data:  # Order update
                     if self._is_valid_order_update(event_data):
-                        event = HyperliquidRawWsOrderUpdate.model_validate(event_data)
-                        valid_events.append(event)
+                        order_event = HyperliquidRawWsOrderUpdate.model_validate(event_data)
+                        valid_events.append(order_event)
             except (ValidationError, TypeError, KeyError):
                 continue
 
@@ -913,9 +916,7 @@ class TestHyperliquidRawWsEventsIntegrationProperties:
         try:
             if "eventType" not in data or "data" not in data:
                 return False
-            if not isinstance(data["data"], dict) or len(data["data"]) == 0:
-                return False
-            return True
+            return isinstance(data["data"], dict) and len(data["data"]) > 0
         except (TypeError, KeyError):
             return False
 

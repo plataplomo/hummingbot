@@ -131,11 +131,15 @@ def hl_string_error_strategy() -> SearchStrategy[str]:
         ),
         # Rate limit patterns
         st.builds(
-            lambda minutes: f"Your IP has been rate limited for {minutes} minute. Please try again later.",
+            lambda minutes: (
+                f"Your IP has been rate limited for {minutes} minute. Please try again later."
+            ),
             st.integers(min_value=1, max_value=60),
         ),
         st.builds(
-            lambda minutes: f"Your IP has been rate limited for {minutes} minutes. Please try again later.",
+            lambda minutes: (
+                f"Your IP has been rate limited for {minutes} minutes. Please try again later."
+            ),
             st.integers(min_value=2, max_value=60),
         ),
         st.sampled_from([
@@ -156,11 +160,15 @@ def hl_ip_ban_message_strategy() -> SearchStrategy[str]:
     """
     return st.one_of([
         st.builds(
-            lambda minutes: f"Your IP has been rate limited for {minutes} minute. Please try again later.",
+            lambda minutes: (
+                f"Your IP has been rate limited for {minutes} minute. Please try again later."
+            ),
             st.integers(min_value=1, max_value=1),
         ),
         st.builds(
-            lambda minutes: f"Your IP has been rate limited for {minutes} minutes. Please try again later.",
+            lambda minutes: (
+                f"Your IP has been rate limited for {minutes} minutes. Please try again later."
+            ),
             st.integers(min_value=2, max_value=60),
         ),
         st.sampled_from([
@@ -303,7 +311,7 @@ class TestHyperliquidErrorMapperProperties:
         assert api_error.http_status == status_code
 
         # Property: API error code should be valid enum value
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
 
         # Property: Message should not be empty for valid inputs
         assert isinstance(api_error.message, str)
@@ -344,9 +352,9 @@ class TestHyperliquidErrorMapperProperties:
         elif "Invalid order size" in known_error:
             assert api_error.code == APIErrorCode.INVALID_ORDER_SIZE.value
         elif "Ratelimit exceeded" in known_error:
-            assert api_error.code == APIErrorCode.RATE_LIMITED.value
+            assert api_error.code == str(APIErrorCode.RATE_LIMITED.value)
         elif "User not found" in known_error:
-            assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
+            assert api_error.code == str(APIErrorCode.AUTHENTICATION_FAILED.value)
 
         # Property: Error message should contain original text
         assert known_error in api_error.message
@@ -372,13 +380,13 @@ class TestHyperliquidErrorMapperProperties:
 
         # Property: Status codes should map consistently
         if status_code == 401:
-            assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
+            assert api_error.code == str(APIErrorCode.AUTHENTICATION_FAILED.value)
         elif status_code == 429:
-            assert api_error.code == APIErrorCode.RATE_LIMITED.value
+            assert api_error.code == str(APIErrorCode.RATE_LIMITED.value)
         elif status_code == 500:
-            assert api_error.code == APIErrorCode.SERVER_ERROR.value
+            assert api_error.code == str(APIErrorCode.SERVER_ERROR.value)
         elif status_code == 503:
-            assert api_error.code == APIErrorCode.SERVICE_UNAVAILABLE.value
+            assert api_error.code == str(APIErrorCode.SERVICE_UNAVAILABLE.value)
 
     @given(
         unknown_error=st.text(min_size=1, max_size=200).filter(
@@ -412,7 +420,7 @@ class TestHyperliquidErrorMapperProperties:
         )
 
         # Property: Should have valid API error code
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
 
         # Property: Should preserve original error text
         assert unknown_error in api_error.message
@@ -452,20 +460,20 @@ class TestHyperliquidErrorMapperProperties:
 
         # Property: Should not crash on empty input
         assert isinstance(api_error.code, str)
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
 
         # Property: HTTP status should be preserved
         assert api_error.http_status == status_code
 
         # Property: Should have meaningful classification based on status
         if status_code == 401:
-            assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
+            assert api_error.code == str(APIErrorCode.AUTHENTICATION_FAILED.value)
         elif status_code == 429:
-            assert api_error.code == APIErrorCode.RATE_LIMITED.value
+            assert api_error.code == str(APIErrorCode.RATE_LIMITED.value)
         elif status_code == 500:
-            assert api_error.code == APIErrorCode.SERVER_ERROR.value
+            assert api_error.code == str(APIErrorCode.SERVER_ERROR.value)
         elif status_code == 503:
-            assert api_error.code == APIErrorCode.SERVICE_UNAVAILABLE.value
+            assert api_error.code == str(APIErrorCode.SERVICE_UNAVAILABLE.value)
 
 
 # =============================================================================
@@ -501,9 +509,9 @@ class TestHyperliquidIPBanDetectionProperties:
             # Property: IP ban errors should not have retry_after
             assert api_error.retry_after is None
         elif status_code == 429:
-            assert api_error.code == APIErrorCode.RATE_LIMITED.value
+            assert api_error.code == str(APIErrorCode.RATE_LIMITED.value)
         elif status_code == 403:
-            assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
+            assert api_error.code == str(APIErrorCode.AUTHENTICATION_FAILED.value)
 
         # Property: HTTP status should be preserved
         assert api_error.http_status == status_code
@@ -559,9 +567,9 @@ class TestHyperliquidIPBanDetectionProperties:
 
         # Property: Should classify based on status code
         if non_403_status == 429:
-            assert api_error.code == APIErrorCode.RATE_LIMITED.value
+            assert api_error.code == str(APIErrorCode.RATE_LIMITED.value)
         elif non_403_status == 401:
-            assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
+            assert api_error.code == str(APIErrorCode.AUTHENTICATION_FAILED.value)
 
 
 # =============================================================================
@@ -657,7 +665,7 @@ class TestHyperliquidErrorMapperSecurityProperties:
 
         # Property: Should return valid error object
         assert isinstance(api_error.code, str)
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
         assert api_error.http_status == status_code
 
         # Property: Should not leak sensitive information
@@ -755,7 +763,7 @@ class TestHyperliquidErrorMapperIntegrationProperties:
 
         # Property: All results should be valid
         for api_error in results:
-            assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
+            assert api_error.code in [str(code.value) for code in APIErrorCode]
             assert isinstance(api_error.http_status, int)
             assert isinstance(api_error.message, str)
 
@@ -799,7 +807,7 @@ class TestHyperliquidErrorMapperIntegrationProperties:
         assert api_error.exchange_message == error_body
 
         # Property: API error code should be valid
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
 
         # Property: Message should contain original information
         assert error_body in api_error.message

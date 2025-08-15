@@ -33,28 +33,22 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal, cast
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_query_params import (
     BackpackRawGetAccountInfoParams,
     BackpackRawGetBalancesParams,
-    BackpackRawGetFundingRateParams,
     BackpackRawGetHistoricalFundingRatesParams,
-    BackpackRawGetHistoricalTradesParams,
     BackpackRawGetMarketDataParams,
-    BackpackRawGetMarketParams,
     BackpackRawGetMarketsParams,
-    BackpackRawGetOpenOrdersParams,
     BackpackRawGetOrderBookParams,
     BackpackRawGetOrderHistoryParams,
-    BackpackRawGetOrderParams,
     BackpackRawGetPositionsParams,
-    BackpackRawGetRecentTradesParams,
     BackpackRawGetTickerParams,
     BackpackRawGetTradeHistoryParams,
 )
@@ -177,7 +171,11 @@ def invalid_limit_strategy() -> SearchStrategy[int]:
     return st.integers(min_value=-1000, max_value=-1)
 
 
-def interval_strategy() -> SearchStrategy[str]:
+def interval_strategy() -> SearchStrategy[
+    Literal[
+        "1m", "3m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "8h", "12h", "1d", "3d", "1w", "1M"
+    ]
+]:
     """Generate valid interval strings for market data.
 
     Returns:
@@ -198,6 +196,7 @@ def interval_strategy() -> SearchStrategy[str]:
         "1d",
         "3d",
         "1w",
+        "1M",
     ])
 
 
@@ -343,7 +342,7 @@ class TestBackpackRawGetTickerParamsProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_extra_fields_rejection(
-        self, symbol: str, extra_field_name: str, extra_field_value: Any
+        self, symbol: str, extra_field_name: str, extra_field_value: str | int | bool | None
     ) -> None:
         """Property: Extra fields should always be rejected."""
         data = {"symbol": symbol, extra_field_name: extra_field_value}
@@ -362,7 +361,7 @@ class TestBackpackRawGetTickerParamsProperties:
 
     @given(malicious_symbol=malicious_string_strategy())
     @settings(max_examples=100, deadline=None)
-    def test_malicious_symbol_resistance(self, malicious_symbol: Any) -> None:
+    def test_malicious_symbol_resistance(self, malicious_symbol: object) -> None:
         """Property: Malicious symbol inputs should be safely rejected."""
         # Convert to string if needed
         if not isinstance(malicious_symbol, str):
@@ -416,7 +415,7 @@ class TestBackpackRawGetOrderBookParamsProperties:
         wrong_type_limit=st.one_of([st.text(), st.booleans(), st.lists(st.integers())]),
     )
     @settings(max_examples=100, deadline=None)
-    def test_limit_type_validation(self, symbol: str, wrong_type_limit: Any) -> None:
+    def test_limit_type_validation(self, symbol: str, wrong_type_limit: object) -> None:
         """Property: Non-integer limits should be rejected."""
         data = {"symbol": symbol, "limit": wrong_type_limit}
 
@@ -512,14 +511,18 @@ class TestBackpackRawGetOrderHistoryParamsProperties:
         end_time: int | None,
     ) -> None:
         """Property: Valid parameters should always be accepted."""
-        params = BackpackRawGetOrderHistoryParams(
-            symbol=symbol,
-            orderId=order_id,
-            clientId=client_id,
-            limit=limit,
-            start_time=start_time,
-            end_time=end_time,
-        )
+        params_data = {
+            "symbol": symbol,
+            "orderId": order_id,
+            "clientId": client_id,
+            "limit": limit,
+        }
+        if start_time is not None:
+            params_data["from"] = start_time
+        if end_time is not None:
+            params_data["to"] = end_time
+
+        params = BackpackRawGetOrderHistoryParams.model_validate(params_data)
 
         # Property: Values should be preserved
         assert params.symbol == symbol
@@ -557,7 +560,7 @@ class TestBackpackRawGetOrderHistoryParamsProperties:
         kwargs = {empty_string_field: empty_value}
 
         with pytest.raises(EmptyStringError):
-            BackpackRawGetOrderHistoryParams(**kwargs)
+            BackpackRawGetOrderHistoryParams.model_validate(kwargs)
 
 
 # =============================================================================
@@ -579,7 +582,23 @@ class TestBackpackRawGetMarketDataParamsProperties:
     def test_valid_params_acceptance(
         self,
         symbol: str,
-        interval: str,
+        interval: Literal[
+            "1m",
+            "3m",
+            "5m",
+            "15m",
+            "30m",
+            "1h",
+            "2h",
+            "4h",
+            "6h",
+            "8h",
+            "12h",
+            "1d",
+            "3d",
+            "1w",
+            "1M",
+        ],
         start_time: int | None,
         end_time: int | None,
         limit: int | None,
@@ -608,7 +627,10 @@ class TestBackpackRawGetMarketDataParamsProperties:
     def test_invalid_interval_rejection(self, symbol: str, invalid_interval: str) -> None:
         """Property: Invalid intervals should be rejected."""
         with pytest.raises(ValidationError, match="Input should be"):
-            BackpackRawGetMarketDataParams(symbol=symbol, interval=invalid_interval)
+            BackpackRawGetMarketDataParams.model_validate({
+                "symbol": symbol,
+                "interval": invalid_interval,
+            })
 
     @given(missing_field=st.sampled_from(["symbol", "interval"]))
     @settings(max_examples=20, deadline=None)
@@ -638,7 +660,7 @@ class TestEmptyParamsModelsProperties:
         ])
     )
     @settings(max_examples=50, deadline=None)
-    def test_empty_params_validity(self, model_class: type) -> None:
+    def test_empty_params_validity(self, model_class: type[BaseModel]) -> None:
         """Property: Empty parameter models should always be valid."""
         # Should work with no parameters
         params = model_class()
@@ -663,7 +685,10 @@ class TestEmptyParamsModelsProperties:
     )
     @settings(max_examples=50, deadline=None)
     def test_extra_fields_rejection_empty_models(
-        self, model_class: type, extra_field_name: str, extra_field_value: Any
+        self,
+        model_class: type[BaseModel],
+        extra_field_name: str,
+        extra_field_value: str | int | bool | None,
     ) -> None:
         """Property: Extra fields should be rejected even for empty models."""
         data = {extra_field_name: extra_field_value}
@@ -761,7 +786,7 @@ class TestGeneralValidationBehaviorProperties:
         """Property: populate_by_name should work for known aliases."""
         # Test known aliases
         if alias_name in ["from", "to"]:
-            test_data = {"symbol": "BTC-USDC"}
+            test_data: dict[str, Any] = {"symbol": "BTC-USDC"}
             test_data[alias_name] = value
 
             try:
@@ -788,7 +813,7 @@ class TestQueryParamsSecurityProperties:
         field_name=st.sampled_from(["symbol", "orderId", "clientId", "fromId"]),
     )
     @settings(max_examples=100, deadline=None)
-    def test_malicious_input_resistance(self, malicious_input: Any, field_name: str) -> None:
+    def test_malicious_input_resistance(self, malicious_input: object, field_name: str) -> None:
         """Property: Query parameter models should resist malicious inputs."""
         # Convert to string if needed
         if not isinstance(malicious_input, str):
@@ -835,7 +860,7 @@ class TestQueryParamsSecurityProperties:
             # These fields should also have reasonable limits
             kwargs = {field_name: large_input}
             with pytest.raises((TypeFieldError, ValidationError)):
-                BackpackRawGetOrderHistoryParams(**kwargs)
+                BackpackRawGetOrderHistoryParams.model_validate(kwargs)
 
     @given(
         deeply_nested_data=st.recursive(
@@ -847,12 +872,16 @@ class TestQueryParamsSecurityProperties:
         field_name=st.text(min_size=1, max_size=10),
     )
     @settings(max_examples=20, deadline=None)
-    def test_deeply_nested_data_handling(self, deeply_nested_data: Any, field_name: str) -> None:
+    def test_deeply_nested_data_handling(self, deeply_nested_data: object, field_name: str) -> None:
         """Property: Deeply nested data should be handled safely."""
         data = {field_name: deeply_nested_data}
 
         # Should reject non-primitive types appropriately
-        for model_class in [BackpackRawGetTickerParams, BackpackRawGetOrderBookParams]:
+        model_classes: list[type[BaseModel]] = [
+            BackpackRawGetTickerParams,
+            BackpackRawGetOrderBookParams,
+        ]
+        for model_class in model_classes:
             try:
                 model_class.model_validate(data)
             except (ValidationError, TypeError, RecursionError):
@@ -888,10 +917,10 @@ class TestQueryParamsIntegrationProperties:
     )
     @settings(max_examples=50, deadline=None)
     def test_batch_validation_consistency(
-        self, models_and_data: list[tuple[tuple[type, dict], dict]]
+        self, models_and_data: list[tuple[tuple[type[BaseModel], dict[str, Any]], dict[str, Any]]]
     ) -> None:
         """Property: Batch validation should be consistent across multiple models."""
-        results = []
+        results: list[tuple[type[BaseModel], BaseModel | None, bool]] = []
 
         for (model_class, base_data), extra_data in models_and_data:
             test_data = {**base_data, **extra_data}
@@ -953,10 +982,33 @@ def test_market_data_params_all_intervals() -> None:
         "1d",
         "3d",
         "1w",
+        "1M",
     ]
 
     for interval in valid_intervals:
-        params = BackpackRawGetMarketDataParams(symbol="BTC-USDC", interval=interval)
+        params = BackpackRawGetMarketDataParams(
+            symbol="BTC-USDC",
+            interval=cast(
+                Literal[
+                    "1m",
+                    "3m",
+                    "5m",
+                    "15m",
+                    "30m",
+                    "1h",
+                    "2h",
+                    "4h",
+                    "6h",
+                    "8h",
+                    "12h",
+                    "1d",
+                    "3d",
+                    "1w",
+                    "1M",
+                ],
+                interval,
+            ),
+        )
         assert params.interval == interval
 
 

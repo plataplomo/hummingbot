@@ -14,13 +14,14 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of staking edge cases and adversarial inputs.
 """
 
+import string
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
-from hypothesis.strategies import SearchStrategy
-from pydantic import ValidationError
+from hypothesis import assume, given, strategies as st
+from hypothesis.strategies import DrawFn, SearchStrategy
+from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_staking import (
     HyperliquidRawDelegationItem,
@@ -28,7 +29,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_staking import (
     HyperliquidRawDelegatorHistoryDelegateDelta,
     HyperliquidRawDelegatorHistoryDelta,
     HyperliquidRawDelegatorHistoryItem,
-    HyperliquidRawDelegatorHistoryResponse,
     HyperliquidRawDelegatorRewardItem,
     HyperliquidRawDelegatorRewardsResponse,
     HyperliquidRawDelegatorSummaryResponse,
@@ -55,7 +55,7 @@ def ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -72,7 +72,7 @@ def transaction_hash_strategy() -> SearchStrategy[str]:
         # Generated hashes
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=64, max_size=64, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=64, max_size=64, alphabet=string.hexdigits),
         ),
     ])
 
@@ -83,7 +83,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
         # Normal decimal values
         st.decimals(
             min_value=Decimal("0.000001"),
-            max_value=Decimal("100000000"),
+            max_value=Decimal(100000000),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -113,7 +113,7 @@ def staking_source_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_delegation_item_data(draw) -> dict[str, Any]:
+def valid_delegation_item_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid delegation item data."""
     return {
         "validator": draw(ethereum_address_strategy()),
@@ -123,7 +123,7 @@ def valid_delegation_item_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_delegator_summary_data(draw) -> dict[str, Any]:
+def valid_delegator_summary_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid delegator summary data."""
     return {
         "delegated": draw(financial_decimal_string_strategy()),
@@ -134,7 +134,7 @@ def valid_delegator_summary_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_history_delegate_delta_data(draw) -> dict[str, Any]:
+def valid_history_delegate_delta_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid history delegate delta data."""
     return {
         "validator": draw(ethereum_address_strategy()),
@@ -144,7 +144,7 @@ def valid_history_delegate_delta_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_history_delta_data(draw) -> dict[str, Any]:
+def valid_history_delta_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid history delta data."""
     return {
         "delegate": draw(valid_history_delegate_delta_data()),
@@ -152,7 +152,7 @@ def valid_history_delta_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_history_item_data(draw) -> dict[str, Any]:
+def valid_history_item_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid history item data."""
     return {
         "time": draw(timestamp_strategy()),
@@ -162,7 +162,7 @@ def valid_history_item_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_reward_item_data(draw) -> dict[str, Any]:
+def valid_reward_item_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid reward item data."""
     return {
         "time": draw(timestamp_strategy()),
@@ -319,7 +319,7 @@ class TestHyperliquidRawDelegationItemProperties:
             and validator_address.strip()
             and validator_address.startswith("0x")
             and len(validator_address) == 42
-            and all(c in "0123456789abcdefABCDEF" for c in validator_address[2:])
+            and all(c in string.hexdigits for c in validator_address[2:])
         )
 
         if is_valid:
@@ -540,7 +540,7 @@ class TestHyperliquidRawDelegatorHistoryProperties:
             and transaction_hash.strip()
             and transaction_hash.startswith("0x")
             and len(transaction_hash) == 66
-            and all(c in "0123456789abcdefABCDEF" for c in transaction_hash[2:])
+            and all(c in string.hexdigits for c in transaction_hash[2:])
         )
 
         if is_valid:
@@ -981,7 +981,7 @@ def test_HyperliquidRawDelegatorRewardsResponse_valid() -> None:
 
 def test_staking_models_extra_fields() -> None:
     """Test that all staking models forbid extra fields."""
-    models_and_data = [
+    models_and_data: list[tuple[type[BaseModel], dict[str, Any]]] = [
         (
             HyperliquidRawDelegationItem,
             {

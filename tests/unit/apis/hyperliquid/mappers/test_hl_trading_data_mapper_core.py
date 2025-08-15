@@ -1070,7 +1070,6 @@ class TestPropertyBasedOrderTypeMapping:
         order_type: dict[str, Any],
     ) -> None:
         """Test order type mapping for historical orders with property-based testing."""
-
         # Extract order type string for historical orders
         if "limit" in order_type:
             historical_order.order_type = "limit"

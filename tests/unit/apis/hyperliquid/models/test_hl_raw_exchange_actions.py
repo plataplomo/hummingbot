@@ -17,15 +17,16 @@ Property testing ensures comprehensive coverage of exchange action edge cases an
 
 from __future__ import annotations
 
-import json
+import string
 from decimal import Decimal
 from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
     HyperliquidRawEthWithdrawalActionPayload,
     HyperliquidRawL2UsdTransferActionDetails,
@@ -34,7 +35,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_actions import (
 from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
     HyperliquidRawL2UsdTransferPayload,
 )
-from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
@@ -53,7 +53,7 @@ def eth_address_strategy() -> SearchStrategy[str]:
         st.just("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),  # Max address
         # Generate random valid addresses
         st.text(
-            alphabet="0123456789abcdefABCDEF",
+            alphabet=string.hexdigits,
             min_size=40,
             max_size=40,
         ).map(lambda x: f"0x{x}"),
@@ -63,10 +63,8 @@ def eth_address_strategy() -> SearchStrategy[str]:
 def decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and amounts."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0"),  # Zero
         st.just("0.01"),  # Small amount
         st.just("1.0"),  # Unit amount
@@ -87,10 +85,8 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid positive decimal strings."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0.01"),
         st.just("1.0"),
         st.just("100.0"),
@@ -105,7 +101,7 @@ def client_order_id_strategy() -> SearchStrategy[str | None]:
         st.none(),  # Optional field
         # Valid 128-bit hex strings (34 chars total: 0x + 32 hex chars)
         st.text(
-            alphabet="0123456789abcdefABCDEF",
+            alphabet=string.hexdigits,
             min_size=32,
             max_size=32,
         ).map(lambda x: f"0x{x}"),
@@ -129,7 +125,7 @@ def order_type_details_strategy() -> SearchStrategy[dict[str, Any]]:
 
 
 @st.composite
-def valid_order_item_spec_data(draw) -> dict[str, Any]:
+def valid_order_item_spec_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid order item spec data."""
     return {
         "asset_index": draw(st.integers(min_value=0, max_value=1000)),
@@ -143,7 +139,7 @@ def valid_order_item_spec_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_eth_withdrawal_data(draw) -> dict[str, str]:
+def valid_eth_withdrawal_data(draw: st.DrawFn) -> dict[str, str]:
     """Generate valid ETH withdrawal data."""
     return {
         "amount": draw(positive_decimal_str_strategy()),
@@ -152,7 +148,7 @@ def valid_eth_withdrawal_data(draw) -> dict[str, str]:
 
 
 @st.composite
-def valid_l2_transfer_payload_data(draw) -> dict[str, str]:
+def valid_l2_transfer_payload_data(draw: st.DrawFn) -> dict[str, str]:
     """Generate valid L2 USD transfer payload data."""
     return {
         "destination": draw(eth_address_strategy()),
@@ -232,7 +228,7 @@ class TestHyperliquidRawEthWithdrawalActionPayloadProperties:
             elif field == "destination":
                 # Check valid ETH address format
                 assume(value.startswith("0x") and len(value) == 42)
-                assume(all(c in "0123456789abcdefABCDEF" for c in value[2:]))
+                assume(all(c in string.hexdigits for c in value[2:]))
 
         obj = HyperliquidRawEthWithdrawalActionPayload.model_validate(withdrawal_data)
 
@@ -552,7 +548,7 @@ class TestHyperliquidRawL2UsdTransferActionDetailsProperties:
             elif field == "destination":
                 # Check valid ETH address format
                 assume(value.startswith("0x") and len(value) == 42)
-                assume(all(c in "0123456789abcdefABCDEF" for c in value[2:]))
+                assume(all(c in string.hexdigits for c in value[2:]))
 
         # Token must be USDC
         assume(payload_data["token"] == "USDC")
@@ -748,17 +744,19 @@ def test_batch_place_order_payload_extra_field() -> None:
 def test_l2_usd_transfer_action_details_valid() -> None:
     """Test l2 usd transfer action details valid."""
     payload_data = {
-        "destination": VALID_ETH_ADDRESS,
+        "destination": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
         "token": "USDC",
-        "amount": VALID_POSITIVE_DECIMAL_STR,
+        "amount": "100.0",
     }
     data = {"chain": "L2", "payload": payload_data}
     action_details = HyperliquidRawL2UsdTransferActionDetails.model_validate(data)
     assert action_details.chain == "L2"
     assert isinstance(action_details.payload, HyperliquidRawL2UsdTransferPayload)
-    assert action_details.payload.destination == VALID_ETH_ADDRESS.lower()
+    assert (
+        action_details.payload.destination == "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B".lower()
+    )
     assert action_details.payload.token == "USDC"
-    assert action_details.payload.amount == VALID_POSITIVE_DECIMAL_STR
+    assert action_details.payload.amount == "100.0"
     assert action_details.model_config.get("extra") == "forbid"
     assert action_details.model_config.get("frozen") is True
 

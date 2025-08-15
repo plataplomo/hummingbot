@@ -14,12 +14,13 @@ Tests boundary conditions, unicode handling, and extreme value scenarios includi
 - Whitespace handling
 """
 
+import string
 from decimal import Decimal, InvalidOperation
 from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
@@ -60,7 +61,7 @@ def extreme_decimal_strategy() -> SearchStrategy[str]:
         st.builds(
             lambda integer, fraction: f"{integer}.{''.join(fraction)}",
             st.integers(min_value=1, max_value=999),
-            st.lists(st.sampled_from("0123456789"), min_size=10, max_size=30),
+            st.lists(st.sampled_from(string.digits), min_size=10, max_size=30),
         ),
         # Scientific notation
         st.builds(
@@ -257,7 +258,7 @@ def malicious_input_strategy() -> SearchStrategy[str]:
 
 
 @composite
-def valid_raw_fill_strategy(draw: Any) -> BackpackRawFillResponse:
+def valid_raw_fill_strategy(draw: st.DrawFn) -> BackpackRawFillResponse:
     """Generate valid BackpackRawFillResponse instances.
 
     Args:
@@ -283,7 +284,7 @@ def valid_raw_fill_strategy(draw: Any) -> BackpackRawFillResponse:
 
 
 @composite
-def extreme_raw_fill_strategy(draw: Any) -> BackpackRawFillResponse:
+def extreme_raw_fill_strategy(draw: st.DrawFn) -> BackpackRawFillResponse:
     """Generate BackpackRawFillResponse with extreme values.
 
     Args:
@@ -422,7 +423,7 @@ class TestBoundaryValues:
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
         assert result is not None, "Should handle zero fee"
-        assert result.fee == Decimal("0")
+        assert result.fee == Decimal(0)
 
 
 class TestUnicodeHandling:
@@ -647,7 +648,7 @@ class TestScientificNotation:
             result = mapper.transform_raw_fill_to_internal(raw_fill)
 
             if result is not None:
-                expected = Decimal(mantissa) * (Decimal("10") ** exponent)
+                expected = Decimal(mantissa) * (Decimal(10) ** exponent)
                 if expected > 0:
                     assert abs(result.price - expected) < Decimal("1e-10")
                 else:

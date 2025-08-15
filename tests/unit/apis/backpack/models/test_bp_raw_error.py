@@ -14,7 +14,7 @@ Property testing ensures comprehensive coverage of error edge cases and adversar
 """
 
 import json
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 import pytest
 from hypothesis import assume, given, strategies as st

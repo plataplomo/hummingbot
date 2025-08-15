@@ -15,11 +15,12 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of vault equity edge cases and adversarial inputs.
 """
 
+import string
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -50,7 +51,7 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated valid addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -59,15 +60,15 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
     """Generate invalid Ethereum address strings."""
     return st.one_of([
         # Wrong length
-        st.text(min_size=1, max_size=39, alphabet="0123456789abcdefABCDEF"),
-        st.text(min_size=41, max_size=100, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
+        st.text(min_size=41, max_size=100, alphabet=string.hexdigits),
         # Missing 0x prefix
-        st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         # Wrong prefix
         st.builds(
             lambda prefix, hex_part: f"{prefix}{hex_part}",
             st.sampled_from(["0X", "1x", "x", "00x", ""]),
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
         # Invalid characters
         st.builds(
@@ -91,8 +92,8 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common equity values
         st.decimals(
-            min_value=Decimal("0"),
-            max_value=Decimal("1000000000"),  # 1 billion max
+            min_value=Decimal(0),
+            max_value=Decimal(1000000000),  # 1 billion max
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -131,7 +132,7 @@ def invalid_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_vault_equity_item_strategy(draw) -> dict[str, Any]:
+def valid_vault_equity_item_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid vault equity item data."""
     return {
         "vaultAddress": draw(valid_ethereum_address_strategy()),
@@ -199,7 +200,7 @@ class TestHyperliquidRawUserVaultEquityItemProperties:
             address = item_data["vaultAddress"]
             assume(isinstance(address, str) and len(address) == 42)
             assume(address.startswith("0x"))
-            assume(all(c in "0123456789abcdefABCDEF" for c in address[2:]))
+            assume(all(c in string.hexdigits for c in address[2:]))
 
             # Validate equity field
             equity = item_data["equity"]
@@ -381,15 +382,15 @@ class TestHyperliquidRawUserVaultEquityItemProperties:
 
         # Property: Attempting to modify fields should fail (frozen=True)
         with pytest.raises((AttributeError, ValidationError)):
-            obj.vault_address = "0xmodified000000000000000000000000000000"  # type: ignore[misc]
+            obj.vault_address = "0xmodified000000000000000000000000000000"
 
         with pytest.raises((AttributeError, ValidationError)):
-            obj.equity = "999999.99"  # type: ignore[misc]
+            obj.equity = "999999.99"
 
     @given(
         large_equity=st.decimals(
-            min_value=Decimal("1000000"),
-            max_value=Decimal("999999999999"),
+            min_value=Decimal(1000000),
+            max_value=Decimal(999999999999),
             places=8,
             allow_nan=False,
             allow_infinity=False,

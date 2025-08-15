@@ -20,10 +20,11 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
-from hypothesis.strategies import SearchStrategy
+from hypothesis import assume, given, strategies as st
+from hypothesis.strategies import DrawFn, SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeResponse,
     HyperliquidRawExchangeResponseData,
@@ -31,7 +32,6 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
     HyperliquidRawExchangeStatusObject,
     HyperliquidRawExchangeStatusResting,
 )
-from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
@@ -43,10 +43,8 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 def decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and amounts."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0"),  # Zero
         st.just("0.01"),  # Small amount
         st.just("1.0"),  # Unit amount
@@ -64,10 +62,8 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid positive decimal strings."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0.01"),
         st.just("1.0"),
         st.just("100.0"),
@@ -123,13 +119,13 @@ def error_message_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_resting_data(draw) -> dict[str, int]:
+def valid_resting_data(draw: DrawFn) -> dict[str, int]:
     """Generate valid resting status data."""
     return {"oid": draw(order_id_strategy())}
 
 
 @st.composite
-def valid_filled_data(draw) -> dict[str, Any]:
+def valid_filled_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid filled status data."""
     return {
         "oid": draw(order_id_strategy()),
@@ -139,7 +135,7 @@ def valid_filled_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_status_object_data(draw) -> dict[str, Any]:
+def valid_status_object_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid status object data."""
     return draw(
         st.one_of([
@@ -159,7 +155,7 @@ def status_entry_strategy() -> SearchStrategy[str | dict[str, Any]]:
 
 
 @st.composite
-def valid_response_data(draw) -> dict[str, Any]:
+def valid_response_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid response data."""
     return {
         "type": draw(st.text(min_size=1, max_size=64).filter(lambda x: x.strip())),
@@ -168,7 +164,7 @@ def valid_response_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_exchange_response_data(draw) -> dict[str, Any]:
+def valid_exchange_response_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid exchange response data."""
     return {
         "status": "ok",  # Must be "ok" according to model
@@ -279,7 +275,7 @@ class TestHyperliquidRawExchangeStatusRestingProperties:
     )
     def test_resting_extra_fields_properties(self, extra_fields: dict[str, str]) -> None:
         """Property: Resting status should forbid extra fields."""
-        resting_data = {"oid": 12345}
+        resting_data: dict[str, Any] = {"oid": 12345}
         resting_data.update(extra_fields)
 
         # Property: Extra fields should be rejected
@@ -489,7 +485,7 @@ class TestHyperliquidRawExchangeResponseDataProperties:
         statuses = response_data["statuses"]
         assume(isinstance(statuses, list))
 
-        valid_statuses = []
+        valid_statuses: list[str | dict[str, Any]] = []
         for status in statuses:
             if isinstance(status, str):
                 assume(
@@ -625,7 +621,7 @@ class TestHyperliquidRawExchangeResponseProperties:
             statuses = data["statuses"]
             assume(isinstance(statuses, list))
 
-            valid_statuses = []
+            valid_statuses: list[str | dict[str, Any]] = []
             for status_item in statuses:
                 if isinstance(status_item, str):
                     assume(
@@ -733,7 +729,7 @@ class TestHyperliquidRawExchangeResponseProperties:
             statuses = data["statuses"]
             assume(isinstance(statuses, list))
 
-            valid_statuses = []
+            valid_statuses: list[str | dict[str, Any]] = []
             for status_item in statuses:
                 if isinstance(status_item, str):
                     assume(

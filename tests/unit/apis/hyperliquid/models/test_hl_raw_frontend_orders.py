@@ -18,8 +18,8 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
-from hypothesis.strategies import SearchStrategy
+from hypothesis import assume, given, strategies as st
+from hypothesis.strategies import DrawFn, SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_frontend_orders import (
@@ -80,7 +80,7 @@ def decimal_string_strategy() -> SearchStrategy[str]:
         # Normal decimal values
         st.decimals(
             min_value=Decimal("0.00000001"),
-            max_value=Decimal("1000000"),
+            max_value=Decimal(1000000),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -132,7 +132,7 @@ def timestamp_strategy() -> SearchStrategy[int]:
 
 
 @st.composite
-def valid_frontend_order_data(draw) -> dict[str, Any]:
+def valid_frontend_order_data(draw: DrawFn) -> dict[str, Any]:
     """Generate valid frontend order data."""
     return {
         "coin": draw(coin_strategy()),
@@ -569,10 +569,10 @@ class TestHyperliquidRawFrontendOpenOrderProperties:
 
         # Property: Attempting to modify fields should fail (frozen=True)
         with pytest.raises((AttributeError, ValidationError)):
-            obj.coin = "ETH"  # type: ignore[misc]
+            obj.coin = "ETH"
 
         with pytest.raises((AttributeError, ValidationError)):
-            obj.oid = 12345  # type: ignore[misc]
+            obj.oid = 12345
 
 
 # =============================================================================

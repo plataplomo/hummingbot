@@ -14,13 +14,14 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of referral edge cases and adversarial inputs.
 """
 
+import string
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_referral import (
     HyperliquidRawReferralResponse,
@@ -51,7 +52,7 @@ def ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -91,7 +92,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
         # Normal decimal values
         st.decimals(
             min_value=Decimal("0.000001"),
-            max_value=Decimal("10000000"),
+            max_value=Decimal(10000000),
             places=6,
             allow_nan=False,
             allow_infinity=False,
@@ -121,7 +122,7 @@ def stage_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_referred_by_data(draw) -> dict[str, Any]:
+def valid_referred_by_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid referred by data."""
     return {
         "referrer": draw(ethereum_address_strategy()),
@@ -130,7 +131,7 @@ def valid_referred_by_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_referral_state_data(draw) -> dict[str, Any]:
+def valid_referral_state_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid referral state data."""
     return {
         "cumVlm": draw(financial_decimal_string_strategy()),
@@ -142,7 +143,7 @@ def valid_referral_state_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_referrer_data_data(draw) -> dict[str, Any]:
+def valid_referrer_data_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid referrer data."""
     return {
         "code": draw(referral_code_strategy()),
@@ -151,7 +152,7 @@ def valid_referrer_data_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_referrer_state_data(draw) -> dict[str, Any]:
+def valid_referrer_state_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid referrer state data."""
     return {
         "stage": draw(stage_strategy()),
@@ -160,7 +161,7 @@ def valid_referrer_state_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_referral_response_data(draw) -> dict[str, Any]:
+def valid_referral_response_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid referral response data."""
     return {
         "referredBy": draw(valid_referred_by_data()),
@@ -312,7 +313,7 @@ class TestHyperliquidRawReferredByProperties:
             and referrer_address.strip()
             and referrer_address.startswith("0x")
             and len(referrer_address) == 42
-            and all(c in "0123456789abcdefABCDEF" for c in referrer_address[2:])
+            and all(c in string.hexdigits for c in referrer_address[2:])
         )
 
         if is_valid:
@@ -941,7 +942,8 @@ def test_HyperliquidRawReferrerState_valid() -> None:
     }
     item = HyperliquidRawReferrerState.model_validate(valid_referrer_state)
     assert item.stage == valid_referrer_state["stage"]
-    assert item.data.code == valid_referrer_state["data"]["code"]
+    data_dict = cast(dict[str, Any], valid_referrer_state["data"])
+    assert item.data.code == data_dict["code"]
 
 
 def test_HyperliquidRawReferrerState_invalid_data() -> None:
@@ -984,8 +986,10 @@ def test_HyperliquidRawReferralResponse_valid() -> None:
     }
     item = HyperliquidRawReferralResponse.model_validate(valid_referral_response)
     assert item.cum_vlm == valid_referral_response["cumVlm"]
-    assert item.referred_by.code == valid_referral_response["referredBy"]["code"]
-    assert item.referrer_state.stage == valid_referral_response["referrerState"]["stage"]
+    referred_by_dict = cast(dict[str, Any], valid_referral_response["referredBy"])
+    assert item.referred_by.code == referred_by_dict["code"]
+    referrer_state_dict = cast(dict[str, Any], valid_referral_response["referrerState"])
+    assert item.referrer_state.stage == referrer_state_dict["stage"]
     assert item.reward_history == valid_referral_response["rewardHistory"]
 
 
@@ -1035,7 +1039,7 @@ def test_HyperliquidRawReferralResponse_invalid_volume() -> None:
 
 def test_all_referral_models_extra_fields() -> None:
     """Test that all referral models forbid extra fields."""
-    models_and_data = [
+    models_and_data: list[tuple[type[BaseModel], dict[str, Any]]] = [
         (
             HyperliquidRawReferredBy,
             {
@@ -1073,7 +1077,7 @@ def test_all_referral_models_extra_fields() -> None:
     ]
 
     for model_class, valid_data in models_and_data:
-        data_copy = valid_data.copy()
+        data_copy = dict(valid_data)
         data_copy["extraField"] = "test"
 
         with pytest.raises(ValidationError, match="Extra inputs are not permitted"):

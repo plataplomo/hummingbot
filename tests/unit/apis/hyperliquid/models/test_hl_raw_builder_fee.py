@@ -16,7 +16,7 @@ Property testing ensures comprehensive coverage of builder fee edge cases and ad
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 

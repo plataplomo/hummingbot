@@ -16,20 +16,21 @@ Property testing ensures comprehensive coverage of fill edge cases and adversari
 """
 
 import json
+import string
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
     HyperliquidRawUserFill,
     HyperliquidRawUserFillsRequestPayload,
     HyperliquidRawUserFillsResponse,
 )
-from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
 
 
@@ -41,10 +42,8 @@ from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
 def decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and amounts."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0"),  # Zero
         st.just("0.01"),  # Small amount
         st.just("1.0"),  # Unit amount
@@ -65,8 +64,8 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid positive decimal strings."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0"),
         st.just("0.01"),
         st.just("1.0"),
@@ -152,7 +151,7 @@ def eth_address_strategy() -> SearchStrategy[str]:
         st.just("0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF"),  # Max address
         # Generate random valid addresses
         st.text(
-            alphabet="0123456789abcdefABCDEF",
+            alphabet=string.hexdigits,
             min_size=40,
             max_size=40,
         ).map(lambda x: f"0x{x}"),
@@ -160,7 +159,7 @@ def eth_address_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_user_fill_data(draw) -> dict[str, Any]:
+def valid_user_fill_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid user fill data."""
     return {
         "tid": draw(trade_id_strategy()),
@@ -181,7 +180,7 @@ def valid_user_fill_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_user_fills_request_data(draw) -> dict[str, str]:
+def valid_user_fills_request_data(draw: st.DrawFn) -> dict[str, str]:
     """Generate valid user fills request payload data."""
     return {
         "type": "userFills",
@@ -304,6 +303,7 @@ class TestHyperliquidRawUserFillProperties:
         assert obj.is_maker == fill_data["isMaker"]
 
         if fill_data["liquidationMarkPx"] is not None:
+            assert obj.liquidation_mark_px is not None
             assert Decimal(obj.liquidation_mark_px) == Decimal(fill_data["liquidationMarkPx"])
         else:
             assert obj.liquidation_mark_px is None
@@ -631,7 +631,7 @@ class TestHyperliquidRawUserFillsRequestPayloadProperties:
         user = request_data["user"]
         assume(isinstance(user, str) and user.startswith("0x"))
         assume(len(user) == 42)  # 0x + 40 hex chars
-        assume(all(c in "0123456789abcdefABCDEF" for c in user[2:]))
+        assume(all(c in string.hexdigits for c in user[2:]))
 
         obj = HyperliquidRawUserFillsRequestPayload.model_validate(request_data)
 

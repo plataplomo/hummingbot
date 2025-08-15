@@ -14,11 +14,12 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of subaccount edge cases and adversarial inputs.
 """
 
+import string
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
-from hypothesis.strategies import SearchStrategy
+from hypothesis import assume, given, strategies as st
+from hypothesis.strategies import DrawFn, SearchStrategy
 from pydantic import ValidationError
 
 from cyberdelta.apis.hyperliquid.models.hl_raw_subaccounts import (
@@ -48,7 +49,7 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated valid addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -57,15 +58,15 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
     """Generate invalid Ethereum address strings."""
     return st.one_of([
         # Wrong length
-        st.text(min_size=1, max_size=39, alphabet="0123456789abcdefABCDEF"),
-        st.text(min_size=41, max_size=100, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
+        st.text(min_size=41, max_size=100, alphabet=string.hexdigits),
         # Missing 0x prefix
-        st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         # Wrong prefix
         st.builds(
             lambda prefix, hex_part: f"{prefix}{hex_part}",
             st.sampled_from(["0X", "1x", "x", "00x", ""]),
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
         # Invalid characters
         st.builds(
@@ -86,7 +87,7 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_subaccounts_list_strategy(draw) -> list[str]:
+def valid_subaccounts_list_strategy(draw: DrawFn) -> list[str]:
     """Generate valid lists of Ethereum addresses."""
     return draw(
         st.lists(
@@ -160,7 +161,7 @@ class TestHyperliquidRawSubAccountsResponseProperties:
                 assume(isinstance(address, str))
                 assume(len(address) == 42)  # 0x + 40 hex chars
                 assume(address.startswith("0x"))
-                assume(all(c in "0123456789abcdefABCDEF" for c in address[2:]))
+                assume(all(c in string.hexdigits for c in address[2:]))
         except (TypeError, IndexError):
             assume(False)
 

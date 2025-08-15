@@ -35,6 +35,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
+
 import pytest
 from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
@@ -329,11 +330,9 @@ def backpack_raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
     # Generate executed quantity (should be <= quantity for consistency)
     try:
         qty_decimal = Decimal(quantity)
-        if qty_decimal > Decimal("0"):
+        if qty_decimal > Decimal(0):
             executed_quantity = draw(
-                st.builds(
-                    str, st.decimals(min_value=Decimal("0"), max_value=qty_decimal, places=18)
-                )
+                st.builds(str, st.decimals(min_value=Decimal(0), max_value=qty_decimal, places=18))
             )
         else:
             executed_quantity = "0.0"
@@ -342,7 +341,7 @@ def backpack_raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
 
     # Generate average fill price if there's execution
     try:
-        if Decimal(executed_quantity) > Decimal("0") and price is not None:
+        if Decimal(executed_quantity) > Decimal(0) and price is not None:
             avg_fill_price = price
         else:
             avg_fill_price = None
@@ -413,14 +412,18 @@ class TestTradingDataTransformationRobustnessProperties:
         """Property: Order transformation should preserve all essential trading data."""
         # Skip invalid decimal values
         try:
+            if raw_order.quantity is None:
+                assume(False)
+            # DEFENSIVE CHECK: quantity validated as not None above
+            assert raw_order.quantity is not None
             quantity_decimal = Decimal(raw_order.quantity)
-            if quantity_decimal <= Decimal("0"):
+            if quantity_decimal <= Decimal(0):
                 assume(False)
             if raw_order.price is not None:
                 Decimal(raw_order.price)
             if raw_order.executedQuantity is not None:
                 exec_qty = Decimal(raw_order.executedQuantity)
-                if exec_qty < Decimal("0") or exec_qty > quantity_decimal:
+                if exec_qty < Decimal(0) or exec_qty > quantity_decimal:
                     assume(False)
         except Exception:
             assume(False)
@@ -433,6 +436,7 @@ class TestTradingDataTransformationRobustnessProperties:
         # Property: Essential fields should be preserved
         assert result.exchange_order_id == raw_order.id
         assert result.symbol.value == raw_order.symbol
+        assert raw_order.quantity is not None  # Validated above
         assert result.quantity_requested == Decimal(raw_order.quantity)
 
         # Property: Side should be correctly mapped
@@ -470,7 +474,7 @@ class TestTradingDataTransformationRobustnessProperties:
         try:
             qty_decimal = Decimal(extreme_quantity)
             price_decimal = Decimal(extreme_price)
-            if qty_decimal <= Decimal("0") or price_decimal <= Decimal("0"):
+            if qty_decimal <= Decimal(0) or price_decimal <= Decimal(0):
                 assume(False)
         except Exception:
             assume(False)
@@ -637,7 +641,7 @@ class TestTradingDataErrorHandlingProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_malicious_input_resistance(
-        self, malicious_field: Any, field_type: str, trading_data_mapper: BackpackOrderMapper
+        self, malicious_field: object, field_type: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
         """Property: Transformation should resist malicious inputs across all fields."""
         if not isinstance(malicious_field, str):
@@ -810,7 +814,7 @@ class TestTradingDataErrorHandlingProperties:
         for field, invalid_value in invalid_field_values.items():
             order_data[field] = invalid_value
 
-        raw_order = BackpackRawOrderResponse(**order_data)
+        raw_order = BackpackRawOrderResponse.model_validate(order_data)
 
         # Property: Should raise TransformationError for invalid decimal fields
         with pytest.raises(TransformationError):
@@ -897,7 +901,7 @@ class TestTradingDataPerformanceProperties:
             assert isinstance(result, Order)
             assert result.exchange_order_id is not None
             assert result.symbol is not None
-            assert result.quantity_requested > Decimal("0")
+            assert result.quantity_requested > Decimal(0)
 
     @given(
         large_string_field=st.text(min_size=100, max_size=1000),  # Reasonable size per feedback
@@ -1105,7 +1109,7 @@ class TestTradingDataConsistencyProperties:
         for value in precision_values:
             try:
                 decimal_val = Decimal(value)
-                if decimal_val > Decimal("0"):
+                if decimal_val > Decimal(0):
                     valid_values.append(value)
             except Exception:
                 continue
@@ -1198,6 +1202,8 @@ class TestTradingDataConsistencyProperties:
                 "avg_fill_price": None,
             }
 
+        # DEFENSIVE CHECK: order_type is always set to valid values in test scenarios
+        assert order_data["order_type"] is not None
         raw_order = BackpackRawOrderResponse(
             id="none_test",
             clientId=order_data["client_id"],
@@ -1259,8 +1265,10 @@ class TestTradingDataIntegrationProperties:
         for raw_order in mixed_order_batch:
             try:
                 # Skip orders with invalid quantities
+                if raw_order.quantity is None:
+                    continue
                 qty_decimal = Decimal(raw_order.quantity)
-                if qty_decimal <= Decimal("0"):
+                if qty_decimal <= Decimal(0):
                     continue
 
                 result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
@@ -1277,6 +1285,7 @@ class TestTradingDataIntegrationProperties:
             assert isinstance(result, Order)
             assert result.exchange_order_id == raw_order.id
             assert result.symbol.value == raw_order.symbol
+            assert raw_order.quantity is not None  # Validated in loop above
             assert result.quantity_requested == Decimal(raw_order.quantity)
 
     @given(
@@ -1300,8 +1309,10 @@ class TestTradingDataIntegrationProperties:
         for raw_order, operation in transformation_sequence:
             try:
                 # Skip invalid orders
+                if raw_order.quantity is None:
+                    continue
                 qty_decimal = Decimal(raw_order.quantity)
-                if qty_decimal <= Decimal("0"):
+                if qty_decimal <= Decimal(0):
                     continue
 
                 if operation == "transform":

@@ -330,11 +330,6 @@ test = [
     { name = "pytest-timeout" },
 ]
 
-[package.dev-dependencies]
-dev = [
-    { name = "hypothesis" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "aiofiles", specifier = "==24.1.0" },
@@ -384,9 +379,6 @@ requires-dist = [
     { name = "websockets", specifier = "==13.1.0" },
 ]
 provides-extras = ["test", "dev"]
-
-[package.metadata.requires-dev]
-dev = [{ name = "hypothesis", specifier = ">=6.137.3" }]
 
 [[package]]
 name = "cytoolz"

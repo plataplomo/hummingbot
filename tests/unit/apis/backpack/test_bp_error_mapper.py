@@ -297,8 +297,7 @@ class TestBackpackErrorMapperProperties:
         assert api_error.http_status == status_code
 
         # Property: API error code should be valid enum value
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
-
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
         # Property: Message should not be empty for valid inputs
         assert isinstance(api_error.message, str)
         if error_data and "message" in error_data:
@@ -389,8 +388,7 @@ class TestBackpackErrorMapperProperties:
 
         # Property: Should not crash on non-JSON input
         assert isinstance(api_error.code, str)
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
-
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
         # Property: HTTP status should be preserved
         assert api_error.http_status == status_code
 
@@ -400,15 +398,15 @@ class TestBackpackErrorMapperProperties:
         # Property: Should have meaningful error classification
         if status_code >= 500:
             assert api_error.code in [
-                APIErrorCode.SERVER_ERROR.value,
-                APIErrorCode.MAINTENANCE.value,
-                APIErrorCode.EXCHANGE_SPECIFIC.value,
+                str(APIErrorCode.SERVER_ERROR.value),
+                str(APIErrorCode.MAINTENANCE.value),
+                str(APIErrorCode.EXCHANGE_SPECIFIC.value),
             ]
         elif status_code >= 400:
             assert api_error.code in [
-                APIErrorCode.INVALID_REQUEST.value,
-                APIErrorCode.AUTHENTICATION_FAILED.value,
-                APIErrorCode.EXCHANGE_SPECIFIC.value,
+                str(APIErrorCode.INVALID_REQUEST.value),
+                str(APIErrorCode.AUTHENTICATION_FAILED.value),
+                str(APIErrorCode.EXCHANGE_SPECIFIC.value),
             ]
 
     @given(
@@ -470,8 +468,7 @@ class TestBackpackErrorMapperProperties:
         api_error = mapper.map_exchange_error(status_code, error_body, error_data)
 
         # Property: Should have valid API error code (fallback to status-based mapping)
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
-
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
         # Property: Message should be preserved
         assert message in api_error.message
 
@@ -748,8 +745,7 @@ class TestBackpackErrorMapperIntegrationProperties:
         assert api_error.metadata == error_data
 
         # Property: API error code should be valid
-        assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
-
+        assert api_error.code in [str(code.value) for code in APIErrorCode]
         # Property: Message should contain original information
         assert message in api_error.message
 
@@ -792,7 +788,7 @@ class TestBackpackErrorMapperIntegrationProperties:
 
         # Property: All results should be valid
         for api_error in results:
-            assert api_error.code in [code.value for code in APIErrorCode]  # type: ignore[operator]
+            assert api_error.code in [str(code.value) for code in APIErrorCode]
             assert isinstance(api_error.http_status, int)
             assert isinstance(api_error.message, str)
 

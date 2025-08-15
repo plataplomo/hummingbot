@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.websocket.ws_exceptions import WebSocketValidationError
+from cyberdelta.apis.websocket.exceptions import WebSocketValidationError
 from cyberdelta.apis.websocket.ws_processor import (
     MessageTransformer,
     PydanticWebSocketProcessor,

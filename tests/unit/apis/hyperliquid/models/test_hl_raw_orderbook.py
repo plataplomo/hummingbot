@@ -535,10 +535,8 @@ class TestHyperliquidRawL2BookProperties:
 
         # Check if structure is valid (exactly 2 lists)
         if isinstance(levels_structure, list):
-            # Pyright needs explicit cast for list[Unknown] -> list[Any]
-            levels_cast = cast(list[Any], levels_structure)
-            is_valid = len(levels_cast) == 2 and all(
-                isinstance(sublist, list) for sublist in levels_cast
+            is_valid = len(levels_structure) == 2 and all(
+                isinstance(sublist, list) for sublist in levels_structure
             )
         else:
             is_valid = False
@@ -569,7 +567,7 @@ class TestHyperliquidRawL2BookProperties:
             levels = l2book_data["levels"]
             assert isinstance(levels, list)
             # Pyright needs explicit cast for list[Unknown] -> list[Any]
-            assume(len(cast(list[Any], levels)) == 2)
+            assume(len(levels) == 2)
         except (TypeError, KeyError):
             assume(False)
 
@@ -694,7 +692,7 @@ class TestHyperliquidRawOrderbookIntegrationProperties:
             levels = l2book_data["levels"]
             assert isinstance(levels, list)
             # Pyright needs explicit cast for list[Unknown] -> list[Any]
-            assume(len(cast(list[Any], levels)) == 2)
+            assume(len(levels) == 2)
         except (TypeError, KeyError):
             assume(False)
 

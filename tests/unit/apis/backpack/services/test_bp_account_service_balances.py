@@ -14,13 +14,14 @@ Tests service layer operations with mocked dependencies including:
 
 from __future__ import annotations
 
+import string
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from hypothesis import given, strategies as st, settings, assume
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 from pydantic import ValidationError
 
@@ -299,7 +300,7 @@ def balance_amount_strategy() -> SearchStrategy[str]:
         st.builds(
             lambda integer, decimal: f"{integer}.{decimal}",
             st.integers(min_value=0, max_value=999999),
-            st.text(alphabet="0123456789", min_size=1, max_size=8),
+            st.text(alphabet=string.digits, min_size=1, max_size=8),
         ),
         # Zero amounts
         st.sampled_from(["0", "0.0", "0.00", "0.000000"]),
@@ -312,7 +313,7 @@ def balance_amount_strategy() -> SearchStrategy[str]:
         # Large amounts
         st.builds(
             str,
-            st.decimals(min_value=Decimal("1000000"), max_value=Decimal("999999999"), places=6),
+            st.decimals(min_value=Decimal(1000000), max_value=Decimal(999999999), places=6),
         ),
         # Very small amounts
         st.builds(

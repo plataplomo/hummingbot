@@ -16,11 +16,12 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of vault details edge cases and adversarial inputs.
 """
 
+import string
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -55,7 +56,7 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated valid addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -64,10 +65,10 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
     """Generate invalid Ethereum address strings."""
     return st.one_of([
         # Wrong length
-        st.text(min_size=1, max_size=39, alphabet="0123456789abcdefABCDEF"),
-        st.text(min_size=41, max_size=100, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
+        st.text(min_size=41, max_size=100, alphabet=string.hexdigits),
         # Missing 0x prefix
-        st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         # Common invalid formats
         st.just("not-an-address"),
         st.just("0x123"),
@@ -81,8 +82,8 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common financial values
         st.decimals(
-            min_value=Decimal("0"),
-            max_value=Decimal("1000000000"),  # 1 billion max
+            min_value=Decimal(0),
+            max_value=Decimal(1000000000),  # 1 billion max
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -110,8 +111,8 @@ def pnl_decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common PnL values (positive and negative)
         st.decimals(
-            min_value=Decimal("-1000000"),
-            max_value=Decimal("1000000"),
+            min_value=Decimal(-1000000),
+            max_value=Decimal(1000000),
             places=8,
             allow_nan=False,
             allow_infinity=False,
@@ -187,7 +188,7 @@ def vault_description_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_performance_history_item_strategy(draw) -> dict[str, Any]:
+def valid_performance_history_item_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid performance history item data."""
     return {
         "time": draw(timestamp_strategy()),
@@ -196,7 +197,7 @@ def valid_performance_history_item_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_user_equity_strategy(draw) -> dict[str, Any]:
+def valid_user_equity_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid user equity data."""
     return {
         "user": draw(valid_ethereum_address_strategy()),
@@ -209,7 +210,7 @@ def valid_user_equity_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_relationship_data_strategy(draw) -> dict[str, Any]:
+def valid_relationship_data_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid relationship data."""
     return {
         "childAddresses": draw(
@@ -223,7 +224,7 @@ def valid_relationship_data_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_relationship_strategy(draw) -> dict[str, Any]:
+def valid_relationship_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid relationship data."""
     return {
         "type": draw(st.sampled_from(["parent", "child", "standalone"])),
@@ -232,7 +233,7 @@ def valid_relationship_strategy(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_vault_details_response_strategy(draw) -> dict[str, Any]:
+def valid_vault_details_response_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid vault details response data."""
     return {
         "name": draw(vault_name_strategy()),
@@ -382,7 +383,7 @@ class TestHyperliquidRawVaultUserEquityProperties:
             address = equity_data["user"]
             assume(isinstance(address, str) and len(address) == 42)
             assume(address.startswith("0x"))
-            assume(all(c in "0123456789abcdefABCDEF" for c in address[2:]))
+            assume(all(c in string.hexdigits for c in address[2:]))
 
             # Validate decimal fields
             for field in ["equity", "allTimePnl"]:
@@ -455,7 +456,7 @@ class TestHyperliquidRawVaultRelationshipDataProperties:
             for address in child_addresses:
                 assume(isinstance(address, str) and len(address) == 42)
                 assume(address.startswith("0x"))
-                assume(all(c in "0123456789abcdefABCDEF" for c in address[2:]))
+                assume(all(c in string.hexdigits for c in address[2:]))
         except (TypeError, IndexError):
             assume(False)
 
@@ -522,7 +523,7 @@ class TestHyperliquidRawVaultDetailsResponseProperties:
                 address = vault_data[addr_field]
                 assume(isinstance(address, str) and len(address) == 42)
                 assume(address.startswith("0x"))
-                assume(all(c in "0123456789abcdefABCDEF" for c in address[2:]))
+                assume(all(c in string.hexdigits for c in address[2:]))
 
             # Validate decimal fields
             for field in [
@@ -784,7 +785,8 @@ def test_relationship_valid() -> None:
     valid_relationship = {"type": "parent", "data": {"childAddresses": ["0xchild1", "0xchild2"]}}
     rel = HyperliquidRawVaultRelationship.model_validate(valid_relationship)
     assert rel.type == valid_relationship["type"]
-    assert rel.data.child_addresses == valid_relationship["data"]["childAddresses"]
+    data_dict = cast(dict[str, Any], valid_relationship["data"])
+    assert list(rel.data.child_addresses or []) == data_dict["childAddresses"]
 
 
 def test_relationship_missing_type() -> None:

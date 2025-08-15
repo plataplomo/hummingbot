@@ -19,14 +19,14 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
     HyperliquidRawOrderStatusResponse,
 )
-from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
@@ -38,10 +38,8 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 def decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and amounts."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0"),
         st.just("0.01"),
         st.just("1.0"),
@@ -61,10 +59,8 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid positive decimal strings."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0.01"),
         st.just("1.0"),
         st.just("100.0"),
@@ -132,7 +128,7 @@ def client_order_id_strategy() -> SearchStrategy[str | None]:
 
 
 @st.composite
-def valid_raw_order_data(draw) -> dict[str, Any]:
+def valid_raw_order_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid raw order data."""
     return {
         "oid": draw(st.integers(min_value=0, max_value=2**63 - 1)),
@@ -155,7 +151,7 @@ def valid_raw_order_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_order_status_order_data(draw) -> dict[str, Any]:
+def valid_order_status_order_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid order status order data."""
     return {
         "order": draw(valid_raw_order_data()),
@@ -165,7 +161,7 @@ def valid_order_status_order_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_order_status_response_data(draw) -> dict[str, Any]:
+def valid_order_status_response_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid order status response data."""
     return {
         "status": draw(order_status_strategy()),
@@ -526,7 +522,7 @@ class TestHyperliquidRawOrderStatusResponseProperties:
 
 def test_HyperliquidRawOrderStatusResponse_valid_response() -> None:
     """Test successful parsing of a valid order status response."""
-    valid_raw_order_data = {
+    valid_raw_order_data: dict[str, Any] = {
         "oid": 12345,
         "cloid": None,
         "coin": "ETH",
@@ -574,7 +570,7 @@ def test_HyperliquidRawOrderStatusResponse_missing_order_field() -> None:
 
 def test_HyperliquidRawOrderStatusResponse_invalid_order_structure() -> None:
     """Test validation fails if the 'order' field has an invalid structure."""
-    invalid_order_data = {
+    invalid_order_data: dict[str, Any] = {
         "oid": 12345,
         "cloid": None,
         "coin": "ETH",
@@ -607,7 +603,7 @@ def test_HyperliquidRawOrderStatusResponse_invalid_order_structure() -> None:
 
 def test_HyperliquidRawOrderStatusResponse_extra_field_forbidden() -> None:
     """Test validation fails if extra fields are provided."""
-    valid_order_data = {
+    valid_order_data: dict[str, Any] = {
         "oid": 12345,
         "cloid": None,
         "coin": "ETH",

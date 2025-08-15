@@ -36,7 +36,7 @@ import json
 from typing import Any, Literal, cast
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -323,7 +323,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         """Property: Valid private subscriptions with signatures should be accepted."""
         request = BackpackRawWsSubscriptionRequest(
             method=method, params=params, signature=signature
-        )  # type: ignore[arg-type]
+        )
 
         # Property: Values should be preserved exactly
         assert request.method == method
@@ -354,14 +354,14 @@ class TestBackpackRawWsSubscriptionRequestProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_invalid_signature_rejection(
-        self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], invalid_signature: Any
+        self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], invalid_signature: object
     ) -> None:
         """Property: Invalid signatures should be rejected."""
         with pytest.raises(ValidationError):
             BackpackRawWsSubscriptionRequest(
                 method=method,
                 params=["account.orderUpdate"],
-                signature=invalid_signature,
+                signature=cast("tuple[str, str, str, str] | None", invalid_signature),
             )
 
     @given(
@@ -403,12 +403,15 @@ class TestBackpackRawWsSubscriptionRequestProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_json_serialization_consistency(
-        self, method: str, params: list[str], signature: tuple[str, str, str, str] | None
+        self,
+        method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],
+        params: list[str],
+        signature: tuple[str, str, str, str] | None,
     ) -> None:
         """Property: JSON serialization should be consistent and reversible."""
         request = BackpackRawWsSubscriptionRequest(
             method=method, params=params, signature=signature
-        )  # type: ignore[arg-type]
+        )
 
         # Property: Should serialize to valid JSON
         json_str = request.model_dump_json(by_alias=True, exclude_none=True)
@@ -580,7 +583,10 @@ class TestBackpackWsPayloadFieldValidationProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_extra_fields_rejection(
-        self, method: str, extra_field_name: str, extra_field_value: Any
+        self,
+        method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],
+        extra_field_name: str,
+        extra_field_value: Any,
     ) -> None:
         """Property: Extra fields should always be rejected."""
         data = {
@@ -674,8 +680,12 @@ class TestBackpackWsPayloadIntegrationProperties:
         requests = []
 
         for method, params, signature in subscription_scenarios:
+            # Type assertion: method comes from ws_method_strategy() which returns Literal["SUBSCRIBE", "UNSUBSCRIBE"]
+            assert method in ("SUBSCRIBE", "UNSUBSCRIBE")
+            # Cast to help mypy understand the narrowed type
+            typed_method = cast(Literal["SUBSCRIBE", "UNSUBSCRIBE"], method)
             request = BackpackRawWsSubscriptionRequest(
-                method=method,
+                method=typed_method,
                 params=params,
                 signature=signature,
             )
@@ -701,14 +711,17 @@ class TestBackpackWsPayloadIntegrationProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_serialization_round_trip_consistency(
-        self, method: str, params: list[str], signature: tuple[str, str, str, str] | None
+        self,
+        method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],
+        params: list[str],
+        signature: tuple[str, str, str, str] | None,
     ) -> None:
         """Property: Serialization round-trip should preserve data integrity."""
         original_request = BackpackRawWsSubscriptionRequest(
             method=method,
             params=params,
             signature=signature,
-        )  # type: ignore[arg-type]
+        )
 
         # Serialize to JSON
         json_str = original_request.model_dump_json(by_alias=True, exclude_none=True)

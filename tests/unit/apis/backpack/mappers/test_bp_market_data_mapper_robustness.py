@@ -33,13 +33,14 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import string
+from datetime import datetime
 from decimal import Decimal
 from typing import Any
 from unittest.mock import patch
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 
 from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
@@ -53,10 +54,8 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
-from cyberdelta.models import Ticker
 from cyberdelta.symbols import exchanges
-from tests.common_symbols import BTC_USDC_BP, DOGE_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
-from tests.fixtures.time_fixtures import FreezerProtocol
+from tests.common_symbols import SOL_USDC_BP
 
 
 # =============================================================================
@@ -140,7 +139,7 @@ def unicode_symbol_strategy() -> SearchStrategy[str]:
             lambda parts: "-".join(parts),
             st.lists(
                 st.one_of([
-                    st.text(min_size=1, max_size=8, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+                    st.text(min_size=1, max_size=8, alphabet=string.ascii_uppercase),
                     st.sampled_from(["测试", "тест", "🚀", "αβγ", "العربية"]),
                 ]),
                 min_size=2,
@@ -176,11 +175,11 @@ def large_order_book_levels_strategy() -> SearchStrategy[list[tuple[str, str]]]:
             st.tuples(
                 st.builds(
                     str,
-                    st.decimals(min_value=Decimal("0.001"), max_value=Decimal("100000"), places=6),
+                    st.decimals(min_value=Decimal("0.001"), max_value=Decimal(100000), places=6),
                 ),
                 st.builds(
                     str,
-                    st.decimals(min_value=Decimal("0.1"), max_value=Decimal("1000000"), places=4),
+                    st.decimals(min_value=Decimal("0.1"), max_value=Decimal(1000000), places=4),
                 ),
             ),
             min_size=100,
@@ -581,7 +580,7 @@ class TestUnicodeEncodingSupportProperties:
     @given(
         mixed_content=st.builds(
             lambda ascii_part, unicode_part: f"{ascii_part}_{unicode_part}",
-            st.text(min_size=1, max_size=10, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ"),
+            st.text(min_size=1, max_size=10, alphabet=string.ascii_uppercase),
             st.sampled_from(["测试", "тест", "🚀", "αβγ", "العربية"]),
         ),
     )
@@ -727,11 +726,11 @@ class TestSecurityBoundariesProperties:
                 trades="100",
             )
 
-            result = ticker_mapper.transform_raw_ticker_to_internal(ticker_data)
+            ticker_result = ticker_mapper.transform_raw_ticker_to_internal(ticker_data)
 
             # Property: Should not execute malicious content
-            assert isinstance(result.price, Decimal)
-            assert isinstance(result.symbol, str)
+            assert isinstance(ticker_result.price, Decimal)
+            assert hasattr(ticker_result.symbol, "value")  # Symbol should have a value attribute
 
         except (TransformationError, ValueError, TypeError):
             # Expected for malicious/invalid inputs
@@ -748,12 +747,12 @@ class TestSecurityBoundariesProperties:
                 orderId="order123",
             )
 
-            result = trade_mapper.transform_raw_fill_to_internal(trade_data)
+            trade_result = trade_mapper.transform_raw_fill_to_internal(trade_data)
 
             # Property: Should not leak sensitive information
-            assert "password" not in str(result).lower()
-            assert "secret" not in str(result).lower()
-            assert "key" not in str(result).lower()
+            assert "password" not in str(trade_result).lower()
+            assert "secret" not in str(trade_result).lower()
+            assert "key" not in str(trade_result).lower()
 
         except (TransformationError, ValueError, TypeError):
             # Expected for malicious/invalid inputs
@@ -784,10 +783,10 @@ class TestSecurityBoundariesProperties:
                     trades="100",
                 )
 
-                result = ticker_mapper.transform_raw_ticker_to_internal(ticker_data)
+                ticker_result = ticker_mapper.transform_raw_ticker_to_internal(ticker_data)
 
                 # Property: Output should be reasonable size
-                assert len(str(result)) <= len(large_string) + 10000
+                assert len(str(ticker_result)) <= len(large_string) + 10000
 
             except (TransformationError, ValueError, TypeError):
                 # Expected for oversized inputs
@@ -804,10 +803,10 @@ class TestSecurityBoundariesProperties:
                     orderId="order123",
                 )
 
-                result = trade_mapper.transform_raw_fill_to_internal(trade_data)
+                trade_result = trade_mapper.transform_raw_fill_to_internal(trade_data)
 
                 # Property: Should handle large IDs appropriately
-                assert isinstance(result.id, str)
+                assert isinstance(trade_result.id, str)
 
             except (TransformationError, ValueError, TypeError):
                 # Expected for oversized inputs
@@ -824,7 +823,7 @@ class TestPerformanceMemoryProperties:
 
     @given(
         ticker_count=st.integers(min_value=1, max_value=100),
-        base_price=st.decimals(min_value=Decimal("1"), max_value=Decimal("100000"), places=2),
+        base_price=st.decimals(min_value=Decimal(1), max_value=Decimal(100000), places=2),
     )
     @settings(max_examples=50, deadline=None)
     def test_batch_transformation_efficiency(self, ticker_count: int, base_price: Decimal) -> None:
@@ -864,7 +863,7 @@ class TestPerformanceMemoryProperties:
 
     @given(
         level_count=st.integers(min_value=1, max_value=200),  # Reduced to prevent memory issues
-        base_price=st.decimals(min_value=Decimal("50"), max_value=Decimal("150"), places=2),
+        base_price=st.decimals(min_value=Decimal(50), max_value=Decimal(150), places=2),
     )
     @settings(max_examples=30, deadline=None)
     def test_order_book_memory_efficiency(self, level_count: int, base_price: Decimal) -> None:
@@ -908,8 +907,8 @@ class TestDataConsistencyValidationProperties:
     """Property-based tests for data consistency and validation."""
 
     @given(
-        bid_price=st.decimals(min_value=Decimal("90"), max_value=Decimal("110"), places=2),
-        ask_price=st.decimals(min_value=Decimal("90"), max_value=Decimal("110"), places=2),
+        bid_price=st.decimals(min_value=Decimal(90), max_value=Decimal(110), places=2),
+        ask_price=st.decimals(min_value=Decimal(90), max_value=Decimal(110), places=2),
     )
     @settings(max_examples=100, deadline=None)
     def test_order_book_price_relationship_handling(
@@ -938,7 +937,7 @@ class TestDataConsistencyValidationProperties:
         assert result.symbol == SOL_USDC_BP
 
     @given(
-        precision_value=st.decimals(min_value=Decimal("1"), max_value=Decimal("1000"), places=15),
+        precision_value=st.decimals(min_value=Decimal(1), max_value=Decimal(1000), places=15),
     )
     @settings(max_examples=100, deadline=None)
     def test_decimal_precision_consistency_across_fields(self, precision_value: Decimal) -> None:

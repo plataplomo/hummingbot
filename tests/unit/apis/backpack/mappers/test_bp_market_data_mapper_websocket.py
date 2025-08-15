@@ -35,7 +35,6 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
-from unittest.mock import patch
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
@@ -56,7 +55,7 @@ from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Fill, OrderBook, Ticker
 from cyberdelta.symbols import exchanges
-from tests.common_symbols import BTC_USDC_BP, DOGE_USDC_BP, ETH_USDC_BP, SOL_USDC_BP
+from tests.common_symbols import SOL_USDC_BP
 
 
 # =============================================================================
@@ -388,14 +387,16 @@ class TestWebSocketTickerTransformationProperties:
         assert isinstance(result, Ticker)
 
         # Property: Symbol should be correctly mapped
-        expected_symbol = exchanges.backpack(ticker_event.s)
+        expected_symbol = exchanges.backpack(ticker_event.symbol)
         assert result.symbol == expected_symbol
 
         # Property: Price should be preserved exactly
-        assert result.price == Decimal(ticker_event.c)
+        assert result.price == Decimal(ticker_event.last_price)
 
         # Property: Timestamp should be correctly converted
-        expected_timestamp = datetime.fromtimestamp(ticker_event.E / 1000, tz=UTC)
+        # DEFENSIVE CHECK: event_time must be numeric for timestamp calculation
+        assert isinstance(ticker_event.event_time, (int, float))
+        expected_timestamp = datetime.fromtimestamp(ticker_event.event_time / 1000, tz=UTC)
         assert result.timestamp == expected_timestamp
 
         # Property: Exchange should be set correctly
@@ -441,7 +442,7 @@ class TestWebSocketTickerTransformationProperties:
     def test_ticker_transformation_malicious_symbol_resistance(
         self,
         base_event: BackpackRawTickerEvent,
-        malicious_symbol: Any,
+        malicious_symbol: object,
         ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: Ticker transformation should resist malicious symbol inputs."""
@@ -451,15 +452,15 @@ class TestWebSocketTickerTransformationProperties:
         # Create event with malicious symbol
         malicious_event = BackpackRawTickerEvent(
             s=malicious_symbol,
-            c=base_event.c,
-            h=base_event.h,
-            l=base_event.l,
-            o=base_event.o,
-            v=base_event.v,
-            V=base_event.V,
-            priceChangePercent=base_event.priceChangePercent,
+            c=base_event.last_price,
+            h=base_event.high,
+            l=base_event.low,
+            o=base_event.open_price,
+            v=base_event.volume,
+            V=base_event.quote_volume,
+            priceChangePercent=base_event.price_change_percent,
             e="ticker",
-            E=base_event.E,
+            E=base_event.event_time,
         )
 
         try:
@@ -496,15 +497,15 @@ class TestWebSocketTickerTransformationProperties:
         for symbol in symbols:
             event = BackpackRawTickerEvent(
                 s=symbol,
-                c=base_event.c,
-                h=base_event.h,
-                l=base_event.l,
-                o=base_event.o,
-                v=base_event.v,
-                V=base_event.V,
-                priceChangePercent=base_event.priceChangePercent,
+                c=base_event.last_price,
+                h=base_event.high,
+                l=base_event.low,
+                o=base_event.open_price,
+                v=base_event.volume,
+                V=base_event.quote_volume,
+                priceChangePercent=base_event.price_change_percent,
                 e="ticker",
-                E=base_event.E,
+                E=base_event.event_time,
             )
 
             result = ticker_mapper.transform_ws_ticker_event_to_internal(event)
@@ -549,15 +550,18 @@ class TestWebSocketDepthTransformationProperties:
         assert result.symbol == symbol
 
         # Property: Bid/ask count should match input
-        assert len(result.bids) == len(raw_depth.b)
-        assert len(result.asks) == len(raw_depth.a)
+        # DEFENSIVE CHECK: bids and asks must not be None for depth events
+        assert raw_depth.bids is not None
+        assert raw_depth.asks is not None
+        assert len(result.bids) == len(raw_depth.bids)
+        assert len(result.asks) == len(raw_depth.asks)
 
         # Property: All price levels should be valid decimals
         for price, quantity in result.bids + result.asks:
             assert isinstance(price, Decimal)
             assert isinstance(quantity, Decimal)
-            assert price >= Decimal("0")
-            assert quantity >= Decimal("0")
+            assert price >= Decimal(0)
+            assert quantity >= Decimal(0)
 
     @given(
         symbol=backpack_symbol_strategy(),
@@ -631,13 +635,13 @@ class TestWebSocketDepthTransformationProperties:
 
         # Create malicious depth event
         malicious_depth = BackpackRawDepthUpdateEvent(
-            u=raw_depth.u,
-            U=raw_depth.U,
+            u=raw_depth.last_update_id,
+            U=raw_depth.first_update_id,
             b=string_levels,  # Malicious bid levels
-            a=raw_depth.a,  # Keep original asks
+            a=raw_depth.asks,  # Keep original asks
             e="depth",
-            E=raw_depth.E,
-            T=raw_depth.T,
+            E=raw_depth.event_time,
+            T=raw_depth.engine_time,
         )
 
         try:
@@ -712,9 +716,9 @@ class TestWebSocketTradeTransformationProperties:
         """Property: Trade transformation should preserve all essential trade data."""
         # Skip zero values as they're invalid for trades
         try:
-            price_decimal = Decimal(trade_event.p)
-            qty_decimal = Decimal(trade_event.q)
-            if price_decimal <= Decimal("0") or qty_decimal <= Decimal("0"):
+            price_decimal = Decimal(trade_event.price)
+            qty_decimal = Decimal(trade_event.quantity)
+            if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                 assume(False)
         except Exception:
             assume(False)
@@ -725,25 +729,27 @@ class TestWebSocketTradeTransformationProperties:
         assert isinstance(result, Fill)
 
         # Property: Symbol should be correctly mapped
-        expected_symbol = exchanges.backpack(trade_event.s)
+        expected_symbol = exchanges.backpack(trade_event.symbol)
         assert result.symbol == expected_symbol
 
         # Property: Price and quantity should be preserved exactly
-        assert result.price == Decimal(trade_event.p)
-        assert result.quantity == Decimal(trade_event.q)
+        assert result.price == Decimal(trade_event.price)
+        assert result.quantity == Decimal(trade_event.quantity)
 
         # Property: Side should be correctly mapped from maker flag
-        expected_side = OrderSide.BUY if trade_event.m else OrderSide.SELL
+        expected_side = OrderSide.BUY if trade_event.is_buyer_the_maker else OrderSide.SELL
         assert result.side == expected_side
 
         # Property: Exchange should be set correctly
         assert result.exchange == ExchangeName.BACKPACK.value
 
         # Property: Trade ID should be preserved
-        assert result.id == trade_event.t
+        assert result.id == trade_event.trade_id
 
         # Property: Timestamp should be correctly converted
-        expected_timestamp = datetime.fromtimestamp(trade_event.T / 1000, tz=UTC)
+        # DEFENSIVE CHECK: engine_timestamp must be numeric for timestamp calculation
+        assert isinstance(trade_event.engine_timestamp, (int, float))
+        expected_timestamp = datetime.fromtimestamp(trade_event.engine_timestamp / 1000, tz=UTC)
         assert result.executed_at == expected_timestamp
 
     @given(
@@ -770,7 +776,7 @@ class TestWebSocketTradeTransformationProperties:
         try:
             price_decimal = Decimal(price)
             qty_decimal = Decimal(quantity)
-            if price_decimal <= Decimal("0") or qty_decimal <= Decimal("0"):
+            if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                 assume(False)
         except Exception:
             assume(False)
@@ -803,7 +809,7 @@ class TestWebSocketTradeTransformationProperties:
     def test_trade_transformation_malicious_input_resistance(
         self,
         base_trade: BackpackRawPublicTradeEvent,
-        malicious_data: Any,
+        malicious_data: object,
         trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Trade transformation should resist malicious inputs."""
@@ -813,15 +819,15 @@ class TestWebSocketTradeTransformationProperties:
         # Test malicious symbol
         malicious_trade = BackpackRawPublicTradeEvent(
             s=malicious_data,
-            p=base_trade.p,
-            q=base_trade.q,
-            t=base_trade.t,
-            m=base_trade.m,
+            p=base_trade.price,
+            q=base_trade.quantity,
+            t=base_trade.trade_id,
+            m=base_trade.is_buyer_the_maker,
             e="trade",
-            E=base_trade.E,
-            b=base_trade.b,
-            a=base_trade.a,
-            T=base_trade.T,
+            E=base_trade.event_time,
+            b=base_trade.buyer_order_id,
+            a=base_trade.seller_order_id,
+            T=base_trade.engine_timestamp,
         )
 
         try:
@@ -851,9 +857,9 @@ class TestWebSocketTradeTransformationProperties:
         for trade_event in trades_batch:
             try:
                 # Skip invalid trades
-                price_decimal = Decimal(trade_event.p)
-                qty_decimal = Decimal(trade_event.q)
-                if price_decimal <= Decimal("0") or qty_decimal <= Decimal("0"):
+                price_decimal = Decimal(trade_event.price)
+                qty_decimal = Decimal(trade_event.quantity)
+                if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                     continue
 
                 result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
@@ -872,7 +878,7 @@ class TestWebSocketTradeTransformationProperties:
 
         # Property: Side mapping should be consistent
         for trade_event, result in results:
-            expected_side = OrderSide.BUY if trade_event.m else OrderSide.SELL
+            expected_side = OrderSide.BUY if trade_event.is_buyer_the_maker else OrderSide.SELL
             assert result.side == expected_side
 
     @given(
@@ -945,16 +951,16 @@ class TestWebSocketTransformationSecurityProperties:
         """Property: Ticker transformation should resist injection attacks."""
         # Test injection in price field
         malicious_ticker = BackpackRawTickerEvent(
-            s=ticker_event.s,
+            s=ticker_event.symbol,
             c=injection_attempt,  # Malicious price
-            h=ticker_event.h,
-            l=ticker_event.l,
-            o=ticker_event.o,
-            v=ticker_event.v,
-            V=ticker_event.V,
-            priceChangePercent=ticker_event.priceChangePercent,
+            h=ticker_event.high,
+            l=ticker_event.low,
+            o=ticker_event.open_price,
+            v=ticker_event.volume,
+            V=ticker_event.quote_volume,
+            priceChangePercent=ticker_event.price_change_percent,
             e="ticker",
-            E=ticker_event.E,
+            E=ticker_event.event_time,
         )
 
         try:
@@ -980,15 +986,15 @@ class TestWebSocketTransformationSecurityProperties:
         """Property: WebSocket transformations should handle large inputs safely."""
         large_ticker = BackpackRawTickerEvent(
             s=large_symbol,
-            c=base_event.c,
-            h=base_event.h,
-            l=base_event.l,
-            o=base_event.o,
-            v=base_event.v,
-            V=base_event.V,
-            priceChangePercent=base_event.priceChangePercent,
+            c=base_event.last_price,
+            h=base_event.high,
+            l=base_event.low,
+            o=base_event.open_price,
+            v=base_event.volume,
+            V=base_event.quote_volume,
+            priceChangePercent=base_event.price_change_percent,
             e="ticker",
-            E=base_event.E,
+            E=base_event.event_time,
         )
 
         try:
@@ -1022,16 +1028,16 @@ class TestWebSocketTransformationSecurityProperties:
     ) -> None:
         """Property: WebSocket transformations should handle Unicode data safely."""
         unicode_ticker = BackpackRawTickerEvent(
-            s=f"{base_event.s}-{unicode_data}",
-            c=base_event.c,
-            h=base_event.h,
-            l=base_event.l,
-            o=base_event.o,
-            v=base_event.v,
-            V=base_event.V,
-            priceChangePercent=base_event.priceChangePercent,
+            s=f"{base_event.symbol}-{unicode_data}",
+            c=base_event.last_price,
+            h=base_event.high,
+            l=base_event.low,
+            o=base_event.open_price,
+            v=base_event.volume,
+            V=base_event.quote_volume,
+            priceChangePercent=base_event.price_change_percent,
             e="ticker",
-            E=base_event.E,
+            E=base_event.event_time,
         )
 
         try:
@@ -1078,6 +1084,7 @@ class TestWebSocketTransformationIntegrationProperties:
 
         for event in mixed_events:
             try:
+                result: Ticker | OrderBook | Fill
                 if isinstance(event, BackpackRawTickerEvent):
                     result = ticker_mapper.transform_ws_ticker_event_to_internal(event)
                 elif isinstance(event, tuple) and len(event) == 2:  # Depth event
@@ -1089,9 +1096,9 @@ class TestWebSocketTransformationIntegrationProperties:
                 elif isinstance(event, BackpackRawPublicTradeEvent):
                     # Skip invalid trades
                     try:
-                        price_decimal = Decimal(event.p)
-                        qty_decimal = Decimal(event.q)
-                        if price_decimal <= Decimal("0") or qty_decimal <= Decimal("0"):
+                        price_decimal = Decimal(event.price)
+                        qty_decimal = Decimal(event.quantity)
+                        if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                             continue
                     except Exception:
                         continue
@@ -1122,9 +1129,9 @@ class TestWebSocketTransformationIntegrationProperties:
         for trade_event in event_stream:
             try:
                 # Skip invalid trades
-                price_decimal = Decimal(trade_event.p)
-                qty_decimal = Decimal(trade_event.q)
-                if price_decimal <= Decimal("0") or qty_decimal <= Decimal("0"):
+                price_decimal = Decimal(trade_event.price)
+                qty_decimal = Decimal(trade_event.quantity)
+                if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                     continue
 
                 result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
@@ -1139,14 +1146,14 @@ class TestWebSocketTransformationIntegrationProperties:
                 curr_event, curr_result = processed_trades[i]
 
                 # If timestamps are different, ordering should be preserved
-                if prev_event.T != curr_event.T:
+                if prev_event.engine_timestamp != curr_event.engine_timestamp:
                     assert prev_result.executed_at <= curr_result.executed_at
 
         # Property: All trades should have consistent transformation
         for trade_event, result in processed_trades:
-            assert result.price == Decimal(trade_event.p)
-            assert result.quantity == Decimal(trade_event.q)
-            expected_side = OrderSide.BUY if trade_event.m else OrderSide.SELL
+            assert result.price == Decimal(trade_event.price)
+            assert result.quantity == Decimal(trade_event.quantity)
+            expected_side = OrderSide.BUY if trade_event.is_buyer_the_maker else OrderSide.SELL
             assert result.side == expected_side
 
 

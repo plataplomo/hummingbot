@@ -17,11 +17,10 @@ Tests service layer functionality with mocked dependencies including:
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from hypothesis import given, strategies as st, settings, assume
+from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 from pydantic import ValidationError
 
@@ -991,7 +990,7 @@ def valid_quantity_strategy() -> SearchStrategy[Decimal]:
     Returns:
         SearchStrategy[Decimal]: Strategy for valid quantities.
     """
-    return st.decimals(min_value=Decimal("0.001"), max_value=Decimal("1000000"), places=3)
+    return st.decimals(min_value=Decimal("0.001"), max_value=Decimal(1000000), places=3)
 
 
 def valid_price_strategy() -> SearchStrategy[Decimal]:
@@ -1000,7 +999,7 @@ def valid_price_strategy() -> SearchStrategy[Decimal]:
     Returns:
         SearchStrategy[Decimal]: Strategy for valid prices.
     """
-    return st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=2)
+    return st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=2)
 
 
 def invalid_quantity_strategy() -> SearchStrategy[Decimal]:
@@ -1010,7 +1009,7 @@ def invalid_quantity_strategy() -> SearchStrategy[Decimal]:
         SearchStrategy[Decimal]: Strategy for invalid quantities.
     """
     return st.one_of([
-        st.just(Decimal("0")),  # Zero
+        st.just(Decimal(0)),  # Zero
         st.decimals(max_value=Decimal("-0.001"), places=3),  # Negative
         st.just(Decimal("inf")),  # Infinite
         st.just(Decimal("-inf")),  # Negative infinite
@@ -1025,7 +1024,7 @@ def invalid_price_strategy() -> SearchStrategy[Decimal]:
         SearchStrategy[Decimal]: Strategy for invalid prices.
     """
     return st.one_of([
-        st.just(Decimal("0")),  # Zero
+        st.just(Decimal(0)),  # Zero
         st.decimals(max_value=Decimal("-0.01"), places=2),  # Negative
         st.just(Decimal("inf")),  # Infinite
         st.just(Decimal("-inf")),  # Negative infinite
@@ -1376,17 +1375,11 @@ class TestBackpackTradingServicePlaceOrderPropertyBased:
                 await bp_trading_service.place_order(invalid_args)
 
             error_message = str(exc_info.value)
-            if error_type == "invalid_quantity":
-                assert (
-                    "Input should be greater than 0" in error_message
-                    or "must be a finite decimal" in error_message
-                )
-            elif error_type == "invalid_price":
-                assert (
-                    "Input should be greater than 0" in error_message
-                    or "must be a finite decimal" in error_message
-                )
-            elif error_type == "invalid_stop_price":
+            if (
+                error_type == "invalid_quantity"
+                or error_type == "invalid_price"
+                or error_type == "invalid_stop_price"
+            ):
                 assert (
                     "Input should be greater than 0" in error_message
                     or "must be a finite decimal" in error_message

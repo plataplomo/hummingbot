@@ -16,9 +16,7 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorTimestampMixin,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
-from cyberdelta.apis.websocket.ws_exceptions import (
+from cyberdelta.apis.websocket.exceptions import (
     WebSocketAuthenticationError,
     WebSocketConnectionError,
     WebSocketSecurityError,
@@ -27,6 +25,8 @@ from cyberdelta.apis.websocket.ws_exceptions import (
     WebSocketSubscriptionLimitError,
     WebSocketValidationError,
 )
+from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_log_data import WebSocketStreamLogData
@@ -636,7 +636,6 @@ class TestWebSocketExceptions:
         error = WebSocketAuthenticationError(
             message="Auth failed",
             context=sample_context,
-            is_permanent=False,
         )
         assert error.recovery_strategy == WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF
         assert error.severity == ErrorSeverity.ERROR
@@ -645,7 +644,6 @@ class TestWebSocketExceptions:
         error = WebSocketAuthenticationError(
             message="Account banned",
             context=sample_context,
-            is_permanent=True,
         )
         assert error.recovery_strategy == WebSocketRecoveryStrategy.NONE
         assert error.severity == ErrorSeverity.CRITICAL
@@ -675,11 +673,13 @@ class TestWebSocketExceptions:
 
     def test_sequence_error(self, sample_context: StreamErrorContext) -> None:
         """Test WebSocketSequenceError."""
+        # Update context with sequence info
+        sample_context.expected_sequence = 100
+        sample_context.sequence_number = 105
         error = WebSocketSequenceError(
+            message="5 messages missing",
             context=sample_context,
-            expected_seq=100,
-            actual_seq=105,
-            gap_size=5,
+            code=WebSocketErrorCode.SEQUENCE_GAP,
         )
         assert "5 messages missing" in error.message
         assert error.code == WebSocketErrorCode.SEQUENCE_GAP

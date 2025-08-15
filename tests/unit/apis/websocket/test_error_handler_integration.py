@@ -9,13 +9,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from typing import Any, cast
 from unittest.mock import MagicMock, Mock
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
+from cyberdelta.apis.websocket.exceptions import (
+    WebSocketConfigurationError,
+    WebSocketConnectionError,
+    WebSocketSubscriptionError,
+)
 from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_events import (
     LoggingEventHandler,
@@ -27,11 +31,6 @@ from cyberdelta.apis.websocket.ws_error_handler_registry import (
     WebSocketErrorHandlerRegistry,
 )
 from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
-from cyberdelta.apis.websocket.ws_exceptions import (
-    WebSocketConfigurationError,
-    WebSocketConnectionError,
-    WebSocketSubscriptionError,
-)
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
@@ -433,8 +432,7 @@ class TestErrorHandlerRegistry:
         issues = health["issues"]
         assert isinstance(issues, (list, str))  # Type narrowing for mypy
         if isinstance(issues, list):
-            # Pyright needs explicit cast for list[Unknown] -> list[Any]
-            assert len(cast(list[Any], issues)) == 0
+            assert len(issues) == 0
         else:
             assert not issues
 

@@ -14,11 +14,12 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of request edge cases and adversarial inputs.
 """
 
+import string
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -57,7 +58,7 @@ def ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -83,10 +84,8 @@ def positive_decimal_strategy() -> SearchStrategy[str]:
     """Generate positive decimal strings for amounts."""
     return st.one_of([
         # Common positive amounts
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0.01"),  # Small amount
         st.just("1.0"),  # Unit amount
@@ -105,8 +104,8 @@ def finite_decimal_strategy() -> SearchStrategy[str]:
     """Generate finite decimal strings (can be negative)."""
     return st.one_of([
         # Positive and negative amounts
-        st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(-1000000), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0"),  # Zero
         st.just("1.0"),  # Positive
@@ -122,7 +121,7 @@ def finite_decimal_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_l2_usd_transfer_payload_data(draw) -> dict[str, Any]:
+def valid_l2_usd_transfer_payload_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid L2 USD transfer payload data."""
     return {
         "destination": draw(ethereum_address_strategy()),
@@ -132,7 +131,7 @@ def valid_l2_usd_transfer_payload_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_l2_usd_transfer_action_data(draw) -> dict[str, Any]:
+def valid_l2_usd_transfer_action_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid L2 USD transfer action data."""
     return {
         "chain": "L2",
@@ -141,7 +140,7 @@ def valid_l2_usd_transfer_action_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_l2_usd_transfer_request_data(draw) -> dict[str, Any]:
+def valid_l2_usd_transfer_request_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid L2 USD transfer request data."""
     return {
         "type": "usdTransfer",
@@ -150,7 +149,7 @@ def valid_l2_usd_transfer_request_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_eth_withdrawal_action_data(draw) -> dict[str, Any]:
+def valid_eth_withdrawal_action_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid ETH withdrawal action data."""
     return {
         "destination": draw(ethereum_address_strategy()),
@@ -159,7 +158,7 @@ def valid_eth_withdrawal_action_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_eth_withdrawal_request_data(draw) -> dict[str, Any]:
+def valid_eth_withdrawal_request_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid ETH withdrawal request data."""
     return {
         "type": "withdrawEth",
@@ -286,7 +285,7 @@ class TestHyperliquidApiL2UsdTransferRequestProperties:
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
-            HyperliquidApiL2UsdTransferRequest(**base_data)
+            HyperliquidApiL2UsdTransferRequest.model_validate(base_data)
 
     @given(
         invalid_amount=st.one_of([
@@ -384,7 +383,7 @@ class TestHyperliquidApiL2UsdTransferRequestProperties:
 
         # Property: Extra fields should be rejected
         with pytest.raises(ValidationError):
-            HyperliquidApiL2UsdTransferRequest(**request_data_with_extra)
+            HyperliquidApiL2UsdTransferRequest.model_validate(request_data_with_extra)
 
 
 # =============================================================================
@@ -456,7 +455,7 @@ class TestHyperliquidApiEthWithdrawalRequestProperties:
 
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
-            HyperliquidApiEthWithdrawalRequest(**base_data)
+            HyperliquidApiEthWithdrawalRequest.model_validate(base_data)
 
     @given(
         invalid_amount=st.one_of([
@@ -544,7 +543,7 @@ class TestHyperliquidApiEthWithdrawalRequestProperties:
 
         # Property: Extra fields should be rejected
         with pytest.raises(ValidationError):
-            HyperliquidApiEthWithdrawalRequest(**request_data_with_extra)
+            HyperliquidApiEthWithdrawalRequest.model_validate(request_data_with_extra)
 
 
 # =============================================================================
@@ -642,10 +641,10 @@ class TestHyperliquidApiRequestPayloadIntegrationProperties:
         """Property: All request models should safely handle complete adversarial input."""
         # Property: Complete adversarial input should be safely rejected by both models
         with pytest.raises((ValidationError, TypeError)):
-            HyperliquidApiL2UsdTransferRequest(**complete_malicious_data)
+            HyperliquidApiL2UsdTransferRequest.model_validate(complete_malicious_data)
 
         with pytest.raises((ValidationError, TypeError)):
-            HyperliquidApiEthWithdrawalRequest(**complete_malicious_data)
+            HyperliquidApiEthWithdrawalRequest.model_validate(complete_malicious_data)
 
     @given(
         valid_address=ethereum_address_strategy(),
@@ -667,7 +666,7 @@ class TestHyperliquidApiRequestPayloadIntegrationProperties:
 
         # Test L2 USD transfer with financial calculations
         l2_payload = HyperliquidRawL2UsdTransferPayload(
-            destination=valid_address, token=valid_token, amount=valid_amount
+            destination=valid_address, token="USDC", amount=valid_amount
         )
         l2_action = HyperliquidRawL2UsdTransferActionDetails(chain="L2", payload=l2_payload)
         l2_request = HyperliquidApiL2UsdTransferRequest(type="usdTransfer", action=l2_action)
@@ -765,7 +764,7 @@ def test_HyperliquidApiL2UsdTransferRequest_explicit_type() -> None:
         "type": "usdTransfer",
         "action": action_details_model,  # Pass the model instance
     }
-    req = HyperliquidApiL2UsdTransferRequest(**request_data_for_unpack)
+    req = HyperliquidApiL2UsdTransferRequest.model_validate(request_data_for_unpack)
     assert req.type == "usdTransfer"
     assert req.action.chain == "L2"
     assert req.action.payload.destination == "0x1234567890abcdef1234567890abcdef12345670"
@@ -791,7 +790,7 @@ def test_HyperliquidApiL2UsdTransferRequest_incorrect_type() -> None:
         "action": action_details_model,
     }
     with pytest.raises(ValidationError):
-        HyperliquidApiL2UsdTransferRequest(**request_data_for_unpack)
+        HyperliquidApiL2UsdTransferRequest.model_validate(request_data_for_unpack)
 
 
 def test_HyperliquidApiEthWithdrawalRequest_valid() -> None:
@@ -839,7 +838,7 @@ def test_HyperliquidApiEthWithdrawalRequest_explicit_type() -> None:
         "type": "withdrawEth",
         "action": action_payload_model,  # Pass the model instance
     }
-    req = HyperliquidApiEthWithdrawalRequest(**request_data_for_unpack)
+    req = HyperliquidApiEthWithdrawalRequest.model_validate(request_data_for_unpack)
     assert req.type == "withdrawEth"
     assert req.action.destination == "0x1234567890abcdef1234567890abcdef12345678"
     assert req.action.amount == "1.234"
@@ -856,4 +855,4 @@ def test_HyperliquidApiEthWithdrawalRequest_incorrect_type() -> None:
         "action": action_payload_model,
     }
     with pytest.raises(ValidationError):
-        HyperliquidApiEthWithdrawalRequest(**request_data_for_unpack)
+        HyperliquidApiEthWithdrawalRequest.model_validate(request_data_for_unpack)

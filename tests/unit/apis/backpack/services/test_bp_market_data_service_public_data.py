@@ -17,11 +17,10 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 from pydantic import ValidationError
 
@@ -597,10 +596,10 @@ def mock_ticker_strategy() -> SearchStrategy[Ticker]:
         Ticker,
         symbol=bp_symbol_strategy(),
         exchange=st.just(ExchangeName.BACKPACK),
-        price=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=2),
-        volume=st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=2),
-        bid=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("99999"), places=2),
-        ask=st.decimals(min_value=Decimal("0.02"), max_value=Decimal("100000"), places=2),
+        price=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=2),
+        volume=st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=2),
+        bid=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(99999), places=2),
+        ask=st.decimals(min_value=Decimal("0.02"), max_value=Decimal(100000), places=2),
         timestamp=st.datetimes(min_value=datetime(2024, 1, 1, tzinfo=UTC)),
     )
 

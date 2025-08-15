@@ -19,16 +19,16 @@ from decimal import Decimal
 from typing import Any, Literal
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMids,
     HyperliquidRawAllMidsRequestPayload,
     HyperliquidRawAllMidsWrapper,
 )
-from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
@@ -97,10 +97,8 @@ def mid_price_strategy() -> SearchStrategy[str]:
     """Generate valid mid-price decimal strings."""
     return st.one_of([
         # Common price values
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         # Common values
         st.just("0"),  # Zero price
         st.just("0.01"),  # Small price
@@ -124,13 +122,13 @@ def mid_price_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_all_mids_data(draw, num_assets=None) -> dict[str, str]:
+def valid_all_mids_data(draw: st.DrawFn, num_assets: int | None = None) -> dict[str, str]:
     """Generate valid all mids data."""
     if num_assets is None:
         num_assets = draw(st.integers(min_value=0, max_value=100))
 
     # Generate unique symbols
-    symbols = set()
+    symbols: set[str] = set()
     while len(symbols) < num_assets:
         symbol = draw(asset_symbol_strategy())
         if symbol:  # Skip empty strings
@@ -146,7 +144,7 @@ def valid_all_mids_data(draw, num_assets=None) -> dict[str, str]:
 
 
 @st.composite
-def valid_all_mids_wrapper_data(draw) -> dict[Literal["mids"], dict[str, str]]:
+def valid_all_mids_wrapper_data(draw: st.DrawFn) -> dict[Literal["mids"], dict[str, str]]:
     """Generate valid all mids wrapper data for WebSocket messages."""
     mids_data = draw(valid_all_mids_data())
     return {"mids": mids_data}
@@ -329,7 +327,7 @@ class TestHyperliquidRawAllMidsProperties:
 
     def test_all_mids_empty_dict_properties(self) -> None:
         """Property: Empty dictionary should be valid for all mids."""
-        mids_data = {}
+        mids_data: dict[str, str] = {}
         obj = HyperliquidRawAllMids.model_validate(mids_data)
         assert obj.root == {}
 
@@ -559,7 +557,7 @@ def test_HyperliquidRawAllMids_real_world_example() -> None:
 
 def test_HyperliquidRawAllMids_empty_dict() -> None:
     """Test with empty dictionary."""
-    payload = {}
+    payload: dict[str, str] = {}
     obj = HyperliquidRawAllMids.model_validate(payload)
     assert obj.root == {}
 
@@ -604,8 +602,8 @@ def test_HyperliquidRawAllMids_decimal_normalization() -> None:
     }
     obj = HyperliquidRawAllMids.model_validate(payload)
     # Business logic normalizes decimals
-    assert Decimal(obj.root["ETH"]) == Decimal("3000")
-    assert Decimal(obj.root["BTC"]) == Decimal("40000")
+    assert Decimal(obj.root["ETH"]) == Decimal(3000)
+    assert Decimal(obj.root["BTC"]) == Decimal(40000)
     # Excessive precision may be rounded
     sol_tuple = Decimal(obj.root["SOL"]).as_tuple()
     assert isinstance(sol_tuple.exponent, int) and sol_tuple.exponent >= -8
@@ -736,7 +734,7 @@ def test_HyperliquidRawAllMidsWrapper_real_world_example() -> None:
 
 def test_HyperliquidRawAllMidsWrapper_empty_mids() -> None:
     """Test wrapper with empty mids dictionary."""
-    payload = {"mids": {}}
+    payload: dict[str, dict[str, str]] = {"mids": {}}
     obj = HyperliquidRawAllMidsWrapper.model_validate(payload)
     assert obj.root["mids"] == {}
 

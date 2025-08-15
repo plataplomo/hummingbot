@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 from pydantic import ValidationError
 
@@ -61,9 +61,9 @@ def decimal_price_strategy() -> SearchStrategy[Decimal]:
     """
     return st.one_of([
         # Normal prices
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=2),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=2),
         # High precision prices
-        st.decimals(min_value=Decimal("0.00001"), max_value=Decimal("999999"), places=8),
+        st.decimals(min_value=Decimal("0.00001"), max_value=Decimal(999999), places=8),
         # Edge case prices
         st.sampled_from([
             Decimal("0.01"),
@@ -87,18 +87,18 @@ def decimal_quantity_strategy() -> SearchStrategy[Decimal]:
     """
     return st.one_of([
         # Normal quantities
-        st.decimals(min_value=Decimal("0.001"), max_value=Decimal("10000"), places=3),
+        st.decimals(min_value=Decimal("0.001"), max_value=Decimal(10000), places=3),
         # High precision quantities
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000"), places=8),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000), places=8),
         # Edge case quantities
         st.sampled_from([
             Decimal("0.001"),
             Decimal("0.01"),
             Decimal("0.1"),
-            Decimal("1"),
-            Decimal("10"),
-            Decimal("100"),
-            Decimal("1000"),
+            Decimal(1),
+            Decimal(10),
+            Decimal(100),
+            Decimal(1000),
         ]),
     ])
 
@@ -389,9 +389,9 @@ class TestBuildPlaceOrderPayload:
             symbol=SOL_USDC_BP,
             order_side=OrderSide.BUY,
             order_type=OrderType.LIMIT,
-            quantity=Decimal("1"),
+            quantity=Decimal(1),
             time_in_force=TimeInForce.GTC,
-            price=Decimal("100"),
+            price=Decimal(100),
             client_order_id=client_id,
         )
 
@@ -692,7 +692,7 @@ class TestBuildGetOrderHistoryParams:
             symbol=symbol,
             start_time=start_time,
             end_time=end_time,
-            limit=limit if limit else 100,
+            limit=limit or 100,
             order_id=order_id,
             client_id=client_id,
         )
@@ -707,7 +707,7 @@ class TestBuildGetOrderHistoryParams:
             assert params_dict.get("from") == start_time
         if end_time:
             assert params_dict.get("to") == end_time
-        assert params_dict.get("limit") == (limit if limit else 100)
+        assert params_dict.get("limit") == (limit or 100)
         if order_id:
             assert params_dict.get("orderId") == order_id
         if client_id:
@@ -801,12 +801,12 @@ class TestEdgeCases:
     @given(
         quantity=st.decimals(
             min_value=Decimal("0.00000001"),
-            max_value=Decimal("999999999"),
+            max_value=Decimal(999999999),
             places=8,
         ),
         price=st.decimals(
             min_value=Decimal("0.00000001"),
-            max_value=Decimal("999999999"),
+            max_value=Decimal(999999999),
             places=8,
         ),
     )
@@ -842,9 +842,9 @@ class TestEdgeCases:
                 symbol=SOL_USDC_BP,
                 order_side=OrderSide.BUY,
                 order_type=OrderType.LIMIT,
-                quantity=Decimal("1"),
+                quantity=Decimal(1),
                 time_in_force=TimeInForce.GTC,
-                price=Decimal("100"),
+                price=Decimal(100),
                 client_order_id=client_id,
             )
             # If it succeeds, verify it's handled somehow
@@ -884,6 +884,6 @@ class TestEdgeCases:
         assert all(s == symbol.value for s in symbols)
 
         # Each should have its specific quantity
-        for payload, qty in zip(payloads, quantities):
+        for payload, qty in zip(payloads, quantities, strict=False):
             assert payload.quantity is not None
             assert Decimal(payload.quantity) == qty

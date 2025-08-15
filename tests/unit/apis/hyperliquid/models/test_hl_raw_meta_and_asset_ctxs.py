@@ -20,10 +20,11 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
+from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.exceptions.parsing import StructureTypeError
 from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawAssetCtx,
@@ -35,8 +36,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
     HyperliquidRawUpdateIsolatedMarginRequest,
     HyperliquidRawUpdateLeverageRequest,
 )
-from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
+
 
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR META AND ASSET CONTEXTS MODEL TESTING
@@ -111,8 +112,8 @@ def asset_name_strategy() -> SearchStrategy[str]:
 def decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for financial values."""
     return st.one_of([
-        st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("1000000"), places=8).map(str),
-        st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal(-1000000), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=6).map(str),
         st.just("0"),
         st.just("0.0"),
         st.just("1.0"),
@@ -133,7 +134,7 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_asset_definition_data(draw) -> dict[str, Any]:
+def valid_asset_definition_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid asset definition data."""
     return {
         "name": draw(asset_name_strategy()),
@@ -144,7 +145,7 @@ def valid_asset_definition_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_asset_ctx_data(draw) -> dict[str, Any]:
+def valid_asset_ctx_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid asset context data."""
     data = {
         "name": draw(asset_name_strategy()),
@@ -163,14 +164,14 @@ def valid_asset_ctx_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_meta_response_data(draw) -> dict[str, list[dict[str, Any]]]:
+def valid_meta_response_data(draw: st.DrawFn) -> dict[str, list[dict[str, Any]]]:
     """Generate valid meta response data."""
     universe = draw(st.lists(valid_asset_definition_data(), min_size=0, max_size=50))
     return {"universe": universe}
 
 
 @st.composite
-def valid_update_leverage_request_data(draw) -> dict[str, Any]:
+def valid_update_leverage_request_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid update leverage request data."""
     return {
         "asset": draw(st.integers(min_value=0, max_value=1000)),
@@ -180,7 +181,7 @@ def valid_update_leverage_request_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_update_margin_request_data(draw) -> dict[str, Any]:
+def valid_update_margin_request_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid update isolated margin request data."""
     return {
         "asset": draw(st.integers(min_value=0, max_value=1000)),
@@ -402,6 +403,7 @@ class TestHyperliquidRawAssetCtxProperties:
 
         # Property: Optional impactPx should be handled correctly
         if "impactPx" in ctx_data:
+            assert obj.impact_px is not None
             assert Decimal(obj.impact_px) == Decimal(ctx_data["impactPx"])
         else:
             assert obj.impact_px is None
@@ -537,7 +539,7 @@ class TestHyperliquidRawMetaResponseProperties:
 
     def test_meta_response_empty_universe_properties(self) -> None:
         """Property: Empty universe should be valid."""
-        meta_data = {"universe": []}
+        meta_data: dict[str, list[dict[str, Any]]] = {"universe": []}
         obj = HyperliquidRawMetaResponse.model_validate(meta_data)
         assert obj.universe == []
 

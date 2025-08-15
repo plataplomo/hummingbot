@@ -11,11 +11,12 @@ Tests payload building for financial endpoints including:
 - Hundreds of generated test combinations for comprehensive coverage
 """
 
+import string
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, settings
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 from pydantic import ValidationError
 
@@ -450,7 +451,7 @@ def withdrawal_address_strategy() -> SearchStrategy[str]:
         # Ethereum addresses (hex, 42 chars with 0x)
         st.builds(
             lambda addr: f"0x{addr}",
-            st.text(alphabet="0123456789abcdefABCDEF", min_size=40, max_size=40),
+            st.text(alphabet=string.hexdigits, min_size=40, max_size=40),
         ),
         # Bitcoin addresses (various formats)
         st.text(
@@ -533,7 +534,7 @@ def transfer_amount_strategy() -> SearchStrategy[Decimal]:
     return st.one_of([
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal("10000.0"), places=2),
         st.decimals(min_value=Decimal("0.1"), max_value=Decimal("1000.0"), places=1),
-        st.decimals(min_value=Decimal("1"), max_value=Decimal("100000"), places=0),
+        st.decimals(min_value=Decimal(1), max_value=Decimal(100000), places=0),
     ])
 
 
@@ -819,7 +820,7 @@ class TestBuildInternalTransferPayloadPropertyBased:
 
         # Test various precision levels
         amounts = [
-            Decimal("1"),
+            Decimal(1),
             Decimal("1.0"),
             Decimal("1.00"),
             Decimal("1.000"),
@@ -840,7 +841,7 @@ class TestBuildInternalTransferPayloadPropertyBased:
 
     @given(
         large_amount=st.decimals(
-            min_value=Decimal("1000000"), max_value=Decimal("999999999"), places=2
+            min_value=Decimal(1000000), max_value=Decimal(999999999), places=2
         ),
         from_wallet=wallet_type_strategy(),
         to_wallet=wallet_type_strategy(),
@@ -906,7 +907,7 @@ class TestFinancialEdgeCases:
 
     @given(
         zero_amount=st.sampled_from([
-            Decimal("0"),
+            Decimal(0),
             Decimal("0.0"),
             Decimal("0.00"),
             Decimal("0.000000"),

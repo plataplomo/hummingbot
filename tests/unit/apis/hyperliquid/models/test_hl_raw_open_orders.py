@@ -20,12 +20,12 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
-from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 from cyberdelta.apis.exceptions.field_validation import TypeFieldError
+from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRawTriggerInfo
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
@@ -37,10 +37,8 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 def decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and amounts."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0"),  # Zero
         st.just("0.01"),  # Small amount
         st.just("1.0"),  # Unit amount
@@ -61,10 +59,8 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
     """Generate valid positive decimal strings."""
     return st.one_of([
-        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal("1000000"), places=8).map(
-            str
-        ),
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=6).map(str),
+        st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
         st.just("0.01"),
         st.just("1.0"),
         st.just("100.0"),
@@ -125,7 +121,7 @@ def tif_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_trigger_info_data(draw) -> dict[str, Any]:
+def valid_trigger_info_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid trigger info data."""
     return {
         "triggerPx": draw(decimal_str_strategy()),
@@ -135,13 +131,13 @@ def valid_trigger_info_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_tif_limit_data(draw) -> dict[str, str]:
+def valid_tif_limit_data(draw: st.DrawFn) -> dict[str, str]:
     """Generate valid TIF limit data."""
     return {"tif": draw(tif_strategy())}
 
 
 @st.composite
-def valid_order_type_data(draw) -> dict[str, Any]:
+def valid_order_type_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid order type data."""
     return draw(
         st.one_of([
@@ -152,7 +148,7 @@ def valid_order_type_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_order_data(draw) -> dict[str, Any]:
+def valid_order_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid order data."""
     return {
         "oid": draw(order_id_strategy()),
@@ -171,7 +167,7 @@ def valid_order_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_open_order_data(draw) -> dict[str, Any]:
+def valid_open_order_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid open order data."""
     return {
         "order": draw(valid_order_data()),
@@ -180,7 +176,7 @@ def valid_open_order_data(draw) -> dict[str, Any]:
 
 
 @st.composite
-def valid_order_spec_data(draw) -> dict[str, Any]:
+def valid_order_spec_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid order spec data."""
     return {
         "asset": draw(st.integers(min_value=0, max_value=1000)),
@@ -527,7 +523,7 @@ def test_HyperliquidRawTriggerInfo_scientific_notation() -> None:
         "tpsl": "tp",
     }
     obj = HyperliquidRawTriggerInfo.model_validate(payload)
-    assert Decimal(obj.trigger_px) == Decimal("100000")
+    assert Decimal(obj.trigger_px) == Decimal(100000)
 
 
 def test_HyperliquidRawTriggerInfo_invalid_tpsl() -> None:
@@ -628,4 +624,5 @@ def test_HyperliquidRawTriggerInfo_high_precision() -> None:
     }
     obj = HyperliquidRawTriggerInfo.model_validate(payload)
     # Precision may be limited by business logic
-    assert Decimal(obj.trigger_px).as_tuple().exponent >= -8
+    exponent = Decimal(obj.trigger_px).as_tuple().exponent
+    assert isinstance(exponent, int) and exponent >= -8

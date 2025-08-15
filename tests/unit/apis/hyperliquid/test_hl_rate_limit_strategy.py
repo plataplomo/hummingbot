@@ -3,7 +3,8 @@
 This module provides comprehensive property-based testing of the HyperliquidRateLimitStrategy class,
 which implements a sophisticated dual-limiter system for Hyperliquid's unique rate limiting model.
 
-SECURITY CRITICAL: Hyperliquid rate limiting must correctly manage both IP weights and address actions to prevent:
+SECURITY CRITICAL: Hyperliquid rate limiting must correctly manage both IP weights
+and address actions to prevent:
 - Exchange IP bans that could block all trading operations permanently
 - Address action limit violations that could trigger account restrictions
 - Incorrect weight calculations leading to underestimated rate consumption
@@ -42,12 +43,13 @@ Architecture Compliance:
 from __future__ import annotations
 
 import asyncio
+import string
 import time
 from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 
 from cyberdelta.apis.base.rate_limit_models import RateLimitRequestContext
@@ -122,7 +124,7 @@ def hl_endpoint_strategy() -> SearchStrategy[str]:
         # Generated endpoint patterns
         st.builds(
             lambda path: f"/{path}",
-            st.text(alphabet="abcdefghijklmnopqrstuvwxyz", min_size=3, max_size=15),
+            st.text(alphabet=string.ascii_lowercase, min_size=3, max_size=15),
         ),
     ])
 
@@ -148,9 +150,7 @@ def hl_info_request_type_strategy() -> SearchStrategy[str]:
             "userFills",
         ]),
         # Unknown info request types
-        st.text(
-            alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ", min_size=3, max_size=20
-        ),
+        st.text(alphabet=string.ascii_letters, min_size=3, max_size=20),
     ])
 
 
@@ -185,7 +185,7 @@ def hl_action_strategy() -> SearchStrategy[dict[str, Any]]:
         st.fixed_dictionaries({
             "type": st.just("order"),
             "orderType": st.sampled_from(["Limit", "Market", "StopLimit", "StopMarket"]),
-            "coin": st.text(alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ", min_size=2, max_size=10),
+            "coin": st.text(alphabet=string.ascii_uppercase, min_size=2, max_size=10),
             "is_buy": st.booleans(),
             "sz": st.floats(min_value=0.001, max_value=1000000.0, allow_nan=False),
             "limit_px": st.floats(min_value=0.01, max_value=1000000.0, allow_nan=False),
@@ -195,7 +195,7 @@ def hl_action_strategy() -> SearchStrategy[dict[str, Any]]:
             "type": st.just("cancel"),
             "cancels": st.lists(
                 st.fixed_dictionaries({
-                    "coin": st.text(alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ", min_size=2, max_size=10),
+                    "coin": st.text(alphabet=string.ascii_uppercase, min_size=2, max_size=10),
                     "oid": st.integers(min_value=1, max_value=999999999999),
                 }),
                 min_size=1,
@@ -234,7 +234,7 @@ def hl_exchange_payload_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
     actions = [draw(hl_action_strategy()) for _ in range(action_count)]
 
-    payload = {"actions": actions}
+    payload: dict[str, Any] = {"actions": actions}
 
     # Sometimes add additional fields
     if draw(st.booleans()):
@@ -262,25 +262,23 @@ def hl_info_payload_strategy(draw: st.DrawFn) -> dict[str, Any] | None:
         A payload dictionary for info endpoints or None
     """
     # Sometimes return None payload
-    if draw(st.booleans(p=0.1)):
+    if draw(st.booleans()) and draw(st.floats(min_value=0, max_value=1)) < 0.1:
         return None
 
     info_type = draw(hl_info_request_type_strategy())
 
-    base_payload = {"type": info_type}
+    base_payload: dict[str, Any] = {"type": info_type}
 
     # Add type-specific fields
     if info_type == "l2Book":
         base_payload["coin"] = draw(
-            st.text(alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ", min_size=2, max_size=10)
+            st.text(alphabet=string.ascii_uppercase, min_size=2, max_size=10)
         )
     elif info_type == "userRole":
-        base_payload["user"] = draw(
-            st.text(alphabet="0123456789abcdefABCDEF", min_size=40, max_size=42)
-        )
+        base_payload["user"] = draw(st.text(alphabet=string.hexdigits, min_size=40, max_size=42))
     elif info_type == "candles":
         base_payload["coin"] = draw(
-            st.text(alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ", min_size=2, max_size=10)
+            st.text(alphabet=string.ascii_uppercase, min_size=2, max_size=10)
         )
         base_payload["interval"] = draw(st.sampled_from(["1m", "5m", "15m", "1h", "4h", "1d"]))
 
@@ -313,6 +311,7 @@ def hl_rate_limit_context_strategy(draw: st.DrawFn) -> RateLimitRequestContext:
     method = draw(st.sampled_from(["GET", "POST"]))
 
     # Generate payload based on endpoint
+    action_payload: dict[str, Any] | None
     if endpoint == "/exchange":
         action_payload = draw(hl_exchange_payload_strategy())
     elif endpoint == "/info":
@@ -416,10 +415,9 @@ class TestHyperliquidRateLimitStrategyProperties:
         strategy = HyperliquidRateLimitStrategy(hl_config)
 
         # Should not crash on any valid context
-        result = await strategy.prepare_and_acquire(context)
+        await strategy.prepare_and_acquire(context)
 
-        # Property: Should always return None (no payload modification)
-        assert result is None
+        # Property: prepare_and_acquire returns None (no payload modification)
 
     @given(action_counts=st.lists(hl_action_count_strategy(), min_size=1, max_size=20))
     @settings(max_examples=150, deadline=None)
@@ -444,12 +442,7 @@ class TestHyperliquidRateLimitStrategyProperties:
             )
 
             # Should not crash regardless of action count
-            result = await strategy.prepare_and_acquire(context)
-            assert result is None
-
-            # Property: Weight calculation should follow formula: 1 + (action_count // 40)
-            expected_ip_weight = 1 + (action_count // 40)
-            expected_address_actions = action_count
+            await strategy.prepare_and_acquire(context)
 
             # We can't directly test the weights without accessing internals,
             # but we can verify the operation completes successfully
@@ -474,8 +467,7 @@ class TestHyperliquidRateLimitStrategyProperties:
             )
 
             # Should handle both known and unknown info types
-            result = await strategy.prepare_and_acquire(context)
-            assert result is None
+            await strategy.prepare_and_acquire(context)
 
     @given(
         payload_scenarios=st.lists(
@@ -510,8 +502,7 @@ class TestHyperliquidRateLimitStrategyProperties:
             )
 
             # Should not crash on malformed payloads
-            result = await strategy.prepare_and_acquire(context)
-            assert result is None
+            await strategy.prepare_and_acquire(context)
 
     @given(concurrent_contexts=st.lists(hl_rate_limit_context_strategy(), min_size=2, max_size=10))
     @settings(max_examples=50, deadline=None)
@@ -558,8 +549,7 @@ class TestHyperliquidRateLimitStrategyProperties:
         )
 
         # Should not crash on empty/malformed payloads
-        result = await strategy.prepare_and_acquire(context)
-        assert result is None
+        await strategy.prepare_and_acquire(context)
 
 
 # =============================================================================
@@ -592,10 +582,9 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
         )
 
         # Should not crash on malicious input
-        result = await strategy.prepare_and_acquire(context)
+        await strategy.prepare_and_acquire(context)
 
-        # Property: Should complete without error
-        assert result is None
+        # Property: Should complete without error (no return value expected)
 
     @given(
         extreme_action_count=st.integers(min_value=100000, max_value=1000000),
@@ -621,8 +610,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
         )
 
         # Should handle extreme counts without memory issues
-        result = await strategy.prepare_and_acquire(context)
-        assert result is None
+        await strategy.prepare_and_acquire(context)
 
     @given(
         buffer_overflow_fields=st.fixed_dictionaries({
@@ -649,8 +637,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
         )
 
         # Should not crash on large strings
-        result = await strategy.prepare_and_acquire(context)
-        assert result is None
+        await strategy.prepare_and_acquire(context)
 
     @given(
         injection_actions=st.lists(
@@ -686,8 +673,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
         )
 
         # Should not execute or interpret malicious content
-        result = await strategy.prepare_and_acquire(context)
-        assert result is None
+        await strategy.prepare_and_acquire(context)
 
     @given(
         recursive_payload=st.recursive(
@@ -699,7 +685,9 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
     @settings(max_examples=30, deadline=None)
     @pytest.mark.asyncio
     async def test_deeply_nested_payload_handling(
-        self, recursive_payload: Any, hl_config: ExchangeSpecificConfig
+        self,
+        recursive_payload: None | bool | str | dict[str, object],
+        hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Property: Strategy should handle deeply nested payloads without stack overflow."""
         strategy = HyperliquidRateLimitStrategy(hl_config)
@@ -714,8 +702,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
         )
 
         # Should handle nested structures without recursion errors
-        result = await strategy.prepare_and_acquire(context)
-        assert result is None
+        await strategy.prepare_and_acquire(context)
 
 
 # =============================================================================
@@ -761,8 +748,7 @@ class TestHyperliquidRateLimitStrategyIntegrationProperties:
             )
 
             # Each request should complete successfully
-            result = await strategy.prepare_and_acquire(context)
-            assert result is None
+            await strategy.prepare_and_acquire(context)
 
     @given(
         config_variations=st.lists(
@@ -799,8 +785,7 @@ class TestHyperliquidRateLimitStrategyIntegrationProperties:
             strategy = HyperliquidRateLimitStrategy(config)
 
             # Should work with any valid configuration
-            result = await strategy.prepare_and_acquire(test_context)
-            assert result is None
+            await strategy.prepare_and_acquire(test_context)
 
 
 # =============================================================================

@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 import pytest
-from hypothesis import given, strategies as st, assume, settings
+from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 
 from cyberdelta.config.structlog_config import get_logger
@@ -30,6 +30,8 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 # Project-specific imports
+import string
+
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_order import BackpackRawOrderResponse
 from cyberdelta.apis.common import TransformationError
@@ -115,13 +117,13 @@ def decimal_string_strategy() -> SearchStrategy[str]:
         st.builds(
             lambda i, d: f"{i}.{d}",
             st.integers(min_value=0, max_value=999999),
-            st.text(alphabet="0123456789", min_size=1, max_size=8),
+            st.text(alphabet=string.digits, min_size=1, max_size=8),
         ),
         # High precision values
         st.builds(
             lambda i, d: f"{i}.{''.join(d)}",
             st.integers(min_value=0, max_value=999),
-            st.lists(st.sampled_from("0123456789"), min_size=10, max_size=18),
+            st.lists(st.sampled_from(string.digits), min_size=10, max_size=18),
         ),
         # Edge cases
         st.sampled_from([
@@ -199,7 +201,7 @@ def timestamp_string_strategy() -> SearchStrategy[str]:
 
 
 @composite
-def raw_order_strategy(draw: Any) -> BackpackRawOrderResponse:
+def raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
     """Generate valid BackpackRawOrderResponse instances.
 
     Args:
@@ -831,7 +833,7 @@ class TestEdgeCases:
 
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
-        assert result.quantity_filled == Decimal("0")
+        assert result.quantity_filled == Decimal(0)
         assert result.average_fill_price is None
 
     @given(

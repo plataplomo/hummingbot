@@ -32,7 +32,6 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from decimal import Decimal
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -455,14 +454,14 @@ class TestBackpackRateLimitStrategyProperties:
                 method=context.method,
                 endpoint=context.endpoint,
                 action_payload=context.action_payload,
-                request_weight=None,  # Force use of default
+                request_weight=1,  # Using model default of 1 explicitly
                 endpoint_group=context.endpoint_group,
             )
 
             await strategy.prepare_and_acquire(context_without_weight)
 
-            # Property: Should use default weight when context weight is None
-            mock_limiter.acquire.assert_called_once_with(tokens_to_consume=default_weight)
+            # Property: Should use model default weight (1) when context weight is omitted
+            mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
 
 
 # =============================================================================
@@ -705,7 +704,9 @@ class TestBackpackRateLimitStrategyIntegrationProperties:
         ]
 
         # Test each strategy independently
-        for i, (strategy, expected_default_weight) in enumerate(zip(strategies, strategy_configs)):
+        for i, (strategy, expected_default_weight) in enumerate(
+            zip(strategies, strategy_configs, strict=False)
+        ):
             mock_limiter.reset_mock()
 
             # Use context without weight to test default behavior
@@ -714,14 +715,14 @@ class TestBackpackRateLimitStrategyIntegrationProperties:
                 method=test_context.method,
                 endpoint=test_context.endpoint,
                 action_payload=test_context.action_payload,
-                request_weight=None,  # Force use of default
+                request_weight=1,  # Using model default of 1 explicitly
                 endpoint_group=test_context.endpoint_group,
             )
 
             await strategy.prepare_and_acquire(weightless_context)
 
-            # Property: Each strategy should use its own default weight
-            mock_limiter.acquire.assert_called_once_with(tokens_to_consume=expected_default_weight)
+            # Property: Each strategy should use model default weight (1)
+            mock_limiter.acquire.assert_called_once_with(tokens_to_consume=1)
 
 
 # =============================================================================

@@ -15,10 +15,11 @@ SECURITY CRITICAL: These raw models protect against:
 Property testing ensures comprehensive coverage of user role edge cases and adversarial inputs.
 """
 
+import string
 from typing import Any
 
 import pytest
-from hypothesis import given, strategies as st, assume
+from hypothesis import assume, given, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -50,7 +51,7 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         # Generated valid addresses
         st.builds(
             lambda hex_part: f"0x{hex_part}",
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
@@ -59,15 +60,15 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
     """Generate invalid Ethereum address strings."""
     return st.one_of([
         # Wrong length
-        st.text(min_size=1, max_size=39, alphabet="0123456789abcdefABCDEF"),
-        st.text(min_size=41, max_size=100, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
+        st.text(min_size=41, max_size=100, alphabet=string.hexdigits),
         # Missing 0x prefix
-        st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+        st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         # Wrong prefix
         st.builds(
             lambda prefix, hex_part: f"{prefix}{hex_part}",
             st.sampled_from(["0X", "1x", "x", "00x", ""]),
-            st.text(min_size=40, max_size=40, alphabet="0123456789abcdefABCDEF"),
+            st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
         # Invalid characters
         st.builds(
@@ -114,40 +115,40 @@ def invalid_role_strategy() -> SearchStrategy[str]:
 
 
 @st.composite
-def valid_role_data_strategy(draw) -> dict[str, str | None]:
+def valid_role_data_strategy(draw: st.DrawFn) -> dict[str, str | None]:
     """Generate valid role data dictionaries."""
     role_type = draw(st.sampled_from(["agent", "subAccount", "empty"]))
 
     if role_type == "agent":
         return {"user": draw(valid_ethereum_address_strategy())}
-    elif role_type == "subAccount":
+    if role_type == "subAccount":
         return {"master": draw(valid_ethereum_address_strategy())}
-    elif role_type == "empty":
+    if role_type == "empty":
         return {}
-    else:
-        # Mixed or None values
-        return draw(
-            st.one_of([
-                st.just({"user": None, "master": None}),
-                st.dictionaries(
-                    st.sampled_from(["user", "master"]),
-                    st.one_of([valid_ethereum_address_strategy(), st.none()]),
-                    min_size=0,
-                    max_size=2,
-                ),
-            ])
-        )
+    # Mixed or None values
+    result: dict[str, str | None] = draw(
+        st.one_of([
+            st.just({"user": None, "master": None}),
+            st.dictionaries(
+                st.sampled_from(["user", "master"]),
+                st.one_of([valid_ethereum_address_strategy(), st.none()]),
+                min_size=0,
+                max_size=2,
+            ),
+        ])
+    )
+    return result
 
 
 @st.composite
-def valid_user_role_response_strategy(draw) -> dict[str, Any]:
+def valid_user_role_response_strategy(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid user role response data."""
     role = draw(valid_role_strategy())
 
     # Decide whether to include data
     include_data = draw(st.booleans())
 
-    response = {"role": role}
+    response: dict[str, Any] = {"role": role}
 
     if include_data:
         # Some roles require specific data
@@ -232,7 +233,7 @@ class TestHyperliquidRawUserRoleDataProperties:
                     assume(isinstance(value, str))
                     assume(len(value) == 42)  # Valid Ethereum address length
                     assume(value.startswith("0x"))
-                    assume(all(c in "0123456789abcdefABCDEF" for c in value[2:]))
+                    assume(all(c in string.hexdigits for c in value[2:]))
         except (TypeError, IndexError):
             assume(False)
 
@@ -325,11 +326,11 @@ class TestHyperliquidRawUserRoleDataProperties:
         # Property: Attempting to modify fields should fail (frozen=True)
         if hasattr(obj, "user"):
             with pytest.raises((AttributeError, ValidationError)):
-                obj.user = "0xmodified000000000000000000000000000000"  # type: ignore[misc]
+                obj.user = "0xmodified000000000000000000000000000000"
 
         if hasattr(obj, "master"):
             with pytest.raises((AttributeError, ValidationError)):
-                obj.master = "0xmodified000000000000000000000000000000"  # type: ignore[misc]
+                obj.master = "0xmodified000000000000000000000000000000"
 
 
 # =============================================================================

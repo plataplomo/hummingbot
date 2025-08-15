@@ -33,9 +33,8 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from decimal import Decimal
-from typing import Any
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
@@ -73,7 +72,11 @@ class CompositeAccountMapper:
     def transform_balance_data_to_spot_balance(
         self, asset: Symbol, total_balance: str, available_balance: str
     ) -> SpotBalance:
-        """Transform balance data to spot balance."""
+        """Transform balance data to spot balance.
+
+        Returns:
+            SpotBalance: The transformed spot balance object.
+        """
         return self.balance_mapper.transform_balance_data_to_spot_balance(
             asset.value, total_balance, available_balance
         )
@@ -81,13 +84,21 @@ class CompositeAccountMapper:
     def transform_raw_balance_to_internal(
         self, asset: Symbol, raw_balance: BackpackRawBalanceResponse
     ) -> SpotBalance:
-        """Transform raw balance to internal format."""
+        """Transform raw balance to internal format.
+
+        Returns:
+            SpotBalance: The transformed balance in internal format.
+        """
         return self.balance_mapper.transform_raw_balance_to_internal(asset, raw_balance)
 
     def transform_raw_position_to_internal(
         self, raw_position: BackpackRawPositionResponse
     ) -> DerivativePosition:
-        """Transform raw position to internal format."""
+        """Transform raw position to internal format.
+
+        Returns:
+            DerivativePosition: The transformed position in internal format.
+        """
         return self.position_mapper.transform_raw_position_to_internal(raw_position)
 
     def transform_raw_account_summary_to_internal(
@@ -96,7 +107,11 @@ class CompositeAccountMapper:
         spot_balances: dict[str, BackpackRawBalanceResponse],
         positions: list[BackpackRawPositionResponse],
     ) -> MarginAccountSummary:
-        """Transform raw account summary to internal format."""
+        """Transform raw account summary to internal format.
+
+        Returns:
+            MarginAccountSummary: The transformed account summary in internal format.
+        """
         return self.account_summary_mapper.transform_raw_account_summary_to_internal(
             raw_summary, spot_balances, positions
         )
@@ -104,7 +119,11 @@ class CompositeAccountMapper:
 
 @pytest.fixture
 def mapper() -> CompositeAccountMapper:
-    """Fixture providing a composite account mapper instance for testing."""
+    """Fixture providing a composite account mapper instance for testing.
+
+    Returns:
+        CompositeAccountMapper: Configured mapper instance for testing.
+    """
     return CompositeAccountMapper()
 
 
@@ -114,7 +133,11 @@ def mapper() -> CompositeAccountMapper:
 
 
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbol strings."""
+    """Generate valid asset symbol strings.
+
+    Returns:
+        SearchStrategy[str]: A strategy for generating asset symbols.
+    """
     return st.one_of([
         # Common crypto assets
         st.sampled_from([
@@ -149,23 +172,31 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
 
 
 def decimal_amount_strategy() -> SearchStrategy[Decimal]:
-    """Generate valid decimal amounts for financial operations."""
+    """Generate valid decimal amounts for financial operations.
+
+    Returns:
+        SearchStrategy[Decimal]: A strategy for generating decimal amounts.
+    """
     return st.one_of([
         # Common amounts
-        st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=18),
-        st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("999999"), places=18),
+        st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=18),
+        st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(999999), places=18),
         # Edge cases
-        st.just(Decimal("0")),
+        st.just(Decimal(0)),
         st.just(Decimal("0.000001")),  # Minimum unit
-        st.just(Decimal("21000000")),  # Max BTC supply
+        st.just(Decimal(21000000)),  # Max BTC supply
         st.just(Decimal("999999999.999999999999999999")),  # High precision
         # Large values
-        st.decimals(min_value=Decimal("1000000"), max_value=Decimal("1000000000"), places=8),
+        st.decimals(min_value=Decimal(1000000), max_value=Decimal(1000000000), places=8),
     ])
 
 
 def balance_amount_string_strategy() -> SearchStrategy[str]:
-    """Generate balance amount strings as they come from the API."""
+    """Generate balance amount strings as they come from the API.
+
+    Returns:
+        SearchStrategy[str]: A strategy for generating balance amount strings.
+    """
     return st.one_of([
         # Standard decimal strings
         st.builds(str, decimal_amount_strategy()),
@@ -182,8 +213,21 @@ def balance_amount_string_strategy() -> SearchStrategy[str]:
     ])
 
 
+def _create_trading_pair(base: str, quote: str) -> str:
+    """Create trading pair symbol from base and quote assets.
+
+    Returns:
+        str: Trading pair symbol in the format '{base}-{quote}'.
+    """
+    return f"{base}-{quote}"
+
+
 def trading_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading symbol strings."""
+    """Generate valid trading symbol strings.
+
+    Returns:
+        SearchStrategy[str]: A strategy for generating trading symbols.
+    """
     return st.one_of([
         # Common trading pairs
         st.sampled_from([
@@ -198,7 +242,7 @@ def trading_symbol_strategy() -> SearchStrategy[str]:
         ]),
         # Generated trading pairs
         st.builds(
-            lambda base, quote: f"{base}-{quote}",
+            _create_trading_pair,
             st.sampled_from(["BTC", "ETH", "SOL", "AVAX", "DOT", "LINK"]),
             st.sampled_from(["USDC", "USDT", "BTC", "ETH"]),
         ),
@@ -210,12 +254,12 @@ def position_quantity_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Positive quantities (long positions)
         st.builds(
-            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("1000000"), places=18)
+            str, st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(1000000), places=18)
         ),
         # Negative quantities (short positions)
         st.builds(
             str,
-            st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("-0.000001"), places=18),
+            st.decimals(min_value=Decimal(-1000000), max_value=Decimal("-0.000001"), places=18),
         ),
         # Zero quantity
         st.just("0"),
@@ -234,9 +278,7 @@ def price_strategy() -> SearchStrategy[str]:
     """Generate price strings for positions and trading."""
     return st.one_of([
         # Normal price range
-        st.builds(
-            str, st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=8)
-        ),
+        st.builds(str, st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=8)),
         # High precision prices
         st.sampled_from([
             "100.12345678",
@@ -253,13 +295,9 @@ def pnl_strategy() -> SearchStrategy[str]:
     """Generate PnL strings (can be positive or negative)."""
     return st.one_of([
         # Positive PnL
-        st.builds(
-            str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1000000"), places=18)
-        ),
+        st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=18)),
         # Negative PnL
-        st.builds(
-            str, st.decimals(min_value=Decimal("-1000000"), max_value=Decimal("0"), places=18)
-        ),
+        st.builds(str, st.decimals(min_value=Decimal(-1000000), max_value=Decimal(0), places=18)),
         # Zero PnL
         st.just("0"),
         st.just("0.0"),
@@ -294,13 +332,9 @@ def raw_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
     break_even_price = draw(price_strategy())
     entry_price = draw(price_strategy())
     est_liquidation_price = draw(price_strategy())
-    imf = draw(
-        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1"), places=8))
-    )
+    imf = draw(st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal(1), places=8)))
     mark_price = draw(price_strategy())
-    mmf = draw(
-        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1"), places=8))
-    )
+    mmf = draw(st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal(1), places=8)))
     net_cost = draw(pnl_strategy())
     net_quantity = draw(position_quantity_strategy())
     net_exposure_quantity = draw(position_quantity_strategy())
@@ -362,25 +396,25 @@ def zero_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
     # Override with zero quantity to test zero position logic
     return BackpackRawPositionResponse(
         symbol=position.symbol,
-        subaccountId=position.subaccountId,
-        breakEvenPrice=position.breakEvenPrice,
-        entryPrice=position.entryPrice,  # This will cause validation failure
-        estLiquidationPrice=position.estLiquidationPrice,
+        subaccountId=position.subaccount_id,
+        breakEvenPrice=position.break_even_price,
+        entryPrice=position.entry_price,  # This will cause validation failure
+        estLiquidationPrice=position.est_liquidation_price,
         imf=position.imf,
-        imfFunction=position.imfFunction,
-        markPrice=position.markPrice,
+        imfFunction=position.imf_function,
+        markPrice=position.mark_price,
         mmf=position.mmf,
-        mmfFunction=position.mmfFunction,
-        netCost=position.netCost,
+        mmfFunction=position.mmf_function,
+        netCost=position.net_cost,
         netQuantity="0.0",  # Zero quantity
-        netExposureQuantity=position.netExposureQuantity,
-        netExposureNotional=position.netExposureNotional,
-        pnlRealized=position.pnlRealized,
+        netExposureQuantity=position.net_exposure_quantity,
+        netExposureNotional=position.net_exposure_notional,
+        pnlRealized=position.pnl_realized,
         pnlUnrealized="0.0",
-        cumulativeFundingPayment=position.cumulativeFundingPayment,
-        userId=position.userId,
-        positionId=position.positionId,
-        cumulativeInterest=position.cumulativeInterest,
+        cumulativeFundingPayment=position.cumulative_funding_payment,
+        userId=position.user_id,
+        positionId=position.position_id,
+        cumulativeInterest=position.cumulative_interest,
     )
 
 
@@ -393,22 +427,22 @@ def raw_account_summary_strategy(draw: st.DrawFn) -> BackpackRawAccountSummaryRe
     auto_repay_borrows = draw(st.booleans())
     borrow_limit = draw(balance_amount_string_strategy())
     futures_maker_fee = draw(
-        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+        st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal("0.01"), places=6))
     )
     futures_taker_fee = draw(
-        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+        st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal("0.01"), places=6))
     )
     leverage_limit = draw(
-        st.builds(str, st.decimals(min_value=Decimal("1"), max_value=Decimal("100"), places=2))
+        st.builds(str, st.decimals(min_value=Decimal(1), max_value=Decimal(100), places=2))
     )
     limit_orders = draw(st.integers(min_value=0, max_value=1000))
     liquidating = draw(st.booleans())
     position_limit = draw(balance_amount_string_strategy())
     spot_maker_fee = draw(
-        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+        st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal("0.01"), places=6))
     )
     spot_taker_fee = draw(
-        st.builds(str, st.decimals(min_value=Decimal("0"), max_value=Decimal("0.01"), places=6))
+        st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal("0.01"), places=6))
     )
     trigger_orders = draw(st.integers(min_value=0, max_value=1000))
 
@@ -512,8 +546,8 @@ class TestBalanceTransformationProperties:
             assert isinstance(result.available_quantity, Decimal)
 
             # Property: Non-negative balances
-            assert result.total_quantity >= Decimal("0")
-            assert result.available_quantity >= Decimal("0")
+            assert result.total_quantity >= Decimal(0)
+            assert result.available_quantity >= Decimal(0)
 
             # Property: Backpack details should be present
             assert result.bp_details is not None
@@ -615,8 +649,8 @@ class TestBalanceTransformationProperties:
         result = mapper.transform_raw_balance_to_internal(symbol, raw_balance)
 
         # Property: All zero balances should result in zero totals
-        assert result.total_quantity == Decimal("0")
-        assert result.available_quantity == Decimal("0")
+        assert result.total_quantity == Decimal(0)
+        assert result.available_quantity == Decimal(0)
 
     @given(
         malicious_input=malicious_balance_input_strategy(),
@@ -664,7 +698,7 @@ class TestPositionTransformationProperties:
 
         try:
             # Skip zero positions with non-None entry price (business logic violation)
-            if Decimal(raw_position.netQuantity) == Decimal("0") and raw_position.entryPrice != "0":
+            if Decimal(raw_position.net_quantity) == Decimal(0) and raw_position.entry_price != "0":
                 assume(False)
 
             result = mapper.transform_raw_position_to_internal(raw_position)
@@ -675,25 +709,25 @@ class TestPositionTransformationProperties:
             assert isinstance(result.timestamp, datetime)
 
             # Property: Size should match net quantity
-            assert result.size == Decimal(raw_position.netQuantity)
+            assert result.size == Decimal(raw_position.net_quantity)
 
             # Property: Side should be determined by quantity sign
-            if Decimal(raw_position.netQuantity) > Decimal("0"):
+            if Decimal(raw_position.net_quantity) > Decimal(0):
                 assert result.side == OrderSide.BUY
-            elif Decimal(raw_position.netQuantity) < Decimal("0"):
+            elif Decimal(raw_position.net_quantity) < Decimal(0):
                 assert result.side == OrderSide.SELL
             else:
                 # Zero position side determination
                 assert result.side in [OrderSide.BUY, OrderSide.SELL]
 
             # Property: Prices should be preserved
-            assert result.entry_price == Decimal(raw_position.entryPrice)
-            assert result.mark_price == Decimal(raw_position.markPrice)
-            assert result.liquidation_price == Decimal(raw_position.estLiquidationPrice)
+            assert result.entry_price == Decimal(raw_position.entry_price)
+            assert result.mark_price == Decimal(raw_position.mark_price)
+            assert result.liquidation_price == Decimal(raw_position.est_liquidation_price)
 
             # Property: PnL should be preserved
-            assert result.unrealized_pnl == Decimal(raw_position.pnlUnrealized)
-            assert result.realized_pnl == Decimal(raw_position.pnlRealized)
+            assert result.unrealized_pnl == Decimal(raw_position.pnl_unrealized)
+            assert result.realized_pnl == Decimal(raw_position.pnl_realized)
 
             # Property: Backpack details should be present
             assert result.bp_details is not None
@@ -706,12 +740,10 @@ class TestPositionTransformationProperties:
 
     @given(
         symbol=trading_symbol_strategy(),
-        quantity=st.decimals(
-            min_value=Decimal("0.000001"), max_value=Decimal("1000000"), places=18
-        ),
+        quantity=st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(1000000), places=18),
         side_multiplier=st.sampled_from([1, -1]),
-        entry_price=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("100000"), places=8),
-        pnl=st.decimals(min_value=Decimal("-100000"), max_value=Decimal("100000"), places=18),
+        entry_price=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=8),
+        pnl=st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=18),
     )
     @settings(max_examples=150, deadline=None)
     def test_position_side_detection_properties(
@@ -776,7 +808,7 @@ class TestPositionTransformationProperties:
         mapper = CompositeAccountMapper()
 
         # Zero positions with non-None entry price should fail validation
-        if Decimal(zero_position.netQuantity) == Decimal("0") and zero_position.entryPrice != "0":
+        if Decimal(zero_position.net_quantity) == Decimal(0) and zero_position.entry_price != "0":
             with pytest.raises(DataTransformationError):
                 mapper.transform_raw_position_to_internal(zero_position)
 
@@ -854,7 +886,7 @@ class TestAccountSummaryTransformationProperties:
             # Filter out zero positions with non-None entry prices
             valid_positions = []
             for pos in positions:
-                if Decimal(pos.netQuantity) == Decimal("0") and pos.entryPrice != "0":
+                if Decimal(pos.net_quantity) == Decimal(0) and pos.entry_price != "0":
                     continue
                 valid_positions.append(pos)
 
@@ -922,7 +954,7 @@ class TestAccountSummaryTransformationProperties:
 
             # Property: Only USD-like assets should contribute to equity
             # Calculate expected total from USD balances only
-            expected_total = Decimal("0")
+            expected_total = Decimal(0)
             for asset, balance in usd_balances.items():
                 if asset in ["USDC", "USDT"]:
                     try:
@@ -936,7 +968,7 @@ class TestAccountSummaryTransformationProperties:
                         pass
 
             # Property: Non-USD balances should not affect equity
-            assert result.total_equity >= Decimal("0")  # Should be reasonable
+            assert result.total_equity >= Decimal(0)  # Should be reasonable
 
         except (ValueError, DataTransformationError):
             # Expected for invalid balance data
@@ -978,11 +1010,11 @@ class TestAccountSummaryTransformationProperties:
 
         # Create positions from the generated data
         positions = []
-        expected_total_pnl = Decimal("0")
+        expected_total_pnl = Decimal(0)
 
         for i, (quantity, price, pnl) in enumerate(positions_with_pnl):
             # Skip zero positions that would fail validation
-            if Decimal(quantity) == Decimal("0"):
+            if Decimal(quantity) == Decimal(0):
                 continue
 
             imf_function = BackpackRawImfFunction(base="0.1", factor="0.0")
@@ -1132,8 +1164,8 @@ class TestAccountDataSecurityProperties:
             st.builds(
                 str,
                 st.decimals(
-                    min_value=Decimal("1000000000"),
-                    max_value=Decimal("999999999999999999"),
+                    min_value=Decimal(1000000000),
+                    max_value=Decimal(999999999999999999),
                     places=18,
                 ),
             ),
@@ -1160,7 +1192,7 @@ class TestAccountDataSecurityProperties:
 
             # Property: Large values should not cause overflow
             assert isinstance(result.total_quantity, Decimal)
-            assert result.total_quantity >= Decimal("0")
+            assert result.total_quantity >= Decimal(0)
 
             # Property: Precision should be maintained
             expected_total = Decimal(available) + Decimal(locked) + Decimal(staked)
@@ -1205,7 +1237,7 @@ class TestAccountDataIntegrationProperties:
             # Filter positions to avoid business logic violations
             valid_positions = []
             for pos in positions:
-                if Decimal(pos.netQuantity) == Decimal("0") and pos.entryPrice != "0":
+                if Decimal(pos.net_quantity) == Decimal(0) and pos.entry_price != "0":
                     continue
                 valid_positions.append(pos)
 
@@ -1234,17 +1266,17 @@ class TestAccountDataIntegrationProperties:
 
             # Property: All transformations should be consistent
             assert isinstance(account_summary, MarginAccountSummary)
-            for balance in transformed_balances:
-                assert isinstance(balance, SpotBalance)
-            for position in transformed_positions:
-                assert isinstance(position, DerivativePosition)
+            for transformed_balance in transformed_balances:
+                assert isinstance(transformed_balance, SpotBalance)
+            for transformed_position in transformed_positions:
+                assert isinstance(transformed_position, DerivativePosition)
 
             # Property: Exchange consistency
             assert account_summary.exchange == ExchangeName.BACKPACK.value
-            for balance in transformed_balances:
-                assert balance.exchange == ExchangeName.BACKPACK
-            for position in transformed_positions:
-                assert position.exchange == ExchangeName.BACKPACK
+            for transformed_balance in transformed_balances:
+                assert transformed_balance.exchange == ExchangeName.BACKPACK
+            for transformed_position in transformed_positions:
+                assert transformed_position.exchange == ExchangeName.BACKPACK
 
         except (ValueError, DataTransformationError):
             # Expected for invalid account data combinations

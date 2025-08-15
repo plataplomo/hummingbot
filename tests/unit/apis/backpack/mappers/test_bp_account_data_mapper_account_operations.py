@@ -41,6 +41,7 @@ from unittest.mock import patch
 import pytest
 from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.account.bp_position_mapper import BackpackPositionMapper
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
@@ -56,7 +57,6 @@ from cyberdelta.enums import MakerTaker, OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import DerivativePosition, Fill
 from cyberdelta.models.operations import Transfer, Withdrawal
-from cyberdelta.symbols import exchanges
 
 
 pytestmark = pytest.mark.timing
@@ -106,6 +106,33 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
     ])
 
 
+def _create_transfer_id(x: int) -> str:
+    """Create transfer ID from integer.
+
+    Returns:
+        str: Transfer ID in the format 'transfer_{x}'.
+    """
+    return f"transfer_{x}"
+
+
+def _create_tx_id(x: str) -> str:
+    """Create transaction ID from hex string.
+
+    Returns:
+        str: Transaction ID in the format 'tx_{x}'.
+    """
+    return f"tx_{x}"
+
+
+def _create_long_client_id() -> str:
+    """Create long client ID for testing.
+
+    Returns:
+        str: Long client ID with repeated 'a' characters.
+    """
+    return "client_" + "a" * 100
+
+
 def transfer_id_strategy() -> SearchStrategy[str]:
     """Generate valid transfer ID strings.
 
@@ -113,10 +140,8 @@ def transfer_id_strategy() -> SearchStrategy[str]:
         A Hypothesis strategy for transfer IDs.
     """
     return st.one_of([
-        st.builds(lambda x: f"transfer_{x}", st.integers(min_value=1, max_value=999999999)),
-        st.builds(
-            lambda x: f"tx_{x}", st.text(min_size=8, max_size=16, alphabet="0123456789abcdef")
-        ),
+        st.builds(_create_transfer_id, st.integers(min_value=1, max_value=999999999)),
+        st.builds(_create_tx_id, st.text(min_size=8, max_size=16, alphabet="0123456789abcdef")),
         st.text(
             min_size=1,
             max_size=64,
@@ -125,7 +150,7 @@ def transfer_id_strategy() -> SearchStrategy[str]:
             ),
         ),
         # Very long IDs for edge case testing
-        st.builds(lambda: "client_" + "a" * 100),
+        st.builds(_create_long_client_id),
     ])
 
 
@@ -185,6 +210,24 @@ def blockchain_strategy() -> SearchStrategy[str]:
     ])
 
 
+def _create_eth_address(x: str) -> str:
+    """Create Ethereum-style address.
+
+    Returns:
+        str: Ethereum address in the format '0x{x}'.
+    """
+    return f"0x{x}"
+
+
+def _create_btc_address(x: str) -> str:
+    """Create Bitcoin-style address.
+
+    Returns:
+        str: Bitcoin address in the format 'bc1q{x}'.
+    """
+    return f"bc1q{x}"
+
+
 def address_strategy() -> SearchStrategy[str]:
     """Generate cryptocurrency addresses.
 
@@ -194,11 +237,11 @@ def address_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Ethereum-style addresses
         st.builds(
-            lambda x: f"0x{x}", st.text(min_size=40, max_size=40, alphabet="0123456789abcdef")
+            _create_eth_address, st.text(min_size=40, max_size=40, alphabet="0123456789abcdef")
         ),
         # Bitcoin-style addresses
         st.builds(
-            lambda x: f"bc1q{x}",
+            _create_btc_address,
             st.text(min_size=32, max_size=62, alphabet="0123456789abcdefghijklmnopqrstuvwxyz"),
         ),
         # Generic addresses
@@ -227,11 +270,11 @@ def decimal_amount_strategy() -> SearchStrategy[Decimal]:
     """
     return st.one_of([
         # Common amounts
-        st.decimals(min_value=Decimal("0.01"), max_value=Decimal("1000000"), places=8),
-        st.decimals(min_value=Decimal("0.000001"), max_value=Decimal("999999"), places=18),
+        st.decimals(min_value=Decimal("0.01"), max_value=Decimal(1000000), places=8),
+        st.decimals(min_value=Decimal("0.000001"), max_value=Decimal(999999), places=18),
         # Edge cases
         st.just(Decimal("0.00000001")),  # Minimum satoshi
-        st.just(Decimal("21000000")),  # Max BTC supply
+        st.just(Decimal(21000000)),  # Max BTC supply
         st.just(Decimal("999999.123456789012345")),  # High precision
     ])
 
@@ -301,7 +344,7 @@ def valid_withdrawal_response_data(draw: st.DrawFn) -> dict[str, Any]:
             st.one_of([
                 st.none(),
                 st.builds(
-                    lambda x: f"0x{x}",
+                    _create_eth_address,
                     st.text(min_size=64, max_size=64, alphabet="0123456789abcdef"),
                 ),
             ])
@@ -319,7 +362,7 @@ def valid_fill_response_data(draw: st.DrawFn) -> dict[str, Any]:
     """
     return {
         "tradeId": draw(st.integers(min_value=1, max_value=999999999)),
-        "symbol": draw(asset_symbol_strategy()).filter(lambda x: "-" in x or "_" in x),
+        "symbol": draw(asset_symbol_strategy().filter(lambda x: "-" in x or "_" in x)),
         "side": draw(order_side_strategy()),
         "quantity": draw(st.builds(str, decimal_amount_strategy())),
         "price": draw(st.builds(str, decimal_amount_strategy())),
@@ -341,13 +384,13 @@ def valid_position_update_data(draw: st.DrawFn) -> dict[str, Any]:
         A dictionary representing valid position update data.
     """
     net_quantity = draw(
-        st.builds(str, st.decimals(min_value=Decimal("-1000"), max_value=Decimal("1000"), places=8))
+        st.builds(str, st.decimals(min_value=Decimal(-1000), max_value=Decimal(1000), places=8))
     )
 
     return {
         "e": "positionUpdate",
         "E": draw(st.integers(min_value=1600000000000, max_value=2000000000000)),
-        "s": draw(asset_symbol_strategy()).filter(lambda x: "-" in x or "_" in x),
+        "s": draw(asset_symbol_strategy().filter(lambda x: "-" in x or "_" in x)),
         "b": draw(
             st.one_of([st.none(), st.builds(str, decimal_amount_strategy())])
         ),  # breakEventPrice
@@ -358,18 +401,14 @@ def valid_position_update_data(draw: st.DrawFn) -> dict[str, Any]:
         "f": draw(
             st.one_of([
                 st.none(),
-                st.builds(
-                    str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1"), places=4)
-                ),
+                st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal(1), places=4)),
             ])
         ),  # initialMarginFraction
         "M": draw(st.one_of([st.none(), st.builds(str, decimal_amount_strategy())])),  # markPrice
         "m": draw(
             st.one_of([
                 st.none(),
-                st.builds(
-                    str, st.decimals(min_value=Decimal("0"), max_value=Decimal("1"), places=4)
-                ),
+                st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal(1), places=4)),
             ])
         ),  # maintenanceMarginFraction
         "q": net_quantity,  # netQuantity
@@ -382,7 +421,7 @@ def valid_position_update_data(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_account_data_strategy() -> SearchStrategy[Any]:
+def malicious_account_data_strategy() -> SearchStrategy[object]:
     """Generate malicious data for account operation security testing.
 
     Returns:
@@ -425,19 +464,31 @@ def malicious_account_data_strategy() -> SearchStrategy[Any]:
 
 @pytest.fixture
 def transfer_mapper() -> BackpackTransferMapper:
-    """Fixture providing a BackpackTransferMapper instance."""
+    """Fixture providing a BackpackTransferMapper instance.
+
+    Returns:
+        BackpackTransferMapper: Configured mapper instance for testing transfers.
+    """
     return BackpackTransferMapper()
 
 
 @pytest.fixture
 def transaction_mapper() -> BackpackTransactionMapper:
-    """Fixture providing a BackpackTransactionMapper instance."""
+    """Fixture providing a BackpackTransactionMapper instance.
+
+    Returns:
+        BackpackTransactionMapper: Configured mapper instance for testing transactions.
+    """
     return BackpackTransactionMapper()
 
 
 @pytest.fixture
 def position_mapper() -> BackpackPositionMapper:
-    """Fixture providing a BackpackPositionMapper instance."""
+    """Fixture providing a BackpackPositionMapper instance.
+
+    Returns:
+        BackpackPositionMapper: Configured mapper instance for testing positions.
+    """
     return BackpackPositionMapper()
 
 
@@ -557,11 +608,11 @@ class TestTransferTransformationProperties:
     def test_transfer_malicious_input_resistance_properties(
         self,
         transfer_mapper: BackpackTransferMapper,
-        malicious_value: Any,
+        malicious_value: object,
         field_name: str,
     ) -> None:
         """Property: Transfer transformation should resist malicious inputs."""
-        transfer_data = {
+        transfer_data: dict[str, object] = {
             "id": "safe_id",
             "status": "success",
             "timestamp": "1678886400000",
@@ -575,7 +626,7 @@ class TestTransferTransformationProperties:
                     raw_response=cast("RawJsonResponse", transfer_data),
                     exchange_name=ExchangeName.BACKPACK,
                     asset="USDC",
-                    quantity=Decimal("100"),
+                    quantity=Decimal(100),
                     from_account_type_raw="spot",
                     to_account_type_raw="margin",
                     client_transfer_id=None,
@@ -587,7 +638,7 @@ class TestTransferTransformationProperties:
                     raw_response=cast("RawJsonResponse", transfer_data),
                     exchange_name=ExchangeName.BACKPACK,
                     asset="USDC",
-                    quantity=Decimal("100"),
+                    quantity=Decimal(100),
                     from_account_type_raw="spot",
                     to_account_type_raw="margin",
                     client_transfer_id=None,
@@ -606,7 +657,7 @@ class TestTransferTransformationProperties:
     def test_transfer_invalid_response_type_properties(
         self,
         transfer_mapper: BackpackTransferMapper,
-        invalid_response_type: Any,
+        invalid_response_type: object,
     ) -> None:
         """Property: Invalid response types should be rejected safely."""
         with pytest.raises(DataTransformationError) as exc_info:
@@ -614,7 +665,7 @@ class TestTransferTransformationProperties:
                 raw_response=cast("RawJsonResponse", invalid_response_type),
                 exchange_name=ExchangeName.BACKPACK,
                 asset="USDC",
-                quantity=Decimal("100"),
+                quantity=Decimal(100),
                 from_account_type_raw="spot",
                 to_account_type_raw="margin",
                 client_transfer_id=None,
@@ -721,7 +772,7 @@ class TestWithdrawalTransformationProperties:
         result = transfer_mapper.transform_raw_withdrawal_response_to_internal(
             raw_response=raw_response,
             asset="USDC",
-            quantity=Decimal("100"),
+            quantity=Decimal(100),
             address="0xtest123",
             network="ethereum",
             client_withdrawal_id=None,
@@ -744,9 +795,9 @@ class TestWithdrawalTransformationProperties:
 
     @given(
         large_amount=st.decimals(
-            min_value=Decimal("1000000"), max_value=Decimal("999999999"), places=18
+            min_value=Decimal(1000000), max_value=Decimal(999999999), places=18
         ),
-        large_fee=st.decimals(min_value=Decimal("1000"), max_value=Decimal("999999"), places=18),
+        large_fee=st.decimals(min_value=Decimal(1000), max_value=Decimal(999999), places=18),
     )
     @settings(max_examples=50, deadline=None)
     def test_withdrawal_large_amounts_properties(
@@ -807,7 +858,7 @@ class TestWebSocketFillTransformationProperties:
         assume(Decimal(fill_data["quantity"]) > 0)
         assume(Decimal(fill_data["price"]) > 0)
 
-        raw_fill = BackpackRawFillResponse(**fill_data)
+        raw_fill = BackpackRawFillResponse.model_validate(fill_data)
 
         result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
@@ -855,7 +906,7 @@ class TestWebSocketFillTransformationProperties:
             "systemOrderType": None,
         }
 
-        raw_fill = BackpackRawFillResponse(**fill_data)
+        raw_fill = BackpackRawFillResponse.model_validate(fill_data)
         result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is not None
@@ -896,7 +947,7 @@ class TestWebSocketFillTransformationProperties:
         }
         fill_data[field_name] = zero_amount
 
-        raw_fill = BackpackRawFillResponse(**fill_data)
+        raw_fill = BackpackRawFillResponse.model_validate(fill_data)
         result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         # Property: Zero amounts should return None
@@ -921,7 +972,7 @@ class TestWebSocketPositionUpdateTransformationProperties:
         position_data: dict[str, Any],
     ) -> None:
         """Property: Valid position update data should transform successfully."""
-        raw_position_update = BackpackRawPositionUpdate(**position_data)
+        raw_position_update = BackpackRawPositionUpdate.model_validate(position_data)
 
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
@@ -947,7 +998,7 @@ class TestWebSocketPositionUpdateTransformationProperties:
             assert result.liquidation_price == Decimal(position_data["l"])
 
     @given(
-        net_quantity=st.decimals(min_value=Decimal("-1000"), max_value=Decimal("1000"), places=8),
+        net_quantity=st.decimals(min_value=Decimal(-1000), max_value=Decimal(1000), places=8),
     )
     @settings(max_examples=100, deadline=None)
     def test_position_side_determination_properties(
@@ -973,7 +1024,7 @@ class TestWebSocketPositionUpdateTransformationProperties:
             "n": "1000.0",
         }
 
-        raw_position_update = BackpackRawPositionUpdate(**position_data)
+        raw_position_update = BackpackRawPositionUpdate.model_validate(position_data)
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
         )
@@ -993,7 +1044,7 @@ class TestWebSocketPositionUpdateTransformationProperties:
         optional_field: str,
     ) -> None:
         """Property: None optional fields should be handled gracefully."""
-        position_data = {
+        position_data: dict[str, str | int | None] = {
             "e": "positionUpdate",
             "E": 1678886400000,
             "s": "SOL-USDC",
@@ -1009,7 +1060,7 @@ class TestWebSocketPositionUpdateTransformationProperties:
         }
         position_data[optional_field] = None
 
-        raw_position_update = BackpackRawPositionUpdate(**position_data)
+        raw_position_update = BackpackRawPositionUpdate.model_validate(position_data)
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
         )
@@ -1034,7 +1085,7 @@ class TestAccountOperationSecurityProperties:
     def test_malicious_asset_name_resistance_properties(
         self,
         transfer_mapper: BackpackTransferMapper,
-        malicious_asset: Any,
+        malicious_asset: object,
     ) -> None:
         """Property: Malicious asset names should be handled safely."""
         transfer_data = {
@@ -1052,7 +1103,7 @@ class TestAccountOperationSecurityProperties:
                 raw_response=cast("RawJsonResponse", transfer_data),
                 exchange_name=ExchangeName.BACKPACK,
                 asset=malicious_asset,
-                quantity=Decimal("100"),
+                quantity=Decimal(100),
                 from_account_type_raw="spot",
                 to_account_type_raw="margin",
                 client_transfer_id=None,
@@ -1085,7 +1136,7 @@ class TestAccountOperationSecurityProperties:
             raw_response=cast("RawJsonResponse", transfer_data),
             exchange_name=ExchangeName.BACKPACK,
             asset="USDC",
-            quantity=Decimal("100"),
+            quantity=Decimal(100),
             from_account_type_raw="spot",
             to_account_type_raw="margin",
             client_transfer_id=large_client_id,
@@ -1124,7 +1175,7 @@ class TestAccountOperationSecurityProperties:
             "systemOrderType": None,
         }
 
-        raw_fill = BackpackRawFillResponse(**fill_data)
+        raw_fill = BackpackRawFillResponse.model_validate(fill_data)
 
         # Mock to raise transformation error
         with patch(
@@ -1177,18 +1228,18 @@ def test_withdrawal_transformation_basic_functionality(
     transfer_mapper: BackpackTransferMapper,
 ) -> None:
     """Test basic withdrawal transformation for regression."""
-    raw_response = BackpackRawWithdrawalResponse(
-        id=123,
-        status="confirmed",
-        blockchain="Ethereum",
-        quantity="1000.0",
-        fee="5.0",
-        symbol="USDC",
-        toAddress="0xabc123",
-        createdAt="2024-01-15T10:30:00Z",
-        isInternal=False,
-        transactionHash="0xhash123",
-    )
+    raw_response = BackpackRawWithdrawalResponse.model_validate({
+        "id": 123,
+        "status": "confirmed",
+        "blockchain": "Ethereum",
+        "quantity": "1000.0",
+        "fee": "5.0",
+        "symbol": "USDC",
+        "toAddress": "0xabc123",
+        "createdAt": "2024-01-15T10:30:00Z",
+        "isInternal": False,
+        "transactionHash": "0xhash123",
+    })
 
     result = transfer_mapper.transform_raw_withdrawal_response_to_internal(
         raw_response=raw_response,
