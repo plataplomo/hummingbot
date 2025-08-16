@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import time
 from datetime import UTC, datetime
+from functools import cached_property
 from typing import Any, TypeVar
 
 import orjson
@@ -94,31 +95,31 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         private_patterns = {"account", "user", "balance", "orders", "fills"}
         return any(pattern in self.routing_key.lower() for pattern in private_patterns)
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
+    @cached_property
     def message_size_bytes(self) -> int:
-        """Calculate message size for monitoring.
+        """Calculate and cache message size for monitoring.
+
+        This uses @cached_property to calculate the size only once and cache it,
+        avoiding expensive JSON serialization on repeated access while maintaining
+        the property interface for backward compatibility.
 
         Returns:
             int: Message size in bytes after JSON serialization, or 0 if serialization fails.
-
-        TODO: This computed field performs expensive JSON serialization and encoding
-        on every access. Consider caching this value or using a simpler approximation
-        for monitoring purposes to avoid performance overhead.
         """
         try:
-            # Exclude ALL computed fields to prevent infinite recursion
-            # This fixes the critical bug where computed fields trigger serialization loops
+            # Exclude computed fields and domain model to prevent recursion
             excluded_fields = {
                 "domain_model",
-                "message_size_bytes",
-                "processing_priority",
+                "exchange_name",
                 "topic",
                 "is_private_message",
+                "processing_priority",
+                "processing_duration_ms",
+                "channel",
+                "sequence_number",
             }
             data = self.model_dump(mode="json", exclude=excluded_fields)
-            # Optimized: Use orjson for fast serialization (5-10x faster)
-            # mode="json" ensures proper serialization of Decimal/datetime types
+            # Use orjson for fast serialization (5-10x faster than standard json)
             return len(orjson.dumps(data))
         except (TypeError, ValueError, orjson.JSONEncodeError):
             # If serialization fails, return 0
@@ -227,7 +228,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
 
         # Calculate message size if possible
         try:
-            # Access computed field value properly
+            # Access the cached property
             raw_size = self.message_size_bytes
         except (TypeError, ValueError, AttributeError):
             raw_size = None

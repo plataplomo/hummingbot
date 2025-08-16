@@ -145,7 +145,6 @@ from .payload_validation import (
     MissingRequiredFieldsError,
     PayloadNoneError,
     PayloadSizeError,
-    PayloadTooLargeError,
     PayloadValidationError,
 )
 
@@ -213,7 +212,6 @@ __all__ = [
     "ObjectKeysExceedLimitError",
     "PayloadNoneError",
     "PayloadSizeError",
-    "PayloadTooLargeError",
     "PayloadValidationError",
     "RateLimitError",
     "RoutingKeyValidationError",

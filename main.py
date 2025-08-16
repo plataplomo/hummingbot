@@ -11,13 +11,16 @@ Architecture:
 - No hardcoded values or assumptions
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import os
 import signal
 import sys
-from typing import Any, NoReturn
+from typing import NoReturn, TypedDict
 
+from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.application.trading_engine import TradingEngine
 from cyberdelta.config import AppSettings, ConfigurationError, get_app_settings, get_secrets_config
 from cyberdelta.config.models.event_system_config import EventBusConfig
@@ -28,13 +31,27 @@ from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.risk.risk_service import RiskService
 from cyberdelta.domain.signal.signal_service import SignalService
 from cyberdelta.domain.strategy.strategy_service import StrategyService
-from cyberdelta.domain.trading.execution import ExecutionEngine
+from cyberdelta.domain.trading.execution.execution_engine import ExecutionEngine
+from cyberdelta.domain.trading.fills.fill_handler import FillHandler
 from cyberdelta.domain.trading.trading_service import TradingService
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.exceptions.base import ConfigurationNotInitializedError
 from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.infrastructure.exchange_api_factory import ExchangeAPIFactory
 from cyberdelta.infrastructure.persistence.file_repository import FilePortfolioStorage
+from cyberdelta.infrastructure.validation.validation_service import ValidationService
+
+
+class ServiceRegistry(TypedDict):
+    """Type-safe service registry following CODING_STANDARDS.md."""
+
+    portfolio: PortfolioService
+    market_data: MarketDataService
+    risk: RiskService
+    signal: SignalService
+    strategy: StrategyService
+    trading: TradingService
+    execution: ExecutionEngine
 
 
 # Module-level logger
@@ -90,11 +107,11 @@ class TradingEngineBootstrap:
             logger.critical("Fatal configuration error", error=str(e))
             sys.exit(1)
 
-    async def initialize_exchange_apis(self) -> dict[str, Any]:
+    async def initialize_exchange_apis(self) -> dict[str, ExchangeAPI]:
         """Initialize exchange API clients with configuration and secrets.
 
         Returns:
-            dict: Dictionary of initialized exchange API clients
+            Dictionary of initialized exchange API clients by exchange name
 
         Raises:
             RuntimeError: If configuration is not initialized
@@ -103,7 +120,7 @@ class TradingEngineBootstrap:
             msg = "Configuration must be initialized first"
             raise RuntimeError(msg)
 
-        api_clients: dict[str, Any] = {}
+        api_clients: dict[str, ExchangeAPI] = {}
 
         # Initialize ALL enabled exchanges dynamically using factory
         for exchange_name_str, exchange_config in self.config.exchanges.items():
@@ -153,8 +170,8 @@ class TradingEngineBootstrap:
         return api_clients
 
     async def initialize_services(
-        self, api_clients: dict[str, Any], event_bus: EventBus
-    ) -> dict[str, Any]:
+        self, api_clients: dict[str, ExchangeAPI], event_bus: EventBus
+    ) -> ServiceRegistry:
         """Initialize all business logic services with dependency injection.
 
         Args:
@@ -162,7 +179,7 @@ class TradingEngineBootstrap:
             event_bus: Event bus for service communication
 
         Returns:
-            dict: Dictionary of initialized services
+            Type-safe service registry with all initialized services
 
         Raises:
             RuntimeError: If configuration is not initialized
@@ -171,7 +188,7 @@ class TradingEngineBootstrap:
             msg = "Configuration must be initialized first"
             raise RuntimeError(msg)
 
-        services: dict[str, Any] = {}
+        # Services initialization with type safety
 
         # Initialize file storage for portfolio state persistence
         portfolio_storage = FilePortfolioStorage(self.config)
@@ -184,25 +201,11 @@ class TradingEngineBootstrap:
             api_clients=api_clients,
         )
         await portfolio_service.initialize()
-        services["portfolio"] = portfolio_service
 
         # Initialize market data service with config and API clients
         market_data_service = MarketDataService(
             config=self.config, api_clients=api_clients, event_bus=event_bus
         )
-        services["market_data"] = market_data_service
-
-        # Initialize execution engine and trading service
-        execution_engine = ExecutionEngine(config=self.config, api_clients=api_clients)
-
-        trading_service = TradingService(
-            config=self.config,
-            execution_engine=execution_engine,
-            portfolio_service=portfolio_service,
-            event_bus=event_bus,
-        )
-        services["trading"] = trading_service
-        services["execution"] = execution_engine
 
         # Initialize risk service with config and portfolio service
         risk_service = RiskService(
@@ -210,11 +213,9 @@ class TradingEngineBootstrap:
             portfolio_service=portfolio_service,
             event_bus=event_bus,
         )
-        services["risk"] = risk_service
 
         # Initialize signal service with config and event bus
         signal_service = SignalService(config=self.config, event_bus=event_bus)
-        services["signal"] = signal_service
 
         # Initialize strategy service with config and dependencies
         strategy_service = StrategyService(
@@ -224,19 +225,67 @@ class TradingEngineBootstrap:
             signal_service=signal_service,
             event_bus=event_bus,
         )
-        services["strategy"] = strategy_service
+
+        # Initialize dependencies for ExecutionEngine (protocols now implemented)
+        logger.info("initializing_execution_dependencies")
+
+        if not api_clients:
+            msg = "ExecutionEngine requires API clients - cannot proceed without exchanges"
+            raise RuntimeError(msg)
+
+        # Initialize validation service (required by ExecutionEngine)
+        order_validator = ValidationService(config=self.config)
+
+        # Initialize fill handler (required by ExecutionEngine)
+        fill_handler = FillHandler(config=self.config, portfolio_service=portfolio_service)
+
+        # Initialize execution engine with all required dependencies
+        execution_engine = ExecutionEngine(
+            config=self.config,
+            api_clients=api_clients,
+            order_validator=order_validator,
+            fill_handler=fill_handler,
+            portfolio_service=portfolio_service,
+            market_data_service=market_data_service,
+        )
+
+        # Initialize trading service with execution engine
+        trading_service = TradingService(
+            config=self.config,
+            execution_engine=execution_engine,
+            portfolio_service=portfolio_service,
+            event_bus=event_bus,
+        )
+
+        # Create type-safe service registry with all services properly initialized
+        services: ServiceRegistry = {
+            "portfolio": portfolio_service,
+            "market_data": market_data_service,
+            "risk": risk_service,
+            "signal": signal_service,
+            "strategy": strategy_service,
+            "trading": trading_service,
+            "execution": execution_engine,
+        }
 
         logger.info(
-            "services_initialized",
-            count=len(services),
-            service_types=list(services.keys()),
+            "all_services_initialized",
+            services=[
+                "portfolio",
+                "market_data",
+                "risk",
+                "signal",
+                "strategy",
+                "trading",
+                "execution",
+            ],
             safe_mode=self.config.general.safe_mode,
         )
 
         return services
 
     async def initialize_trading_engine(
-        self, services: dict[str, Any], event_bus: EventBus
+        self, services: ServiceRegistry, event_bus: EventBus
     ) -> TradingEngine:
         """Initialize trading engine with all dependencies.
 
@@ -294,7 +343,7 @@ class TradingEngineBootstrap:
 
     async def _initialize_system_components(
         self, config_path: str | None = None, safe_mode: bool = False
-    ) -> tuple[EventBus, dict[str, Any], dict[str, Any]]:
+    ) -> tuple[EventBus, dict[str, ExchangeAPI], ServiceRegistry]:
         """Initialize system components (config, event bus, APIs, services).
 
         Args:
@@ -337,7 +386,7 @@ class TradingEngineBootstrap:
 
         return event_bus, api_clients, services
 
-    async def _run_trading_engine(self, event_bus: EventBus, services: dict[str, Any]) -> None:
+    async def _run_trading_engine(self, event_bus: EventBus, services: ServiceRegistry) -> None:
         """Run the trading engine until shutdown.
 
         Args:

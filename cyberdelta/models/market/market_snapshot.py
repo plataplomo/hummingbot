@@ -11,6 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.market import MarketDataError
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.models.market.ticker import Ticker
 from cyberdelta.symbols.models import Symbol
@@ -40,7 +41,7 @@ class MarketSnapshot(BaseModel):
 
     timestamp: datetime = Field(description="UTC timestamp of this market snapshot")
 
-    def get_ticker(self, exchange: ExchangeName, symbol: Symbol) -> Ticker | None:
+    def get_ticker(self, exchange: ExchangeName, symbol: Symbol) -> Ticker:
         """Get ticker for specific exchange and symbol.
 
         Args:
@@ -48,12 +49,19 @@ class MarketSnapshot(BaseModel):
             symbol: Symbol to query (uses Symbol object)
 
         Returns:
-            Ticker if found, None otherwise
+            Ticker if found
+
+        Raises:
+            MarketDataError: If no ticker found for the exchange and symbol
         """
         key = f"{exchange.value}:{symbol.value}"
-        return self.tickers.get(key)
+        ticker = self.tickers.get(key)
+        if ticker is None:
+            msg = f"No ticker found for {exchange.value}:{symbol.value}"
+            raise MarketDataError(msg, symbol=symbol.value, metadata={"exchange": exchange.value})
+        return ticker
 
-    def get_order_book(self, exchange: ExchangeName, symbol: Symbol) -> OrderBook | None:
+    def get_order_book(self, exchange: ExchangeName, symbol: Symbol) -> OrderBook:
         """Get order book for specific exchange and symbol.
 
         Args:
@@ -61,10 +69,22 @@ class MarketSnapshot(BaseModel):
             symbol: Symbol to query (uses Symbol object)
 
         Returns:
-            OrderBook if found, None otherwise
+            OrderBook if found
+
+        Raises:
+            MarketDataError: If no order book found for the exchange and symbol
         """
         key = f"{exchange.value}:{symbol.value}"
-        return self.order_books.get(key)
+        order_book = self.order_books.get(key)
+        if order_book is None:
+            msg = f"No order book found for {exchange.value}:{symbol.value}"
+            raise MarketDataError(
+                msg,
+                symbol=symbol.value,
+                data_type="orderbook",
+                metadata={"exchange": exchange.value},
+            )
+        return order_book
 
     def get_all_tickers_for_symbol(self, symbol: Symbol) -> dict[ExchangeName, Ticker]:
         """Get all tickers for a symbol across all exchanges.

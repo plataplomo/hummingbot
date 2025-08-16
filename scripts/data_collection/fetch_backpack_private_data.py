@@ -31,6 +31,7 @@ from cyberdelta.apis.backpack.bp_auth import BackpackEd25519Authenticator
 from cyberdelta.config import get_app_settings, get_secrets_config
 from cyberdelta.config.logging_config import setup_logging
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import (
     InvalidAuthTypeError,
     RequiredParameterError,
@@ -100,10 +101,12 @@ class BackpackPrivateDataCollector:
 
             backpack_secrets = secrets.exchanges.get("backpack")
             if not backpack_secrets:
-                raise RequiredParameterError("backpack", "exchange secrets", "backpack")
+                raise RequiredParameterError("backpack", "exchange secrets", None)
 
             if backpack_secrets.auth_type != "api_key":
-                raise InvalidAuthTypeError("backpack", "api_key", backpack_secrets.auth_type)
+                raise InvalidAuthTypeError(
+                    ExchangeName.BACKPACK, "api_key", backpack_secrets.auth_type
+                )
 
             # Initialize authenticator
             self.authenticator = authenticator_class(

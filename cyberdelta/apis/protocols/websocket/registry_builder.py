@@ -6,9 +6,11 @@ allowing each exchange to implement its own builder without circular dependencie
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from cyberdelta.apis.websocket.ws_context_registry import WebSocketContextRegistry
+
+if TYPE_CHECKING:
+    from cyberdelta.apis.websocket.ws_context_registry import WebSocketContextRegistry
 
 
 class WebSocketRegistryBuilder(Protocol):

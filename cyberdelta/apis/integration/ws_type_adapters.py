@@ -24,8 +24,8 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_ws_events import (
     HyperliquidRawWsFillEvent,
 )
 
-# Import discriminated union types
-from cyberdelta.apis.websocket.ws_discriminated_unions import (
+# Import discriminated union types (now in same integration layer)
+from cyberdelta.apis.integration.ws_discriminated_unions import (
     DiscriminatedBackpackEnvelope,
     DiscriminatedHyperliquidEnvelope,
     DiscriminatedHyperliquidUserEvent,

@@ -9,6 +9,7 @@ from __future__ import annotations
 # Import unified ExchangeName enum
 from cyberdelta.enums import ExchangeName
 
+from .rate_limiter import WebSocketRateLimiter
 from .registry.registry_factory import WebSocketRegistryFactory
 
 # Core WebSocket components
@@ -16,7 +17,6 @@ from .ws_context import WebSocketMessageContext
 from .ws_context_factory import WebSocketContextFactory
 from .ws_context_registry import WebSocketContextRegistry
 from .ws_protocols import WebSocketContextProtocol
-from .ws_type_adapters import WebSocketTypeAdapters
 
 
 __all__ = [
@@ -25,6 +25,6 @@ __all__ = [
     "WebSocketContextProtocol",
     "WebSocketContextRegistry",
     "WebSocketMessageContext",
+    "WebSocketRateLimiter",
     "WebSocketRegistryFactory",
-    "WebSocketTypeAdapters",
 ]

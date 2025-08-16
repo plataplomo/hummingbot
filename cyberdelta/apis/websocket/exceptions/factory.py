@@ -36,7 +36,6 @@ from .payload_validation import (
     MissingRequiredFieldsError,
     PayloadNoneError,
     PayloadSizeError,
-    PayloadTooLargeError,
 )
 from .security import (
     BlockedPatternFoundError,
@@ -180,8 +179,10 @@ class WebSocketErrorFactory:
         limit: int,
         stream_context: StreamErrorContext | None = None,
         error_id: str | None = None,
-    ) -> PayloadTooLargeError:
-        """Create PayloadTooLargeError with factory correlation.
+    ) -> PayloadSizeError:
+        """Create PayloadSizeError for too large payloads.
+
+        This method is kept for backward compatibility but returns PayloadSizeError.
 
         Args:
             payload_type: Type of payload (dict, list, etc.)
@@ -191,12 +192,14 @@ class WebSocketErrorFactory:
             error_id: Unique error identifier
 
         Returns:
-            PayloadTooLargeError instance
+            PayloadSizeError instance with 'at most' constraint
         """
-        return PayloadTooLargeError(
-            payload_type=payload_type,
-            size=size,
+        return PayloadSizeError(
+            context=payload_type,
+            actual_size=size,
+            constraint="at most",
             limit=limit,
+            size_unit="items" if payload_type in {"dict", "list"} else "bytes",
             stream_context=stream_context,
             error_id=error_id,
             correlation_id=self.correlation_id,

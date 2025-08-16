@@ -29,7 +29,7 @@ class MarketDataServiceProtocol(Protocol):
     - Clear contract for market information
     """
 
-    async def get_ticker(self, symbol: Symbol) -> Ticker | None:
+    async def get_ticker(self, symbol: Symbol) -> Ticker:
         """Get current ticker for a symbol.
 
         Args:
@@ -44,7 +44,7 @@ class MarketDataServiceProtocol(Protocol):
         """
         ...
 
-    async def get_order_book(self, symbol: Symbol) -> OrderBook | None:
+    async def get_order_book(self, symbol: Symbol) -> OrderBook:
         """Get current order book for a symbol.
 
         Args:
@@ -59,7 +59,7 @@ class MarketDataServiceProtocol(Protocol):
         """
         ...
 
-    async def create_market_snapshot(self, symbol: Symbol) -> MarketSnapshot | None:
+    async def create_market_snapshot(self, symbol: Symbol) -> MarketSnapshot:
         """Create a market snapshot for validation purposes.
 
         Args:

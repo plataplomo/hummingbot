@@ -7,6 +7,7 @@ operations using modular components for caching, connections, and aggregation.
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.apis.models.service_args.market_data import GetMarketDataArgs
@@ -17,6 +18,8 @@ from cyberdelta.domain.market.data_fetcher import DataFetcher
 from cyberdelta.domain.market.exchange_connector import ExchangeConnector
 from cyberdelta.domain.market.market_aggregator import MarketAggregator
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.base import ConfigurationError
+from cyberdelta.exceptions.market import MarketDataError
 from cyberdelta.infrastructure.event_bus import EventBus
 from cyberdelta.models.market.candle import Candle
 from cyberdelta.models.market.market_snapshot import MarketSnapshot
@@ -127,23 +130,19 @@ class MarketDataService:
         """
         return await self._market_aggregator.create_market_snapshot()
 
-    async def get_ticker(self, symbol: Symbol, exchange: ExchangeName) -> Ticker | None:
+    async def get_ticker_from_exchange(self, symbol: Symbol, exchange: ExchangeName) -> Ticker:
         """Get ticker for specific symbol on exchange.
 
         Args:
             symbol: Trading symbol (Symbol object, NOT string)
             exchange: Exchange name (ExchangeName enum, NOT string)
 
-
         Returns:
-            Ticker if available, None otherwise
+            Ticker if available
 
-
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses Symbol object, NOT string
-        - Uses ExchangeName enum, NOT string
-        - Cache TTL from config, NO hardcoded durations
-        - NO assumptions about ticker availability
+        Raises:
+            ConfigurationError: If exchange is disabled or not configured
+            MarketDataError: If ticker not available
         """
         # Check cache first
         cached_ticker = self._cache_manager.get_ticker(symbol, exchange)
@@ -156,20 +155,23 @@ class MarketDataService:
             logger.warning(
                 "ticker_fetch_no_api_client", symbol=symbol.value, exchange=exchange.value
             )
-            return None
+            msg = f"Exchange {exchange.value} disabled or not configured"
+            raise ConfigurationError(msg, metadata={"exchange": exchange.value})
 
         # Check if exchange is enabled
         if not self._exchange_connector.is_exchange_enabled(exchange):
             logger.warning(
                 "ticker_fetch_exchange_disabled", symbol=symbol.value, exchange=exchange.value
             )
-            return None
+            msg = f"Exchange {exchange.value} disabled or not configured"
+            raise ConfigurationError(msg, metadata={"exchange": exchange.value})
 
         # Get exchange config for timeout
         enabled_exchanges = self._exchange_connector.get_enabled_exchanges()
         exchange_config = enabled_exchanges.get(exchange.value)
         if not exchange_config:
-            return None
+            msg = f"Exchange {exchange.value} disabled or not configured"
+            raise ConfigurationError(msg, metadata={"exchange": exchange.value})
 
         timeout = exchange_config.request_timeout_seconds
 
@@ -182,7 +184,8 @@ class MarketDataService:
             logger.exception(
                 "ticker_fetch_failed", symbol=symbol.value, exchange=exchange.value, error=str(e)
             )
-            return None
+            msg = f"Exchange {exchange.value} disabled or not configured"
+            raise ConfigurationError(msg, metadata={"exchange": exchange.value}) from e
         else:
             if ticker:
                 # Cache with timestamp
@@ -194,8 +197,9 @@ class MarketDataService:
                     exchange=exchange.value,
                     price=float(ticker.price) if ticker.price else None,
                 )
-
-            return ticker
+                return ticker
+            msg = f"No ticker available for {symbol.value} on {exchange.value}"
+            raise MarketDataError(msg, symbol=symbol.value, metadata={"exchange": exchange.value})
 
     async def get_historical_candles(
         self,
@@ -217,10 +221,8 @@ class MarketDataService:
         Returns:
             List of candles or None if unavailable
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Uses Symbol object and ExchangeName enum
-        - NO hardcoded values
-        - Proper error handling with context
+        Raises:
+            ConfigurationError: If exchange is disabled or not configured
         """
         api_client = self._exchange_connector.get_api_client(exchange)
         if not api_client:
@@ -229,7 +231,8 @@ class MarketDataService:
                 symbol=symbol.value,
                 exchange=exchange.value,
             )
-            return None
+            msg = f"Exchange {exchange.value} disabled or not configured"
+            raise ConfigurationError(msg, metadata={"exchange": exchange.value})
 
         # Check if exchange is enabled
         if not self._exchange_connector.is_exchange_enabled(exchange):
@@ -238,7 +241,8 @@ class MarketDataService:
                 symbol=symbol.value,
                 exchange=exchange.value,
             )
-            return None
+            msg = f"Exchange {exchange.value} disabled or not configured"
+            raise ConfigurationError(msg, metadata={"exchange": exchange.value})
 
         try:
             # Create args for the API call
@@ -259,7 +263,8 @@ class MarketDataService:
                 exchange=exchange.value,
                 error=str(e),
             )
-            return None
+            msg = f"Exchange {exchange.value} disabled or not configured"
+            raise ConfigurationError(msg, metadata={"exchange": exchange.value}) from e
 
     async def get_cached_ticker_count(self) -> int:
         """Get count of cached tickers.
@@ -325,3 +330,112 @@ class MarketDataService:
             True if connected to at least one exchange, False otherwise
         """
         return self._exchange_connector.is_connected()
+
+    async def get_order_book(self, symbol: Symbol) -> OrderBook:
+        """Get current order book for symbol - protocol compliance method.
+
+        Args:
+            symbol: Symbol to get order book for
+
+        Returns:
+            OrderBook if available
+
+        Raises:
+            MarketDataError: If order book is not available
+        """
+        # Try to get from cache first, then fetch if needed
+        for exchange_name in ExchangeName:
+            cached_book = self._cache_manager.get_order_book(symbol, exchange_name)
+            if cached_book:
+                return cached_book
+
+        # If not in cache, return None (no fetch method available)
+        logger.debug(
+            "order_book_not_available",
+            symbol=symbol.value,
+            reason="Not in cache and no fetch method available",
+        )
+
+        msg = f"Order book not available for {symbol.value}"
+        raise MarketDataError(msg, symbol=symbol.value, data_type="orderbook")
+
+    async def create_market_snapshot(self, symbol: Symbol) -> MarketSnapshot:
+        """Create market snapshot for validation - protocol compliance method.
+
+        Args:
+            symbol: Symbol to create snapshot for
+
+        Returns:
+            MarketSnapshot with current market data
+
+        Raises:
+            MarketDataError: If no market data is available for the symbol
+        """
+        tickers: dict[str, Ticker] = {}
+        order_books: dict[str, OrderBook] = {}
+
+        # Collect ticker data from all available exchanges
+        for exchange_name in ExchangeName:
+            try:
+                ticker = await self.get_ticker_from_exchange(symbol, exchange_name)
+                if ticker:
+                    key = f"{exchange_name.value}:{symbol.value}"
+                    tickers[key] = ticker
+            except (ValueError, ConnectionError, TimeoutError) as e:
+                logger.debug(
+                    "ticker_fetch_failed",
+                    symbol=symbol.value,
+                    exchange=exchange_name.value,
+                    error=str(e),
+                )
+                continue
+
+        # Get order book (only one available from cache)
+        order_book = await self.get_order_book(symbol)
+        if order_book:
+            # Try to determine which exchange this came from (simplified)
+            for exchange_name in ExchangeName:
+                key = f"{exchange_name.value}:{symbol.value}"
+                order_books[key] = order_book
+                break  # Just use first exchange for now
+
+        if not tickers and not order_books:
+            msg = f"No market data available for {symbol.value}"
+            raise MarketDataError(msg, symbol=symbol.value)
+
+        return MarketSnapshot(
+            tickers=tickers,
+            order_books=order_books,
+            timestamp=datetime.now(UTC),
+        )
+
+    # Protocol compliance method - matches MarketDataServiceProtocol exactly
+    async def get_ticker(self, symbol: Symbol) -> Ticker:
+        """Get ticker for symbol from any available exchange - protocol compliance.
+
+        Args:
+            symbol: Symbol to get ticker for
+
+        Returns:
+            Ticker from any available exchange
+
+        Raises:
+            MarketDataError: If no ticker is available from any exchange
+        """
+        # Try all exchanges until we find a ticker
+        for exchange_name in ExchangeName:
+            try:
+                ticker = await self.get_ticker_from_exchange(symbol, exchange_name)
+                if ticker:
+                    return ticker
+            except (ValueError, ConnectionError, TimeoutError) as e:
+                logger.debug(
+                    "protocol_ticker_fetch_failed",
+                    symbol=symbol.value,
+                    exchange=exchange_name.value,
+                    error=str(e),
+                )
+                continue
+
+        msg = f"No ticker available for {symbol.value} on any exchange"
+        raise MarketDataError(msg, symbol=symbol.value)

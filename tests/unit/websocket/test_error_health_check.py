@@ -10,7 +10,11 @@ import pytest
 
 from cyberdelta.apis.enums.websocket import HealthStatus
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.models.websocket.health import ComponentStatus, HealthCheckConfig, SystemHealth
+from cyberdelta.apis.models.websocket.health import (
+    ComponentStatus,
+    HealthCheckConfig,
+    SystemHealth,
+)
 from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )

@@ -16,7 +16,7 @@ from cyberdelta.apis.websocket.exceptions import (
     EmptyRoutingKeyError,
     EnvelopeValidationFailedError,
     InvalidRoutingKeyFormatError,
-    PayloadTooLargeError,
+    PayloadSizeError,
 )
 
 
@@ -131,16 +131,28 @@ class BaseEnvelopeValidator:
             Validated payload.
 
         Raises:
-            PayloadTooLargeError: If payload exceeds size limits.
+            PayloadSizeError: If payload exceeds size limits.
         """
         if isinstance(payload, dict):
             # Check for reasonable dict size
             if len(payload) > MAX_PAYLOAD_DICT_SIZE:
-                raise PayloadTooLargeError("dict", len(payload), MAX_PAYLOAD_DICT_SIZE)
+                raise PayloadSizeError(
+                    context="payload_validation",
+                    actual_size=len(payload),
+                    constraint="at most",
+                    limit=MAX_PAYLOAD_DICT_SIZE,
+                    size_unit="items",
+                )
         # Must be list since type annotation guarantees dict or list
         # Check for reasonable list size
         elif len(payload) > MAX_PAYLOAD_LIST_SIZE:
-            raise PayloadTooLargeError("list", len(payload), MAX_PAYLOAD_LIST_SIZE)
+            raise PayloadSizeError(
+                context="payload_validation",
+                actual_size=len(payload),
+                constraint="at most",
+                limit=MAX_PAYLOAD_LIST_SIZE,
+                size_unit="items",
+            )
 
         return payload
 

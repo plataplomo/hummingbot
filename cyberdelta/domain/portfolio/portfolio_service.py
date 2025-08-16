@@ -200,6 +200,15 @@ class PortfolioService(HealthCheckable):
         await self._state_manager.initialize_state()
         logger.info("portfolio_service_initialized")
 
+    async def initialize_state(self) -> PortfolioState:
+        """Initialize and return portfolio state - protocol compliance method.
+
+        Returns:
+            Initialized portfolio state
+        """
+        await self._state_manager.initialize_state()
+        return await self._state_manager.get_state()
+
     # State operations (delegated to state manager)
 
     async def get_state(self) -> PortfolioState:
@@ -770,14 +779,8 @@ class PortfolioService(HealthCheckable):
             )
             return None
 
-        if ticker is None:
-            logger.debug(
-                "market_price_unavailable_no_ticker",
-                symbol=symbol.value,
-                exchange=exchange.value,
-                reason="Ticker data not available",
-            )
-            return None
+        # ticker cannot be None here due to protocol guarantees
+        # The get_ticker method raises ValueError if ticker is not available
 
         if ticker.price is None:
             logger.debug(

@@ -93,8 +93,8 @@ class InvalidPayloadTypeError(PayloadValidationError, TypeError):
 class PayloadSizeError(PayloadValidationError):
     """Error for payload size violations.
 
-    Consolidates PayloadSizeError from ws_validators.py and
-    PayloadTooLargeError from ws_envelope.py.
+    Used for all payload size constraint violations including minimum,
+    maximum, and exact size requirements.
     """
 
     def __init__(
@@ -135,43 +135,6 @@ class PayloadSizeError(PayloadValidationError):
         self.constraint = constraint
         self.limit = limit
         self.size_unit = size_unit
-
-
-class PayloadTooLargeError(PayloadSizeError):
-    """Specific error for payload exceeding maximum size.
-
-    Backward compatibility alias for PayloadSizeError with "at most" constraint.
-    """
-
-    def __init__(
-        self,
-        payload_type: str,
-        size: int,
-        limit: int,
-        stream_context: StreamErrorContext | None = None,
-        error_id: str | None = None,
-        correlation_id: str | None = None,
-    ) -> None:
-        """Initialize payload too large error.
-
-        Args:
-            payload_type: Type of payload (dict, list, etc.)
-            size: Actual size
-            limit: Maximum allowed size
-            stream_context: Stream error context
-            error_id: Unique error identifier
-            correlation_id: Correlation identifier for related errors
-        """
-        super().__init__(
-            context=payload_type,
-            actual_size=size,
-            constraint="at most",
-            limit=limit,
-            size_unit="items" if payload_type in {"dict", "list"} else "bytes",
-            stream_context=stream_context,
-            error_id=error_id,
-            correlation_id=correlation_id,
-        )
 
 
 class PayloadNoneError(PayloadValidationError):

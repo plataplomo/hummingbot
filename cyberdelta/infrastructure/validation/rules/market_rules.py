@@ -101,8 +101,9 @@ class MarketStatusRule:
             market_snapshot = context.market_snapshot
 
             # Validate ticker data exists - if no ticker, market is not available
-            ticker = market_snapshot.get_ticker(order.exchange, order.symbol)
-            if ticker is None:
+            try:
+                _ = market_snapshot.get_ticker(order.exchange, order.symbol)
+            except ValueError:
                 violations.append(
                     f"Market not available for {order.symbol.value} on "
                     f"{order.exchange.value} - no ticker data"
@@ -203,8 +204,8 @@ class LiquidityRule:
         market_snapshot = context.market_snapshot
 
         # Get ticker data for the order's symbol/exchange
-        ticker = market_snapshot.get_ticker(order.exchange, order.symbol)
-        if ticker is not None:
+        try:
+            ticker = market_snapshot.get_ticker(order.exchange, order.symbol)
             # Check bid/ask spread if available
             if ticker.bid and ticker.ask and ticker.bid > 0 and ticker.ask > 0:
                 spread_pct = ((ticker.ask - ticker.bid) / ((ticker.bid + ticker.ask) / 2)) * 100
@@ -225,6 +226,9 @@ class LiquidityRule:
                         f"24h volume ${ticker.volume:,.0f} below minimum ${min_volume:,.0f} "
                         f"for {order.symbol.value}"
                     )
+        except ValueError:
+            # Ticker not available for this exchange/symbol
+            pass
 
         return ValidationResult(
             violations=violations,

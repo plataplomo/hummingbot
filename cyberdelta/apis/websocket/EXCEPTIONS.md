@@ -10,7 +10,6 @@ WebSocketError (base for all WebSocket errors)
 │   ├── PayloadValidationError (payload-specific validation)
 │   │   ├── InvalidPayloadTypeError (type mismatches)
 │   │   ├── PayloadSizeError (size constraint violations)
-│   │   │   └── PayloadTooLargeError (backward compatibility)
 │   │   ├── PayloadNoneError (None when value required)
 │   │   └── MissingRequiredFieldsError (missing required fields)
 │   │
@@ -244,45 +243,14 @@ validation_code = get_error_code_for_validation_type('invalid_payload_type')
 security_code = get_error_code_for_security_type('blocked_pattern')
 ```
 
-## Migration from Legacy Exceptions
+## Best Practices
 
-Legacy exceptions from `ws_validators.py`, `ws_envelope.py`, and `ws_security.py` are being consolidated into this unified hierarchy. Use the exception factory for creating new exceptions to ensure consistency.
-
-### Before (Deprecated)
-
-```python
-# OLD - scattered across multiple files
-from cyberdelta.apis.websocket.ws_validators import PayloadSizeError
-from cyberdelta.apis.websocket.ws_security import MessageSizeExceedsLimitError
-
-# Direct creation with inconsistent interfaces
-error1 = PayloadSizeError("context", 100, "at most", 50)
-error2 = MessageSizeExceedsLimitError(2048, 1024)
-```
-
-### After (Recommended)
-
-```python
-# NEW - unified hierarchy with factory
-from cyberdelta.apis.websocket.ws_exception_factory import create_exception_factory
-
-factory = create_exception_factory()
-
-# Consistent creation with correlation tracking
-error1 = factory.create_payload_size_error(
-    context="validation",
-    actual_size=100,
-    constraint="at most",
-    limit=50
-)
-
-error2 = factory.create_message_size_exceeds_limit_error(
-    message_size=2048,
-    limit=1024
-)
-
-# Both errors share correlation ID and have consistent interfaces
-```
+1. **Use the Exception Factory**: Always use `create_exception_factory()` instead of direct instantiation
+2. **Correlation Tracking**: Use correlation IDs to track related errors across operations
+3. **Proper Categorization**: Use the right exception hierarchy for the context (validation vs security vs stream)
+4. **Error Code Integration**: Leverage error codes for automated handling and monitoring
+5. **Structured Logging**: Use `to_dict()` method for consistent logging format
+6. **Troubleshooting**: Use `get_troubleshooting_guide()` for operational guidance
 
 ## Error Factory Methods
 
@@ -291,7 +259,6 @@ The `WebSocketErrorFactory` provides specialized creation methods:
 ### Payload Validation
 - `create_invalid_payload_type_error()`
 - `create_payload_size_error()`
-- `create_payload_too_large_error()`
 - `create_payload_none_error()`
 - `create_missing_required_fields_error()`
 
