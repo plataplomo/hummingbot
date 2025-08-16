@@ -13,7 +13,7 @@ from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
 
-# Old import removed - using unified recovery system ErrorRecoveryConfig
+# Old import removed - using recovery system ErrorRecoveryConfig
 from cyberdelta.apis.websocket.memory.memory_config import (
     MemoryOptimizationConfig,
     PerformanceMode,
@@ -29,7 +29,7 @@ from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+    from cyberdelta.apis.websocket.error_handling.error_handler import (
         WebSocketErrorHandler,
     )
 

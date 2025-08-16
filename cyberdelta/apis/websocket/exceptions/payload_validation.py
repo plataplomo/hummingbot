@@ -50,7 +50,7 @@ class PayloadValidationError(WebSocketDataValidationError):
 
 
 class InvalidPayloadTypeError(PayloadValidationError, TypeError):
-    """Unified error for invalid payload types.
+    """Error for invalid payload types.
 
     Consolidates InvalidPayloadTypeError from ws_validators.py
     and similar type validation errors.
@@ -91,7 +91,7 @@ class InvalidPayloadTypeError(PayloadValidationError, TypeError):
 
 
 class PayloadSizeError(PayloadValidationError):
-    """Unified error for payload size violations.
+    """Error for payload size violations.
 
     Consolidates PayloadSizeError from ws_validators.py and
     PayloadTooLargeError from ws_envelope.py.

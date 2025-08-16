@@ -1,6 +1,6 @@
-"""Unified WebSocket Recovery Executor.
+"""WebSocket Recovery Executor.
 
-This module implements the execution layer of the unified recovery system,
+This module implements the execution layer of the recovery system,
 responsible for HOW to execute recovery actions decided by the policy manager.
 """
 

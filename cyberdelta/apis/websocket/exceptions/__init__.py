@@ -1,4 +1,4 @@
-"""WebSocket error classes - unified hierarchy.
+"""WebSocket error classes - structured hierarchy.
 
 This package provides a comprehensive, well-organized error hierarchy for
 all WebSocket error scenarios. The hierarchy is designed for better maintainability,

@@ -5,7 +5,6 @@ monitoring for WebSocket operations. Includes error codes, event publishing,
 recovery mechanisms, and strategy routing.
 
 Modules:
-- error_codes: WebSocket-specific error code definitions
 - error_events: Event structures for error tracking and monitoring
 - error_handler_factory: Factory for creating configured error handlers
 - error_handler_registry: Registry pattern for managing error handlers
@@ -17,7 +16,7 @@ Modules:
 - recovery_strategy_router: Strategy pattern for recovery routing
 """
 
-# Note: WebSocketErrorCode moved to cyberdelta.apis.websocket.enums to avoid circular imports
+# Note: WebSocketErrorCode is in cyberdelta.apis.enums.websocket for proper organization
 from cyberdelta.apis.websocket.validation import StreamErrorContextValidator
 
 from .error_events import (
@@ -25,16 +24,16 @@ from .error_events import (
     SeverityEventFilter,
     WebSocketErrorEventPublisher,
 )
+
+# Import WebSocket error handler
+from .error_handler import WebSocketErrorHandler
 from .error_handler_factory import WebSocketErrorHandlerFactory
 from .error_handler_registry import WebSocketErrorHandlerRegistry
 
-# Import from unified recovery system
+# Import from recovery system
 from .recovery.recovery_executor import RecoveryExecutor
 from .recovery.recovery_policy import RecoveryPolicyManager
 from .recovery_strategy_router import RecoveryStrategyRouter
-
-# Import WebSocket error handler
-from .websocket_error_handler import WebSocketErrorHandler
 
 
 __all__ = [

@@ -11,13 +11,13 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Protocol
 from uuid import uuid4
 
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
+)
 from cyberdelta.apis.websocket.error_handling.recovery import (
     ConnectionManagerProtocol,
     StateManagerProtocol,
     SubscriptionManagerProtocol,
-)
-from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
-    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketConfigurationError
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
@@ -87,7 +87,7 @@ class WebSocketErrorHandlerFactory:
         subscription_manager: SubscriptionManagerProtocol | None = None,
         state_manager: StateManagerProtocol | None = None,
     ) -> WebSocketErrorHandler:
-        """Create a unified WebSocket error handler for the specified exchange.
+        """Create a WebSocket error handler for the specified exchange.
 
         Args:
             exchange: Exchange enum value
@@ -99,7 +99,7 @@ class WebSocketErrorHandlerFactory:
             state_manager: Optional state manager for recovery
 
         Returns:
-            WebSocketErrorHandler: Configured unified error handler
+            WebSocketErrorHandler: Configured error handler
 
         Raises:
             WebSocketConfigurationError: If exchange is not supported
@@ -123,7 +123,7 @@ class WebSocketErrorHandlerFactory:
         if logger is None:
             logger = logging.getLogger(f"websocket.{exchange.value}.error_handler")
 
-        # Create and configure the unified error handler
+        # Create and configure the error handler
         # Note: Pass None for logger since WebSocketErrorHandler implements TypedLogger
         # and can create its own Python logger internally
         handler = WebSocketErrorHandler(

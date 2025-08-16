@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
 
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+from cyberdelta.apis.websocket.error_handling.error_handler import (
     WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError

@@ -19,7 +19,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 
 # Import WebSocket error handler
-from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+from cyberdelta.apis.websocket.error_handling.error_handler import (
     WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import (
@@ -113,7 +113,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self.logger = get_logger(f"WebSocketRouter.{exchange_name.value}")
         self._connection_id = str(uuid.uuid4())[:8]  # Short connection ID for context
 
-        # Error recovery is handled by stream_error_handler using unified recovery system
+        # Error recovery is handled by stream_error_handler using recovery system
 
         # Memory optimization system
         self.memory_optimization_mode = memory_optimization_mode
@@ -441,7 +441,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             # Handle with typed error system
             await self.stream_error_handler.handle_stream_error(ws_error)
 
-            # Error recovery is handled by stream_error_handler with unified recovery system
+            # Error recovery is handled by stream_error_handler with recovery system
 
     async def _route_with_envelope_validation(
         self,
@@ -493,7 +493,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         processor = self.processors.get(routing_key)
         if processor:
             await processor.process(payload, handler, typed_context)
-            # Success handling is managed by stream_error_handler unified recovery system
+            # Success handling is managed by stream_error_handler recovery system
         else:
             await self._handle_missing_processor(routing_key, payload, typed_context)
 
@@ -578,7 +578,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             "connection_id": self._connection_id,
         }
 
-        # Add unified recovery system stats from error handler
+        # Add recovery system stats from error handler
         recovery_stats = self.stream_error_handler.get_statistics()
         if recovery_stats:
             stats["recovery_system"] = recovery_stats

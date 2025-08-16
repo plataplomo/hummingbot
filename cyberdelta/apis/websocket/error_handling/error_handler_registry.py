@@ -11,6 +11,9 @@ import logging
 from typing import TYPE_CHECKING
 from weakref import WeakValueDictionary
 
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
+)
 from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
@@ -18,9 +21,6 @@ from cyberdelta.apis.websocket.error_handling.recovery import (
     ConnectionManagerProtocol,
     StateManagerProtocol,
     SubscriptionManagerProtocol,
-)
-from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
-    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig

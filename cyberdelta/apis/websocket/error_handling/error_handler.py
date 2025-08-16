@@ -1,7 +1,7 @@
-"""Unified WebSocket Stream Error Handler.
+"""WebSocket Stream Error Handler.
 
-This module provides an updated error handler that uses the unified recovery system,
-replacing the dual recovery system integration with a single, coherent approach.
+This module provides an error handler that uses the recovery system
+for consistent error handling and recovery across the WebSocket infrastructure.
 """
 
 from __future__ import annotations
@@ -51,9 +51,9 @@ RAW_MESSAGE_TRUNCATE_LENGTH = 200  # Max length for raw message in error context
 
 
 class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
-    """Unified error handler for WebSocket streams.
+    """Error handler for WebSocket streams.
 
-    This handler uses the unified recovery system for consistent error handling
+    This handler uses the recovery system for consistent error handling
     and recovery across the WebSocket infrastructure.
     """
 
@@ -67,7 +67,7 @@ class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
         state_manager: StateManagerProtocol | None = None,
         message_buffer: MessageBufferProtocol | None = None,
     ) -> None:
-        """Initialize unified error handler.
+        """Initialize error handler.
 
         Args:
             config: Error handling configuration
@@ -100,7 +100,7 @@ class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
         else:
             self._metrics = None
 
-        # Initialize unified recovery system
+        # Initialize recovery system
         self._recovery_policy = RecoveryPolicyManager(config)
         self._recovery_executor = RecoveryExecutor(
             policy=self._recovery_policy,
@@ -184,11 +184,11 @@ class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
         return self._logger.get_logger()
 
     # ========================================================================
-    # Core Error Handling with Unified Recovery
+    # Core Error Handling with Recovery
     # ========================================================================
 
     async def handle_stream_error(self, error: WebSocketStreamError) -> None:
-        """Handle WebSocket stream error with unified recovery.
+        """Handle WebSocket stream error with recovery.
 
         Args:
             error: WebSocket stream error to handle
@@ -591,7 +591,7 @@ class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
         # Shutdown executor
         await self._recovery_executor.shutdown()
 
-        self._structlog_logger.info("Unified error handler shutdown complete")
+        self._structlog_logger.info("Error handler shutdown complete")
 
     async def _flush_metrics(self) -> None:
         """Flush pending metrics data."""

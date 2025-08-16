@@ -439,7 +439,7 @@ class RateLimitMiddleware:
         result = self.rate_limiter.check_rate_limit(connection_id, message_type, user_id)
 
         if not result.allowed and behavior.should_raise:
-            # Create RateLimitError with unified signature
+            # Create RateLimitError with standard signature
             message = f"Rate limit exceeded for {result.limit_type}"
             error = RateLimitError(message=message, retry_after=result.retry_after_seconds)
             # Store result as attribute for compatibility

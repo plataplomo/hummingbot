@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class SecurityValidationError(WebSocketSecurityValidationError, ValueError):
-    """Unified error for security validation failures.
+    """Error for security validation failures.
 
     Consolidates SecurityValidationError from ws_security.py with
     enhanced structure and hierarchy integration.

@@ -1,6 +1,6 @@
-"""Unified WebSocket Recovery Policy Manager.
+"""WebSocket Recovery Policy Manager.
 
-This module implements the policy layer of the unified recovery system,
+This module implements the policy layer of the recovery system,
 responsible for making decisions about WHAT recovery actions to take
 and WHEN to take them, without executing the actions.
 """
@@ -39,7 +39,7 @@ class CircuitState(StrEnum):
 
 
 class CircuitBreakerState(BaseModel):
-    """Unified circuit breaker state for a connection."""
+    """Circuit breaker state for a connection."""
 
     state: CircuitState = CircuitState.CLOSED
     failure_count: int = 0
@@ -119,7 +119,7 @@ class CircuitBreakerState(BaseModel):
 
 
 class RetryState(BaseModel):
-    """Unified retry tracking for a connection."""
+    """Retry tracking for a connection."""
 
     attempts: int = 0
     last_attempt: datetime | None = None
@@ -152,7 +152,7 @@ class RetryState(BaseModel):
         self.current_backoff_delay = new_delay
 
 
-class UnifiedRecoveryState(BaseModel):
+class RecoveryState(BaseModel):
     """Complete recovery state for a connection."""
 
     connection_id: str
@@ -165,35 +165,6 @@ class UnifiedRecoveryState(BaseModel):
     def update_timestamp(self) -> None:
         """Update the last modified timestamp."""
         self.last_updated = datetime.now(UTC)
-
-
-# ============================================================================
-# Policy Configuration
-# ============================================================================
-
-
-class UnifiedRecoveryConfig(BaseModel):
-    """Unified configuration for recovery policy."""
-
-    # Retry settings
-    max_retry_attempts: int = Field(default=10, gt=0)
-    initial_backoff_delay: float = Field(default=1.0, gt=0)
-    max_backoff_delay: float = Field(default=300.0, gt=0)
-    backoff_multiplier: float = Field(default=2.0, gt=1)
-    add_jitter: bool = True
-    jitter_factor: float = Field(default=0.1, ge=0, le=1)
-
-    # Circuit breaker settings
-    circuit_breaker_enabled: bool = True
-    failure_threshold: int = Field(default=5, gt=0)
-    success_threshold: int = Field(default=3, gt=0)
-    timeout_seconds: float = Field(default=60.0, gt=0)
-    half_open_max_calls: int = Field(default=1, gt=0)
-
-    # Strategy selection
-    enable_adaptive_strategy: bool = False
-    prefer_reconnect_for_connection_errors: bool = True
-    prefer_resubscribe_for_subscription_errors: bool = True
 
 
 # ============================================================================
@@ -219,7 +190,7 @@ class RecoveryPolicyManager:
         self.logger = get_logger("RecoveryPolicyManager")
 
         # Recovery state per connection key
-        self._states: dict[str, UnifiedRecoveryState] = {}
+        self._states: dict[str, RecoveryState] = {}
 
     def _get_recovery_key(self, context: StreamErrorContext) -> str:
         """Generate a unique key for recovery tracking.
@@ -235,7 +206,7 @@ class RecoveryPolicyManager:
             return f"{base_key}:{context.channel}"
         return base_key
 
-    def _get_or_create_state(self, context: StreamErrorContext) -> UnifiedRecoveryState:
+    def _get_or_create_state(self, context: StreamErrorContext) -> RecoveryState:
         """Get or create recovery state for a connection.
 
         Args:
@@ -246,7 +217,7 @@ class RecoveryPolicyManager:
         """
         key = self._get_recovery_key(context)
         if key not in self._states:
-            self._states[key] = UnifiedRecoveryState(
+            self._states[key] = RecoveryState(
                 connection_id=context.connection_id,
                 exchange=context.exchange,
             )
@@ -337,7 +308,7 @@ class RecoveryPolicyManager:
     def _select_adaptive_strategy(
         self,
         error: WebSocketStreamError,
-        state: UnifiedRecoveryState,
+        state: RecoveryState,
         base_strategy: WebSocketRecoveryStrategy,
     ) -> WebSocketRecoveryStrategy:
         """Select strategy adaptively based on failure patterns.

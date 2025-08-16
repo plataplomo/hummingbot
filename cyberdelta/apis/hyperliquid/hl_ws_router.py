@@ -71,7 +71,7 @@ if TYPE_CHECKING:
         TransactionMapperProtocol,
     )
     # Import WebSocket error handler
-from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+from cyberdelta.apis.websocket.error_handling.error_handler import (
     WebSocketErrorHandler,
 )
 
