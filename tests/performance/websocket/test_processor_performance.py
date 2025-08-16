@@ -19,12 +19,14 @@ from pydantic import BaseModel, Field
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
 from cyberdelta.apis.websocket.ws_processor import (
     MessageTransformer,
     PydanticWebSocketProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.enums import ExchangeName
 
 

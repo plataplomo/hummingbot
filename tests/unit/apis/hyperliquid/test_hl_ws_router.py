@@ -26,8 +26,10 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
     HyperliquidPriceTickerMapper,
 )
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
-from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
+from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 

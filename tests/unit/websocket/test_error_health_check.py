@@ -13,20 +13,19 @@ import time
 # No datetime imports needed for current tests
 import pytest
 
-from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_health_check import (
+from cyberdelta.apis.websocket.enums import HealthStatus, WebSocketErrorCode
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.metrics.error_metrics import (
+    WebSocketErrorMetricsCollector,
+)
+from cyberdelta.apis.websocket.models.health import (
     ComponentStatus,
     HealthCheckConfig,
-    HealthStatus,
     PerformanceHealth,
     SystemHealth,
     WebSocketErrorHealthCheck,
 )
-from cyberdelta.apis.websocket.ws_error_metrics_collector import (
-    WebSocketErrorMetricsCollector,
-)
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 
 
 class TestWebSocketErrorHealthCheck:

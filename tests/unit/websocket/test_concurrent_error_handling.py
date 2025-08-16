@@ -17,10 +17,12 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
-from cyberdelta.apis.websocket.ws_stream_recovery import StreamRecoverySystem
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.recovery import RecoveryExecutor
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorConfig,
     WebSocketErrorMetricsConfig,
@@ -214,7 +216,7 @@ class TestConcurrentErrorHandling:
         mock_connection_manager: MagicMock,
     ) -> None:
         """Test concurrent recovery attempts for multiple errors."""
-        recovery_system = StreamRecoverySystem(
+        recovery_system = RecoveryExecutor(
             config=recovery_config,
             connection_manager=mock_connection_manager,
             subscription_manager=MagicMock(),
@@ -280,7 +282,7 @@ class TestConcurrentErrorHandling:
         mock_connection_manager: MagicMock,
     ) -> None:
         """Test circuit breaker behavior under concurrent load."""
-        recovery_system = StreamRecoverySystem(
+        recovery_system = RecoveryExecutor(
             config=recovery_config,
             connection_manager=mock_connection_manager,
             subscription_manager=MagicMock(),
@@ -369,9 +371,9 @@ class TestConcurrentErrorHandling:
     ) -> None:
         """Test that the system doesn't deadlock under concurrent load."""
         # Create multiple recovery systems that might compete for resources
-        systems: list[StreamRecoverySystem] = []
+        systems: list[RecoveryExecutor] = []
         for _ in range(3):
-            system = StreamRecoverySystem(
+            system = RecoveryExecutor(
                 config=recovery_config,
                 connection_manager=MagicMock(
                     reconnect=AsyncMock(side_effect=self._simulate_reconnect)
@@ -485,7 +487,7 @@ class TestConcurrentErrorHandling:
         resources_allocated: list[str] = []
         resources_freed: list[str] = []
 
-        class TrackedRecoverySystem(StreamRecoverySystem):
+        class TrackedRecoverySystem(RecoveryExecutor):
             """Recovery system that tracks resource usage."""
 
             async def _allocate_resource(self, resource_id: str) -> None:

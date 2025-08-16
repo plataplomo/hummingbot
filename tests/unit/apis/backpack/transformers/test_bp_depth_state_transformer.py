@@ -344,8 +344,9 @@ class TestOrderBookState:
     @settings(max_examples=100, deadline=None)
     def test_invalid_update_ids_rejection_properties(self, invalid_id: str) -> None:
         """Property: Invalid update IDs should always be rejected."""
-        from cyberdelta.exceptions.parsing import EmptyStringError
         from pydantic import ValidationError
+
+        from cyberdelta.exceptions.parsing import EmptyStringError
 
         state = OrderBookState()
 

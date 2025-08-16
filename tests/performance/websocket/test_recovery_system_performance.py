@@ -13,9 +13,9 @@ import time
 import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_recovery import StreamRecoverySystem
+from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.recovery import RecoveryExecutor
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorRecoveryConfig
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
@@ -28,7 +28,7 @@ class TestRecoverySystemPerformance:
         # Target: < 5ms to decide on recovery strategy
         target_time_ms = 5
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         # Warm up
         for _ in range(10):
@@ -58,7 +58,7 @@ class TestRecoverySystemPerformance:
             WebSocketRecoveryStrategy.FULL_RECONNECT: 10,  # 10ms
         }
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         for strategy, target_ms in strategy_targets.items():
             _error = WebSocketStreamError(
@@ -90,7 +90,7 @@ class TestRecoverySystemPerformance:
         count = 100
         target_total_time_ms = 10
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         # Create different types of errors
         error_types = [
@@ -139,7 +139,7 @@ class TestRecoverySystemPerformance:
         # Target: < 1ms for retry delay calculations
         target_time_ms = 1
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         # Test with different retry counts
         retry_counts = [0, 1, 2, 3, 5, 10]
@@ -169,7 +169,7 @@ class TestRecoverySystemPerformance:
         # Target: < 0.5ms to categorize errors
         target_time_ms = 0.5
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         # Test all error codes
         all_error_codes = list(WebSocketErrorCode)
@@ -200,7 +200,7 @@ class TestRecoverySystemPerformance:
         # Target: < 50ms for async recovery operations
         target_time_ms = 50
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
 
@@ -224,7 +224,7 @@ class TestRecoverySystemPerformance:
         concurrent_count = 10
         target_total_time_ms = 100
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         # Create different errors for concurrent processing
         errors = [
@@ -258,7 +258,7 @@ class TestRecoverySystemPerformance:
         # Target: < 2ms to track recovery attempts
         target_time_ms = 2
 
-        recovery_system = StreamRecoverySystem(
+        recovery_system = RecoveryExecutor(
             config=WebSocketErrorRecoveryConfig()  # Use default configuration
         )
 
@@ -281,7 +281,7 @@ class TestRecoverySystemPerformance:
         # Target: < 1ms to evaluate circuit breaker
         target_time_ms = 1
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
 
@@ -306,7 +306,7 @@ class TestRecoverySystemPerformance:
         # Target: performance should scale linearly
         max_time_per_error_ms = 0.5  # 0.5ms per error
 
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         # Create various types of errors
         errors: list[WebSocketStreamError] = []
@@ -347,7 +347,7 @@ class TestRecoverySystemPerformance:
     def test_recovery_memory_efficiency(self) -> None:
         """Test memory efficiency of recovery operations."""
         # Target: recovery operations should not accumulate excessive memory
-        recovery_system = StreamRecoverySystem(config=WebSocketErrorRecoveryConfig())
+        recovery_system = RecoveryExecutor(config=WebSocketErrorRecoveryConfig())
 
         # Perform many recovery operations
         for _i in range(1000):

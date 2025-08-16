@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_stream_recovery import StreamRecoverySystem
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.recovery import RecoveryExecutor
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorRecoveryConfig
 from tests.utils.websocket.error_test_utils import (
     ErrorScenarioGenerator,
@@ -84,13 +84,13 @@ class TestRecoveryStrategyCoverage:
         mock_connection_manager: MagicMock,
         mock_subscription_manager: MagicMock,
         mock_state_manager: MagicMock,
-    ) -> StreamRecoverySystem:
+    ) -> RecoveryExecutor:
         """Create recovery system with mocked dependencies.
 
         Returns:
-            StreamRecoverySystem: Recovery system configured with mock dependencies for testing.
+            RecoveryExecutor: Recovery system configured with mock dependencies for testing.
         """
-        return StreamRecoverySystem(
+        return RecoveryExecutor(
             config=recovery_config,
             connection_manager=mock_connection_manager,
             subscription_manager=mock_subscription_manager,
@@ -175,7 +175,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_immediate_retry_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         mock_connection_manager: MagicMock,
     ) -> None:
         """Test immediate retry recovery strategy."""
@@ -189,7 +189,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_exponential_backoff_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
     ) -> None:
         """Test exponential backoff recovery strategy."""
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.RATE_LIMITED)
@@ -209,7 +209,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_reconnect_same_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         mock_connection_manager: MagicMock,
     ) -> None:
         """Test reconnect to same endpoint strategy."""
@@ -224,7 +224,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_full_reconnect_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         mock_connection_manager: MagicMock,
     ) -> None:
         """Test full reconnect strategy."""
@@ -239,7 +239,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_resubscribe_all_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         mock_subscription_manager: MagicMock,
     ) -> None:
         """Test resubscribe all channels strategy."""
@@ -257,7 +257,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_circuit_breaker_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
     ) -> None:
         """Test circuit breaker recovery strategy."""
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.STREAM_CORRUPTED)
@@ -277,7 +277,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_fallback_exchange_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
     ) -> None:
         """Test fallback to alternative exchange strategy."""
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.EXCHANGE_UNAVAILABLE)
@@ -291,7 +291,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_degrade_service_strategy(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         mock_subscription_manager: MagicMock,
     ) -> None:
         """Test service degradation strategy."""
@@ -379,7 +379,7 @@ class TestRecoveryStrategyCoverage:
 
     async def test_recovery_attempt_limits(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
     ) -> None:
         """Test that recovery attempts are limited."""
         error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)

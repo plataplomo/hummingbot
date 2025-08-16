@@ -28,8 +28,7 @@ from hypothesis import assume, given, settings, strategies as st
 
 from cyberdelta.apis.backpack.bp_validators import BackpackValidators
 from cyberdelta.apis.hyperliquid.hl_validators import HyperliquidValidators
-from cyberdelta.apis.websocket.ws_validators import WebSocketPayloadValidators
-from tests.common_symbols import SOL_BP
+from cyberdelta.apis.websocket.security.validators import WebSocketPayloadValidators
 
 
 # =============================================================================
@@ -77,7 +76,7 @@ def valid_dict_payload_strategy(
         )
     )
 
-    return dict(zip(keys, values))
+    return dict(zip(keys, values, strict=False))
 
 
 @st.composite
@@ -159,17 +158,16 @@ def numeric_string_strategy(draw: st.DrawFn, allow_negative: bool = True) -> str
         # Integer
         value = draw(st.integers(min_value=-1000000 if allow_negative else 0, max_value=1000000))
         return str(value)
-    else:
-        # Decimal
-        value = draw(
-            st.floats(
-                min_value=-1000000.0 if allow_negative else 0.0,
-                max_value=1000000.0,
-                allow_nan=False,
-                allow_infinity=False,
-            )
+    # Decimal
+    value = draw(
+        st.floats(
+            min_value=-1000000.0 if allow_negative else 0.0,
+            max_value=1000000.0,
+            allow_nan=False,
+            allow_infinity=False,
         )
-        return str(value)
+    )
+    return str(value)
 
 
 # =============================================================================

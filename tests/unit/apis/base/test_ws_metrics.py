@@ -4,14 +4,10 @@ from datetime import UTC, datetime
 
 import pytest
 
+from cyberdelta.apis.websocket.enums import MetricUnit, WSMetricType
+from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
+from cyberdelta.apis.websocket.models.general_metrics import MetricPoint, MetricSummary
 from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
-from cyberdelta.apis.websocket.ws_metrics import (
-    MetricPoint,
-    MetricSummary,
-    MetricUnit,
-    WebSocketMetricsCollector,
-    WSMetricType,
-)
 from cyberdelta.enums import ExchangeName
 
 

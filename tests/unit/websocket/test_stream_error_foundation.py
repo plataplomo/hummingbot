@@ -16,6 +16,7 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorTimestampMixin,
     WebSocketRecoveryStrategy,
 )
+from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.exceptions import (
     WebSocketAuthenticationError,
     WebSocketConnectionError,
@@ -25,11 +26,10 @@ from cyberdelta.apis.websocket.exceptions import (
     WebSocketSubscriptionLimitError,
     WebSocketValidationError,
 )
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_validator import StreamErrorContextValidator
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.memory.stream_log_data import WebSocketStreamLogData
+from cyberdelta.apis.websocket.validation.error_validator import StreamErrorContextValidator
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_log_data import WebSocketStreamLogData
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorAlertingConfig,
     WebSocketErrorConfig,

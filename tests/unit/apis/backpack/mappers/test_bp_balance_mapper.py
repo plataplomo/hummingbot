@@ -285,7 +285,7 @@ class TestBalanceValidationProperties:
         )
 
         # Invalid values should be converted to zero
-        assert result.available_quantity == Decimal("0")
+        assert result.available_quantity == Decimal(0)
 
     @given(available=st.decimals(min_value=Decimal(-1000), max_value=Decimal("-0.01"), places=8))
     def test_negative_balance_handling(self, available: Decimal) -> None:

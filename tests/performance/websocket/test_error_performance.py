@@ -20,20 +20,24 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
+from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_events import (
+    LoggingEventHandler,
+    WebSocketErrorEventPublisher,
+)
+from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+    WebSocketErrorHandlerFactory,
+)
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
 from cyberdelta.apis.websocket.exceptions import (
     WebSocketConnectionError,
     WebSocketSubscriptionError,
     WebSocketValidationError,
 )
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_events import (
-    LoggingEventHandler,
-    WebSocketErrorEventPublisher,
-)
-from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHandlerFactory
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.enums import ExchangeName
 
 

@@ -10,33 +10,38 @@ import asyncio
 import logging
 import time
 from typing import cast
+from typing import cast
 from unittest.mock import MagicMock, Mock
 
 import pytest
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
+from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_events import (
+    LoggingEventHandler,
+    SeverityEventFilter,
+    WebSocketErrorEventPublisher,
+)
+from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+    WebSocketErrorHandlerFactory,
+)
+from cyberdelta.apis.websocket.error_handling.error_handler_registry import (
+    WebSocketErrorHandlerRegistry,
+)
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
 from cyberdelta.apis.websocket.exceptions import (
     WebSocketConfigurationError,
     WebSocketConnectionError,
     WebSocketSubscriptionError,
 )
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_events import (
-    LoggingEventHandler,
-    SeverityEventFilter,
-    WebSocketErrorEventPublisher,
-)
-from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHandlerFactory
-from cyberdelta.apis.websocket.ws_error_handler_registry import (
-    WebSocketErrorHandlerRegistry,
-)
-from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.apis.websocket.ws_stream_recovery import (
-    StreamRecoverySystem,
+    RecoveryExecutor,
 )
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorConfig,
@@ -422,6 +427,7 @@ class TestErrorHandlerRegistry:
         assert health["registry_healthy"] is True
         assert health["active_handlers"] == 0
         issues = cast(list[str] | str, health["issues"])
+        issues = cast(list[str] | str, health["issues"])
         assert isinstance(issues, (list, str))
         assert "No active handlers registered" in issues
 
@@ -430,6 +436,7 @@ class TestErrorHandlerRegistry:
         health = registry.health_check()
         assert health["registry_healthy"] is True
         assert health["active_handlers"] == 1
+        issues = cast(list[str] | str, health["issues"])
         issues = cast(list[str] | str, health["issues"])
         assert isinstance(issues, (list, str))  # Type narrowing for mypy
         if isinstance(issues, list):
@@ -763,14 +770,14 @@ class TestRecoverySystemIntegration:
         mock_connection_manager: MockConnectionManager,
         mock_subscription_manager: MockSubscriptionManager,
         mock_state_manager: MockStateManager,
-    ) -> StreamRecoverySystem:
+    ) -> RecoveryExecutor:
         """Fixture for recovery system.
 
         Returns:
             Stream recovery system with mock dependencies.
         """
         logger = logging.getLogger("test_recovery")
-        return StreamRecoverySystem(
+        return RecoveryExecutor(
             config=recovery_config,
             connection_manager=mock_connection_manager,
             subscription_manager=mock_subscription_manager,
@@ -780,7 +787,7 @@ class TestRecoverySystemIntegration:
 
     async def test_full_reconnect_recovery(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         sample_error: WebSocketStreamError,
         mock_connection_manager: MockConnectionManager,
         mock_subscription_manager: MockSubscriptionManager,
@@ -805,7 +812,7 @@ class TestRecoverySystemIntegration:
 
     async def test_resubscribe_recovery(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         sample_error: WebSocketStreamError,
         mock_subscription_manager: MockSubscriptionManager,
     ) -> None:
@@ -827,7 +834,7 @@ class TestRecoverySystemIntegration:
 
     async def test_recovery_with_backoff(
         self,
-        recovery_system: StreamRecoverySystem,
+        recovery_system: RecoveryExecutor,
         sample_error: WebSocketStreamError,
     ) -> None:
         """Test recovery with backoff delays."""

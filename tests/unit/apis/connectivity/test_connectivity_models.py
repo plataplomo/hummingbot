@@ -22,7 +22,7 @@ SECURITY CRITICAL: Configuration errors can lead to:
 from typing import Any
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import given, settings, strategies as st
 from pydantic import AnyUrl, HttpUrl, ValidationError
 
 from cyberdelta.apis.connectivity.connectivity_models import (

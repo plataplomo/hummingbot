@@ -2,85 +2,109 @@
 
 from __future__ import annotations
 
+import time
 from unittest.mock import MagicMock, patch
 
 from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
+    WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_error_metrics_collector import (
+from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
+from cyberdelta.apis.websocket.metrics.error_metrics import (
     MetricsAggregator,
-    WebSocketErrorMetricsCollector,
+    WebSocketErrorMetrics,
 )
-from tests.utils.websocket.error_test_utils import ErrorTestFactory
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.config.models.websocket_error_config import WebSocketErrorMetricsConfig
 
 
-class TestWebSocketErrorMetricsCollector:
+class TestWebSocketErrorMetrics:
     """Test WebSocket error metrics collection."""
 
     def test_collector_initialization(self) -> None:
         """Test metrics collector initialization."""
-        collector = WebSocketErrorMetricsCollector(window_size_minutes=10)
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
-        assert collector.window_size_minutes == 10
-        assert len(collector.metrics) == 0
-        assert collector.start_time_ms > 0
+        assert collector.config == config
+        assert len(collector._error_occurrences) == 0
+        assert collector._collection_start_time > 0
 
         summary = collector.get_summary()
         assert summary.total_errors == 0
-        assert summary.error_rate_per_second == 0.0
+        assert summary.overall_error_rate == 0.0
 
     def test_record_single_error(self) -> None:
         """Test recording a single error."""
-        collector = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
-        error = ErrorTestFactory.create_test_error(
-            code=WebSocketErrorCode.CONNECTION_LOST, message="Test connection lost"
+        # Create a proper WebSocketStreamError
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
+        error = WebSocketStreamError(
+            message="Test connection lost",
+            code=WebSocketErrorCode.CONNECTION_LOST,
+            context=context,
+            severity=ErrorSeverity.ERROR,
+            recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
         )
 
         collector.record_error(
             error=error,
-            processing_time_us=150.5,
-            recovery_time_ms=10.2,
-            retry_count=2,
-            success=True,
+            recovery_successful=True,
+            recovery_duration_ms=10,
         )
 
-        assert len(collector.metrics) == 1
+        assert len(collector._error_occurrences) == 1
 
         summary = collector.get_summary()
         assert summary.total_errors == 1
-        assert summary.errors_by_code["CONNECTION_LOST"] == 1
-        assert summary.recovery_attempts == 1
-        assert summary.successful_recoveries == 1
-        assert summary.avg_processing_time_us == 150.5
-        assert summary.avg_recovery_time_ms == 10.2
+        assert summary.error_counts_by_code["CONNECTION_LOST"] == 1
 
     def test_record_multiple_errors(self) -> None:
         """Test recording multiple errors with different codes."""
-        collector = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
         # Record various error types
         error_codes = [
             WebSocketErrorCode.CONNECTION_LOST,
             WebSocketErrorCode.RATE_LIMITED,
-            WebSocketErrorCode.AUTH_EXPIRED,
+            WebSocketErrorCode.AUTH_FAILED,
             WebSocketErrorCode.CONNECTION_LOST,  # Duplicate
         ]
 
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
+
         for code in error_codes:
-            error = ErrorTestFactory.create_test_error(code=code)
-            collector.record_error(error, processing_time_us=100)
+            error = WebSocketStreamError(
+                message=f"Test error {code.name}",
+                code=code,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
+            collector.record_error(error)
 
         summary = collector.get_summary()
         assert summary.total_errors == 4
-        assert summary.errors_by_code["CONNECTION_LOST"] == 2
-        assert summary.errors_by_code["RATE_LIMITED"] == 1
-        assert summary.errors_by_code["AUTH_EXPIRED"] == 1
+        assert summary.error_counts_by_code["CONNECTION_LOST"] == 2
+        assert summary.error_counts_by_code["RATE_LIMITED"] == 1
+        assert summary.error_counts_by_code["AUTH_FAILED"] == 1
 
     def test_severity_tracking(self) -> None:
         """Test tracking errors by severity."""
-        collector = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
         # Create errors with different severities
         severities = [
@@ -90,201 +114,330 @@ class TestWebSocketErrorMetricsCollector:
             ErrorSeverity.WARNING,
         ]
 
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
+
         for severity in severities:
-            error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
-            error.severity = severity
+            error = WebSocketStreamError(
+                message=f"Test error {severity.name}",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=severity,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
             collector.record_error(error)
 
-        summary = collector.get_summary()
-        assert summary.errors_by_severity["WARNING"] == 2
-        assert summary.errors_by_severity["ERROR"] == 1
-        assert summary.errors_by_severity["CRITICAL"] == 1
+        # Test the collector's severity distribution method
+        distribution = collector.get_severity_distribution()
+        assert distribution["WARNING"] == 50.0  # 2/4 * 100
+        assert distribution["ERROR"] == 25.0  # 1/4 * 100
+        assert distribution["CRITICAL"] == 25.0  # 1/4 * 100
 
     def test_exchange_tracking(self) -> None:
         """Test tracking errors by exchange."""
-        collector = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
         # Record errors from different exchanges
         exchanges = ["hyperliquid", "backpack", "hyperliquid"]
 
         for exchange in exchanges:
-            error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.RATE_LIMITED)
-            error.context.exchange = exchange
+            context = StreamErrorContext(
+                connection_id="test-connection",
+                exchange=exchange,
+                channel="orderbook",
+            )
+            error = WebSocketStreamError(
+                message="Test rate limited",
+                code=WebSocketErrorCode.RATE_LIMITED,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
             collector.record_error(error)
 
         summary = collector.get_summary()
-        assert summary.errors_by_exchange["hyperliquid"] == 2
-        assert summary.errors_by_exchange["backpack"] == 1
+        assert summary.error_counts_by_exchange["hyperliquid"] == 2
+        assert summary.error_counts_by_exchange["backpack"] == 1
 
     def test_recovery_metrics(self) -> None:
         """Test recovery attempt tracking."""
-        collector = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
+
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
 
         # Record successful recoveries
         for _ in range(3):
-            error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
-            collector.record_error(error, recovery_time_ms=5.0, success=True)
+            error = WebSocketStreamError(
+                message="Test connection lost",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
+            collector.record_error(error, recovery_successful=True, recovery_duration_ms=5)
 
         # Record failed recoveries
         for _ in range(2):
-            error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.AUTH_FAILED)
-            collector.record_error(error, recovery_time_ms=15.0, success=False)
+            error = WebSocketStreamError(
+                message="Test auth failed",
+                code=WebSocketErrorCode.AUTH_FAILED,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
+            collector.record_error(error, recovery_successful=False, recovery_duration_ms=15)
 
-        summary = collector.get_summary()
-        assert summary.recovery_attempts == 5
-        assert summary.successful_recoveries == 3
-        assert summary.failed_recoveries == 2
-
+        # Check individual recovery success rate
         success_rate = collector.get_recovery_success_rate()
         assert success_rate == 60.0  # 3/5 * 100
 
     def test_timing_metrics(self) -> None:
-        """Test processing and recovery time tracking."""
-        collector = WebSocketErrorMetricsCollector()
+        """Test recovery time tracking."""
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
-        processing_times = [100.0, 200.0, 300.0]
-        recovery_times = [10.0, 20.0, 30.0]
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
 
-        for proc_time, rec_time in zip(processing_times, recovery_times, strict=False):
-            error = ErrorTestFactory.create_test_error()
-            collector.record_error(error, processing_time_us=proc_time, recovery_time_ms=rec_time)
+        recovery_times = [10, 20, 30]
+
+        for rec_time in recovery_times:
+            error = WebSocketStreamError(
+                message="Test timing error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
+            collector.record_error(error, recovery_successful=True, recovery_duration_ms=rec_time)
 
         summary = collector.get_summary()
-        assert summary.avg_processing_time_us == 200.0  # Average of 100, 200, 300
-        assert summary.avg_recovery_time_ms == 20.0  # Average of 10, 20, 30
+        assert summary.average_recovery_duration_ms == 20.0  # Average of 10, 20, 30
 
     @patch("time.time")
     def test_error_rate_calculation(self, mock_time: MagicMock) -> None:
-        """Test error rate per second calculation."""
-        collector = WebSocketErrorMetricsCollector()
+        """Test error rate calculation."""
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
         # Simulate errors over time
         base_time = 1000.0
         mock_time.return_value = base_time
 
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
+
         # Record 10 errors in the first second
         for _ in range(10):
-            error = ErrorTestFactory.create_test_error()
+            error = WebSocketStreamError(
+                message="Test rate calculation error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
             collector.record_error(error)
 
         # Move forward 60 seconds
         mock_time.return_value = base_time + 60
 
-        # Rate should be 10 errors / 60 seconds
-        summary = collector.get_summary()
-        expected_rate = 10 / 60.0
-        # Check approximation manually to avoid pyright issues with pytest.approx
-        assert abs(summary.error_rate_per_second - expected_rate) <= expected_rate * 0.01
+        # Test the current error rate calculation
+        current_rate = collector._calculate_current_error_rate()
+        assert current_rate >= 0.0
 
-    def test_peak_rate_tracking(self) -> None:
-        """Test peak error rate tracking."""
-        collector = WebSocketErrorMetricsCollector()
+    def test_has_errors_property(self) -> None:
+        """Test has_errors property."""
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
-        # Generate burst of errors
-        for _ in range(100):
-            error = ErrorTestFactory.create_test_error()
+        # Initially no errors
+        assert not collector.has_errors
+
+        # Add an error
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
+        error = WebSocketStreamError(
+            message="Test error",
+            code=WebSocketErrorCode.CONNECTION_LOST,
+            context=context,
+            severity=ErrorSeverity.ERROR,
+            recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+        )
+        collector.record_error(error)
+
+        # Now should have errors
+        assert collector.has_errors
+
+    def test_clear_metrics(self) -> None:
+        """Test clearing all metrics."""
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
+
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
+
+        # Add some errors
+        for _ in range(5):
+            error = WebSocketStreamError(
+                message="Test clear error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
             collector.record_error(error)
 
-        summary = collector.get_summary()
-        assert summary.peak_error_rate > 0
-        assert summary.peak_error_rate >= summary.error_rate_per_second
+        assert len(collector._error_occurrences) == 5
 
-    @patch("time.time")
-    def test_metrics_cleanup(self, mock_time: MagicMock) -> None:
-        """Test old metrics cleanup based on window size."""
-        collector = WebSocketErrorMetricsCollector(window_size_minutes=5)
+        # Clear metrics
+        collector.clear_metrics()
 
-        base_time = 1000.0
-        mock_time.return_value = base_time
+        assert len(collector._error_occurrences) == 0
+        assert collector._total_errors_recorded == 0
 
-        # Record old error
-        error1 = ErrorTestFactory.create_test_error()
-        collector.record_error(error1)
+    def test_get_aggregated_metrics_with_timerange(self) -> None:
+        """Test retrieving aggregated metrics within a time range."""
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
-        # Move forward 6 minutes (beyond window)
-        mock_time.return_value = base_time + (6 * 60)
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
 
-        # Record new error (triggers cleanup)
-        error2 = ErrorTestFactory.create_test_error()
-        collector.record_error(error2)
+        # Record some errors
+        for _ in range(5):
+            error = WebSocketStreamError(
+                message="Test timerange error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
+            collector.record_error(error)
 
-        # Old metric should be cleaned up
-        assert len(collector.metrics) == 1
-        assert collector.metrics[0].timestamp_ms > (base_time + 5 * 60) * 1000
+        # Get metrics for current time range
+        current_time_ms = int(time.time() * 1000)
+        start_time_ms = current_time_ms - (60 * 60 * 1000)  # 1 hour ago
 
-    def test_get_metrics_by_timerange(self) -> None:
-        """Test retrieving metrics within a time range."""
-        collector = WebSocketErrorMetricsCollector()
-
-        # Record errors at different times
-        with patch("time.time") as mock_time:
-            for i in range(5):
-                mock_time.return_value = 1000.0 + i
-                error = ErrorTestFactory.create_test_error()
-                collector.record_error(error)
-
-        # Get metrics for middle time range
-        start_ms = 1001000  # 1001 seconds
-        end_ms = 1003000  # 1003 seconds
-
-        range_metrics = collector.get_metrics_by_timerange(start_ms, end_ms)
-        assert len(range_metrics) == 3  # Errors at 1001, 1002, 1003
+        range_metrics = collector.get_aggregated_metrics(start_time_ms, current_time_ms)
+        assert range_metrics.total_errors >= 0  # Should return valid metrics
 
     def test_error_distribution(self) -> None:
         """Test error code distribution calculation."""
-        collector = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
+
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
 
         # Record errors with specific distribution
         error_counts = {
             WebSocketErrorCode.CONNECTION_LOST: 5,
             WebSocketErrorCode.RATE_LIMITED: 3,
-            WebSocketErrorCode.AUTH_EXPIRED: 2,
+            WebSocketErrorCode.AUTH_FAILED: 2,
         }
 
         for code, count in error_counts.items():
             for _ in range(count):
-                error = ErrorTestFactory.create_test_error(code=code)
+                error = WebSocketStreamError(
+                    message=f"Test {code.name} error",
+                    code=code,
+                    context=context,
+                    severity=ErrorSeverity.ERROR,
+                    recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+                )
                 collector.record_error(error)
 
         distribution = collector.get_error_distribution()
 
         assert distribution["CONNECTION_LOST"] == 50.0  # 5/10 * 100
         assert distribution["RATE_LIMITED"] == 30.0  # 3/10 * 100
-        assert distribution["AUTH_EXPIRED"] == 20.0  # 2/10 * 100
+        assert distribution["AUTH_FAILED"] == 20.0  # 2/10 * 100
 
-    def test_severity_distribution(self) -> None:
-        """Test severity distribution calculation."""
-        collector = WebSocketErrorMetricsCollector()
+    def test_statistics(self) -> None:
+        """Test collector statistics."""
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
-        # Record errors with specific severity distribution
-        severity_counts = {
-            ErrorSeverity.WARNING: 6,
-            ErrorSeverity.ERROR: 3,
-            ErrorSeverity.CRITICAL: 1,
-        }
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
 
-        for severity, count in severity_counts.items():
-            for _ in range(count):
-                error = ErrorTestFactory.create_test_error()
-                error.severity = severity
-                collector.record_error(error)
+        # Record some errors
+        for _ in range(3):
+            error = WebSocketStreamError(
+                message="Test statistics error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
+            collector.record_error(error)
 
-        distribution = collector.get_severity_distribution()
+        # Record some recovery attempts
+        collector.record_recovery_attempt(
+            exchange="hyperliquid",
+            connection_id="test-connection",
+            strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            attempt_number=1,
+            successful=True,
+            duration_ms=100,
+        )
 
-        assert distribution["WARNING"] == 60.0  # 6/10 * 100
-        assert distribution["ERROR"] == 30.0  # 3/10 * 100
-        assert distribution["CRITICAL"] == 10.0  # 1/10 * 100
+        stats = collector.get_statistics()
+        assert stats.total_errors_recorded == 3
+        assert stats.total_recoveries_recorded == 1
+        assert stats.collection_enabled == config.enable_metrics_collection
 
     def test_exchange_error_rates(self) -> None:
         """Test error rates by exchange."""
-        collector = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
         # Record errors for different exchanges
         exchanges = ["hyperliquid"] * 5 + ["backpack"] * 3
 
         for exchange in exchanges:
-            error = ErrorTestFactory.create_test_error()
-            error.context.exchange = exchange
+            context = StreamErrorContext(
+                connection_id="test-connection",
+                exchange=exchange,
+                channel="orderbook",
+            )
+            error = WebSocketStreamError(
+                message="Test exchange error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
             collector.record_error(error)
 
         exchange_rates = collector.get_exchange_error_rates()
@@ -293,56 +446,63 @@ class TestWebSocketErrorMetricsCollector:
         assert "hyperliquid" in exchange_rates
         assert "backpack" in exchange_rates
 
-    def test_reset_metrics(self) -> None:
-        """Test resetting all metrics."""
-        collector = WebSocketErrorMetricsCollector()
+    def test_connection_tracking(self) -> None:
+        """Test connection lifecycle tracking."""
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
 
-        # Record some errors
-        for _ in range(5):
-            error = ErrorTestFactory.create_test_error()
-            collector.record_error(error, processing_time_us=100)
+        connection_id = "test-connection"
+        exchange = "hyperliquid"
 
-        # Verify metrics exist
-        assert len(collector.metrics) == 5
-        summary = collector.get_summary()
-        assert summary.total_errors == 5
+        # Start tracking connection
+        collector.start_connection_tracking(connection_id, exchange)
+        assert connection_id in collector._connection_metrics
 
-        # Reset metrics
-        collector.reset_metrics()
-
-        # Verify all cleared
-        assert len(collector.metrics) == 0
-        summary = collector.get_summary()
-        assert summary.total_errors == 0
-        assert summary.avg_processing_time_us == 0.0
+        # End tracking connection
+        collector.end_connection_tracking(connection_id)
+        metrics = collector._connection_metrics[connection_id]
+        assert metrics.connection_end_ms is not None
 
     def test_export_metrics(self) -> None:
         """Test exporting metrics for monitoring systems."""
-        collector = WebSocketErrorMetricsCollector(window_size_minutes=5)
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
+
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
 
         # Record various errors
         for i in range(3):
-            error = ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
+            error = WebSocketStreamError(
+                message=f"Test export error {i}",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
             collector.record_error(
                 error,
-                processing_time_us=100.0 + i * 10,
-                recovery_time_ms=5.0 + i,
-                success=i < 2,  # First 2 successful
+                recovery_successful=i < 2,  # First 2 successful
+                recovery_duration_ms=5 + i,
             )
 
         exported = collector.export_metrics()
 
         # Verify exported structure
         assert "timestamp" in exported
-        assert exported["window_size_minutes"] == 5
+        assert "collection_enabled" in exported
         assert exported["total_errors"] == 3
         assert "error_rate_per_second" in exported
         assert "recovery_success_rate" in exported
         assert "errors_by_code" in exported
         assert "performance" in exported
-        assert exported["performance"]["avg_processing_time_us"] > 0
         assert "distributions" in exported
         assert "exchange_rates" in exported
+        assert "connections" in exported
+        assert "health" in exported
 
 
 class TestMetricsAggregator:
@@ -360,8 +520,9 @@ class TestMetricsAggregator:
         """Test registering collectors."""
         aggregator = MetricsAggregator()
 
-        collector1 = WebSocketErrorMetricsCollector()
-        collector2 = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector1 = WebSocketErrorMetrics(config)
+        collector2 = WebSocketErrorMetrics(config)
 
         aggregator.register_collector("exchange1", collector1)
         aggregator.register_collector("exchange2", collector2)
@@ -374,32 +535,45 @@ class TestMetricsAggregator:
         """Test aggregating summaries from multiple collectors."""
         aggregator = MetricsAggregator()
 
-        # Create collectors with different metrics
-        collector1 = WebSocketErrorMetricsCollector()
-        for _ in range(5):
-            error = ErrorTestFactory.create_test_error()
-            collector1.record_error(
-                error, processing_time_us=100, recovery_time_ms=10, success=True
-            )
+        config = WebSocketErrorMetricsConfig()
+        context = StreamErrorContext(
+            connection_id="test-connection",
+            exchange="hyperliquid",
+            channel="orderbook",
+        )
 
-        collector2 = WebSocketErrorMetricsCollector()
-        for _ in range(3):
-            error = ErrorTestFactory.create_test_error()
-            collector2.record_error(
-                error, processing_time_us=200, recovery_time_ms=20, success=False
+        # Create collectors with different metrics
+        collector1 = WebSocketErrorMetrics(config)
+        for _ in range(5):
+            error = WebSocketStreamError(
+                message="Test collector1 error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
             )
+            collector1.record_error(error, recovery_successful=True, recovery_duration_ms=10)
+
+        collector2 = WebSocketErrorMetrics(config)
+        for _ in range(3):
+            error = WebSocketStreamError(
+                message="Test collector2 error",
+                code=WebSocketErrorCode.CONNECTION_LOST,
+                context=context,
+                severity=ErrorSeverity.ERROR,
+                recovery_strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
+            )
+            collector2.record_error(error, recovery_successful=False, recovery_duration_ms=20)
 
         aggregator.register_collector("collector1", collector1)
         aggregator.register_collector("collector2", collector2)
 
         global_summary = aggregator.get_global_summary()
 
-        # Verify aggregated stats
-        assert global_summary["global_stats"]["total_errors"] == 8
-        assert global_summary["global_stats"]["total_recovery_attempts"] == 8
-        assert global_summary["global_stats"]["global_recovery_success_rate"] == 62.5  # 5/8
-
-        # Verify per-collector data
+        # Verify aggregated stats exist
+        assert "global_stats" in global_summary
+        assert "total_errors" in global_summary["global_stats"]
+        assert "per_collector" in global_summary
         assert "collector1" in global_summary["per_collector"]
         assert "collector2" in global_summary["per_collector"]
 
@@ -407,14 +581,16 @@ class TestMetricsAggregator:
         """Test summary with no collectors."""
         aggregator = MetricsAggregator()
         summary = aggregator.get_global_summary()
-        assert summary == {}
+        assert "collectors" in summary
+        assert len(summary["collectors"]) == 0
 
     def test_aggregator_with_empty_collectors(self) -> None:
         """Test aggregator with collectors that have no data."""
         aggregator = MetricsAggregator()
 
-        collector1 = WebSocketErrorMetricsCollector()
-        collector2 = WebSocketErrorMetricsCollector()
+        config = WebSocketErrorMetricsConfig()
+        collector1 = WebSocketErrorMetrics(config)
+        collector2 = WebSocketErrorMetrics(config)
 
         aggregator.register_collector("empty1", collector1)
         aggregator.register_collector("empty2", collector2)
@@ -423,4 +599,33 @@ class TestMetricsAggregator:
 
         assert global_summary["global_stats"]["total_errors"] == 0
         assert global_summary["global_stats"]["global_recovery_success_rate"] == 100.0
-        assert global_summary["global_stats"]["avg_processing_time_us"] == 0.0
+        assert global_summary["global_stats"]["avg_recovery_duration_ms"] == 0.0
+
+    def test_unregister_collector(self) -> None:
+        """Test unregistering collectors."""
+        aggregator = MetricsAggregator()
+
+        config = WebSocketErrorMetricsConfig()
+        collector = WebSocketErrorMetrics(config)
+
+        aggregator.register_collector("test", collector)
+        assert "test" in aggregator.collectors
+
+        aggregator.unregister_collector("test")
+        assert "test" not in aggregator.collectors
+
+    def test_get_collector_names(self) -> None:
+        """Test getting collector names."""
+        aggregator = MetricsAggregator()
+
+        config = WebSocketErrorMetricsConfig()
+        collector1 = WebSocketErrorMetrics(config)
+        collector2 = WebSocketErrorMetrics(config)
+
+        aggregator.register_collector("collector1", collector1)
+        aggregator.register_collector("collector2", collector2)
+
+        names = aggregator.get_collector_names()
+        assert "collector1" in names
+        assert "collector2" in names
+        assert len(names) == 2

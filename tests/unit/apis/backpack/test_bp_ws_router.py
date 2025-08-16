@@ -16,9 +16,11 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
 from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import BackpackTickerMapper
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
-from cyberdelta.apis.websocket.ws_registry_factory import WebSocketRegistryFactory
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 

@@ -14,6 +14,9 @@ from unittest.mock import Mock
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
 from cyberdelta.apis.websocket.ws_processor import PydanticWebSocketProcessor
 from cyberdelta.apis.websocket.ws_processor_error_context import (
     ProcessorErrorContextBuilder,
@@ -21,7 +24,6 @@ from cyberdelta.apis.websocket.ws_processor_error_context import (
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
 from cyberdelta.enums import ExchangeName
 
 

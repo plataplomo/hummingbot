@@ -13,10 +13,12 @@ from io import StringIO
 
 import pytest
 
-from cyberdelta.apis.websocket.ws_error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
-from cyberdelta.apis.websocket.ws_stream_log_data import WebSocketStreamLogData
+from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
+    WebSocketStreamErrorHandler,
+)
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.memory.stream_log_data import WebSocketStreamLogData
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorConfig,
     WebSocketErrorMetricsConfig,
