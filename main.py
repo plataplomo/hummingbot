@@ -18,7 +18,9 @@ import asyncio
 import os
 import signal
 import sys
-from typing import NoReturn, TypedDict
+from typing import NoReturn
+
+from pydantic.dataclasses import dataclass
 
 from cyberdelta.apis.base.exchange_api import ExchangeAPI
 from cyberdelta.application.trading_engine import TradingEngine
@@ -42,8 +44,12 @@ from cyberdelta.infrastructure.persistence.file_repository import FilePortfolioS
 from cyberdelta.infrastructure.validation.validation_service import ValidationService
 
 
-class ServiceRegistry(TypedDict):
-    """Type-safe service registry following CODING_STANDARDS.md."""
+@dataclass
+class ServiceRegistry:
+    """Type-safe service registry following CODING_STANDARDS.md.
+
+    Using Pydantic dataclass for better runtime validation and IDE support.
+    """
 
     portfolio: PortfolioService
     market_data: MarketDataService
@@ -258,15 +264,15 @@ class TradingEngineBootstrap:
         )
 
         # Create type-safe service registry with all services properly initialized
-        services: ServiceRegistry = {
-            "portfolio": portfolio_service,
-            "market_data": market_data_service,
-            "risk": risk_service,
-            "signal": signal_service,
-            "strategy": strategy_service,
-            "trading": trading_service,
-            "execution": execution_engine,
-        }
+        services = ServiceRegistry(
+            portfolio=portfolio_service,
+            market_data=market_data_service,
+            risk=risk_service,
+            signal=signal_service,
+            strategy=strategy_service,
+            trading=trading_service,
+            execution=execution_engine,
+        )
 
         logger.info(
             "all_services_initialized",
@@ -307,13 +313,13 @@ class TradingEngineBootstrap:
         trading_engine = TradingEngine(
             config=self.config,
             event_bus=event_bus,
-            market_data_service=services["market_data"],
-            trading_service=services["trading"],
-            portfolio_service=services["portfolio"],
-            risk_service=services["risk"],
-            signal_service=services["signal"],
-            strategy_service=services["strategy"],
-            execution_engine=services["execution"],
+            market_data_service=services.market_data,
+            trading_service=services.trading,
+            portfolio_service=services.portfolio,
+            risk_service=services.risk,
+            signal_service=services.signal,
+            strategy_service=services.strategy,
+            execution_engine=services.execution,
         )
 
         logger.info(
