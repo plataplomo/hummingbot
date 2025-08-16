@@ -9,7 +9,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 
 
 class ErrorOccurrence(BaseModel):

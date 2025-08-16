@@ -28,7 +28,7 @@ from cyberdelta.apis.common.base_types import DomainModelProtocol
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
 from cyberdelta.apis.websocket.exceptions import WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.symbols import Symbol
 

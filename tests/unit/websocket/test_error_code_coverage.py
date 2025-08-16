@@ -12,7 +12,7 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from tests.utils.websocket.error_test_utils import (
     ErrorAssertions,
     ErrorScenarioGenerator,

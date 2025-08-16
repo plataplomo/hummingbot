@@ -12,7 +12,7 @@ from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
-from cyberdelta.apis.websocket.enums import HealthStatus
+from cyberdelta.apis.enums.websocket import HealthStatus
 
 
 class ComponentStatus(BaseModel):

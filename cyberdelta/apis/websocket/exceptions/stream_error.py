@@ -14,7 +14,7 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorTimestampMixin,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.websocket.memory.stream_log_data import WebSocketStreamLogData
 
 

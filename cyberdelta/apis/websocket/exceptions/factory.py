@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 # Import the error codes
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 
 from .base import (
     WebSocketDataValidationError,

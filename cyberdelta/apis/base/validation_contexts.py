@@ -20,7 +20,7 @@ from cyberdelta.apis.base.validation_policies import (
     TimestampPolicy,
 )
 from cyberdelta.apis.exceptions.configuration_validation import ValidationRangeError
-from cyberdelta.apis.websocket.websocket_states import DataPresenceState
+from cyberdelta.apis.enums.websocket import DataPresenceState
 
 
 class ErrorDataPolicy(Enum):

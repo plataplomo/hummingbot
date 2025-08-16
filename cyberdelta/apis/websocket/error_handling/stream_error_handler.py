@@ -18,7 +18,7 @@ from cyberdelta.apis.common.error_foundation import (
     TypedLogger,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.websocket.error_handling.recovery.recovery_executor import RecoveryExecutor
 from cyberdelta.apis.websocket.error_handling.recovery.recovery_policy import RecoveryPolicyManager
 from cyberdelta.apis.websocket.exceptions import (

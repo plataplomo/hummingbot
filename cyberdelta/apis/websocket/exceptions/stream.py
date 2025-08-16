@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING
 
 # Import required types for subscription errors
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 
 from .base import WebSocketConfigurationError, WebSocketError
 

@@ -37,7 +37,7 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
 )
 from cyberdelta.apis.common.types import MessageHandler
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError, WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_processor import (
     PydanticWebSocketProcessor,

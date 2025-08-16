@@ -23,7 +23,7 @@ from cyberdelta.config.structlog_config import get_logger
 if TYPE_CHECKING:
     from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
 
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
     WebSocketStreamErrorHandler,
 )

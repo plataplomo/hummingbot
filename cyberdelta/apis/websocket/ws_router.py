@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 from cyberdelta.apis.base.infrastructure_config_domain import (
     MemoryOptimizationMode,
 )
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 
 # Old error_recovery imports removed - using unified recovery system
 from cyberdelta.apis.websocket.error_handling.stream_error_handler import (

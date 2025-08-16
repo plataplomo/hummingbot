@@ -6,6 +6,8 @@ for WebSocket connections and message processing.
 
 from enum import Enum
 
+from cyberdelta.apis.enums.websocket import DataPresenceState, FieldPresenceState
+
 
 class CancellationState(Enum):
     """WebSocket cancellation state for connection management.
@@ -92,40 +94,8 @@ class OperationResult(Enum):
         return self in {OperationResult.FAILURE, OperationResult.TIMEOUT}
 
 
-class FieldPresenceState(Enum):
-    """State of field presence in WebSocket messages.
-
-    Replaces boolean has_field parameters in validation checks.
-    """
-
-    PRESENT = "present"
-    """Field is present in the message."""
-
-    ABSENT = "absent"
-    """Field is absent from the message."""
-
-    @property
-    def is_present(self) -> bool:
-        """Check if field is present."""
-        return self == FieldPresenceState.PRESENT
-
-
-class DataPresenceState(Enum):
-    """State of data presence for error handling.
-
-    Replaces boolean has_data parameter.
-    """
-
-    PRESENT = "present"
-    """Data is present (was has_data=True)."""
-
-    ABSENT = "absent"
-    """Data is absent (was has_data=False)."""
-
-    @property
-    def is_present(self) -> bool:
-        """Check if data is present."""
-        return self == DataPresenceState.PRESENT
+# DataPresenceState and FieldPresenceState moved to cyberdelta.enums.data_states
+# to avoid circular imports with base validation contexts
 
 
 __all__ = [

@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from cyberdelta.apis.websocket.enums import MetricUnit, WSMetricType
+from cyberdelta.apis.enums.websocket import MetricUnit, WSMetricType
 
 
 class MetricPoint(BaseModel):

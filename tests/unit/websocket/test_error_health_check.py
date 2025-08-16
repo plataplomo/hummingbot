@@ -13,7 +13,7 @@ import time
 # No datetime imports needed for current tests
 import pytest
 
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.websocket.ws_error_health_check import (
     ComponentStatus,
     HealthCheckConfig,

@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.enums import HealthStatus, WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import HealthStatus, WebSocketErrorCode
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.apis.websocket.metrics.error_metrics import (
     WebSocketErrorMetrics,
