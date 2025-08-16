@@ -50,7 +50,7 @@ if TYPE_CHECKING:
 RAW_MESSAGE_TRUNCATE_LENGTH = 200  # Max length for raw message in error context
 
 
-class UnifiedWebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
+class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
     """Unified error handler for WebSocket streams.
 
     This handler uses the unified recovery system for consistent error handling
@@ -87,7 +87,7 @@ class UnifiedWebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
         else:
             self._logger = self
             self._python_logger = logging.getLogger(__name__)
-        self._structlog_logger = get_logger("UnifiedWebSocketErrorHandler")
+        self._structlog_logger = get_logger("WebSocketErrorHandler")
 
         # Initialize metrics if enabled
         self._metrics: WebSocketErrorMetrics | None

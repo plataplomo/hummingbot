@@ -65,9 +65,9 @@ if TYPE_CHECKING:
         TickerMapperProtocol,
         TransactionMapperProtocol,
     )
-    # BaseErrorHandler import removed - deprecated and not used
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+    # Import WebSocket error handler
+from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+    WebSocketErrorHandler,
 )
 
 
@@ -98,7 +98,7 @@ class BackpackWebSocketRouter(
 
     def __init__(
         self,
-        stream_error_handler: WebSocketStreamErrorHandler,
+        stream_error_handler: WebSocketErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
         order_book_mapper: OrderBookMapperProtocol,
         ticker_mapper: TickerMapperProtocol,

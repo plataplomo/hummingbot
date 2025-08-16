@@ -33,28 +33,19 @@ from .recovery.recovery_executor import RecoveryExecutor
 from .recovery.recovery_policy import RecoveryPolicyManager
 from .recovery_strategy_router import RecoveryStrategyRouter
 
-# WebSocketStreamError moved to exceptions module
-from .stream_error_handler import WebSocketStreamErrorHandler
+# Import WebSocket error handler
+from .websocket_error_handler import WebSocketErrorHandler
 
 
 __all__ = [
-    # Error codes (moved to enums module)
-    # "WebSocketErrorCode",
-    # Event handling
     "LoggingEventHandler",
-    # Unified recovery system
     "RecoveryExecutor",
     "RecoveryPolicyManager",
-    # Recovery routing
     "RecoveryStrategyRouter",
     "SeverityEventFilter",
-    # Validation
     "StreamErrorContextValidator",
     "WebSocketErrorEventPublisher",
-    # Handler factory and registry
+    "WebSocketErrorHandler",
     "WebSocketErrorHandlerFactory",
     "WebSocketErrorHandlerRegistry",
-    # Stream error handling
-    # "WebSocketStreamError" moved to exceptions module
-    "WebSocketStreamErrorHandler",
 ]

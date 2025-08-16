@@ -16,10 +16,8 @@ from cyberdelta.apis.websocket.error_handling.recovery import (
     StateManagerProtocol,
     SubscriptionManagerProtocol,
 )
-from cyberdelta.apis.websocket.error_handling.recovery.recovery_executor import RecoveryExecutor
-from cyberdelta.apis.websocket.error_handling.recovery.recovery_policy import RecoveryPolicyManager
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketConfigurationError
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
@@ -88,8 +86,8 @@ class WebSocketErrorHandlerFactory:
         connection_manager: ConnectionManagerProtocol | None = None,
         subscription_manager: SubscriptionManagerProtocol | None = None,
         state_manager: StateManagerProtocol | None = None,
-    ) -> WebSocketStreamErrorHandler:
-        """Create a WebSocket error handler for the specified exchange.
+    ) -> WebSocketErrorHandler:
+        """Create a unified WebSocket error handler for the specified exchange.
 
         Args:
             exchange: Exchange enum value
@@ -101,7 +99,7 @@ class WebSocketErrorHandlerFactory:
             state_manager: Optional state manager for recovery
 
         Returns:
-            WebSocketStreamErrorHandler: Configured error handler
+            WebSocketErrorHandler: Configured unified error handler
 
         Raises:
             WebSocketConfigurationError: If exchange is not supported
@@ -125,38 +123,32 @@ class WebSocketErrorHandlerFactory:
         if logger is None:
             logger = logging.getLogger(f"websocket.{exchange.value}.error_handler")
 
-        # Create unified recovery system
-        if any([connection_manager, subscription_manager, state_manager]):
-            # Create unified recovery system with managers
-            recovery_policy = RecoveryPolicyManager(config)
-            recovery_executor = RecoveryExecutor(
-                policy=recovery_policy,
-                connection_manager=connection_manager,
-                subscription_manager=subscription_manager,
-                state_manager=state_manager,
-            )
-        else:
-            # Create default unified system
-            recovery_policy = RecoveryPolicyManager(config)
-            recovery_executor = RecoveryExecutor(policy=recovery_policy)
-
-        # Create and configure the error handler
-        # Note: Pass None for logger since WebSocketStreamErrorHandler implements TypedLogger
+        # Create and configure the unified error handler
+        # Note: Pass None for logger since WebSocketErrorHandler implements TypedLogger
         # and can create its own Python logger internally
-        handler = WebSocketStreamErrorHandler(
+        handler = WebSocketErrorHandler(
             config=config,
             logger=None,
             metrics_collector=metrics_collector,
-            recovery_policy=recovery_policy,
-            recovery_executor=recovery_executor,
+            connection_manager=connection_manager,
+            subscription_manager=subscription_manager,
+            state_manager=state_manager,
+            message_buffer=None,  # Optional message buffer
         )
 
         # Log handler creation
+        recovery_status = (
+            "enabled"
+            if any([connection_manager, subscription_manager, state_manager])
+            else "default"
+        )
+        metrics_status = "enabled" if metrics_collector else "disabled"
+
         logger.info(
             "Created WebSocket error handler for exchange '%s' with recovery='%s', metrics='%s'",
             exchange.value,
-            "enabled" if recovery_policy and recovery_executor else "disabled",
-            "enabled" if metrics_collector else "disabled",
+            recovery_status,
+            metrics_status,
         )
 
         return handler
@@ -330,7 +322,7 @@ class WebSocketErrorHandlerFactory:
     def create_minimal_handler(
         exchange: ExchangeName,
         logger: Logger | None = None,
-    ) -> WebSocketStreamErrorHandler:
+    ) -> WebSocketErrorHandler:
         """Create a minimal error handler for testing or simple use cases.
 
         Args:
@@ -338,7 +330,7 @@ class WebSocketErrorHandlerFactory:
             logger: Optional logger instance
 
         Returns:
-            WebSocketStreamErrorHandler: Minimal error handler
+            WebSocketErrorHandler: Minimal error handler
         """
         # Create minimal configuration
         minimal_config = WebSocketErrorHandlerFactory.create_default_config(
@@ -366,7 +358,7 @@ class WebSocketErrorHandlerFactory:
         subscription_manager: SubscriptionManagerProtocol | None = None,
         state_manager: StateManagerProtocol | None = None,
         metrics_collector: WebSocketErrorMetrics | None = None,
-    ) -> WebSocketStreamErrorHandler:
+    ) -> WebSocketErrorHandler:
         """Create handler using application configuration.
 
         This method provides a higher-level interface that extracts

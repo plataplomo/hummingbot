@@ -19,8 +19,8 @@ from cyberdelta.apis.base.validation_policies import (
     StringPolicy,
     TimestampPolicy,
 )
-from cyberdelta.apis.exceptions.configuration_validation import ValidationRangeError
 from cyberdelta.apis.enums.websocket import DataPresenceState
+from cyberdelta.apis.exceptions.configuration_validation import ValidationRangeError
 
 
 class ErrorDataPolicy(Enum):

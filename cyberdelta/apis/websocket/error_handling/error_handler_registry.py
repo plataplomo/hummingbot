@@ -19,8 +19,8 @@ from cyberdelta.apis.websocket.error_handling.recovery import (
     StateManagerProtocol,
     SubscriptionManagerProtocol,
 )
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
@@ -57,9 +57,7 @@ class WebSocketErrorHandlerRegistry:
         self._logger = logger or logging.getLogger(__name__)
 
         # Use weak references to allow automatic cleanup
-        self._handlers: WeakValueDictionary[str, WebSocketStreamErrorHandler] = (
-            WeakValueDictionary()
-        )
+        self._handlers: WeakValueDictionary[str, WebSocketErrorHandler] = WeakValueDictionary()
 
         # Track handler configurations for recreation
         self._handler_configs: dict[str, WebSocketErrorConfig] = {}
@@ -81,7 +79,7 @@ class WebSocketErrorHandlerRegistry:
         subscription_manager: SubscriptionManagerProtocol | None = None,
         state_manager: StateManagerProtocol | None = None,
         metrics_collector: WebSocketErrorMetrics | None = None,
-    ) -> WebSocketStreamErrorHandler:
+    ) -> WebSocketErrorHandler:
         """Get or create an error handler for the specified exchange.
 
         Args:
@@ -94,7 +92,7 @@ class WebSocketErrorHandlerRegistry:
             metrics_collector: Optional metrics collector
 
         Returns:
-            WebSocketStreamErrorHandler: Error handler for the exchange
+            WebSocketErrorHandler: Error handler for the exchange
 
         """
         self._lookup_count += 1
@@ -247,7 +245,7 @@ class WebSocketErrorHandlerRegistry:
         subscription_manager: SubscriptionManagerProtocol | None,
         state_manager: StateManagerProtocol | None,
         metrics_collector: WebSocketErrorMetrics | None,
-    ) -> WebSocketStreamErrorHandler:
+    ) -> WebSocketErrorHandler:
         """Create a new error handler.
 
         Args:
@@ -297,7 +295,7 @@ class WebSocketErrorHandlerRegistry:
 
     def _is_handler_valid(
         self,
-        handler: WebSocketStreamErrorHandler,
+        handler: WebSocketErrorHandler,
         new_config: WebSocketErrorConfig | None,
     ) -> bool:
         """Check if a cached handler is still valid.

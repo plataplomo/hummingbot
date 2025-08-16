@@ -29,8 +29,8 @@ from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-        WebSocketStreamErrorHandler,
+    from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+        WebSocketErrorHandler,
     )
 
 
@@ -43,7 +43,7 @@ class RouterConfiguration:
     def __init__(self) -> None:
         """Initialize router configuration builder."""
         self.exchange_name: ExchangeName | None = None
-        self.stream_error_handler: WebSocketStreamErrorHandler | None = None
+        self.stream_error_handler: WebSocketErrorHandler | None = None
         self.typed_processor: TypeSafeWebSocketProcessor | None = None
         self.envelope_validator: Callable[[dict[str, Any]], Any] | None = None
         self.payload_validator: WebSocketPayloadValidators | None = None
@@ -66,7 +66,7 @@ class RouterConfiguration:
 
     def with_stream_error_handler(
         self,
-        stream_error_handler: WebSocketStreamErrorHandler,
+        stream_error_handler: WebSocketErrorHandler,
     ) -> RouterConfiguration:
         """Configure stream error handler.
 
@@ -236,7 +236,7 @@ def create_router_from_config(
 
 def create_standard_router(
     exchange_name: ExchangeName,
-    stream_error_handler: WebSocketStreamErrorHandler,
+    stream_error_handler: WebSocketErrorHandler,
     typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
 ) -> RouterConfiguration:
@@ -273,7 +273,7 @@ def create_standard_router(
 
 def create_high_frequency_router(
     exchange_name: ExchangeName,
-    stream_error_handler: WebSocketStreamErrorHandler,
+    stream_error_handler: WebSocketErrorHandler,
     typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     message_rate_per_second: int | None = None,
@@ -321,7 +321,7 @@ def create_high_frequency_router(
 
 def create_ultra_low_latency_router(
     exchange_name: ExchangeName,
-    stream_error_handler: WebSocketStreamErrorHandler,
+    stream_error_handler: WebSocketErrorHandler,
     typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
 ) -> RouterConfiguration:
@@ -358,7 +358,7 @@ def create_ultra_low_latency_router(
 
 def create_memory_optimized_router(
     exchange_name: ExchangeName,
-    stream_error_handler: WebSocketStreamErrorHandler,
+    stream_error_handler: WebSocketErrorHandler,
     typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     memory_limit_mb: float | None = None,
@@ -407,7 +407,7 @@ def create_memory_optimized_router(
 
 def auto_configure_router(
     exchange_name: ExchangeName,
-    stream_error_handler: WebSocketStreamErrorHandler,
+    stream_error_handler: WebSocketErrorHandler,
     typed_processor: TypeSafeWebSocketProcessor,
     envelope_validator: Callable[[dict[str, Any]], Any] | None = None,
     message_rate_per_second: int | None = None,

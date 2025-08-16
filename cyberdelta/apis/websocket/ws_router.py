@@ -18,9 +18,9 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
 )
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 
-# Old error_recovery imports removed - using unified recovery system
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+# Import WebSocket error handler
+from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import (
     EnvelopeValidatorNotSetError,
@@ -81,7 +81,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self,
         exchange_name: ExchangeName,
         typed_processor: TypeSafeWebSocketProcessor,
-        stream_error_handler: WebSocketStreamErrorHandler,
+        stream_error_handler: WebSocketErrorHandler,
         envelope_validator: Callable[[dict[str, Any]], EnvelopeType] | None = None,
         payload_validator: WebSocketPayloadValidators | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
@@ -96,7 +96,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
             envelope_validator: Optional envelope validator for type-safe message validation.
             payload_validator: Optional payload validator (default instance created if None).
             metrics_collector: Optional metrics collector for monitoring.
-            stream_error_handler: Optional typed WebSocket stream error handler.
+            stream_error_handler: Required WebSocket error handler.
             memory_optimization_mode: Mode for memory optimization in
                 high-frequency scenarios.
             memory_pool_size: Size of the memory pool for object reuse.

@@ -24,8 +24,8 @@ if TYPE_CHECKING:
     from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
 
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
@@ -95,7 +95,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         self,
         raw_model: type[T],
         transformer: MessageTransformer[T, U | list[U] | None],
-        stream_error_handler: WebSocketStreamErrorHandler,
+        stream_error_handler: WebSocketErrorHandler,
         processor_name: str | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
     ) -> None:
@@ -439,7 +439,7 @@ class ProcessorFactory:
     @staticmethod
     def create_simple_processor[T: BaseModel](
         raw_model: type[T],
-        stream_error_handler: WebSocketStreamErrorHandler,
+        stream_error_handler: WebSocketErrorHandler,
         processor_name: str | None = None,
     ) -> PydanticWebSocketProcessor[T, T]:
         """Create a processor with no transformation (model passed through as-is).
@@ -464,7 +464,7 @@ class ProcessorFactory:
     def create_processor[T: BaseModel, U: BaseModel](
         raw_model: type[T],
         transformer: MessageTransformer[T, U],
-        stream_error_handler: WebSocketStreamErrorHandler,
+        stream_error_handler: WebSocketErrorHandler,
         processor_name: str | None = None,
     ) -> PydanticWebSocketProcessor[T, U]:
         """Create a processor with custom transformation.

@@ -13,11 +13,12 @@ from .websocket import (
     WSMetricType,
 )
 
+
 __all__ = [
     "DataPresenceState",
     "FieldPresenceState",
     "HealthStatus",
     "MetricUnit",
-    "WebSocketErrorCode",
     "WSMetricType",
+    "WebSocketErrorCode",
 ]

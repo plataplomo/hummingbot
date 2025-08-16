@@ -63,8 +63,8 @@ class SymbolExtractionError(ValueError):
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-        WebSocketStreamErrorHandler,
+    from cyberdelta.apis.websocket.error_handling.websocket_error_handler import (
+        WebSocketErrorHandler,
     )
     from cyberdelta.models.market import (
         Fill,
@@ -218,7 +218,7 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
 
     def __init__(
         self,
-        stream_error_handler: WebSocketStreamErrorHandler,
+        stream_error_handler: WebSocketErrorHandler,
         order_book_mapper: BackpackOrderBookMapper,
         ticker_mapper: BackpackTickerMapper,
         trade_mapper: BackpackFillMapper,
