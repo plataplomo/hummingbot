@@ -46,6 +46,18 @@ class ProcessorErrorHandlingConfig(BaseModel):
     )
 
 
+class ProcessorMemoryConfig(BaseModel):
+    """Simple configuration for processor memory optimization."""
+
+    enable_memory_optimization: bool = Field(
+        default=False, description="Enable memory optimization"
+    )
+
+    pool_size: int = Field(
+        default=1000, ge=100, le=10000, description="Size of the memory pool for object reuse"
+    )
+
+
 class ProcessorPerformanceConfig(BaseModel):
     """Configuration for processor performance optimization."""
 
@@ -69,6 +81,11 @@ class ProcessorPerformanceConfig(BaseModel):
 
     batch_timeout_ms: int = Field(
         default=100, ge=10, le=1000, description="Maximum time to wait for batch to fill"
+    )
+
+    # Memory optimization settings
+    memory: ProcessorMemoryConfig = Field(
+        default_factory=ProcessorMemoryConfig, description="Memory optimization configuration"
     )
 
 

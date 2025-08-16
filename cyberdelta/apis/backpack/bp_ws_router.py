@@ -36,6 +36,7 @@ from cyberdelta.apis.backpack.models.bp_ws_payloads import (
 from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError, WebSocketSubscriptionError
@@ -107,19 +108,23 @@ class BackpackWebSocketRouter(
         position_mapper: PositionMapperProtocol,
         order_mapper: OrderMapperProtocol,
         transaction_mapper: TransactionMapperProtocol,
+        memory_optimization_mode: MemoryOptimizationMode,
+        memory_pool_size: int,
     ) -> None:
         """Initialize the Backpack WebSocket router.
 
         Args:
             stream_error_handler: Stream error handler for new architecture.
-            typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
-            order_book_mapper: Mapper for order book transformations.
-            ticker_mapper: Mapper for ticker transformations.
-            trade_mapper: Mapper for fill transformations.
-            balance_mapper: Mapper for balance transformations.
-            position_mapper: Mapper for position transformations.
-            order_mapper: Mapper for order transformations.
-            transaction_mapper: Mapper for transaction transformations.
+            typed_processor: Required typed processor.
+            order_book_mapper: Order book mapper.
+            ticker_mapper: Ticker mapper.
+            trade_mapper: Trade mapper.
+            balance_mapper: Balance mapper.
+            position_mapper: Position mapper.
+            order_mapper: Order mapper.
+            transaction_mapper: Transaction mapper.
+            memory_optimization_mode: Memory optimization mode from config.
+            memory_pool_size: Memory pool size from config.
 
         """
         self.order_book_mapper = order_book_mapper
@@ -134,6 +139,8 @@ class BackpackWebSocketRouter(
             exchange_name=ExchangeName.BACKPACK,
             typed_processor=typed_processor,
             stream_error_handler=stream_error_handler,
+            memory_optimization_mode=memory_optimization_mode,
+            memory_pool_size=memory_pool_size,
             envelope_validator=validate_backpack_envelope,
         )
 

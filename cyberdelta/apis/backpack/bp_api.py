@@ -45,8 +45,10 @@ from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
+from cyberdelta.apis.websocket.memory import get_memory_config_for_router
 from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
+from cyberdelta.config.models.websocket_processor_config import WebSocketProcessorConfig
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.base import RequiredParameterError
@@ -212,10 +214,17 @@ class BackpackAPI(ExchangeAPI):
             config=default_error_config.get_exchange_config(exchange_config.exchange_name),
         )
 
+        # Get WebSocket processor config with memory settings
+        processor_config = WebSocketProcessorConfig()
+        memory_config = processor_config.performance.memory
+
         # Create registry using Backpack-specific builder
         builder = BackpackRegistryBuilder()
         registry = builder.build_registry()
         typed_processor = TypeSafeWebSocketProcessor(registry)
+
+        # Get memory configuration from processor config (CODING_STANDARDS.md compliant)
+        memory_optimization_mode, memory_pool_size = get_memory_config_for_router(memory_config)
 
         self._bp_ws_router = BackpackWebSocketRouter(
             stream_error_handler=stream_error_handler,
@@ -227,6 +236,8 @@ class BackpackAPI(ExchangeAPI):
             position_mapper=factory.create_position_mapper(),
             order_mapper=factory.create_trading_data_mapper(),
             transaction_mapper=factory.create_transaction_mapper(),
+            memory_optimization_mode=memory_optimization_mode,
+            memory_pool_size=memory_pool_size,
         )
 
         # Use self._request directly, services will handle the tuple response

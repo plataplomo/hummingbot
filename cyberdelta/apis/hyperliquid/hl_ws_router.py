@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMids,
@@ -118,6 +119,8 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         self,
         stream_error_handler: WebSocketErrorHandler,
         typed_processor: TypeSafeWebSocketProcessor,
+        memory_optimization_mode: MemoryOptimizationMode,
+        memory_pool_size: int,
         order_book_mapper: OrderBookMapperProtocol,
         price_ticker_mapper: PriceTickerMapperProtocol,
         balance_mapper: BalanceMapperProtocol,
@@ -130,6 +133,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         Args:
             stream_error_handler: Stream error handler for new architecture.
+            typed_processor: Required typed processor.
+            memory_optimization_mode: Memory optimization mode from config.
+            memory_pool_size: Memory pool size from config.
             typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book and trade transformations.
             price_ticker_mapper: Mapper for price ticker transformations.
@@ -159,6 +165,8 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
             exchange_name=ExchangeName.HYPERLIQUID,
             typed_processor=typed_processor,
             stream_error_handler=stream_error_handler,
+            memory_optimization_mode=memory_optimization_mode,
+            memory_pool_size=memory_pool_size,
             envelope_validator=validate_hyperliquid_envelope,
         )
 

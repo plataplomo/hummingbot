@@ -82,11 +82,11 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         exchange_name: ExchangeName,
         typed_processor: TypeSafeWebSocketProcessor,
         stream_error_handler: WebSocketErrorHandler,
+        memory_optimization_mode: MemoryOptimizationMode,
+        memory_pool_size: int,
         envelope_validator: Callable[[dict[str, Any]], EnvelopeType] | None = None,
         payload_validator: WebSocketPayloadValidators | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
-        memory_optimization_mode: MemoryOptimizationMode = MemoryOptimizationMode.DISABLED,
-        memory_pool_size: int = 1000,
     ) -> None:
         """Initialize the WebSocket router.
 

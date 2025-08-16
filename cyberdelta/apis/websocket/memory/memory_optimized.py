@@ -2,10 +2,12 @@
 
 Provides basic memory pooling functionality without overengineering.
 Maintains the interface expected by router but with minimal complexity.
+Thread-safe for production use.
 """
 
 from __future__ import annotations
 
+import threading
 from collections import deque
 from typing import Any
 
@@ -38,7 +40,7 @@ class MemoryOptimizedMessageContext:
 
 
 class MemoryPool:
-    """Simple memory pool for context reuse."""
+    """Simple memory pool for context reuse with thread safety."""
 
     def __init__(self, pool_size: int = 1000) -> None:
         """Initialize memory pool.
@@ -50,6 +52,7 @@ class MemoryPool:
         self._context_pool: deque[MemoryOptimizedMessageContext] = deque(maxlen=pool_size)
         self._created_count = 0
         self._reused_count = 0
+        self._lock = threading.RLock()  # Reentrant lock for thread safety
 
     def get_context(
         self,
@@ -71,20 +74,24 @@ class MemoryPool:
         Returns:
             Memory-optimized context instance
         """
-        # Try to reuse from pool
-        if self._context_pool:
-            context = self._context_pool.popleft()
-            # Reset the context with new values
-            context.envelope_type = envelope_type
-            context.routing_key = routing_key
-            context.message_id = message_id
-            context.connection_id = connection_id
-            context.symbol = symbol
-            self._reused_count += 1
-            return context
+        # Thread-safe pool operations
+        with self._lock:
+            # Try to reuse from pool
+            if self._context_pool:
+                context = self._context_pool.popleft()
+                # Reset the context with new values
+                context.envelope_type = envelope_type
+                context.routing_key = routing_key
+                context.message_id = message_id
+                context.connection_id = connection_id
+                context.symbol = symbol
+                self._reused_count += 1
+                return context
 
-        # Create new if pool is empty
-        self._created_count += 1
+            # Create new if pool is empty
+            self._created_count += 1
+
+        # Create context outside lock to minimize lock time
         return MemoryOptimizedMessageContext(
             envelope_type=envelope_type,
             routing_key=routing_key,
@@ -99,12 +106,14 @@ class MemoryPool:
         Args:
             context: Context to return to pool
         """
-        if len(self._context_pool) < self.pool_size:
-            self._context_pool.append(context)
+        with self._lock:
+            if len(self._context_pool) < self.pool_size:
+                self._context_pool.append(context)
 
     def clear_pools(self) -> None:
         """Clear all pools."""
-        self._context_pool.clear()
+        with self._lock:
+            self._context_pool.clear()
 
     def get_stats(self) -> dict[str, Any]:
         """Get memory pool statistics.
@@ -112,14 +121,15 @@ class MemoryPool:
         Returns:
             Dictionary with pool statistics
         """
-        return {
-            "pool_size": self.pool_size,
-            "contexts_in_pool": len(self._context_pool),
-            "total_created": self._created_count,
-            "total_reused": self._reused_count,
-            "reuse_rate": (
-                self._reused_count / (self._created_count + self._reused_count)
-                if (self._created_count + self._reused_count) > 0
-                else 0.0
-            ),
-        }
+        with self._lock:
+            return {
+                "pool_size": self.pool_size,
+                "contexts_in_pool": len(self._context_pool),
+                "total_created": self._created_count,
+                "total_reused": self._reused_count,
+                "reuse_rate": (
+                    self._reused_count / (self._created_count + self._reused_count)
+                    if (self._created_count + self._reused_count) > 0
+                    else 0.0
+                ),
+            }

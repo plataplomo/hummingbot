@@ -11,10 +11,7 @@ Modules:
 """
 
 from .memory_config import (
-    MemoryOptimizationConfig,
-    PerformanceMode,
-    PerformanceModePresets,
-    get_recommended_mode_for_scenario,
+    get_memory_config_for_router,
 )
 from .memory_optimized import (
     MemoryOptimizedMessageContext,
@@ -26,14 +23,8 @@ from .stream_log_data import (
 
 
 __all__ = [
-    # Memory configuration
-    "MemoryOptimizationConfig",
-    # Memory optimized models
     "MemoryOptimizedMessageContext",
     "MemoryPool",
-    "PerformanceMode",
-    "PerformanceModePresets",
-    # Stream logging
     "WebSocketStreamLogData",
-    "get_recommended_mode_for_scenario",
+    "get_memory_config_for_router",
 ]

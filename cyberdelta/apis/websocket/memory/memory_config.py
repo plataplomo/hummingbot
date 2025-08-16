@@ -1,73 +1,39 @@
-"""Simplified memory optimization configuration.
+"""Simple memory configuration functions.
 
-Provides basic memory optimization settings without overengineering.
-Follows YAGNI principle - only what's actually needed.
+Provides minimal memory configuration functions without overengineering.
+Follows YAGNI principle - memory optimization is rarely used.
 """
 
 from __future__ import annotations
 
-from enum import StrEnum
+from typing import TYPE_CHECKING
+
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 
 
-class PerformanceMode(StrEnum):
-    """Performance modes for WebSocket routers."""
-
-    STANDARD = "standard"
-    HIGH_FREQUENCY = "high_frequency"
-    ULTRA_LOW_LATENCY = "ultra_low_latency"
-    MEMORY_OPTIMIZED = "memory_optimized"
+if TYPE_CHECKING:
+    from cyberdelta.config.models.websocket_processor_config import ProcessorMemoryConfig
 
 
-class MemoryOptimizationConfig:
-    """Simple memory optimization configuration - only what's actually used."""
+def get_memory_config_for_router(
+    memory_config: ProcessorMemoryConfig,
+) -> tuple[MemoryOptimizationMode, int]:
+    """Get memory configuration for router from config.
 
-    def __init__(self, pool_size: int = 1000) -> None:
-        """Initialize with basic pool size.
+    Args:
+        memory_config: Memory configuration from processor config
 
-        Args:
-            pool_size: Size of the memory pool for object reuse
-        """
-        self.pool_size = pool_size
+    Returns:
+        Tuple of (memory_optimization_mode, pool_size) from config
+    """
+    # Get memory optimization mode from config
+    optimization_mode = (
+        MemoryOptimizationMode.ENABLED
+        if memory_config.enable_memory_optimization
+        else MemoryOptimizationMode.DISABLED
+    )
 
+    # Get pool size from config
+    pool_size = memory_config.pool_size
 
-class PerformanceModePresets:
-    """Simple presets for different performance modes."""
-
-    @staticmethod
-    def standard() -> MemoryOptimizationConfig:
-        """Standard memory configuration."""
-        return MemoryOptimizationConfig(pool_size=1000)
-
-    @staticmethod
-    def high_frequency() -> MemoryOptimizationConfig:
-        """High frequency memory configuration."""
-        return MemoryOptimizationConfig(pool_size=2000)
-
-    @staticmethod
-    def memory_optimized() -> MemoryOptimizationConfig:
-        """Memory optimized configuration."""
-        return MemoryOptimizationConfig(pool_size=500)
-
-    @staticmethod
-    def get_config(mode: PerformanceMode) -> MemoryOptimizationConfig:
-        """Get config for performance mode."""
-        if mode == PerformanceMode.HIGH_FREQUENCY:
-            return PerformanceModePresets.high_frequency()
-        if mode == PerformanceMode.MEMORY_OPTIMIZED:
-            return PerformanceModePresets.memory_optimized()
-        return PerformanceModePresets.standard()
-
-
-def get_recommended_mode_for_scenario(
-    message_rate_per_second: int = 100,
-    memory_limit_mb: float | None = None,
-    latency_requirement_ms: float | None = None,
-) -> PerformanceMode:
-    """Get recommended performance mode for scenario."""
-    if latency_requirement_ms and latency_requirement_ms < 1.0:
-        return PerformanceMode.ULTRA_LOW_LATENCY
-    if message_rate_per_second > 1000:
-        return PerformanceMode.HIGH_FREQUENCY
-    if memory_limit_mb and memory_limit_mb < 100:
-        return PerformanceMode.MEMORY_OPTIMIZED
-    return PerformanceMode.STANDARD
+    return optimization_mode, pool_size

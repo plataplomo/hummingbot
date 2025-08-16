@@ -23,6 +23,7 @@ from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketE
 from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
 )
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
     PydanticWebSocketProcessor,
@@ -219,6 +220,8 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
     def __init__(
         self,
         stream_error_handler: WebSocketErrorHandler,
+        memory_optimization_mode: MemoryOptimizationMode,
+        memory_pool_size: int,
         order_book_mapper: BackpackOrderBookMapper,
         ticker_mapper: BackpackTickerMapper,
         trade_mapper: BackpackFillMapper,
@@ -227,6 +230,8 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
 
         Args:
             stream_error_handler: Stream error handler for new architecture.
+            memory_optimization_mode: Memory optimization mode from config.
+            memory_pool_size: Memory pool size from config.
             order_book_mapper: Mapper for order book transformations.
             ticker_mapper: Mapper for ticker transformations.
             trade_mapper: Mapper for trade transformations.
@@ -245,6 +250,8 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
             exchange_name=ExchangeName.BACKPACK,
             stream_error_handler=stream_error_handler,
             typed_processor=typed_processor,
+            memory_optimization_mode=memory_optimization_mode,
+            memory_pool_size=memory_pool_size,
         )
 
     def _setup_processors(self) -> None:
