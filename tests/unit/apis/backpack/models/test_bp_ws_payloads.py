@@ -49,6 +49,53 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 # =============================================================================
 
 
+def _filter_non_subscribe_methods(x: str) -> bool:
+    """Filter function to exclude SUBSCRIBE and UNSUBSCRIBE methods."""
+    return x not in ["SUBSCRIBE", "UNSUBSCRIBE"]
+
+
+def _create_stream_name_from_type_symbol(stream_type: str, symbol: str) -> str:
+    """Create stream name from stream type and symbol."""
+    return f"{stream_type}.{symbol}"
+
+
+def _create_symbol_from_base_quote(base: str, quote: str) -> str:
+    """Create symbol from base and quote assets."""
+    return f"{base}_{quote}"
+
+
+def _create_account_stream_name(account_type: str) -> str:
+    """Create account stream name from account type."""
+    return f"account.{account_type}"
+
+
+def _filter_stream_name_by_length(x: str) -> bool:
+    """Filter stream names by UTF-8 byte length."""
+    return len(x.encode("utf-8")) <= 128
+
+
+def _filter_stream_name_too_long(x: str) -> bool:
+    """Filter stream names that are too long in UTF-8 bytes."""
+    return len(x.encode("utf-8")) > 128
+
+
+def _create_signature_tuple(a: str, b: str, c: str, d: str) -> tuple[str, str, str, str]:
+    """Create signature tuple from four string components."""
+    return (a, b, c, d)
+
+
+def _create_recursive_structure(children: SearchStrategy[Any]) -> SearchStrategy[Any]:
+    """Create recursive structure from children strategy."""
+    return st.lists(children, max_size=3) | st.dictionaries(
+        st.text(max_size=5), children, max_size=3
+    )
+
+
+def _filter_non_payload_fields(x: str) -> bool:
+    """Filter function to exclude core payload fields."""
+    return x not in {"method", "params", "signature"}
+
+
 def ws_method_strategy() -> SearchStrategy[Literal["SUBSCRIBE", "UNSUBSCRIBE"]]:
     """Generate valid WebSocket method strings.
 
@@ -79,7 +126,7 @@ def invalid_ws_method_strategy() -> SearchStrategy[str]:
         st.just("PING"),
         st.just("PONG"),
         st.just("INVALID_METHOD"),
-        st.text(min_size=1, max_size=50).filter(lambda x: x not in ["SUBSCRIBE", "UNSUBSCRIBE"]),
+        st.text(min_size=1, max_size=50).filter(_filter_non_subscribe_methods),
     ])
 
 
@@ -112,10 +159,10 @@ def stream_name_strategy() -> SearchStrategy[str]:
         ]),
         # Generated stream names
         st.builds(
-            lambda stream_type, symbol: f"{stream_type}.{symbol}",
+            _create_stream_name_from_type_symbol,
             st.sampled_from(["ticker", "trades", "depth", "klines"]),
             st.builds(
-                lambda base, quote: f"{base}_{quote}",
+                _create_symbol_from_base_quote,
                 st.text(
                     min_size=2, max_size=10, alphabet=st.characters(whitelist_categories=["Lu"])
                 ),
@@ -123,7 +170,7 @@ def stream_name_strategy() -> SearchStrategy[str]:
             ),
         ),
         st.builds(
-            lambda account_type: f"account.{account_type}",
+            _create_account_stream_name,
             st.sampled_from(["orderUpdate", "fillUpdate", "balanceUpdate", "positionUpdate"]),
         ),
         # Valid format within length limits
@@ -133,7 +180,7 @@ def stream_name_strategy() -> SearchStrategy[str]:
             alphabet=st.characters(
                 whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="._-"
             ),
-        ).filter(lambda x: len(x.encode("utf-8")) <= 128),
+        ).filter(_filter_stream_name_by_length),
     ])
 
 
@@ -148,7 +195,7 @@ def invalid_stream_name_strategy() -> SearchStrategy[str]:
         st.text(min_size=129, max_size=500),
         st.just("a" * 129),
         # Unicode that might cause issues
-        st.text(min_size=1, max_size=200).filter(lambda x: len(x.encode("utf-8")) > 128),
+        st.text(min_size=1, max_size=200).filter(_filter_stream_name_too_long),
     ])
 
 
@@ -186,7 +233,7 @@ def valid_signature_strategy() -> SearchStrategy[tuple[str, str, str, str]]:
         A Hypothesis strategy for valid 4-element signature tuples.
     """
     return st.builds(
-        lambda a, b, c, d: (a, b, c, d),
+        _create_signature_tuple,
         signature_component_strategy(),
         signature_component_strategy(),
         signature_component_strategy(),
@@ -329,6 +376,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         assert request.method == method
         assert request.params == params
         assert request.signature == signature
+        assert request.signature is not None  # Type narrowing for length check
         assert len(request.signature) == 4
 
         # Property: Should be serializable with signature
@@ -462,18 +510,21 @@ class TestBackpackWsPayloadSecurityProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_malicious_params_resistance(
-        self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], malicious_params: Any
+        self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], malicious_params: object
     ) -> None:
         """Property: WebSocket payloads should resist malicious parameter inputs."""
         # Convert to list of strings if needed
         if not isinstance(malicious_params, list):
-            malicious_params = [str(malicious_params)]
+            params_list = [str(malicious_params)]
+        else:
+            # Type narrowing: malicious_params is now list
+            params_list = [str(item) for item in malicious_params]
 
         try:
-            request = BackpackRawWsSubscriptionRequest(method=method, params=malicious_params)
+            request = BackpackRawWsSubscriptionRequest(method=method, params=params_list)
 
             # If accepted, should be preserved as-is (no interpretation/execution)
-            assert request.params == malicious_params
+            assert request.params == params_list
 
             # Should not leak sensitive information in string representation
             request_str = str(request)
@@ -528,17 +579,18 @@ class TestBackpackWsPayloadSecurityProperties:
     @given(
         deeply_nested_data=st.recursive(
             st.none() | st.booleans() | st.text(max_size=10),
-            lambda children: st.lists(children, max_size=3)
-            | st.dictionaries(st.text(max_size=5), children, max_size=3),
+            _create_recursive_structure,
             max_leaves=10,
         ),
     )
     @settings(max_examples=20, deadline=None)
-    def test_deeply_nested_data_rejection(self, deeply_nested_data: Any) -> None:
+    def test_deeply_nested_data_rejection(self, deeply_nested_data: object) -> None:
         """Property: Deeply nested data should be safely rejected."""
         # Should reject non-primitive types in params
         with pytest.raises(ValidationError):
-            BackpackRawWsSubscriptionRequest(method="SUBSCRIBE", params=deeply_nested_data)
+            BackpackRawWsSubscriptionRequest(
+                method="SUBSCRIBE", params=cast("list[str]", deeply_nested_data)
+            )
 
     @given(
         method=ws_method_strategy(),
@@ -576,9 +628,7 @@ class TestBackpackWsPayloadFieldValidationProperties:
 
     @given(
         method=ws_method_strategy(),
-        extra_field_name=st.text(min_size=1, max_size=20).filter(
-            lambda x: x not in {"method", "params", "signature"}
-        ),
+        extra_field_name=st.text(min_size=1, max_size=20).filter(_filter_non_payload_fields),
         extra_field_value=st.one_of([st.text(), st.integers(), st.booleans(), st.none()]),
     )
     @settings(max_examples=100, deadline=None)
@@ -586,7 +636,7 @@ class TestBackpackWsPayloadFieldValidationProperties:
         self,
         method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],
         extra_field_name: str,
-        extra_field_value: Any,
+        extra_field_value: str | int | bool | None,
     ) -> None:
         """Property: Extra fields should always be rejected."""
         data = {
@@ -609,10 +659,10 @@ class TestBackpackWsPayloadFieldValidationProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_field_type_validation(
-        self, signature: tuple[str, str, str, str], wrong_type_field: str, wrong_type_value: Any
+        self, signature: tuple[str, str, str, str], wrong_type_field: str, wrong_type_value: object
     ) -> None:
         """Property: Field types should be strictly validated."""
-        data = {
+        data: dict[str, object] = {
             "method": "SUBSCRIBE",
             "params": ["account.orderUpdate"],
             "signature": signature,
@@ -677,15 +727,12 @@ class TestBackpackWsPayloadIntegrationProperties:
         self, subscription_scenarios: list[tuple[str, list[str], tuple[str, str, str, str] | None]]
     ) -> None:
         """Property: Batch subscription processing should be consistent."""
-        requests = []
+        requests: list[BackpackRawWsSubscriptionRequest] = []
 
         for method, params, signature in subscription_scenarios:
-            # Type assertion: method comes from ws_method_strategy() which returns Literal["SUBSCRIBE", "UNSUBSCRIBE"]
             assert method in ("SUBSCRIBE", "UNSUBSCRIBE")
-            # Cast to help mypy understand the narrowed type
-            typed_method = cast(Literal["SUBSCRIBE", "UNSUBSCRIBE"], method)
             request = BackpackRawWsSubscriptionRequest(
-                method=typed_method,
+                method=cast(Literal["SUBSCRIBE", "UNSUBSCRIBE"], method),
                 params=params,
                 signature=signature,
             )

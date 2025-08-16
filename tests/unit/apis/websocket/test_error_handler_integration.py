@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from typing import cast
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -30,12 +31,7 @@ from cyberdelta.apis.websocket.ws_error_handler_factory import WebSocketErrorHan
 from cyberdelta.apis.websocket.ws_error_handler_registry import (
     WebSocketErrorHandlerRegistry,
 )
-from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
-from cyberdelta.apis.websocket.ws_exceptions import (
-    WebSocketConfigurationError,
-    WebSocketConnectionError,
-    WebSocketSubscriptionError,
-)
+from cyberdelta.apis.websocket.ws_error_metrics import WebSocketErrorMetrics
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.apis.websocket.ws_stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_stream_error_handler import WebSocketStreamErrorHandler
@@ -425,7 +421,7 @@ class TestErrorHandlerRegistry:
         health = registry.health_check()
         assert health["registry_healthy"] is True
         assert health["active_handlers"] == 0
-        issues = health["issues"]
+        issues = cast(list[str] | str, health["issues"])
         assert isinstance(issues, (list, str))
         assert "No active handlers registered" in issues
 
@@ -434,7 +430,7 @@ class TestErrorHandlerRegistry:
         health = registry.health_check()
         assert health["registry_healthy"] is True
         assert health["active_handlers"] == 1
-        issues = health["issues"]
+        issues = cast(list[str] | str, health["issues"])
         assert isinstance(issues, (list, str))  # Type narrowing for mypy
         if isinstance(issues, list):
             assert len(issues) == 0

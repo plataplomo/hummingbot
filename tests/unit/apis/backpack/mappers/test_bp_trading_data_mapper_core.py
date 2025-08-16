@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
@@ -42,6 +42,61 @@ from cyberdelta.models import Order
 
 
 logger = get_logger(__name__)
+
+
+# =======================
+# Helper Functions
+# =======================
+
+
+def _format_decimal_string(i: int, d: str) -> str:
+    """Format integer and decimal string into a decimal representation.
+
+    Args:
+        i: Integer part of the decimal
+        d: Decimal part as string
+
+    Returns:
+        Formatted decimal string
+    """
+    return f"{i}.{d}"
+
+
+def _format_high_precision_decimal(i: int, d: list[str]) -> str:
+    """Format integer and digit list into high precision decimal.
+
+    Args:
+        i: Integer part of the decimal
+        d: List of digit strings for decimal part
+
+    Returns:
+        Formatted high precision decimal string
+    """
+    return f"{i}.{''.join(d)}"
+
+
+def _datetime_to_isoformat(dt: datetime) -> str:
+    """Convert datetime to ISO format string.
+
+    Args:
+        dt: Datetime object to convert
+
+    Returns:
+        ISO format string representation
+    """
+    return dt.isoformat()
+
+
+def _create_symbol_dict(s: str) -> dict[str, str]:
+    """Create symbol dictionary with value key.
+
+    Args:
+        s: Symbol string value
+
+    Returns:
+        Dictionary with symbol value
+    """
+    return {"value": s}
 
 
 # =======================
@@ -115,13 +170,13 @@ def decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Normal values
         st.builds(
-            lambda i, d: f"{i}.{d}",
+            _format_decimal_string,
             st.integers(min_value=0, max_value=999999),
             st.text(alphabet=string.digits, min_size=1, max_size=8),
         ),
         # High precision values
         st.builds(
-            lambda i, d: f"{i}.{''.join(d)}",
+            _format_high_precision_decimal,
             st.integers(min_value=0, max_value=999),
             st.lists(st.sampled_from(string.digits), min_size=10, max_size=18),
         ),
@@ -192,7 +247,7 @@ def timestamp_string_strategy() -> SearchStrategy[str]:
         SearchStrategy[str]: Strategy for timestamp strings.
     """
     return st.builds(
-        lambda dt: dt.isoformat(),
+        _datetime_to_isoformat,
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
             max_value=datetime(2030, 1, 1, tzinfo=UTC),
@@ -723,7 +778,7 @@ class TestTransformOrderDataToInternal:
 
     @given(
         order_id=order_id_strategy(),
-        symbol=st.builds(lambda s: {"value": s}, symbol_string_strategy()),
+        symbol=st.builds(_create_symbol_dict, symbol_string_strategy()),
         side=bp_side_strategy(),
         order_type=bp_order_type_strategy(),
         status=bp_status_strategy(),

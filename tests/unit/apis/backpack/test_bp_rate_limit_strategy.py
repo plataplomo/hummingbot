@@ -85,6 +85,32 @@ def bp_http_method_strategy() -> SearchStrategy[str]:
     return st.sampled_from(["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"])
 
 
+def _create_versioned_endpoint(version: int, resource: str) -> str:
+    """Create versioned API endpoint.
+
+    Args:
+        version: API version number.
+        resource: Resource name.
+
+    Returns:
+        Formatted endpoint string.
+    """
+    return f"/api/v{version}/{resource}"
+
+
+def _create_nested_endpoint(base: str, param: str) -> str:
+    """Create nested API endpoint.
+
+    Args:
+        base: Base resource name.
+        param: Parameter value.
+
+    Returns:
+        Formatted endpoint string.
+    """
+    return f"/api/v1/{base}/{param}"
+
+
 def bp_endpoint_strategy() -> SearchStrategy[str]:
     """Generate valid Backpack API endpoints.
 
@@ -111,13 +137,13 @@ def bp_endpoint_strategy() -> SearchStrategy[str]:
         ]),
         # Generated endpoint patterns
         st.builds(
-            lambda version, resource: f"/api/v{version}/{resource}",
+            _create_versioned_endpoint,
             st.integers(min_value=1, max_value=3),
             st.sampled_from(["orders", "trades", "markets", "balances", "positions"]),
         ),
         # Nested endpoint patterns
         st.builds(
-            lambda base, param: f"/api/v1/{base}/{param}",
+            _create_nested_endpoint,
             st.sampled_from(["orders", "markets", "positions"]),
             st.text(
                 alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_",
@@ -306,7 +332,7 @@ class TestBackpackRateLimitStrategyProperties:
     async def test_handle_exchange_retry_after_triggers_ip_ban(
         self, retry_duration: float, context: RateLimitRequestContext, mock_limiter: MagicMock
     ) -> None:
-        """Property: handle_exchange_retry_after should always trigger IP ban with correct duration."""
+        """Property: handle_exchange_retry_after should trigger IP ban with correct duration."""
         strategy = BackpackRateLimitStrategy(limiter=mock_limiter, default_request_weight=1)
 
         await strategy.handle_exchange_retry_after(retry_duration, context)
@@ -336,9 +362,7 @@ class TestBackpackRateLimitStrategyProperties:
         await strategy.prepare_and_acquire(context)
 
         # Property: Should acquire tokens equal to request weight
-        expected_weight = (
-            context.request_weight if context.request_weight is not None else default_weight
-        )
+        expected_weight = context.request_weight
         mock_limiter.acquire.assert_called_once_with(tokens_to_consume=expected_weight)
 
     @given(
@@ -489,6 +513,7 @@ class TestBackpackRateLimitStrategySecurityProperties:
         except (TypeError, ValueError):
             # Skip invalid context data that can't be constructed
             assume(False)
+            return  # This shouldn't be reached due to assume(False), but ensures context is bound
 
         # Should not crash on malicious context
         await strategy.handle_exchange_retry_after(retry_duration, context)
@@ -671,9 +696,7 @@ class TestBackpackRateLimitStrategyIntegrationProperties:
 
         for context in contexts:
             await strategy.prepare_and_acquire(context)
-            expected_weight = (
-                context.request_weight if context.request_weight is not None else default_weight
-            )
+            expected_weight = context.request_weight
             expected_total_weight += expected_weight
 
         # Property: Total acquire calls should match number of contexts
@@ -704,7 +727,7 @@ class TestBackpackRateLimitStrategyIntegrationProperties:
         ]
 
         # Test each strategy independently
-        for i, (strategy, expected_default_weight) in enumerate(
+        for _i, (strategy, _expected_default_weight) in enumerate(
             zip(strategies, strategy_configs, strict=False)
         ):
             mock_limiter.reset_mock()

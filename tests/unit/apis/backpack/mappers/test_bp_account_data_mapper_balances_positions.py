@@ -33,6 +33,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
+import contextlib
 from datetime import datetime
 from decimal import Decimal
 
@@ -250,7 +251,11 @@ def trading_symbol_strategy() -> SearchStrategy[str]:
 
 
 def position_quantity_strategy() -> SearchStrategy[str]:
-    """Generate position quantity strings (can be negative for short positions)."""
+    """Generate position quantity strings (can be negative for short positions).
+
+    Returns:
+        SearchStrategy[str]: A strategy for generating position quantity strings.
+    """
     return st.one_of([
         # Positive quantities (long positions)
         st.builds(
@@ -275,7 +280,11 @@ def position_quantity_strategy() -> SearchStrategy[str]:
 
 
 def price_strategy() -> SearchStrategy[str]:
-    """Generate price strings for positions and trading."""
+    """Generate price strings for positions and trading.
+
+    Returns:
+        SearchStrategy[str]: A strategy for generating price strings.
+    """
     return st.one_of([
         # Normal price range
         st.builds(str, st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=8)),
@@ -292,7 +301,11 @@ def price_strategy() -> SearchStrategy[str]:
 
 
 def pnl_strategy() -> SearchStrategy[str]:
-    """Generate PnL strings (can be positive or negative)."""
+    """Generate PnL strings (can be positive or negative).
+
+    Returns:
+        SearchStrategy[str]: A strategy for generating PnL strings.
+    """
     return st.one_of([
         # Positive PnL
         st.builds(str, st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=18)),
@@ -313,7 +326,11 @@ def pnl_strategy() -> SearchStrategy[str]:
 
 @composite
 def raw_balance_strategy(draw: st.DrawFn) -> BackpackRawBalanceResponse:
-    """Generate BackpackRawBalanceResponse instances."""
+    """Generate BackpackRawBalanceResponse instances.
+
+    Returns:
+        BackpackRawBalanceResponse: A generated balance response instance.
+    """
     available = draw(balance_amount_string_strategy())
     locked = draw(balance_amount_string_strategy())
     staked = draw(balance_amount_string_strategy())
@@ -327,7 +344,11 @@ def raw_balance_strategy(draw: st.DrawFn) -> BackpackRawBalanceResponse:
 
 @composite
 def raw_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
-    """Generate BackpackRawPositionResponse instances."""
+    """Generate BackpackRawPositionResponse instances.
+
+    Returns:
+        BackpackRawPositionResponse: A generated position response instance.
+    """
     symbol = draw(trading_symbol_strategy())
     break_even_price = draw(price_strategy())
     entry_price = draw(price_strategy())
@@ -390,7 +411,11 @@ def raw_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
 
 @composite
 def zero_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
-    """Generate zero-size positions for testing business logic validation."""
+    """Generate zero-size positions for testing business logic validation.
+
+    Returns:
+        BackpackRawPositionResponse: A generated zero-size position instance.
+    """
     position = draw(raw_position_strategy())
 
     # Override with zero quantity to test zero position logic
@@ -420,7 +445,11 @@ def zero_position_strategy(draw: st.DrawFn) -> BackpackRawPositionResponse:
 
 @composite
 def raw_account_summary_strategy(draw: st.DrawFn) -> BackpackRawAccountSummaryResponse:
-    """Generate BackpackRawAccountSummaryResponse instances."""
+    """Generate BackpackRawAccountSummaryResponse instances.
+
+    Returns:
+        BackpackRawAccountSummaryResponse: A generated account summary response instance.
+    """
     auto_borrow_settlements = draw(st.booleans())
     auto_lend = draw(st.booleans())
     auto_realize_pnl = draw(st.booleans())
@@ -465,7 +494,11 @@ def raw_account_summary_strategy(draw: st.DrawFn) -> BackpackRawAccountSummaryRe
 
 
 def malicious_balance_input_strategy() -> SearchStrategy[str]:
-    """Generate malicious balance input strings for security testing."""
+    """Generate malicious balance input strings for security testing.
+
+    Returns:
+        SearchStrategy[str]: A strategy for generating malicious balance input strings.
+    """
     return st.one_of([
         # XSS attempts
         st.sampled_from([
@@ -815,7 +848,7 @@ class TestPositionTransformationProperties:
     @given(
         symbol=trading_symbol_strategy(),
         user_id=st.integers(min_value=1, max_value=999999999999),
-        position_id=st.text(min_size=1, max_size=64).filter(lambda x: x.strip()),
+        position_id=st.text(min_size=1, max_size=64),
     )
     @settings(max_examples=100, deadline=None)
     def test_position_metadata_preservation_properties(
@@ -884,7 +917,7 @@ class TestAccountSummaryTransformationProperties:
 
         try:
             # Filter out zero positions with non-None entry prices
-            valid_positions = []
+            valid_positions: list[BackpackRawPositionResponse] = []
             for pos in positions:
                 if Decimal(pos.net_quantity) == Decimal(0) and pos.entry_price != "0":
                     continue
@@ -1009,7 +1042,7 @@ class TestAccountSummaryTransformationProperties:
         })
 
         # Create positions from the generated data
-        positions = []
+        positions: list[BackpackRawPositionResponse] = []
         expected_total_pnl = Decimal(0)
 
         for i, (quantity, price, pnl) in enumerate(positions_with_pnl):
@@ -1044,10 +1077,8 @@ class TestAccountSummaryTransformationProperties:
             )
             positions.append(position)
 
-            try:
+            with contextlib.suppress(ValueError, ArithmeticError):
                 expected_total_pnl += Decimal(pnl)
-            except (ValueError, ArithmeticError):
-                pass
 
         if positions:
             try:
@@ -1155,7 +1186,7 @@ class TestAccountDataSecurityProperties:
             # Should not contain traces of malicious execution
             assert isinstance(result.size, Decimal)
 
-        except (ValueError, TypeError, DataTransformationError):
+        except (ValueError, DataTransformationError):
             # Expected for malicious inputs
             pass
 
@@ -1211,6 +1242,77 @@ class TestAccountDataSecurityProperties:
 class TestAccountDataIntegrationProperties:
     """Integration property tests for complete account data workflows."""
 
+    def _filter_valid_positions(
+        self, positions: list[BackpackRawPositionResponse]
+    ) -> list[BackpackRawPositionResponse]:
+        """Filter positions to avoid business logic violations.
+
+        Returns:
+            List of valid position responses.
+        """
+        valid_positions: list[BackpackRawPositionResponse] = []
+        for pos in positions:
+            if Decimal(pos.net_quantity) == Decimal(0) and pos.entry_price != "0":
+                continue
+            valid_positions.append(pos)
+        return valid_positions
+
+    def _transform_balances(
+        self, mapper: CompositeAccountMapper, spot_balances: dict[str, BackpackRawBalanceResponse]
+    ) -> list[SpotBalance]:
+        """Transform raw balances to internal format.
+
+        Returns:
+            List of transformed spot balances.
+        """
+        transformed_balances: list[SpotBalance] = []
+        for asset, balance in spot_balances.items():
+            try:
+                symbol = exchanges.backpack(asset)
+                transformed_balance = mapper.transform_raw_balance_to_internal(symbol, balance)
+                transformed_balances.append(transformed_balance)
+            except (ValueError, DataTransformationError):
+                continue
+        return transformed_balances
+
+    def _transform_positions(
+        self, mapper: CompositeAccountMapper, positions: list[BackpackRawPositionResponse]
+    ) -> list[DerivativePosition]:
+        """Transform raw positions to internal format.
+
+        Returns:
+            List of transformed derivative positions.
+        """
+        transformed_positions: list[DerivativePosition] = []
+        for position in positions:
+            try:
+                transformed_position = mapper.transform_raw_position_to_internal(position)
+                transformed_positions.append(transformed_position)
+            except (ValueError, DataTransformationError):
+                continue
+        return transformed_positions
+
+    def _validate_transformations(
+        self,
+        account_summary: MarginAccountSummary,
+        transformed_balances: list[SpotBalance],
+        transformed_positions: list[DerivativePosition],
+    ) -> None:
+        """Validate that all transformations are consistent."""
+        # Property: All transformations should be consistent
+        assert isinstance(account_summary, MarginAccountSummary)
+        for transformed_balance in transformed_balances:
+            assert isinstance(transformed_balance, SpotBalance)
+        for transformed_position in transformed_positions:
+            assert isinstance(transformed_position, DerivativePosition)
+
+        # Property: Exchange consistency
+        assert account_summary.exchange == ExchangeName.BACKPACK.value
+        for transformed_balance in transformed_balances:
+            assert transformed_balance.exchange == ExchangeName.BACKPACK
+        for transformed_position in transformed_positions:
+            assert transformed_position.exchange == ExchangeName.BACKPACK
+
     @given(
         account_scenario=st.tuples(
             raw_account_summary_strategy(),
@@ -1234,49 +1336,18 @@ class TestAccountDataIntegrationProperties:
         raw_summary, spot_balances, positions = account_scenario
 
         try:
-            # Filter positions to avoid business logic violations
-            valid_positions = []
-            for pos in positions:
-                if Decimal(pos.net_quantity) == Decimal(0) and pos.entry_price != "0":
-                    continue
-                valid_positions.append(pos)
-
-            # Transform individual components
-            transformed_balances = []
-            for asset, balance in spot_balances.items():
-                try:
-                    symbol = exchanges.backpack(asset)
-                    transformed_balance = mapper.transform_raw_balance_to_internal(symbol, balance)
-                    transformed_balances.append(transformed_balance)
-                except (ValueError, DataTransformationError):
-                    continue
-
-            transformed_positions = []
-            for position in valid_positions:
-                try:
-                    transformed_position = mapper.transform_raw_position_to_internal(position)
-                    transformed_positions.append(transformed_position)
-                except (ValueError, DataTransformationError):
-                    continue
+            valid_positions = self._filter_valid_positions(positions)
+            transformed_balances = self._transform_balances(mapper, spot_balances)
+            transformed_positions = self._transform_positions(mapper, valid_positions)
 
             # Transform account summary
             account_summary = mapper.transform_raw_account_summary_to_internal(
                 raw_summary, spot_balances, valid_positions
             )
 
-            # Property: All transformations should be consistent
-            assert isinstance(account_summary, MarginAccountSummary)
-            for transformed_balance in transformed_balances:
-                assert isinstance(transformed_balance, SpotBalance)
-            for transformed_position in transformed_positions:
-                assert isinstance(transformed_position, DerivativePosition)
-
-            # Property: Exchange consistency
-            assert account_summary.exchange == ExchangeName.BACKPACK.value
-            for transformed_balance in transformed_balances:
-                assert transformed_balance.exchange == ExchangeName.BACKPACK
-            for transformed_position in transformed_positions:
-                assert transformed_position.exchange == ExchangeName.BACKPACK
+            self._validate_transformations(
+                account_summary, transformed_balances, transformed_positions
+            )
 
         except (ValueError, DataTransformationError):
             # Expected for invalid account data combinations

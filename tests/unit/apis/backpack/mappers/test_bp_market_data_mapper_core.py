@@ -69,6 +69,41 @@ from tests.fixtures.time_fixtures import FreezerProtocol
 # =======================
 
 
+def _create_decimal_string_from_parts(i: int, d: str) -> str:
+    """Create decimal string from integer and decimal parts."""
+    return f"{i}.{d}"
+
+
+def _create_high_precision_decimal_string(i: int, d: list[str]) -> str:
+    """Create high precision decimal string from integer and digit list."""
+    return f"{i}.{''.join(d)}"
+
+
+def _create_isoformat_datetime(dt: datetime) -> str:
+    """Create ISO format string from datetime."""
+    return dt.isoformat()
+
+
+def _create_price_quantity_tuple(p: str, q: str) -> tuple[str, str]:
+    """Create tuple from price and quantity strings."""
+    return (p, q)
+
+
+def _create_signed_rate_string(sign: str, rate: str) -> str:
+    """Create signed rate string from sign and rate."""
+    return f"{sign}{rate}"
+
+
+def _create_usdc_symbol_with_suffix(base: str, suffix: str) -> str:
+    """Create USDC symbol with base and suffix."""
+    return f"{base}-USDC{suffix}"
+
+
+def _create_decimal_from_integer_fraction(integer: int, fraction: list[str]) -> str:
+    """Create decimal string from integer and fraction parts."""
+    return f"{integer}.{''.join(fraction)}"
+
+
 def decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and quantities.
 
@@ -78,13 +113,13 @@ def decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Normal values
         st.builds(
-            lambda i, d: f"{i}.{d}",
+            _create_decimal_string_from_parts,
             st.integers(min_value=1, max_value=999999),
             st.text(alphabet=string.digits, min_size=1, max_size=8),
         ),
         # High precision values
         st.builds(
-            lambda i, d: f"{i}.{''.join(d)}",
+            _create_high_precision_decimal_string,
             st.integers(min_value=1, max_value=999),
             st.lists(st.sampled_from(string.digits), min_size=6, max_size=18),
         ),
@@ -143,7 +178,7 @@ def timestamp_strategy() -> SearchStrategy[str]:
         SearchStrategy[str]: Strategy for timestamp strings.
     """
     return st.builds(
-        lambda dt: dt.isoformat(),
+        _create_isoformat_datetime,
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
             max_value=datetime(2030, 1, 1, tzinfo=UTC),
@@ -167,7 +202,7 @@ def order_book_level_strategy() -> SearchStrategy[tuple[str, str]]:
         SearchStrategy[tuple[str, str]]: Strategy for order book levels.
     """
     return st.builds(
-        lambda p, q: (p, q),
+        _create_price_quantity_tuple,
         decimal_string_strategy(),
         decimal_string_strategy(),
     )
@@ -290,7 +325,7 @@ def raw_funding_rate_strategy(draw: st.DrawFn) -> "BackpackRawFundingRateRespons
         symbol=draw(symbol_string_strategy()),
         rate=draw(
             st.builds(
-                lambda sign, rate: f"{sign}{rate}",
+                _create_signed_rate_string,
                 st.sampled_from(["", "-"]),
                 decimal_string_strategy(),
             )
@@ -1581,7 +1616,7 @@ class TestEdgeCasesProperties:
 
     @given(
         unicode_symbol=st.builds(
-            lambda base, suffix: f"{base}-USDC{suffix}",
+            _create_usdc_symbol_with_suffix,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.text(
                 alphabet=st.characters(min_codepoint=0x1F300, max_codepoint=0x1F6FF),
@@ -1609,7 +1644,7 @@ class TestEdgeCasesProperties:
 
     @given(
         extreme_decimal=st.builds(
-            lambda integer, fraction: f"{integer}.{''.join(fraction)}",
+            _create_decimal_from_integer_fraction,
             st.integers(min_value=1, max_value=999999999),
             st.lists(st.sampled_from(string.digits), min_size=15, max_size=25),
         )

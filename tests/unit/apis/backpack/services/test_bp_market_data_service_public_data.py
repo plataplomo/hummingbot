@@ -552,6 +552,45 @@ def api_error_code_strategy() -> SearchStrategy[str]:
     ])
 
 
+def _create_ticker_error_message(symbol: str, status: int) -> str:
+    """Create ticker error message.
+
+    Args:
+        symbol: Trading symbol.
+        status: HTTP status code.
+
+    Returns:
+        Error message string.
+    """
+    return f"No data received for ticker ({symbol}), status: {status}"
+
+
+def _create_orderbook_error_message(symbol: str, status: int) -> str:
+    """Create order book error message.
+
+    Args:
+        symbol: Trading symbol.
+        status: HTTP status code.
+
+    Returns:
+        Error message string.
+    """
+    return f"No data received for order book ({symbol}), status: {status}"
+
+
+def _create_trades_error_message(symbol: str, status: int) -> str:
+    """Create recent trades error message.
+
+    Args:
+        symbol: Trading symbol.
+        status: HTTP status code.
+
+    Returns:
+        Error message string.
+    """
+    return f"No data received for recent trades ({symbol}), status: {status}"
+
+
 def api_error_message_strategy() -> SearchStrategy[str]:
     """Generate realistic API error messages.
 
@@ -560,18 +599,17 @@ def api_error_message_strategy() -> SearchStrategy[str]:
     """
     return st.one_of([
         st.builds(
-            lambda symbol, status: f"No data received for ticker ({symbol}), status: {status}",
+            _create_ticker_error_message,
             st.text(min_size=3, max_size=20),
             st.integers(min_value=200, max_value=599),
         ),
         st.builds(
-            lambda symbol, status: f"No data received for order book ({symbol}), status: {status}",
+            _create_orderbook_error_message,
             st.text(min_size=3, max_size=20),
             st.integers(min_value=200, max_value=599),
         ),
         st.builds(
-            lambda symbol,
-            status: f"No data received for recent trades ({symbol}), status: {status}",
+            _create_trades_error_message,
             st.text(min_size=3, max_size=20),
             st.integers(min_value=200, max_value=599),
         ),
@@ -949,7 +987,7 @@ class TestBackpackMarketDataServiceValidationPropertyBased:
         """Property-based test for resistance to malicious symbol inputs."""
         try:
             # Attempt to create a symbol with malicious content
-            if malicious_symbol.strip() == "":
+            if not malicious_symbol.strip():
                 # Empty symbols should raise validation errors
                 with pytest.raises((EmptySymbolError, ValueError, ValidationError)):
                     invalid_symbol = exchanges.backpack(malicious_symbol)
@@ -984,7 +1022,7 @@ class TestBackpackMarketDataServiceValidationPropertyBased:
         scenario: tuple[Symbol, int | None, str],
     ) -> None:
         """Property-based test for various service scenarios."""
-        symbol, limit, test_type = scenario
+        symbol, _limit, test_type = scenario
 
         if test_type == "success":
             # Test successful operation
@@ -1036,10 +1074,10 @@ class TestBackpackMarketDataServiceValidationPropertyBased:
                 backpack_market_data_service, "_price_ticker_service"
             ) as mock_ticker_service:
                 mock_ticker_service.get_ticker = AsyncMock(
-                    side_effect=Exception(f"Unexpected error for {symbol.value}")
+                    side_effect=RuntimeError(f"Unexpected error for {symbol.value}")
                 )
 
-                with pytest.raises(Exception):
+                with pytest.raises(RuntimeError):
                     await backpack_market_data_service.get_ticker(symbol)
 
 
@@ -1113,7 +1151,7 @@ class TestBackpackMarketDataServiceConcurrencySimulation:
             backpack_market_data_service, "_price_ticker_service"
         ) as mock_ticker_service:
             # Create mock tickers for each symbol
-            mock_tickers = {}
+            mock_tickers: dict[Symbol, Ticker] = {}
             for symbol in symbols:
                 mock_tickers[symbol] = Ticker(
                     symbol=symbol,
@@ -1131,7 +1169,7 @@ class TestBackpackMarketDataServiceConcurrencySimulation:
             mock_ticker_service.get_ticker = AsyncMock(side_effect=mock_get_ticker)
 
             # Test getting tickers for all symbols
-            results = []
+            results: list[Ticker] = []
             for symbol in symbols:
                 result = await backpack_market_data_service.get_ticker(symbol)
                 results.append(result)

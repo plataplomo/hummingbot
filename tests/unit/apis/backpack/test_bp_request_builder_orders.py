@@ -1,4 +1,4 @@
-"""Unit tests for BackpackTradingRequestBuilder order management methods with property-based testing.
+"""Unit tests for BackpackTradingRequestBuilder order management methods with property testing.
 
 Enhanced with Hypothesis for comprehensive property-based testing to ensure
 robust handling of edge cases, security boundaries, and data transformations.
@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 from hypothesis import given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy, composite
+from hypothesis.strategies import DrawFn, SearchStrategy, composite
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_api_request_payloads import (
@@ -37,6 +37,16 @@ from tests.common_symbols import (
     ETH_USDC_PERP_BP,
     SOL_USDC_BP,
 )
+
+
+# =======================
+# Helper Functions for Strategy Builders
+# =======================
+
+
+def _build_uuid_format(a: str, b: str, c: str, d: str) -> str:
+    """Build UUID-like format string."""
+    return f"{a}-{b}-{c}-{d}"
 
 
 # =======================
@@ -150,7 +160,7 @@ def client_order_id_strategy() -> SearchStrategy[str]:
         ),
         # UUID-like IDs
         st.builds(
-            lambda a, b, c, d: f"{a}-{b}-{c}-{d}",
+            _build_uuid_format,
             st.text(alphabet="0123456789abcdef", min_size=8, max_size=8),
             st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
             st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
@@ -190,7 +200,7 @@ def limit_strategy() -> SearchStrategy[int]:
 
 
 @composite
-def order_execution_strategy(draw: Any) -> OrderExecution:
+def order_execution_strategy(draw: DrawFn) -> OrderExecution:
     """Generate OrderExecution instances with various configurations.
 
     Args:
@@ -214,7 +224,9 @@ def order_execution_strategy(draw: Any) -> OrderExecution:
 
 
 @composite
-def place_order_params_strategy(draw: Any) -> dict[str, Any]:
+def place_order_params_strategy(
+    draw: DrawFn,
+) -> dict[str, Any]:
     """Generate valid parameters for place_order_payload.
 
     Args:
@@ -266,7 +278,10 @@ class TestBuildPlaceOrderPayload:
 
     @given(params=place_order_params_strategy())
     @settings(max_examples=100)
-    def test_place_order_payload_properties(self, params: dict[str, Any]) -> None:
+    def test_place_order_payload_properties(
+        self,
+        params: dict[str, Any],
+    ) -> None:
         """Test build_place_order_payload with various parameter combinations."""
         payload = BackpackTradingRequestBuilder.build_place_order_payload(**params)
 
@@ -684,9 +699,8 @@ class TestBuildGetOrderHistoryParams:
     ) -> None:
         """Test order history params with various combinations."""
         # Ensure time range is valid
-        if start_time and end_time:
-            if start_time > end_time:
-                start_time, end_time = end_time, start_time
+        if start_time and end_time and start_time > end_time:
+            start_time, end_time = end_time, start_time
 
         params = BackpackTradingRequestBuilder.build_get_order_history_params(
             symbol=symbol,
@@ -746,7 +760,7 @@ class TestBuildGetOrderHistoryParams:
         self,
         symbol: Symbol | None,
         limit: int | None,
-        expected_base: dict[str, Any],
+        expected_base: dict[str, str | int],
     ) -> None:
         """Test build_get_order_history_params with various parameters."""
         params = BackpackTradingRequestBuilder.build_get_order_history_params(
@@ -867,7 +881,7 @@ class TestEdgeCases:
         quantities: list[Decimal],
     ) -> None:
         """Test consistency when creating multiple orders."""
-        payloads = []
+        payloads: list[BackpackRawOrderExecuteRequest] = []
 
         for qty in quantities:
             payload = BackpackTradingRequestBuilder.build_place_order_payload(

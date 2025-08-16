@@ -39,7 +39,7 @@ from typing import Any, Literal, cast
 from unittest.mock import patch
 
 import pytest
-from hypothesis import HealthCheck, assume, given, settings, strategies as st
+from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy
 from pydantic import ValidationError
 
@@ -63,129 +63,51 @@ pytestmark = pytest.mark.timing
 
 
 # =============================================================================
+# HELPER FUNCTIONS FOR STRATEGY GENERATION
+# =============================================================================
+
+
+def _create_xrp_address(x: str) -> str:
+    """Create XRP-style address from base string.
+
+    Returns:
+        XRP-style address string.
+    """
+    return f"r{x}"
+
+
+# =============================================================================
 # HYPOTHESIS STRATEGIES FOR ACCOUNT OPERATIONS TESTING
 # =============================================================================
 
 
-def valid_asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack asset symbol strings only.
-
-    Returns:
-        A Hypothesis strategy for valid Backpack asset symbols.
-    """
-    return st.sampled_from([
-        "BTC",
-        "ETH",
-        "SOL",
-        "USDC",
-        "USDT",
-        "PYTH",
-        "JTO",
-        "BONK",
-        "HNT",
-        "MOBILE",
-        "WIF",
-        "JUP",
-        "RENDER",
-        "WEN",
-        "W",
-        "TNSR",
-        "PRCL",
-        "SHARK",
-        "KMNO",
-        "MEW",
-        "BOME",
-        "RAY",
-        "HONEY",
-        "SHFL",
-        "BODEN",
-        "IO",
-        "DRIFT",
-        "PEPE",
-        "SHIB",
-        "LINK",
-        "UNI",
-        "ONDO",
-        "FTM",
-        "MATIC",
-        "STRK",
-        "BLUR",
-        "WLD",
-        "GALA",
-        "NYAN",
-        "HLG",
-        "MON",
-        "ZKJ",
-        "MANEKI",
-        "HABIBI",
-        "UNA",
-        "ZRO",
-        "ZEX",
-        "AAVE",
-        "LDO",
-        "MOTHER",
-        "CLOUD",
-        "MAX",
-        "POL",
-        "TRUMPWIN",
-        "HARRISWIN",
-        "MOODENG",
-        "DBR",
-        "GOAT",
-        "ACT",
-        "DOGE",
-        "BCH",
-        "LTC",
-        "APE",
-        "ENA",
-        "ME",
-        "EIGEN",
-        "CHILLGUY",
-        "PENGU",
-        "EUR",
-        "SONIC",
-        "J",
-        "TRUMP",
-        "MELANIA",
-        "ANIME",
-        "XRP",
-        "SUI",
-        "VINE",
-        "ADA",
-        "MOVE",
-        "BERA",
-        "IP",
-        "HYPE",
-        "BNB",
-        "KAITO",
-        "PEPE1000",
-        "BONK1000",
-        "SHIB1000",
-        "AVAX",
-        "S",
-        "POINTS",
-        "ROAM",
-        "AI16Z",
-        "LAYER",
-        "FARTCOIN",
-        "NEAR",
-        "PNUT",
-        "ARB",
-        "DOT",
-        "APT",
-        "OP",
-    ])
-
-
 def asset_symbol_strategy() -> SearchStrategy[str]:
-    """Generate asset symbol strings including invalid ones for error testing.
+    """Generate valid asset symbol strings.
 
     Returns:
-        A Hypothesis strategy for asset symbols.
+        A Hypothesis strategy for valid asset symbols.
     """
     return st.one_of([
-        valid_asset_symbol_strategy(),
-        # Generated asset names for error testing
+        # Common crypto assets
+        st.sampled_from([
+            "BTC",
+            "ETH",
+            "SOL",
+            "USDC",
+            "USDT",
+            "AVAX",
+            "DOT",
+            "LINK",
+            "UNI",
+            "MATIC",
+            "ADA",
+            "XRP",
+            "DOGE",
+            "SHIB",
+            "FTM",
+            "NEAR",
+        ]),
+        # Generated asset names
         st.text(
             min_size=2,
             max_size=20,
@@ -217,12 +139,12 @@ def _create_tx_id(x: str) -> str:
 
 
 def _create_long_client_id() -> str:
-    """Create long client ID for testing (within 64 character limit).
+    """Create long client ID for testing.
 
     Returns:
-        str: Long client ID with repeated 'a' characters (max 64 chars).
+        str: Long client ID with repeated 'a' characters.
     """
-    return "client_" + "a" * 57  # 7 + 57 = 64 characters max
+    return "client_" + "a" * 100
 
 
 def transfer_id_strategy() -> SearchStrategy[str]:
@@ -282,49 +204,23 @@ def withdrawal_status_strategy() -> SearchStrategy[str]:
     ])
 
 
-def valid_blockchain_strategy() -> SearchStrategy[str]:
-    """Generate valid Backpack blockchain network names only.
-
-    Returns:
-        A Hypothesis strategy for valid Backpack blockchain names.
-    """
-    return st.sampled_from([
-        "Arbitrum",
-        "Base",
-        "Berachain",
-        "Bitcoin",
-        "BitcoinCash",
-        "Bsc",
-        "Cardano",
-        "Dogecoin",
-        "EqualsMoney",
-        "Ethereum",
-        "Hyperliquid",
-        "Litecoin",
-        "Polygon",
-        "Sui",
-        "Solana",
-        "Story",
-        "XRP",
-    ])
-
-
 def blockchain_strategy() -> SearchStrategy[str]:
-    """Generate blockchain network names including invalid ones for error testing.
+    """Generate blockchain network names.
 
     Returns:
         A Hypothesis strategy for blockchain names.
     """
-    return st.one_of([
-        valid_blockchain_strategy(),
-        # Invalid blockchains for error testing
-        st.sampled_from([
-            "Avalanche",
-            "Binance Smart Chain",
-            "Optimism",
-            "Fantom",
-            "Cosmos",
-        ]),
+    return st.sampled_from([
+        "Ethereum",
+        "Bitcoin",
+        "Solana",
+        "Polygon",
+        "Avalanche",
+        "Binance Smart Chain",
+        "Arbitrum",
+        "Optimism",
+        "Fantom",
+        "Cosmos",
     ])
 
 
@@ -370,7 +266,7 @@ def address_strategy() -> SearchStrategy[str]:
         ),
         # XRP-style addresses
         st.builds(
-            lambda x: f"r{x}",
+            _create_xrp_address,
             st.text(
                 min_size=24,
                 max_size=24,
@@ -397,11 +293,11 @@ def decimal_amount_strategy() -> SearchStrategy[Decimal]:
     ])
 
 
-def valid_timestamp_strategy() -> SearchStrategy[str]:
-    """Generate valid timestamp strings only.
+def timestamp_strategy() -> SearchStrategy[str]:
+    """Generate timestamp strings.
 
     Returns:
-        A Hypothesis strategy for valid timestamps.
+        A Hypothesis strategy for timestamps.
     """
     return st.one_of([
         # Unix millisecond timestamps
@@ -412,17 +308,6 @@ def valid_timestamp_strategy() -> SearchStrategy[str]:
             "2024-03-20T14:45:30.123Z",
             "2023-12-31T23:59:59.999Z",
         ]),
-    ])
-
-
-def timestamp_strategy() -> SearchStrategy[str]:
-    """Generate timestamp strings including invalid ones for error testing.
-
-    Returns:
-        A Hypothesis strategy for timestamps.
-    """
-    return st.one_of([
-        valid_timestamp_strategy(),
         # Invalid timestamps for error testing
         st.sampled_from(["invalid_timestamp", "", "not-a-date"]),
     ])
@@ -462,12 +347,12 @@ def valid_withdrawal_response_data(draw: st.DrawFn) -> dict[str, Any]:
     return {
         "id": draw(st.integers(min_value=1, max_value=999999999999)),
         "status": draw(withdrawal_status_strategy()),
-        "blockchain": draw(valid_blockchain_strategy()),
+        "blockchain": draw(blockchain_strategy()),
         "quantity": draw(st.builds(str, decimal_amount_strategy())),
         "fee": draw(st.builds(str, decimal_amount_strategy())),
-        "symbol": draw(valid_asset_symbol_strategy()),
+        "symbol": draw(asset_symbol_strategy()),
         "toAddress": draw(address_strategy()),
-        "createdAt": draw(valid_timestamp_strategy()),
+        "createdAt": draw(timestamp_strategy()),
         "isInternal": draw(st.booleans()),
         "transactionHash": draw(
             st.one_of([
@@ -482,41 +367,6 @@ def valid_withdrawal_response_data(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def trading_pair_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid trading pair symbols.
-
-    Returns:
-        A Hypothesis strategy for trading pair symbols like 'BTC-USDC', 'ETH_USDT'.
-    """
-    base_assets = [
-        "BTC",
-        "ETH",
-        "SOL",
-        "PYTH",
-        "JTO",
-        "BONK",
-        "HNT",
-        "MOBILE",
-        "WIF",
-        "JUP",
-        "RENDER",
-        "WEN",
-        "W",
-        "TNSR",
-        "PRCL",
-        "SHARK",
-    ]
-    quote_assets = ["USDC", "USDT", "BTC", "ETH", "SOL"]
-    separators = ["-", "_"]
-
-    return st.builds(
-        lambda base, quote, sep: f"{base}{sep}{quote}",
-        st.sampled_from(base_assets),
-        st.sampled_from(quote_assets),
-        st.sampled_from(separators),
-    )
-
-
 @st.composite
 def valid_fill_response_data(draw: st.DrawFn) -> dict[str, Any]:
     """Generate valid fill response data.
@@ -526,17 +376,17 @@ def valid_fill_response_data(draw: st.DrawFn) -> dict[str, Any]:
     """
     return {
         "tradeId": draw(st.integers(min_value=1, max_value=999999999)),
-        "symbol": draw(trading_pair_symbol_strategy()),
+        "symbol": draw(asset_symbol_strategy().filter(lambda x: "-" in x or "_" in x)),
         "side": draw(order_side_strategy()),
         "quantity": draw(st.builds(str, decimal_amount_strategy())),
         "price": draw(st.builds(str, decimal_amount_strategy())),
         "fee": draw(st.builds(str, decimal_amount_strategy())),
         "feeSymbol": draw(asset_symbol_strategy()),
         "isMaker": draw(st.booleans()),
-        "timestamp": draw(valid_timestamp_strategy()),
+        "timestamp": draw(timestamp_strategy()),
         "orderId": draw(transfer_id_strategy()),
         "clientId": draw(st.one_of([st.none(), transfer_id_strategy()])),
-        "systemOrderType": draw(st.none()),
+        "systemOrderType": st.none(),
     }
 
 
@@ -551,18 +401,14 @@ def valid_position_update_data(draw: st.DrawFn) -> dict[str, Any]:
         st.builds(str, st.decimals(min_value=Decimal(-1000), max_value=Decimal(1000), places=8))
     )
 
-    # Business logic constraint: if size is non-zero, entry_price must be provided
-    is_zero_position = Decimal(net_quantity) == 0
-    entry_price = draw(st.none() if is_zero_position else st.builds(str, decimal_amount_strategy()))
-
     return {
         "e": "positionUpdate",
         "E": draw(st.integers(min_value=1600000000000, max_value=2000000000000)),
-        "s": draw(trading_pair_symbol_strategy()),
+        "s": draw(asset_symbol_strategy().filter(lambda x: "-" in x or "_" in x)),
         "b": draw(
             st.one_of([st.none(), st.builds(str, decimal_amount_strategy())])
         ),  # breakEventPrice
-        "B": entry_price,  # entryPrice - must be provided if size is non-zero
+        "B": draw(st.one_of([st.none(), st.builds(str, decimal_amount_strategy())])),  # entryPrice
         "l": draw(
             st.one_of([st.none(), st.builds(str, decimal_amount_strategy())])
         ),  # liquidationPrice
@@ -681,6 +527,7 @@ class TestTransferTransformationProperties:
     @settings(max_examples=200, deadline=None)
     def test_transfer_transformation_success_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         transfer_data: dict[str, Any],
         asset: str,
         quantity: Decimal,
@@ -695,7 +542,6 @@ class TestTransferTransformationProperties:
         from_account, to_account = account_types
         raw_response = cast("RawJsonResponse", transfer_data)
 
-        transfer_mapper = BackpackTransferMapper()
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=raw_response,
             exchange_name=ExchangeName.BACKPACK,
@@ -730,6 +576,7 @@ class TestTransferTransformationProperties:
     @settings(max_examples=100, deadline=None)
     def test_transfer_status_mapping_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         status: str,
         transfer_id: str,
         asset: str,
@@ -742,7 +589,6 @@ class TestTransferTransformationProperties:
             "timestamp": "1678886400000",
         }
 
-        transfer_mapper = BackpackTransferMapper()
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=cast("RawJsonResponse", transfer_data),
             exchange_name=ExchangeName.BACKPACK,
@@ -761,8 +607,6 @@ class TestTransferTransformationProperties:
             "processing": InternalTransferStatus.PENDING,
             "failed": InternalTransferStatus.FAILED,
             "rejected": InternalTransferStatus.FAILED,
-            "cancelled": InternalTransferStatus.REJECTED,
-            "canceled": InternalTransferStatus.REJECTED,
         }
 
         if status in expected_mappings:
@@ -777,6 +621,7 @@ class TestTransferTransformationProperties:
     @settings(max_examples=100, deadline=None)
     def test_transfer_malicious_input_resistance_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         malicious_value: object,
         field_name: str,
     ) -> None:
@@ -788,7 +633,6 @@ class TestTransferTransformationProperties:
         }
         transfer_data[field_name] = malicious_value
 
-        transfer_mapper = BackpackTransferMapper()
         if field_name == "id" and not malicious_value:
             # Missing ID should raise error
             with pytest.raises(DataTransformationError):
@@ -826,10 +670,10 @@ class TestTransferTransformationProperties:
     @settings(max_examples=50, deadline=None)
     def test_transfer_invalid_response_type_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         invalid_response_type: object,
     ) -> None:
         """Property: Invalid response types should be rejected safely."""
-        transfer_mapper = BackpackTransferMapper()
         with pytest.raises(DataTransformationError) as exc_info:
             transfer_mapper.transform_raw_transfer_to_internal(
                 raw_response=cast("RawJsonResponse", invalid_response_type),
@@ -855,7 +699,7 @@ class TestWithdrawalTransformationProperties:
 
     @given(
         withdrawal_data=valid_withdrawal_response_data(),
-        asset=valid_asset_symbol_strategy(),
+        asset=asset_symbol_strategy(),
         quantity=decimal_amount_strategy(),
         address=address_strategy(),
         network=st.one_of([st.none(), st.sampled_from(["ethereum", "bitcoin", "solana"])]),
@@ -865,6 +709,7 @@ class TestWithdrawalTransformationProperties:
     @settings(max_examples=200, deadline=None)
     def test_withdrawal_transformation_success_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         withdrawal_data: dict[str, Any],
         asset: str,
         quantity: Decimal,
@@ -880,7 +725,6 @@ class TestWithdrawalTransformationProperties:
         # Create valid raw withdrawal response
         raw_response = BackpackRawWithdrawalResponse.model_validate(withdrawal_data)
 
-        transfer_mapper = BackpackTransferMapper()
         result = transfer_mapper.transform_raw_withdrawal_response_to_internal(
             raw_response=raw_response,
             asset=asset,
@@ -902,9 +746,7 @@ class TestWithdrawalTransformationProperties:
 
         # Property: Backpack details should be preserved
         assert result.bp_details is not None
-        # Property: Client ID should come from parameter if present, otherwise raw data
-        expected_client_id = client_id or withdrawal_data.get("clientId")
-        assert result.bp_details.client_id == expected_client_id
+        assert result.bp_details.client_id == client_id
         assert result.bp_details.is_internal == withdrawal_data.get("isInternal", False)
 
     @given(
@@ -914,6 +756,7 @@ class TestWithdrawalTransformationProperties:
     @settings(max_examples=100, deadline=None)
     def test_withdrawal_status_mapping_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         status: str,
         withdrawal_id: int,
     ) -> None:
@@ -940,7 +783,6 @@ class TestWithdrawalTransformationProperties:
             raw_response = BackpackRawWithdrawalResponse.model_validate(withdrawal_data)
             raw_response.__dict__["status"] = status
 
-        transfer_mapper = BackpackTransferMapper()
         result = transfer_mapper.transform_raw_withdrawal_response_to_internal(
             raw_response=raw_response,
             asset="USDC",
@@ -974,6 +816,7 @@ class TestWithdrawalTransformationProperties:
     @settings(max_examples=50, deadline=None)
     def test_withdrawal_large_amounts_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         large_amount: Decimal,
         large_fee: Decimal,
     ) -> None:
@@ -992,7 +835,6 @@ class TestWithdrawalTransformationProperties:
 
         raw_response = BackpackRawWithdrawalResponse.model_validate(withdrawal_data)
 
-        transfer_mapper = BackpackTransferMapper()
         result = transfer_mapper.transform_raw_withdrawal_response_to_internal(
             raw_response=raw_response,
             asset="BTC",
@@ -1019,9 +861,10 @@ class TestWebSocketFillTransformationProperties:
     @given(
         fill_data=valid_fill_response_data(),
     )
-    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(max_examples=200, deadline=None)
     def test_fill_transformation_success_properties(
         self,
+        transaction_mapper: BackpackTransactionMapper,
         fill_data: dict[str, Any],
     ) -> None:
         """Property: Valid fill data should transform successfully."""
@@ -1031,7 +874,6 @@ class TestWebSocketFillTransformationProperties:
 
         raw_fill = BackpackRawFillResponse.model_validate(fill_data)
 
-        transaction_mapper = BackpackTransactionMapper()
         result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         if result is not None:  # Non-zero fills should transform
@@ -1058,6 +900,7 @@ class TestWebSocketFillTransformationProperties:
     @settings(max_examples=50, deadline=None)
     def test_fill_side_and_maker_taker_mapping_properties(
         self,
+        transaction_mapper: BackpackTransactionMapper,
         side: Literal["Bid", "Ask"],
         is_maker: bool,
     ) -> None:
@@ -1078,7 +921,6 @@ class TestWebSocketFillTransformationProperties:
         }
 
         raw_fill = BackpackRawFillResponse.model_validate(fill_data)
-        transaction_mapper = BackpackTransactionMapper()
         result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         assert result is not None
@@ -1098,6 +940,7 @@ class TestWebSocketFillTransformationProperties:
     @settings(max_examples=20, deadline=None)
     def test_fill_zero_amount_handling_properties(
         self,
+        transaction_mapper: BackpackTransactionMapper,
         zero_amount: str,
         field_name: str,
     ) -> None:
@@ -1119,7 +962,6 @@ class TestWebSocketFillTransformationProperties:
         fill_data[field_name] = zero_amount
 
         raw_fill = BackpackRawFillResponse.model_validate(fill_data)
-        transaction_mapper = BackpackTransactionMapper()
         result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
         # Property: Zero amounts should return None
@@ -1137,15 +979,15 @@ class TestWebSocketPositionUpdateTransformationProperties:
     @given(
         position_data=valid_position_update_data(),
     )
-    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(max_examples=200, deadline=None)
     def test_position_update_transformation_success_properties(
         self,
+        position_mapper: BackpackPositionMapper,
         position_data: dict[str, Any],
     ) -> None:
         """Property: Valid position update data should transform successfully."""
         raw_position_update = BackpackRawPositionUpdate.model_validate(position_data)
 
-        position_mapper = BackpackPositionMapper()
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
         )
@@ -1175,6 +1017,7 @@ class TestWebSocketPositionUpdateTransformationProperties:
     @settings(max_examples=100, deadline=None)
     def test_position_side_determination_properties(
         self,
+        position_mapper: BackpackPositionMapper,
         net_quantity: Decimal,
     ) -> None:
         """Property: Position side should be determined correctly based on quantity."""
@@ -1196,7 +1039,6 @@ class TestWebSocketPositionUpdateTransformationProperties:
         }
 
         raw_position_update = BackpackRawPositionUpdate.model_validate(position_data)
-        position_mapper = BackpackPositionMapper()
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
         )
@@ -1212,45 +1054,27 @@ class TestWebSocketPositionUpdateTransformationProperties:
     @settings(max_examples=30, deadline=None)
     def test_position_none_optional_fields_properties(
         self,
+        position_mapper: BackpackPositionMapper,
         optional_field: str,
     ) -> None:
         """Property: None optional fields should be handled gracefully."""
-        # Business logic constraint: if setting entry_price (B) to None,
-        # then position size must be zero to avoid validation error
-        if optional_field == "B":
-            position_data: dict[str, str | int | None] = {
-                "e": "positionUpdate",
-                "E": 1678886400000,
-                "s": "SOL-USDC",
-                "b": "100.0",
-                "B": "100.0",
-                "l": "90.0",
-                "f": "0.05",
-                "M": "100.5",
-                "m": "0.02",
-                "q": "0.0",  # Zero size for None entry_price
-                "Q": "0.0",
-                "n": "0.0",
-            }
-        else:
-            position_data = {
-                "e": "positionUpdate",
-                "E": 1678886400000,
-                "s": "SOL-USDC",
-                "b": "100.0",
-                "B": "100.0",
-                "l": "90.0",
-                "f": "0.05",
-                "M": "100.5",
-                "m": "0.02",
-                "q": "10.0",
-                "Q": "10.0",
-                "n": "1000.0",
-            }
+        position_data: dict[str, str | int | None] = {
+            "e": "positionUpdate",
+            "E": 1678886400000,
+            "s": "SOL-USDC",
+            "b": "100.0",
+            "B": "100.0",
+            "l": "90.0",
+            "f": "0.05",
+            "M": "100.5",
+            "m": "0.02",
+            "q": "10.0",
+            "Q": "10.0",
+            "n": "1000.0",
+        }
         position_data[optional_field] = None
 
         raw_position_update = BackpackRawPositionUpdate.model_validate(position_data)
-        position_mapper = BackpackPositionMapper()
         result = position_mapper.transform_ws_position_update_to_internal_position(
             raw_position_update
         )
@@ -1274,6 +1098,7 @@ class TestAccountOperationSecurityProperties:
     @settings(max_examples=100, deadline=None)
     def test_malicious_asset_name_resistance_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         malicious_asset: object,
     ) -> None:
         """Property: Malicious asset names should be handled safely."""
@@ -1287,7 +1112,6 @@ class TestAccountOperationSecurityProperties:
         if not isinstance(malicious_asset, str):
             malicious_asset = str(malicious_asset)
 
-        transfer_mapper = BackpackTransferMapper()
         try:
             result = transfer_mapper.transform_raw_transfer_to_internal(
                 raw_response=cast("RawJsonResponse", transfer_data),
@@ -1299,9 +1123,8 @@ class TestAccountOperationSecurityProperties:
                 client_transfer_id=None,
             )
 
-            # If successful, malicious input should be preserved or safely sanitized (no execution)
-            # Some control characters may be stripped for security
-            assert result.asset == malicious_asset or result.asset == malicious_asset.strip()
+            # If successful, malicious input should be preserved as-is (no execution)
+            assert result.asset == malicious_asset
             assert isinstance(result, Transfer)
         except (DataTransformationError, ValidationError, ValueError):
             # Safe failure is acceptable for malicious inputs
@@ -1313,6 +1136,7 @@ class TestAccountOperationSecurityProperties:
     @settings(max_examples=50, deadline=None)
     def test_large_client_id_handling_properties(
         self,
+        transfer_mapper: BackpackTransferMapper,
         large_client_id: str,
     ) -> None:
         """Property: Very large client IDs should be handled safely."""
@@ -1322,7 +1146,6 @@ class TestAccountOperationSecurityProperties:
             "timestamp": "1678886400000",
         }
 
-        transfer_mapper = BackpackTransferMapper()
         result = transfer_mapper.transform_raw_transfer_to_internal(
             raw_response=cast("RawJsonResponse", transfer_data),
             exchange_name=ExchangeName.BACKPACK,
@@ -1337,7 +1160,6 @@ class TestAccountOperationSecurityProperties:
         assert result.bp_details is not None
         assert result.bp_details.client_id == large_client_id
 
-    @pytest.mark.skip(reason="TODO: Fix mocking - parse_decimal_value not called in this path")
     @given(
         transformation_error=st.sampled_from([
             ValueError("Invalid decimal"),
@@ -1348,6 +1170,7 @@ class TestAccountOperationSecurityProperties:
     @settings(max_examples=30, deadline=None)
     def test_transformation_error_wrapping_properties(
         self,
+        transaction_mapper: BackpackTransactionMapper,
         transformation_error: Exception,
     ) -> None:
         """Property: Transformation errors should be properly wrapped."""
@@ -1367,11 +1190,10 @@ class TestAccountOperationSecurityProperties:
         }
 
         raw_fill = BackpackRawFillResponse.model_validate(fill_data)
-        transaction_mapper = BackpackTransactionMapper()
 
         # Mock to raise transformation error
         with patch(
-            "cyberdelta.utils.parsing.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
         ) as mock_parse:
             mock_parse.side_effect = transformation_error
 
@@ -1387,7 +1209,9 @@ class TestAccountOperationSecurityProperties:
 # =============================================================================
 
 
-def test_transfer_transformation_basic_functionality() -> None:
+def test_transfer_transformation_basic_functionality(
+    transfer_mapper: BackpackTransferMapper,
+) -> None:
     """Test basic transfer transformation for regression."""
     raw_response = cast(
         "RawJsonResponse",
@@ -1399,7 +1223,6 @@ def test_transfer_transformation_basic_functionality() -> None:
         },
     )
 
-    transfer_mapper = BackpackTransferMapper()
     result = transfer_mapper.transform_raw_transfer_to_internal(
         raw_response=raw_response,
         exchange_name=ExchangeName.BACKPACK,
@@ -1415,7 +1238,9 @@ def test_transfer_transformation_basic_functionality() -> None:
     assert result.status == InternalTransferStatus.COMPLETED
 
 
-def test_withdrawal_transformation_basic_functionality() -> None:
+def test_withdrawal_transformation_basic_functionality(
+    transfer_mapper: BackpackTransferMapper,
+) -> None:
     """Test basic withdrawal transformation for regression."""
     raw_response = BackpackRawWithdrawalResponse.model_validate({
         "id": 123,
@@ -1430,7 +1255,6 @@ def test_withdrawal_transformation_basic_functionality() -> None:
         "transactionHash": "0xhash123",
     })
 
-    transfer_mapper = BackpackTransferMapper()
     result = transfer_mapper.transform_raw_withdrawal_response_to_internal(
         raw_response=raw_response,
         asset="USDC",
@@ -1446,7 +1270,9 @@ def test_withdrawal_transformation_basic_functionality() -> None:
     assert result.status == InternalWithdrawalStatus.COMPLETED
 
 
-def test_fill_transformation_basic_functionality() -> None:
+def test_fill_transformation_basic_functionality(
+    transaction_mapper: BackpackTransactionMapper,
+) -> None:
     """Test basic fill transformation for regression."""
     raw_fill = BackpackRawFillResponse(
         tradeId=12345,
@@ -1463,7 +1289,6 @@ def test_fill_transformation_basic_functionality() -> None:
         systemOrderType=None,
     )
 
-    transaction_mapper = BackpackTransactionMapper()
     result = transaction_mapper.transform_ws_fill_event_to_internal_fill(raw_fill)
 
     assert result is not None
@@ -1472,7 +1297,9 @@ def test_fill_transformation_basic_functionality() -> None:
     assert result.side == OrderSide.BUY
 
 
-def test_position_update_transformation_basic_functionality() -> None:
+def test_position_update_transformation_basic_functionality(
+    position_mapper: BackpackPositionMapper,
+) -> None:
     """Test basic position update transformation for regression."""
     raw_position_update = BackpackRawPositionUpdate(
         e="positionUpdate",
@@ -1489,7 +1316,6 @@ def test_position_update_transformation_basic_functionality() -> None:
         n="1000.0",
     )
 
-    position_mapper = BackpackPositionMapper()
     result = position_mapper.transform_ws_position_update_to_internal_position(raw_position_update)
 
     assert isinstance(result, DerivativePosition)

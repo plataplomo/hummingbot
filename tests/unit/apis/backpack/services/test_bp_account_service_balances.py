@@ -2,7 +2,8 @@
 
 --------------------------------------------------------------------
 
-Comprehensive property-based test suite for BackpackAccountService balance functionality using Hypothesis.
+Comprehensive property-based test suite for BackpackAccountService balance functionality
+using Hypothesis.
 Tests service layer operations with mocked dependencies including:
 - Balance retrieval with various asset combinations and amounts
 - HTTP client response handling and error conditions
@@ -17,12 +18,12 @@ from __future__ import annotations
 import string
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from hypothesis import given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy, composite
+from hypothesis.strategies import DrawFn, SearchStrategy, composite
 from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceResponse
@@ -251,6 +252,71 @@ class TestBackpackAccountServiceBalances:
 # =======================
 
 
+def _create_asset_symbol_with_suffix(base: str, suffix: str) -> str:
+    """Create asset symbol with base and suffix."""
+    return f"{base}-{suffix}"
+
+
+def _create_decimal_string_from_integer_decimal(integer: int, decimal: str) -> str:
+    """Create decimal string from integer and decimal parts."""
+    return f"{integer}.{decimal}"
+
+
+def _create_high_precision_decimal_string(base: int, precision: int) -> str:
+    """Create high precision decimal string with base and precision."""
+    return f"{base}.{'123456789'[:precision]}"
+
+
+def _create_malicious_null_byte_string() -> str:
+    """Create malicious string with null byte."""
+    return "100.0\x00malicious"
+
+
+def _create_balance_with_available_only(asset: str) -> dict[str, dict[str, str]]:
+    """Create balance response with only available field."""
+    return {asset: {"available": "100.0"}}
+
+
+def _create_balance_with_locked_only(asset: str) -> dict[str, dict[str, str]]:
+    """Create balance response with only locked field."""
+    return {asset: {"locked": "10.0"}}
+
+
+def _create_balance_with_invalid_available_type(asset: str) -> dict[str, dict[str, str | int]]:
+    """Create balance response with invalid available field type."""
+    return {asset: {"available": 100, "locked": "10.0"}}
+
+
+def _create_balance_with_invalid_locked_type(asset: str) -> dict[str, dict[str, str | bool]]:
+    """Create balance response with invalid locked field type."""
+    return {asset: {"available": "100.0", "locked": True}}
+
+
+def _create_balance_with_extra_field(asset: str) -> dict[str, dict[str, str]]:
+    """Create balance response with unexpected extra field."""
+    return {asset: {"available": "100.0", "locked": "10.0", "unexpected": "field"}}
+
+
+def _create_balance_with_nested_available(asset: str) -> dict[str, dict[str, dict[str, str] | str]]:
+    """Create balance response with nested available field."""
+    return {asset: {"available": {"nested": "100.0"}, "locked": "10.0"}}
+
+
+def _create_empty_balance(asset: str) -> dict[str, dict[str, object]]:
+    """Create empty balance response."""
+    return {asset: {}}
+
+
+def _create_balance_with_string_value(asset: str) -> dict[str, str]:
+    """Create balance response with string instead of dict."""
+    return {asset: "not_a_dict"}
+
+
+def _create_balance_with_list_value(asset: str) -> dict[str, list[str]]:
+    """Create balance response with list instead of dict."""
+    return {asset: ["not", "a", "dict"]}
+
+
 def asset_symbol_strategy() -> SearchStrategy[str]:
     """Generate valid asset symbols for balance testing.
 
@@ -280,7 +346,7 @@ def asset_symbol_strategy() -> SearchStrategy[str]:
         ]),
         # Custom assets with various formats
         st.builds(
-            lambda base, suffix: f"{base}-{suffix}",
+            _create_asset_symbol_with_suffix,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.sampled_from(["USD", "USDC", "USDT", "PERP"]),
         ),
@@ -298,7 +364,7 @@ def balance_amount_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common decimal amounts
         st.builds(
-            lambda integer, decimal: f"{integer}.{decimal}",
+            _create_decimal_string_from_integer_decimal,
             st.integers(min_value=0, max_value=999999),
             st.text(alphabet=string.digits, min_size=1, max_size=8),
         ),
@@ -306,7 +372,7 @@ def balance_amount_strategy() -> SearchStrategy[str]:
         st.sampled_from(["0", "0.0", "0.00", "0.000000"]),
         # High precision amounts
         st.builds(
-            lambda base, precision: f"{base}.{''.join(['123456789'])[:precision]}",
+            _create_high_precision_decimal_string,
             st.integers(min_value=1, max_value=1000),
             st.integers(min_value=1, max_value=10),
         ),
@@ -371,7 +437,7 @@ def malicious_balance_strategy() -> SearchStrategy[str]:
         # Very long strings
         st.text(min_size=1000, max_size=1500),
         # Null bytes
-        st.builds(lambda: "100.0\x00malicious"),
+        st.builds(_create_malicious_null_byte_string),
         # Unicode exploitation
         st.text(
             alphabet=st.characters(min_codepoint=0x2000, max_codepoint=0x2FFF),
@@ -382,7 +448,7 @@ def malicious_balance_strategy() -> SearchStrategy[str]:
 
 
 @composite
-def single_balance_response_strategy(draw: st.DrawFn) -> BackpackRawBalanceResponse:
+def single_balance_response_strategy(draw: DrawFn) -> BackpackRawBalanceResponse:
     """Generate a single valid BackpackRawBalanceResponse.
 
     Args:
@@ -403,7 +469,7 @@ def single_balance_response_strategy(draw: st.DrawFn) -> BackpackRawBalanceRespo
 
 
 @composite
-def multiple_balances_strategy(draw: st.DrawFn) -> dict[str, BackpackRawBalanceResponse]:
+def multiple_balances_strategy(draw: DrawFn) -> dict[str, BackpackRawBalanceResponse]:
     """Generate multiple balance responses for different assets.
 
     Args:
@@ -417,7 +483,7 @@ def multiple_balances_strategy(draw: st.DrawFn) -> dict[str, BackpackRawBalanceR
         st.lists(asset_symbol_strategy(), min_size=num_assets, max_size=num_assets, unique=True)
     )
 
-    balances = {}
+    balances: dict[str, BackpackRawBalanceResponse] = {}
     for asset in assets:
         balances[asset] = draw(single_balance_response_strategy())
 
@@ -425,7 +491,7 @@ def multiple_balances_strategy(draw: st.DrawFn) -> dict[str, BackpackRawBalanceR
 
 
 @composite
-def raw_response_data_strategy(draw: st.DrawFn) -> ParsedJsonResponse:
+def raw_response_data_strategy(draw: DrawFn) -> ParsedJsonResponse:
     """Generate raw response data that would come from HTTP client.
 
     Args:
@@ -439,7 +505,7 @@ def raw_response_data_strategy(draw: st.DrawFn) -> ParsedJsonResponse:
         st.lists(asset_symbol_strategy(), min_size=num_assets, max_size=num_assets, unique=True)
     )
 
-    response_data = {}
+    response_data: dict[str, dict[str, str]] = {}
     for asset in assets:
         available = draw(balance_amount_strategy())
         locked = draw(balance_amount_strategy())
@@ -456,7 +522,7 @@ def raw_response_data_strategy(draw: st.DrawFn) -> ParsedJsonResponse:
 
 
 @composite
-def malicious_response_data_strategy(draw: st.DrawFn) -> ParsedJsonResponse:
+def malicious_response_data_strategy(draw: DrawFn) -> ParsedJsonResponse:
     """Generate malicious response data for security testing.
 
     Args:
@@ -478,7 +544,9 @@ def malicious_response_data_strategy(draw: st.DrawFn) -> ParsedJsonResponse:
 
 
 @composite
-def invalid_response_structure_strategy(draw: st.DrawFn) -> Any:
+def invalid_response_structure_strategy(
+    draw: DrawFn,
+) -> ParsedJsonResponse:
     """Generate invalid response structures for error testing.
 
     Args:
@@ -487,38 +555,37 @@ def invalid_response_structure_strategy(draw: st.DrawFn) -> Any:
     Returns:
         ParsedJsonResponse: Invalid response structure.
     """
-    return draw(
-        st.one_of([
-            # Missing required fields
-            st.builds(lambda asset: {asset: {"available": "100.0"}}, asset_symbol_strategy()),
-            st.builds(lambda asset: {asset: {"locked": "10.0"}}, asset_symbol_strategy()),
-            # Wrong field types
-            st.builds(
-                lambda asset: {asset: {"available": 100, "locked": "10.0"}}, asset_symbol_strategy()
-            ),
-            st.builds(
-                lambda asset: {asset: {"available": "100.0", "locked": True}},
-                asset_symbol_strategy(),
-            ),
-            # Extra unexpected fields
-            st.builds(
-                lambda asset: {
-                    asset: {"available": "100.0", "locked": "10.0", "unexpected": "field"}
-                },
-                asset_symbol_strategy(),
-            ),
-            # Nested structures
-            st.builds(
-                lambda asset: {asset: {"available": {"nested": "100.0"}, "locked": "10.0"}},
-                asset_symbol_strategy(),
-            ),
-            # Empty structures
-            st.just({}),
-            st.builds(lambda asset: {asset: {}}, asset_symbol_strategy()),
-            # Non-dict values
-            st.builds(lambda asset: {asset: "not_a_dict"}, asset_symbol_strategy()),
-            st.builds(lambda asset: {asset: ["not", "a", "dict"]}, asset_symbol_strategy()),
-        ])
+    return cast(
+        ParsedJsonResponse,
+        draw(
+            st.one_of([
+                # Missing required fields
+                st.builds(_create_balance_with_available_only, asset_symbol_strategy()),
+                st.builds(_create_balance_with_locked_only, asset_symbol_strategy()),
+                # Wrong field types
+                st.builds(_create_balance_with_invalid_available_type, asset_symbol_strategy()),
+                st.builds(
+                    _create_balance_with_invalid_locked_type,
+                    asset_symbol_strategy(),
+                ),
+                # Extra unexpected fields
+                st.builds(
+                    _create_balance_with_extra_field,
+                    asset_symbol_strategy(),
+                ),
+                # Nested structures
+                st.builds(
+                    _create_balance_with_nested_available,
+                    asset_symbol_strategy(),
+                ),
+                # Empty structures
+                st.just({}),
+                st.builds(_create_empty_balance, asset_symbol_strategy()),
+                # Non-dict values
+                st.builds(_create_balance_with_string_value, asset_symbol_strategy()),
+                st.builds(_create_balance_with_list_value, asset_symbol_strategy()),
+            ])
+        ),
     )
 
 
@@ -921,7 +988,7 @@ class TestBackpackAccountServiceEdgeCases:
             assert unicode_asset in result
             assert isinstance(result[unicode_asset].asset.value, str)
 
-        except Exception:
+        except (ValueError, UnicodeError, KeyError):
             # Unicode might not be supported, which is acceptable
             pass
 

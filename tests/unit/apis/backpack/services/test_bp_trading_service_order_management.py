@@ -17,6 +17,7 @@ Tests service layer functionality with mocked dependencies including:
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1032,6 +1033,19 @@ def invalid_price_strategy() -> SearchStrategy[Decimal]:
     ])
 
 
+def _create_order_id(prefix: str, suffix: int) -> str:
+    """Create order ID from prefix and suffix.
+
+    Args:
+        prefix: Order ID prefix.
+        suffix: Order ID suffix number.
+
+    Returns:
+        Formatted order ID string.
+    """
+    return f"{prefix}_{suffix}"
+
+
 def order_id_strategy() -> SearchStrategy[str]:
     """Generate valid order IDs.
 
@@ -1043,12 +1057,25 @@ def order_id_strategy() -> SearchStrategy[str]:
             alphabet=st.characters(whitelist_categories=["Ll", "Lu", "Nd"]), min_size=1, max_size=64
         ),
         st.builds(
-            lambda prefix, suffix: f"{prefix}_{suffix}",
+            _create_order_id,
             st.sampled_from(["order", "ord", "trade", "tx"]),
             st.integers(min_value=1, max_value=999999999),
         ),
         st.sampled_from(["12345", "67890", "order_123", "trade_456", "tx_789"]),
     ])
+
+
+def _create_client_order_id(prefix: str, suffix: int) -> str:
+    """Create client order ID from prefix and suffix.
+
+    Args:
+        prefix: Client order ID prefix.
+        suffix: Client order ID suffix number.
+
+    Returns:
+        Formatted client order ID string.
+    """
+    return f"{prefix}{suffix}"
 
 
 def client_order_id_strategy() -> SearchStrategy[str | None]:
@@ -1063,12 +1090,39 @@ def client_order_id_strategy() -> SearchStrategy[str | None]:
             alphabet=st.characters(whitelist_categories=["Nd"]), min_size=1, max_size=32
         ),  # Numeric only
         st.builds(
-            lambda prefix, suffix: f"{prefix}{suffix}",
+            _create_client_order_id,
             st.sampled_from(["client", "c", "order"]),
             st.integers(min_value=1, max_value=999999),
         ),
         st.sampled_from(["123456", "789012", "client123", "order456"]),
     ])
+
+
+def _create_place_order_error_message(symbol: str, status: int) -> str:
+    """Create place order error message.
+
+    Args:
+        symbol: Trading symbol.
+        status: HTTP status code.
+
+    Returns:
+        Error message string.
+    """
+    return f"No data received for place order for {symbol}, status: {status}"
+
+
+def _create_cancel_order_error_message(order_id: str, symbol: str, status: int) -> str:
+    """Create cancel order error message.
+
+    Args:
+        order_id: Order ID.
+        symbol: Trading symbol.
+        status: HTTP status code.
+
+    Returns:
+        Error message string.
+    """
+    return f"No data received for cancel order {order_id} ({symbol}), status: {status}"
 
 
 def api_error_strategy() -> SearchStrategy[APIError]:
@@ -1090,15 +1144,12 @@ def api_error_strategy() -> SearchStrategy[APIError]:
         message=st.one_of([
             st.text(min_size=10, max_size=100),
             st.builds(
-                lambda symbol,
-                status: f"No data received for place order for {symbol}, status: {status}",
+                _create_place_order_error_message,
                 st.text(min_size=3, max_size=20),
                 st.integers(min_value=200, max_value=599),
             ),
             st.builds(
-                lambda order_id,
-                symbol,
-                status: f"No data received for cancel order {order_id} ({symbol}), status: {status}",
+                _create_cancel_order_error_message,
                 st.text(min_size=1, max_size=20),
                 st.text(min_size=3, max_size=20),
                 st.integers(min_value=200, max_value=599),
@@ -1375,11 +1426,7 @@ class TestBackpackTradingServicePlaceOrderPropertyBased:
                 await bp_trading_service.place_order(invalid_args)
 
             error_message = str(exc_info.value)
-            if (
-                error_type == "invalid_quantity"
-                or error_type == "invalid_price"
-                or error_type == "invalid_stop_price"
-            ):
+            if error_type in ("invalid_quantity", "invalid_price", "invalid_stop_price"):
                 assert (
                     "Input should be greater than 0" in error_message
                     or "must be a finite decimal" in error_message
@@ -1548,7 +1595,7 @@ class TestBackpackTradingServiceValidationPropertyBased:
     ) -> None:
         """Property-based test for resistance to malicious symbol inputs."""
         try:
-            if malicious_symbol.strip() == "":
+            if not malicious_symbol.strip():
                 # Empty symbols should raise validation errors
                 with pytest.raises((ValidationError, ValueError)):
                     invalid_symbol = exchanges.backpack(malicious_symbol)
@@ -1603,7 +1650,7 @@ class TestBackpackTradingServiceValidationPropertyBased:
     ) -> None:
         """Property-based test for resistance to malicious order ID inputs."""
         try:
-            if malicious_order_id.strip() == "":
+            if not malicious_order_id.strip():
                 # Empty order IDs should raise validation errors
                 with pytest.raises(ValidationError):
                     CancelOrderArgs(
@@ -1696,7 +1743,7 @@ class TestBackpackTradingServiceCombinedScenariosPropertyBased:
             mock_orders = [MagicMock() for _ in range(len(symbols))]
             mock_placement_service.place_order = AsyncMock(side_effect=mock_orders)
 
-            results = []
+            results: list[Any] = []
             for i, symbol in enumerate(symbols):
                 order_type = order_types[i % len(order_types)]
                 side = sides[i % len(sides)]

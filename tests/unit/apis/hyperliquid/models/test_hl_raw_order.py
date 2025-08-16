@@ -217,7 +217,7 @@ class TestHyperliquidRawPlaceOrderActionProperties:
 
     @given(order_data=place_order_action_strategy())
     def test_valid_order_creation_properties(self, order_data: dict[str, Any]) -> None:
-        """Property: Valid order data should always create valid models."""
+        """Property: Valid data should create valid models."""
         order = HyperliquidRawPlaceOrderAction(
             asset=cast(int, order_data["asset"]),
             isBuy=cast(bool, order_data["isBuy"]),

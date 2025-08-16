@@ -32,13 +32,111 @@ Architecture Compliance:
 from __future__ import annotations
 
 import json
-from typing import Any
 
 from hypothesis import assume, given, settings, strategies as st
-from hypothesis.strategies import SearchStrategy
+from hypothesis.strategies import DrawFn, SearchStrategy
 
 from cyberdelta.apis.backpack.bp_error_mapper import BackpackErrorMapper
-from cyberdelta.apis.common import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
+
+
+# Type alias for recursive JSON structure used in tests
+JsonValue = bool | str | list["JsonValue"] | dict[str, "JsonValue"] | None
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR ERROR MESSAGE GENERATION
+# =============================================================================
+
+
+def _retry_after_seconds_message(seconds: int) -> str:
+    """Generate retry after seconds message.
+
+    Returns:
+        Formatted retry message string.
+    """
+    return f"Retry after {seconds} seconds"
+
+
+def _try_again_ms_message(ms: int) -> str:
+    """Generate try again in milliseconds message.
+
+    Returns:
+        Formatted try again message string.
+    """
+    return f"Try again in {ms} ms."
+
+
+def _please_wait_seconds_message(seconds: int) -> str:
+    """Generate please wait seconds message.
+
+    Returns:
+        Formatted please wait message string.
+    """
+    return f"Please wait {seconds}s"
+
+
+def _wait_seconds_retrying_message(seconds: int) -> str:
+    """Generate wait seconds before retrying message.
+
+    Returns:
+        Formatted wait seconds message string.
+    """
+    return f"Wait {seconds} seconds before retrying"
+
+
+def _retry_with_delay_tuple(seconds: int) -> tuple[str, float]:
+    """Generate retry message with delay tuple.
+
+    Returns:
+        Tuple of retry message and delay in seconds.
+    """
+    return (f"Retry after {seconds} seconds", float(seconds))
+
+
+def _try_again_ms_tuple(ms: int) -> tuple[str, float]:
+    """Generate try again message with delay tuple.
+
+    Returns:
+        Tuple of try again message and delay in seconds.
+    """
+    return (f"Try again in {ms} ms.", float(ms) / 1000)
+
+
+def _please_wait_tuple(seconds: int) -> tuple[str, float]:
+    """Generate please wait message with delay tuple.
+
+    Returns:
+        Tuple of please wait message and delay in seconds.
+    """
+    return (f"Please wait {seconds}s", float(seconds))
+
+
+def _wait_seconds_tuple(seconds: int) -> tuple[str, float]:
+    """Generate wait seconds message with delay tuple.
+
+    Returns:
+        Tuple of wait seconds message and delay in seconds.
+    """
+    return (f"Wait {seconds} seconds before retrying", float(seconds))
+
+
+def _wait_ms_tuple(ms: int) -> tuple[str, float]:
+    """Generate wait milliseconds message with delay tuple.
+
+    Returns:
+        Tuple of wait milliseconds message and delay in seconds.
+    """
+    return (f"Wait for {ms} milliseconds then try again", float(ms) / 1000)
+
+
+def _retry_after_uppercase_tuple(seconds: int) -> tuple[str, float]:
+    """Generate uppercase retry message with delay tuple.
+
+    Returns:
+        Tuple of uppercase retry message and delay in seconds.
+    """
+    return (f"RETRY AFTER {seconds} SECONDS", float(seconds))
 
 
 # =============================================================================
@@ -121,22 +219,20 @@ def error_message_strategy() -> SearchStrategy[str]:
         st.text(min_size=5, max_size=200),
         # Error messages with retry timing information
         st.builds(
-            lambda seconds: f"Retry after {seconds} seconds",
+            _retry_after_seconds_message,
             st.integers(min_value=1, max_value=3600),
         ),
-        st.builds(lambda ms: f"Try again in {ms} ms.", st.integers(min_value=100, max_value=60000)),
+        st.builds(_try_again_ms_message, st.integers(min_value=100, max_value=60000)),
+        st.builds(_please_wait_seconds_message, st.integers(min_value=1, max_value=300)),
         st.builds(
-            lambda seconds: f"Please wait {seconds}s", st.integers(min_value=1, max_value=300)
-        ),
-        st.builds(
-            lambda seconds: f"Wait {seconds} seconds before retrying",
+            _wait_seconds_retrying_message,
             st.integers(min_value=1, max_value=600),
         ),
     ])
 
 
 @st.composite
-def json_error_body_strategy(draw: Any) -> str:
+def json_error_body_strategy(draw: DrawFn) -> str:
     """Generate JSON error body strings.
 
     Args:
@@ -148,14 +244,14 @@ def json_error_body_strategy(draw: Any) -> str:
     message = draw(error_message_strategy())
     code = draw(backpack_error_code_strategy())
 
-    error_data = {
+    error_data: dict[str, str | int | bool | None] = {
         "message": message,
         "code": code,
     }
 
     # Sometimes add additional fields
     if draw(st.booleans()):
-        additional_fields = draw(
+        additional_fields: dict[str, str | int | bool | None] = draw(
             st.dictionaries(
                 st.text(min_size=1, max_size=20),
                 st.one_of([st.text(), st.integers(), st.booleans(), st.none()]),
@@ -186,7 +282,8 @@ def non_json_error_body_strategy() -> SearchStrategy[str]:
         # HTML error pages
         st.just("<html><body>Server Error</body></html>"),
         st.just(
-            "<!DOCTYPE html><html><head><title>Error</title></head><body><h1>404 Not Found</h1></body></html>"
+            "<!DOCTYPE html><html><head><title>Error</title></head>"
+            "<body><h1>404 Not Found</h1></body></html>"
         ),
         # Empty or whitespace
         st.just(""),
@@ -208,28 +305,28 @@ def retry_after_message_strategy() -> SearchStrategy[tuple[str, float | None]]:
     return st.one_of([
         # Valid retry patterns
         st.builds(
-            lambda seconds: (f"Retry after {seconds} seconds", float(seconds)),
+            _retry_with_delay_tuple,
             st.integers(min_value=1, max_value=3600),
         ),
         st.builds(
-            lambda ms: (f"Try again in {ms} ms.", float(ms) / 1000),
+            _try_again_ms_tuple,
             st.integers(min_value=100, max_value=60000),
         ),
         st.builds(
-            lambda seconds: (f"Please wait {seconds}s", float(seconds)),
+            _please_wait_tuple,
             st.integers(min_value=1, max_value=300),
         ),
         st.builds(
-            lambda seconds: (f"Wait {seconds} seconds before retrying", float(seconds)),
+            _wait_seconds_tuple,
             st.integers(min_value=1, max_value=600),
         ),
         st.builds(
-            lambda ms: (f"Wait for {ms} milliseconds then try again", float(ms) / 1000),
+            _wait_ms_tuple,
             st.integers(min_value=100, max_value=60000),
         ),
         # Case variations
         st.builds(
-            lambda seconds: (f"RETRY AFTER {seconds} SECONDS", float(seconds)),
+            _retry_after_uppercase_tuple,
             st.integers(min_value=1, max_value=100),
         ),
         # No retry information
@@ -239,7 +336,7 @@ def retry_after_message_strategy() -> SearchStrategy[tuple[str, float | None]]:
     ])
 
 
-def malicious_error_input_strategy() -> SearchStrategy[Any]:
+def malicious_error_input_strategy() -> SearchStrategy[str]:
     """Generate malicious inputs for security testing.
 
     Returns:
@@ -330,7 +427,7 @@ class TestBackpackErrorMapperProperties:
                 APIErrorCode.ORDER_NOT_FOUND.value,
                 APIErrorCode.INVALID_SYMBOL.value,
             ]
-        elif status_code == 401 or status_code == 403:
+        elif status_code in (401, 403):
             assert api_error.code == APIErrorCode.AUTHENTICATION_FAILED.value
         elif status_code == 429:
             assert api_error.code == APIErrorCode.RATE_LIMITED.value
@@ -492,15 +589,12 @@ class TestBackpackErrorMapperSecurityProperties:
         status_code=http_status_strategy(),
     )
     @settings(max_examples=100, deadline=None)
-    def test_malicious_input_resistance(self, malicious_input: Any, status_code: int) -> None:
+    def test_malicious_input_resistance(self, malicious_input: str, status_code: int) -> None:
         """Property: Error mapper should safely handle malicious inputs."""
         mapper = BackpackErrorMapper()
 
-        # Convert malicious input to string if needed
-        if isinstance(malicious_input, str):
-            error_body = malicious_input
-        else:
-            error_body = str(malicious_input)
+        # Use malicious input as error body
+        error_body = malicious_input
 
         try:
             error_data = json.loads(error_body) if error_body.strip().startswith("{") else None
@@ -554,7 +648,7 @@ class TestBackpackErrorMapperSecurityProperties:
         status_code=http_status_strategy(),
     )
     @settings(max_examples=50, deadline=None)
-    def test_deeply_nested_json_handling(self, nested_json: Any, status_code: int) -> None:
+    def test_deeply_nested_json_handling(self, nested_json: JsonValue, status_code: int) -> None:
         """Property: Error mapper should handle deeply nested JSON safely."""
         mapper = BackpackErrorMapper()
 
@@ -564,6 +658,7 @@ class TestBackpackErrorMapperSecurityProperties:
         except (TypeError, ValueError, RecursionError):
             # Skip if JSON is too complex to serialize
             assume(False)
+            return  # This line is unreachable but helps pyright understand control flow
 
         # Should handle nested JSON without stack overflow
         api_error = mapper.map_exchange_error(status_code, error_body, error_data)
@@ -776,7 +871,7 @@ class TestBackpackErrorMapperIntegrationProperties:
         mapper = BackpackErrorMapper()
 
         # Map all errors
-        results = []
+        results: list[APIError] = []
         for status_code, error_body in error_scenarios:
             try:
                 error_data = json.loads(error_body)

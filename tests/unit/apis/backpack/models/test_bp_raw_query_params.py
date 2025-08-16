@@ -33,6 +33,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any, Literal, cast
 
 import pytest
@@ -55,6 +56,73 @@ from cyberdelta.apis.backpack.models.bp_raw_query_params import (
 from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP
+
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
+def _create_symbol_with_dash(base: str, quote: str) -> str:
+    """Create symbol with dash separator.
+
+    Args:
+        base: Base currency string
+        quote: Quote currency string
+
+    Returns:
+        Symbol with dash separator
+    """
+    return f"{base}-{quote}"
+
+
+def _create_symbol_with_underscore(base: str, quote: str) -> str:
+    """Create symbol with underscore separator.
+
+    Args:
+        base: Base currency string
+        quote: Quote currency string
+
+    Returns:
+        Symbol with underscore separator
+    """
+    return f"{base}_{quote}"
+
+
+def _create_order_id(x: int) -> str:
+    """Create order ID with prefix.
+
+    Args:
+        x: Integer identifier
+
+    Returns:
+        Order ID string
+    """
+    return f"order_{x}"
+
+
+def _create_trade_id(x: int) -> str:
+    """Create trade ID with prefix.
+
+    Args:
+        x: Integer identifier
+
+    Returns:
+        Trade ID string
+    """
+    return f"trade_{x}"
+
+
+def _create_client_id(x: str) -> str:
+    """Create client ID with prefix.
+
+    Args:
+        x: Hex string identifier
+
+    Returns:
+        Client ID string
+    """
+    return f"client_{x}"
 
 
 # =============================================================================
@@ -86,12 +154,12 @@ def valid_symbol_strategy() -> SearchStrategy[str]:
         ]),
         # Generated valid symbols
         st.builds(
-            lambda base, quote: f"{base}-{quote}",
+            _create_symbol_with_dash,
             st.text(min_size=2, max_size=10, alphabet=st.characters(whitelist_categories=["Lu"])),
             st.sampled_from(["USDC", "USDT", "USD", "BTC", "ETH"]),
         ),
         st.builds(
-            lambda base, quote: f"{base}_{quote}",
+            _create_symbol_with_underscore,
             st.text(min_size=2, max_size=10, alphabet=st.characters(whitelist_categories=["Lu"])),
             st.sampled_from(["USDC", "USDT", "USD", "BTC", "ETH"]),
         ),
@@ -244,22 +312,19 @@ def id_string_strategy() -> SearchStrategy[str]:
         st.text(
             min_size=1, max_size=64, alphabet=st.characters(whitelist_categories=["Lu", "Ll", "Nd"])
         ),
-        st.builds(lambda x: f"order_{x}", st.integers(min_value=1, max_value=999999)),
-        st.builds(lambda x: f"trade_{x}", st.integers(min_value=1, max_value=999999)),
-        st.builds(
-            lambda x: f"client_{x}", st.text(min_size=1, max_size=20, alphabet="abcdef0123456789")
-        ),
+        st.builds(_create_order_id, st.integers(min_value=1, max_value=999999)),
+        st.builds(_create_trade_id, st.integers(min_value=1, max_value=999999)),
+        st.builds(_create_client_id, st.text(min_size=1, max_size=20, alphabet="abcdef0123456789")),
         # UUID-like strings
-        st.builds(
-            lambda parts: "-".join(parts),
-            st.fixed_dictionaries({
-                0: st.text(alphabet="0123456789abcdef", min_size=8, max_size=8),
-                1: st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
-                2: st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
-                3: st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
-                4: st.text(alphabet="0123456789abcdef", min_size=12, max_size=12),
-            }).map(lambda d: [d[0], d[1], d[2], d[3], d[4]]),
-        ),
+        st.fixed_dictionaries({
+            0: st.text(alphabet="0123456789abcdef", min_size=8, max_size=8),
+            1: st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
+            2: st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
+            3: st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
+            4: st.text(alphabet="0123456789abcdef", min_size=12, max_size=12),
+        })
+        .map(lambda d: [d[0], d[1], d[2], d[3], d[4]])
+        .map("-".join),
     ])
 
 
@@ -830,7 +895,9 @@ class TestQueryParamsSecurityProperties:
 
         for model_class in test_models:
             try:
-                kwargs = {field_name: malicious_input}
+                # Cast malicious input to Any to test model validation
+                # This is intentional - we want to test how models handle wrong types
+                kwargs = {field_name: cast(Any, malicious_input)}
                 params = model_class(**kwargs)
 
                 # If accepted, should be preserved as-is (no execution/interpretation)
@@ -882,11 +949,8 @@ class TestQueryParamsSecurityProperties:
             BackpackRawGetOrderBookParams,
         ]
         for model_class in model_classes:
-            try:
+            with contextlib.suppress(ValidationError, TypeError, RecursionError):
                 model_class.model_validate(data)
-            except (ValidationError, TypeError, RecursionError):
-                # Expected for invalid data types
-                pass
 
 
 # =============================================================================

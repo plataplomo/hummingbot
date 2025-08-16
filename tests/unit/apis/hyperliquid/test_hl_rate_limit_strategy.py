@@ -104,6 +104,23 @@ def minimal_hl_config() -> ExchangeSpecificConfig:
 
 
 # =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
+def _create_endpoint_path(path: str) -> str:
+    """Create endpoint path with leading slash.
+
+    Args:
+        path: Path string to convert to endpoint
+
+    Returns:
+        Endpoint path with leading slash
+    """
+    return f"/{path}"
+
+
+# =============================================================================
 # HYPOTHESIS STRATEGIES FOR HYPERLIQUID RATE LIMIT STRATEGY TESTING
 # =============================================================================
 
@@ -123,7 +140,7 @@ def hl_endpoint_strategy() -> SearchStrategy[str]:
         ]),
         # Generated endpoint patterns
         st.builds(
-            lambda path: f"/{path}",
+            _create_endpoint_path,
             st.text(alphabet=string.ascii_lowercase, min_size=3, max_size=15),
         ),
     ])
@@ -686,7 +703,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
     @pytest.mark.asyncio
     async def test_deeply_nested_payload_handling(
         self,
-        recursive_payload: None | bool | str | dict[str, object],
+        recursive_payload: bool | str | dict[str, object] | None,
         hl_config: ExchangeSpecificConfig,
     ) -> None:
         """Property: Strategy should handle deeply nested payloads without stack overflow."""

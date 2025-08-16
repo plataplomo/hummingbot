@@ -339,7 +339,7 @@ class TestHyperliquidRawLeverageProperties:
 
     @given(leverage_data=valid_leverage_data())
     def test_leverage_validation_success_properties(self, leverage_data: dict[str, Any]) -> None:
-        """Property: Valid leverage data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         Leverage
         objects.
@@ -365,7 +365,7 @@ class TestHyperliquidRawLeverageProperties:
     def test_leverage_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: Leverage model should reject malicious inputs safely."""
+        """Property: Leverage model should reject malicious inputs."""
         base_data: dict[str, str | int | object] = {
             "type": "cross",
             "value": 5,
@@ -457,7 +457,7 @@ class TestHyperliquidRawMarginSummaryProperties:
     def test_margin_summary_validation_success_properties(
         self, margin_data: dict[str, Any]
     ) -> None:
-        """Property: Valid margin summary data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         MarginSummary
         objects.
@@ -497,7 +497,7 @@ class TestHyperliquidRawMarginSummaryProperties:
     def test_margin_summary_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: Margin summary model should reject malicious inputs safely."""
+        """Property: Margin summary model should reject malicious inputs."""
         base_data: dict[str, object] = {
             "accountValue": "1000.0",
             "totalMarginUsed": "100.0",
@@ -613,7 +613,7 @@ class TestHyperliquidRawPositionInfoProperties:
     def test_position_info_validation_success_properties(
         self, position_data: dict[str, Any]
     ) -> None:
-        """Property: Valid position info data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         PositionInfo
         objects.
@@ -681,7 +681,7 @@ class TestHyperliquidRawPositionInfoProperties:
     def test_position_info_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: Position info model should reject malicious inputs safely."""
+        """Property: Position info model should reject malicious inputs."""
         base_data: dict[str, str | dict[str, str | int] | int | object] = {
             "coin": "ETH",
             "entryPx": "1234.56",
@@ -750,7 +750,7 @@ class TestHyperliquidRawAssetPositionProperties:
     def test_asset_position_validation_success_properties(
         self, asset_position_data: dict[str, Any]
     ) -> None:
-        """Property: Valid asset position data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         AssetPosition
         objects.
@@ -784,7 +784,7 @@ class TestHyperliquidRawAssetPositionProperties:
     def test_asset_position_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: Asset position model should reject malicious inputs safely."""
+        """Property: Asset position model should reject malicious inputs."""
         base_data: dict[str, object] = {
             "asset": "ETH",
             "position": {
@@ -843,7 +843,7 @@ class TestHyperliquidRawClearinghouseStateProperties:
     def test_clearinghouse_state_validation_success_properties(
         self, state_data: dict[str, Any]
     ) -> None:
-        """Property: Valid clearinghouse state data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         ClearinghouseState
         objects.
@@ -911,7 +911,7 @@ class TestHyperliquidRawClearinghouseStateProperties:
     def test_clearinghouse_state_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: Clearinghouse state model should reject malicious inputs safely."""
+        """Property: Clearinghouse state model should reject malicious inputs."""
         base_data: dict[str, Any] = {
             "assetPositions": [],
             "marginSummary": {
@@ -981,7 +981,7 @@ class TestHyperliquidRawUserStateRequestPayloadProperties:
     def test_user_state_request_validation_success_properties(
         self, request_data: dict[str, Any]
     ) -> None:
-        """Property: Valid user state request data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         UserStateRequestPayload
         objects.
@@ -1002,7 +1002,7 @@ class TestHyperliquidRawUserStateRequestPayloadProperties:
     def test_user_state_request_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: User state request model should reject malicious inputs safely."""
+        """Property: User state request model should reject malicious inputs."""
         base_data: dict[str, object] = {
             "type": "clearinghouseState",
             "user": "0x742f4d0b8dA87Dd74b2FA0F2f9F0C2e2FdA9f8D9",
@@ -1098,7 +1098,7 @@ class TestHyperliquidRawUserStateIntegrationProperties:
     def test_user_state_models_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: All user state models should safely handle complete adversarial input."""
+        """Property: All user state models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected by clearinghouse state
         # model
         with pytest.raises((ValidationError, TypeError)):

@@ -32,6 +32,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -59,6 +60,141 @@ from cyberdelta.symbols import exchanges
 
 
 logger = get_logger(__name__)
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR HYPOTHESIS STRATEGY BUILDING
+# =============================================================================
+
+
+def _create_financial_decimal(integer: int, decimal: int) -> str:
+    """Create financial decimal string from integer and decimal parts.
+
+    Args:
+        integer: Integer part of the decimal.
+        decimal: Decimal part (6 digits).
+
+    Returns:
+        Formatted decimal string.
+    """
+    return f"{integer}.{decimal:06d}"
+
+
+def _create_high_precision_decimal(mantissa: int) -> str:
+    """Create high precision decimal string.
+
+    Args:
+        mantissa: Mantissa value.
+
+    Returns:
+        Formatted high precision decimal string.
+    """
+    return f"{mantissa}.{'123456789012345678901234567890'[:18]}"
+
+
+def _create_large_number(exp: int) -> str:
+    """Create large number string.
+
+    Args:
+        exp: Exponent (number of zeros).
+
+    Returns:
+        Formatted large number string.
+    """
+    return f"1{'0' * exp}.0"
+
+
+def _create_uuid_like_id(a: str, b: str, c: str, d: str) -> str:
+    """Create UUID-like ID string.
+
+    Args:
+        a: First part of UUID.
+        b: Second part of UUID.
+        c: Third part of UUID.
+        d: Fourth part of UUID.
+
+    Returns:
+        Formatted UUID-like string.
+    """
+    return f"{a}-{b}-{c}-{d}"
+
+
+def _create_client_id(n: int) -> str:
+    """Create client ID string.
+
+    Args:
+        n: Client number.
+
+    Returns:
+        Formatted client ID string.
+    """
+    return f"client_{n}"
+
+
+def _create_symbol(base: str, quote: str) -> str:
+    """Create symbol from base and quote currencies.
+
+    Args:
+        base: Base currency string.
+        quote: Quote currency string.
+
+    Returns:
+        Formatted symbol string.
+    """
+    return f"{base}-{quote}"
+
+
+def _is_non_empty_text(x: str) -> bool:
+    """Check if text is non-empty after stripping.
+
+    Args:
+        x: Text to check.
+
+    Returns:
+        True if text is non-empty after stripping.
+    """
+    return bool(x.strip())
+
+
+def _datetime_to_iso(dt: datetime) -> str:
+    """Convert datetime to ISO format string.
+
+    Args:
+        dt: Datetime object.
+
+    Returns:
+        ISO format datetime string.
+    """
+    return dt.isoformat()
+
+
+def _create_concurrent_id(i: int) -> str:
+    """Create concurrent operation ID.
+
+    Args:
+        i: Operation number.
+
+    Returns:
+        Formatted concurrent ID string.
+    """
+    return f"concurrent_{i}"
+
+
+def _create_enum_mappings_tuple(
+    side: str, order_type: str, status: str, tif: str
+) -> tuple[str, str, str, str]:
+    """Create enum mappings tuple.
+
+    Args:
+        side: Order side string.
+        order_type: Order type string.
+        status: Order status string.
+        tif: Time in force string.
+
+    Returns:
+        Tuple of enum strings.
+    """
+    return (side, order_type, status, tif)
 
 
 # =============================================================================
@@ -143,13 +279,13 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Normal values
         st.builds(
-            lambda integer, decimal: f"{integer}.{decimal:0{6}d}",
+            _create_financial_decimal,
             st.integers(min_value=1, max_value=999999),
             st.integers(min_value=0, max_value=999999),
         ),
         # High precision values
         st.builds(
-            lambda mantissa: f"{mantissa}.{'123456789012345678901234567890'[:18]}",
+            _create_high_precision_decimal,
             st.integers(min_value=1, max_value=999999999),
         ),
         # Extreme values
@@ -160,7 +296,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
         st.just("0.0"),
         st.just("1.0"),
         # Very large numbers
-        st.builds(lambda exp: f"1{'0' * exp}.0", st.integers(min_value=6, max_value=15)),
+        st.builds(_create_large_number, st.integers(min_value=6, max_value=15)),
     ])
 
 
@@ -181,7 +317,7 @@ def order_id_strategy() -> SearchStrategy[str]:
         ),
         # UUID-like IDs
         st.builds(
-            lambda a, b, c, d: f"{a}-{b}-{c}-{d}",
+            _create_uuid_like_id,
             st.text(alphabet="0123456789abcdef", min_size=8, max_size=8),
             st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
             st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
@@ -202,7 +338,7 @@ def client_order_id_strategy() -> SearchStrategy[str | None]:
         st.none(),
         st.text(min_size=1, max_size=64),
         # Proper st.builds usage without .example()
-        st.builds(lambda n: f"client_{n}", st.integers(min_value=1, max_value=999999)),
+        st.builds(_create_client_id, st.integers(min_value=1, max_value=999999)),
         # Unicode client IDs
         st.sampled_from(["client_測試_123", "клиент_456", "client_🎯_789"]),
     ])
@@ -230,12 +366,12 @@ def symbol_strategy() -> SearchStrategy[str]:
         ]),
         # Generated symbols
         st.builds(
-            lambda base, quote: f"{base}-{quote}",
+            _create_symbol,
             st.text(
                 min_size=2,
                 max_size=10,
                 alphabet=st.characters(whitelist_categories=["Lu", "Ll", "Nd"]),
-            ).filter(lambda x: x.strip()),
+            ).filter(_is_non_empty_text),
             st.sampled_from(["USDC", "USDT", "BTC", "ETH"]),
         ),
         # Unicode symbols
@@ -258,8 +394,10 @@ def iso_datetime_strategy() -> SearchStrategy[str]:
         A Hypothesis strategy for ISO datetime strings.
     """
     return st.builds(
-        lambda dt: dt.replace(tzinfo=UTC).isoformat(),
-        st.datetimes(min_value=datetime(2020, 1, 1), max_value=datetime(2030, 12, 31)),
+        _datetime_to_iso,
+        st.datetimes(
+            min_value=datetime(2020, 1, 1, tzinfo=UTC), max_value=datetime(2030, 12, 31, tzinfo=UTC)
+        ),
     )
 
 
@@ -320,10 +458,7 @@ def backpack_raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
     updated_at = draw(iso_datetime_strategy())
 
     # Generate price based on order type
-    if order_type.upper() == "MARKET":
-        price = None
-    else:
-        price = draw(financial_decimal_string_strategy())
+    price = None if order_type.upper() == "MARKET" else draw(financial_decimal_string_strategy())
 
     # Generate executed quantity (should be <= quantity for consistency)
     try:
@@ -334,7 +469,7 @@ def backpack_raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
             )
         else:
             executed_quantity = "0.0"
-    except Exception:
+    except (ValueError, TypeError, OverflowError):
         executed_quantity = "0.0"
 
     # Generate average fill price if there's execution
@@ -343,7 +478,7 @@ def backpack_raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
             avg_fill_price = price
         else:
             avg_fill_price = None
-    except Exception:
+    except (ValueError, TypeError, OverflowError):
         avg_fill_price = None
 
     # Generate trigger price for STOP orders
@@ -405,7 +540,7 @@ class TestTradingDataTransformationRobustnessProperties:
     @given(raw_order=backpack_raw_order_strategy())
     @settings(max_examples=200, deadline=None)
     def test_order_transformation_preserves_essential_data(
-        self, raw_order: BackpackRawOrderResponse
+        self, raw_order: BackpackRawOrderResponse, trading_data_mapper: BackpackOrderMapper
     ) -> None:
         """Property: Order transformation should preserve all essential trading data."""
         # Skip invalid decimal values
@@ -423,10 +558,9 @@ class TestTradingDataTransformationRobustnessProperties:
                 exec_qty = Decimal(raw_order.executedQuantity)
                 if exec_qty < Decimal(0) or exec_qty > quantity_decimal:
                     assume(False)
-        except Exception:
+        except (ValueError, TypeError, OverflowError):
             assume(False)
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Result should be valid Order instance
@@ -465,7 +599,9 @@ class TestTradingDataTransformationRobustnessProperties:
         ]),
     )
     @settings(max_examples=100, deadline=None)
-    def test_extreme_value_handling(self, extreme_quantity: str, extreme_price: str) -> None:
+    def test_extreme_value_handling(
+        self, extreme_quantity: str, extreme_price: str, trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Transformation should handle extreme financial values safely."""
         # Skip invalid values
         try:
@@ -473,7 +609,7 @@ class TestTradingDataTransformationRobustnessProperties:
             price_decimal = Decimal(extreme_price)
             if qty_decimal <= Decimal(0) or price_decimal <= Decimal(0):
                 assume(False)
-        except Exception:
+        except (ValueError, TypeError, OverflowError):
             assume(False)
 
         raw_order = BackpackRawOrderResponse(
@@ -502,7 +638,6 @@ class TestTradingDataTransformationRobustnessProperties:
             origin=None,
         )
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Extreme values should be preserved exactly
@@ -516,12 +651,14 @@ class TestTradingDataTransformationRobustnessProperties:
 
     @given(
         precision_scenario=st.builds(
-            lambda mantissa: f"{mantissa}.{'123456789012345678901234567890'[:18]}",
+            _create_high_precision_decimal,
             st.integers(min_value=1, max_value=999999),
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_decimal_precision_preservation(self, precision_scenario: str) -> None:
+    def test_decimal_precision_preservation(
+        self, precision_scenario: str, trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Decimal precision should be preserved in financial calculations."""
         raw_order = BackpackRawOrderResponse(
             id="precision_test",
@@ -549,7 +686,6 @@ class TestTradingDataTransformationRobustnessProperties:
             origin=None,
         )
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Precision should be maintained within Decimal limits
@@ -578,7 +714,7 @@ class TestTradingDataTransformationRobustnessProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_unicode_support_comprehensive(
-        self, unicode_symbol: str, unicode_client_id: str
+        self, unicode_symbol: str, unicode_client_id: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
         """Property: Unicode characters should be handled correctly in all fields."""
         raw_order = BackpackRawOrderResponse(
@@ -607,7 +743,6 @@ class TestTradingDataTransformationRobustnessProperties:
             origin=None,
         )
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Unicode should be preserved exactly
@@ -616,8 +751,6 @@ class TestTradingDataTransformationRobustnessProperties:
         assert result.exchange_order_id == f"order_{len(unicode_symbol)}"
 
         # Property: Should be JSON serializable
-        import json
-
         json.dumps({
             "symbol": result.symbol.value,
             "client_id": result.client_order_id,
@@ -638,7 +771,9 @@ class TestTradingDataErrorHandlingProperties:
         field_type=st.sampled_from(["symbol", "client_id", "order_id", "side", "status"]),
     )
     @settings(max_examples=100, deadline=None)
-    def test_malicious_input_resistance(self, malicious_field: object, field_type: str) -> None:
+    def test_malicious_input_resistance(
+        self, malicious_field: object, field_type: str, trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Transformation should resist malicious inputs across all fields."""
         if not isinstance(malicious_field, str):
             malicious_field = str(malicious_field)
@@ -682,7 +817,6 @@ class TestTradingDataErrorHandlingProperties:
         )
 
         try:
-            trading_data_mapper = BackpackOrderMapper()
             result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
             # If transformation succeeds, should not execute malicious content
@@ -706,6 +840,7 @@ class TestTradingDataErrorHandlingProperties:
     def test_parsing_error_handling_consistency(
         self,
         parsing_error_scenario: str,
+        trading_data_mapper: BackpackOrderMapper,
         mocker: MockerFixture,
     ) -> None:
         """Property: Parsing errors should be handled consistently with clear error messages."""
@@ -757,7 +892,6 @@ class TestTradingDataErrorHandlingProperties:
             mock_datetime.side_effect = ValueError("Datetime parsing error")
 
         # Property: Should raise TransformationError with clear message
-        trading_data_mapper = BackpackOrderMapper()
         with pytest.raises(TransformationError) as exc_info:
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
@@ -776,7 +910,9 @@ class TestTradingDataErrorHandlingProperties:
         )
     )
     @settings(max_examples=50, deadline=None)
-    def test_invalid_decimal_field_handling(self, invalid_field_values: dict[str, str]) -> None:
+    def test_invalid_decimal_field_handling(
+        self, invalid_field_values: dict[str, str], trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Invalid decimal fields should be handled gracefully with proper errors."""
         # Create base order with valid defaults
         order_data = {
@@ -806,13 +942,11 @@ class TestTradingDataErrorHandlingProperties:
         }
 
         # Inject invalid values
-        for field, invalid_value in invalid_field_values.items():
-            order_data[field] = invalid_value
+        order_data.update(invalid_field_values)
 
         raw_order = BackpackRawOrderResponse.model_validate(order_data)
 
         # Property: Should raise TransformationError for invalid decimal fields
-        trading_data_mapper = BackpackOrderMapper()
         with pytest.raises(TransformationError):
             trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
@@ -830,9 +964,11 @@ class TestTradingDataPerformanceProperties:
         order_variation=st.sampled_from(["identical", "varied", "extreme"]),
     )
     @settings(max_examples=20, deadline=None)
-    def test_batch_transformation_efficiency(self, batch_size: int, order_variation: str) -> None:
+    def test_batch_transformation_efficiency(
+        self, batch_size: int, order_variation: str, trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Batch transformations should be efficient and consistent."""
-        orders = []
+        orders: list[BackpackRawOrderResponse] = []
 
         for i in range(batch_size):
             if order_variation == "identical":
@@ -882,8 +1018,7 @@ class TestTradingDataPerformanceProperties:
             orders.append(raw_order)
 
         # Transform all orders
-        trading_data_mapper = BackpackOrderMapper()
-        results = []
+        results: list[Order] = []
         for order in orders:
             result = trading_data_mapper.transform_raw_order_to_internal(order)
             results.append(result)
@@ -903,7 +1038,9 @@ class TestTradingDataPerformanceProperties:
         field_type=st.sampled_from(["order_id", "client_id", "symbol"]),
     )
     @settings(max_examples=50, deadline=None)
-    def test_large_string_field_handling(self, large_string_field: str, field_type: str) -> None:
+    def test_large_string_field_handling(
+        self, large_string_field: str, field_type: str, trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Large string fields should be handled efficiently without memory issues."""
         # Create order with large string in specified field
         order_data = {"id": "normal_id", "clientId": "normal_client", "symbol": "BTC-USDC"}
@@ -936,7 +1073,6 @@ class TestTradingDataPerformanceProperties:
         )
 
         try:
-            trading_data_mapper = BackpackOrderMapper()
             result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
             # Property: Large strings should be handled without memory issues
@@ -956,17 +1092,18 @@ class TestTradingDataPerformanceProperties:
 
     @given(
         concurrent_orders=st.lists(
-            st.builds(lambda i: f"concurrent_{i}", st.integers(min_value=1, max_value=50)),
+            st.builds(_create_concurrent_id, st.integers(min_value=1, max_value=50)),
             min_size=5,
             max_size=20,
             unique=True,
         )
     )
     @settings(max_examples=30, deadline=None)
-    def test_concurrent_transformation_safety(self, concurrent_orders: list[str]) -> None:
+    def test_concurrent_transformation_safety(
+        self, concurrent_orders: list[str], trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Concurrent transformations should be safe and not interfere."""
-        trading_data_mapper = BackpackOrderMapper()
-        results = []
+        results: list[tuple[str, Order]] = []
 
         for order_id in concurrent_orders:
             raw_order = BackpackRawOrderResponse(
@@ -1032,12 +1169,11 @@ class TestTradingDataConsistencyProperties:
     )
     @settings(max_examples=100, deadline=None)
     def test_status_mapping_consistency_property(
-        self, status_mapping: tuple[str, OrderStatus]
+        self, status_mapping: tuple[str, OrderStatus], trading_data_mapper: BackpackOrderMapper
     ) -> None:
         """Property: Status mapping should be consistent regardless of case."""
         input_status, expected_status = status_mapping
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="test_status",
             symbol=SOL_USDC_BP,
@@ -1053,7 +1189,7 @@ class TestTradingDataConsistencyProperties:
 
     @given(
         enum_mappings=st.builds(
-            lambda side, order_type, status, tif: (side, order_type, status, tif),
+            _create_enum_mappings_tuple,
             st.sampled_from(["buy", "BUY", "Buy", "sell", "SELL", "Sell"]),
             st.sampled_from(["limit", "LIMIT", "Limit", "market", "MARKET", "Market"]),
             st.sampled_from(["new", "NEW", "New", "filled", "FILLED", "Filled"]),
@@ -1064,11 +1200,11 @@ class TestTradingDataConsistencyProperties:
     def test_case_insensitive_enum_mappings(
         self,
         enum_mappings: tuple[str, str, str, str | None],
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Property: All enum mappings should be case insensitive."""
         side, order_type, status, time_in_force = enum_mappings
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_order_data_to_internal(
             order_id="case_test",
             symbol=SOL_USDC_BP,
@@ -1094,16 +1230,18 @@ class TestTradingDataConsistencyProperties:
 
     @given(precision_values=st.lists(financial_decimal_string_strategy(), min_size=3, max_size=5))
     @settings(max_examples=100, deadline=None)
-    def test_decimal_precision_consistency_across_fields(self, precision_values: list[str]) -> None:
+    def test_decimal_precision_consistency_across_fields(
+        self, precision_values: list[str], trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: Decimal precision should be maintained consistently across all fields."""
         # Skip invalid values
-        valid_values = []
+        valid_values: list[str] = []
         for value in precision_values:
             try:
                 decimal_val = Decimal(value)
                 if decimal_val > Decimal(0):
                     valid_values.append(value)
-            except Exception:
+            except (ValueError, TypeError, OverflowError):
                 continue
 
         if len(valid_values) < 3:
@@ -1115,7 +1253,7 @@ class TestTradingDataConsistencyProperties:
         try:
             if Decimal(executed_qty) > Decimal(quantity):
                 executed_qty = quantity
-        except Exception:
+        except (ValueError, TypeError, OverflowError):
             executed_qty = "0.0"
 
         raw_order = BackpackRawOrderResponse(
@@ -1144,7 +1282,6 @@ class TestTradingDataConsistencyProperties:
             origin=None,
         )
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: Precision should be maintained exactly
@@ -1162,7 +1299,9 @@ class TestTradingDataConsistencyProperties:
         ])
     )
     @settings(max_examples=50, deadline=None)
-    def test_none_value_handling_consistency(self, none_scenario: str) -> None:
+    def test_none_value_handling_consistency(
+        self, none_scenario: str, trading_data_mapper: BackpackOrderMapper
+    ) -> None:
         """Property: None values should be handled consistently across transformations."""
         if none_scenario == "market_order":
             order_data = {
@@ -1221,7 +1360,6 @@ class TestTradingDataConsistencyProperties:
             origin=None,
         )
 
-        trading_data_mapper = BackpackOrderMapper()
         result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
         # Property: None values should be handled appropriately
@@ -1248,11 +1386,11 @@ class TestTradingDataIntegrationProperties:
     def test_mixed_order_processing_workflow(
         self,
         mixed_order_batch: list[BackpackRawOrderResponse],
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Property: Mixed order processing should be consistent and reliable."""
-        trading_data_mapper = BackpackOrderMapper()
-        successful_transformations = []
-        failed_transformations = []
+        successful_transformations: list[tuple[BackpackRawOrderResponse, Order]] = []
+        failed_transformations: list[tuple[BackpackRawOrderResponse, str]] = []
 
         for raw_order in mixed_order_batch:
             try:
@@ -1265,7 +1403,7 @@ class TestTradingDataIntegrationProperties:
 
                 result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
                 successful_transformations.append((raw_order, result))
-            except Exception as e:
+            except (TransformationError, ValueError, TypeError, AttributeError) as e:
                 failed_transformations.append((raw_order, str(e)))
 
         # Property: At least some transformations should succeed
@@ -1280,6 +1418,75 @@ class TestTradingDataIntegrationProperties:
             assert raw_order.quantity is not None  # Validated in loop above
             assert result.quantity_requested == Decimal(raw_order.quantity)
 
+    def _is_valid_order(self, raw_order: BackpackRawOrderResponse) -> bool:
+        """Check if order has valid data for transformation.
+
+        Returns:
+            bool: True if order has valid data, False otherwise.
+        """
+        if raw_order.quantity is None:
+            return False
+        try:
+            qty_decimal = Decimal(raw_order.quantity)
+            return qty_decimal > Decimal(0)
+        except (ValueError, TypeError, OverflowError):
+            return False
+
+    def _process_transform_operation(
+        self, raw_order: BackpackRawOrderResponse, trading_data_mapper: BackpackOrderMapper
+    ) -> tuple[str, str, Order]:
+        """Process a transform operation.
+
+        Returns:
+            tuple[str, str, Order]: Operation type, order ID, and transformed order.
+        """
+        result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        return ("transform", raw_order.id, result)
+
+    def _process_validate_operation(
+        self, raw_order: BackpackRawOrderResponse, trading_data_mapper: BackpackOrderMapper
+    ) -> tuple[str, str, Order]:
+        """Process a validate operation.
+
+        Returns:
+            tuple[str, str, Order]: Operation type, order ID, and validated order.
+        """
+        result1 = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        result2 = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        assert result1.exchange_order_id == result2.exchange_order_id
+        assert result1.quantity_requested == result2.quantity_requested
+        return ("validate", raw_order.id, result1)
+
+    def _process_compare_operation(
+        self, raw_order: BackpackRawOrderResponse, trading_data_mapper: BackpackOrderMapper
+    ) -> tuple[str, str, Order] | None:
+        """Process a compare operation.
+
+        Returns:
+            tuple[str, str, Order] | None: Operation result or None if invalid.
+        """
+        result1 = trading_data_mapper.transform_raw_order_to_internal(raw_order)
+        try:
+            # Validate quantity is not None before passing to method that expects str
+            if raw_order.quantity is None:
+                return None
+            result2 = trading_data_mapper.transform_order_data_to_internal(
+                order_id=raw_order.id,
+                symbol=exchanges.backpack(raw_order.symbol),
+                side=raw_order.side,
+                order_type=raw_order.orderType,
+                status=raw_order.status,
+                quantity=raw_order.quantity,
+                price=raw_order.price,
+                client_order_id=raw_order.clientId,
+            )
+        except (TransformationError, ValueError, TypeError, AttributeError):
+            # Order data method may have different validation
+            return None
+        else:
+            assert result1.exchange_order_id == result2.exchange_order_id
+            return ("compare", raw_order.id, result1)
+
     @given(
         transformation_sequence=st.lists(
             st.tuples(
@@ -1293,56 +1500,37 @@ class TestTradingDataIntegrationProperties:
     def test_transformation_sequence_consistency(
         self,
         transformation_sequence: list[tuple[BackpackRawOrderResponse, str]],
+        trading_data_mapper: BackpackOrderMapper,
     ) -> None:
         """Property: Transformation sequences should maintain consistency."""
-        trading_data_mapper = BackpackOrderMapper()
-        transformation_results = []
+        transformation_results: list[tuple[str, str, Order]] = []
 
         for raw_order, operation in transformation_sequence:
             try:
-                # Skip invalid orders
-                if raw_order.quantity is None:
-                    continue
-                qty_decimal = Decimal(raw_order.quantity)
-                if qty_decimal <= Decimal(0):
+                if not self._is_valid_order(raw_order):
                     continue
 
                 if operation == "transform":
-                    result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-                    transformation_results.append(("transform", raw_order.id, result))
+                    transform_result = self._process_transform_operation(
+                        raw_order, trading_data_mapper
+                    )
+                    transformation_results.append(transform_result)
                 elif operation == "validate":
-                    # Validate that the same order transforms consistently
-                    result1 = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-                    result2 = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-                    assert result1.exchange_order_id == result2.exchange_order_id
-                    assert result1.quantity_requested == result2.quantity_requested
-                    transformation_results.append(("validate", raw_order.id, result1))
+                    validate_result = self._process_validate_operation(
+                        raw_order, trading_data_mapper
+                    )
+                    transformation_results.append(validate_result)
                 elif operation == "compare":
-                    # Compare transformation with order data method
-                    result1 = trading_data_mapper.transform_raw_order_to_internal(raw_order)
-                    try:
-                        result2 = trading_data_mapper.transform_order_data_to_internal(
-                            order_id=raw_order.id,
-                            symbol=exchanges.backpack(raw_order.symbol),
-                            side=raw_order.side,
-                            order_type=raw_order.orderType,
-                            status=raw_order.status,
-                            quantity=raw_order.quantity,
-                            price=raw_order.price,
-                            client_order_id=raw_order.clientId,
-                        )
-                        assert result1.exchange_order_id == result2.exchange_order_id
-                        transformation_results.append(("compare", raw_order.id, result1))
-                    except Exception:
-                        # Order data method may have different validation
-                        pass
-            except Exception:
+                    compare_result = self._process_compare_operation(raw_order, trading_data_mapper)
+                    if compare_result is not None:
+                        transformation_results.append(compare_result)
+            except (ValueError, TypeError, OverflowError):
                 continue
 
         # Property: Should have some successful operations
         if transformation_results:
             # All results should be valid Order instances
-            for operation, order_id, result in transformation_results:
+            for _operation, order_id, result in transformation_results:
                 assert isinstance(result, Order)
                 assert result.exchange_order_id == order_id
 

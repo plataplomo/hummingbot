@@ -76,6 +76,36 @@ def test_timestamp() -> str:
 # =======================
 
 
+def _create_decimal_string_from_parts(i: int, d: str) -> str:
+    """Create decimal string from integer and decimal parts."""
+    return f"{i}.{d}"
+
+
+def _create_high_precision_decimal_string(i: int, d: list[str]) -> str:
+    """Create high precision decimal string from integer and digit list."""
+    return f"{i}.{''.join(d)}"
+
+
+def _create_isoformat_datetime(dt: datetime) -> str:
+    """Create ISO format string from datetime."""
+    return dt.isoformat()
+
+
+def _create_signed_decimal_string(sign: str, magnitude: str) -> str:
+    """Create signed decimal string from sign and magnitude."""
+    return f"{sign}{magnitude}"
+
+
+def _create_negative_decimal_string(n: str) -> str:
+    """Create negative decimal string from positive value."""
+    return f"-{n}"
+
+
+def _mock_parse_decimal_value(v: str, **kwargs: object) -> Decimal | None:
+    """Mock implementation of parse_decimal_value for testing negative values."""
+    return Decimal(str(v)) if v else None
+
+
 def decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and quantities.
 
@@ -85,13 +115,13 @@ def decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Normal values
         st.builds(
-            lambda i, d: f"{i}.{d}",
+            _create_decimal_string_from_parts,
             st.integers(min_value=1, max_value=999999),
             st.text(alphabet=string.digits, min_size=1, max_size=8),
         ),
         # High precision values
         st.builds(
-            lambda i, d: f"{i}.{''.join(d)}",
+            _create_high_precision_decimal_string,
             st.integers(min_value=1, max_value=999),
             st.lists(st.sampled_from(string.digits), min_size=6, max_size=18),
         ),
@@ -188,7 +218,7 @@ def timestamp_strategy() -> SearchStrategy[str]:
         SearchStrategy[str]: Strategy for timestamp strings.
     """
     return st.builds(
-        lambda dt: dt.isoformat(),
+        _create_isoformat_datetime,
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
             max_value=datetime(2030, 1, 1, tzinfo=UTC),
@@ -948,7 +978,7 @@ class TestWebSocketPositionUpdateTransformationProperties:
 
     @given(
         net_quantity=st.builds(
-            lambda sign, magnitude: f"{sign}{magnitude}",
+            _create_signed_decimal_string,
             st.sampled_from(["", "-"]),
             decimal_string_strategy(),
         )
@@ -1100,7 +1130,7 @@ class TestErrorHandlingProperties:
 
     @given(
         negative_value=st.builds(
-            lambda n: f"-{n}",
+            _create_negative_decimal_string,
             decimal_string_strategy(),
         ),
         field=st.sampled_from(["price", "quantity", "fee"]),
@@ -1125,7 +1155,7 @@ class TestErrorHandlingProperties:
         with patch(
             "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
         ) as mock_parse:
-            mock_parse.side_effect = lambda v, **kwargs: Decimal(str(v)) if v else None
+            mock_parse.side_effect = _mock_parse_decimal_value
 
             raw_fill = create_raw_fill(**kwargs)  # type: ignore
             result = mapper.transform_raw_fill_to_internal(raw_fill)

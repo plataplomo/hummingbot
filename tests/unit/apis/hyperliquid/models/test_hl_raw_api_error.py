@@ -15,7 +15,6 @@ Property testing ensures comprehensive coverage of error edge cases and adversar
 """
 
 import json
-from typing import Any
 
 import pytest
 from hypothesis import assume, given, strategies as st
@@ -27,13 +26,20 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR API ERROR MODEL TESTING
 # =============================================================================
 
 
 def valid_error_message_strategy() -> SearchStrategy[str]:
-    """Generate valid error message strings."""
+    """Generate valid error message strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating valid error message strings.
+    """
     return st.one_of([
         # Common error messages
         st.sampled_from([
@@ -192,12 +198,20 @@ def valid_error_message_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_api_error_data(draw: st.DrawFn) -> dict[str, str]:
-    """Generate valid API error data."""
+    """Generate valid API error data.
+
+    Returns:
+        dict[str, str]: Dictionary containing valid API error data.
+    """
     return {"error": draw(valid_error_message_strategy())}
 
 
-def malicious_error_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for API error security testing."""
+def malicious_error_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for API error security testing.
+
+    Returns:
+        SearchStrategy[MaliciousInput]: Strategy for generating malicious input values.
+    """
     return st.one_of([
         # Type confusion attacks
         st.integers(),
@@ -243,7 +257,7 @@ class TestHyperliquidRawApiErrorProperties:
 
     @given(error_data=valid_api_error_data())
     def test_api_error_validation_success_properties(self, error_data: dict[str, str]) -> None:
-        """Property: Valid API error data should always create valid error objects."""
+        """Property: Valid data should create valid error objects."""
         # Skip invalid data
         error_msg = error_data["error"]
         assume(isinstance(error_msg, str) and error_msg.strip())
@@ -266,8 +280,8 @@ class TestHyperliquidRawApiErrorProperties:
         assert obj.model_config.get("frozen") is True
 
     @given(malicious_error=malicious_error_strategy())
-    def test_api_error_security_boundary_properties(self, malicious_error: Any) -> None:
-        """Property: API error should reject malicious inputs safely."""
+    def test_api_error_security_boundary_properties(self, malicious_error: MaliciousInput) -> None:
+        """Property: API error should reject malicious inputs."""
         error_data = {"error": malicious_error}
 
         # Property: Malicious input should be rejected
@@ -312,7 +326,9 @@ class TestHyperliquidRawApiErrorProperties:
             st.dictionaries(st.text(), st.text()),
         ])
     )
-    def test_api_error_type_validation_properties(self, invalid_error_type: Any) -> None:
+    def test_api_error_type_validation_properties(
+        self, invalid_error_type: float | bool | list[str] | dict[str, str] | None
+    ) -> None:
         """Property: API error should reject non-string error values."""
         error_data = {"error": invalid_error_type}
 

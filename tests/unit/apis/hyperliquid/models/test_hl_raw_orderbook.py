@@ -262,7 +262,7 @@ class TestHyperliquidRawBookLevelProperties:
 
     @given(level_data=valid_book_level_data())
     def test_book_level_validation_success_properties(self, level_data: dict[str, Any]) -> None:
-        """Property: Valid book level data should always create valid BookLevel objects."""
+        """Property: Valid data should create valid BookLevel objects."""
         # Skip invalid data
         try:
             # Validate price and size fields
@@ -303,8 +303,8 @@ class TestHyperliquidRawBookLevelProperties:
     def test_book_level_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: Book level model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Book level model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "px": "123.45",
             "sz": "1.0",
             "n": 1,
@@ -439,7 +439,7 @@ class TestHyperliquidRawL2BookProperties:
 
     @given(l2book_data=valid_l2book_data())
     def test_l2book_validation_success_properties(self, l2book_data: dict[str, Any]) -> None:
-        """Property: Valid L2 book data should always create valid HyperliquidRawL2Book objects."""
+        """Property: Valid L2 book data should create valid objects."""
         # Skip invalid data
         try:
             # Validate coin field
@@ -488,8 +488,8 @@ class TestHyperliquidRawL2BookProperties:
     def test_l2book_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: L2 book model should reject malicious inputs safely."""
-        base_data = {
+        """Property: L2 book model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "coin": "ETH",
             "levels": [
                 [{"px": "123.45", "sz": "1.0", "n": 1}],
@@ -535,9 +535,9 @@ class TestHyperliquidRawL2BookProperties:
 
         # Check if structure is valid (exactly 2 lists)
         if isinstance(levels_structure, list):
-            is_valid = len(levels_structure) == 2 and all(
-                isinstance(sublist, list) for sublist in levels_structure
-            )
+            # Type-safe length check for list structure - cast needed for Hypothesis object type
+            levels_list = cast(list[list[Any]], levels_structure)
+            is_valid = len(levels_list) == 2
         else:
             is_valid = False
 
@@ -566,8 +566,9 @@ class TestHyperliquidRawL2BookProperties:
             assume(isinstance(l2book_data["coin"], str) and l2book_data["coin"].strip())
             levels = l2book_data["levels"]
             assert isinstance(levels, list)
-            # Pyright needs explicit cast for list[Unknown] -> list[Any]
-            assume(len(levels) == 2)
+            # Type-safe length check for levels list - cast needed for Hypothesis object type
+            levels_list = cast(list[list[Any]], levels)
+            assume(len(levels_list) == 2)
         except (TypeError, KeyError):
             assume(False)
 
@@ -616,8 +617,8 @@ class TestHyperliquidRawL2BookRequestPayloadProperties:
     def test_l2book_request_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: L2 book request model should reject malicious inputs safely."""
-        base_data = {
+        """Property: L2 book request model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "type": "l2Book",
             "coin": "ETH",
         }
@@ -691,8 +692,9 @@ class TestHyperliquidRawOrderbookIntegrationProperties:
             assume(isinstance(l2book_data["coin"], str) and l2book_data["coin"].strip())
             levels = l2book_data["levels"]
             assert isinstance(levels, list)
-            # Pyright needs explicit cast for list[Unknown] -> list[Any]
-            assume(len(levels) == 2)
+            # Type-safe length check for levels list - cast needed for Hypothesis object type
+            levels_list = cast(list[list[Any]], levels)
+            assume(len(levels_list) == 2)
         except (TypeError, KeyError):
             assume(False)
 
@@ -730,7 +732,7 @@ class TestHyperliquidRawOrderbookIntegrationProperties:
     def test_orderbook_models_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: All orderbook models should safely handle complete adversarial input."""
+        """Property: All orderbook models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected by L2 book model
         with pytest.raises((ValidationError, TypeError, StructureTypeError, SequenceLengthError)):
             HyperliquidRawL2Book.model_validate(complete_malicious_data)

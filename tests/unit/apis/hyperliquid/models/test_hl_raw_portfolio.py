@@ -239,7 +239,7 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
     def test_history_entry_list_validation_success_properties(
         self, history_data: list[Any]
     ) -> None:
-        """Property: Valid history data should always create valid PortfolioHistoryEntry objects."""
+        """Property: Valid data should create valid PortfolioHistoryEntry objects."""
         # Skip invalid data
         try:
             timestamp = history_data[0]
@@ -265,7 +265,7 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
     def test_history_entry_dict_validation_success_properties(
         self, history_data: dict[int, Any]
     ) -> None:
-        """Property: Valid history entry dict data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         PortfolioHistoryEntry
         objects.
@@ -294,7 +294,7 @@ class TestHyperliquidRawPortfolioHistoryEntryProperties:
     def test_history_entry_security_boundary_properties(
         self, field_index: int, malicious_value: object
     ) -> None:
-        """Property: History entry model should reject malicious inputs safely."""
+        """Property: History entry model should reject malicious inputs."""
         base_data = [1741886630493, "100.0"]
         base_data[field_index] = cast(Any, malicious_value)
 
@@ -386,7 +386,7 @@ class TestHyperliquidRawPortfolioTimeframeDataProperties:
     def test_timeframe_data_validation_success_properties(
         self, timeframe_data: dict[str, Any]
     ) -> None:
-        """Property: Valid timeframe data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         PortfolioTimeframeData
         objects.
@@ -428,8 +428,8 @@ class TestHyperliquidRawPortfolioTimeframeDataProperties:
     def test_timeframe_data_security_boundary_properties(
         self, field_name: str, malicious_value: object
     ) -> None:
-        """Property: Timeframe data model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Timeframe data model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "accountValueHistory": [[1741886630493, "100.0"]],
             "pnlHistory": [[1741886630493, "-50.0"]],
             "vlm": "12345.67",
@@ -521,7 +521,7 @@ class TestHyperliquidRawPortfolioTupleItemProperties:
     def test_portfolio_tuple_item_validation_success_properties(
         self, tuple_item_data: list[Any]
     ) -> None:
-        """Property: Valid portfolio tuple item data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         PortfolioTupleItem
         objects.
@@ -564,7 +564,7 @@ class TestHyperliquidRawPortfolioTupleItemProperties:
     def test_portfolio_tuple_item_security_boundary_properties(
         self, field_index: int, malicious_value: object
     ) -> None:
-        """Property: Portfolio tuple item model should reject malicious inputs safely."""
+        """Property: Portfolio tuple item model should reject malicious inputs."""
         base_data = [
             "day",
             {
@@ -610,7 +610,7 @@ class TestHyperliquidRawPortfolioResponseProperties:
     def test_portfolio_response_validation_success_properties(
         self, portfolio_data: list[list[Any]]
     ) -> None:
-        """Property: Valid portfolio response data should always create valid HyperliquidRaw.
+        """Property: Valid data should create valid HyperliquidRaw.
 
         PortfolioResponse
         objects.
@@ -652,7 +652,7 @@ class TestHyperliquidRawPortfolioResponseProperties:
 
     @given(malicious_value=malicious_portfolio_strategy())
     def test_portfolio_response_security_boundary_properties(self, malicious_value: object) -> None:
-        """Property: Portfolio response model should reject malicious inputs safely."""
+        """Property: Portfolio response model should reject malicious inputs."""
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, StructureTypeError)):
             HyperliquidRawPortfolioResponse.model_validate(malicious_value)
@@ -743,7 +743,7 @@ class TestHyperliquidRawPortfolioIntegrationProperties:
     def test_portfolio_models_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: All portfolio models should safely handle complete adversarial input."""
+        """Property: All portfolio models should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected by timeframe data model
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawPortfolioTimeframeData.model_validate(complete_malicious_data)

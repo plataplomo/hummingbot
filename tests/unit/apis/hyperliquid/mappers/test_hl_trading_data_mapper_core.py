@@ -92,9 +92,7 @@ def invalid_hl_tif_strategy() -> SearchStrategy[str]:
     """
     return st.one_of([
         st.sampled_from(["unknown", "invalid", "gtc", "ioc", "alo", "", "FOK", "DAY"]),
-        st.text(min_size=1, max_size=20).filter(
-            lambda x: x not in ["Gtc", "Ioc", "Alo", "GTC", "IOC", "ALO"]
-        ),
+        st.text(min_size=1, max_size=20).filter(_is_invalid_time_in_force),
     ])
 
 
@@ -128,6 +126,83 @@ def hl_symbol_strategy() -> SearchStrategy[str]:
     ])
 
 
+# =============================================================================
+# HELPER FUNCTIONS FOR LAMBDA REPLACEMENT
+# =============================================================================
+
+
+def _create_decimal_string(integer: int, fractional: str) -> str:
+    """Create decimal string from integer and fractional parts.
+
+    Returns:
+        Formatted decimal string.
+    """
+    return f"{integer}.{fractional}"
+
+
+def _create_order_id(n: int) -> str:
+    """Create order ID from number.
+
+    Returns:
+        Formatted order ID string.
+    """
+    return f"oid{n}"
+
+
+def _create_client_id(n: int) -> str:
+    """Create client ID from number.
+
+    Returns:
+        Formatted client ID string.
+    """
+    return f"client_{n}"
+
+
+def _create_dict_entry(k: str, v: str) -> dict[str, Any]:
+    """Create dictionary entry from key and value.
+
+    Returns:
+        Dictionary with key-value pair.
+    """
+    return {k: v}
+
+
+def _create_scientific_decimal(mantissa: int, precision: int) -> str:
+    """Create scientific decimal notation.
+
+    Returns:
+        Scientific notation decimal string.
+    """
+    return f"{mantissa}e-{precision}"
+
+
+def _is_invalid_time_in_force(x: str) -> bool:
+    """Check if time in force value is invalid.
+
+    Returns:
+        True if value is not in valid TIF list.
+    """
+    return x not in ["Gtc", "Ioc", "Alo", "GTC", "IOC", "ALO"]
+
+
+def _create_precision_decimal(mantissa: int, precision: list[str]) -> str:
+    """Create decimal with specific precision.
+
+    Returns:
+        Formatted decimal string with precision.
+    """
+    return f"{mantissa}.{''.join(precision)}"
+
+
+def _create_exponential_notation(m: float, e: int) -> str:
+    """Create exponential notation string.
+
+    Returns:
+        Exponential notation string.
+    """
+    return f"{m}e{e}"
+
+
 def decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and quantities.
 
@@ -137,7 +212,7 @@ def decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Normal decimals
         st.builds(
-            lambda integer, fractional: f"{integer}.{fractional}",
+            _create_decimal_string,
             st.integers(min_value=1, max_value=99999),
             st.text(alphabet=string.digits, min_size=1, max_size=18),
         ),
@@ -173,7 +248,7 @@ def hl_client_order_id_strategy() -> SearchStrategy[str | None]:
     return st.one_of([
         st.none(),
         st.text(min_size=1, max_size=50),
-        st.builds(lambda n: f"client_{n}", st.integers(min_value=1, max_value=999999)),
+        st.builds(_create_client_id, st.integers(min_value=1, max_value=999999)),
     ])
 
 
@@ -261,7 +336,7 @@ def invalid_hl_order_type_strategy() -> SearchStrategy[dict[str, Any]]:
         st.just({"invalid_type": {"some": "data"}}),
         st.just({"limit": {"invalid_field": "value"}}),
         st.builds(
-            lambda k, v: {k: v},
+            _create_dict_entry,
             st.text(min_size=1, max_size=20),
             st.dictionaries(st.text(), st.text()),
         ),
@@ -365,13 +440,13 @@ def extreme_decimal_strategy() -> SearchStrategy[str]:
         st.sampled_from(["999999999999.999999", "1e15", "1e12", "999999999"]),
         # High precision values
         st.builds(
-            lambda mantissa, precision: f"{mantissa}.{''.join(precision)}",
+            _create_precision_decimal,
             st.integers(min_value=1, max_value=9999),
             st.lists(st.sampled_from(string.digits), min_size=15, max_size=25),
         ),
         # Scientific notation
         st.builds(
-            lambda m, e: f"{m}e{e}",
+            _create_exponential_notation,
             st.floats(min_value=1.0, max_value=9.999, allow_nan=False, allow_infinity=False),
             st.integers(min_value=-15, max_value=15),
         ),

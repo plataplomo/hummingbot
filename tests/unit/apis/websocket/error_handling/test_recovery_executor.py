@@ -31,7 +31,7 @@ class TestRecoveryExecutor:
     @pytest.fixture
     def policy_manager(self) -> RecoveryPolicyManager:
         """Create mock policy manager."""
-        config = WebSocketErrorConfig()
+        config = WebSocketErrorConfig(
             max_retry_attempts=3,
             initial_backoff_delay=1.0,
         )

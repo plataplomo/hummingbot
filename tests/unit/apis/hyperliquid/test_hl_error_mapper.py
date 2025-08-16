@@ -38,7 +38,7 @@ import pytest
 from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
 
-from cyberdelta.apis.common import APIErrorCode
+from cyberdelta.apis.common import APIError, APIErrorCode
 from cyberdelta.apis.hyperliquid.hl_errors_mapper import HyperliquidErrorMapper
 
 
@@ -50,6 +50,145 @@ def hyperliquid_error_mapper() -> HyperliquidErrorMapper:
         HyperliquidErrorMapper: An error mapper instance for testing.
     """
     return HyperliquidErrorMapper()
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR HYPOTHESIS STRATEGY BUILDING
+# =============================================================================
+
+
+def _create_user_oid_error(oid: int) -> str:
+    """Create user OID error message.
+
+    Args:
+        oid: Order ID number.
+
+    Returns:
+        Formatted error message with OID.
+    """
+    return f"L1 error: User or API Wallet 0x123... does not exist for oid {oid}"
+
+
+def _create_user_not_exist_error(addr: str) -> str:
+    """Create user does not exist error message.
+
+    Args:
+        addr: Address string.
+
+    Returns:
+        Formatted error message with address.
+    """
+    return f"L1 error: User {addr} does not exist"
+
+
+def _create_invalid_symbol_error(symbol: str) -> str:
+    """Create invalid symbol error message.
+
+    Args:
+        symbol: Symbol string.
+
+    Returns:
+        Formatted invalid symbol error message.
+    """
+    return f"Invalid symbol: {symbol}"
+
+
+def _create_rate_limit_minute_error(minutes: int) -> str:
+    """Create rate limit error message for single minute.
+
+    Args:
+        minutes: Number of minutes.
+
+    Returns:
+        Formatted rate limit error message for minute.
+    """
+    return f"Your IP has been rate limited for {minutes} minute. Please try again later."
+
+
+def _create_rate_limit_minutes_error(minutes: int) -> str:
+    """Create rate limit error message for multiple minutes.
+
+    Args:
+        minutes: Number of minutes.
+
+    Returns:
+        Formatted rate limit error message for minutes.
+    """
+    return f"Your IP has been rate limited for {minutes} minutes. Please try again later."
+
+
+def _create_wallet_oid_error(wallet: str, oid: int) -> str:
+    """Create wallet OID error message.
+
+    Args:
+        wallet: Wallet address string.
+        oid: Order ID number.
+
+    Returns:
+        Formatted wallet OID error message.
+    """
+    return f"L1 error: User or API Wallet {wallet} does not exist for oid {oid}"
+
+
+def _create_wallet_address(addr: str) -> str:
+    """Create wallet address string.
+
+    Args:
+        addr: Address hex string.
+
+    Returns:
+        Formatted wallet address.
+    """
+    return f"0x{addr}..."
+
+
+def _create_full_wallet_address(addr: str) -> str:
+    """Create full wallet address string.
+
+    Args:
+        addr: Address hex string.
+
+    Returns:
+        Formatted full wallet address.
+    """
+    return f"0x{addr}"
+
+
+def _not_unknown_error_filter(x: str) -> bool:
+    """Check if string is not a known error pattern.
+
+    Args:
+        x: String to check.
+
+    Returns:
+        True if string is not a known error pattern.
+    """
+    return not any(
+        pattern in x.lower()
+        for pattern in [
+            "order not found",
+            "insufficient margin",
+            "invalid order size",
+            "ratelimit",
+            "user not found",
+            "rate limit",
+        ]
+    )
+
+
+def _not_rate_limit_filter(x: str) -> bool:
+    """Check if string is not a rate limit pattern.
+
+    Args:
+        x: String to check.
+
+    Returns:
+        True if string is not a rate limit pattern.
+    """
+    return not any(
+        pattern in x.lower()
+        for pattern in ["rate limit", "ratelimit", "too many requests", "wait", "retry"]
+    )
 
 
 # =============================================================================
@@ -118,28 +257,24 @@ def hl_string_error_strategy() -> SearchStrategy[str]:
         ]),
         # Error patterns with dynamic content
         st.builds(
-            lambda oid: f"L1 error: User or API Wallet 0x123... does not exist for oid {oid}",
+            _create_user_oid_error,
             st.integers(min_value=1000000, max_value=999999999999),
         ),
         st.builds(
-            lambda addr: f"L1 error: User {addr} does not exist",
+            _create_user_not_exist_error,
             st.text(alphabet="0123456789abcdef", min_size=40, max_size=42),
         ),
         st.builds(
-            lambda symbol: f"Invalid symbol: {symbol}",
+            _create_invalid_symbol_error,
             st.text(alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ-_", min_size=3, max_size=10),
         ),
         # Rate limit patterns
         st.builds(
-            lambda minutes: (
-                f"Your IP has been rate limited for {minutes} minute. Please try again later."
-            ),
+            _create_rate_limit_minute_error,
             st.integers(min_value=1, max_value=60),
         ),
         st.builds(
-            lambda minutes: (
-                f"Your IP has been rate limited for {minutes} minutes. Please try again later."
-            ),
+            _create_rate_limit_minutes_error,
             st.integers(min_value=2, max_value=60),
         ),
         st.sampled_from([
@@ -160,15 +295,11 @@ def hl_ip_ban_message_strategy() -> SearchStrategy[str]:
     """
     return st.one_of([
         st.builds(
-            lambda minutes: (
-                f"Your IP has been rate limited for {minutes} minute. Please try again later."
-            ),
+            _create_rate_limit_minute_error,
             st.integers(min_value=1, max_value=1),
         ),
         st.builds(
-            lambda minutes: (
-                f"Your IP has been rate limited for {minutes} minutes. Please try again later."
-            ),
+            _create_rate_limit_minutes_error,
             st.integers(min_value=2, max_value=60),
         ),
         st.sampled_from([
@@ -237,9 +368,9 @@ def hl_order_ownership_error_strategy() -> SearchStrategy[str]:
         A Hypothesis strategy for order ownership errors.
     """
     return st.builds(
-        lambda wallet, oid: f"L1 error: User or API Wallet {wallet} does not exist for oid {oid}",
+        _create_wallet_oid_error,
         st.builds(
-            lambda addr: f"0x{addr}...",
+            _create_wallet_address,
             st.text(alphabet="0123456789abcdef", min_size=6, max_size=6),
         ),
         st.integers(min_value=1000000, max_value=999999999999),
@@ -389,19 +520,7 @@ class TestHyperliquidErrorMapperProperties:
             assert api_error.code == str(APIErrorCode.SERVICE_UNAVAILABLE.value)
 
     @given(
-        unknown_error=st.text(min_size=1, max_size=200).filter(
-            lambda x: not any(
-                pattern in x.lower()
-                for pattern in [
-                    "order not found",
-                    "insufficient margin",
-                    "invalid order size",
-                    "ratelimit",
-                    "user not found",
-                    "rate limit",
-                ]
-            )
-        ),
+        unknown_error=st.text(min_size=1, max_size=200).filter(_not_unknown_error_filter),
         status_code=hl_http_status_strategy(),
         request_path=hl_request_path_strategy(),
     )
@@ -518,12 +637,7 @@ class TestHyperliquidIPBanDetectionProperties:
         assert api_error.exchange_message == error_body
 
     @given(
-        non_rate_limit_message=st.text(min_size=5, max_size=100).filter(
-            lambda x: not any(
-                pattern in x.lower()
-                for pattern in ["rate limit", "ratelimit", "too many requests", "wait", "retry"]
-            )
-        ),
+        non_rate_limit_message=st.text(min_size=5, max_size=100).filter(_not_rate_limit_filter),
         request_path=hl_request_path_strategy(),
     )
     @settings(max_examples=100, deadline=None)
@@ -607,7 +721,8 @@ class TestHyperliquidOrderOwnershipProperties:
 
     @given(
         wallet_addr=st.builds(
-            lambda addr: f"0x{addr}", st.text(alphabet="0123456789abcdef", min_size=40, max_size=40)
+            _create_full_wallet_address,
+            st.text(alphabet="0123456789abcdef", min_size=40, max_size=40),
         ),
         oid=st.integers(min_value=1000000, max_value=999999999999),
         status_code=hl_http_status_strategy(),
@@ -751,7 +866,7 @@ class TestHyperliquidErrorMapperIntegrationProperties:
         mapper = HyperliquidErrorMapper()
 
         # Map all errors
-        results = []
+        results: list[APIError] = []
         for status_code, error_body, request_path in error_scenarios:
             api_error = mapper.map_exchange_error(
                 status_code=status_code,

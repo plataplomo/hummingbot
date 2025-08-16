@@ -33,6 +33,226 @@ pytestmark = pytest.mark.timing
 
 
 # =======================
+# Helper Functions for Strategy Building
+# =======================
+
+
+def _create_high_precision_decimal(integer: int, fraction: list[str]) -> str:
+    """Create high precision decimal string.
+
+    Args:
+        integer: Integer part.
+        fraction: List of fraction digits.
+
+    Returns:
+        Formatted high precision decimal string.
+    """
+    return f"{integer}.{''.join(fraction)}"
+
+
+def _create_scientific_notation(mantissa: float, exponent: int) -> str:
+    """Create scientific notation string.
+
+    Args:
+        mantissa: Mantissa value.
+        exponent: Exponent value.
+
+    Returns:
+        Formatted scientific notation string.
+    """
+    return f"{mantissa}e{exponent}"
+
+
+def _create_emoji_symbol(base: str, emoji: str) -> str:
+    """Create symbol with emoji.
+
+    Args:
+        base: Base currency.
+        emoji: Emoji character.
+
+    Returns:
+        Formatted symbol with emoji.
+    """
+    return f"{base}-USDC{emoji}"
+
+
+def _create_chinese_symbol(base: str) -> str:
+    """Create symbol with Chinese characters.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted symbol with Chinese characters.
+    """
+    return f"{base}-测试"
+
+
+def _create_cyrillic_symbol(base: str) -> str:
+    """Create symbol with Cyrillic characters.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted symbol with Cyrillic characters.
+    """
+    return f"{base}-тест"
+
+
+def _create_greek_symbol(base: str) -> str:
+    """Create symbol with Greek characters.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted symbol with Greek characters.
+    """
+    return f"{base}-αβγ"
+
+
+def _create_arabic_symbol(base: str) -> str:
+    """Create symbol with Arabic characters.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted symbol with Arabic characters.
+    """
+    return f"{base}-العربية"
+
+
+def _create_mixed_unicode(a: str, b: str, c: str) -> str:
+    """Create mixed unicode symbol.
+
+    Args:
+        a: First part.
+        b: Middle separator.
+        c: Last part.
+
+    Returns:
+        Formatted mixed unicode string.
+    """
+    return f"{a}{b}{c}"
+
+
+def _create_slash_symbol(base: str, quote: str) -> str:
+    """Create symbol with forward slash.
+
+    Args:
+        base: Base currency.
+        quote: Quote currency.
+
+    Returns:
+        Formatted symbol with slash.
+    """
+    return f"{base}/{quote}"
+
+
+def _create_perp_symbol(base: str) -> str:
+    """Create PERP symbol.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted PERP symbol.
+    """
+    return f"{base}-USDC.PERP"
+
+
+def _create_futures_symbol(base: str) -> str:
+    """Create futures symbol.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted futures symbol.
+    """
+    return f"{base}_USDC_FUT"
+
+
+def _create_at_symbol(base: str, period: str) -> str:
+    """Create symbol with @ period.
+
+    Args:
+        base: Base currency.
+        period: Time period.
+
+    Returns:
+        Formatted symbol with @ period.
+    """
+    return f"{base}-USDC@{period}"
+
+
+def _create_hash_symbol(base: str, type_: str) -> str:
+    """Create symbol with # type.
+
+    Args:
+        base: Base currency.
+        type_: Symbol type.
+
+    Returns:
+        Formatted symbol with # type.
+    """
+    return f"{base}-USDC#{type_}"
+
+
+def _create_padded_value(prefix: str, value: str, suffix: str) -> str:
+    """Create padded value string.
+
+    Args:
+        prefix: Prefix string.
+        value: Value string.
+        suffix: Suffix string.
+
+    Returns:
+        Formatted padded value string.
+    """
+    return f"{prefix}{value}{suffix}"
+
+
+def _create_null_injection(prefix: str) -> str:
+    """Create string with null byte injection.
+
+    Args:
+        prefix: Prefix string.
+
+    Returns:
+        String with null byte injection.
+    """
+    return f"{prefix}\x00injected"
+
+
+def _create_negative_value(n: float) -> str:
+    """Create negative value string.
+
+    Args:
+        n: Positive number.
+
+    Returns:
+        Formatted negative value string.
+    """
+    return f"-{n}"
+
+
+def _mock_parse_side_effect(v: str, **kwargs: dict[str, Any]) -> Decimal | None:
+    """Mock parse side effect for testing.
+
+    Args:
+        v: Value to parse.
+        kwargs: Additional keyword arguments.
+
+    Returns:
+        Decimal value or None.
+    """
+    return Decimal(str(v)) if v else None
+
+
+# =======================
 # Strategy Builders
 # =======================
 
@@ -59,13 +279,13 @@ def extreme_decimal_strategy() -> SearchStrategy[str]:
         st.sampled_from(["999999999", "999999999.999999", "1000000000"]),
         # High precision values
         st.builds(
-            lambda integer, fraction: f"{integer}.{''.join(fraction)}",
+            _create_high_precision_decimal,
             st.integers(min_value=1, max_value=999),
             st.lists(st.sampled_from(string.digits), min_size=10, max_size=30),
         ),
         # Scientific notation
         st.builds(
-            lambda mantissa, exponent: f"{mantissa}e{exponent}",
+            _create_scientific_notation,
             st.floats(min_value=1.0, max_value=9.9, allow_nan=False, allow_infinity=False),
             st.integers(min_value=-10, max_value=10),
         ),
@@ -102,33 +322,33 @@ def unicode_symbol_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Emoji in symbols
         st.builds(
-            lambda base, emoji: f"{base}-USDC{emoji}",
+            _create_emoji_symbol,
             st.sampled_from(["BTC", "ETH", "SOL", "DOGE"]),
             st.sampled_from(["🚀", "💎", "🌙", "📈", "💰"]),
         ),
         # Chinese characters
         st.builds(
-            lambda base: f"{base}-测试",
+            _create_chinese_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
         ),
         # Cyrillic characters
         st.builds(
-            lambda base: f"{base}-тест",
+            _create_cyrillic_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
         ),
         # Greek characters
         st.builds(
-            lambda base: f"{base}-αβγ",
+            _create_greek_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
         ),
         # Arabic characters
         st.builds(
-            lambda base: f"{base}-العربية",
+            _create_arabic_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
         ),
         # Mixed unicode
         st.builds(
-            lambda a, b, c: f"{a}{b}{c}",
+            _create_mixed_unicode,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.sampled_from(["-", "_", "/"]),
             st.text(
@@ -149,23 +369,23 @@ def special_char_symbol_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Forward slash
         st.builds(
-            lambda base, quote: f"{base}/{quote}",
+            _create_slash_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.sampled_from(["USDC", "USDT", "USD"]),
         ),
         # Dot notation
-        st.builds(lambda base: f"{base}-USDC.PERP", st.sampled_from(["BTC", "ETH", "SOL"])),
+        st.builds(_create_perp_symbol, st.sampled_from(["BTC", "ETH", "SOL"])),
         # Underscore
-        st.builds(lambda base: f"{base}_USDC_FUT", st.sampled_from(["BTC", "ETH", "SOL"])),
+        st.builds(_create_futures_symbol, st.sampled_from(["BTC", "ETH", "SOL"])),
         # At symbol
         st.builds(
-            lambda base, period: f"{base}-USDC@{period}",
+            _create_at_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.sampled_from(["1M", "3M", "6M", "1Y"]),
         ),
         # Hash symbol
         st.builds(
-            lambda base, type_: f"{base}-USDC#{type_}",
+            _create_hash_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.sampled_from(["SPOT", "PERP", "FUT"]),
         ),
@@ -179,7 +399,7 @@ def whitespace_value_strategy() -> SearchStrategy[str]:
         SearchStrategy[str]: Strategy for values with whitespace.
     """
     return st.builds(
-        lambda prefix, value, suffix: f"{prefix}{value}{suffix}",
+        _create_padded_value,
         st.sampled_from(["", " ", "  ", "\t", "\n", "\r\n"]),
         st.sampled_from(["100.50", "10.0", "0.05", "999.999"]),
         st.sampled_from(["", " ", "  ", "\t", "\n", "\r\n"]),
@@ -253,7 +473,7 @@ def malicious_input_strategy() -> SearchStrategy[str]:
         # Format string attacks
         st.sampled_from(["%s%s%s%s%s", "%x%x%x%x", "%n%n%n%n"]),
         # Null bytes
-        st.builds(lambda prefix: f"{prefix}\x00injected", st.text(min_size=1, max_size=10)),
+        st.builds(_create_null_injection, st.text(min_size=1, max_size=10)),
     ])
 
 
@@ -831,7 +1051,10 @@ class TestCombinedExtreme:
         except TransformationError as e:
             # Check that long client_id causes expected error
             if raw_fill.client_id and len(raw_fill.client_id) > 64:
-                assert "Failed to transform" in str(e)
+                if "Failed to transform" not in str(e):
+                    pytest.fail(
+                        f"Expected 'Failed to transform' error for long client_id, got: {e}"
+                    )
             else:
                 # Other transformation errors might be valid for extreme inputs
                 pass
@@ -845,7 +1068,7 @@ class TestNegativeValues:
 
     @given(
         negative=st.builds(
-            lambda n: f"-{n}",
+            _create_negative_value,
             st.floats(min_value=0.001, max_value=1000, allow_nan=False, allow_infinity=False),
         )
     )
@@ -875,7 +1098,7 @@ class TestNegativeValues:
             "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
         ) as mock_parse:
             # Allow negative values through parsing to test mapper's handling
-            mock_parse.side_effect = lambda v, **kwargs: Decimal(str(v)) if v else None
+            mock_parse.side_effect = _mock_parse_side_effect
 
             result = mapper.transform_raw_fill_to_internal(raw_fill)
             assert result is None, "Should reject negative price"

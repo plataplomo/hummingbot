@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any
 
 import pytest
@@ -57,6 +57,167 @@ from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Fill, OrderBook, Ticker
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import SOL_USDC_BP
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR HYPOTHESIS STRATEGY BUILDING
+# =============================================================================
+
+
+def _create_symbol(base: str, quote: str) -> str:
+    """Create symbol from base and quote currencies.
+
+    Args:
+        base: Base currency string.
+        quote: Quote currency string.
+
+    Returns:
+        Formatted symbol string.
+    """
+    return f"{base}-{quote}"
+
+
+def _create_financial_decimal(integer: int, decimal: int) -> str:
+    """Create financial decimal string from integer and decimal parts.
+
+    Args:
+        integer: Integer part of the decimal.
+        decimal: Decimal part (6 digits).
+
+    Returns:
+        Formatted decimal string.
+    """
+    return f"{integer}.{decimal:06d}"
+
+
+def _create_small_decimal(value: int) -> str:
+    """Create small decimal string with 18-digit precision.
+
+    Args:
+        value: Value to format as small decimal.
+
+    Returns:
+        Formatted small decimal string.
+    """
+    return f"0.{value:018d}"
+
+
+def _create_large_decimal(value: int) -> str:
+    """Create large decimal string.
+
+    Args:
+        value: Large integer value.
+
+    Returns:
+        Formatted large decimal string.
+    """
+    return f"{value}.0"
+
+
+def _create_high_precision_decimal(mantissa: int, exp: int) -> str:
+    """Create high precision decimal string.
+
+    Args:
+        mantissa: Mantissa value.
+        exp: Exponent (number of zeros to append).
+
+    Returns:
+        Formatted high precision decimal string.
+    """
+    return f"{mantissa}{'0' * exp}"
+
+
+def _create_uuid_like_id(a: str, b: str, c: str, d: str) -> str:
+    """Create UUID-like ID string.
+
+    Args:
+        a: First part of UUID.
+        b: Second part of UUID.
+        c: Third part of UUID.
+        d: Fourth part of UUID.
+
+    Returns:
+        Formatted UUID-like string.
+    """
+    return f"{a}-{b}-{c}-{d}"
+
+
+def _create_price_quantity_tuple(price: str, quantity: str) -> tuple[str, str]:
+    """Create price-quantity tuple.
+
+    Args:
+        price: Price string.
+        quantity: Quantity string.
+
+    Returns:
+        Tuple of price and quantity strings.
+    """
+    return (price, quantity)
+
+
+def _create_signed_value(sign: str, value: str) -> str:
+    """Create signed value string.
+
+    Args:
+        sign: Sign string (empty or "-").
+        value: Value string.
+
+    Returns:
+        Formatted signed value string.
+    """
+    return f"{sign}{value}"
+
+
+def _create_percent_decimal(integer: int, decimal: int) -> str:
+    """Create percentage decimal string.
+
+    Args:
+        integer: Integer part.
+        decimal: Decimal part (2 digits).
+
+    Returns:
+        Formatted percentage decimal string.
+    """
+    return f"{integer}.{decimal:02d}"
+
+
+def _create_zero_price_scenario() -> tuple[str, str]:
+    """Create zero price scenario.
+
+    Returns:
+        Tuple with zero price and non-zero quantity.
+    """
+    return ("0.0", "10.0")
+
+
+def _create_zero_quantity_scenario() -> tuple[str, str]:
+    """Create zero quantity scenario.
+
+    Returns:
+        Tuple with non-zero price and zero quantity.
+    """
+    return ("10.0", "0.0")
+
+
+def _create_both_zero_scenario() -> tuple[str, str]:
+    """Create both zero scenario.
+
+    Returns:
+        Tuple with zero price and zero quantity.
+    """
+    return ("0.0", "0.0")
+
+
+def _is_non_empty_text(x: str) -> bool:
+    """Check if text is non-empty after stripping.
+
+    Args:
+        x: Text to check.
+
+    Returns:
+        True if text is non-empty after stripping.
+    """
+    return bool(x.strip())
 
 
 # =============================================================================
@@ -91,12 +252,12 @@ def backpack_symbol_strategy() -> SearchStrategy[str]:
         ]),
         # Generated symbols
         st.builds(
-            lambda base, quote: f"{base}-{quote}",
+            _create_symbol,
             st.text(
                 min_size=2,
                 max_size=10,
                 alphabet=st.characters(whitelist_categories=["Lu", "Ll", "Nd"]),
-            ).filter(lambda x: x.strip()),
+            ).filter(_is_non_empty_text),
             st.sampled_from(["USDC", "USDT", "BTC", "ETH"]),
         ),
         # Unicode symbols for international testing
@@ -113,19 +274,17 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Common financial values
         st.builds(
-            lambda integer, decimal: f"{integer}.{decimal:0{6}d}",
+            _create_financial_decimal,
             st.integers(min_value=0, max_value=999999),
             st.integers(min_value=0, max_value=999999),
         ),
         # Very small values (crypto precision)
         st.builds(
-            lambda value: f"0.{value:0{18}d}",
+            _create_small_decimal,
             st.integers(min_value=1, max_value=999999999999999999),
         ),
         # Large values
-        st.builds(
-            lambda value: f"{value}.0", st.integers(min_value=1000000, max_value=999999999999)
-        ),
+        st.builds(_create_large_decimal, st.integers(min_value=1000000, max_value=999999999999)),
         # Edge cases
         st.just("0.0"),
         st.just("0.000001"),
@@ -133,7 +292,7 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
         st.just("21000000.0"),  # Max BTC supply
         # High precision values
         st.builds(
-            lambda mantissa, exp: f"{mantissa}{'0' * exp}",
+            _create_high_precision_decimal,
             st.integers(min_value=1, max_value=999),
             st.integers(min_value=0, max_value=6),
         ),
@@ -167,7 +326,7 @@ def trade_id_strategy() -> SearchStrategy[str]:
         ),
         # UUID-like IDs
         st.builds(
-            lambda a, b, c, d: f"{a}-{b}-{c}-{d}",
+            _create_uuid_like_id,
             st.text(alphabet="0123456789abcdef", min_size=8, max_size=8),
             st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
             st.text(alphabet="0123456789abcdef", min_size=4, max_size=4),
@@ -183,7 +342,7 @@ def price_level_strategy() -> SearchStrategy[tuple[str, str]]:
         A Hypothesis strategy for order book price levels.
     """
     return st.builds(
-        lambda price, quantity: (price, quantity),
+        _create_price_quantity_tuple,
         financial_decimal_string_strategy(),
         financial_decimal_string_strategy(),
     )
@@ -208,10 +367,10 @@ def ticker_event_strategy(draw: st.DrawFn) -> BackpackRawTickerEvent:
     quote_volume = draw(financial_decimal_string_strategy())
     price_change_percent = draw(
         st.builds(
-            lambda sign, value: f"{sign}{value}",
+            _create_signed_value,
             st.sampled_from(["", "-"]),
             st.builds(
-                lambda integer, decimal: f"{integer}.{decimal:02d}",
+                _create_percent_decimal,
                 st.integers(min_value=0, max_value=999),
                 st.integers(min_value=0, max_value=99),
             ),
@@ -379,10 +538,9 @@ class TestWebSocketTickerTransformationProperties:
     @given(ticker_event=ticker_event_strategy())
     @settings(max_examples=200, deadline=None)
     def test_ticker_transformation_preserves_essential_data(
-        self, ticker_event: BackpackRawTickerEvent
+        self, ticker_event: BackpackRawTickerEvent, ticker_mapper: BackpackTickerMapper
     ) -> None:
         """Property: Ticker transformation should preserve all essential market data."""
-        ticker_mapper = BackpackTickerMapper()
         result = ticker_mapper.transform_ws_ticker_event_to_internal(ticker_event)
 
         # Property: Result should be valid Ticker instance
@@ -411,16 +569,16 @@ class TestWebSocketTickerTransformationProperties:
     )
     @settings(max_examples=150, deadline=None)
     def test_ticker_transformation_decimal_precision(
-        self, symbol: str, price: str, timestamp: int
+        self, symbol: str, price: str, timestamp: int, ticker_mapper: BackpackTickerMapper
     ) -> None:
         """Property: Ticker transformation should preserve decimal precision."""
         # Skip invalid decimal values
         try:
             expected_price = Decimal(price)
-        except (InvalidOperation, ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             assume(False)
+            return  # This will never be reached due to assume(False), but helps with type analysis
 
-        ticker_mapper = BackpackTickerMapper()
         ticker_event = BackpackRawTickerEvent(
             s=symbol,
             c=price,
@@ -446,9 +604,9 @@ class TestWebSocketTickerTransformationProperties:
         self,
         base_event: BackpackRawTickerEvent,
         malicious_symbol: object,
+        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: Ticker transformation should resist malicious symbol inputs."""
-        ticker_mapper = BackpackTickerMapper()
         if not isinstance(malicious_symbol, str):
             malicious_symbol = str(malicious_symbol)
 
@@ -492,10 +650,10 @@ class TestWebSocketTickerTransformationProperties:
         self,
         symbols: list[str],
         base_event: BackpackRawTickerEvent,
+        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: Ticker transformation should be consistent across different symbols."""
-        ticker_mapper = BackpackTickerMapper()
-        results = []
+        results: list[Ticker] = []
 
         for symbol in symbols:
             event = BackpackRawTickerEvent(
@@ -538,9 +696,9 @@ class TestWebSocketDepthTransformationProperties:
     def test_depth_transformation_preserves_order_book_structure(
         self,
         depth_data: tuple[BackpackRawDepthUpdateEvent, str],
+        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should preserve order book structure."""
-        order_book_mapper = BackpackOrderBookMapper()
         raw_depth, symbol_str = depth_data
         symbol = exchanges.backpack(symbol_str)
 
@@ -579,6 +737,7 @@ class TestWebSocketDepthTransformationProperties:
         bid_levels: list[tuple[str, str]],
         ask_levels: list[tuple[str, str]],
         timestamp: int,
+        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should preserve price level precision."""
         # Skip if any level has invalid decimal format
@@ -586,10 +745,8 @@ class TestWebSocketDepthTransformationProperties:
             for price_str, qty_str in bid_levels + ask_levels:
                 Decimal(price_str)
                 Decimal(qty_str)
-        except (InvalidOperation, ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             assume(False)
-
-        order_book_mapper = BackpackOrderBookMapper()
 
         raw_depth = BackpackRawDepthUpdateEvent(
             u="123456",
@@ -628,9 +785,9 @@ class TestWebSocketDepthTransformationProperties:
         self,
         base_depth: tuple[BackpackRawDepthUpdateEvent, str],
         malicious_levels: list[tuple[Any, Any]],
+        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should resist malicious price level inputs."""
-        order_book_mapper = BackpackOrderBookMapper()
         raw_depth, symbol_str = base_depth
         symbol = exchanges.backpack(symbol_str)
 
@@ -683,9 +840,9 @@ class TestWebSocketDepthTransformationProperties:
         empty_book_scenario: tuple[list[tuple[str, str]], list[tuple[str, str]]],
         symbol: str,
         timestamp: int,
+        order_book_mapper: BackpackOrderBookMapper,
     ) -> None:
         """Property: Depth transformation should handle empty bid/ask levels correctly."""
-        order_book_mapper = BackpackOrderBookMapper()
         bids, asks = empty_book_scenario
 
         raw_depth = BackpackRawDepthUpdateEvent(
@@ -715,7 +872,7 @@ class TestWebSocketTradeTransformationProperties:
     @given(trade_event=trade_event_strategy())
     @settings(max_examples=200, deadline=None)
     def test_trade_transformation_preserves_essential_data(
-        self, trade_event: BackpackRawPublicTradeEvent
+        self, trade_event: BackpackRawPublicTradeEvent, trade_mapper: BackpackFillMapper
     ) -> None:
         """Property: Trade transformation should preserve all essential trade data."""
         # Skip zero values as they're invalid for trades
@@ -724,10 +881,8 @@ class TestWebSocketTradeTransformationProperties:
             qty_decimal = Decimal(trade_event.quantity)
             if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                 assume(False)
-        except (InvalidOperation, ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             assume(False)
-
-        trade_mapper = BackpackFillMapper()
 
         result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
 
@@ -775,6 +930,7 @@ class TestWebSocketTradeTransformationProperties:
         quantity: str,
         trade_id: str,
         timestamp: int,
+        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Trade side mapping should be consistent based on buyer maker flag."""
         # Skip invalid financial values
@@ -783,10 +939,8 @@ class TestWebSocketTradeTransformationProperties:
             qty_decimal = Decimal(quantity)
             if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                 assume(False)
-        except (InvalidOperation, ValueError, TypeError):
+        except (ValueError, TypeError, OverflowError):
             assume(False)
-
-        trade_mapper = BackpackFillMapper()
 
         trade_event = BackpackRawPublicTradeEvent(
             s=symbol,
@@ -817,9 +971,9 @@ class TestWebSocketTradeTransformationProperties:
         self,
         base_trade: BackpackRawPublicTradeEvent,
         malicious_data: object,
+        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Trade transformation should resist malicious inputs."""
-        trade_mapper = BackpackFillMapper()
         if not isinstance(malicious_data, str):
             malicious_data = str(malicious_data)
 
@@ -856,11 +1010,10 @@ class TestWebSocketTradeTransformationProperties:
     @given(trades_batch=st.lists(trade_event_strategy(), min_size=2, max_size=10))
     @settings(max_examples=50, deadline=None)
     def test_trade_transformation_batch_consistency(
-        self, trades_batch: list[BackpackRawPublicTradeEvent]
+        self, trades_batch: list[BackpackRawPublicTradeEvent], trade_mapper: BackpackFillMapper
     ) -> None:
         """Property: Trade transformation should be consistent across batches."""
-        trade_mapper = BackpackFillMapper()
-        results = []
+        results: list[tuple[BackpackRawPublicTradeEvent, Fill]] = []
 
         for trade_event in trades_batch:
             try:
@@ -872,8 +1025,7 @@ class TestWebSocketTradeTransformationProperties:
 
                 result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
                 results.append((trade_event, result))
-            except (InvalidOperation, ValueError, TypeError, TransformationError):
-                # Skip invalid trade events during property testing
+            except (ValueError, TypeError, OverflowError, AttributeError):
                 continue
 
         # Skip if no valid trades
@@ -892,9 +1044,9 @@ class TestWebSocketTradeTransformationProperties:
 
     @given(
         zero_value_scenario=st.one_of([
-            st.builds(lambda: ("0.0", "10.0")),  # Zero price
-            st.builds(lambda: ("10.0", "0.0")),  # Zero quantity
-            st.builds(lambda: ("0.0", "0.0")),  # Both zero
+            st.builds(_create_zero_price_scenario),  # Zero price
+            st.builds(_create_zero_quantity_scenario),  # Zero quantity
+            st.builds(_create_both_zero_scenario),  # Both zero
         ]),
         symbol=backpack_symbol_strategy(),
         trade_id=trade_id_strategy(),
@@ -907,9 +1059,9 @@ class TestWebSocketTradeTransformationProperties:
         symbol: str,
         trade_id: str,
         timestamp: int,
+        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Trade transformation should reject zero price/quantity values."""
-        trade_mapper = BackpackFillMapper()
         price, quantity = zero_value_scenario
 
         trade_event = BackpackRawPublicTradeEvent(
@@ -955,9 +1107,9 @@ class TestWebSocketTransformationSecurityProperties:
         self,
         ticker_event: BackpackRawTickerEvent,
         injection_attempt: str,
+        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: Ticker transformation should resist injection attacks."""
-        ticker_mapper = BackpackTickerMapper()
         # Test injection in price field
         malicious_ticker = BackpackRawTickerEvent(
             s=ticker_event.symbol,
@@ -990,9 +1142,9 @@ class TestWebSocketTransformationSecurityProperties:
         self,
         large_symbol: str,
         base_event: BackpackRawTickerEvent,
+        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: WebSocket transformations should handle large inputs safely."""
-        ticker_mapper = BackpackTickerMapper()
         large_ticker = BackpackRawTickerEvent(
             s=large_symbol,
             c=base_event.last_price,
@@ -1033,9 +1185,9 @@ class TestWebSocketTransformationSecurityProperties:
         self,
         unicode_data: str,
         base_event: BackpackRawTickerEvent,
+        ticker_mapper: BackpackTickerMapper,
     ) -> None:
         """Property: WebSocket transformations should handle Unicode data safely."""
-        ticker_mapper = BackpackTickerMapper()
         unicode_ticker = BackpackRawTickerEvent(
             s=f"{base_event.symbol}-{unicode_data}",
             c=base_event.last_price,
@@ -1081,13 +1233,17 @@ class TestWebSocketTransformationIntegrationProperties:
     @settings(max_examples=50, deadline=None)
     def test_mixed_event_processing_consistency(
         self,
-        mixed_events: list[Any],
+        mixed_events: list[
+            BackpackRawTickerEvent
+            | tuple[BackpackRawDepthUpdateEvent, str]
+            | BackpackRawPublicTradeEvent
+        ],
+        ticker_mapper: BackpackTickerMapper,
+        order_book_mapper: BackpackOrderBookMapper,
+        trade_mapper: BackpackFillMapper,
     ) -> None:
         """Property: Mixed event processing should be consistent and error-free."""
-        ticker_mapper = BackpackTickerMapper()
-        order_book_mapper = BackpackOrderBookMapper()
-        trade_mapper = BackpackFillMapper()
-        results = []
+        results: list[Ticker | OrderBook | Fill] = []
 
         for event in mixed_events:
             try:
@@ -1095,28 +1251,25 @@ class TestWebSocketTransformationIntegrationProperties:
                 if isinstance(event, BackpackRawTickerEvent):
                     result = ticker_mapper.transform_ws_ticker_event_to_internal(event)
                 elif isinstance(event, tuple) and len(event) == 2:  # Depth event
+                    # Unpack tuple directly since type is known
                     raw_depth, symbol_str = event
                     symbol = exchanges.backpack(symbol_str)
                     result = order_book_mapper.transform_ws_depth_event_to_internal(
                         symbol, raw_depth
                     )
-                elif isinstance(event, BackpackRawPublicTradeEvent):
+                else:  # BackpackRawPublicTradeEvent
                     # Skip invalid trades
                     try:
                         price_decimal = Decimal(event.price)
                         qty_decimal = Decimal(event.quantity)
                         if price_decimal <= Decimal(0) or qty_decimal <= Decimal(0):
                             continue
-                    except (InvalidOperation, ValueError, TypeError):
-                        # Skip invalid financial values during property testing
+                    except (ValueError, TypeError, OverflowError):
                         continue
                     result = trade_mapper.transform_ws_fill_event_to_internal_fill(event)
-                else:
-                    continue
 
                 results.append(result)
-            except (InvalidOperation, ValueError, TypeError, TransformationError):
-                # Skip invalid events during property testing
+            except (ValueError, TypeError, OverflowError, AttributeError):
                 continue
 
         # Property: All successful transformations should be valid
@@ -1124,17 +1277,19 @@ class TestWebSocketTransformationIntegrationProperties:
             assert hasattr(result, "symbol")
             assert hasattr(result, "exchange") or isinstance(result, OrderBook)
 
-            if hasattr(result, "exchange"):
+            if isinstance(result, OrderBook):
+                # OrderBook doesn't have exchange attribute, check symbol instead
+                assert result.symbol.exchange == ExchangeName.BACKPACK
+            elif hasattr(result, "exchange"):
                 assert result.exchange == ExchangeName.BACKPACK.value
 
     @given(event_stream=st.lists(trade_event_strategy(), min_size=5, max_size=20))
     @settings(max_examples=30, deadline=None)
     def test_real_time_event_stream_processing(
-        self, event_stream: list[BackpackRawPublicTradeEvent]
+        self, event_stream: list[BackpackRawPublicTradeEvent], trade_mapper: BackpackFillMapper
     ) -> None:
         """Property: Real-time event stream processing should maintain data integrity."""
-        trade_mapper = BackpackFillMapper()
-        processed_trades = []
+        processed_trades: list[tuple[BackpackRawPublicTradeEvent, Fill]] = []
 
         for trade_event in event_stream:
             try:
@@ -1146,8 +1301,7 @@ class TestWebSocketTransformationIntegrationProperties:
 
                 result = trade_mapper.transform_ws_fill_event_to_internal_fill(trade_event)
                 processed_trades.append((trade_event, result))
-            except (InvalidOperation, ValueError, TypeError, TransformationError):
-                # Skip invalid trade events during property testing
+            except (ValueError, TypeError, OverflowError, AttributeError):
                 continue
 
         # Property: Processed trades should maintain temporal ordering

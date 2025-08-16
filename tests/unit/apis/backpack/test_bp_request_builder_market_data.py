@@ -135,6 +135,30 @@ def limit_strategy() -> SearchStrategy[int | None]:
     ])
 
 
+def _create_trade_id(x: int) -> str:
+    """Create trade ID with number suffix.
+
+    Args:
+        x: Trade number.
+
+    Returns:
+        Formatted trade ID string.
+    """
+    return f"trade_{x}"
+
+
+def _create_id_string(x: str) -> str:
+    """Create ID string with prefix.
+
+    Args:
+        x: ID value.
+
+    Returns:
+        Formatted ID string.
+    """
+    return f"id_{x}"
+
+
 def from_id_strategy() -> SearchStrategy[str | None]:
     """Generate valid from_id values for historical trades.
 
@@ -144,8 +168,8 @@ def from_id_strategy() -> SearchStrategy[str | None]:
     return st.one_of([
         st.none(),
         st.text(min_size=1, max_size=50),
-        st.builds(lambda x: f"trade_{x}", st.integers(min_value=1, max_value=999999)),
-        st.builds(lambda x: f"id_{x}", st.text(min_size=5, max_size=20)),
+        st.builds(_create_trade_id, st.integers(min_value=1, max_value=999999)),
+        st.builds(_create_id_string, st.text(min_size=5, max_size=20)),
         st.sampled_from(["trade123", "id456", "historical789", "from_abc", "start_xyz"]),
     ])
 

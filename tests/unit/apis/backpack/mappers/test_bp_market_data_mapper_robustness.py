@@ -1,7 +1,8 @@
 """Property-based tests for Backpack Market Data Mapper Robustness.
 
 This module provides comprehensive property-based testing of the Backpack market data mappers,
-focusing on robustness, boundary conditions, and edge case handling critical for secure trading operations.
+focusing on robustness, boundary conditions, and edge case handling critical for secure
+trading operations.
 
 SECURITY CRITICAL: Market data mapping must handle extreme conditions to prevent:
 - Price manipulation through malformed decimal values
@@ -54,8 +55,144 @@ from cyberdelta.apis.backpack.models.bp_raw_market import (
 )
 from cyberdelta.apis.backpack.models.bp_raw_trade import BackpackRawPublicTrade
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.models import Ticker
 from cyberdelta.symbols import exchanges
 from tests.common_symbols import SOL_USDC_BP
+
+
+# =============================================================================
+# HELPER FUNCTIONS FOR HYPOTHESIS STRATEGY BUILDING
+# =============================================================================
+
+
+def _create_max_precision_decimal(digits: int) -> str:
+    """Create maximum precision decimal string.
+
+    Args:
+        digits: Number of decimal digits.
+
+    Returns:
+        Formatted maximum precision decimal string.
+    """
+    return f"123.{'1' * digits}"
+
+
+def _create_large_value(exp: int) -> str:
+    """Create large value string.
+
+    Args:
+        exp: Exponent for the number of 9s.
+
+    Returns:
+        Formatted large value string.
+    """
+    return f"9{'9' * exp}.999999"
+
+
+def _create_small_value(exp: int) -> str:
+    """Create small value string.
+
+    Args:
+        exp: Exponent for the number of zeros.
+
+    Returns:
+        Formatted small value string.
+    """
+    return f"0.{'0' * exp}1"
+
+
+def _create_chinese_symbol(base: str) -> str:
+    """Create symbol with Chinese characters.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted symbol with Chinese characters.
+    """
+    return f"{base}-测试"
+
+
+def _create_cyrillic_symbol(base: str) -> str:
+    """Create symbol with Cyrillic characters.
+
+    Args:
+        base: Base currency.
+
+    Returns:
+        Formatted symbol with Cyrillic characters.
+    """
+    return f"{base}-тест"
+
+
+def _create_emoji_symbol(base: str, emoji: str) -> str:
+    """Create symbol with emoji.
+
+    Args:
+        base: Base currency.
+        emoji: Emoji character.
+
+    Returns:
+        Formatted symbol with emoji.
+    """
+    return f"{base}-{emoji}"
+
+
+def _create_special_char_symbol(base: str, special: str) -> str:
+    """Create symbol with special characters.
+
+    Args:
+        base: Base currency.
+        special: Special character.
+
+    Returns:
+        Formatted symbol with special characters.
+    """
+    return f"{base}{special}USDC"
+
+
+def _create_mixed_content(ascii_part: str, unicode_part: str) -> str:
+    """Create mixed ASCII/Unicode content.
+
+    Args:
+        ascii_part: ASCII part of the string.
+        unicode_part: Unicode part of the string.
+
+    Returns:
+        Formatted mixed content string.
+    """
+    return f"{ascii_part}_{unicode_part}"
+
+
+def _is_not_valid_timestamp(x: str) -> bool:
+    """Check if string is not a valid timestamp.
+
+    Args:
+        x: String to check.
+
+    Returns:
+        True if string is not a valid timestamp.
+    """
+    return not (x.endswith("Z") and "T" in x and len(x.split("-")) >= 3)
+
+
+def _create_iso_timestamp(
+    year: int, month: int, day: int, hour: int, minute: int, second: int
+) -> str:
+    """Create ISO timestamp string.
+
+    Args:
+        year: Year value.
+        month: Month value.
+        day: Day value.
+        hour: Hour value.
+        minute: Minute value.
+        second: Second value.
+
+    Returns:
+        Formatted ISO timestamp string.
+    """
+    return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z"
 
 
 # =============================================================================
@@ -72,17 +209,17 @@ def extreme_decimal_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Maximum precision
         st.builds(
-            lambda digits: f"123.{'1' * digits}",
+            _create_max_precision_decimal,
             st.integers(min_value=1, max_value=28),  # Python Decimal max precision
         ),
         # Very large values
         st.builds(
-            lambda exp: f"9{'9' * exp}.999999",
+            _create_large_value,
             st.integers(min_value=1, max_value=15),
         ),
         # Very small values
         st.builds(
-            lambda exp: f"0.{'0' * exp}1",
+            _create_small_value,
             st.integers(min_value=1, max_value=25),
         ),
         # Scientific notation extremes
@@ -120,35 +257,32 @@ def unicode_symbol_strategy() -> SearchStrategy[str]:
         ),
         # Chinese characters
         st.builds(
-            lambda base: f"{base}-测试",
+            _create_chinese_symbol,
             st.sampled_from(["BTC", "ETH", "SOL", "DOGE"]),
         ),
         # Cyrillic characters
         st.builds(
-            lambda base: f"{base}-тест",
+            _create_cyrillic_symbol,
             st.sampled_from(["BTC", "ETH", "SOL", "DOGE"]),
         ),
         # Emoji symbols
         st.builds(
-            lambda base, emoji: f"{base}-{emoji}",
+            _create_emoji_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.sampled_from(["🚀", "💎", "📈", "💰", "⚡", "🌙"]),
         ),
         # Mixed unicode and ASCII
-        st.builds(
-            lambda parts: "-".join(parts),
-            st.lists(
-                st.one_of([
-                    st.text(min_size=1, max_size=8, alphabet=string.ascii_uppercase),
-                    st.sampled_from(["测试", "тест", "🚀", "αβγ", "العربية"]),
-                ]),
-                min_size=2,
-                max_size=4,
-            ),
-        ),
+        st.lists(
+            st.one_of([
+                st.text(min_size=1, max_size=8, alphabet=string.ascii_uppercase),
+                st.sampled_from(["测试", "тест", "🚀", "αβγ", "العربية"]),
+            ]),
+            min_size=2,
+            max_size=4,
+        ).map("-".join),
         # Special trading characters
         st.builds(
-            lambda base, special: f"{base}{special}USDC",
+            _create_special_char_symbol,
             st.sampled_from(["BTC", "ETH", "SOL"]),
             st.sampled_from(["/", "_", ".", "@", "#"]),
         ),
@@ -215,11 +349,11 @@ def malformed_decimal_strategy() -> SearchStrategy[str]:
             "\n",
             "\r\n",
         ]),
-        # Unicode that actually causes parsing errors (Python Decimal can parse full-width digits)
+        # Unicode digits that might cause issues
         st.sampled_from([
-            "123,456.78",  # Comma in wrong place for Decimal
-            "123 456.78",  # Space in number
-            "123.456.78",  # Multiple decimal points
+            "123.456",  # ASCII digits replacing full-width
+            "۱۲۳.۴۵۶",  # Arabic-Indic digits
+            "༡༢༣.༤༥༦",  # Tibetan digits
         ]),
         # Edge cases
         st.sampled_from([
@@ -247,12 +381,7 @@ def iso_timestamp_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Valid ISO formats
         st.builds(
-            lambda year,
-            month,
-            day,
-            hour,
-            minute,
-            second: f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z",
+            _create_iso_timestamp,
             st.integers(min_value=1970, max_value=2100),
             st.integers(min_value=1, max_value=12),
             st.integers(min_value=1, max_value=28),
@@ -546,46 +675,40 @@ class TestUnicodeEncodingSupportProperties:
 
     @given(
         trade_id=st.text(
-            min_size=1, max_size=64, alphabet=st.characters(min_codepoint=32, max_codepoint=126)
-        ).filter(lambda s: s.strip()),  # Ensure non-empty after stripping
+            min_size=1, max_size=64, alphabet=st.characters(min_codepoint=1, max_codepoint=1000)
+        ),
         symbol=unicode_symbol_strategy(),
     )
     @settings(max_examples=150, deadline=None)
     def test_unicode_trade_id_handling(self, trade_id: str, symbol: str) -> None:
         """Property: Unicode trade IDs should be handled appropriately."""
-        from cyberdelta.exceptions.parsing import EmptyStringError
-        from pydantic import ValidationError
-
         mapper = BackpackFillMapper()
 
-        try:
-            trade_data = BackpackRawPublicTrade(
-                id=trade_id,
-                symbol=symbol,
-                price="100.0",
-                qty="10.0",
-                time="2024-01-15T10:30:00Z",
-                orderId="order123",
-            )
+        trade_data = BackpackRawPublicTrade(
+            id=trade_id,
+            symbol=symbol,
+            price="100.0",
+            qty="10.0",
+            time="2024-01-15T10:30:00Z",
+            orderId="order123",
+        )
 
+        try:
             result = mapper.transform_raw_fill_to_internal(trade_data)
 
-            # Property: Trade ID should be normalized/cleaned consistently
-            # The mapper may normalize whitespace in trade IDs for consistency
-            expected_id = trade_data.id.strip() if trade_data.id else trade_data.id
-            assert result.id == expected_id
+            # Property: Trade ID should be preserved exactly
+            assert result.id == trade_id
 
             # Property: Symbol should be transformed correctly
             assert result.symbol == exchanges.backpack(symbol)
 
-        except (TransformationError, ValueError, UnicodeError, ValidationError, EmptyStringError):
-            # Expected for problematic unicode or invalid strings
-            # The validation properly rejects empty or invalid strings
+        except (TransformationError, ValueError, UnicodeError):
+            # Expected for problematic unicode
             pass
 
     @given(
         mixed_content=st.builds(
-            lambda ascii_part, unicode_part: f"{ascii_part}_{unicode_part}",
+            _create_mixed_content,
             st.text(min_size=1, max_size=10, alphabet=string.ascii_uppercase),
             st.sampled_from(["测试", "тест", "🚀", "αβγ", "العربية"]),
         ),
@@ -635,39 +758,25 @@ class TestErrorHandlingRecoveryProperties:
     @settings(max_examples=100, deadline=None)
     def test_malformed_decimal_error_handling(self, malformed_price: str) -> None:
         """Property: Malformed decimal values should cause appropriate errors."""
-        from cyberdelta.exceptions.parsing import EmptyStringError
-        from pydantic import ValidationError
-
         mapper = BackpackTickerMapper()
 
-        try:
-            ticker_data = BackpackRawTickerResponse(
-                symbol="TEST_USDC",
-                firstPrice="100.0",
-                lastPrice=malformed_price,
-                high="101.0",
-                low="99.0",
-                priceChange="0.0",
-                priceChangePercent="0.0",
-                volume="1000.0",
-                quoteVolume="100000.0",
-                trades="100",
-            )
-
-            # If we get here without validation error, try transformation
-            with pytest.raises(TransformationError):
-                mapper.transform_raw_ticker_to_internal(ticker_data)
-
-        except (ValidationError, EmptyStringError):
-            # These are also valid ways to reject malformed data
-            # The validation layer properly catches bad input
-            pass
-
-    @given(
-        invalid_timestamp=st.text(min_size=1, max_size=50).filter(
-            lambda x: not (x.endswith("Z") and "T" in x and len(x.split("-")) >= 3)
+        ticker_data = BackpackRawTickerResponse(
+            symbol="TEST_USDC",
+            firstPrice="100.0",
+            lastPrice=malformed_price,
+            high="101.0",
+            low="99.0",
+            priceChange="0.0",
+            priceChangePercent="0.0",
+            volume="1000.0",
+            quoteVolume="100000.0",
+            trades="100",
         )
-    )
+
+        with pytest.raises(TransformationError):
+            mapper.transform_raw_ticker_to_internal(ticker_data)
+
+    @given(invalid_timestamp=st.text(min_size=1, max_size=50).filter(_is_not_valid_timestamp))
     @settings(max_examples=100, deadline=None)
     def test_invalid_timestamp_error_handling(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamps should be handled appropriately."""
@@ -847,7 +956,7 @@ class TestPerformanceMemoryProperties:
         mapper = BackpackTickerMapper()
 
         # Generate multiple tickers
-        tickers = []
+        tickers: list[BackpackRawTickerResponse] = []
         for i in range(ticker_count):
             ticker = BackpackRawTickerResponse(
                 symbol=f"SYMBOL{i:03d}_USDC",
@@ -864,7 +973,7 @@ class TestPerformanceMemoryProperties:
             tickers.append(ticker)
 
         # Transform all tickers
-        results = []
+        results: list[Ticker] = []
         for ticker in tickers:
             result = mapper.transform_raw_ticker_to_internal(ticker)
             results.append(result)

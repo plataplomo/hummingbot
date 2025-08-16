@@ -53,11 +53,39 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Fill, Order
 from cyberdelta.symbols import exchanges
+from cyberdelta.utils.parsing import parse_decimal_value as real_parse
 
 
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR TRANSACTION MAPPER TESTING
 # =============================================================================
+
+
+def _create_trading_pair(base: str, quote: str) -> str:
+    """Create trading pair from base and quote assets."""
+    return f"{base}-{quote}"
+
+
+def _create_uuid_like_id(a: str, b: str, c: str, d: str, e: str) -> str:
+    """Create UUID-like identifier from five string components."""
+    return f"{a}-{b}-{c}-{d}-{e}"
+
+
+def _create_iso_timestamp(
+    year: int, month: int, day: int, hour: int, minute: int, second: int
+) -> str:
+    """Create ISO timestamp string from date/time components."""
+    return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z"
+
+
+def _filter_positive_decimal(x: str) -> bool:
+    """Filter function to ensure decimal string represents positive value."""
+    return Decimal(x) > 0
+
+
+def _filter_invalid_timestamp(x: str) -> bool:
+    """Filter function to exclude valid timestamp formats."""
+    return not x.endswith("Z") or "T" not in x
 
 
 def trading_symbol_strategy() -> SearchStrategy[str]:
@@ -88,7 +116,7 @@ def trading_symbol_strategy() -> SearchStrategy[str]:
         ]),
         # Generated trading pairs
         st.builds(
-            lambda base, quote: f"{base}-{quote}",
+            _create_trading_pair,
             st.text(min_size=2, max_size=10, alphabet=st.characters(whitelist_categories=["Lu"])),
             st.sampled_from(["USDC", "USDT", "BTC", "ETH", "SOL"]),
         ),
@@ -114,7 +142,7 @@ def order_id_strategy() -> SearchStrategy[str]:
         ),
         # UUID-like patterns
         st.builds(
-            lambda a, b, c, d, e: f"{a}-{b}-{c}-{d}-{e}",
+            _create_uuid_like_id,
             st.text(min_size=8, max_size=8, alphabet="0123456789abcdef"),
             st.text(min_size=4, max_size=4, alphabet="0123456789abcdef"),
             st.text(min_size=4, max_size=4, alphabet="0123456789abcdef"),
@@ -221,7 +249,7 @@ def bp_order_side_strategy() -> SearchStrategy[str]:
     Returns:
         A Hypothesis strategy for Backpack order sides.
     """
-    return st.sampled_from(["Bid", "Ask"])
+    return st.sampled_from(["Buy", "Sell", "Bid", "Ask"])
 
 
 def bp_order_status_strategy() -> SearchStrategy[str]:
@@ -267,12 +295,7 @@ def iso_timestamp_strategy() -> SearchStrategy[str]:
     return st.one_of([
         # Valid ISO formats
         st.builds(
-            lambda year,
-            month,
-            day,
-            hour,
-            minute,
-            second: f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z",
+            _create_iso_timestamp,
             st.integers(min_value=2020, max_value=2030),
             st.integers(min_value=1, max_value=12),
             st.integers(min_value=1, max_value=28),  # Avoid leap year issues
@@ -366,16 +389,10 @@ def raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
     if order_type == "STOP":
         trigger_price = draw(decimal_price_strategy())
 
-    requested_quantity = draw(decimal_quantity_strategy())
-    # Executed quantity must not exceed requested quantity
-    executed_quantity_decimal = Decimal(requested_quantity) * draw(
-        st.floats(min_value=0.0, max_value=1.0)
-    )
-    executed_quantity = str(executed_quantity_decimal)
-
+    executed_quantity = draw(decimal_quantity_strategy())
     # If executed_quantity > 0, we need avg_fill_price
     avg_fill_price = None
-    if executed_quantity_decimal > 0:
+    if Decimal(executed_quantity) > 0:
         avg_fill_price = draw(decimal_price_strategy())
 
     return BackpackRawOrderResponse(
@@ -384,7 +401,7 @@ def raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
         symbol=draw(trading_symbol_strategy()),
         side=draw(bp_order_side_strategy()),
         orderType=order_type,
-        quantity=requested_quantity,
+        quantity=draw(decimal_quantity_strategy()),
         price=draw(decimal_price_strategy()),
         status=draw(bp_order_status_strategy()),
         timeInForce=draw(bp_time_in_force_strategy()),
@@ -547,8 +564,8 @@ class TestFillTransformationProperties:
 
     @given(
         side=bp_order_side_strategy(),
-        price=decimal_price_strategy().filter(lambda x: Decimal(x) > 0),
-        quantity=decimal_quantity_strategy().filter(lambda x: Decimal(x) > 0),
+        price=decimal_price_strategy().filter(_filter_positive_decimal),
+        quantity=decimal_quantity_strategy().filter(_filter_positive_decimal),
     )
     @settings(max_examples=200, deadline=None)
     def test_fill_side_mapping_consistency(self, side: str, price: str, quantity: str) -> None:
@@ -913,8 +930,6 @@ class TestTransactionMapperErrorHandlingProperties:
             ) -> Decimal | None:
                 if field_name == "price":
                     return None
-                # Import the actual function to call
-                from cyberdelta.utils.parsing import parse_decimal_value as real_parse
 
                 if allow_none:
                     return real_parse(value, allow_none=True, field_name=field_name)
@@ -928,9 +943,7 @@ class TestTransactionMapperErrorHandlingProperties:
                 mapper.transform_raw_fill_to_internal_public(trade_data)
 
     @given(
-        invalid_timestamp=st.text(min_size=1, max_size=50).filter(
-            lambda x: not x.endswith("Z") or "T" not in x
-        ),
+        invalid_timestamp=st.text(min_size=1, max_size=50).filter(_filter_invalid_timestamp),
     )
     @settings(max_examples=100, deadline=None)
     def test_invalid_timestamp_handling(self, invalid_timestamp: str) -> None:
@@ -1065,7 +1078,7 @@ class TestTransactionMapperIntegrationProperties:
         mapper = BackpackTransactionMapper()
 
         # Transform all fills
-        fill_results = []
+        fill_results: list[Fill] = []
         for fill in fills:
             try:
                 result = mapper.transform_raw_fill_to_internal(fill)
@@ -1076,12 +1089,11 @@ class TestTransactionMapperIntegrationProperties:
                 pass
 
         # Transform all orders
-        order_results = []
+        order_results: list[Order] = []
         for order in orders:
             try:
                 order_result = mapper.transform_raw_order_to_internal(order)
-                if order_result is not None:
-                    order_results.append(order_result)
+                order_results.append(order_result)
             except DataTransformationError:
                 # Expected for some invalid inputs
                 pass
@@ -1154,12 +1166,15 @@ class TestTransactionMapperIntegrationProperties:
             fill_result = mapper.transform_raw_fill_to_internal(raw_fill)
             order_result = mapper.transform_raw_order_to_internal(raw_order)
 
-            if fill_result is not None and order_result is not None:
-                # Property: Symbol transformation should be consistent
-                assert fill_result.symbol == order_result.symbol
+            # Both results are guaranteed to be valid objects (not None) or exception is raised
+            assert fill_result is not None
+            assert order_result is not None
 
-                # Property: Timestamp parsing should be consistent
-                assert fill_result.executed_at == order_result.created_at
+            # Property: Symbol transformation should be consistent
+            assert fill_result.symbol == order_result.symbol
+
+            # Property: Timestamp parsing should be consistent
+            assert fill_result.executed_at == order_result.created_at
 
         except DataTransformationError:
             # Expected for some invalid symbol/timestamp combinations

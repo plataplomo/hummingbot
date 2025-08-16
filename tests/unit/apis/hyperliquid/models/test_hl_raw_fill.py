@@ -264,7 +264,7 @@ class TestHyperliquidRawFillProperties:
 
     @given(fill_data=complete_fill_data_strategy())
     def test_valid_fill_creation_properties(self, fill_data: dict[str, Any]) -> None:
-        """Property: Valid fill data should always create valid models."""
+        """Property: Valid data should create valid models."""
         fill = HyperliquidRawFill.model_validate(fill_data)
 
         # Property: Required fields should be preserved exactly
@@ -363,7 +363,7 @@ class TestHyperliquidRawFillProperties:
     )
     def test_invalid_decimal_fields_rejection(self, invalid_decimal: str) -> None:
         """Property: Invalid decimal strings should be consistently rejected."""
-        base_data = {
+        base_data: dict[str, object] = {
             "tid": 12345,
             "oid": 67890,
             "coin": "BTC",
