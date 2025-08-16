@@ -11,7 +11,7 @@ from collections import defaultdict
 from datetime import UTC, datetime
 
 from cyberdelta.apis.enums.websocket import MetricUnit, WSMetricType
-from cyberdelta.apis.websocket.models.general_metrics import MetricPoint, MetricSummary
+from cyberdelta.apis.models.websocket.general_metrics import MetricPoint, MetricSummary
 from cyberdelta.apis.websocket.websocket_states import MessageProcessingResult
 from cyberdelta.enums import ExchangeName
 

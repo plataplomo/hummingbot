@@ -17,7 +17,7 @@ from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_processor import PydanticWebSocketProcessor
+    from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
 
 # Type variables for generic domain models
 T = TypeVar("T", bound=BaseModel)
@@ -67,7 +67,7 @@ class ProcessorErrorContextBuilder:
 
     @staticmethod
     def from_validation_error[T: BaseModel, U: BaseModel](
-        processor: PydanticWebSocketProcessor[T, U],
+        processor: WebSocketMessageProcessor[T, U],
         payload: dict[str, object] | list[object] | BaseModel | str | bytes | float | bool | None,
         context: WebSocketContextProtocol,
         validation_error: ValidationError,
@@ -118,7 +118,7 @@ class ProcessorErrorContextBuilder:
 
     @staticmethod
     def from_transformation_error[T: BaseModel, U: BaseModel](
-        processor: PydanticWebSocketProcessor[T, U],
+        processor: WebSocketMessageProcessor[T, U],
         validated_payload: T,
         context: WebSocketContextProtocol,
         transformation_error: Exception,
@@ -169,7 +169,7 @@ class ProcessorErrorContextBuilder:
 
     @staticmethod
     def from_handler_error[T: BaseModel, U: BaseModel](
-        processor: PydanticWebSocketProcessor[T, U],
+        processor: WebSocketMessageProcessor[T, U],
         domain_model: U | list[U],  # Accept single or batch domain models
         context: WebSocketContextProtocol,
         handler_error: Exception,
@@ -234,7 +234,7 @@ class ProcessorErrorContextBuilder:
 
     @staticmethod
     def from_unexpected_error[T: BaseModel, U: BaseModel](
-        processor: PydanticWebSocketProcessor[T, U],
+        processor: WebSocketMessageProcessor[T, U],
         context: WebSocketContextProtocol,
         unexpected_error: Exception,
         stage: str = "unknown",
@@ -334,7 +334,7 @@ class ProcessorErrorContextBuilder:
     @staticmethod
     def enhance_context_with_metrics[T: BaseModel, U: BaseModel](
         context: StreamErrorContext,
-        processor: PydanticWebSocketProcessor[T, U],
+        processor: WebSocketMessageProcessor[T, U],
     ) -> StreamErrorContext:
         """Enhance error context with current processor metrics.
 

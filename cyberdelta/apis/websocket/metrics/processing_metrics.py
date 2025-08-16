@@ -7,7 +7,7 @@ replacing dict-based metrics collection with type-safe Pydantic models.
 from __future__ import annotations
 
 # Re-export models from the proper location
-from cyberdelta.apis.websocket.models.processing import ProcessingMetrics, ProcessorMetrics
+from cyberdelta.apis.models.websocket.processing import ProcessingMetrics, ProcessorMetrics
 
 
 __all__ = ["ProcessingMetrics", "ProcessorMetrics"]

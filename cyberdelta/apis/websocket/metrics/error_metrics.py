@@ -12,8 +12,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
-from cyberdelta.apis.websocket.models.error_metrics import (
+from cyberdelta.apis.models.websocket.error_metrics import (
     AggregatedMetrics,
     CollectorStatistics,
     ConnectionMetrics,
@@ -21,6 +20,7 @@ from cyberdelta.apis.websocket.models.error_metrics import (
     ErrorRateMetrics,
     RecoveryAttempt,
 )
+from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorMetricsConfig
 
 

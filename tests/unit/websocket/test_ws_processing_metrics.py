@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 from pydantic import ValidationError
 
-from cyberdelta.apis.websocket.models.processing import ProcessingMetrics, ProcessorMetrics
+from cyberdelta.apis.models.websocket.processing import ProcessingMetrics, ProcessorMetrics
 
 
 class TestProcessingMetrics:

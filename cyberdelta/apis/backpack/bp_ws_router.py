@@ -40,17 +40,17 @@ from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimization
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError, WebSocketSubscriptionError
-from cyberdelta.apis.websocket.ws_processor import (
-    PydanticWebSocketProcessor,
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
+from cyberdelta.apis.websocket.ws_mapper_adapters import (
+    WebSocketControlMessageAdapter,
+    WebSocketMapperAdapter,
 )
+from cyberdelta.apis.websocket.ws_message_processor import (
+    WebSocketMessageProcessor,
+)
+from cyberdelta.apis.websocket.ws_message_router import WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
-from cyberdelta.apis.websocket.ws_transformer import (
-    ControlMessageTransformer,
-    MapperTransformer,
-)
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.models import DerivativePosition, Fill, Order, Ticker
@@ -86,7 +86,7 @@ class TransformationError(ValueError):
 
 
 class BackpackWebSocketRouter(
-    BaseWebSocketRouter[BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse],
+    WebSocketMessageRouter[BackpackRawWebSocketEnvelope | BackpackSubscriptionResponse],
 ):
     """Full-featured Backpack WebSocket router using new architecture.
 
@@ -100,7 +100,7 @@ class BackpackWebSocketRouter(
     def __init__(
         self,
         stream_error_handler: WebSocketErrorHandler,
-        typed_processor: TypeSafeWebSocketProcessor,
+        context_factory: WebSocketContextFactory,
         order_book_mapper: OrderBookMapperProtocol,
         ticker_mapper: TickerMapperProtocol,
         trade_mapper: FillMapperProtocol,
@@ -115,7 +115,7 @@ class BackpackWebSocketRouter(
 
         Args:
             stream_error_handler: Stream error handler for new architecture.
-            typed_processor: Required typed processor.
+            context_factory: Required context factory.
             order_book_mapper: Order book mapper.
             ticker_mapper: Ticker mapper.
             trade_mapper: Trade mapper.
@@ -137,7 +137,7 @@ class BackpackWebSocketRouter(
 
         super().__init__(
             exchange_name=ExchangeName.BACKPACK,
-            typed_processor=typed_processor,
+            context_factory=context_factory,
             stream_error_handler=stream_error_handler,
             memory_optimization_mode=memory_optimization_mode,
             memory_pool_size=memory_pool_size,
@@ -148,16 +148,16 @@ class BackpackWebSocketRouter(
         """Setup Backpack-specific message processors for all message types."""
         # Market data processors
         # Use stateful transformer for depth updates to handle incremental updates
-        self.processors["depth"] = PydanticWebSocketProcessor(
+        self.processors["depth"] = WebSocketMessageProcessor(
             raw_model=BackpackRawDepthUpdateEvent,
             transformer=BackpackDepthStateTransformer(self.order_book_mapper),
             stream_error_handler=self.stream_error_handler,
             processor_name="backpack_depth",
         )
 
-        self.processors["ticker"] = PydanticWebSocketProcessor(
+        self.processors["ticker"] = WebSocketMessageProcessor(
             raw_model=BackpackRawTickerEvent,
-            transformer=MapperTransformer[BackpackRawTickerEvent, Ticker](
+            transformer=WebSocketMapperAdapter[BackpackRawTickerEvent, Ticker](
                 mapper_method=self.ticker_mapper.transform_ws_ticker_event_to_internal,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -166,9 +166,9 @@ class BackpackWebSocketRouter(
 
         # Public trade processor - NOTE: Backpack uses "trade" (singular) not "trades"
         # Register under both "trade" and "trades" for compatibility
-        trade_processor = PydanticWebSocketProcessor(
+        trade_processor = WebSocketMessageProcessor(
             raw_model=BackpackRawPublicTradeEvent,
-            transformer=MapperTransformer[BackpackRawPublicTradeEvent, Fill](
+            transformer=WebSocketMapperAdapter[BackpackRawPublicTradeEvent, Fill](
                 mapper_method=self.trade_mapper.transform_ws_fill_event_to_internal_fill,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -178,18 +178,18 @@ class BackpackWebSocketRouter(
         self.processors["trades"] = trade_processor  # Compatibility alias
 
         # Account data processors
-        self.processors["orders"] = PydanticWebSocketProcessor(
+        self.processors["orders"] = WebSocketMessageProcessor(
             raw_model=BackpackRawOrderUpdate,
-            transformer=MapperTransformer[BackpackRawOrderUpdate, Order](
+            transformer=WebSocketMapperAdapter[BackpackRawOrderUpdate, Order](
                 mapper_method=self.order_mapper.transform_ws_order_update_to_internal_order,
             ),
             stream_error_handler=self.stream_error_handler,
             processor_name="backpack_orders",
         )
 
-        self.processors["positionUpdate"] = PydanticWebSocketProcessor(
+        self.processors["positionUpdate"] = WebSocketMessageProcessor(
             raw_model=BackpackRawPositionUpdate,
-            transformer=MapperTransformer[BackpackRawPositionUpdate, DerivativePosition](
+            transformer=WebSocketMapperAdapter[BackpackRawPositionUpdate, DerivativePosition](
                 mapper_method=self.position_mapper.transform_ws_position_update_to_internal_position,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -197,9 +197,9 @@ class BackpackWebSocketRouter(
         )
 
         # Account fills processor (different transformer than public trades)
-        self.processors["fills"] = PydanticWebSocketProcessor(
+        self.processors["fills"] = WebSocketMessageProcessor(
             raw_model=BackpackRawFillResponse,
-            transformer=MapperTransformer[BackpackRawFillResponse, Fill](
+            transformer=WebSocketMapperAdapter[BackpackRawFillResponse, Fill](
                 mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal_fill,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -209,9 +209,9 @@ class BackpackWebSocketRouter(
         # Subscription response processor - control message with no domain model
         # Applications can register handlers for "subscriptionResponse" to track subscription state
         # The validated BackpackSubscriptionResponse will be available in context.raw_model
-        self.processors["subscriptionResponse"] = PydanticWebSocketProcessor(
+        self.processors["subscriptionResponse"] = WebSocketMessageProcessor(
             raw_model=BackpackSubscriptionResponse,
-            transformer=ControlMessageTransformer[BackpackSubscriptionResponse](),
+            transformer=WebSocketControlMessageAdapter[BackpackSubscriptionResponse](),
             stream_error_handler=self.stream_error_handler,
             processor_name="backpack_subscription_response",
         )

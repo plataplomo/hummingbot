@@ -11,20 +11,26 @@ Modules:
 """
 
 # Core metrics systems
-from cyberdelta.apis.websocket.models import (
+from cyberdelta.apis.models.websocket.error_metrics import (
     AggregatedMetrics,
     CollectorStatistics,
-    ComponentStatus,
     ConnectionMetrics,
     ErrorOccurrence,
     ErrorRateMetrics,
-    HealthCheckConfig,
+    RecoveryAttempt,
+)
+from cyberdelta.apis.models.websocket.general_metrics import (
     MetricPoint,
     MetricSummary,
+)
+from cyberdelta.apis.models.websocket.health import (
+    ComponentStatus,
+    HealthCheckConfig,
+    SystemHealth,
+)
+from cyberdelta.apis.models.websocket.processing import (
     ProcessingMetrics,
     ProcessorMetrics,
-    RecoveryAttempt,
-    SystemHealth,
 )
 
 from .error_metrics import (

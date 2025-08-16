@@ -41,17 +41,17 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
 from cyberdelta.apis.websocket.exceptions import EnvelopeValidatorNotSetError
-from cyberdelta.apis.websocket.ws_processor import (
-    PydanticWebSocketProcessor,
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
+from cyberdelta.apis.websocket.ws_mapper_adapters import (
+    WebSocketBatchMapperAdapter,
+    WebSocketControlMessageAdapter,
+    WebSocketMapperAdapter,
 )
+from cyberdelta.apis.websocket.ws_message_processor import (
+    WebSocketMessageProcessor,
+)
+from cyberdelta.apis.websocket.ws_message_router import WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
-from cyberdelta.apis.websocket.ws_transformer import (
-    BatchMapperTransformer,
-    ControlMessageTransformer,
-    MapperTransformer,
-)
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 
 # Type safety imports for future enhancement
 from cyberdelta.enums import ExchangeName
@@ -105,7 +105,7 @@ class UnsupportedTopicFormatError(ValueError):
 CANDLE_TOPIC_PARTS_COUNT = 3  # Expected parts in candle:coin:interval format
 
 
-class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage]):
+class HyperliquidWebSocketRouter(WebSocketMessageRouter[HyperliquidWebSocketMessage]):
     """Full-featured Hyperliquid WebSocket router using new architecture.
 
     This router provides complete functionality for Hyperliquid WebSocket communication:
@@ -118,7 +118,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
     def __init__(
         self,
         stream_error_handler: WebSocketErrorHandler,
-        typed_processor: TypeSafeWebSocketProcessor,
+        context_factory: WebSocketContextFactory,
         memory_optimization_mode: MemoryOptimizationMode,
         memory_pool_size: int,
         order_book_mapper: OrderBookMapperProtocol,
@@ -133,10 +133,10 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         Args:
             stream_error_handler: Stream error handler for new architecture.
-            typed_processor: Required typed processor.
+            context_factory: Required typed processor.
             memory_optimization_mode: Memory optimization mode from config.
             memory_pool_size: Memory pool size from config.
-            typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
+            context_factory: Required typed processor (use WebSocketRegistryFactory to create).
             order_book_mapper: Mapper for order book and trade transformations.
             price_ticker_mapper: Mapper for price ticker transformations.
             balance_mapper: Mapper for balance transformations.
@@ -163,7 +163,7 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         super().__init__(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=typed_processor,
+            context_factory=context_factory,
             stream_error_handler=stream_error_handler,
             memory_optimization_mode=memory_optimization_mode,
             memory_pool_size=memory_pool_size,
@@ -236,18 +236,18 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
     def _setup_processors(self) -> None:
         """Setup Hyperliquid-specific message processors for all message types."""
         # Market data processors
-        self.processors["l2Book"] = PydanticWebSocketProcessor(
+        self.processors["l2Book"] = WebSocketMessageProcessor(
             raw_model=HyperliquidRawWsBookUpdate,
-            transformer=MapperTransformer[HyperliquidRawWsBookUpdate, OrderBook](
+            transformer=WebSocketMapperAdapter[HyperliquidRawWsBookUpdate, OrderBook](
                 mapper_method=self.order_book_mapper.transform_ws_book_update_to_internal,
             ),
             stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_l2book",
         )
 
-        self.processors["trades"] = PydanticWebSocketProcessor(
+        self.processors["trades"] = WebSocketMessageProcessor(
             raw_model=HyperliquidRawWsTradeEventsList,
-            transformer=BatchMapperTransformer[HyperliquidRawWsTradeEventsList, Fill](
+            transformer=WebSocketBatchMapperAdapter[HyperliquidRawWsTradeEventsList, Fill](
                 mapper_method=self._transform_fills_list,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -255,9 +255,11 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         )
 
         # Account/user data processors (position updates)
-        self.processors["userEvents"] = PydanticWebSocketProcessor(
+        self.processors["userEvents"] = WebSocketMessageProcessor(
             raw_model=HyperliquidRawWsPositionUpdateEvent,
-            transformer=MapperTransformer[HyperliquidRawWsPositionUpdateEvent, DerivativePosition](
+            transformer=WebSocketMapperAdapter[
+                HyperliquidRawWsPositionUpdateEvent, DerivativePosition
+            ](
                 mapper_method=self.position_mapper.transform_ws_position_update_to_internal_position,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -265,9 +267,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         )
 
         # Order updates (typically part of userEvents but can be separate)
-        self.processors["orders"] = PydanticWebSocketProcessor(
+        self.processors["orders"] = WebSocketMessageProcessor(
             raw_model=HyperliquidRawWsOrderUpdate,
-            transformer=MapperTransformer[HyperliquidRawWsOrderUpdate, Order](
+            transformer=WebSocketMapperAdapter[HyperliquidRawWsOrderUpdate, Order](
                 mapper_method=self._transform_order_update,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -275,9 +277,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         )
 
         # Fill events (typically part of userEvents but can be separate)
-        self.processors["fills"] = PydanticWebSocketProcessor(
+        self.processors["fills"] = WebSocketMessageProcessor(
             raw_model=HyperliquidRawWsFillEvent,
-            transformer=MapperTransformer[HyperliquidRawWsFillEvent, Fill](
+            transformer=WebSocketMapperAdapter[HyperliquidRawWsFillEvent, Fill](
                 mapper_method=self.transaction_mapper.transform_ws_fill_event_to_internal,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -286,9 +288,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
 
         # AllMids channel - provides real-time mid prices for all assets
         # WebSocket sends data wrapped in 'mids' field, so we use the wrapper model
-        self.processors["allMids"] = PydanticWebSocketProcessor(
+        self.processors["allMids"] = WebSocketMessageProcessor(
             raw_model=HyperliquidRawAllMidsWrapper,
-            transformer=MapperTransformer[HyperliquidRawAllMidsWrapper, MidPrices](
+            transformer=WebSocketMapperAdapter[HyperliquidRawAllMidsWrapper, MidPrices](
                 mapper_method=self._transform_all_mids_wrapper,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -296,9 +298,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         )
 
         # Candle channel - provides OHLCV data
-        self.processors["candle"] = PydanticWebSocketProcessor(
+        self.processors["candle"] = WebSocketMessageProcessor(
             raw_model=HyperliquidRawWsCandle,
-            transformer=MapperTransformer[HyperliquidRawWsCandle, Candle](
+            transformer=WebSocketMapperAdapter[HyperliquidRawWsCandle, Candle](
                 mapper_method=self._transform_ws_candle,
             ),
             stream_error_handler=self.stream_error_handler,
@@ -308,9 +310,9 @@ class HyperliquidWebSocketRouter(BaseWebSocketRouter[HyperliquidWebSocketMessage
         # Subscription response processor - control message with no domain model
         # Applications can register handlers for "subscriptionResponse" to track subscription state
         # The validated HyperliquidSubscriptionResponse will be available in context.raw_model
-        self.processors["subscriptionResponse"] = PydanticWebSocketProcessor(
+        self.processors["subscriptionResponse"] = WebSocketMessageProcessor(
             raw_model=HyperliquidSubscriptionResponse,
-            transformer=ControlMessageTransformer[HyperliquidSubscriptionResponse](),
+            transformer=WebSocketControlMessageAdapter[HyperliquidSubscriptionResponse](),
             stream_error_handler=self.stream_error_handler,
             processor_name="hyperliquid_subscription_response",
         )

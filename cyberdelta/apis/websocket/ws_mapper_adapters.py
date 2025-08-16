@@ -1,6 +1,6 @@
-"""Generic WebSocket Message Transformer.
+"""WebSocket Mapper Adapters.
 
-This module provides a generic transformer implementation that eliminates
+This module provides generic adapter implementations that eliminate
 the need for exchange-specific transformer classes, reducing code duplication
 from 12+ classes to 1 generic implementation.
 
@@ -21,14 +21,14 @@ if TYPE_CHECKING:
     from collections.abc import Awaitable, Callable
 
 
-class ControlMessageTransformer[T: BaseModel]:
-    """Transformer for control/system messages that don't map to domain models.
+class WebSocketControlMessageAdapter[T: BaseModel]:
+    """Adapter for control/system messages that don't require domain model transformation.
 
-    This transformer is used for messages like subscription responses, heartbeats,
-    or other control messages that should be passed through to handlers without
-    transformation to domain models.
+    This adapter handles messages like subscription responses, heartbeats,
+    or other control messages that should be passed directly to handlers
+    without transformation to business domain models.
 
-    The raw model is made available in the context for handlers to process.
+    The validated raw model remains available in the context for handler processing.
     """
 
     def transform(
@@ -49,17 +49,17 @@ class ControlMessageTransformer[T: BaseModel]:
         # No transformation needed - validated model is already in context
 
 
-class MapperTransformer[T: BaseModel, U: BaseModel]:
-    """Transformer for single domain model results.
+class WebSocketMapperAdapter[T: BaseModel, U: BaseModel]:
+    """Adapter for single domain model transformation.
 
-    This transformer wraps mapper methods that return a single domain model or None.
-    Use BatchMapperTransformer for methods that return lists of models.
+    This adapter wraps mapper methods that return a single domain model or None.
+    Use WebSocketBatchMapperAdapter for methods that return lists of models.
 
     Benefits:
     - Type-safe: Clearly indicates single model output
-    - Eliminates transformer class duplication
-    - Enables consistent error handling across all transformers
-    - Simplifies testing with single transformer test suite
+    - Eliminates adapter class duplication across exchanges
+    - Enables consistent error handling across all transformations
+    - Simplifies testing with unified adapter test suite
     """
 
     def __init__(
@@ -95,11 +95,11 @@ class MapperTransformer[T: BaseModel, U: BaseModel]:
         return self.mapper_method(validated)
 
 
-class BatchMapperTransformer[T: BaseModel, U: BaseModel]:
-    """Transformer for batch domain model results.
+class WebSocketBatchMapperAdapter[T: BaseModel, U: BaseModel]:
+    """Adapter for batch domain model transformation.
 
-    This transformer wraps mapper methods that return lists of domain models.
-    Use MapperTransformer for methods that return single models.
+    This adapter wraps mapper methods that return lists of domain models.
+    Use WebSocketMapperAdapter for methods that return single models.
     """
 
     def __init__(
@@ -135,10 +135,11 @@ class BatchMapperTransformer[T: BaseModel, U: BaseModel]:
         return self.mapper_method(validated)
 
 
-class AsyncMapperTransformer[T: BaseModel, U]:
-    """Async version of MapperTransformer for async mapper methods.
+class WebSocketAsyncMapperAdapter[T: BaseModel, U]:
+    """Adapter for async mapper methods that return awaitable results.
 
-    This handles cases where the mapper method is async and returns an awaitable.
+    This adapter handles cases where the mapper method is async and returns an awaitable.
+    Provides the same interface as synchronous adapters but with async transformation.
     """
 
     def __init__(

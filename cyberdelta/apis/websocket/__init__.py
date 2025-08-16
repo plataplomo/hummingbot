@@ -13,15 +13,15 @@ from .registry.registry_factory import WebSocketRegistryFactory
 
 # Core WebSocket components
 from .ws_context import WebSocketMessageContext
+from .ws_context_factory import WebSocketContextFactory
 from .ws_context_registry import WebSocketContextRegistry
 from .ws_protocols import WebSocketContextProtocol
 from .ws_type_adapters import WebSocketTypeAdapters
-from .ws_typed_processor import TypeSafeWebSocketProcessor
 
 
 __all__ = [
     "ExchangeName",
-    "TypeSafeWebSocketProcessor",
+    "WebSocketContextFactory",
     "WebSocketContextProtocol",
     "WebSocketContextRegistry",
     "WebSocketMessageContext",

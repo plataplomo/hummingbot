@@ -64,7 +64,7 @@ from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
 from cyberdelta.apis.websocket.memory import get_memory_config_for_router
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.models.websocket_processor_config import WebSocketProcessorConfig
@@ -383,14 +383,14 @@ class HyperliquidAPI(ExchangeAPI):
         # Create registry using Hyperliquid-specific builder
         builder = HyperliquidRegistryBuilder()
         registry = builder.build_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        typed_processor = WebSocketContextFactory(registry)
 
         # Get memory configuration from processor config (CODING_STANDARDS.md compliant)
         memory_optimization_mode, memory_pool_size = get_memory_config_for_router(memory_config)
 
         self._hl_ws_router = HyperliquidWebSocketRouter(
             stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            context_factory=typed_processor,
             order_book_mapper=factory.create_order_book_mapper(),
             price_ticker_mapper=factory.create_price_ticker_mapper(),
             balance_mapper=factory.create_balance_mapper(),

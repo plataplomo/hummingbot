@@ -46,7 +46,7 @@ from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
 from cyberdelta.apis.websocket.memory import get_memory_config_for_router
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.models.websocket_processor_config import WebSocketProcessorConfig
 from cyberdelta.config.structlog_config import get_logger
@@ -221,14 +221,14 @@ class BackpackAPI(ExchangeAPI):
         # Create registry using Backpack-specific builder
         builder = BackpackRegistryBuilder()
         registry = builder.build_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        typed_processor = WebSocketContextFactory(registry)
 
         # Get memory configuration from processor config (CODING_STANDARDS.md compliant)
         memory_optimization_mode, memory_pool_size = get_memory_config_for_router(memory_config)
 
         self._bp_ws_router = BackpackWebSocketRouter(
             stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            context_factory=typed_processor,
             order_book_mapper=factory.create_order_book_mapper(),
             ticker_mapper=factory.create_ticker_mapper(),
             trade_mapper=factory.create_trade_mapper(),

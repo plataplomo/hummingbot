@@ -1,7 +1,7 @@
-"""Type-safe WebSocket message processor.
+"""WebSocket Context Factory.
 
-This module provides a type-safe message processor that creates properly
-typed contexts using the registry pattern to avoid circular imports.
+This module provides a factory for creating properly typed WebSocket contexts
+based on message format detection, using the registry pattern to avoid circular imports.
 """
 
 from __future__ import annotations
@@ -15,15 +15,17 @@ from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
 
 
-class TypeSafeWebSocketProcessor:
-    """Type-safe WebSocket message processor using registry pattern.
+class WebSocketContextFactory:
+    """Factory for creating typed WebSocket contexts.
 
-    This processor creates properly typed contexts based on message format,
-    using a provided context registry instance.
+    This factory analyzes raw message format to determine exchange type,
+    then creates the appropriate typed context via registry pattern.
+
+    Used by WebSocketMessageRouter for context creation before processing.
     """
 
     def __init__(self, registry: WebSocketContextRegistry) -> None:
-        """Initialize the type-safe processor.
+        """Initialize the WebSocket context factory.
 
         Args:
             registry: Configured WebSocketContextRegistry instance
@@ -102,4 +104,4 @@ class TypeSafeWebSocketProcessor:
 
 # NOTE: No global instance - create via factory pattern.
 # Use WebSocketRegistryFactory.create_registry() to get a registry,
-# then pass it to TypeSafeWebSocketProcessor constructor.
+# then pass it to WebSocketContextFactory constructor.

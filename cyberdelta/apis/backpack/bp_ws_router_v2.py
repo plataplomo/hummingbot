@@ -24,13 +24,13 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
     BackpackDepthStateTransformer,
 )
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
-from cyberdelta.apis.websocket.ws_processor import (
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
+from cyberdelta.apis.websocket.ws_message_processor import (
     ProcessorFactory,
-    PydanticWebSocketProcessor,
+    WebSocketMessageProcessor,
 )
+from cyberdelta.apis.websocket.ws_message_router import WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.enums import ExchangeName
 from cyberdelta.symbols import exchanges
 
@@ -210,7 +210,7 @@ class BackpackFillTransformer:
         return self.trade_mapper.transform_ws_fill_event_to_internal_fill(validated)
 
 
-class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope]):
+class BackpackWebSocketRouterV2(WebSocketMessageRouter[BackpackRawWebSocketEnvelope]):
     """Enhanced Backpack WebSocket router using base abstractions.
 
     This is a proof of concept demonstrating how the new architecture
@@ -244,12 +244,12 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
         # Create registry using Backpack-specific builder
         builder = BackpackRegistryBuilder()
         registry = builder.build_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        typed_processor = WebSocketContextFactory(registry)
 
         super().__init__(
             exchange_name=ExchangeName.BACKPACK,
             stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            context_factory=typed_processor,
             memory_optimization_mode=memory_optimization_mode,
             memory_pool_size=memory_pool_size,
         )
@@ -257,21 +257,21 @@ class BackpackWebSocketRouterV2(BaseWebSocketRouter[BackpackRawWebSocketEnvelope
     def _setup_processors(self) -> None:
         """Setup Backpack-specific message processors."""
         # Market data processors - use stateful transformer for depth
-        self.processors["depth"] = PydanticWebSocketProcessor(
+        self.processors["depth"] = WebSocketMessageProcessor(
             raw_model=BackpackRawDepthUpdateEvent,
             transformer=BackpackDepthStateTransformer(self.order_book_mapper),
             stream_error_handler=self.stream_error_handler,
             processor_name="backpack_depth",
         )
 
-        self.processors["ticker"] = PydanticWebSocketProcessor(
+        self.processors["ticker"] = WebSocketMessageProcessor(
             raw_model=BackpackRawTickerEvent,
             transformer=BackpackTickerTransformer(self.ticker_mapper),
             stream_error_handler=self.stream_error_handler,
             processor_name="backpack_ticker",
         )
 
-        self.processors["trade"] = PydanticWebSocketProcessor(
+        self.processors["trade"] = WebSocketMessageProcessor(
             raw_model=BackpackRawPublicTradeEvent,
             transformer=BackpackFillTransformer(self.trade_mapper),
             stream_error_handler=self.stream_error_handler,

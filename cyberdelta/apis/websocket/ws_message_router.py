@@ -1,7 +1,7 @@
-"""Base WebSocket Router with Type-Safe Message Handling.
+"""WebSocket Message Router.
 
-This module provides abstract base classes for WebSocket message routing
-with support for generic type parameters and centralized error handling.
+This module provides the high-level routing framework for WebSocket messages,
+directing messages to appropriate processors based on routing keys and message types.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ from cyberdelta.enums import ExchangeName
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+    from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 
 
 # Type variable for context types
@@ -63,24 +63,23 @@ class MessageProcessor(Protocol):
         ...
 
 
-# BaseErrorHandler import removed - deprecated and not used
+class WebSocketMessageRouter[EnvelopeType: BaseModel](ABC):
+    """High-level router for WebSocket message orchestration.
 
+    This router provides the top-level framework for WebSocket message handling:
+    - Routes messages to appropriate processors based on routing keys
+    - Creates typed contexts via WebSocketContextFactory
+    - Manages memory optimization and metrics collection
+    - Provides exchange-agnostic abstractions for different WebSocket implementations
+    - Handles envelope validation and processor lookup
 
-class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
-    """Abstract base class for WebSocket message routing with type safety.
-
-    This class provides a framework for routing WebSocket messages with:
-    - Type-safe message processing using TypeSafeWebSocketProcessor
-    - Centralized error handling
-    - Exchange-agnostic abstractions
-    - Comprehensive logging
-    - Automatic typed context creation based on message format
+    Exchange-specific implementations inherit from this base router.
     """
 
     def __init__(
         self,
         exchange_name: ExchangeName,
-        typed_processor: TypeSafeWebSocketProcessor,
+        context_factory: WebSocketContextFactory,
         stream_error_handler: WebSocketErrorHandler,
         memory_optimization_mode: MemoryOptimizationMode,
         memory_pool_size: int,
@@ -92,7 +91,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
 
         Args:
             exchange_name: ExchangeName enum for the exchange.
-            typed_processor: Required typed processor (use WebSocketRegistryFactory to create).
+            context_factory: Required context factory (use WebSocketRegistryFactory to create).
             envelope_validator: Optional envelope validator for type-safe message validation.
             payload_validator: Optional payload validator (default instance created if None).
             metrics_collector: Optional metrics collector for monitoring.
@@ -108,8 +107,8 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         self.metrics_collector = metrics_collector or WebSocketMetricsCollector(exchange_name)
         self.stream_error_handler = stream_error_handler
 
-        # Store the required typed processor
-        self.typed_processor = typed_processor
+        # Store the required context factory
+        self.context_factory = context_factory
         self.logger = get_logger(f"WebSocketRouter.{exchange_name.value}")
         self._connection_id = str(uuid.uuid4())[:8]  # Short connection ID for context
 
@@ -206,7 +205,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         routing_key: str,
         message_id: str,
     ) -> WebSocketContextProtocol:
-        """Create typed context using TypeSafeWebSocketProcessor.
+        """Create typed context using WebSocketContextFactory.
 
         This method uses the centralized typed processor to create properly
         typed contexts based on the envelope format, eliminating the need
@@ -224,7 +223,7 @@ class BaseWebSocketRouter[EnvelopeType: BaseModel](ABC):
         raw_data = envelope.model_dump(mode="python")
 
         # Create typed context using the centralized processor
-        return self.typed_processor.create_typed_context(
+        return self.context_factory.create_typed_context(
             raw_data=raw_data,
             connection_id=self._connection_id,
             message_id=message_id,

@@ -1,6 +1,6 @@
-"""Generic Pydantic WebSocket Message Processor.
+"""WebSocket Message Processor.
 
-This module provides generic, type-safe message processing for WebSocket
+This module provides the core message processing pipeline for WebSocket
 messages with Pydantic validation and transformation capabilities.
 """
 
@@ -81,14 +81,16 @@ class MessageTransformer(Protocol[T_contra, U_co]):
 # See cyberdelta.apis.websocket.ws_processing_metrics for the typed implementation
 
 
-class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
-    """Generic processor for type-safe WebSocket message handling.
+class WebSocketMessageProcessor[T: BaseModel, U: BaseModel]:
+    """Core WebSocket message processing pipeline.
 
-    This class provides a complete pipeline for processing WebSocket messages:
+    This class provides the complete lifecycle for processing WebSocket messages:
     1. Pydantic validation of raw messages
-    2. Transformation to domain models
-    3. Handler invocation with error handling
-    4. Comprehensive metrics tracking
+    2. Transformation to domain models via adapters
+    3. Handler invocation with comprehensive error handling
+    4. Performance and error metrics tracking
+
+    Used by WebSocketMessageRouter to process individual message types.
     """
 
     def __init__(
@@ -99,7 +101,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         processor_name: str | None = None,
         metrics_collector: WebSocketMetricsCollector | None = None,
     ) -> None:
-        """Initialize the Pydantic processor.
+        """Initialize the WebSocket message processor.
 
         Args:
             raw_model: Pydantic model class for raw WebSocket messages.
@@ -115,7 +117,7 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
         self.processor_name = processor_name or raw_model.__name__
         self.metrics = ProcessingMetrics()
         self.metrics_collector = metrics_collector
-        self.logger = get_logger(f"PydanticProcessor.{self.processor_name}")
+        self.logger = get_logger(f"WebSocketMessageProcessor.{self.processor_name}")
 
     async def process(
         self,
@@ -413,10 +415,10 @@ class PydanticWebSocketProcessor[T: BaseModel, U: BaseModel]:
 
 
 class SimpleDictTransformer[T: BaseModel]:
-    """Simple transformer that converts Pydantic models to dictionaries.
+    """Pass-through adapter for messages that don't require transformation.
 
-    This is useful for cases where no complex transformation is needed
-    and the validated Pydantic model can be used directly as the domain model.
+    This adapter is used when the validated Pydantic model can be used
+    directly as the domain model without additional transformation logic.
     """
 
     def transform(self, validated: T, context: WebSocketContextProtocol | None = None) -> T:
@@ -434,14 +436,14 @@ class SimpleDictTransformer[T: BaseModel]:
 
 
 class ProcessorFactory:
-    """Factory for creating common processor configurations."""
+    """Factory for creating common WebSocket message processor configurations."""
 
     @staticmethod
     def create_simple_processor[T: BaseModel](
         raw_model: type[T],
         stream_error_handler: WebSocketErrorHandler,
         processor_name: str | None = None,
-    ) -> PydanticWebSocketProcessor[T, T]:
+    ) -> WebSocketMessageProcessor[T, T]:
         """Create a processor with no transformation (model passed through as-is).
 
         Args:
@@ -453,7 +455,7 @@ class ProcessorFactory:
             Configured processor instance.
 
         """
-        return PydanticWebSocketProcessor(
+        return WebSocketMessageProcessor(
             raw_model=raw_model,
             transformer=SimpleDictTransformer[T](),
             stream_error_handler=stream_error_handler,
@@ -466,7 +468,7 @@ class ProcessorFactory:
         transformer: MessageTransformer[T, U],
         stream_error_handler: WebSocketErrorHandler,
         processor_name: str | None = None,
-    ) -> PydanticWebSocketProcessor[T, U]:
+    ) -> WebSocketMessageProcessor[T, U]:
         """Create a processor with custom transformation.
 
         Args:
@@ -479,7 +481,7 @@ class ProcessorFactory:
             Configured processor instance.
 
         """
-        return PydanticWebSocketProcessor(
+        return WebSocketMessageProcessor(
             raw_model=raw_model,
             transformer=transformer,
             stream_error_handler=stream_error_handler,

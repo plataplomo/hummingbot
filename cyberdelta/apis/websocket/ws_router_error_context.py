@@ -16,7 +16,7 @@ from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
+    from cyberdelta.apis.websocket.ws_message_router import WebSocketMessageRouter
 
 # Type variable for any BaseModel envelope type
 EnvelopeT = TypeVar("EnvelopeT", bound=BaseModel)
@@ -72,7 +72,7 @@ class RouterErrorContextBuilder:
 
     @staticmethod
     def from_envelope_validation_error[T: BaseModel](
-        router: BaseWebSocketRouter[T],
+        router: WebSocketMessageRouter[T],
         message: dict[str, Any],
         validation_error: Exception,
         envelope_type: str | None = None,
@@ -113,7 +113,7 @@ class RouterErrorContextBuilder:
 
     @staticmethod
     def from_missing_routing_key_error[T: BaseModel](
-        router: BaseWebSocketRouter[T],
+        router: WebSocketMessageRouter[T],
         message: dict[str, Any],
         envelope: T,
     ) -> StreamErrorContext:
@@ -152,7 +152,7 @@ class RouterErrorContextBuilder:
 
     @staticmethod
     def from_missing_processor_error[T: BaseModel](
-        router: BaseWebSocketRouter[T],
+        router: WebSocketMessageRouter[T],
         routing_key: str,
         payload: dict[str, Any] | list[Any],
         context: WebSocketContextProtocol,
@@ -195,7 +195,7 @@ class RouterErrorContextBuilder:
 
     @staticmethod
     def from_missing_handler_error[T: BaseModel](
-        router: BaseWebSocketRouter[T],
+        router: WebSocketMessageRouter[T],
         routing_key: str,
         message: dict[str, Any],
         available_handlers: list[str],
@@ -237,7 +237,7 @@ class RouterErrorContextBuilder:
 
     @staticmethod
     def from_routing_error[T: BaseModel](
-        router: BaseWebSocketRouter[T],
+        router: WebSocketMessageRouter[T],
         error: Exception,
         message: dict[str, Any],
         routing_stage: str = "general_routing",
@@ -300,7 +300,7 @@ class RouterErrorContextBuilder:
 
     @staticmethod
     def create_recovery_context[T: BaseModel](
-        router: BaseWebSocketRouter[T],
+        router: WebSocketMessageRouter[T],
         original_context: StreamErrorContext,
         recovery_stage: str,
     ) -> StreamErrorContext:

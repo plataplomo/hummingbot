@@ -14,7 +14,7 @@ from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketE
 from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
     WebSocketStreamErrorHandler,
 )
-from cyberdelta.apis.websocket.models.processing import ProcessingMetrics
+from cyberdelta.apis.models.websocket.processing import ProcessingMetrics
 from cyberdelta.apis.websocket.ws_processor import (
     ProcessorFactory,
     PydanticWebSocketProcessor,

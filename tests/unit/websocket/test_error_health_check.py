@@ -18,7 +18,7 @@ from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamErr
 from cyberdelta.apis.websocket.metrics.error_metrics import (
     WebSocketErrorMetricsCollector,
 )
-from cyberdelta.apis.websocket.models.health import (
+from cyberdelta.apis.models.websocket.health import (
     ComponentStatus,
     HealthCheckConfig,
     PerformanceHealth,
