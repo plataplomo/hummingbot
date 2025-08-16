@@ -21,7 +21,7 @@ from cyberdelta.apis.websocket.error_handling import (
     WebSocketErrorHandlerRegistry,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_processor import PydanticWebSocketProcessor
+from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
@@ -165,10 +165,12 @@ class TestWebSocketErrorSystemIntegration:
         )
 
         # Create processor
-        processor = PydanticWebSocketProcessor(
-            raw_model=TestMessage,
-            transformer=mock_transformer,
-            stream_error_handler=error_handler,
+        processor: WebSocketMessageProcessor[TestMessage, TestDomainModel] = (
+            WebSocketMessageProcessor(
+                raw_model=TestMessage,
+                transformer=mock_transformer,
+                stream_error_handler=error_handler,
+            )
         )
 
         # Test with invalid payload to trigger validation error
@@ -291,10 +293,12 @@ class TestWebSocketErrorSystemIntegration:
         )
 
         # Create processor
-        processor = PydanticWebSocketProcessor(
-            raw_model=TestMessage,
-            transformer=mock_transformer,
-            stream_error_handler=error_handler,
+        processor: WebSocketMessageProcessor[TestMessage, TestDomainModel] = (
+            WebSocketMessageProcessor(
+                raw_model=TestMessage,
+                transformer=mock_transformer,
+                stream_error_handler=error_handler,
+            )
         )
 
         # Test with valid payload

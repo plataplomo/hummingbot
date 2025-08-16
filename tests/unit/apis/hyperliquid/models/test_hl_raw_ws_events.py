@@ -802,7 +802,7 @@ class TestHyperliquidRawWsTradeEventProperties:
             # Type narrowing for mypy
             assert isinstance(users, list)
             for user in users:
-                assume(isinstance(user, str) and len(user) == 42)
+                assume(len(user) == 42)
                 assume(user.startswith("0x"))
 
         except (ValueError, TypeError, KeyError, IndexError):
@@ -1069,7 +1069,11 @@ class TestHyperliquidRawWsEventsIntegrationProperties:
             if data["side"] not in ["A", "B"]:
                 return False
             users = data["users"]
-            return isinstance(users, list) and len(users) > 0
+            if not isinstance(users, list):
+                return False
+            # Cast to help PyRight understand the type
+            users_list = cast(list[object], users)
+            return len(users_list) > 0
         except (TypeError, KeyError):
             return False
 
@@ -1083,7 +1087,11 @@ class TestHyperliquidRawWsEventsIntegrationProperties:
             if "eventType" not in data or "data" not in data:
                 return False
             data_dict = data["data"]
-            return isinstance(data_dict, dict) and len(data_dict) > 0
+            if not isinstance(data_dict, dict):
+                return False
+            # Cast to help PyRight understand the type
+            dict_obj = cast(dict[str, object], data_dict)
+            return len(dict_obj) > 0
         except (TypeError, KeyError):
             return False
 

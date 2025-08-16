@@ -47,7 +47,11 @@ MaliciousInput = str | int | float | bool | list[str] | dict[str, str] | bytes |
 
 
 def _build_hex_address(hex_part: str) -> str:
-    """Build hex address with 0x prefix."""
+    """Build hex address with 0x prefix.
+
+    Returns:
+        str: Hex address with "0x" prefix.
+    """
     return f"0x{hex_part}"
 
 

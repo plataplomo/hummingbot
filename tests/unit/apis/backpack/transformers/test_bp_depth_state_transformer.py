@@ -25,6 +25,7 @@ from unittest.mock import Mock
 
 import pytest
 from hypothesis import given, settings, strategies as st
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper import (
     BackpackOrderBookMapper,
@@ -36,6 +37,7 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
 )
 from cyberdelta.apis.exceptions import OrderBookTransformationError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.exceptions.parsing import EmptyStringError
 from cyberdelta.models import OrderBook
 from tests.common_symbols import BTC_USDC_BP, ETH_USDC_BP
 
@@ -162,7 +164,7 @@ def sequential_updates_strategy(
     Returns:
         List of depth update events with proper sequencing.
     """
-    updates = []
+    updates: list[BackpackRawDepthUpdateEvent] = []
     current_id = draw(st.integers(min_value=1, max_value=1000))
 
     for _ in range(num_updates):
@@ -344,10 +346,6 @@ class TestOrderBookState:
     @settings(max_examples=100, deadline=None)
     def test_invalid_update_ids_rejection_properties(self, invalid_id: str) -> None:
         """Property: Invalid update IDs should always be rejected."""
-        from pydantic import ValidationError
-
-        from cyberdelta.exceptions.parsing import EmptyStringError
-
         state = OrderBookState()
 
         # The BackpackRawDepthUpdateEvent validates IDs, so invalid IDs will raise during creation

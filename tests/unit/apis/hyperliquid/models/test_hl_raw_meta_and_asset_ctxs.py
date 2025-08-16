@@ -544,7 +544,7 @@ class TestHyperliquidRawMetaResponseProperties:
     ) -> None:
         """Property: Valid data should create valid objects."""
         # Validate universe items
-        valid_universe = []
+        valid_universe: list[dict[str, Any]] = []
         for asset_def in meta_data["universe"]:
             try:
                 name = asset_def["name"]

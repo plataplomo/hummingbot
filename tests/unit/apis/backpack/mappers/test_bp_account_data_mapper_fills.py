@@ -77,32 +77,56 @@ def test_timestamp() -> str:
 
 
 def _create_decimal_string_from_parts(i: int, d: str) -> str:
-    """Create decimal string from integer and decimal parts."""
+    """Create decimal string from integer and decimal parts.
+
+    Returns:
+        str: Decimal string formatted as "integer.decimal".
+    """
     return f"{i}.{d}"
 
 
 def _create_high_precision_decimal_string(i: int, d: list[str]) -> str:
-    """Create high precision decimal string from integer and digit list."""
+    """Create high precision decimal string from integer and digit list.
+
+    Returns:
+        str: High precision decimal string.
+    """
     return f"{i}.{''.join(d)}"
 
 
 def _create_isoformat_datetime(dt: datetime) -> str:
-    """Create ISO format string from datetime."""
+    """Create ISO format string from datetime.
+
+    Returns:
+        str: ISO formatted datetime string.
+    """
     return dt.isoformat()
 
 
 def _create_signed_decimal_string(sign: str, magnitude: str) -> str:
-    """Create signed decimal string from sign and magnitude."""
+    """Create signed decimal string from sign and magnitude.
+
+    Returns:
+        str: Signed decimal string.
+    """
     return f"{sign}{magnitude}"
 
 
 def _create_negative_decimal_string(n: str) -> str:
-    """Create negative decimal string from positive value."""
+    """Create negative decimal string from positive value.
+
+    Returns:
+        str: Negative decimal string.
+    """
     return f"-{n}"
 
 
 def _mock_parse_decimal_value(v: str, **kwargs: object) -> Decimal | None:
-    """Mock implementation of parse_decimal_value for testing negative values."""
+    """Mock implementation of parse_decimal_value for testing negative values.
+
+    Returns:
+        Decimal | None: Parsed decimal value or None if empty.
+    """
     return Decimal(str(v)) if v else None
 
 

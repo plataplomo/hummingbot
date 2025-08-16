@@ -258,7 +258,7 @@ class TestHyperliquidRawEthWithdrawalActionPayloadProperties:
         # Skip invalid data
         for field in ["amount", "destination"]:
             value = withdrawal_data[field]
-            assume(isinstance(value, str) and value.strip())
+            assume(value.strip())
             if field == "amount":
                 try:
                     decimal_val = Decimal(value.strip())
@@ -534,7 +534,7 @@ class TestHyperliquidRawOrderItemSpecProperties:
     @given(orders_data=st.lists(valid_order_item_spec_data(), min_size=0, max_size=100))
     def test_batch_order_list_properties(self, orders_data: list[dict[str, Any]]) -> None:
         """Property: Multiple order items should validate independently."""
-        valid_orders = []
+        valid_orders: list[HyperliquidRawOrderItemSpec] = []
 
         for order_data in orders_data:
             try:
@@ -578,7 +578,7 @@ class TestHyperliquidRawL2UsdTransferActionDetailsProperties:
         # Skip invalid data
         for field in ["destination", "amount"]:
             value = payload_data[field]
-            assume(isinstance(value, str) and value.strip())
+            assume(value.strip())
             if field == "amount":
                 try:
                     decimal_val = Decimal(value.strip())

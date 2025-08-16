@@ -13,9 +13,9 @@ from io import StringIO
 
 import pytest
 
-from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.memory.stream_log_data import WebSocketStreamLogData
@@ -34,7 +34,7 @@ class TestLoggingPerformanceOptimization:
         # Target: < 50μs per log message creation
         target_time_us = 50
 
-        _handler = WebSocketStreamErrorHandler(
+        _handler = WebSocketErrorHandler(
             config=WebSocketErrorConfig(
                 metrics=WebSocketErrorMetricsConfig(enable_metrics_collection=False)
             )  # Disable metrics for pure logging test
@@ -68,7 +68,7 @@ class TestLoggingPerformanceOptimization:
         count = 1000
         target_total_time_ms = 100
 
-        _handler = WebSocketStreamErrorHandler(
+        _handler = WebSocketErrorHandler(
             config=WebSocketErrorConfig(
                 metrics=WebSocketErrorMetricsConfig(enable_metrics_collection=False)
             )
@@ -152,7 +152,7 @@ class TestLoggingPerformanceOptimization:
         # Target: structured logging should not be more than 50x slower than string formatting
         max_slowdown_factor = 50.0
 
-        _handler = WebSocketStreamErrorHandler(
+        _handler = WebSocketErrorHandler(
             config=WebSocketErrorConfig(
                 metrics=WebSocketErrorMetricsConfig(enable_metrics_collection=False)
             )
@@ -245,7 +245,7 @@ class TestLoggingPerformanceOptimization:
         # Target: performance should scale linearly with message size
         max_time_per_kb_us = 15  # 15μs per KB
 
-        _handler = WebSocketStreamErrorHandler(
+        _handler = WebSocketErrorHandler(
             config=WebSocketErrorConfig(
                 metrics=WebSocketErrorMetricsConfig(enable_metrics_collection=False)
             )
@@ -293,7 +293,7 @@ class TestLoggingPerformanceOptimization:
         # Target: concurrent logging should not degrade significantly
         max_degradation_factor = 1.5  # 50% degradation acceptable
 
-        _handler = WebSocketStreamErrorHandler(
+        _handler = WebSocketErrorHandler(
             config=WebSocketErrorConfig(
                 metrics=WebSocketErrorMetricsConfig(enable_metrics_collection=False)
             )
@@ -357,7 +357,7 @@ class TestLoggingPerformanceOptimization:
         # Target: performance should scale linearly (O(n))
         max_time_per_error_us = 100  # 100μs per error max
 
-        _handler = WebSocketStreamErrorHandler(
+        _handler = WebSocketErrorHandler(
             config=WebSocketErrorConfig(
                 metrics=WebSocketErrorMetricsConfig(enable_metrics_collection=False)
             )

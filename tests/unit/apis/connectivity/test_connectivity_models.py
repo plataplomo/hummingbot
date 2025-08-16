@@ -19,6 +19,7 @@ SECURITY CRITICAL: Configuration errors can lead to:
 - Data corruption through invalid content-type handling
 """
 
+import re
 from typing import Any
 
 import pytest
@@ -32,6 +33,42 @@ from cyberdelta.apis.connectivity.connectivity_models import (
     WebSocketManagerConfig,
 )
 from cyberdelta.apis.exceptions.connectivity import ContentTypeValidationError
+
+
+def _format_content_type(suffix: str) -> str:
+    """Helper function for formatting content-type strings.
+
+    Returns:
+        str: Formatted content-type string.
+    """
+    return f"application/json@{suffix}"
+
+
+def _format_ip_address(octets: list[int]) -> str:
+    """Helper function for formatting IP addresses.
+
+    Returns:
+        str: Formatted IP address string.
+    """
+    return ".".join(str(o) for o in octets)
+
+
+def _create_http_config_dict(url: str, timeout: float) -> dict[str, str | float]:
+    """Helper function for creating HTTP client config dictionary.
+
+    Returns:
+        dict[str, str | float]: Configuration dictionary.
+    """
+    return {"rest_endpoint": url, "default_request_timeout": timeout}
+
+
+def _create_websocket_config_dict(url: str, ping: float) -> dict[str, str | float]:
+    """Helper function for creating WebSocket manager config dictionary.
+
+    Returns:
+        dict[str, str | float]: Configuration dictionary.
+    """
+    return {"ws_url": url, "ping_interval": ping}
 
 
 # =============================================================================
@@ -59,7 +96,7 @@ def content_type_strategy(draw: st.DrawFn) -> str:
 
     # Optionally add parameters
     if draw(st.booleans()):
-        params = []
+        params: list[str] = []
         if draw(st.booleans()):
             charset = draw(st.sampled_from(["utf-8", "iso-8859-1", "us-ascii", "utf-16"]))
             params.append(f"charset={charset}")
@@ -92,11 +129,11 @@ def invalid_content_type_strategy(draw: st.DrawFn) -> str:
     strategy = draw(
         st.sampled_from([
             # Control characters
-            st.text(alphabet=st.characters(whitelist_categories=("Cc",)), min_size=1, max_size=10),
+            st.text(alphabet=st.characters(whitelist_categories=["Cc"]), min_size=1, max_size=10),
             # Just whitespace
             st.text(alphabet=" \t", min_size=1, max_size=5),
             # Contains invalid characters mixed with valid content
-            st.builds(lambda s: f"application/json@{s}", st.text(alphabet="@#$%^&*", max_size=5)),
+            st.builds(_format_content_type, st.text(alphabet="@#$%^&*", max_size=5)),
             # Characters not in allowed set [a-zA-Z0-9/.\-+=;\s]
             st.text(
                 alphabet="@#$%^&*()[]{}|\\\"'`~<>?:,!",
@@ -124,7 +161,7 @@ def http_url_strategy(draw: st.DrawFn) -> str:
     host_strategy = st.one_of(
         # Domain names (ASCII only to avoid invalid international domain names)
         st.builds(
-            lambda parts: ".".join(parts),
+            ".".join,
             st.lists(
                 st.text(
                     alphabet=st.characters(min_codepoint=97, max_codepoint=122),  # a-z only
@@ -139,18 +176,16 @@ def http_url_strategy(draw: st.DrawFn) -> str:
         st.just("localhost"),
         st.just("127.0.0.1"),
         st.builds(
-            lambda octets: ".".join(str(o) for o in octets),
+            _format_ip_address,
             st.lists(st.integers(0, 255), min_size=4, max_size=4),
         ),
     )
     host = draw(host_strategy)
 
-    # Port (optional)
     port = ""
     if draw(st.booleans()):
         port = f":{draw(st.integers(1, 65535))}"
 
-    # Path (optional)
     path = ""
     if draw(st.booleans()):
         path_parts = draw(
@@ -182,8 +217,7 @@ def websocket_url_strategy(draw: st.DrawFn) -> str:
     scheme = draw(st.sampled_from(["ws", "wss"]))
     http_url = draw(http_url_strategy())
     # Replace http(s) with ws(s)
-    ws_url = http_url.replace("https://", f"{scheme}://").replace("http://", f"{scheme}://")
-    return ws_url
+    return http_url.replace("https://", f"{scheme}://").replace("http://", f"{scheme}://")
 
 
 # =============================================================================
@@ -207,7 +241,6 @@ class TestProcessedResponseHeaders:
         # Property: Content type is preserved exactly
         assert headers.content_type == content_type
 
-        # Property: Model is frozen
         assert headers.model_config.get("frozen") is True
 
         # Property: Extra fields are forbidden
@@ -226,8 +259,6 @@ class TestProcessedResponseHeaders:
         # or whitespace-only strings should be rejected.
 
         # Check if the string would actually be invalid according to current validation
-        import re
-
         VALID_CONTENT_TYPE_CHARS_REGEX = re.compile(r"^[a-zA-Z0-9/.\-+=;\s]*$")
         should_fail = (
             not VALID_CONTENT_TYPE_CHARS_REGEX.fullmatch(invalid_content_type)
@@ -327,7 +358,7 @@ class TestHttpClientConfig:
         )
 
         # Property: URL is normalized but equivalent
-        assert str(config.rest_endpoint).startswith(url.split("://")[0])
+        assert str(config.rest_endpoint).startswith(url.split("://", 1)[0])
 
         # Property: Timeout is preserved exactly
         assert config.default_request_timeout == timeout
@@ -336,7 +367,6 @@ class TestHttpClientConfig:
         assert config.max_retries == max_retries
         assert config.retry_delay_seconds == retry_delay
 
-        # Property: Model is frozen
         assert config.model_config.get("frozen") is True
 
     @given(
@@ -372,7 +402,7 @@ class TestHttpClientConfig:
 
     @given(
         valid_config_data=st.builds(
-            lambda url, timeout: {"rest_endpoint": url, "default_request_timeout": timeout},
+            _create_http_config_dict,
             url=http_url_strategy(),
             timeout=st.floats(min_value=0.1, max_value=120.0),
         )
@@ -437,7 +467,7 @@ class TestWebSocketManagerConfig:
         )
 
         # Property: All values preserved
-        assert str(config.ws_url).startswith(url.split("://")[0])
+        assert str(config.ws_url).startswith(url.split("://", 1)[0])
         assert config.ping_interval == ping_interval
         assert config.reconnect_delay == reconnect_delay
         assert config.max_reconnect_attempts == max_reconnects
@@ -460,12 +490,12 @@ class TestWebSocketManagerConfig:
 
     @given(
         config1_data=st.builds(
-            lambda url, ping: {"ws_url": url, "ping_interval": ping},
+            _create_websocket_config_dict,
             url=websocket_url_strategy(),
             ping=st.floats(min_value=0.1, max_value=60.0),
         ),
         config2_data=st.builds(
-            lambda url, ping: {"ws_url": url, "ping_interval": ping},
+            _create_websocket_config_dict,
             url=websocket_url_strategy(),
             ping=st.floats(min_value=0.1, max_value=60.0),
         ),

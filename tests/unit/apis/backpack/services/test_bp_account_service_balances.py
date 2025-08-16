@@ -253,67 +253,122 @@ class TestBackpackAccountServiceBalances:
 
 
 def _create_asset_symbol_with_suffix(base: str, suffix: str) -> str:
-    """Create asset symbol with base and suffix."""
+    """Create asset symbol with base and suffix.
+
+    Returns:
+        str: Asset symbol in format "{base}-{suffix}".
+    """
     return f"{base}-{suffix}"
 
 
 def _create_decimal_string_from_integer_decimal(integer: int, decimal: str) -> str:
-    """Create decimal string from integer and decimal parts."""
+    """Create decimal string from integer and decimal parts.
+
+    Returns:
+        str: Decimal string in format "{integer}.{decimal}".
+    """
     return f"{integer}.{decimal}"
 
 
 def _create_high_precision_decimal_string(base: int, precision: int) -> str:
-    """Create high precision decimal string with base and precision."""
+    """Create high precision decimal string with base and precision.
+
+    Returns:
+        str: High precision decimal string.
+    """
     return f"{base}.{'123456789'[:precision]}"
 
 
 def _create_malicious_null_byte_string() -> str:
-    """Create malicious string with null byte."""
+    """Create malicious string with null byte.
+
+    Returns:
+        str: String containing null byte for security testing.
+    """
     return "100.0\x00malicious"
 
 
 def _create_balance_with_available_only(asset: str) -> dict[str, dict[str, str]]:
-    """Create balance response with only available field."""
+    """Create balance response with only available field.
+
+    Returns:
+        dict[str, dict[str, str]]: Balance response missing locked field.
+    """
     return {asset: {"available": "100.0"}}
 
 
 def _create_balance_with_locked_only(asset: str) -> dict[str, dict[str, str]]:
-    """Create balance response with only locked field."""
+    """Create balance response with only locked field.
+
+    Returns:
+        dict[str, dict[str, str]]: Balance response missing available field.
+    """
     return {asset: {"locked": "10.0"}}
 
 
 def _create_balance_with_invalid_available_type(asset: str) -> dict[str, dict[str, str | int]]:
-    """Create balance response with invalid available field type."""
+    """Create balance response with invalid available field type.
+
+    Returns:
+        dict[str, dict[str, str | int]]: Balance response with integer instead of string for
+            available.
+    """
     return {asset: {"available": 100, "locked": "10.0"}}
 
 
 def _create_balance_with_invalid_locked_type(asset: str) -> dict[str, dict[str, str | bool]]:
-    """Create balance response with invalid locked field type."""
+    """Create balance response with invalid locked field type.
+
+    Returns:
+        dict[str, dict[str, str | bool]]: Balance response with boolean instead of string for
+            locked.
+    """
     return {asset: {"available": "100.0", "locked": True}}
 
 
 def _create_balance_with_extra_field(asset: str) -> dict[str, dict[str, str]]:
-    """Create balance response with unexpected extra field."""
+    """Create balance response with unexpected extra field.
+
+    Returns:
+        dict[str, dict[str, str]]: Balance response containing unexpected field.
+    """
     return {asset: {"available": "100.0", "locked": "10.0", "unexpected": "field"}}
 
 
 def _create_balance_with_nested_available(asset: str) -> dict[str, dict[str, dict[str, str] | str]]:
-    """Create balance response with nested available field."""
+    """Create balance response with nested available field.
+
+    Returns:
+        dict[str, dict[str, dict[str, str] | str]]: Balance response with nested available
+            structure.
+    """
     return {asset: {"available": {"nested": "100.0"}, "locked": "10.0"}}
 
 
 def _create_empty_balance(asset: str) -> dict[str, dict[str, object]]:
-    """Create empty balance response."""
+    """Create empty balance response.
+
+    Returns:
+        dict[str, dict[str, object]]: Balance response with empty inner dictionary.
+    """
     return {asset: {}}
 
 
 def _create_balance_with_string_value(asset: str) -> dict[str, str]:
-    """Create balance response with string instead of dict."""
+    """Create balance response with string instead of dict.
+
+    Returns:
+        dict[str, str]: Balance response with string value instead of dictionary.
+    """
     return {asset: "not_a_dict"}
 
 
 def _create_balance_with_list_value(asset: str) -> dict[str, list[str]]:
-    """Create balance response with list instead of dict."""
+    """Create balance response with list instead of dict.
+
+    Returns:
+        dict[str, list[str]]: Balance response with list value instead of dictionary.
+    """
     return {asset: ["not", "a", "dict"]}
 
 

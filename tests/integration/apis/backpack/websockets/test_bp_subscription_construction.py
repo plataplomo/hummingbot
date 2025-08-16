@@ -31,7 +31,6 @@ from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
 from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.config.structlog_config import get_logger
 
 

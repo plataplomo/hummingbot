@@ -17,10 +17,11 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.recovery import RecoveryExecutor
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
+from cyberdelta.apis.websocket.error_handling.recovery import (
+    RecoveryExecutor,
+    RecoveryPolicyManager,
 )
 from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import (
@@ -143,7 +144,7 @@ class TestConcurrentErrorHandling:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test handling multiple instances of the same error type concurrently."""
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Create 20 connection lost errors
         errors = [
@@ -165,7 +166,7 @@ class TestConcurrentErrorHandling:
         assert all(r is None or isinstance(r, Exception) for r in results)
 
         # Check metrics
-        metrics = cast(MetricsProtocol, handler.get_metrics())
+        metrics = cast(MetricsProtocol, handler.metrics_collector)
         assert metrics.total_errors == 20
 
         # Should handle concurrently (faster than sequential)
@@ -177,7 +178,7 @@ class TestConcurrentErrorHandling:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test handling different error types concurrently."""
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Create various error types
         error_types = [
@@ -206,7 +207,7 @@ class TestConcurrentErrorHandling:
         assert len(results) == 25
 
         # Check error distribution in metrics
-        metrics = cast(MetricsProtocol, handler.get_metrics())
+        metrics = cast(MetricsProtocol, handler.metrics_collector)
         assert metrics.total_errors == 25
         assert len(metrics.errors_by_code) >= 1  # At least one error type
 
@@ -216,8 +217,12 @@ class TestConcurrentErrorHandling:
         mock_connection_manager: MagicMock,
     ) -> None:
         """Test concurrent recovery attempts for multiple errors."""
+        # Create policy manager from config
+        config = WebSocketErrorConfig(recovery=recovery_config)
+        policy_manager = RecoveryPolicyManager(config)
+
         recovery_system = RecoveryExecutor(
-            config=recovery_config,
+            policy=policy_manager,
             connection_manager=mock_connection_manager,
             subscription_manager=MagicMock(),
             state_manager=MagicMock(),
@@ -230,7 +235,7 @@ class TestConcurrentErrorHandling:
         ]
 
         # Attempt recovery concurrently
-        tasks = [recovery_system.handle_stream_error(error) for error in errors]
+        tasks = [recovery_system.execute_recovery(error) for error in errors]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Check recovery attempts
@@ -245,7 +250,7 @@ class TestConcurrentErrorHandling:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test that race conditions are prevented in concurrent handling."""
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Shared counter to detect race conditions
         counter = {"value": 0}
@@ -258,8 +263,13 @@ class TestConcurrentErrorHandling:
             counter["value"] = current + 1
             await original_handle(error)
 
-        # Mock the method properly
-        handler.handle_stream_error = AsyncMock(side_effect=counted_handle)  # type: ignore[method-assign]
+        # Use proper mock instead of assigning to method
+        handler = MagicMock(spec=WebSocketErrorHandler)
+        handler.handle_stream_error = AsyncMock(side_effect=counted_handle)
+        handler.metrics_collector = MagicMock()
+        handler.metrics_collector.get_statistics = MagicMock(
+            return_value=MagicMock(total_errors_recorded=0)
+        )
 
         # Create many errors
         errors = [
@@ -282,8 +292,12 @@ class TestConcurrentErrorHandling:
         mock_connection_manager: MagicMock,
     ) -> None:
         """Test circuit breaker behavior under concurrent load."""
+        # Create policy manager from config
+        config = WebSocketErrorConfig(recovery=recovery_config)
+        policy_manager = RecoveryPolicyManager(config)
+
         recovery_system = RecoveryExecutor(
-            config=recovery_config,
+            policy=policy_manager,
             connection_manager=mock_connection_manager,
             subscription_manager=MagicMock(),
             state_manager=MagicMock(),
@@ -299,7 +313,7 @@ class TestConcurrentErrorHandling:
             error.recovery_strategy = WebSocketRecoveryStrategy.CIRCUIT_BREAKER
 
         # Handle concurrently
-        tasks = [recovery_system.handle_stream_error(error) for error in errors]
+        tasks = [recovery_system.execute_recovery(error) for error in errors]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
         # Circuit breaker should activate after threshold (10)
@@ -312,7 +326,7 @@ class TestConcurrentErrorHandling:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test memory safety with many concurrent errors."""
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Create a large number of errors
         num_errors = 1000
@@ -326,7 +340,7 @@ class TestConcurrentErrorHandling:
             await asyncio.gather(*tasks, return_exceptions=True)
 
         # Check final metrics
-        metrics = cast(MetricsProtocol, handler.get_metrics())
+        metrics = cast(MetricsProtocol, handler.metrics_collector)
         assert metrics.total_errors == num_errors
 
     async def test_concurrent_metric_updates(
@@ -334,7 +348,7 @@ class TestConcurrentErrorHandling:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test that metrics are updated correctly under concurrent access."""
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Create errors of specific types
         error_counts = {
@@ -355,7 +369,7 @@ class TestConcurrentErrorHandling:
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify metrics accuracy
-        metrics = cast(MetricsProtocol, handler.get_metrics())
+        metrics = cast(MetricsProtocol, handler.metrics_collector)
         assert metrics.total_errors == sum(error_counts.values())
 
         # Check individual error counts
@@ -373,8 +387,13 @@ class TestConcurrentErrorHandling:
         # Create multiple recovery systems that might compete for resources
         systems: list[RecoveryExecutor] = []
         for _ in range(3):
+            # Create policy manager from config
+
+            config = WebSocketErrorConfig(recovery=recovery_config)
+            policy_manager = RecoveryPolicyManager(config)
+
             system = RecoveryExecutor(
-                config=recovery_config,
+                policy=policy_manager,
                 connection_manager=MagicMock(
                     reconnect=AsyncMock(side_effect=self._simulate_reconnect)
                 ),
@@ -390,7 +409,7 @@ class TestConcurrentErrorHandling:
                 ErrorTestFactory.create_test_error(code=WebSocketErrorCode.CONNECTION_LOST)
                 for _ in range(10)
             ]
-            tasks: list[Awaitable[bool]] = [system.handle_stream_error(error) for error in errors]
+            tasks: list[Awaitable[bool]] = [system.execute_recovery(error) for error in errors]
             all_tasks.extend(tasks)
 
         # Run with timeout to detect deadlock
@@ -407,7 +426,7 @@ class TestConcurrentErrorHandling:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test that error ordering is preserved when needed."""
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Create sequence of errors with sequence numbers
         errors: list[WebSocketStreamError] = []
@@ -429,8 +448,13 @@ class TestConcurrentErrorHandling:
             if error.context.sequence_number is not None:
                 processed_sequences.append(error.context.sequence_number)
 
-        # Mock the method properly
-        handler.handle_stream_error = AsyncMock(side_effect=tracking_handle)  # type: ignore[method-assign]
+        # Use proper mock instead of assigning to method
+        handler = MagicMock(spec=WebSocketErrorHandler)
+        handler.handle_stream_error = AsyncMock(side_effect=tracking_handle)
+        handler.metrics_collector = MagicMock()
+        handler.metrics_collector.get_statistics = MagicMock(
+            return_value=MagicMock(total_errors_recorded=0)
+        )
 
         # Handle concurrently
         tasks: list[Awaitable[None]] = [handler.handle_stream_error(error) for error in errors]
@@ -446,8 +470,8 @@ class TestConcurrentErrorHandling:
     ) -> None:
         """Test that errors from different exchanges are isolated."""
         # Create separate handlers for each exchange
-        hl_handler = WebSocketStreamErrorHandler(config=error_config)
-        bp_handler = WebSocketStreamErrorHandler(config=error_config)
+        hl_handler = WebSocketErrorHandler(config=error_config)
+        bp_handler = WebSocketErrorHandler(config=error_config)
 
         # Create errors for each exchange
         hl_errors = [
@@ -471,8 +495,8 @@ class TestConcurrentErrorHandling:
         all_results = await asyncio.gather(*hl_tasks, *bp_tasks, return_exceptions=True)
 
         # Check isolation
-        hl_metrics = cast(MetricsProtocol, hl_handler.get_metrics())
-        bp_metrics = cast(MetricsProtocol, bp_handler.get_metrics())
+        hl_metrics = cast(MetricsProtocol, hl_handler.metrics_collector)
+        bp_metrics = cast(MetricsProtocol, bp_handler.metrics_collector)
 
         assert hl_metrics.total_errors == 15
         assert bp_metrics.total_errors == 15
@@ -508,12 +532,16 @@ class TestConcurrentErrorHandling:
                 resource_id = f"resource_{id(error)}"
                 try:
                     await self._allocate_resource(resource_id)
-                    return await super().handle_stream_error(error)
+                    return await super().execute_recovery(error)
                 finally:
                     await self._free_resource(resource_id)
 
+        # Create policy manager from config
+        config = WebSocketErrorConfig(recovery=recovery_config)
+        policy_manager = RecoveryPolicyManager(config)
+
         system = TrackedRecoverySystem(
-            config=recovery_config,
+            policy=policy_manager,
             connection_manager=MagicMock(reconnect=AsyncMock(return_value=True)),
             subscription_manager=MagicMock(),
             state_manager=MagicMock(),
@@ -538,7 +566,7 @@ class TestConcurrentErrorHandling:
         error_config: WebSocketErrorConfig,
     ) -> None:
         """Test system performance under high concurrent load."""
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Measure baseline (sequential)
         sequential_errors = [
@@ -552,7 +580,7 @@ class TestConcurrentErrorHandling:
         sequential_time = time.time() - start_time
 
         # Reset handler
-        handler = WebSocketStreamErrorHandler(config=error_config)
+        handler = WebSocketErrorHandler(config=error_config)
 
         # Measure concurrent
         concurrent_errors = [
@@ -572,5 +600,5 @@ class TestConcurrentErrorHandling:
         assert speedup > 2.0, f"Expected significant speedup, got {speedup:.2f}x"
 
         # Verify same number of errors processed
-        metrics = cast(MetricsProtocol, handler.get_metrics())
+        metrics = cast(MetricsProtocol, handler.metrics_collector)
         assert metrics.total_errors == 100

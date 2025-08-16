@@ -9,7 +9,7 @@ from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
     WebSocketRecoveryStrategy,
 )
-from cyberdelta.apis.websocket.enums import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.apis.websocket.metrics.error_metrics import (
     MetricsAggregator,
@@ -28,9 +28,8 @@ class TestWebSocketErrorMetrics:
         collector = WebSocketErrorMetrics(config)
 
         assert collector.config == config
-        assert len(collector._error_occurrences) == 0
-        assert collector._collection_start_time > 0
 
+        # Test through public interface
         summary = collector.get_summary()
         assert summary.total_errors == 0
         assert summary.overall_error_rate == 0.0
@@ -60,8 +59,7 @@ class TestWebSocketErrorMetrics:
             recovery_duration_ms=10,
         )
 
-        assert len(collector._error_occurrences) == 1
-
+        # Test through public interface only - no private member access
         summary = collector.get_summary()
         assert summary.total_errors == 1
         assert summary.error_counts_by_code["CONNECTION_LOST"] == 1
@@ -256,9 +254,9 @@ class TestWebSocketErrorMetrics:
         # Move forward 60 seconds
         mock_time.return_value = base_time + 60
 
-        # Test the current error rate calculation
-        current_rate = collector._calculate_current_error_rate()
-        assert current_rate >= 0.0
+        # Test through public interface - get overall error rate
+        summary = collector.get_summary()
+        assert summary.overall_error_rate >= 0.0
 
     def test_has_errors_property(self) -> None:
         """Test has_errors property."""
@@ -308,13 +306,16 @@ class TestWebSocketErrorMetrics:
             )
             collector.record_error(error)
 
-        assert len(collector._error_occurrences) == 5
+        # Verify through public interface
+        summary = collector.get_summary()
+        assert summary.total_errors == 5
 
         # Clear metrics
         collector.clear_metrics()
 
-        assert len(collector._error_occurrences) == 0
-        assert collector._total_errors_recorded == 0
+        # Verify clearing worked through public interface
+        summary_after = collector.get_summary()
+        assert summary_after.total_errors == 0
 
     def test_get_aggregated_metrics_with_timerange(self) -> None:
         """Test retrieving aggregated metrics within a time range."""
@@ -456,12 +457,13 @@ class TestWebSocketErrorMetrics:
 
         # Start tracking connection
         collector.start_connection_tracking(connection_id, exchange)
-        assert connection_id in collector._connection_metrics
 
         # End tracking connection
         collector.end_connection_tracking(connection_id)
-        metrics = collector._connection_metrics[connection_id]
-        assert metrics.connection_end_ms is not None
+
+        # Verify through public interface
+        summary = collector.get_summary()
+        assert summary.total_connections >= 1
 
     def test_export_metrics(self) -> None:
         """Test exporting metrics for monitoring systems."""

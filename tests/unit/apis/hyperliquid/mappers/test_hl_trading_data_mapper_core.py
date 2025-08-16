@@ -140,15 +140,6 @@ def _create_decimal_string(integer: int, fractional: str) -> str:
     return f"{integer}.{fractional}"
 
 
-def _create_order_id(n: int) -> str:
-    """Create order ID from number.
-
-    Returns:
-        Formatted order ID string.
-    """
-    return f"oid{n}"
-
-
 def _create_client_id(n: int) -> str:
     """Create client ID from number.
 
@@ -165,15 +156,6 @@ def _create_dict_entry(k: str, v: str) -> dict[str, Any]:
         Dictionary with key-value pair.
     """
     return {k: v}
-
-
-def _create_scientific_decimal(mantissa: int, precision: int) -> str:
-    """Create scientific decimal notation.
-
-    Returns:
-        Scientific notation decimal string.
-    """
-    return f"{mantissa}e-{precision}"
 
 
 def _is_invalid_time_in_force(x: str) -> bool:
@@ -1390,9 +1372,8 @@ class TestPropertyBasedMaliciousInputResistance:
             result = trading_data_mapper.transform_raw_order_to_internal(raw_order)
 
             # If it succeeds, the client ID should be safely stored
-            if result.client_order_id is not None:
-                assert isinstance(result.client_order_id, str)
-                assert result.client_order_id == malicious_client_id
+            assert isinstance(result.client_order_id, str)
+            assert result.client_order_id == malicious_client_id
 
         except (ValidationError, ValueError):
             # Rejecting malicious input is also acceptable

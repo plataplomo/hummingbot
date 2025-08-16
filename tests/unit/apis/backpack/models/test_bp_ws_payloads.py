@@ -50,49 +50,85 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 
 
 def _filter_non_subscribe_methods(x: str) -> bool:
-    """Filter function to exclude SUBSCRIBE and UNSUBSCRIBE methods."""
+    """Filter function to exclude SUBSCRIBE and UNSUBSCRIBE methods.
+
+    Returns:
+        bool: True if the method is not SUBSCRIBE or UNSUBSCRIBE.
+    """
     return x not in ["SUBSCRIBE", "UNSUBSCRIBE"]
 
 
 def _create_stream_name_from_type_symbol(stream_type: str, symbol: str) -> str:
-    """Create stream name from stream type and symbol."""
+    """Create stream name from stream type and symbol.
+
+    Returns:
+        str: Stream name in format "{stream_type}.{symbol}".
+    """
     return f"{stream_type}.{symbol}"
 
 
 def _create_symbol_from_base_quote(base: str, quote: str) -> str:
-    """Create symbol from base and quote assets."""
+    """Create symbol from base and quote assets.
+
+    Returns:
+        str: Symbol in format "{base}_{quote}".
+    """
     return f"{base}_{quote}"
 
 
 def _create_account_stream_name(account_type: str) -> str:
-    """Create account stream name from account type."""
+    """Create account stream name from account type.
+
+    Returns:
+        str: Account stream name in format "account.{account_type}".
+    """
     return f"account.{account_type}"
 
 
 def _filter_stream_name_by_length(x: str) -> bool:
-    """Filter stream names by UTF-8 byte length."""
+    """Filter stream names by UTF-8 byte length.
+
+    Returns:
+        bool: True if the stream name is within the 128 byte limit.
+    """
     return len(x.encode("utf-8")) <= 128
 
 
 def _filter_stream_name_too_long(x: str) -> bool:
-    """Filter stream names that are too long in UTF-8 bytes."""
+    """Filter stream names that are too long in UTF-8 bytes.
+
+    Returns:
+        bool: True if the stream name exceeds the 128 byte limit.
+    """
     return len(x.encode("utf-8")) > 128
 
 
 def _create_signature_tuple(a: str, b: str, c: str, d: str) -> tuple[str, str, str, str]:
-    """Create signature tuple from four string components."""
+    """Create signature tuple from four string components.
+
+    Returns:
+        tuple[str, str, str, str]: Signature tuple containing four string components.
+    """
     return (a, b, c, d)
 
 
 def _create_recursive_structure(children: SearchStrategy[Any]) -> SearchStrategy[Any]:
-    """Create recursive structure from children strategy."""
+    """Create recursive structure from children strategy.
+
+    Returns:
+        SearchStrategy[Any]: Strategy for generating recursive data structures.
+    """
     return st.lists(children, max_size=3) | st.dictionaries(
         st.text(max_size=5), children, max_size=3
     )
 
 
 def _filter_non_payload_fields(x: str) -> bool:
-    """Filter function to exclude core payload fields."""
+    """Filter function to exclude core payload fields.
+
+    Returns:
+        bool: True if the field name is not a core payload field.
+    """
     return x not in {"method", "params", "signature"}
 
 
@@ -518,7 +554,15 @@ class TestBackpackWsPayloadSecurityProperties:
             params_list = [str(malicious_params)]
         else:
             # Type narrowing: malicious_params is now list
-            params_list = [str(item) for item in malicious_params]
+            assert isinstance(malicious_params, list)
+            # Hypothesis generates list[object] but PyRight can't infer the object type
+            # Using cast is safe here as str() accepts any object type
+            # #[CAST-REVIEW-REQUIRED] Test-only code for fuzzing - hypothesis provides
+            # unknown object types
+            malicious_list = cast(list[object], malicious_params)
+            assert isinstance(malicious_list, list)  # Runtime verification per RULE-NO-SILENCING-V4
+            # Convert items to strings - str() accepts any object
+            params_list = [str(item) for item in malicious_list]
 
         try:
             request = BackpackRawWsSubscriptionRequest(method=method, params=params_list)
@@ -731,11 +775,19 @@ class TestBackpackWsPayloadIntegrationProperties:
 
         for method, params, signature in subscription_scenarios:
             assert method in ("SUBSCRIBE", "UNSUBSCRIBE")
-            request = BackpackRawWsSubscriptionRequest(
-                method=cast(Literal["SUBSCRIBE", "UNSUBSCRIBE"], method),
-                params=params,
-                signature=signature,
-            )
+            # Type-safe handling for each method type
+            if method == "SUBSCRIBE":
+                request = BackpackRawWsSubscriptionRequest(
+                    method="SUBSCRIBE",
+                    params=params,
+                    signature=signature,
+                )
+            else:  # method == "UNSUBSCRIBE"
+                request = BackpackRawWsSubscriptionRequest(
+                    method="UNSUBSCRIBE",
+                    params=params,
+                    signature=signature,
+                )
             requests.append(request)
 
         # Property: All requests should be valid

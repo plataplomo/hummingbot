@@ -51,12 +51,20 @@ MaliciousInput = (
 
 
 def _build_hex_address(hex_part: str) -> str:
-    """Build hex address with 0x prefix."""
+    """Build hex address with 0x prefix.
+
+    Returns:
+        str: Hex address with "0x" prefix.
+    """
     return f"0x{hex_part}"
 
 
 def _build_address_with_prefix(prefix: str, hex_part: str) -> str:
-    """Build address with custom prefix."""
+    """Build address with custom prefix.
+
+    Returns:
+        str: Address with custom prefix.
+    """
     return f"{prefix}{hex_part}"
 
 

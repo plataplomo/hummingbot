@@ -70,37 +70,65 @@ from tests.fixtures.time_fixtures import FreezerProtocol
 
 
 def _create_decimal_string_from_parts(i: int, d: str) -> str:
-    """Create decimal string from integer and decimal parts."""
+    """Create decimal string from integer and decimal parts.
+
+    Returns:
+        str: Decimal string in format "{i}.{d}".
+    """
     return f"{i}.{d}"
 
 
 def _create_high_precision_decimal_string(i: int, d: list[str]) -> str:
-    """Create high precision decimal string from integer and digit list."""
+    """Create high precision decimal string from integer and digit list.
+
+    Returns:
+        str: High precision decimal string with joined digit list.
+    """
     return f"{i}.{''.join(d)}"
 
 
 def _create_isoformat_datetime(dt: datetime) -> str:
-    """Create ISO format string from datetime."""
+    """Create ISO format string from datetime.
+
+    Returns:
+        str: ISO format datetime string.
+    """
     return dt.isoformat()
 
 
 def _create_price_quantity_tuple(p: str, q: str) -> tuple[str, str]:
-    """Create tuple from price and quantity strings."""
+    """Create tuple from price and quantity strings.
+
+    Returns:
+        tuple[str, str]: Tuple containing price and quantity strings.
+    """
     return (p, q)
 
 
 def _create_signed_rate_string(sign: str, rate: str) -> str:
-    """Create signed rate string from sign and rate."""
+    """Create signed rate string from sign and rate.
+
+    Returns:
+        str: Signed rate string in format "{sign}{rate}".
+    """
     return f"{sign}{rate}"
 
 
 def _create_usdc_symbol_with_suffix(base: str, suffix: str) -> str:
-    """Create USDC symbol with base and suffix."""
+    """Create USDC symbol with base and suffix.
+
+    Returns:
+        str: USDC symbol in format "{base}-USDC{suffix}".
+    """
     return f"{base}-USDC{suffix}"
 
 
 def _create_decimal_from_integer_fraction(integer: int, fraction: list[str]) -> str:
-    """Create decimal string from integer and fraction parts."""
+    """Create decimal string from integer and fraction parts.
+
+    Returns:
+        str: Decimal string with joined fraction parts.
+    """
     return f"{integer}.{''.join(fraction)}"
 
 

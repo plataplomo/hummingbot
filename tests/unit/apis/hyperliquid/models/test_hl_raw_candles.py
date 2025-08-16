@@ -412,13 +412,30 @@ class TestHyperliquidRawCandleSnapshotProperties:
             "s": "ok",
         }
 
-        # Create mismatch
-        current_list = candle_data[mismatched_field]
-        if isinstance(current_list, list):
+        # Create mismatch by modifying the specific field type-safely
+        if mismatched_field == "t":
+            # 't' field contains integers (timestamps)
+            current_timestamps = candle_data[mismatched_field]
+            assert isinstance(current_timestamps, list)
+            # Type cast to ensure proper typing
+            # Recreate with correct type
+            timestamps_list: list[int] = list(range(len(current_timestamps)))
             if num_candles > mismatch_delta:
-                candle_data[mismatched_field] = current_list[:-mismatch_delta]
+                candle_data[mismatched_field] = timestamps_list[:-mismatch_delta]
             else:
-                candle_data[mismatched_field] = current_list + ["100.0"] * mismatch_delta
+                # Extend with additional integer timestamps
+                candle_data[mismatched_field] = timestamps_list + [100] * mismatch_delta
+        else:
+            # OHLCV fields contain strings
+            current_prices = candle_data[mismatched_field]
+            assert isinstance(current_prices, list)
+            # Type cast to ensure proper typing
+            prices_list: list[str] = ["100.0"] * len(current_prices)  # Recreate with correct type
+            if num_candles > mismatch_delta:
+                candle_data[mismatched_field] = prices_list[:-mismatch_delta]
+            else:
+                # Extend with additional string prices
+                candle_data[mismatched_field] = prices_list + ["100.0"] * mismatch_delta
 
         # Property: Mismatched lengths should be rejected
         with pytest.raises(ParsingError) as exc_info:
@@ -854,13 +871,13 @@ def test_HyperliquidRawCandleSnapshot_real_world_example() -> None:
 
 def test_HyperliquidRawCandleSnapshot_empty_candles() -> None:
     """Test with empty candle data."""
-    payload = {
-        "t": [],
-        "o": [],
-        "h": [],
-        "l": [],
-        "c": [],
-        "v": [],
+    payload: dict[str, list[int] | list[str] | str] = {
+        "t": [],  # Empty list of timestamps (int)
+        "o": [],  # Empty list of open prices (str)
+        "h": [],  # Empty list of high prices (str)
+        "l": [],  # Empty list of low prices (str)
+        "c": [],  # Empty list of close prices (str)
+        "v": [],  # Empty list of volumes (str)
         "s": "ok",
     }
     obj = HyperliquidRawCandleSnapshot.model_validate(payload)

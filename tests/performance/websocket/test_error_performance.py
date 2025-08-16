@@ -20,16 +20,16 @@ import pytest
 from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
-from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.error_handling.error_events import (
     LoggingEventHandler,
     WebSocketErrorEventPublisher,
 )
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
+)
 from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
     WebSocketErrorHandlerFactory,
-)
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import (
     WebSocketConnectionError,
@@ -155,11 +155,11 @@ def test_context() -> StreamErrorContext:
 
 
 @pytest.fixture
-def test_handler() -> WebSocketStreamErrorHandler:
+def test_handler() -> WebSocketErrorHandler:
     """Test error handler for benchmarks.
 
     Returns:
-        WebSocketStreamErrorHandler: Minimal error handler optimized for performance testing.
+        WebSocketErrorHandler: Minimal error handler optimized for performance testing.
     """
     config = WebSocketErrorHandlerFactory.create_default_config(
         exchange=ExchangeName.HYPERLIQUID,
@@ -348,7 +348,7 @@ class TestErrorHandlingPerformance:
     async def test_error_handler_throughput(
         self,
         performance_config: dict[str, int],
-        test_handler: WebSocketStreamErrorHandler,
+        test_handler: WebSocketErrorHandler,
         test_context: StreamErrorContext,
     ) -> None:
         """Benchmark error handler throughput."""
@@ -398,7 +398,7 @@ class TestErrorHandlingPerformance:
     async def test_concurrent_error_handling(
         self,
         performance_config: dict[str, int],
-        test_handler: WebSocketStreamErrorHandler,
+        test_handler: WebSocketErrorHandler,
         test_context: StreamErrorContext,
     ) -> None:
         """Benchmark concurrent error handling."""
@@ -522,7 +522,7 @@ class TestErrorHandlingPerformance:
     async def test_validation_error_handling_speed(
         self,
         performance_config: dict[str, int],
-        test_handler: WebSocketStreamErrorHandler,
+        test_handler: WebSocketErrorHandler,
     ) -> None:
         """Benchmark validation error handling speed."""
         iterations = performance_config["error_handling_iterations"]
@@ -760,7 +760,7 @@ class TestMemoryUsage:
 
     async def test_handler_memory_scaling(
         self,
-        test_handler: WebSocketStreamErrorHandler,
+        test_handler: WebSocketErrorHandler,
         test_context: StreamErrorContext,
     ) -> None:
         """Test memory scaling with many errors."""

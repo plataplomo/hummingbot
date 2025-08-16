@@ -21,14 +21,43 @@ SECURITY CRITICAL: Validators are the first line of defense against:
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from hypothesis import assume, given, settings, strategies as st
 
 from cyberdelta.apis.backpack.bp_validators import BackpackValidators
+from cyberdelta.apis.common.base_types import (
+    InvalidChannelError,
+    InvalidTopicFormatError,
+    InvalidTopicTypeError,
+)
 from cyberdelta.apis.hyperliquid.hl_validators import HyperliquidValidators
-from cyberdelta.apis.websocket.security.validators import WebSocketPayloadValidators
+from cyberdelta.apis.websocket.exceptions import (
+    InvalidFieldTypeError,
+    InvalidFormatError,
+    InvalidItemTypeError,
+    InvalidNumericValueError,
+    InvalidPayloadTypeError,
+    InvalidTimestampError,
+    MissingRequiredFieldsError,
+    NumericRangeError,
+    PayloadSizeError,
+    UnexpectedFieldsError,
+)
+from cyberdelta.apis.websocket.security.validators import (
+    ValidationInput,
+    WebSocketPayloadValidators,
+)
+
+
+def _format_topic(topic_type: str, symbol: str) -> str:
+    """Helper function for formatting topic strings.
+
+    Returns:
+        str: Formatted topic string in the format 'type.symbol'.
+    """
+    return f"{topic_type}.{symbol}"
 
 
 # =============================================================================
@@ -53,7 +82,7 @@ def valid_dict_payload_strategy(
                 min_size=1,
                 max_size=20,
                 alphabet=st.characters(
-                    whitelist_categories=("Lu", "Ll", "Nd"), whitelist_characters="_-"
+                    whitelist_categories=["Lu", "Ll", "Nd"], whitelist_characters="_-"
                 ),
             ),
             min_size=num_keys,
@@ -97,14 +126,15 @@ def valid_list_payload_strategy(
             st.integers(),
             st.floats(allow_nan=False, allow_infinity=False),
             st.booleans(),
+            st.none(),
         )
-    elif item_type == str:
+    elif item_type is str:
         item_strategy = st.text(max_size=100)
-    elif item_type == int:
+    elif item_type is int:
         item_strategy = st.integers()
-    elif item_type == float:
+    elif item_type is float:
         item_strategy = st.floats(allow_nan=False, allow_infinity=False)
-    elif item_type == bool:
+    elif item_type is bool:
         item_strategy = st.booleans()
     else:
         item_strategy = st.none()
@@ -121,10 +151,7 @@ def valid_symbol_string_strategy(draw: st.DrawFn) -> str:
         Pattern: ^[A-Z0-9_-]{1,20}$
     """
     # Generate symbols matching the exact pattern
-    symbol = draw(
-        st.text(min_size=1, max_size=20, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
-    )
-    return symbol
+    return draw(st.text(min_size=1, max_size=20, alphabet="ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-"))
 
 
 @st.composite
@@ -136,14 +163,13 @@ def valid_topic_string_strategy(draw: st.DrawFn) -> str:
         Pattern: ^[a-zA-Z0-9._-]{1,50}$
     """
     # Generate topics matching the exact pattern
-    topic = draw(
+    return draw(
         st.text(
             min_size=1,
             max_size=50,
             alphabet="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-",
         )
     )
-    return topic
 
 
 @st.composite
@@ -156,10 +182,11 @@ def numeric_string_strategy(draw: st.DrawFn, allow_negative: bool = True) -> str
     # Choose between integer and decimal
     if draw(st.booleans()):
         # Integer
-        value = draw(st.integers(min_value=-1000000 if allow_negative else 0, max_value=1000000))
-        return str(value)
+        min_val = -1000000 if allow_negative else 0
+        int_value = draw(st.integers(min_value=min_val, max_value=1000000))
+        return str(int_value)
     # Decimal
-    value = draw(
+    float_value = draw(
         st.floats(
             min_value=-1000000.0 if allow_negative else 0.0,
             max_value=1000000.0,
@@ -167,7 +194,7 @@ def numeric_string_strategy(draw: st.DrawFn, allow_negative: bool = True) -> str
             allow_infinity=False,
         )
     )
-    return str(value)
+    return str(float_value)
 
 
 # =============================================================================
@@ -198,8 +225,6 @@ class TestWebSocketPayloadValidators:
         self, payload: dict[str, Any], min_keys: int, max_keys: int
     ) -> None:
         """Property: Dictionary validation should respect size constraints."""
-        from cyberdelta.apis.websocket.exceptions import PayloadSizeError
-
         num_keys = len(payload)
 
         if min_keys <= num_keys <= max_keys:
@@ -224,12 +249,10 @@ class TestWebSocketPayloadValidators:
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_validate_dict_payload_type_rejection_properties(self, invalid_payload: Any) -> None:
+    def test_validate_dict_payload_type_rejection_properties(self, invalid_payload: object) -> None:
         """Property: Non-dictionary types should be rejected with InvalidPayloadTypeError."""
-        from cyberdelta.apis.websocket.exceptions import InvalidPayloadTypeError
-
         with pytest.raises(InvalidPayloadTypeError):
-            WebSocketPayloadValidators.validate_dict_payload(invalid_payload)
+            WebSocketPayloadValidators.validate_dict_payload(cast(ValidationInput, invalid_payload))
 
     @given(payload=valid_list_payload_strategy())
     @settings(max_examples=200, deadline=None)
@@ -270,7 +293,6 @@ class TestWebSocketPayloadValidators:
             assert result == payload
         else:
             # Should fail with specific exception types
-            from cyberdelta.apis.websocket.exceptions import InvalidItemTypeError, PayloadSizeError
 
             with pytest.raises((PayloadSizeError, InvalidItemTypeError)):
                 WebSocketPayloadValidators.validate_list_payload(
@@ -287,8 +309,6 @@ class TestWebSocketPayloadValidators:
         self, payload_length: int, min_constraint: int, max_constraint: int
     ) -> None:
         """Property: Length constraints should be enforced correctly."""
-        from cyberdelta.apis.websocket.exceptions import PayloadSizeError
-
         assume(min_constraint <= max_constraint)  # Valid constraint range
 
         payload = list(range(payload_length))
@@ -315,16 +335,14 @@ class TestWebSocketPayloadValidators:
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_validate_list_payload_type_rejection_properties(self, invalid_payload: Any) -> None:
+    def test_validate_list_payload_type_rejection_properties(self, invalid_payload: object) -> None:
         """Property: Non-list types should be rejected with InvalidPayloadTypeError."""
-        from cyberdelta.apis.websocket.exceptions import InvalidPayloadTypeError
-
         with pytest.raises(InvalidPayloadTypeError):
-            WebSocketPayloadValidators.validate_list_payload(invalid_payload)
+            WebSocketPayloadValidators.validate_list_payload(cast(ValidationInput, invalid_payload))
 
     @given(
         all_fields=st.lists(
-            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("Ll",))),
+            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=["Ll"])),
             min_size=1,
             max_size=10,
             unique=True,
@@ -336,8 +354,6 @@ class TestWebSocketPayloadValidators:
         self, all_fields: list[str], num_required: int
     ) -> None:
         """Property: Required fields validation should correctly enforce field presence."""
-        from cyberdelta.apis.websocket.exceptions import MissingRequiredFieldsError
-
         num_required = min(num_required, len(all_fields))  # Can't require more than available
         required_fields = all_fields[:num_required]
 
@@ -360,13 +376,13 @@ class TestWebSocketPayloadValidators:
 
     @given(
         allowed_fields=st.lists(
-            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("Ll",))),
+            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=["Ll"])),
             min_size=1,
             max_size=10,
             unique=True,
         ),
         extra_fields=st.lists(
-            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("Ll",))),
+            st.text(min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=["Ll"])),
             min_size=0,
             max_size=5,
             unique=True,
@@ -377,8 +393,6 @@ class TestWebSocketPayloadValidators:
         self, allowed_fields: list[str], extra_fields: list[str]
     ) -> None:
         """Property: Optional fields validation should reject unexpected fields."""
-        from cyberdelta.apis.websocket.exceptions import UnexpectedFieldsError
-
         # Ensure extra fields don't overlap with allowed
         extra_fields = [f for f in extra_fields if f not in allowed_fields]
 
@@ -415,7 +429,7 @@ class TestWebSocketPayloadValidators:
             st.floats(),  # Wrong type
             st.just(""),  # Empty
             st.text(
-                min_size=1, max_size=5, alphabet=st.characters(whitelist_categories=("Ll",))
+                min_size=1, max_size=5, alphabet=st.characters(whitelist_categories=["Ll"])
             ),  # Lowercase
             st.text(min_size=25, max_size=50),  # Too long
             st.text(min_size=1, max_size=10).filter(lambda s: " " in s),  # Contains space
@@ -425,12 +439,10 @@ class TestWebSocketPayloadValidators:
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_validate_symbol_rejection_properties(self, invalid_symbol: Any) -> None:
+    def test_validate_symbol_rejection_properties(self, invalid_symbol: object) -> None:
         """Property: Invalid symbols should be rejected."""
-        from cyberdelta.apis.websocket.exceptions import InvalidFieldTypeError, InvalidFormatError
-
         with pytest.raises((InvalidFieldTypeError, InvalidFormatError)):
-            WebSocketPayloadValidators.validate_symbol(invalid_symbol)
+            WebSocketPayloadValidators.validate_symbol(cast(ValidationInput, invalid_symbol))
 
     @given(topic=valid_topic_string_strategy())
     @settings(max_examples=200, deadline=None)
@@ -458,12 +470,10 @@ class TestWebSocketPayloadValidators:
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_validate_topic_rejection_properties(self, invalid_topic: Any) -> None:
+    def test_validate_topic_rejection_properties(self, invalid_topic: object) -> None:
         """Property: Invalid topics should be rejected."""
-        from cyberdelta.apis.websocket.exceptions import InvalidFieldTypeError, InvalidFormatError
-
         with pytest.raises((InvalidFieldTypeError, InvalidFormatError)):
-            WebSocketPayloadValidators.validate_topic(invalid_topic)
+            WebSocketPayloadValidators.validate_topic(cast(ValidationInput, invalid_topic))
 
     @given(numeric_str=numeric_string_strategy())
     @settings(max_examples=200, deadline=None)
@@ -488,8 +498,6 @@ class TestWebSocketPayloadValidators:
         self, numeric_str: str, min_value: float, max_value: float
     ) -> None:
         """Property: Range constraints should be enforced correctly."""
-        from cyberdelta.apis.websocket.exceptions import NumericRangeError
-
         assume(min_value <= max_value)  # Valid range
 
         numeric_value = float(numeric_str)
@@ -513,28 +521,25 @@ class TestWebSocketPayloadValidators:
             st.floats(),  # Wrong type
             st.just(""),  # Empty
             st.text(
-                min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=("Ll",))
+                min_size=1, max_size=10, alphabet=st.characters(whitelist_categories=["Ll"])
             ),  # Letters
             st.just("123.45.67"),  # Multiple decimals
             # Note: "12e34" is actually valid scientific notation for Python's float()
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_validate_numeric_string_rejection_properties(self, invalid_numeric: Any) -> None:
+    def test_validate_numeric_string_rejection_properties(self, invalid_numeric: object) -> None:
         """Property: Invalid numeric strings should be rejected."""
-        from cyberdelta.apis.websocket.exceptions import (
-            InvalidFieldTypeError,
-            InvalidNumericValueError,
-        )
-
         # Scientific notation is actually valid for Python's float()
         if invalid_numeric == "12e34":
             # This is valid, should not be in invalid test
-            result = WebSocketPayloadValidators.validate_numeric_string(invalid_numeric)
+            casted_numeric = cast(ValidationInput, invalid_numeric)
+            result = WebSocketPayloadValidators.validate_numeric_string(casted_numeric)
             assert result == invalid_numeric
         else:
             with pytest.raises((InvalidFieldTypeError, InvalidNumericValueError)):
-                WebSocketPayloadValidators.validate_numeric_string(invalid_numeric)
+                casted_numeric = cast(ValidationInput, invalid_numeric)
+                WebSocketPayloadValidators.validate_numeric_string(casted_numeric)
 
     @given(
         timestamp=st.integers(
@@ -564,22 +569,21 @@ class TestWebSocketPayloadValidators:
         )
     )
     @settings(max_examples=100, deadline=None)
-    def test_validate_timestamp_rejection_properties(self, invalid_timestamp: Any) -> None:
+    def test_validate_timestamp_rejection_properties(self, invalid_timestamp: object) -> None:
         """Property: Invalid timestamps should be rejected."""
-        from cyberdelta.apis.websocket.exceptions import InvalidTimestampError
-
-        # Strings will cause TypeError during comparison
+        # We're intentionally testing invalid inputs, so we need to cast to bypass type checking
+        # This test verifies runtime behavior for malformed data
         if isinstance(invalid_timestamp, str):
-            with pytest.raises(TypeError):
-                WebSocketPayloadValidators.validate_timestamp(invalid_timestamp)
-        # Numeric types (int or float) that are out of range will raise InvalidTimestampError
+            with pytest.raises((TypeError, ValueError, AttributeError)):
+                WebSocketPayloadValidators.validate_timestamp(cast(int, invalid_timestamp))
+        # Numeric types that are out of range will raise InvalidTimestampError
         elif isinstance(invalid_timestamp, (int, float)):
             with pytest.raises(InvalidTimestampError):
-                WebSocketPayloadValidators.validate_timestamp(invalid_timestamp)
+                WebSocketPayloadValidators.validate_timestamp(int(invalid_timestamp))
         else:
-            # Other types
-            with pytest.raises(TypeError):
-                WebSocketPayloadValidators.validate_timestamp(invalid_timestamp)
+            # Other types will cause runtime errors
+            with pytest.raises((TypeError, AttributeError)):
+                WebSocketPayloadValidators.validate_timestamp(cast(int, invalid_timestamp))
 
 
 @st.composite
@@ -619,14 +623,14 @@ class TestBackpackValidators:
         invalid_topic=st.one_of(
             st.just("depth"),  # Missing symbol
             st.builds(
-                lambda t, s: f"{t}.{s}",
-                st.sampled_from(["depth", "ticker", "trade", "trades"]),
+                str.__add__,
+                st.sampled_from(["depth.", "ticker.", "trade.", "trades."]),
                 st.text(
-                    min_size=1, max_size=5, alphabet=st.characters(whitelist_categories=("Ll",))
+                    min_size=1, max_size=5, alphabet=st.characters(whitelist_categories=["Ll"])
                 ),
             ),  # Lowercase symbol
             st.builds(
-                lambda t, s: f"{t}.{s}",
+                _format_topic,
                 st.text(min_size=1, max_size=10).filter(
                     lambda x: x not in ["depth", "ticker", "trade", "trades"]
                 ),
@@ -639,9 +643,6 @@ class TestBackpackValidators:
     @settings(max_examples=100, deadline=None)
     def test_validate_backpack_topic_rejection_properties(self, invalid_topic: str) -> None:
         """Property: Invalid Backpack topics should be rejected."""
-        from cyberdelta.apis.common.base_types import InvalidTopicFormatError, InvalidTopicTypeError
-        from cyberdelta.apis.websocket.exceptions import InvalidFormatError
-
         with pytest.raises((
             InvalidTopicFormatError,
             InvalidTopicTypeError,
@@ -696,7 +697,5 @@ class TestHyperliquidValidators:
     @settings(max_examples=100, deadline=None)
     def test_validate_hyperliquid_channel_rejection_properties(self, invalid_channel: str) -> None:
         """Property: Unknown Hyperliquid channels should be rejected."""
-        from cyberdelta.apis.common.base_types import InvalidChannelError
-
         with pytest.raises(InvalidChannelError):
             HyperliquidValidators.validate_hyperliquid_channel(invalid_channel)

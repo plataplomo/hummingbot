@@ -300,7 +300,7 @@ class TestHyperliquidRawAllMidsProperties:
         # Convert to string key for dict (testing malicious input handling)
         try:
             symbol_key = str(malicious_symbol)
-        except Exception:
+        except (UnicodeError, AttributeError, TypeError):
             symbol_key = repr(malicious_symbol)
         mids_data = {symbol_key: price}
 

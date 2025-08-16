@@ -24,7 +24,7 @@ import math
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 import msgspec
@@ -150,8 +150,8 @@ def sample_order_strategy(draw: st.DrawFn) -> SampleOrder:
         side=draw(st.sampled_from(["BUY", "SELL"])),
         timestamp=draw(
             st.datetimes(
-                min_value=datetime(2020, 1, 1),
-                max_value=datetime(2030, 12, 31),
+                min_value=datetime(2020, 1, 1, tzinfo=UTC),
+                max_value=datetime(2030, 12, 31, tzinfo=UTC),
                 timezones=st.just(UTC),
             )
         ),
@@ -305,7 +305,9 @@ class TestMsgspecSerialization:
 
     @given(
         dt=st.datetimes(
-            min_value=datetime(1970, 1, 1), max_value=datetime(2100, 1, 1), timezones=st.just(UTC)
+            min_value=datetime(1970, 1, 1, tzinfo=UTC),
+            max_value=datetime(2100, 1, 1, tzinfo=UTC),
+            timezones=st.just(UTC),
         )
     )
     @settings(max_examples=200, deadline=None)
@@ -330,7 +332,7 @@ class TestMsgspecSerialization:
         # Property: Can reconstruct datetime
         # Handle both Z and +00:00 suffixes
         if timestamp_str.endswith("Z"):
-            reconstructed = datetime.fromisoformat(timestamp_str[:-1] + "+00:00")
+            reconstructed = datetime.fromisoformat(timestamp_str[:-1]).replace(tzinfo=UTC)
         else:
             reconstructed = datetime.fromisoformat(timestamp_str)
 
@@ -377,16 +379,33 @@ class TestMsgspecSerialization:
         assert isinstance(loaded, type(structure))
 
         # Property: Deep equality (handles Decimal string conversion)
-        def normalize_for_comparison(obj: Any) -> Any:  # noqa: ANN401
+        def normalize_for_comparison(obj: object) -> object:
             """Normalize Decimals to strings for comparison.
 
             Returns:
                 Normalized object with Decimals converted to strings.
             """
             if isinstance(obj, dict):
-                return {k: normalize_for_comparison(v) for k, v in obj.items()}
+                # Runtime validation and explicit typing for PyRight
+                # JSON loading returns dict[str, Any] but PyRight sees untyped dict.items()
+                # Using cast is safe as dict.items() returns key-value pairs
+                # #[CAST-REVIEW-REQUIRED] Test-only - JSON deserializer returns untyped dict
+                typed_dict = cast(dict[object, object], obj)
+                assert isinstance(typed_dict, dict)  # Runtime verification per RULE-NO-SILENCING-V4
+                result: dict[str, object] = {}
+                for k, v in typed_dict.items():
+                    # PyRight type narrowing: k and v are objects
+                    result[str(k)] = normalize_for_comparison(v)
+                return result
             if isinstance(obj, list):
-                return [normalize_for_comparison(item) for item in obj]
+                # Runtime validation and explicit typing for PyRight
+                # JSON loading returns list[Any] but PyRight sees untyped list iteration
+                # Using cast is safe as we iterate over list elements
+                # #[CAST-REVIEW-REQUIRED] Test-only - JSON deserializer returns untyped list
+                typed_list = cast(list[object], obj)
+                assert isinstance(typed_list, list)  # Runtime verification per RULE-NO-SILENCING-V4
+                # Use list comprehension for better performance as suggested by PERF401
+                return [normalize_for_comparison(item) for item in typed_list]
             if isinstance(obj, Decimal):
                 return str(obj)
             return obj

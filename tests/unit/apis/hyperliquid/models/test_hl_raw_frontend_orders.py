@@ -689,7 +689,7 @@ class TestHyperliquidRawFrontendOrderIntegrationProperties:
         self, orders: list[dict[str, Any]], malicious_value: MaliciousInput
     ) -> None:
         """Property: Multiple frontend orders should be processed independently."""
-        valid_orders = []
+        valid_orders: list[HyperliquidRawFrontendOpenOrder] = []
 
         for order_data in orders:
             try:

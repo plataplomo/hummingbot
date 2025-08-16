@@ -14,10 +14,10 @@ from unittest.mock import Mock
 import pytest
 from pydantic import BaseModel, Field, ValidationError
 
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.ws_processor import PydanticWebSocketProcessor
+from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
 from cyberdelta.apis.websocket.ws_processor_error_context import (
     ProcessorErrorContextBuilder,
     ProcessorErrorMetadata,
@@ -50,16 +50,16 @@ class MockTransformer:
         return validated
 
 
-def create_mock_processor() -> PydanticWebSocketProcessor[MockRawModel, MockRawModel]:
+def create_mock_processor() -> WebSocketMessageProcessor[MockRawModel, MockRawModel]:
     """Create a mock processor for testing.
 
     Returns:
-        PydanticWebSocketProcessor[MockRawModel, MockRawModel]: Mock processor.
+        WebSocketMessageProcessor[MockRawModel, MockRawModel]: Mock processor.
     """
     # We need a mock stream error handler that implements the required interface
-    mock_error_handler = Mock(spec=WebSocketStreamErrorHandler)
+    mock_error_handler = Mock(spec=WebSocketErrorHandler)
 
-    return PydanticWebSocketProcessor(
+    return WebSocketMessageProcessor(
         raw_model=MockRawModel,
         transformer=MockTransformer(),
         stream_error_handler=mock_error_handler,
@@ -153,11 +153,11 @@ class TestProcessorErrorContextBuilder:
     """Test ProcessorErrorContextBuilder functionality."""
 
     @pytest.fixture
-    def mock_processor(self) -> PydanticWebSocketProcessor[MockRawModel, MockRawModel]:
+    def mock_processor(self) -> WebSocketMessageProcessor[MockRawModel, MockRawModel]:
         """Create mock processor.
 
         Returns:
-            PydanticWebSocketProcessor: Mock processor with predefined test configuration.
+            WebSocketMessageProcessor: Mock processor with predefined test configuration.
         """
         return create_mock_processor()
 
@@ -197,7 +197,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_validation_error_with_context_method(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
         validation_error: ValidationError,
         mock_payload: dict[str, Any],
@@ -230,7 +230,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_validation_error_fallback(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         validation_error: ValidationError,
         mock_payload: dict[str, Any],
     ) -> None:
@@ -273,7 +273,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_transformation_error(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from transformation error."""
@@ -303,7 +303,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_handler_error_single_model(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from handler error with single domain model."""
@@ -334,7 +334,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_handler_error_batch_models(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from handler error with batch domain models."""
@@ -365,7 +365,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_handler_error_empty_batch(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from handler error with empty batch."""
@@ -390,7 +390,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_from_unexpected_error(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test creating error context from unexpected processor error."""
@@ -500,7 +500,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_enhance_context_with_metrics(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
         mock_context: MockContext,
     ) -> None:
         """Test enhancing error context with processor metrics."""
@@ -523,7 +523,7 @@ class TestProcessorErrorContextBuilder:
 
     def test_enhance_context_with_metrics_no_metadata(
         self,
-        mock_processor: PydanticWebSocketProcessor[MockRawModel, MockRawModel],
+        mock_processor: WebSocketMessageProcessor[MockRawModel, MockRawModel],
     ) -> None:
         """Test enhancing context when it has basic metadata."""
         # Arrange

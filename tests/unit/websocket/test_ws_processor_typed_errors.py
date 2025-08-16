@@ -1,4 +1,4 @@
-"""Unit tests for PydanticWebSocketProcessor with typed error handling.
+"""Unit tests for WebSocketMessageProcessor with typed error handling.
 
 This module tests the processor integration with the new typed WebSocket error system,
 ensuring proper error handling and bridge functionality.
@@ -12,14 +12,14 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketValidationError
-from cyberdelta.apis.websocket.ws_processor import (
+from cyberdelta.apis.websocket.ws_message_processor import (
     MessageTransformer,
-    PydanticWebSocketProcessor,
     SimpleDictTransformer,
+    WebSocketMessageProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
@@ -110,13 +110,13 @@ class TestTypedProcessorErrorHandling:
         return context
 
     @pytest.fixture
-    def mock_stream_error_handler(self) -> AsyncMock:
+    def mock_error_handler(self) -> AsyncMock:
         """Create mock stream error handler.
 
         Returns:
-            AsyncMock: Mock stream error handler implementing WebSocketStreamErrorHandler.
+            AsyncMock: Mock stream error handler implementing WebSocketErrorHandler.
         """
-        return AsyncMock(spec=WebSocketStreamErrorHandler)
+        return AsyncMock(spec=WebSocketErrorHandler)
 
     @pytest.fixture
     def mock_legacy_error_handler(self) -> AsyncMock:
@@ -133,35 +133,35 @@ class TestTypedProcessorErrorHandling:
 
     def test_processor_with_typed_error_handler_creation(
         self,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test processor creation with typed error handler."""
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="TestProcessor",
         )
 
-        assert processor.stream_error_handler is mock_stream_error_handler
+        assert processor.stream_error_handler is mock_error_handler
         assert processor.processor_name == "TestProcessor"
         # Bridge pattern removed - processor uses direct stream error handler
         assert processor.stream_error_handler is not None
-        assert isinstance(processor.stream_error_handler, WebSocketStreamErrorHandler)
+        assert isinstance(processor.stream_error_handler, WebSocketErrorHandler)
 
     @pytest.mark.asyncio
     async def test_validation_error_with_typed_handler(
         self,
         mock_context: Mock,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test validation error handling with typed error system."""
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="ValidationTestProcessor",
         )
 
@@ -174,10 +174,10 @@ class TestTypedProcessorErrorHandling:
         await processor.process(invalid_payload, handler, mock_context)
 
         # Verify typed error handler was called
-        mock_stream_error_handler.handle_validation_error.assert_called_once()
+        mock_error_handler.handle_validation_error.assert_called_once()
 
         # Check call arguments
-        call_args = mock_stream_error_handler.handle_validation_error.call_args
+        call_args = mock_error_handler.handle_validation_error.call_args
         assert isinstance(call_args.kwargs["error"], ValidationError)
         assert call_args.kwargs["context"] is mock_context
         assert isinstance(call_args.kwargs["payload"], MessageForTest)
@@ -192,14 +192,14 @@ class TestTypedProcessorErrorHandling:
     async def test_transformation_error_with_typed_handler(
         self,
         mock_context: Mock,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test transformation error handling with typed error system."""
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=FailingTransformer(),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="TransformationTestProcessor",
         )
 
@@ -212,10 +212,10 @@ class TestTypedProcessorErrorHandling:
         await processor.process(valid_payload, handler, mock_context)
 
         # Verify typed error handler handled the stream error
-        mock_stream_error_handler.handle_stream_error.assert_called_once()
+        mock_error_handler.handle_stream_error.assert_called_once()
 
         # Check the error was a WebSocketValidationError
-        call_args = mock_stream_error_handler.handle_stream_error.call_args
+        call_args = mock_error_handler.handle_stream_error.call_args
         error = call_args.args[0]
         assert isinstance(error, WebSocketValidationError)
         assert "Transformation failed" in error.message
@@ -232,14 +232,14 @@ class TestTypedProcessorErrorHandling:
     async def test_handler_error_with_typed_handler(
         self,
         mock_context: Mock,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test message handler error handling with typed error system."""
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=TransformerForTest(),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="HandlerTestProcessor",
         )
 
@@ -256,10 +256,10 @@ class TestTypedProcessorErrorHandling:
         failing_handler_mock.assert_called_once()
 
         # Verify typed error handler handled the stream error
-        mock_stream_error_handler.handle_stream_error.assert_called_once()
+        mock_error_handler.handle_stream_error.assert_called_once()
 
         # Check the error details
-        call_args = mock_stream_error_handler.handle_stream_error.call_args
+        call_args = mock_error_handler.handle_stream_error.call_args
         error = call_args.args[0]
         assert isinstance(error, WebSocketValidationError)
         assert "Handler invocation failed" in error.message
@@ -273,7 +273,7 @@ class TestTypedProcessorErrorHandling:
     async def test_unexpected_error_with_typed_handler(
         self,
         mock_context: Mock,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test unexpected error handling with typed error system."""
@@ -285,10 +285,10 @@ class TestTypedProcessorErrorHandling:
             ) -> DomainModelForTest:
                 raise OSError("Unexpected system error")
 
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=UnexpectedErrorTransformer(),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="UnexpectedErrorTestProcessor",
         )
 
@@ -301,10 +301,10 @@ class TestTypedProcessorErrorHandling:
         await processor.process(valid_payload, handler, mock_context)
 
         # Verify typed error handler handled the unexpected error
-        mock_stream_error_handler.handle_stream_error.assert_called_once()
+        mock_error_handler.handle_stream_error.assert_called_once()
 
         # Check the error details
-        call_args = mock_stream_error_handler.handle_stream_error.call_args
+        call_args = mock_error_handler.handle_stream_error.call_args
         error = call_args.args[0]
         assert isinstance(error, WebSocketValidationError)
         assert "Unexpected processing error" in error.message
@@ -318,14 +318,14 @@ class TestTypedProcessorErrorHandling:
     async def test_error_when_no_typed_handler_swallowed(
         self,
         mock_context: Mock,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test processor behavior when no typed handler is available.
 
         error is caught and logged.
         """
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
             stream_error_handler=mock_legacy_error_handler,  # Use mock handler
@@ -348,7 +348,7 @@ class TestTypedProcessorErrorHandling:
         mock_legacy_error_handler.handle_validation_error.assert_not_called()
 
         # Typed error handler should be called if available (but it's None here)
-        mock_stream_error_handler.handle_stream_error.assert_not_called()
+        mock_error_handler.handle_stream_error.assert_not_called()
 
         # Processor metrics should reflect the validation error
         assert processor.metrics.validation_errors > 0
@@ -357,14 +357,14 @@ class TestTypedProcessorErrorHandling:
     async def test_successful_processing_with_typed_handler(
         self,
         mock_context: Mock,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test successful message processing with typed error handler available."""
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=TransformerForTest(),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="SuccessTestProcessor",
         )
 
@@ -392,40 +392,40 @@ class TestTypedProcessorErrorHandling:
         assert domain_model.processed_value == 84  # 42 * 2
 
         # No error handlers should be called
-        mock_stream_error_handler.handle_validation_error.assert_not_called()
-        mock_stream_error_handler.handle_stream_error.assert_not_called()
+        mock_error_handler.handle_validation_error.assert_not_called()
+        mock_error_handler.handle_stream_error.assert_not_called()
         mock_legacy_error_handler.handle_validation_error.assert_not_called()
         mock_legacy_error_handler.handle_processing_error.assert_not_called()
 
-    def test_processor_stream_error_handler_integration(
+    def test_processor_error_handler_integration(
         self,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test that processor correctly initializes error bridge."""
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=TransformerForTest(),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="BridgeTestProcessor",
         )
 
         # Verify stream error handler was configured directly (bridge pattern removed)
-        assert hasattr(processor, "stream_error_handler")
+        assert hasattr(processor, "error_handler")
         assert processor.stream_error_handler is not None
         # Bridge pattern removed - processor uses direct stream error handler
-        assert processor.stream_error_handler is mock_stream_error_handler
+        assert processor.stream_error_handler is mock_error_handler
 
     def test_processor_metrics_with_typed_errors(
         self,
-        mock_stream_error_handler: AsyncMock,
+        mock_error_handler: AsyncMock,
         mock_legacy_error_handler: AsyncMock,
     ) -> None:
         """Test processor metrics are updated correctly with typed error system."""
-        processor = PydanticWebSocketProcessor(
+        processor = WebSocketMessageProcessor(
             raw_model=MessageForTest,
             transformer=SimpleDictTransformer[MessageForTest](),
-            stream_error_handler=mock_stream_error_handler,
+            stream_error_handler=mock_error_handler,
             processor_name="MetricsTestProcessor",
         )
 

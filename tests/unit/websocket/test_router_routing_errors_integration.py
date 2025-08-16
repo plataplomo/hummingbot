@@ -11,13 +11,16 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
+from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketValidationError
-from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter, MessageHandler
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
+from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
+from cyberdelta.apis.websocket.ws_message_router import MessageHandler, WebSocketMessageRouter
 from cyberdelta.enums import ExchangeName
 
 
@@ -28,7 +31,7 @@ class TestEnvelopeModel(BaseModel):
     data: dict[str, str | int | float | bool | None]
 
 
-class TestRouterImpl(BaseWebSocketRouter[TestEnvelopeModel]):
+class TestRouterImpl(WebSocketMessageRouter[TestEnvelopeModel]):
     """Test router implementation."""
 
     def _setup_processors(self) -> None:
@@ -73,34 +76,46 @@ class TestRouterRoutingErrorsIntegration:
         """Create mock typed error handler.
 
         Returns:
-            Mock: Mock typed error handler implementing WebSocketStreamErrorHandler.
+            Mock: Mock typed error handler implementing WebSocketErrorHandler.
         """
-        mock = Mock(spec=WebSocketStreamErrorHandler)
+        mock = Mock(spec=WebSocketErrorHandler)
         mock.handle_stream_error = AsyncMock()
         return mock
+
+    @pytest.fixture
+    def context_factory(self) -> WebSocketContextFactory:
+        """Create context factory for testing.
+
+        Returns:
+            WebSocketContextFactory: Configured context factory.
+        """
+        registry = WebSocketRegistryFactory.create_registry()
+        return WebSocketContextFactory(registry)
 
     @pytest.fixture
     def mock_typed_processor(self) -> Mock:
         """Create mock typed processor.
 
         Returns:
-            Mock: Mock typed processor implementing TypeSafeWebSocketProcessor.
+            Mock: Mock typed processor implementing WebSocketMessageProcessor.
         """
-        return Mock(spec=TypeSafeWebSocketProcessor)
+        return Mock(spec=WebSocketMessageProcessor)
 
     @pytest.mark.asyncio
     async def test_envelope_validation_error_with_typed_handler(
         self,
         mock_legacy_error_handler: Mock,
         mock_typed_error_handler: Mock,
-        mock_typed_processor: Mock,
+        context_factory: WebSocketContextFactory,
     ) -> None:
         """Test envelope validation error uses typed error system when available."""
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=context_factory,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         # Test invalid message that will fail envelope validation
@@ -111,7 +126,7 @@ class TestRouterRoutingErrorsIntegration:
         # Test that router has proper error handling setup
         # Since we can't easily test private error handling, verify components are configured
         assert router.stream_error_handler is not None
-        assert router.typed_processor is not None
+        assert router.processors is not None
 
         # Verify router configuration is correct for error handling
         assert router.exchange_name == ExchangeName.HYPERLIQUID
@@ -121,15 +136,17 @@ class TestRouterRoutingErrorsIntegration:
     async def test_envelope_validation_error_fallback_to_legacy(
         self,
         mock_legacy_error_handler: Mock,
-        mock_typed_processor: Mock,
+        context_factory: WebSocketContextFactory,
         mock_typed_error_handler: Mock,
     ) -> None:
         """Test envelope validation error falls back to legacy when no typed handler."""
         # Create router with typed error handler but we'll test the fallback scenario
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=context_factory,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         # Test setup completed - router properly configured
@@ -142,14 +159,16 @@ class TestRouterRoutingErrorsIntegration:
         self,
         mock_legacy_error_handler: Mock,
         mock_typed_error_handler: Mock,
-        mock_typed_processor: Mock,
+        context_factory: WebSocketContextFactory,
     ) -> None:
         """Test missing routing key error uses typed error system when available."""
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=context_factory,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         # Test message with empty stream will trigger missing routing key
@@ -188,7 +207,7 @@ class TestRouterRoutingErrorsIntegration:
         self,
         mock_legacy_error_handler: Mock,
         mock_typed_error_handler: Mock,
-        mock_typed_processor: Mock,
+        context_factory: WebSocketContextFactory,
     ) -> None:
         """Test general routing error uses typed error system when available."""
 
@@ -201,8 +220,10 @@ class TestRouterRoutingErrorsIntegration:
         # Create router with typed error handler and failing envelope validator
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=context_factory,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
             envelope_validator=failing_envelope_validator,
         )
 
@@ -235,7 +256,7 @@ class TestRouterRoutingErrorsIntegration:
         self,
         mock_legacy_error_handler: Mock,
         mock_typed_error_handler: Mock,
-        mock_typed_processor: Mock,
+        context_factory: WebSocketContextFactory,
     ) -> None:
         """Test that routing error context is created correctly."""
 
@@ -248,8 +269,10 @@ class TestRouterRoutingErrorsIntegration:
         # Create router with typed error handler and failing envelope validator
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=context_factory,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
             envelope_validator=failing_envelope_validator,
         )
 

@@ -62,29 +62,49 @@ from cyberdelta.utils.parsing import parse_decimal_value as real_parse
 
 
 def _create_trading_pair(base: str, quote: str) -> str:
-    """Create trading pair from base and quote assets."""
+    """Create trading pair from base and quote assets.
+
+    Returns:
+        str: Trading pair formatted as "base-quote".
+    """
     return f"{base}-{quote}"
 
 
 def _create_uuid_like_id(a: str, b: str, c: str, d: str, e: str) -> str:
-    """Create UUID-like identifier from five string components."""
+    """Create UUID-like identifier from five string components.
+
+    Returns:
+        str: UUID-like identifier.
+    """
     return f"{a}-{b}-{c}-{d}-{e}"
 
 
 def _create_iso_timestamp(
     year: int, month: int, day: int, hour: int, minute: int, second: int
 ) -> str:
-    """Create ISO timestamp string from date/time components."""
+    """Create ISO timestamp string from date/time components.
+
+    Returns:
+        str: ISO formatted timestamp string.
+    """
     return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z"
 
 
 def _filter_positive_decimal(x: str) -> bool:
-    """Filter function to ensure decimal string represents positive value."""
+    """Filter function to ensure decimal string represents positive value.
+
+    Returns:
+        bool: True if decimal string represents positive value.
+    """
     return Decimal(x) > 0
 
 
 def _filter_invalid_timestamp(x: str) -> bool:
-    """Filter function to exclude valid timestamp formats."""
+    """Filter function to exclude valid timestamp formats.
+
+    Returns:
+        bool: True if timestamp format is invalid.
+    """
     return not x.endswith("Z") or "T" not in x
 
 

@@ -45,7 +45,11 @@ from tests.common_symbols import (
 
 
 def _build_uuid_format(a: str, b: str, c: str, d: str) -> str:
-    """Build UUID-like format string."""
+    """Build UUID-like format string.
+
+    Returns:
+        str: UUID-like string in format "{a}-{b}-{c}-{d}".
+    """
     return f"{a}-{b}-{c}-{d}"
 
 

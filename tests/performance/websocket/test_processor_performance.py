@@ -19,12 +19,12 @@ from pydantic import BaseModel, Field
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.ws_processor import (
+from cyberdelta.apis.websocket.ws_message_processor import (
     MessageTransformer,
-    PydanticWebSocketProcessor,
+    WebSocketMessageProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
@@ -100,7 +100,7 @@ def mock_error_handler() -> AsyncMock:
     Returns:
         Mock error handler for testing.
     """
-    return AsyncMock(spec=WebSocketStreamErrorHandler)
+    return AsyncMock(spec=WebSocketErrorHandler)
 
 
 @pytest.fixture
@@ -110,20 +110,20 @@ def mock_stream_handler() -> AsyncMock:
     Returns:
         Mock stream error handler for testing.
     """
-    return AsyncMock(spec=WebSocketStreamErrorHandler)
+    return AsyncMock(spec=WebSocketErrorHandler)
 
 
 @pytest.fixture
 def simple_processor(
     mock_error_handler: AsyncMock,
     mock_stream_handler: AsyncMock,
-) -> PydanticWebSocketProcessor[TestOrderModel, TestOrderModel]:
+) -> WebSocketMessageProcessor[TestOrderModel, TestOrderModel]:
     """Create simple processor for testing.
 
     Returns:
         Simple WebSocket processor for performance testing.
     """
-    return PydanticWebSocketProcessor(
+    return WebSocketMessageProcessor(
         raw_model=TestOrderModel,
         transformer=TestTransformer(),
         processor_name="perf_test_simple",
@@ -135,13 +135,13 @@ def simple_processor(
 def complex_processor(
     mock_error_handler: AsyncMock,
     mock_stream_handler: AsyncMock,
-) -> PydanticWebSocketProcessor[TestComplexModel, Any]:
+) -> WebSocketMessageProcessor[TestComplexModel, Any]:
     """Create complex processor for testing.
 
     Returns:
         Complex WebSocket processor for performance testing.
     """
-    return PydanticWebSocketProcessor(
+    return WebSocketMessageProcessor(
         raw_model=TestComplexModel,
         transformer=TestComplexTransformer(),
         processor_name="perf_test_complex",
@@ -246,7 +246,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_successful_processing_performance(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         valid_order_payload: dict[str, str | int | dict[str, str | int]],
     ) -> None:
@@ -282,7 +282,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_validation_error_performance(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         invalid_order_payload: dict[str, str | int],
     ) -> None:
@@ -309,7 +309,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_complex_model_performance(
         self,
-        complex_processor: PydanticWebSocketProcessor[TestComplexModel, Any],
+        complex_processor: WebSocketMessageProcessor[TestComplexModel, Any],
         test_context: BackpackMessageContext,
         complex_payload: dict[
             str, str | list[dict[str, str | int | dict[str, int]]] | dict[str, str | bool | int]
@@ -341,7 +341,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_concurrent_processing_performance(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         valid_order_payload: dict[str, str | int | dict[str, str | int]],
     ) -> None:
@@ -383,7 +383,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_mixed_success_error_performance(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         valid_order_payload: dict[str, str | int | dict[str, str | int]],
         invalid_order_payload: dict[str, str | int],
@@ -422,7 +422,7 @@ class TestProcessorPerformance:
         """Test performance overhead of metrics collection."""
         # Create processor without metrics
         mock_stream_handler = Mock()
-        processor_no_metrics = PydanticWebSocketProcessor(
+        processor_no_metrics = WebSocketMessageProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
             processor_name="no_metrics",
@@ -430,7 +430,7 @@ class TestProcessorPerformance:
         )
 
         # Create processor with full metrics
-        processor_with_metrics = PydanticWebSocketProcessor(
+        processor_with_metrics = WebSocketMessageProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
             processor_name="with_metrics",
@@ -461,7 +461,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_error_recovery_performance(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         valid_order_payload: dict[str, str | int | dict[str, str | int]],
     ) -> None:
@@ -497,7 +497,7 @@ class TestProcessorPerformance:
     @pytest.mark.asyncio
     async def test_memory_efficiency(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         valid_order_payload: dict[str, str | int | dict[str, str | int]],
     ) -> None:
@@ -522,7 +522,7 @@ class TestProcessorPerformance:
 
     def test_metrics_calculation_performance(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
     ) -> None:
         """Test performance of metrics calculation methods."""
         # Populate metrics with data
@@ -563,7 +563,7 @@ class TestProcessorPerformance:
         start_time = time.perf_counter()
 
         for i in range(iterations):
-            processor = PydanticWebSocketProcessor(
+            processor = WebSocketMessageProcessor(
                 raw_model=TestOrderModel,
                 transformer=TestTransformer(),
                 processor_name=f"perf_test_{i}",
@@ -593,7 +593,7 @@ class TestProcessorPerformanceComparison:
         """Compare performance of old vs new error handling."""
         # Old approach processor (with mock stream handler)
         mock_stream_handler_old = Mock()
-        old_processor = PydanticWebSocketProcessor(
+        old_processor = WebSocketMessageProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
             processor_name="old_approach",
@@ -601,7 +601,7 @@ class TestProcessorPerformanceComparison:
         )
 
         # New approach processor (with stream handler)
-        new_processor = PydanticWebSocketProcessor(
+        new_processor = WebSocketMessageProcessor(
             raw_model=TestOrderModel,
             transformer=TestTransformer(),
             processor_name="new_approach",
@@ -640,7 +640,7 @@ class TestPerformanceBenchmarks:
     @pytest.mark.asyncio
     async def test_baseline_throughput(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         valid_order_payload: dict[str, str | int | dict[str, str | int]],
     ) -> None:
@@ -670,7 +670,7 @@ class TestPerformanceBenchmarks:
     @pytest.mark.asyncio
     async def test_sustained_load_performance(
         self,
-        simple_processor: PydanticWebSocketProcessor[TestOrderModel, TestOrderModel],
+        simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
         test_context: BackpackMessageContext,
         valid_order_payload: dict[str, str | int | dict[str, str | int]],
     ) -> None:

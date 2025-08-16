@@ -23,6 +23,7 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import Backpa
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.backpack.models.bp_raw_market import BackpackRawDepthUpdateEvent
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_ws_router import HyperliquidWebSocketRouter
 from cyberdelta.apis.hyperliquid.mappers.account.hl_balance_mapper import HyperliquidBalanceMapper
@@ -40,12 +41,12 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
     HyperliquidPriceTickerMapper,
 )
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from tests.common_symbols import BTC_USDC_BP
 
@@ -158,13 +159,13 @@ class TestMessageRoutingPerformance:
         """Test Backpack router throughput."""
         # Setup router
         error_config = WebSocketErrorConfig()
-        stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
+        error_handler = WebSocketErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        context_factory = WebSocketContextFactory(registry)
 
         router = BackpackWebSocketRouter(
-            stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            stream_error_handler=error_handler,
+            context_factory=context_factory,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
             trade_mapper=BackpackFillMapper(),
@@ -172,6 +173,8 @@ class TestMessageRoutingPerformance:
             position_mapper=BackpackPositionMapper(),
             order_mapper=BackpackOrderMapper(),
             transaction_mapper=BackpackTransactionMapper(),
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         # Mock handler
@@ -205,13 +208,15 @@ class TestMessageRoutingPerformance:
         """Test Hyperliquid router throughput."""
         # Setup router
         error_config = WebSocketErrorConfig()
-        stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
+        error_handler = WebSocketErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        context_factory = WebSocketContextFactory(registry)
 
         router = HyperliquidWebSocketRouter(
-            stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            stream_error_handler=error_handler,
+            context_factory=context_factory,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
             order_book_mapper=HyperliquidOrderBookMapper(),
             price_ticker_mapper=HyperliquidPriceTickerMapper(),
             balance_mapper=HyperliquidBalanceMapper(),
@@ -288,13 +293,13 @@ class TestMemoryEfficiency:
         """Test that processors efficiently reuse memory."""
         # This is a simplified test - in production, you'd use memory profilers
         error_config = WebSocketErrorConfig()
-        stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
+        error_handler = WebSocketErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        context_factory = WebSocketContextFactory(registry)
 
         router = BackpackWebSocketRouter(
-            stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            stream_error_handler=error_handler,
+            context_factory=context_factory,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
             trade_mapper=BackpackFillMapper(),
@@ -302,6 +307,8 @@ class TestMemoryEfficiency:
             position_mapper=BackpackPositionMapper(),
             order_mapper=BackpackOrderMapper(),
             transaction_mapper=BackpackTransactionMapper(),
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         async def mock_handler(context: WebSocketContextProtocol) -> None:
@@ -326,13 +333,13 @@ class TestConcurrentProcessing:
     async def test_concurrent_routing(self) -> None:
         """Test routing multiple messages concurrently."""
         error_config = WebSocketErrorConfig()
-        stream_error_handler = WebSocketStreamErrorHandler(config=error_config)
+        error_handler = WebSocketErrorHandler(config=error_config)
         registry = WebSocketRegistryFactory.create_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        context_factory = WebSocketContextFactory(registry)
 
         router = BackpackWebSocketRouter(
-            stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            stream_error_handler=error_handler,
+            context_factory=context_factory,
             order_book_mapper=BackpackOrderBookMapper(),
             ticker_mapper=BackpackTickerMapper(),
             trade_mapper=BackpackFillMapper(),
@@ -340,6 +347,8 @@ class TestConcurrentProcessing:
             position_mapper=BackpackPositionMapper(),
             order_mapper=BackpackOrderMapper(),
             transaction_mapper=BackpackTransactionMapper(),
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         processed_count = 0

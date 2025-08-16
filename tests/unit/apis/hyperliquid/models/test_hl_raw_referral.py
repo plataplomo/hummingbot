@@ -1017,7 +1017,7 @@ def test_HyperliquidRawReferrerState_invalid_data() -> None:
 
 def test_HyperliquidRawReferralResponse_valid() -> None:
     """Test referral response valid."""
-    valid_referral_response = {
+    valid_referral_response: dict[str, Any] = {
         "referredBy": {
             "referrer": "0x5ac99df645f3414876c816caa18b2d234024b487",
             "code": "TESTNET",
@@ -1054,7 +1054,7 @@ def test_HyperliquidRawReferralResponse_valid() -> None:
 
 def test_HyperliquidRawReferralResponse_missing_referred_by() -> None:
     """Test referral response missing referred by."""
-    invalid_data = {
+    invalid_data: dict[str, Any] = {
         "cumVlm": "149428030.6628420055",
         "unclaimedRewards": "11.047361",
         "claimedRewards": "22.743781",
@@ -1074,7 +1074,7 @@ def test_HyperliquidRawReferralResponse_missing_referred_by() -> None:
 
 def test_HyperliquidRawReferralResponse_invalid_volume() -> None:
     """Test referral response invalid volume."""
-    invalid_data = {
+    invalid_data: dict[str, Any] = {
         "referredBy": {
             "referrer": "0x5ac99df645f3414876c816caa18b2d234024b487",
             "code": "TESTNET",

@@ -260,7 +260,7 @@ class TestHyperliquidRawApiErrorProperties:
         """Property: Valid data should create valid error objects."""
         # Skip invalid data
         error_msg = error_data["error"]
-        assume(isinstance(error_msg, str) and error_msg.strip())
+        assume(error_msg.strip())
         assume(len(error_msg.encode("utf-8")) <= 1024)
 
         # Check for invalid surrogates
@@ -384,7 +384,7 @@ class TestHyperliquidRawApiErrorProperties:
         """Property: API error should maintain JSON serialization compatibility."""
         # Skip invalid data
         error_msg = error_data["error"]
-        assume(isinstance(error_msg, str) and error_msg.strip())
+        assume(error_msg.strip())
         assume(len(error_msg.encode("utf-8")) <= 1024)
 
         try:

@@ -11,14 +11,15 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel
 
-from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
+from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketValidationError
+from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
+from cyberdelta.apis.websocket.ws_message_router import WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router import BaseWebSocketRouter
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
 from cyberdelta.enums import ExchangeName
 
 
@@ -29,7 +30,7 @@ class TestEnvelopeModel(BaseModel):
     data: dict[str, str | int | float | bool | None]
 
 
-class TestRouterImpl(BaseWebSocketRouter[TestEnvelopeModel]):
+class TestRouterImpl(WebSocketMessageRouter[TestEnvelopeModel]):
     """Test router implementation."""
 
     def _setup_processors(self) -> None:
@@ -94,9 +95,9 @@ class TestRouterMissingProcessorIntegration:
         """Create mock typed error handler.
 
         Returns:
-            Mock: Mock typed error handler implementing WebSocketStreamErrorHandler.
+            Mock: Mock typed error handler implementing WebSocketErrorHandler.
         """
-        handler = Mock(spec=WebSocketStreamErrorHandler)
+        handler = Mock(spec=WebSocketErrorHandler)
         handler.handle_stream_error = AsyncMock()
         return handler
 
@@ -105,9 +106,9 @@ class TestRouterMissingProcessorIntegration:
         """Create mock typed processor.
 
         Returns:
-            Mock: Mock typed processor implementing TypeSafeWebSocketProcessor.
+            Mock: Mock typed processor implementing WebSocketMessageProcessor.
         """
-        return Mock(spec=TypeSafeWebSocketProcessor)
+        return Mock(spec=WebSocketMessageProcessor)
 
     @pytest.mark.asyncio
     async def test_missing_processor_with_typed_error_handler(
@@ -121,14 +122,16 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         # Test that router has proper missing processor handling setup
         # Verify router configuration for handling missing processors
         assert router.stream_error_handler is not None
-        assert router.typed_processor is not None
+        assert router.processors is not None
 
         # Verify the error passed to typed handler
         call_args = mock_typed_error_handler.handle_stream_error.call_args
@@ -155,8 +158,10 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler but we'll test the fallback scenario
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         # Test missing processor handling through public interface
@@ -194,8 +199,10 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         list_payload = ["item1", "item2"]
@@ -238,8 +245,10 @@ class TestRouterMissingProcessorIntegration:
         # Create router with typed error handler
         router = TestRouterImpl(
             exchange_name=ExchangeName.HYPERLIQUID,
-            typed_processor=mock_typed_processor,
+            context_factory=mock_typed_processor,
             stream_error_handler=mock_typed_error_handler,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
         )
 
         # Test missing processor handling through public interface

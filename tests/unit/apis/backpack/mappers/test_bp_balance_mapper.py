@@ -259,7 +259,10 @@ class TestBalanceValidationProperties:
         mapper = BackpackBalanceMapper()
 
         # The mapper should reject non-finite values at the final validation step
-        with pytest.raises(Exception):  # SecurityValidationError or DataTransformationError
+        with pytest.raises((
+            ValueError,
+            TypeError,
+        )):  # Specific expected exceptions for invalid data
             mapper.transform_balance_data_to_spot_balance(
                 asset="BTC", total_balance="0", available_balance=available
             )

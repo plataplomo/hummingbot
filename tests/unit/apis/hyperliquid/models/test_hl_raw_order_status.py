@@ -451,7 +451,7 @@ class TestHyperliquidRawOrderStatusResponseProperties:
     )
     def test_order_status_invalid_decimal_properties(self, invalid_decimal: str) -> None:
         """Property: Order status response should validate decimal constraints in nested order."""
-        status_data = {
+        status_data: dict[str, Any] = {
             "status": "open",
             "order": {
                 "order": {
@@ -507,7 +507,7 @@ class TestHyperliquidRawOrderStatusResponseProperties:
     )
     def test_order_status_extra_fields_properties(self, extra_fields: dict[str, str]) -> None:
         """Property: Order status response should forbid extra fields."""
-        status_data = {
+        status_data: dict[str, Any] = {
             "status": "open",
             "order": {
                 "order": {

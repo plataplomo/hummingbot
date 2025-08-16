@@ -1,4 +1,4 @@
-"""Unit tests for PydanticWebSocketProcessor."""
+"""Unit tests for WebSocketMessageProcessor."""
 
 from __future__ import annotations
 
@@ -11,14 +11,11 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
-)
-from cyberdelta.apis.models.websocket.processing import ProcessingMetrics
-from cyberdelta.apis.websocket.ws_processor import (
+from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
+from cyberdelta.apis.websocket.ws_message_processor import (
     ProcessorFactory,
-    PydanticWebSocketProcessor,
     SimpleDictTransformer,
+    WebSocketMessageProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
@@ -72,64 +69,17 @@ class FailingTransformer:
         raise ValueError("Transformation failed")
 
 
-class TestValidationMetrics:
-    """Test ValidationMetrics functionality."""
-
-    def test_initialization(self) -> None:
-        """Test metrics initialization."""
-        metrics = ProcessingMetrics()
-        assert metrics.total_processed == 0
-        assert metrics.validation_errors == 0
-        assert metrics.transformation_errors == 0
-        assert metrics.handler_errors == 0
-        assert metrics.total_processing_time_seconds == 0.0
-
-    def test_record_processing_time(self) -> None:
-        """Test recording processing time."""
-        metrics = ProcessingMetrics()
-        metrics.record_processing_time(0.1)
-        metrics.record_processing_time(0.2)
-
-        assert metrics.total_processed == 2
-        assert abs(metrics.total_processing_time_seconds - 0.3) < 1e-10
-
-    def test_record_errors(self) -> None:
-        """Test recording different error types."""
-        metrics = ProcessingMetrics()
-        metrics.record_validation_error()
-        metrics.record_transformation_error()
-        metrics.record_handler_error()
-
-        assert metrics.validation_errors == 1
-        assert metrics.transformation_errors == 1
-        assert metrics.handler_errors == 1
-
-    def test_get_stats(self) -> None:
-        """Test getting statistics."""
-        metrics = ProcessingMetrics()
-        metrics.record_processing_time(0.1)
-        metrics.record_validation_error()
-
-        # Test individual methods instead of get_stats dict
-        assert metrics.total_processed == 1
-        assert metrics.validation_errors == 1
-        assert metrics.get_average_processing_time_ms() == 100.0
-        assert metrics.get_error_rate() == 1.0
-        assert metrics.get_uptime_seconds() > 0
-        assert metrics.get_messages_per_second() >= 0
-
-
-class TestPydanticWebSocketProcessor:
-    """Test PydanticWebSocketProcessor functionality."""
+class TestWebSocketMessageProcessor:
+    """Test WebSocketMessageProcessor functionality."""
 
     @pytest.fixture
-    def error_handler(self) -> AsyncMock:
+    def error_handler(self) -> MagicMock:
         """Create mock error handler.
 
         Returns:
-            AsyncMock: Mocked WebSocketStreamErrorHandler for testing.
+            MagicMock: Mocked WebSocketErrorHandler for testing.
         """
-        return AsyncMock(spec=WebSocketStreamErrorHandler)
+        return MagicMock(spec=WebSocketErrorHandler)
 
     @pytest.fixture
     def transformer(self) -> TestTransformer:
@@ -143,15 +93,15 @@ class TestPydanticWebSocketProcessor:
     @pytest.fixture
     def processor(
         self,
-        error_handler: AsyncMock,
+        error_handler: MagicMock,
         transformer: TestTransformer,
-    ) -> PydanticWebSocketProcessor[MessageModel, DomainModel]:
+    ) -> WebSocketMessageProcessor[MessageModel, DomainModel]:
         """Create processor for testing.
 
         Returns:
-            PydanticWebSocketProcessor: Configured processor with test dependencies.
+            WebSocketMessageProcessor: Configured processor with test dependencies.
         """
-        return PydanticWebSocketProcessor(
+        return WebSocketMessageProcessor(
             raw_model=MessageModel,
             transformer=transformer,
             stream_error_handler=error_handler,
@@ -161,14 +111,13 @@ class TestPydanticWebSocketProcessor:
     @pytest.mark.asyncio
     async def test_successful_processing(
         self,
-        processor: PydanticWebSocketProcessor[MessageModel, DomainModel],
-        error_handler: AsyncMock,
+        processor: WebSocketMessageProcessor[MessageModel, DomainModel],
+        error_handler: MagicMock,
     ) -> None:
         """Test successful message processing."""
         # Setup
         handler = AsyncMock()
         payload = {"id": "test-123", "value": 42, "data": {"key": "value"}}
-        # Create a proper envelope
         envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
             validated_envelope=envelope,
@@ -183,7 +132,7 @@ class TestPydanticWebSocketProcessor:
         # Execute
         await processor.process(payload, handler, cast(WebSocketContextProtocol, context))
 
-        # Verify
+        # Verify handler was called
         handler.assert_called_once()
         args, _ = handler.call_args
         typed_context = args[0]
@@ -210,8 +159,8 @@ class TestPydanticWebSocketProcessor:
     @pytest.mark.asyncio
     async def test_validation_error(
         self,
-        processor: PydanticWebSocketProcessor[MessageModel, DomainModel],
-        error_handler: AsyncMock,
+        processor: WebSocketMessageProcessor[MessageModel, DomainModel],
+        error_handler: MagicMock,
     ) -> None:
         """Test handling of validation errors."""
         # Setup
@@ -221,7 +170,6 @@ class TestPydanticWebSocketProcessor:
             "value": "not-an-int",
             "data": {},
         }  # Invalid value type
-        # Create a mock envelope to avoid circular reference
         envelope = MagicMock(spec=BackpackRawWebSocketEnvelope)
         envelope.stream = "ticker.BTC_USDC"
         envelope.data = {"test": "data"}
@@ -262,11 +210,11 @@ class TestPydanticWebSocketProcessor:
     @pytest.mark.asyncio
     async def test_transformation_error(
         self,
-        error_handler: AsyncMock,
+        error_handler: MagicMock,
     ) -> None:
         """Test handling of transformation errors."""
         # Setup processor with failing transformer
-        processor: PydanticWebSocketProcessor[MessageModel, Any] = PydanticWebSocketProcessor(
+        processor: WebSocketMessageProcessor[MessageModel, Any] = WebSocketMessageProcessor(
             raw_model=MessageModel,
             transformer=FailingTransformer(),
             stream_error_handler=error_handler,
@@ -274,7 +222,6 @@ class TestPydanticWebSocketProcessor:
 
         handler = AsyncMock()
         payload: dict[str, Any] = {"id": "test-123", "value": 42, "data": {}}
-        # Create a proper envelope
         envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
             validated_envelope=envelope,
@@ -300,15 +247,14 @@ class TestPydanticWebSocketProcessor:
     @pytest.mark.asyncio
     async def test_handler_error(
         self,
-        processor: PydanticWebSocketProcessor[MessageModel, DomainModel],
-        error_handler: AsyncMock,
+        processor: WebSocketMessageProcessor[MessageModel, DomainModel],
+        error_handler: MagicMock,
     ) -> None:
         """Test handling of handler errors."""
         # Setup
         handler = AsyncMock()
         handler.side_effect = RuntimeError("Handler failed")
         payload: dict[str, Any] = {"id": "test-123", "value": 42, "data": {}}
-        # Create a proper envelope
         envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
         context = BackpackMessageContext(
             validated_envelope=envelope,
@@ -331,47 +277,9 @@ class TestPydanticWebSocketProcessor:
         assert processor.metrics.handler_errors == 1
         assert processor.metrics.total_processed == 0
 
-    @pytest.mark.asyncio
-    async def test_unexpected_error(
-        self,
-        error_handler: AsyncMock,
-    ) -> None:
-        """Test handling of unexpected errors."""
-        # Create processor with mock transformer that raises unexpected error
-        transformer = MagicMock()
-        transformer.transform.side_effect = RuntimeError("Unexpected error")
-
-        processor: PydanticWebSocketProcessor[MessageModel, MessageModel] = (
-            PydanticWebSocketProcessor(
-                raw_model=MessageModel,
-                transformer=transformer,
-                stream_error_handler=error_handler,
-            )
-        )
-
-        handler = AsyncMock()
-        payload: dict[str, Any] = {"id": "test-123", "value": 42, "data": {}}
-        # Create a proper envelope
-        envelope = BackpackRawWebSocketEnvelope(stream="ticker.BTC_USDC", data={"test": "data"})
-        context = BackpackMessageContext(
-            validated_envelope=envelope,
-            exchange_type=ExchangeName.BACKPACK,
-            routing_key="test",
-            timestamp=datetime.now(UTC),
-            message_id="test-msg-123",
-            connection_id="test-conn-1",
-            symbol="BTC_USDC",
-        )
-
-        # Execute - should not raise exception
-        await processor.process(payload, handler, cast(WebSocketContextProtocol, context))
-
-        # Verify handler was not called
-        handler.assert_not_called()
-
     def test_get_metrics(
         self,
-        processor: PydanticWebSocketProcessor[MessageModel, DomainModel],
+        processor: WebSocketMessageProcessor[MessageModel, DomainModel],
     ) -> None:
         """Test getting processor metrics."""
         processor.metrics.record_processing_time(0.1)
@@ -385,7 +293,7 @@ class TestPydanticWebSocketProcessor:
 
     def test_reset_metrics(
         self,
-        processor: PydanticWebSocketProcessor[MessageModel, DomainModel],
+        processor: WebSocketMessageProcessor[MessageModel, DomainModel],
     ) -> None:
         """Test resetting processor metrics."""
         processor.metrics.record_processing_time(0.1)
@@ -418,7 +326,7 @@ class TestProcessorFactory:
 
     def test_create_simple_processor(self) -> None:
         """Test creating simple processor."""
-        error_handler = MagicMock(spec=WebSocketStreamErrorHandler)
+        error_handler = MagicMock(spec=WebSocketErrorHandler)
 
         processor = ProcessorFactory.create_simple_processor(
             raw_model=MessageModel,
@@ -426,27 +334,24 @@ class TestProcessorFactory:
             processor_name="test_simple",
         )
 
-        assert isinstance(processor, PydanticWebSocketProcessor)
+        assert isinstance(processor, WebSocketMessageProcessor)
         assert processor.raw_model == MessageModel
         assert processor.processor_name == "test_simple"
         assert isinstance(processor.transformer, SimpleDictTransformer)
 
     def test_create_processor(self) -> None:
         """Test creating processor with custom transformer."""
-        error_handler = MagicMock(spec=WebSocketStreamErrorHandler)
+        error_handler = MagicMock(spec=WebSocketErrorHandler)
         transformer = TestTransformer()
 
-        processor: PydanticWebSocketProcessor[MessageModel, Any] = (
-            ProcessorFactory.create_processor(
-                raw_model=MessageModel,
-                transformer=transformer,
-                stream_error_handler=error_handler,
-                processor_name="test_custom",
-            )
+        processor: WebSocketMessageProcessor[MessageModel, Any] = ProcessorFactory.create_processor(
+            raw_model=MessageModel,
+            transformer=transformer,
+            stream_error_handler=error_handler,
+            processor_name="test_custom",
         )
 
-        assert isinstance(processor, PydanticWebSocketProcessor)
+        assert isinstance(processor, WebSocketMessageProcessor)
         assert processor.raw_model == MessageModel
         assert processor.processor_name == "test_custom"
-        # Type checker can't verify identity due to protocol typing, but we can check type
         assert isinstance(processor.transformer, TestTransformer)

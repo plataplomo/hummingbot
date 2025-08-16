@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.common import MessageHandler
 from cyberdelta.apis.hyperliquid.hl_ws_router import (
     HyperliquidWebSocketRouter,
@@ -26,11 +27,9 @@ from cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper impo
     HyperliquidPriceTickerMapper,
 )
 from cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper import HyperliquidOrderMapper
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
-)
+from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
 from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
-from cyberdelta.apis.websocket.ws_typed_processor import TypeSafeWebSocketProcessor
+from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 
 
@@ -38,13 +37,13 @@ class TestHyperliquidWebSocketRouter:
     """Test HyperliquidWebSocketRouter functionality."""
 
     @pytest.fixture
-    def stream_error_handler(self) -> AsyncMock:
+    def error_handler(self) -> AsyncMock:
         """Create mock stream error handler.
 
         Returns:
-            AsyncMock: Mock WebSocketStreamErrorHandler instance for testing.
+            AsyncMock: Mock WebSocketErrorHandler instance for testing.
         """
-        return AsyncMock(spec=WebSocketStreamErrorHandler)
+        return MagicMock(spec=WebSocketErrorHandler)
 
     @pytest.fixture
     def order_book_mapper(self) -> MagicMock:
@@ -112,7 +111,7 @@ class TestHyperliquidWebSocketRouter:
     @pytest.fixture
     def router(
         self,
-        stream_error_handler: AsyncMock,
+        error_handler: AsyncMock,
         order_book_mapper: MagicMock,
         price_ticker_mapper: MagicMock,
         balance_mapper: MagicMock,
@@ -128,11 +127,13 @@ class TestHyperliquidWebSocketRouter:
         """
         # Create typed processor for testing
         registry = WebSocketRegistryFactory.create_registry()
-        typed_processor = TypeSafeWebSocketProcessor(registry)
+        context_factory = WebSocketContextFactory(registry)
 
         return HyperliquidWebSocketRouter(
-            stream_error_handler=stream_error_handler,
-            typed_processor=typed_processor,
+            stream_error_handler=error_handler,
+            context_factory=context_factory,
+            memory_optimization_mode=MemoryOptimizationMode.DISABLED,
+            memory_pool_size=100,
             order_book_mapper=order_book_mapper,
             price_ticker_mapper=price_ticker_mapper,
             balance_mapper=balance_mapper,
@@ -155,7 +156,7 @@ class TestHyperliquidWebSocketRouter:
 
     @pytest.mark.asyncio
     async def test_routing_key_extraction_through_route_message(
-        self, router: HyperliquidWebSocketRouter, stream_error_handler: AsyncMock
+        self, router: HyperliquidWebSocketRouter, error_handler: AsyncMock
     ) -> None:
         """Test routing key extraction through the public route_message interface."""
         # Test l2Book channel routing
@@ -174,7 +175,7 @@ class TestHyperliquidWebSocketRouter:
 
     @pytest.mark.asyncio
     async def test_invalid_channel_handling(
-        self, router: HyperliquidWebSocketRouter, stream_error_handler: AsyncMock
+        self, router: HyperliquidWebSocketRouter, error_handler: AsyncMock
     ) -> None:
         """Test invalid channel handling through the public interface."""
         # Unknown channel should trigger unroutable message handling
@@ -274,7 +275,7 @@ class TestHyperliquidWebSocketRouter:
 
     @pytest.mark.asyncio
     async def test_route_message_success(
-        self, router: HyperliquidWebSocketRouter, stream_error_handler: AsyncMock
+        self, router: HyperliquidWebSocketRouter, error_handler: AsyncMock
     ) -> None:
         """Test successful message routing."""
         # Setup

@@ -14,9 +14,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
@@ -26,7 +26,7 @@ from tests.utils.websocket.error_test_utils import ErrorTestFactory
 logger = logging.getLogger(__name__)
 
 
-class OptimizedErrorHandler(WebSocketStreamErrorHandler):
+class OptimizedErrorHandler(WebSocketErrorHandler):
     """Optimized version of error handler for testing."""
 
     def __init__(self, config: WebSocketErrorConfig) -> None:
@@ -229,7 +229,7 @@ class TestErrorHandlerOptimization:
 
         slow_recovery.handle_recovery = AsyncMock(side_effect=slow_side_effect)
 
-        handler = WebSocketStreamErrorHandler(config, recovery_handler=slow_recovery)
+        handler = WebSocketErrorHandler(config)
 
         # Create errors requiring recovery
         errors = [
@@ -304,7 +304,7 @@ class TestErrorHandlerOptimization:
         config.recovery.circuit_breaker_enabled = True
         config.recovery.circuit_breaker_threshold = 5
 
-        handler = WebSocketStreamErrorHandler(config)
+        handler = WebSocketErrorHandler(config)
 
         # Create many critical errors
         errors = [
@@ -330,12 +330,12 @@ class TestErrorHandlerOptimization:
         """Test that metrics collection overhead is minimized."""
         # Handler with metrics
         config.metrics.enable_metrics_collection = True
-        handler_with_metrics = WebSocketStreamErrorHandler(config)
+        handler_with_metrics = WebSocketErrorHandler(config)
 
         # Handler without metrics
         config_no_metrics = WebSocketErrorConfig()
         config_no_metrics.metrics.enable_metrics_collection = False
-        handler_no_metrics = WebSocketStreamErrorHandler(config_no_metrics)
+        handler_no_metrics = WebSocketErrorHandler(config_no_metrics)
 
         # Create test errors
         errors = [
@@ -366,9 +366,9 @@ class TestErrorHandlerOptimization:
 
         # Measure handler creation time
         start = time.perf_counter()
-        handlers: list[WebSocketStreamErrorHandler] = []
+        handlers: list[WebSocketErrorHandler] = []
         for _ in range(100):
-            handler = WebSocketStreamErrorHandler(config)
+            handler = WebSocketErrorHandler(config)
             handlers.append(handler)
         creation_time = time.perf_counter() - start
 

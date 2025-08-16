@@ -13,9 +13,9 @@ import tracemalloc
 
 import pytest
 
-from cyberdelta.apis.websocket.enums.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.stream_error_handler import (
-    WebSocketStreamErrorHandler,
+from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.websocket.error_handling.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
@@ -80,7 +80,7 @@ class TestErrorMemoryUsage:
         tracemalloc.start()
         snapshot_before = tracemalloc.take_snapshot()
 
-        _handler = WebSocketStreamErrorHandler(config=config)
+        _handler = WebSocketErrorHandler(config=config)
 
         snapshot_after = tracemalloc.take_snapshot()
         tracemalloc.stop()
@@ -94,7 +94,7 @@ class TestErrorMemoryUsage:
 
     def test_bulk_error_memory_scaling(self, config: WebSocketErrorConfig) -> None:
         """Test memory scaling with many errors."""
-        _handler = WebSocketStreamErrorHandler(config=config)
+        _handler = WebSocketErrorHandler(config=config)
 
         gc.collect()
         tracemalloc.start()
@@ -152,7 +152,7 @@ class TestErrorMemoryUsage:
         tracemalloc.start()
         snapshot_base = tracemalloc.take_snapshot()
 
-        _handler_no_metrics = WebSocketStreamErrorHandler(config=config_no_metrics)
+        _handler_no_metrics = WebSocketErrorHandler(config=config_no_metrics)
 
         snapshot_no_metrics = tracemalloc.take_snapshot()
 
@@ -160,7 +160,7 @@ class TestErrorMemoryUsage:
         config_with_metrics = WebSocketErrorConfig()
         config_with_metrics.metrics.enable_metrics_collection = True
 
-        _handler_with_metrics = WebSocketStreamErrorHandler(config=config_with_metrics)
+        _handler_with_metrics = WebSocketErrorHandler(config=config_with_metrics)
 
         snapshot_with_metrics = tracemalloc.take_snapshot()
         tracemalloc.stop()
@@ -208,7 +208,7 @@ class TestErrorMemoryUsage:
 
     async def test_memory_cleanup_after_processing(self, config: WebSocketErrorConfig) -> None:
         """Test that memory is properly cleaned up after error processing."""
-        handler = WebSocketStreamErrorHandler(config=config)
+        handler = WebSocketErrorHandler(config=config)
 
         gc.collect()
 
@@ -227,8 +227,7 @@ class TestErrorMemoryUsage:
 
         snapshot_peak = tracemalloc.take_snapshot()
 
-        # Clear handler stats and force cleanup
-        handler.reset_error_stats()
+        # Force cleanup (no reset_error_stats method available)
         gc.collect()
 
         snapshot_cleaned = tracemalloc.take_snapshot()

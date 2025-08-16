@@ -175,15 +175,27 @@ def valid_status_object_data(draw: DrawFn) -> dict[str, Any]:
     """
 
     def _build_resting_status(resting: dict[str, int]) -> dict[str, dict[str, int]]:
-        """Build resting status object."""
+        """Build resting status object.
+
+        Returns:
+            dict[str, dict[str, int]]: Resting status wrapped in status object.
+        """
         return {"resting": resting}
 
     def _build_filled_status(filled: dict[str, Any]) -> dict[str, dict[str, Any]]:
-        """Build filled status object."""
+        """Build filled status object.
+
+        Returns:
+            dict[str, dict[str, Any]]: Filled status wrapped in status object.
+        """
         return {"filled": filled}
 
     def _build_error_status(error: str) -> dict[str, str]:
-        """Build error status object."""
+        """Build error status object.
+
+        Returns:
+            dict[str, str]: Error status wrapped in status object.
+        """
         return {"error": error}
 
     return draw(

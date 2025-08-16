@@ -593,7 +593,7 @@ class TestHyperliquidRawUserFillsResponseProperties:
         self, fills: list[dict[str, Any]]
     ) -> None:
         """Property: Valid data should create valid response objects."""
-        valid_fills = []
+        valid_fills: list[dict[str, Any]] = []
 
         for fill_data in fills:
             try:
@@ -682,7 +682,7 @@ class TestHyperliquidRawUserFillsRequestPayloadProperties:
         """Property: Valid data should create valid request objects."""
         # Validate user address
         user = request_data["user"]
-        assume(isinstance(user, str) and user.startswith("0x"))
+        assume(user.startswith("0x"))
         assume(len(user) == 42)  # 0x + 40 hex chars
         assume(all(c in string.hexdigits for c in user[2:]))
 
