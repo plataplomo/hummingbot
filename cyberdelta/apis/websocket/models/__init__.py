@@ -19,8 +19,6 @@ from .health import (
     PerformanceHealth,
     SystemHealth,
 )
-from .performance import PerformanceConfig
-from .performance_monitoring import OptimizationResult, PerformanceMetrics
 from .processing import ProcessingMetrics, ProcessorMetrics
 
 
@@ -34,10 +32,7 @@ __all__ = [
     "HealthCheckConfig",
     "MetricPoint",
     "MetricSummary",
-    "OptimizationResult",
-    "PerformanceConfig",
     "PerformanceHealth",
-    "PerformanceMetrics",
     "ProcessingMetrics",
     "ProcessorMetrics",
     "RecoveryAttempt",

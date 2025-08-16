@@ -17,8 +17,6 @@ from .memory_config import (
     get_recommended_mode_for_scenario,
 )
 from .memory_optimized import (
-    MemoryOptimizedBackpackEnvelope,
-    MemoryOptimizedHyperliquidEnvelope,
     MemoryOptimizedMessageContext,
     MemoryPool,
 )
@@ -31,8 +29,6 @@ __all__ = [
     # Memory configuration
     "MemoryOptimizationConfig",
     # Memory optimized models
-    "MemoryOptimizedBackpackEnvelope",
-    "MemoryOptimizedHyperliquidEnvelope",
     "MemoryOptimizedMessageContext",
     "MemoryPool",
     "PerformanceMode",

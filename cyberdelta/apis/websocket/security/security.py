@@ -31,6 +31,7 @@ from cyberdelta.apis.websocket.security.type_guards import (
     is_secure_dict,
     is_secure_list,
 )
+from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 # Type alias for JSON-like data structures
@@ -368,7 +369,7 @@ class SecurityValidator:
             return max(self.get_max_depth(item, current_depth + 1) for item in obj)
         return current_depth
 
-    def sanitize_error_context(self, context: dict[str, Any]) -> dict[str, Any]:
+    def sanitize_error_context(self, context: StreamErrorContext) -> StreamErrorContext:
         """Remove sensitive data from error context for logging.
 
         Args:
@@ -377,7 +378,89 @@ class SecurityValidator:
         Returns:
             Sanitized context safe for logging.
         """
-        sensitive_keys = {
+        # Sanitize user_id if it contains sensitive patterns
+        sanitized_user_id = context.user_id
+        if context.user_id and self._contains_sensitive_data(context.user_id):
+            sanitized_user_id = "***REDACTED***"
+        elif context.user_id and len(context.user_id) > MAX_STRING_TRUNCATE_LENGTH:
+            sanitized_user_id = context.user_id[:MAX_STRING_TRUNCATE_LENGTH] + "..."
+
+        # Sanitize session_id if it contains sensitive patterns
+        sanitized_session_id = context.session_id
+        if context.session_id and self._contains_sensitive_data(context.session_id):
+            sanitized_session_id = "***REDACTED***"
+        elif context.session_id and len(context.session_id) > MAX_STRING_TRUNCATE_LENGTH:
+            sanitized_session_id = context.session_id[:MAX_STRING_TRUNCATE_LENGTH] + "..."
+
+        # Sanitize extra_context dict for any sensitive key-value pairs
+        sanitized_extra_context = self._sanitize_dict_context(context.extra_context)
+
+        # Create sanitized context with same structure but sanitized fields
+        return StreamErrorContext(
+            # Connection fields (safe to copy)
+            connection_id=context.connection_id,
+            exchange=context.exchange,
+            environment=context.environment,
+            # Channel fields (safe to copy)
+            channel=context.channel,
+            topic=context.topic,
+            subscription_id=context.subscription_id,
+            # Sequence fields (safe to copy)
+            sequence_number=context.sequence_number,
+            expected_sequence=context.expected_sequence,
+            last_received_sequence=context.last_received_sequence,
+            # Timing fields (safe to copy)
+            error_timestamp_ms=context.error_timestamp_ms,
+            connection_started_ms=context.connection_started_ms,
+            last_message_received_ms=context.last_message_received_ms,
+            last_heartbeat_ms=context.last_heartbeat_ms,
+            # Message fields (safe to copy)
+            message_id=context.message_id,
+            message_type=context.message_type,
+            raw_message_size=context.raw_message_size,
+            # Connection state (safe to copy)
+            is_authenticated=context.is_authenticated,
+            active_subscriptions=context.active_subscriptions,
+            pending_messages=context.pending_messages,
+            reconnect_count=context.reconnect_count,
+            # Sanitized fields
+            user_id=sanitized_user_id,
+            session_id=sanitized_session_id,
+            client_version=context.client_version,  # Safe to copy
+            extra_context=sanitized_extra_context,
+        )
+
+    def _sanitize_dict_context(self, context: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize dictionary context for sensitive data.
+
+        Args:
+            context: Dictionary context to sanitize
+
+        Returns:
+            Sanitized dictionary with sensitive data redacted
+        """
+        sanitized: dict[str, Any] = {}
+        for key, value in context.items():
+            # Check if key contains sensitive information
+            if self._contains_sensitive_data(key):
+                sanitized[key] = "***REDACTED***"
+            elif isinstance(value, str) and len(value) > MAX_STRING_TRUNCATE_LENGTH:
+                sanitized[key] = value[:MAX_STRING_TRUNCATE_LENGTH] + "..."
+            else:
+                sanitized[key] = value
+
+        return sanitized
+
+    def _contains_sensitive_data(self, value: str) -> bool:
+        """Check if string contains sensitive data patterns.
+
+        Args:
+            value: String to check for sensitive patterns
+
+        Returns:
+            True if string contains sensitive patterns
+        """
+        sensitive_patterns = {
             "api_key",
             "signature",
             "private_key",
@@ -388,39 +471,8 @@ class SecurityValidator:
             "credential",
         }
 
-        sanitized: dict[str, Any] = {}
-        for key, value in context.items():
-            key_lower = key.lower()
-
-            # Check if key contains sensitive information
-            if any(sensitive in key_lower for sensitive in sensitive_keys):
-                sanitized[key] = "***REDACTED***"
-            elif isinstance(value, str) and len(value) > MAX_STRING_TRUNCATE_LENGTH:
-                # Truncate very long strings
-                sanitized[key] = value[:MAX_STRING_TRUNCATE_LENGTH] + "..."
-            elif isinstance(value, (dict, list)):
-                # Check size for dict or list types based on specific type
-                try:
-                    if isinstance(value, dict):
-                        dict_len = len(value)  # pyright: ignore[reportUnknownArgumentType]
-                        if dict_len > MAX_DICT_SIZE_FOR_LOGGING:
-                            sanitized[key] = f"<dict too large for logging ({dict_len} items)>"
-                        else:
-                            sanitized[key] = value
-                    elif isinstance(value, list):  # pyright: ignore[reportUnnecessaryIsInstance]
-                        list_len = len(value)  # pyright: ignore[reportUnknownArgumentType]
-                        if list_len > MAX_LIST_SIZE_FOR_LOGGING:
-                            sanitized[key] = f"<list too large for logging ({list_len} items)>"
-                        else:
-                            sanitized[key] = value
-                except (TypeError, RecursionError, AttributeError):
-                    # Use string literal to avoid type issues
-                    value_type_name = "container"
-                    sanitized[key] = f"<{value_type_name} - size calculation failed>"
-            else:
-                sanitized[key] = value
-
-        return sanitized
+        value_lower = value.lower()
+        return any(pattern in value_lower for pattern in sensitive_patterns)
 
     def _calculate_secure_size(self, obj: SecureValue) -> int:
         """Calculate size of secure object with proper typing.
@@ -448,58 +500,3 @@ class SecurityValidator:
         # This should never happen with proper type guards
         msg = f"Unsupported type for size calculation: {type(obj)}"
         raise TypeError(msg)
-
-
-class SecureErrorHandler:
-    """Enhanced error handler with security-focused sanitization.
-
-    This handler ensures that error messages and context don't leak
-    sensitive information while providing enough detail for debugging.
-    """
-
-    def __init__(self, security_validator: SecurityValidator | None = None) -> None:
-        """Initialize secure error handler.
-
-        Args:
-            security_validator: Security validator for context sanitization.
-        """
-        self.security_validator = security_validator or SecurityValidator()
-
-    def handle_security_violation(
-        self,
-        error: SecurityValidationError,
-        exchange_name: str,
-        additional_context: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Handle security validation error with proper sanitization.
-
-        Args:
-            error: Security validation error to handle.
-            exchange_name: Name of the exchange where violation occurred.
-            additional_context: Additional context for logging.
-
-        Returns:
-            Sanitized error context safe for logging and monitoring.
-        """
-        base_context: dict[str, Any] = {
-            "error_type": "security_validation",
-            "violation_type": error.violation_type,
-            "exchange": exchange_name,
-            "error_message": str(error),
-        }
-
-        # Add security context if available
-        if error.security_context:
-            sanitized_security_context = self.security_validator.sanitize_error_context(
-                error.security_context,
-            )
-            base_context["security_context"] = sanitized_security_context
-
-        # Add additional context if provided
-        if additional_context:
-            sanitized_additional_context = self.security_validator.sanitize_error_context(
-                additional_context,
-            )
-            base_context["additional_context"] = sanitized_additional_context
-
-        return base_context

@@ -36,6 +36,7 @@ from cyberdelta.apis.websocket.exceptions import (
 )
 from cyberdelta.apis.websocket.memory.stream_log_data import WebSocketStreamLogData
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
+from cyberdelta.apis.websocket.security.security import SecurityValidator
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
@@ -88,6 +89,9 @@ class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
             self._logger = self
             self._python_logger = logging.getLogger(__name__)
         self._structlog_logger = get_logger("WebSocketErrorHandler")
+
+        # Initialize security validator for context sanitization
+        self._security_validator = SecurityValidator()
 
         # Initialize metrics if enabled
         self._metrics: WebSocketErrorMetrics | None
@@ -193,9 +197,12 @@ class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
         Args:
             error: WebSocket stream error to handle
         """
-        # Log the error
-        log_data = error.to_log_data()
-        self.log_error(error.severity, log_data, error.cause, error)
+        # Sanitize error context for security before logging
+        sanitized_error = self._sanitize_error_for_logging(error)
+
+        # Log the sanitized error
+        log_data = sanitized_error.to_log_data()
+        self.log_error(sanitized_error.severity, log_data, sanitized_error.cause, sanitized_error)
 
         # Check if recovery should be attempted
         if not self._recovery_policy.should_retry(error):
@@ -546,6 +553,31 @@ class WebSocketErrorHandler(TypedLogger[WebSocketStreamLogData]):
         if self.config.alerting.webhook_alerts and self.config.alerting.webhook_url:
             # Implementation would send to webhook
             pass
+
+    # ========================================================================
+    # Security Methods
+    # ========================================================================
+
+    def _sanitize_error_for_logging(self, error: WebSocketStreamError) -> WebSocketStreamError:
+        """Sanitize error context to remove sensitive data before logging.
+
+        Args:
+            error: Original error with potentially sensitive context
+
+        Returns:
+            Error with sanitized context safe for logging
+        """
+        # Sanitize the error context
+        sanitized_context = self._security_validator.sanitize_error_context(error.context)
+
+        # Create new error with sanitized context
+        # Most WebSocket errors have a method to create copies with new context
+        return error.__class__(
+            message=error.message,
+            context=sanitized_context,
+            code=error.code,
+            cause=error.cause,
+        )
 
     # ========================================================================
     # Utility Methods

@@ -8,10 +8,6 @@ Modules:
 - general_metrics: General WebSocket operational metrics
 - processing_metrics: Message processing metrics models
 - health_check: Health monitoring and system checks
-- performance: Performance optimization and monitoring
-- performance_configs: Optimized configurations for performance
-- performance_integration: Integrated performance monitoring layer
-- performance_monitoring: Pipeline performance monitoring utilities
 """
 
 # Core metrics systems
@@ -25,7 +21,6 @@ from cyberdelta.apis.websocket.models import (
     HealthCheckConfig,
     MetricPoint,
     MetricSummary,
-    PerformanceConfig,
     ProcessingMetrics,
     ProcessorMetrics,
     RecoveryAttempt,
@@ -43,13 +38,6 @@ from .health_check import (
     WebSocketErrorHealthCheck,
 )
 
-# Performance monitoring
-from .performance_configs import (
-    HighFrequencyModelConfig,
-    InternalModelConfig,
-    RawAPIModelConfig,
-)
-
 
 __all__ = [
     "AggregatedMetrics",
@@ -59,15 +47,11 @@ __all__ = [
     "ErrorOccurrence",
     "ErrorRateMetrics",
     "HealthCheckConfig",
-    "HighFrequencyModelConfig",
-    "InternalModelConfig",
     "MetricPoint",
     "MetricSummary",
     "MetricsAggregator",
-    "PerformanceConfig",
     "ProcessingMetrics",
     "ProcessorMetrics",
-    "RawAPIModelConfig",
     "RecoveryAttempt",
     "SystemHealth",
     "WebSocketErrorHealthCheck",
