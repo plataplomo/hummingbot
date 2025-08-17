@@ -441,49 +441,30 @@ class PositionManager(PositionManagerProtocol):
 
         return result
 
-    async def update_position_directly(
-        self, symbol: Symbol, exchange: ExchangeName, new_position: DerivativePosition | None
-    ) -> None:
-        """Update position directly (for reconciliation).
-
-        Args:
-            symbol: Trading symbol
-            exchange: Exchange name
-            new_position: New position to set, None to remove
-
-        Note:
-            This method combines update and delete for backward compatibility.
-            Consider using set_position or remove_position for clearer intent.
-        """
-        if new_position is None:
-            await self.remove_position(symbol, exchange)
-        else:
-            await self.set_position(symbol, exchange, new_position)
-
     async def set_position(
-        self, symbol: Symbol, exchange: ExchangeName, new_position: DerivativePosition
+        self, symbol: Symbol, exchange: ExchangeName, position: DerivativePosition
     ) -> None:
         """Set position directly (for reconciliation).
 
         Args:
             symbol: Trading symbol
             exchange: Exchange name
-            new_position: New position to set
+            position: New position to set
         """
         state = await self._state_manager.get_state()
         if not state:
             return
 
         key = f"{exchange.value}:{symbol.value}"
-        state.positions[key] = new_position
+        state.positions[key] = position
 
         logger.info(
             "position_updated_directly",
             exchange=exchange.value,
             symbol=symbol.value,
-            side=new_position.side.value,
-            size=new_position.size,
-            entry_price=new_position.entry_price,
+            side=position.side.value,
+            size=position.size,
+            entry_price=position.entry_price,
         )
 
         state.timestamp = datetime.now(UTC)

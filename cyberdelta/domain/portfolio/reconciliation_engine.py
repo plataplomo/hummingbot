@@ -407,7 +407,7 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                         )
 
                         # Add missing position to cache
-                        await self._position_manager.update_position_directly(
+                        await self._position_manager.set_position(
                             create_symbol(symbol_name, exchange), exchange, exchange_position
                         )
                         discrepancies += 1
@@ -428,7 +428,7 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                         )
 
                         # Update cached position to match exchange
-                        await self._position_manager.update_position_directly(
+                        await self._position_manager.set_position(
                             create_symbol(symbol_name, exchange), exchange, exchange_position
                         )
                         discrepancies += 1
@@ -445,8 +445,8 @@ class ReconciliationEngine(ReconciliationEngineProtocol):
                     discrepancies += 1
 
                     # Remove or zero out the position
-                    await self._position_manager.update_position_directly(
-                        create_symbol(symbol_name, exchange), exchange, None
+                    await self._position_manager.remove_position(
+                        create_symbol(symbol_name, exchange), exchange
                     )
 
         except Exception as e:
