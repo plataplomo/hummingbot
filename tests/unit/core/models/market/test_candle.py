@@ -184,7 +184,7 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
             max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
-    return naive_dt.replace(tzinfo=UTC)
+    return naive_dt
 
 
 @st.composite

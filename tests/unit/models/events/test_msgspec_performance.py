@@ -92,7 +92,7 @@ class TestMsgspecVsPydanticPerformance:
     """Test msgspec performance against Pydantic baseline with meaningful assertions."""
 
     @pytest.fixture
-    def msgspec_market_data(self, frozen_time: FreezerProtocol) -> MarketData:
+    def msgspec_market_data(self, freezer: FreezerProtocol) -> MarketData:
         """Msgspec MarketData event for performance testing.
 
         Args:
@@ -103,7 +103,7 @@ class TestMsgspecVsPydanticPerformance:
         """
         # Freeze time for deterministic testing
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
 
         return MarketData(
             symbol="BTC-USDC",
@@ -115,7 +115,7 @@ class TestMsgspecVsPydanticPerformance:
         )
 
     @pytest.fixture
-    def pydantic_market_data(self, frozen_time: FreezerProtocol) -> PydanticMarketData:
+    def pydantic_market_data(self, freezer: FreezerProtocol) -> PydanticMarketData:
         """Pydantic MarketData event for baseline comparison.
 
         Args:
@@ -126,7 +126,7 @@ class TestMsgspecVsPydanticPerformance:
         """
         # Use same frozen time as msgspec for fair comparison
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
 
         return PydanticMarketData(
             symbol="BTC-USDC",
@@ -138,7 +138,7 @@ class TestMsgspecVsPydanticPerformance:
         )
 
     @pytest.fixture
-    def msgspec_order_event(self, frozen_time: FreezerProtocol) -> OrderEvent:
+    def msgspec_order_event(self, freezer: FreezerProtocol) -> OrderEvent:
         """Msgspec OrderEvent for performance testing.
 
         Args:
@@ -149,7 +149,7 @@ class TestMsgspecVsPydanticPerformance:
         """
         # Freeze time for deterministic testing
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
 
         return OrderEvent(
             order_id="order_12345678901234567890",
@@ -166,7 +166,7 @@ class TestMsgspecVsPydanticPerformance:
         )
 
     @pytest.fixture
-    def pydantic_order_event(self, frozen_time: FreezerProtocol) -> PydanticOrderEvent:
+    def pydantic_order_event(self, freezer: FreezerProtocol) -> PydanticOrderEvent:
         """Pydantic OrderEvent for baseline comparison.
 
         Args:
@@ -177,7 +177,7 @@ class TestMsgspecVsPydanticPerformance:
         """
         # Use same frozen time as msgspec for fair comparison
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
 
         return PydanticOrderEvent(
             order_id="order_12345678901234567890",
@@ -498,11 +498,11 @@ class TestMsgspecVsPydanticPerformance:
 class TestTradingSystemRequirements:
     """Test performance against real trading system requirements."""
 
-    def test_high_frequency_market_data_processing(self, frozen_time: FreezerProtocol) -> None:
+    def test_high_frequency_market_data_processing(self, freezer: FreezerProtocol) -> None:
         """Test processing burst of market data (simulating high-frequency feed)."""
         # Set deterministic time for consistent test results
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
         base_time = test_time.timestamp()
 
         # Create 1000 market data events (simulating 1 second of data at 1000 Hz)
@@ -562,11 +562,11 @@ class TestTradingSystemRequirements:
             assert original.symbol == deserialized.symbol
             assert original.price == deserialized.price
 
-    def test_realistic_trading_event_mix_performance(self, frozen_time: FreezerProtocol) -> None:
+    def test_realistic_trading_event_mix_performance(self, freezer: FreezerProtocol) -> None:
         """Test performance with mixed event types (realistic scenario)."""
         # Set deterministic time for consistent test results
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
         base_time = test_time.timestamp()
 
         # Create mixed stream: 70% MarketData, 20% OrderEvent, 10% others
@@ -635,11 +635,11 @@ class TestTradingSystemRequirements:
 class TestProductionScaleRequirements:
     """Test requirements for production-scale trading operations."""
 
-    def test_large_scale_event_processing(self, frozen_time: FreezerProtocol) -> None:
+    def test_large_scale_event_processing(self, freezer: FreezerProtocol) -> None:
         """Test memory footprint of events vs alternatives."""
         # Set deterministic time for consistent test results
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
         base_time = test_time.timestamp()
 
         # Create many events to measure memory usage

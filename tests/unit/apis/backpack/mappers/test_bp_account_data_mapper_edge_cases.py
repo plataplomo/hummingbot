@@ -26,6 +26,7 @@ from hypothesis.strategies import SearchStrategy, composite
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.common import TransformationError
+from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
 from cyberdelta.symbols import exchanges
 
 
@@ -630,16 +631,40 @@ class TestBoundaryValues:
         result = mapper.transform_raw_fill_to_internal(raw_fill)
         assert result is None, "Should return None for zero price"
 
-        # Test zero quantity
-        raw_fill.price = "100.50"
-        raw_fill.quantity = zero_quantity
+        # Test zero quantity - create new instance
+        raw_fill = BackpackRawFillResponse(
+            fee="0.05",
+            feeSymbol="USDC",
+            isMaker=True,
+            orderId="order123",
+            price="100.50",
+            quantity=zero_quantity,
+            side="Bid",
+            symbol="SOL-USDC",
+            timestamp="2024-01-15T10:30:00Z",
+            tradeId=123456,
+            clientId=None,
+            systemOrderType=None,
+        )
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
         assert result is None, "Should return None for zero quantity"
 
-        # Test zero fee (should be valid)
-        raw_fill.quantity = "10.0"
-        raw_fill.fee = zero_fee
+        # Test zero fee (should be valid) - create new instance
+        raw_fill = BackpackRawFillResponse(
+            fee=zero_fee,
+            feeSymbol="USDC",
+            isMaker=True,
+            orderId="order123",
+            price="100.50",
+            quantity="10.0",
+            side="Bid",
+            symbol="SOL-USDC",
+            timestamp="2024-01-15T10:30:00Z",
+            tradeId=123456,
+            clientId=None,
+            systemOrderType=None,
+        )
 
         result = mapper.transform_raw_fill_to_internal(raw_fill)
         assert result is not None, "Should handle zero fee"
@@ -821,9 +846,11 @@ class TestLongIds:
             systemOrderType=None,
         )
 
+        # The transform_raw_fill_to_internal method should handle client IDs appropriately
         if len(client_id) > 64:
-            # Should raise error for client_id over 64 chars
-            with pytest.raises(TransformationError):
+            # Mapper should raise DataTransformationError for overly long client IDs
+            # Since Fill model validation rejects > 64 chars
+            with pytest.raises(DataTransformationError):
                 mapper.transform_raw_fill_to_internal(raw_fill)
         else:
             result = mapper.transform_raw_fill_to_internal(raw_fill)

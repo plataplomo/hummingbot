@@ -33,6 +33,10 @@ def mock_config() -> MagicMock:
     """
     config = MagicMock(spec=AppSettings)
 
+    # Create mock sub-configs
+    config.general = MagicMock()
+    config.monitoring = MagicMock()
+
     # General config
     config.general.audit_log_enabled = True
     config.general.log_sensitive_data = False

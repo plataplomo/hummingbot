@@ -487,6 +487,9 @@ def test_app_settings() -> AppSettings:
                 "enabled": True,
                 "api_base_url_mainnet": "https://api.hyperliquid.xyz",
                 "ws_url_mainnet": "wss://api.hyperliquid.xyz/ws",
+                "api_base_url_testnet": "https://api.hyperliquid-testnet.xyz",
+                "ws_url_testnet": "wss://api.hyperliquid-testnet.xyz/ws",
+                "environment_type": "testnet",
                 "symbols": {"BTC": "BTC", "ETH": "ETH"},
                 "chain_id": 1337,
                 "ip_weight_limit_per_minute": 1200,
@@ -530,12 +533,12 @@ def test_app_settings() -> AppSettings:
                 max_total_exposure_usd=Decimal("100000.0"),  # Increased proportionally
             ),
             "sizing": {
+                "method": "simple",
+                "simple_method": "fixed_fraction",
+                "simple_fixed_fraction": Decimal("0.1"),
+                "simple_fixed_usd": Decimal("10.0"),
                 "max_position_size": Decimal("10000.0"),  # Explicit sizing to match defaults
             },
-            "use_simple_sizing_path": True,
-            "simple_sizing_method": "fixed_fraction",
-            "simple_fixed_fraction": Decimal("0.1"),
-            "simple_fixed_usd_size": Decimal("10.0"),
         }),
         execution=ExecutionSettings(
             max_slippage_pct=Decimal("0.001"),

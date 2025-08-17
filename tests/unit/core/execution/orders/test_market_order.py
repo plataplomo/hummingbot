@@ -15,7 +15,6 @@ from cyberdelta.core.execution.orders.market_order_service import MarketOrderSer
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import OrderSide, OrderStatus, OrderType, TimeInForce
 from cyberdelta.models.market.order import Order
-from cyberdelta.symbols import exchanges
 from tests.common_symbols import BTC_HL
 
 
@@ -173,11 +172,9 @@ class TestMarketOrder:
         )
 
         # Verify service called correctly
-        mock_market_order_service.round_to_step_size.assert_called_once_with(
-            Decimal(1), BTC_HL.value
-        )
+        mock_market_order_service.round_to_step_size.assert_called_once_with(Decimal(1), BTC_HL)
         mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
-            symbol=BTC_HL.value,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(1),  # rounded quantity from round_to_step_size
             max_slippage=None,
@@ -280,7 +277,7 @@ class TestMarketOrder:
 
         # Verify slippage passed to service
         mock_market_order_service.calculate_aggressive_price.assert_called_once_with(
-            symbol=BTC_HL.value,
+            symbol=BTC_HL,
             side=OrderSide.BUY,
             quantity=Decimal(1),
             max_slippage=Decimal("0.01"),
@@ -447,10 +444,9 @@ class TestMarketOrder:
         # Valid parameters
         market_order.validate_order_parameters(BTC_HL, OrderSide.BUY, Decimal(1))
 
-        # Invalid symbol - need to create invalid symbol for test
-        invalid_symbol = exchanges.hyperliquid("")
+        # Invalid symbol - test with None
         with pytest.raises(ValueError, match="Symbol must be"):
-            market_order.validate_order_parameters(invalid_symbol, OrderSide.BUY, Decimal(1))
+            market_order.validate_order_parameters(None, OrderSide.BUY, Decimal(1))  # type: ignore
 
         # Invalid quantity
         with pytest.raises(ValueError, match="Quantity must be"):

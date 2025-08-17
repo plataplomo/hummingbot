@@ -127,7 +127,10 @@ class PerformanceTracker:
 
         # Extract performance metrics configuration
         self._metrics_config = config.calculation.performance_metrics
-        self._enabled_metrics = set(self._metrics_config.enabled_metrics)
+        # Extract only the metrics that are enabled (True values)
+        self._enabled_metrics = {
+            metric for metric, enabled in self._metrics_config.enabled_metrics.items() if enabled
+        }
         self._calculation_period = self._metrics_config.calculation_period_days
         self._risk_free_rate = Decimal(str(self._metrics_config.risk_free_rate))
         self._include_fees = self._metrics_config.include_fees_in_metrics
