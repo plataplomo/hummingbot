@@ -514,7 +514,7 @@ class TestValidateEnumFieldProperties:
 
     @given(
         allowed_values=st.sets(
-            st.text(min_size=1, max_size=20).filter(lambda x: x.strip() != ""),
+            st.text(min_size=1, max_size=20).filter(lambda x: x.strip()),
             min_size=1,
             max_size=10,
         ),

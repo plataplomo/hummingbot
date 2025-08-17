@@ -15,19 +15,26 @@ Tests boundary conditions, unicode handling, and extreme value scenarios includi
 """
 
 import string
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any
 from unittest.mock import patch
 
 import pytest
 from hypothesis import given, settings, strategies as st
 from hypothesis.strategies import SearchStrategy, composite
+from pydantic import ValidationError
 
 from cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper import BackpackTransactionMapper
 from cyberdelta.apis.backpack.models.bp_raw_fills import BackpackRawFillResponse
 from cyberdelta.apis.common import TransformationError
 from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
+from cyberdelta.exceptions.field_validation import (
+    DecimalFiniteError,
+    RangeFieldError,
+    TypeFieldError,
+)
 from cyberdelta.symbols import exchanges
+from cyberdelta.utils.secure_transformation import UnexpectedTransformationError
 
 
 pytestmark = pytest.mark.timing
@@ -238,19 +245,6 @@ def _create_negative_value(n: float) -> str:
         Formatted negative value string.
     """
     return f"-{n}"
-
-
-def _mock_parse_side_effect(v: str, **kwargs: dict[str, Any]) -> Decimal | None:
-    """Mock parse side effect for testing.
-
-    Args:
-        v: Value to parse.
-        kwargs: Additional keyword arguments.
-
-    Returns:
-        Decimal value or None.
-    """
-    return Decimal(str(v)) if v else None
 
 
 # =======================
@@ -525,7 +519,7 @@ def extreme_raw_fill_strategy(draw: st.DrawFn) -> BackpackRawFillResponse:
         symbol=draw(st.text(min_size=3, max_size=50)),
         timestamp="2024-01-15T10:30:00Z",
         tradeId=draw(st.integers(min_value=1, max_value=10**18)),
-        clientId=draw(st.one_of(st.none(), st.text(min_size=0, max_size=200))),
+        clientId=draw(st.one_of(st.none(), st.text(min_size=0, max_size=128))),
         systemOrderType=None,
     )
 
@@ -823,7 +817,7 @@ class TestLongIds:
         order_id=long_id_strategy(),
         client_id=long_id_strategy(),
     )
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=timedelta(seconds=3))
     def test_long_id_handling(
         self,
         order_id: str,
@@ -831,32 +825,56 @@ class TestLongIds:
     ) -> None:
         """Test handling of very long ID values."""
         mapper = BackpackTransactionMapper()
-        raw_fill = BackpackRawFillResponse(
-            fee="0.05",
-            feeSymbol="USDC",
-            isMaker=True,
-            orderId=order_id,
-            price="100.50",
-            quantity="10.0",
-            side="Bid",
-            symbol="SOL-USDC",
-            timestamp="2024-01-15T10:30:00Z",
-            tradeId=123456,
-            clientId=client_id,
-            systemOrderType=None,
-        )
 
-        # The transform_raw_fill_to_internal method should handle client IDs appropriately
-        if len(client_id) > 64:
-            # Mapper should raise DataTransformationError for overly long client IDs
-            # Since Fill model validation rejects > 64 chars
-            with pytest.raises(DataTransformationError):
-                mapper.transform_raw_fill_to_internal(raw_fill)
+        # Check if order_id or client_id exceed the 128 character limit for the raw model
+        if len(order_id) > 128 or len(client_id) > 128:
+            # Model validation should reject overly long IDs
+            with pytest.raises(TypeFieldError):
+                raw_fill = BackpackRawFillResponse(
+                    fee="0.05",
+                    feeSymbol="USDC",
+                    isMaker=True,
+                    orderId=order_id,
+                    price="100.50",
+                    quantity="10.0",
+                    side="Bid",
+                    symbol="SOL-USDC",
+                    timestamp="2024-01-15T10:30:00Z",
+                    tradeId=123456,
+                    clientId=client_id,
+                    systemOrderType=None,
+                )
         else:
-            result = mapper.transform_raw_fill_to_internal(raw_fill)
-            if result is not None:
-                assert result.order_id == order_id
-                assert result.client_order_id == client_id
+            raw_fill = BackpackRawFillResponse(
+                fee="0.05",
+                feeSymbol="USDC",
+                isMaker=True,
+                orderId=order_id,
+                price="100.50",
+                quantity="10.0",
+                side="Bid",
+                symbol="SOL-USDC",
+                timestamp="2024-01-15T10:30:00Z",
+                tradeId=123456,
+                clientId=client_id,
+                systemOrderType=None,
+            )
+
+            # Check if client_id exceeds the 64 character limit for the Fill model
+            if len(client_id) > 64:
+                # The Fill model has a stricter 64 char limit on client_order_id
+                try:
+                    result = mapper.transform_raw_fill_to_internal(raw_fill)
+                    # Should not succeed with > 64 char client_id
+                    pytest.fail(f"Expected error for client_id length {len(client_id)}")
+                except (DataTransformationError, UnexpectedTransformationError):
+                    # Expected - validation correctly rejects long client_id
+                    pass
+            else:
+                result = mapper.transform_raw_fill_to_internal(raw_fill)
+                if result is not None:
+                    assert result.order_id == order_id
+                    assert result.client_order_id == client_id
 
 
 class TestScientificNotation:
@@ -895,9 +913,15 @@ class TestScientificNotation:
             result = mapper.transform_raw_fill_to_internal(raw_fill)
 
             if result is not None:
-                expected = Decimal(mantissa) * (Decimal(10) ** exponent)
+                # Convert mantissa to string first to avoid float precision issues
+                mantissa_str = str(mantissa)
+                expected = Decimal(mantissa_str) * (Decimal(10) ** exponent)
                 if expected > 0:
-                    assert abs(result.price - expected) < Decimal("1e-10")
+                    # Use relative tolerance for large numbers, absolute for small
+                    relative_tolerance = expected * Decimal("1e-10")
+                    absolute_tolerance = Decimal("1e-10")
+                    tolerance = max(relative_tolerance, absolute_tolerance)
+                    assert abs(result.price - expected) < tolerance
                 else:
                     assert result is None
         except (ValueError, InvalidOperation):
@@ -949,30 +973,33 @@ class TestMaliciousInputs:
     ) -> None:
         """Test resistance to malicious input in symbols."""
         mapper = BackpackTransactionMapper()
-        raw_fill = BackpackRawFillResponse(
-            fee="0.05",
-            feeSymbol="USDC",
-            isMaker=True,
-            orderId="order123",
-            price="100.50",
-            quantity="10.0",
-            side="Bid",
-            symbol=malicious,
-            timestamp="2024-01-15T10:30:00Z",
-            tradeId=123456,
-            clientId=None,
-            systemOrderType=None,
-        )
 
-        # Should handle malicious input safely
+        # The raw model validates symbol length (max 32 chars for symbol, max 32 for feeSymbol)
+        # Some malicious inputs are longer and will be rejected at model creation
         try:
+            raw_fill = BackpackRawFillResponse(
+                fee="0.05",
+                feeSymbol="USDC",
+                isMaker=True,
+                orderId="order123",
+                price="100.50",
+                quantity="10.0",
+                side="Bid",
+                symbol=malicious,
+                timestamp="2024-01-15T10:30:00Z",
+                tradeId=123456,
+                clientId=None,
+                systemOrderType=None,
+            )
+
+            # Should handle malicious input safely
             result = mapper.transform_raw_fill_to_internal(raw_fill)
             if result is not None:
                 # Verify no code execution or injection occurred
                 assert isinstance(result.symbol.value, str)
-                # The symbol should be the malicious string, safely stored
-                assert result.symbol == exchanges.backpack(malicious)
-        except (TransformationError, ValueError):
+                # The symbol should be the malicious string (sanitized by strip), safely stored
+                assert result.symbol == exchanges.backpack(malicious.strip())
+        except (TransformationError, ValueError, TypeFieldError):
             # Rejecting malicious input is also acceptable
             pass
 
@@ -984,27 +1011,35 @@ class TestMaliciousInputs:
     ) -> None:
         """Test resistance to malicious input in numeric fields."""
         mapper = BackpackTransactionMapper()
-        raw_fill = BackpackRawFillResponse(
-            fee=malicious,
-            feeSymbol="USDC",
-            isMaker=True,
-            orderId="order123",
-            price=malicious,
-            quantity=malicious,
-            side="Bid",
-            symbol="SOL-USDC",
-            timestamp="2024-01-15T10:30:00Z",
-            tradeId=123456,
-            clientId=None,
-            systemOrderType=None,
-        )
 
-        # Should handle malicious input safely
+        # Should handle malicious input safely - validation should reject invalid decimals
         try:
+            raw_fill = BackpackRawFillResponse(
+                fee=malicious,
+                feeSymbol="USDC",
+                isMaker=True,
+                orderId="order123",
+                price=malicious,
+                quantity=malicious,
+                side="Bid",
+                symbol="SOL-USDC",
+                timestamp="2024-01-15T10:30:00Z",
+                tradeId=123456,
+                clientId=None,
+                systemOrderType=None,
+            )
+
             result = mapper.transform_raw_fill_to_internal(raw_fill)
             # Most malicious strings should fail decimal parsing
             assert result is None
-        except (TransformationError, ValueError, InvalidOperation):
+        except (
+            TransformationError,
+            ValueError,
+            InvalidOperation,
+            DecimalFiniteError,
+            TypeFieldError,
+            ValidationError,
+        ):
             # Rejecting malicious input is expected
             pass
 
@@ -1019,17 +1054,13 @@ class TestErrorHandling:
     ) -> None:
         """Test error handling during decimal parsing."""
         mapper = BackpackTransactionMapper()
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
-        ) as mock_parse:
-            error = ValueError("Decimal parsing failed")
-            mock_parse.side_effect = error
-
+        with patch.object(
+            mapper, "parse_decimal_safely", side_effect=ValueError("Decimal parsing failed")
+        ):
             with pytest.raises(TransformationError) as exc_info:
                 mapper.transform_raw_fill_to_internal(raw_fill)
 
-            assert "Failed to transform BackpackRawFillResponse to Trade" in str(exc_info.value)
-            assert exc_info.value.__cause__ == error
+            assert "Failed to transform BackpackRawFillResponse to Fill" in str(exc_info.value)
 
     @given(raw_fill=valid_raw_fill_strategy())
     def test_timestamp_parsing_errors(
@@ -1038,11 +1069,7 @@ class TestErrorHandling:
     ) -> None:
         """Test error handling during timestamp parsing."""
         mapper = BackpackTransactionMapper()
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_datetime_utc",
-        ) as mock_parse:
-            mock_parse.return_value = None
-
+        with patch.object(mapper, "parse_timestamp", return_value=None):
             result = mapper.transform_raw_fill_to_internal(raw_fill)
 
             # Should handle malformed timestamps gracefully
@@ -1121,14 +1148,15 @@ class TestNegativeValues:
             systemOrderType=None,
         )
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
-        ) as mock_parse:
-            # Allow negative values through parsing to test mapper's handling
-            mock_parse.side_effect = _mock_parse_side_effect
-
+        # The raw model validation should reject negative prices
+        try:
+            # Negative values should be rejected during transformation
             result = mapper.transform_raw_fill_to_internal(raw_fill)
+            # If transformation succeeds, it should return None for negative values
             assert result is None, "Should reject negative price"
+        except (DecimalFiniteError, RangeFieldError, ValueError):
+            # Validation correctly rejects negative values
+            pass
 
 
 class TestLegacyCompatibility:

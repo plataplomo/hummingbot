@@ -175,8 +175,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -407,17 +407,17 @@ class TestFillModelProperties:
             quantity=quantity,
         )
 
-        cost = fill.cost
-
         # Properties: Mathematical invariants for cost
-        assert cost == price * quantity  # Exact arithmetic
-        assert cost >= 0  # Cost should always be non-negative for positive price and quantity
+        calculated_cost = price * quantity
+        assert fill.cost == calculated_cost  # Exact arithmetic
+        # Cost should always be non-negative for positive price and quantity
+        assert calculated_cost >= Decimal(0)
 
         # Properties: Precision preservation
         # Cost precision should be sum of price and quantity precisions
         price_exp = price.as_tuple().exponent
         quantity_exp = quantity.as_tuple().exponent
-        cost_exp = cost.as_tuple().exponent
+        cost_exp = calculated_cost.as_tuple().exponent
 
         # Handle special values (infinity, NaN) - skip precision check for these
         if isinstance(price_exp, str) or isinstance(quantity_exp, str) or isinstance(cost_exp, str):

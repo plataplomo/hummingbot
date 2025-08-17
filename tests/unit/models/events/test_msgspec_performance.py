@@ -96,7 +96,7 @@ class TestMsgspecVsPydanticPerformance:
         """Msgspec MarketData event for performance testing.
 
         Args:
-            frozen_time: Time freezer for deterministic timestamps.
+            freezer: Time freezer for deterministic timestamps.
 
         Returns:
             MarketData: Test market data event.
@@ -119,7 +119,7 @@ class TestMsgspecVsPydanticPerformance:
         """Pydantic MarketData event for baseline comparison.
 
         Args:
-            frozen_time: Time freezer for deterministic timestamps.
+            freezer: Time freezer for deterministic timestamps.
 
         Returns:
             PydanticMarketData: Pydantic baseline event.
@@ -142,7 +142,7 @@ class TestMsgspecVsPydanticPerformance:
         """Msgspec OrderEvent for performance testing.
 
         Args:
-            frozen_time: Time freezer for deterministic timestamps.
+            freezer: Time freezer for deterministic timestamps.
 
         Returns:
             OrderEvent: Test order event.
@@ -170,7 +170,7 @@ class TestMsgspecVsPydanticPerformance:
         """Pydantic OrderEvent for baseline comparison.
 
         Args:
-            frozen_time: Time freezer for deterministic timestamps.
+            freezer: Time freezer for deterministic timestamps.
 
         Returns:
             PydanticOrderEvent: Pydantic baseline event.
