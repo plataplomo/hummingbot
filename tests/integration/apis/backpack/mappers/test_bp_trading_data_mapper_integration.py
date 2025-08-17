@@ -165,8 +165,9 @@ class TestTradingDataMapperIntegration:
     ) -> None:
         """Test that error handling is consistent across different transformation methods."""
         # Mock to cause an exception in both methods
-        mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
+        mock_parse = mocker.patch.object(
+            trading_data_mapper,
+            "parse_decimal_safely",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 

@@ -22,6 +22,9 @@ from cyberdelta.apis.backpack.bp_api import BackpackAPI
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
 from cyberdelta.apis.common import APIError, MessageHandler
 from cyberdelta.apis.models.service_args.market_data import GetMarketsArgs
+from cyberdelta.apis.websocket.exceptions.envelope_validation import InvalidFormatError
+from cyberdelta.apis.websocket.exceptions.stream import WebSocketSubscriptionError
+from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
@@ -175,6 +178,8 @@ class TestBackpackErrorHandlingArchitecture:
                 AttributeError,
                 EmptyStringParameterError,
                 APIError,
+                WebSocketStreamError,
+                InvalidFormatError,
             ) as e:
                 logger.info(
                     "invalid_subscription_correctly_rejected",
@@ -710,6 +715,9 @@ class TestBackpackErrorHandlingArchitecture:
                 KeyError,
                 AttributeError,
                 EmptyStringParameterError,
+                WebSocketStreamError,
+                WebSocketSubscriptionError,
+                InvalidFormatError,
             ) as e:
                 failed_subscriptions += 1
                 logger.info(
