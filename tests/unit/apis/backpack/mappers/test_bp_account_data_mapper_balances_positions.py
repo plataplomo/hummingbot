@@ -56,6 +56,7 @@ from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionR
 from cyberdelta.apis.exceptions.data_transformation import DataTransformationError
 from cyberdelta.enums import OrderSide
 from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.models import DerivativePosition, MarginAccountSummary, SpotBalance
 from cyberdelta.symbols import exchanges
 from cyberdelta.symbols.models import Symbol
@@ -1186,8 +1187,8 @@ class TestAccountDataSecurityProperties:
             # Should not contain traces of malicious execution
             assert isinstance(result.size, Decimal)
 
-        except (ValueError, DataTransformationError):
-            # Expected for malicious inputs
+        except (ValueError, DataTransformationError, TypeFieldError):
+            # Expected for malicious inputs - validation properly rejects them
             pass
 
     @given(

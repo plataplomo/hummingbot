@@ -178,13 +178,12 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     Returns:
         datetime: A valid UTC timestamp
     """
-    naive_dt = draw(
+    return draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
             max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
-    return naive_dt
 
 
 @st.composite

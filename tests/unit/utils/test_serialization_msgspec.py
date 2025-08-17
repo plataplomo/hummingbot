@@ -150,8 +150,8 @@ def sample_order_strategy(draw: st.DrawFn) -> SampleOrder:
         side=draw(st.sampled_from(["BUY", "SELL"])),
         timestamp=draw(
             st.datetimes(
-                min_value=datetime(2020, 1, 1),
-                max_value=datetime(2030, 12, 31),
+                min_value=datetime(2020, 1, 1, tzinfo=UTC),
+                max_value=datetime(2030, 12, 31, tzinfo=UTC),
                 timezones=st.just(UTC),
             )
         ),
@@ -305,8 +305,8 @@ class TestMsgspecSerialization:
 
     @given(
         dt=st.datetimes(
-            min_value=datetime(1970, 1, 1),
-            max_value=datetime(2100, 1, 1),
+            min_value=datetime(1970, 1, 1, tzinfo=UTC),
+            max_value=datetime(2100, 1, 1, tzinfo=UTC),
             timezones=st.just(UTC),
         )
     )
