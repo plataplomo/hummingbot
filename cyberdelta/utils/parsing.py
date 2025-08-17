@@ -6,6 +6,7 @@ All parsing errors will include the field name in their messages if provided,
 greatly improving error traceability.
 """
 
+import math
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Literal, overload
@@ -148,6 +149,16 @@ def _parse_string_datetime(value: str, prefix: str) -> datetime:
         return _parse_string_as_numeric_timestamp(value, prefix, e_iso)
 
 
+def _raise_non_finite_error() -> None:
+    """Raise error for non-finite timestamp values.
+
+    Raises:
+        ValueError: Always raised for non-finite timestamp values
+    """
+    msg = "Non-finite float values not allowed as timestamps"
+    raise ValueError(msg)
+
+
 def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: ValueError) -> datetime:
     """Try to parse string as numeric timestamp if ISO parsing failed.
 
@@ -160,14 +171,17 @@ def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: Value
         Parsed datetime object in UTC
 
     Raises:
-        DateTimeParsingError: If parsing as numeric timestamp also fails
+        DateTimeParsingError: If parsing as numeric timestamp fails
     """
     try:
         float_val = float(value)
+        # Check for non-finite values (infinity, NaN) which are not valid timestamps
+        if not math.isfinite(float_val):
+            _raise_non_finite_error()
         # Reuse the timestamp scale logic
         timestamp_s = _determine_timestamp_scale(float_val)
         return datetime.fromtimestamp(timestamp_s, tz=UTC)
-    except (ValueError, TypeError, OSError) as e_num:
+    except (ValueError, TypeError, OSError, OverflowError) as e_num:
         raise DateTimeParsingError(
             field_name=prefix.rstrip(": ") if prefix else "datetime",
             value=value,

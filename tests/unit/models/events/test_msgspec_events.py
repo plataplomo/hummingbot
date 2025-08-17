@@ -10,7 +10,6 @@ Tests cover:
 7. Error conditions
 """
 
-import inspect
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -736,11 +735,11 @@ class TestEventSerialization:
 class TestTimestampHandling:
     """Test timestamp handling in events."""
 
-    def test_default_timestamp_creation(self, frozen_time: FreezerProtocol) -> None:
+    def test_default_timestamp_creation(self, freezer: FreezerProtocol) -> None:
         """Test that events get automatic timestamps."""
         # Freeze time at a specific point
         test_time = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
         expected_timestamp = test_time.timestamp()
 
         event = MarketData(
@@ -750,10 +749,10 @@ class TestTimestampHandling:
         # Event should have the frozen timestamp
         assert event.timestamp == expected_timestamp
 
-    def test_custom_timestamp(self, frozen_time: FreezerProtocol) -> None:
+    def test_custom_timestamp(self, freezer: FreezerProtocol) -> None:
         """Test setting custom timestamps."""
         # Even with frozen time, explicit timestamp should be honored
-        frozen_time.move_to(datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC))
+        freezer.move_to(datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC))
 
         custom_time = 1703980800.0  # 2023-12-31 00:00:00 UTC
 
@@ -769,11 +768,11 @@ class TestTimestampHandling:
         # Custom timestamp should override frozen time
         assert event.timestamp == custom_time
 
-    def test_timestamp_serialization(self, frozen_time: FreezerProtocol) -> None:
+    def test_timestamp_serialization(self, freezer: FreezerProtocol) -> None:
         """Test timestamp preservation in serialization."""
         # Use frozen time for deterministic testing
         test_time = datetime(2024, 3, 15, 14, 30, 45, tzinfo=UTC)
-        frozen_time.move_to(test_time)
+        freezer.move_to(test_time)
         expected_timestamp = test_time.timestamp()
 
         event = SystemEvent(
@@ -948,19 +947,29 @@ class TestErrorConditions:
         # Test that TypeError is raised when required arguments are missing
         # Since msgspec enforces required positional arguments at construction
 
-        # Verify MarketData signature requires symbol, exchange, data_type
-        sig = inspect.signature(MarketData.__init__)
-        required_params = [
-            name
-            for name, param in sig.parameters.items()
-            if param.default == inspect.Parameter.empty and name != "self"
-        ]
+        # For msgspec.Struct, we check that required fields are enforced
+        # by attempting to create instances without them
 
-        # Should have at least symbol, exchange, data_type as required
-        assert len(required_params) >= 3
-        assert "symbol" in required_params
-        assert "exchange" in required_params
-        assert "data_type" in required_params
+        # Test missing symbol - should raise TypeError
+        with pytest.raises(TypeError):
+            MarketData(exchange=ExchangeName.HYPERLIQUID, data_type=MarketDataType.TICK)
+
+        # Test missing exchange - should raise TypeError
+        with pytest.raises(TypeError):
+            MarketData(symbol="BTC", data_type=MarketDataType.TICK)
+
+        # Test missing data_type - should raise TypeError
+        with pytest.raises(TypeError):
+            MarketData(symbol="BTC", exchange=ExchangeName.HYPERLIQUID)
+
+        # Test valid creation works
+        event = MarketData(
+            symbol="BTC",
+            exchange=ExchangeName.HYPERLIQUID,
+            data_type=MarketDataType.TICK,
+            price=Decimal(50000),
+        )
+        assert event.symbol == "BTC"
 
     def test_invalid_decimal_values(self) -> None:
         """Test invalid decimal values are handled."""

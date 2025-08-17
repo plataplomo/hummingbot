@@ -325,7 +325,7 @@ class HyperliquidOrderBookMapper(
                 "quantity": str(quantity),
                 "fee": "0",  # Fee not available in public trades
                 "fee_asset": None,
-                "is_maker": None,  # Not available in public trades
+                "maker_taker": None,  # Not available in public trades
                 "hl_details": details.model_dump() if details else None,
                 "bp_details": None,
             }

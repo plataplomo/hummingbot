@@ -25,25 +25,37 @@ def mock_config() -> MagicMock:
     Returns:
         MagicMock: Mock configuration for testing.
     """
+    # Create nested mock structure to match AppSettings.calculation.performance_metrics
+    performance_metrics_mock = MagicMock()
+    performance_metrics_mock.enabled_metrics = {
+        "realized_pnl": True,
+        "unrealized_pnl": True,
+        "daily_return": True,
+        "sharpe_ratio": True,
+        "max_drawdown": True,
+        "win_rate": True,
+    }
+    performance_metrics_mock.calculation_period_days = 30
+    performance_metrics_mock.risk_free_rate = 0.05  # Use float as per PerformanceMetricsConfig
+    performance_metrics_mock.include_fees_in_metrics = True
+    performance_metrics_mock.sharpe_calculation_method = "daily"
+    performance_metrics_mock.drawdown_calculation_method = "peak_to_trough"
+
+    calculation_mock = MagicMock()
+    calculation_mock.performance_metrics = performance_metrics_mock
+    calculation_mock.base_currency = "USD"
+
+    # Create financial config mock
+    financial_mock = MagicMock()
+    # Add nested structure for MarkToMarketCalculator
+    financial_mock.pnl.include_fees_in_pnl = True
+    financial_mock.currency.base_currency = "USD"
+    financial_mock.precision.calculation_precision = 18
+    financial_mock.pnl.calculation_method = "mark_to_market"
+
     config = MagicMock(spec=AppSettings)
-
-    # Set up calculation config
-    config.calculation.performance_metrics.enabled_metrics = [
-        "realized_pnl",
-        "unrealized_pnl",
-        "daily_return",
-        "sharpe_ratio",
-        "max_drawdown",
-        "win_rate",
-    ]
-    config.calculation.performance_metrics.calculation_period_days = 30
-    config.calculation.performance_metrics.risk_free_rate = Decimal("0.05")
-    config.calculation.performance_metrics.include_fees_in_metrics = True
-    config.calculation.performance_metrics.sharpe_calculation_method = "daily"
-    config.calculation.performance_metrics.drawdown_calculation_method = "peak_to_trough"
-    config.calculation.performance_metrics.max_history_days = 365
-
-    config.calculation.base_currency = "USD"
+    config.calculation = calculation_mock
+    config.financial = financial_mock
 
     return config
 
@@ -125,7 +137,7 @@ class TestPerformanceTracker:
         await performance_tracker.add_fill(sample_trade)
 
         summary = performance_tracker.get_metrics_summary()
-        assert summary["trade_history_length"] == 1
+        assert summary["fill_history_length"] == 1
 
     @pytest.mark.asyncio
     async def test_update_equity_curve(self, performance_tracker: PerformanceTracker) -> None:

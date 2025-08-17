@@ -131,8 +131,8 @@ class TestMarketOrderService:
             quantity=Decimal(5),
         )
 
-        # Best ask is 50010, signal generator returns 0.2% slippage
-        expected = Decimal(50010) * Decimal("1.002")
+        # Best ask is 50010, BTC has 0.5% slippage configured
+        expected = Decimal(50010) * Decimal("1.005")
         assert abs(price - expected) < Decimal(1)  # Allow small rounding difference
 
     @pytest.mark.asyncio
@@ -153,8 +153,8 @@ class TestMarketOrderService:
             quantity=Decimal(5),
         )
 
-        # Best bid is 50000, signal generator returns 0.2% slippage
-        expected = Decimal(50000) * Decimal("0.998")
+        # Best bid is 50000, BTC has 0.5% slippage configured
+        expected = Decimal(50000) * Decimal("0.995")
         assert abs(price - expected) < Decimal(1)
 
     @pytest.mark.asyncio

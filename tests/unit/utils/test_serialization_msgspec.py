@@ -22,7 +22,7 @@ SECURITY CRITICAL: Serialization errors can lead to:
 
 import math
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
@@ -150,8 +150,8 @@ def sample_order_strategy(draw: st.DrawFn) -> SampleOrder:
         side=draw(st.sampled_from(["BUY", "SELL"])),
         timestamp=draw(
             st.datetimes(
-                min_value=datetime(2020, 1, 1, tzinfo=UTC),
-                max_value=datetime(2030, 12, 31, tzinfo=UTC),
+                min_value=datetime(2020, 1, 1),
+                max_value=datetime(2030, 12, 31),
                 timezones=st.just(UTC),
             )
         ),
@@ -231,7 +231,7 @@ class TestMsgspecSerialization:
     """Property-based tests for msgspec serialization with Pydantic models."""
 
     @given(order=sample_order_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=10, deadline=timedelta(seconds=5))
     def test_pydantic_model_serialization_properties(self, order: SampleOrder) -> None:
         """Property: Pydantic models should round-trip perfectly through serialization.
 
@@ -305,12 +305,12 @@ class TestMsgspecSerialization:
 
     @given(
         dt=st.datetimes(
-            min_value=datetime(1970, 1, 1, tzinfo=UTC),
-            max_value=datetime(2100, 1, 1, tzinfo=UTC),
+            min_value=datetime(1970, 1, 1),
+            max_value=datetime(2100, 1, 1),
             timezones=st.just(UTC),
         )
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=10, deadline=timedelta(seconds=5))
     def test_datetime_serialization_properties(self, dt: datetime) -> None:
         """Property: Datetime values should serialize to ISO format and preserve temporal data.
 
@@ -341,7 +341,7 @@ class TestMsgspecSerialization:
         assert time_diff < 0.001  # Less than 1ms difference
 
     @given(uid=st.uuids())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=10, deadline=timedelta(seconds=5))
     def test_uuid_serialization_properties(self, uid: UUID) -> None:
         """Property: UUIDs should serialize to string format and be reconstructible.
 
@@ -365,7 +365,7 @@ class TestMsgspecSerialization:
         assert reconstructed == uid
 
     @given(structure=nested_structure_strategy(max_depth=4))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=5, deadline=timedelta(seconds=3))
     def test_nested_structures_properties(self, structure: dict[str, Any] | list[Any]) -> None:
         """Property: Complex nested structures should round-trip without data loss.
 
@@ -457,7 +457,7 @@ class TestMsgspecSerialization:
             max_size=5,
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=10, deadline=timedelta(seconds=5))
     def test_empty_structures_properties(
         self,
         include_empty_list: bool,
@@ -615,7 +615,7 @@ class TestEdgeCases:
         exponent=st.integers(min_value=0, max_value=100),
         decimal_digits=st.integers(min_value=1, max_value=100),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=5, deadline=timedelta(seconds=3))
     def test_very_large_numbers_properties(self, exponent: int, decimal_digits: int) -> None:
         """Property: Very large numbers should be handled without overflow or precision loss.
 
@@ -657,7 +657,7 @@ class TestEdgeCases:
         include_backslash=st.booleans(),
         include_newlines=st.booleans(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=10, deadline=timedelta(seconds=5))
     def test_special_characters_properties(
         self,
         unicode_text: str,

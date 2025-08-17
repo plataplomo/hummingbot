@@ -513,7 +513,11 @@ class TestValidateEnumFieldProperties:
     """Property-based tests for validate_enum_field function."""
 
     @given(
-        allowed_values=st.sets(st.text(min_size=1, max_size=20), min_size=1, max_size=10),
+        allowed_values=st.sets(
+            st.text(min_size=1, max_size=20).filter(lambda x: x.strip() != ""),
+            min_size=1,
+            max_size=10,
+        ),
         chosen_value=st.data(),
     )
     def test_enum_field_allowed_value_acceptance(
