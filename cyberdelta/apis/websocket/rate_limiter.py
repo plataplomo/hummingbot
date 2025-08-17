@@ -10,34 +10,17 @@ from __future__ import annotations
 import time
 from collections import deque
 from datetime import UTC, datetime
-from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from cyberdelta.apis.base.rate_limit_behavior import RateLimitBehavior
+from cyberdelta.apis.enums.websocket import RateLimitAlgorithm, RateLimitType
 from cyberdelta.apis.websocket.exceptions import (
     BurstSizeTooLargeError,
     RateLimitError,
     UnsupportedAlgorithmError,
 )
-
-
-class RateLimitType(StrEnum):
-    """Types of rate limits."""
-
-    GLOBAL = "global"
-    PER_CONNECTION = "per_connection"
-    PER_MESSAGE_TYPE = "per_message_type"
-    PER_USER = "per_user"
-
-
-class RateLimitAlgorithm(StrEnum):
-    """Rate limiting algorithms."""
-
-    TOKEN_BUCKET = "token_bucket"  # noqa: S105
-    SLIDING_WINDOW = "sliding_window"
-    FIXED_WINDOW = "fixed_window"
 
 
 class RateLimitConfig(BaseModel):

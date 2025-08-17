@@ -9,6 +9,7 @@ Key Components:
     - Uses existing WebSocketErrorConfig.recovery for configuration
 """
 
+from cyberdelta.apis.enums.websocket import CircuitState
 from cyberdelta.apis.websocket.error_handling.recovery.recovery_executor import (
     ConnectionManagerProtocol,
     MessageBufferProtocol,
@@ -18,7 +19,6 @@ from cyberdelta.apis.websocket.error_handling.recovery.recovery_executor import 
 )
 from cyberdelta.apis.websocket.error_handling.recovery.recovery_policy import (
     CircuitBreakerState,
-    CircuitState,
     RecoveryPolicyManager,
     RecoveryState,
     RetryState,

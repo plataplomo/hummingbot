@@ -6,8 +6,6 @@ for WebSocket connections and message processing.
 
 from enum import Enum
 
-from cyberdelta.apis.enums.websocket import DataPresenceState, FieldPresenceState
-
 
 class CancellationState(Enum):
     """WebSocket cancellation state for connection management.
@@ -94,14 +92,17 @@ class OperationResult(Enum):
         return self in {OperationResult.FAILURE, OperationResult.TIMEOUT}
 
 
-# DataPresenceState and FieldPresenceState moved to cyberdelta.enums.data_states
-# to avoid circular imports with base validation contexts
+class CircuitState(Enum):
+    """Circuit breaker states."""
+
+    CLOSED = "closed"  # Normal operation
+    OPEN = "open"  # Circuit tripped, rejecting requests
+    HALF_OPEN = "half_open"  # Testing if service recovered
 
 
 __all__ = [
     "CancellationState",
-    "DataPresenceState",
-    "FieldPresenceState",
+    "CircuitState",
     "MessageProcessingResult",
     "OperationResult",
 ]
