@@ -148,8 +148,7 @@ class WebSocketContextRegistry:
 
         # Create context with standard constructor
         # WebSocketMessageContext[Any] implements WebSocketContextProtocol directly
-        # No cast needed since the concrete class implements the protocol
-        return context_class(
+        context = context_class(
             validated_envelope=validated_envelope,
             exchange_type=exchange_type,
             routing_key=routing_key,
@@ -157,6 +156,15 @@ class WebSocketContextRegistry:
             message_id=message_id,
             timestamp=datetime.now(UTC),
         )
+
+        # The context implements the protocol but mypy can't verify this statically
+        # due to the generic type parameter. Runtime check for safety.
+        if not isinstance(context, WebSocketContextProtocol):
+            raise WebSocketContextCreationError(
+                context_type=type(context).__name__,
+                protocol_requirement="WebSocketContextProtocol",
+            )
+        return context
 
     def is_registered(self, exchange_type: ExchangeName) -> bool:
         """Check if an exchange type is registered.

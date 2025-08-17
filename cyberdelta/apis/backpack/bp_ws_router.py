@@ -339,6 +339,15 @@ class BackpackWebSocketRouter(
             WebSocketSubscriptionError: If topic validation fails
 
         """
+        # Track subscription
+        # For Backpack, authentication is provided via signature
+        has_signature = signature_components is not None
+        self.conn_state.add_subscription(topic, has_signature)
+
+        # Mark this channel as authenticated if signature provided
+        if has_signature:
+            self.conn_state.mark_channel_authenticated(topic)
+
         # Basic topic validation
         if not topic or not topic.strip():
             raise EmptyStringParameterError(
@@ -423,6 +432,9 @@ class BackpackWebSocketRouter(
             EmptyStringParameterError: If topic is empty
 
         """
+        # Remove subscription from tracking
+        self.conn_state.remove_subscription(topic)
+
         # Basic topic validation
         if not topic or not topic.strip():
             raise EmptyStringParameterError(

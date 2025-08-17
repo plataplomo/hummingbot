@@ -63,6 +63,9 @@ class WebSocketContextProtocol(BaseContextProtocol, Protocol):
     symbol: str | None
     routing_key: str
 
+    # Authentication state tracking
+    is_authenticated_channel: bool
+
     # Domain model attribute - set by processor after transformation
     # Type is object because it varies based on the transformer used
     domain_model: object

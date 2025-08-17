@@ -359,10 +359,13 @@ class HyperliquidWebSocketRouter(WebSocketMessageRouter[HyperliquidWebSocketMess
                     is_successful=envelope.is_successful,
                     message="Subscription confirmation received",
                 )
-                # Track subscription state if needed
-                # Note: For now we're not tracking state here because we already
-                # track it when constructing the subscription. This could be enhanced
-                # to verify successful subscriptions match what we requested.
+                # Mark channel as authenticated if it's a private channel subscription
+                # Access computed fields properly
+                is_success = envelope.is_successful
+                sub_type = envelope.subscription_type
+                if is_success and sub_type == "userEvents":
+                    # This confirms authentication for userEvents
+                    self.conn_state.mark_channel_authenticated("userEvents")
             else:
                 self.logger.warning(
                     "unexpected_subscription_response_type",
@@ -891,6 +894,11 @@ class HyperliquidWebSocketRouter(WebSocketMessageRouter[HyperliquidWebSocketMess
             UnsupportedTopicFormatError: If topic format is not supported
 
         """
+        # Track subscription
+        # For Hyperliquid, userEvents requires wallet but doesn't prove authentication
+        # Authentication is confirmed when subscription response is successful
+        self.conn_state.add_subscription(topic, False)  # Not authenticated yet
+
         # Parse topic format and delegate to appropriate method
         if topic == "allMids":
             return self.construct_all_mids_subscription_payload()

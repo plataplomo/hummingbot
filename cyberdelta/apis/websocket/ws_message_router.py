@@ -17,6 +17,10 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     MemoryOptimizationMode,
 )
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.websocket.connection.state_tracker import (
+    ConnectionStateManager,
+    WebSocketConnectionState,
+)
 
 # Import WebSocket error handler
 from cyberdelta.apis.websocket.error_handling.error_handler import (
@@ -111,6 +115,13 @@ class WebSocketMessageRouter[EnvelopeType: BaseModel](ABC):
         self.context_factory = context_factory
         self.logger = get_logger(f"WebSocketRouter.{exchange_name.value}")
         self._connection_id = str(uuid.uuid4())[:8]  # Short connection ID for context
+
+        # Initialize connection state tracking (per-router instance)
+        self.conn_manager = ConnectionStateManager()
+        self.conn_state: WebSocketConnectionState = self.conn_manager.create_connection(
+            connection_id=self._connection_id, exchange=exchange_name
+        )
+        self.conn_state.mark_connected()
 
         # Error recovery is handled by stream_error_handler using recovery system
 
@@ -223,11 +234,20 @@ class WebSocketMessageRouter[EnvelopeType: BaseModel](ABC):
         raw_data = envelope.model_dump(mode="python")
 
         # Create typed context using the centralized processor
-        return self.context_factory.create_typed_context(
+        context = self.context_factory.create_typed_context(
             raw_data=raw_data,
             connection_id=self._connection_id,
             message_id=message_id,
         )
+
+        # Set authentication state from connection tracker
+        if hasattr(context, "is_authenticated_channel"):
+            context.is_authenticated_channel = self.conn_state.is_channel_authenticated(routing_key)
+
+        # Record message received
+        self.conn_state.record_message_received(routing_key)
+
+        return context
 
     def _create_memory_optimized_context(
         self,

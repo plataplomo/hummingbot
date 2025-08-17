@@ -15,7 +15,7 @@ import orjson
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.enums.websocket import MessageProcessingResult
-from cyberdelta.apis.websocket.metrics.processing_metrics import ProcessingMetrics, ProcessorMetrics
+from cyberdelta.apis.models.websocket.processing import ProcessingMetrics, ProcessorMetrics
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
@@ -28,7 +28,9 @@ from cyberdelta.apis.websocket.error_handling.error_handler import (
     WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.websocket.ws_processor_error_context import (
+    ProcessorErrorContextBuilder,
+)
 
 
 # Type variables for input and output models
@@ -188,10 +190,12 @@ class WebSocketMessageProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("unexpected", message_type, str(e))
 
-            # Use direct stream error handler for unexpected processing errors
-            error_context = StreamErrorContext(
-                connection_id=context.connection_id,
-                exchange=context.exchange_type.value,
+            # Use ProcessorErrorContextBuilder for rich error context (unexpected processing error)
+            error_context = ProcessorErrorContextBuilder.from_unexpected_error(
+                processor=self,
+                context=context,
+                unexpected_error=e,
+                stage="processing",
             )
 
             stream_error = WebSocketStreamError(
@@ -231,11 +235,12 @@ class WebSocketMessageProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("validation", message_type, str(e))
 
-            # Pure typed error system - direct stream error handling for all validation errors
-            # Create WebSocketStreamError for validation failures
-            error_context = StreamErrorContext(
-                connection_id=context.connection_id,
-                exchange=context.exchange_type.value,
+            # Use ProcessorErrorContextBuilder for rich error context
+            error_context = ProcessorErrorContextBuilder.from_validation_error(
+                processor=self,
+                payload=payload,
+                context=context,
+                validation_error=e,
             )
 
             stream_error = WebSocketStreamError(
@@ -278,11 +283,12 @@ class WebSocketMessageProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("transformation", message_type, str(e))
 
-            # Pure typed error system - direct stream error handling for all transformation errors
-            # Create WebSocketStreamError for transformation errors
-            error_context = StreamErrorContext(
-                connection_id=context.connection_id,
-                exchange=context.exchange_type.value,
+            # Use ProcessorErrorContextBuilder for rich error context
+            error_context = ProcessorErrorContextBuilder.from_transformation_error(
+                processor=self,
+                validated_payload=validated,
+                context=context,
+                transformation_error=e,
             )
 
             stream_error = WebSocketStreamError(
@@ -338,10 +344,13 @@ class WebSocketMessageProcessor[T: BaseModel, U: BaseModel]:
             if self.metrics_collector:
                 self.metrics_collector.record_error("handler", message_type, str(e))
 
-            # Pure typed error system - direct stream error handling for all handler errors
-            error_context = StreamErrorContext(
-                connection_id=context.connection_id,
-                exchange=context.exchange_type.value,
+            # Use ProcessorErrorContextBuilder for rich error context
+            error_context = ProcessorErrorContextBuilder.from_handler_error(
+                processor=self,
+                domain_model=domain_model,
+                context=context,
+                handler_error=e,
+                is_unexpected=False,
             )
 
             stream_error = WebSocketStreamError(
@@ -366,10 +375,13 @@ class WebSocketMessageProcessor[T: BaseModel, U: BaseModel]:
                 exchange=context.exchange_type,
             )
 
-            # Pure typed error system - direct stream error handling for unexpected handler errors
-            error_context = StreamErrorContext(
-                connection_id=context.connection_id,
-                exchange=context.exchange_type.value,
+            # Use ProcessorErrorContextBuilder for rich error context (unexpected handler error)
+            error_context = ProcessorErrorContextBuilder.from_handler_error(
+                processor=self,
+                domain_model=domain_model,
+                context=context,
+                handler_error=e,
+                is_unexpected=True,
             )
 
             stream_error = WebSocketStreamError(
