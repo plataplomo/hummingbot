@@ -57,6 +57,12 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     # Processing metadata
     processing_start_time: float = Field(default_factory=time.perf_counter)
 
+    # Authentication state - should be set by router/connection manager
+    is_authenticated_channel: bool = Field(
+        default=False,
+        description="Whether this message came from an authenticated subscription/channel",
+    )
+
     # Domain model - populated by processor after transformation
     # Type is Any because it varies based on the transformer used
     domain_model: Any = Field(default=None, exclude=True)
@@ -84,17 +90,6 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         # HYPERLIQUID
         return getattr(self.validated_envelope, "channel", None)
 
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def is_private_message(self) -> bool:
-        """Determine if message is private based on routing key.
-
-        Returns:
-            bool: True if message contains private data (account, user, balance, orders, fills).
-        """
-        private_patterns = {"account", "user", "balance", "orders", "fills"}
-        return any(pattern in self.routing_key.lower() for pattern in private_patterns)
-
     @cached_property
     def message_size_bytes(self) -> int:
         """Calculate and cache message size for monitoring.
@@ -112,8 +107,6 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
                 "domain_model",
                 "exchange_name",
                 "topic",
-                "is_private_message",
-                "processing_priority",
                 "processing_duration_ms",
                 "channel",
                 "sequence_number",
@@ -124,27 +117,6 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         except (TypeError, ValueError, orjson.JSONEncodeError):
             # If serialization fails, return 0
             return 0
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def processing_priority(self) -> int:
-        """Compute processing priority (1=highest, 5=lowest).
-
-        Returns:
-            int: Priority level - 1 for trades/user events, 2 for order books,
-                3 for tickers/stats, 4 for everything else.
-        """
-        # High priority for trades and user events
-        if "trades" in self.routing_key or "userEvents" in self.routing_key:
-            return 1
-        # Medium priority for order book updates
-        if "depth" in self.routing_key or "l2Book" in self.routing_key:
-            return 2
-        # Lower priority for tickers and statistics
-        if "ticker" in self.routing_key or "stats" in self.routing_key:
-            return 3
-        # Lowest priority for everything else
-        return 4
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -160,33 +132,6 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
     def raw_model(self) -> object | None:
         """Get raw validated model (envelope) for compatibility with BaseContextProtocol."""
         return self.validated_envelope
-
-    def get_transformer_params(self) -> dict[str, str]:
-        """Get parameters needed by transformers for this exchange.
-
-        Returns:
-            dict[str, str]: Empty dict in base implementation. Exchange-specific contexts
-                should override this method to provide appropriate parameters.
-        """
-        return {}
-
-    def get_symbol_param(self) -> dict[str, str] | None:
-        """Get symbol parameter if applicable to this exchange.
-
-        Returns:
-            dict[str, str] | None: None in base implementation. Exchange-specific contexts
-                should override this method if they support symbol parameters.
-        """
-        return None
-
-    def get_coin_param(self) -> dict[str, str] | None:
-        """Get coin parameter if applicable to this exchange.
-
-        Returns:
-            dict[str, str] | None: None in base implementation. Exchange-specific contexts
-                should override this method if they support coin parameters.
-        """
-        return None
 
     # ========================================================================
     # Error Context Creation (Step 13 - WebSocket Type Safety)
@@ -256,8 +201,8 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
             message_id=self.message_id,
             message_type=message_type,
             raw_message_size=raw_size,
-            # Connection state
-            is_authenticated=bool(self.is_private_message),  # Private implies auth
+            # Connection state - use actual auth state from connection manager
+            is_authenticated=self.is_authenticated_channel,
             active_subscriptions=0,  # Would need subscription tracking
             pending_messages=0,  # Would need queue tracking
             reconnect_count=0,  # Would need reconnect tracking

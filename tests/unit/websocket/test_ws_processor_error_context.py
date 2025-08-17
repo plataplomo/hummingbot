@@ -89,6 +89,7 @@ class MockContext:
         # Additional properties
         self.channel = "trades"
         self.sequence_number = 1234
+        self.is_authenticated_channel = False
 
     def model_dump(self, *, mode: str = "python") -> dict[str, object]:
         """Serialize context data.

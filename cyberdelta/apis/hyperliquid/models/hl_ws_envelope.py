@@ -641,6 +641,7 @@ class HyperliquidSubscriptionResponse(BaseModel):
 
         return v
 
+    @property
     @computed_field
     def subscription_type(self) -> str | None:
         """Extract the subscription type (channel) from the response.
@@ -655,6 +656,7 @@ class HyperliquidSubscriptionResponse(BaseModel):
                 return type_data if isinstance(type_data, str) else None
         return None
 
+    @property
     @computed_field
     def subscription_coin(self) -> str | None:
         """Extract the coin/symbol from the subscription if present.
@@ -669,6 +671,7 @@ class HyperliquidSubscriptionResponse(BaseModel):
                 return coin_data if isinstance(coin_data, str) else None
         return None
 
+    @property
     @computed_field
     def is_successful(self) -> bool:
         """Check if the subscription was successful.
