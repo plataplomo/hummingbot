@@ -27,14 +27,23 @@ class PositionManagerProtocol(Protocol):
         """
         ...
 
-    async def update_position_directly(
-        self, symbol: Symbol, exchange: ExchangeName, new_position: DerivativePosition | None
+    async def set_position(
+        self, symbol: Symbol, exchange: ExchangeName, position: DerivativePosition
     ) -> None:
-        """Update position directly (for reconciliation).
+        """Set a position to a specific state.
 
         Args:
             symbol: Trading symbol
             exchange: Exchange name
-            new_position: New position to set, None to remove
+            position: Position to set
+        """
+        ...
+
+    async def remove_position(self, symbol: Symbol, exchange: ExchangeName) -> None:
+        """Remove a position completely.
+
+        Args:
+            symbol: Trading symbol
+            exchange: Exchange name
         """
         ...

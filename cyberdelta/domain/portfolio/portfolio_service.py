@@ -350,20 +350,29 @@ class PortfolioService(HealthCheckable):
         """
         return await self._position_manager.get_positions_for_exchange(exchange)
 
-    async def update_position_directly(
+    async def set_position(
         self,
         symbol: Symbol,
         exchange: ExchangeName,
-        new_position: DerivativePosition | None,
+        position: DerivativePosition,
     ) -> None:
-        """Update position directly (for reconciliation).
+        """Set a position to a specific state.
 
         Args:
             symbol: Trading symbol
             exchange: Exchange name
-            new_position: New position to set, None to remove
+            position: Position to set
         """
-        await self._state_manager.update_position(exchange, symbol, new_position)
+        await self._state_manager.update_position(exchange, symbol, position)
+
+    async def remove_position(self, symbol: Symbol, exchange: ExchangeName) -> None:
+        """Remove a position completely.
+
+        Args:
+            symbol: Trading symbol
+            exchange: Exchange name
+        """
+        await self._state_manager.update_position(exchange, symbol, None)
 
     # Fill updates (coordinated across managers)
 
