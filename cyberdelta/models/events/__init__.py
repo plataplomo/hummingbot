@@ -20,6 +20,9 @@ from cyberdelta.models.events.core import (
 # msgspec models for event system
 from cyberdelta.models.events.handler_health import HandlerHealthModel
 from cyberdelta.models.events.health_status import EventBusHealthStatus
+
+# query/response events for request/response patterns
+from cyberdelta.models.events.queries import PositionQuery, PositionQueryResponse
 from cyberdelta.models.events.system_health import SystemHealthReport
 
 # workflow event models
@@ -45,6 +48,8 @@ __all__ = [
     "OrderEvent",
     "PlaceOrderWorkflowEvent",
     "PositionEvent",
+    "PositionQuery",
+    "PositionQueryResponse",
     "RebalanceWorkflowEvent",
     "RiskEvent",
     "SignalEvent",

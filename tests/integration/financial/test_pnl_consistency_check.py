@@ -73,6 +73,8 @@ class TestPnLConsistencyCheck:
             Fill object for closing position at $51,000 price
         """
         return Fill(
+            id="fill_001",
+            order_id="order_001",
             symbol=hl_symbol("BTC"),
             exchange=ExchangeName.HYPERLIQUID,
             side=OrderSide.SELL,
@@ -156,6 +158,7 @@ class TestPnLConsistencyCheck:
         fill_price = sample_fill.price
         quantity = sample_fill.quantity
 
+        assert entry_price is not None, "Entry price should not be None"
         expected_realized_pnl = (fill_price - entry_price) * quantity
 
         assert expected_realized_pnl == Decimal(1000), (
@@ -169,6 +172,8 @@ class TestPnLConsistencyCheck:
         """Test realized PnL calculation consistency when closing short position."""
         # Create fill that closes the short position (BUY to close SELL)
         closing_fill = Fill(
+            id="fill_002",
+            order_id="order_002",
             symbol=hl_symbol("BTC"),
             exchange=ExchangeName.HYPERLIQUID,
             side=OrderSide.BUY,  # Buying to close short
@@ -182,6 +187,7 @@ class TestPnLConsistencyCheck:
         fill_price = closing_fill.price  # 49000
         quantity = closing_fill.quantity  # 1.0
 
+        assert entry_price is not None, "Entry price should not be None"
         # Expected for closing short: (entry_price - fill_price) * quantity
         # = (50000 - 49000) * 1.0 = 1000 profit
         expected_realized_pnl = (entry_price - fill_price) * quantity
@@ -235,6 +241,7 @@ class TestPnLConsistencyCheck:
 
         # Calculate expected with full precision
         size_abs = abs(large_position.size)
+        assert large_position.entry_price is not None, "Entry price should not be None"
         expected = size_abs * (mark_price - large_position.entry_price)
 
         assert result == expected, (

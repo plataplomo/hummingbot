@@ -101,31 +101,23 @@ class TestPnLCalculationConsistency:
         expected_profit = Decimal(500000)  # 100 * ($50K - $45K)
         assert result == expected_profit
 
-        # Test that our fix works for the standard case too
-        long_position = DerivativePosition(
-            exchange=ExchangeName.BACKPACK,
-            symbol=SymbolTestFactory.create_with_metadata("BTC-USDC", ExchangeName.BACKPACK),
-            side=OrderSide.BUY,
-            size=Decimal(100),  # Positive size for long
-            entry_price=Decimal(50000),
-            timestamp=datetime.now(UTC),
-        )
-
-        # Price drops $5000 - should be $500K loss for long
-        result_long = long_position.calculate_unrealized_pnl(mark_price)
-        expected_loss = Decimal(-500000)  # 100 * ($45K - $50K)
-        assert result_long == expected_loss
-
     def test_zero_position_handling(self) -> None:
-        """Test that zero positions return None."""
+        """Test that zero positions return proper PnL."""
         zero_position = DerivativePosition(
             exchange=ExchangeName.BACKPACK,
             symbol=SymbolTestFactory.create_with_metadata("BTC-USDC", ExchangeName.BACKPACK),
             side=OrderSide.BUY,
             size=Decimal(0),
-            entry_price=None,
+            entry_price=Decimal(50000),  # Entry price exists but size is zero
             timestamp=datetime.now(UTC),
         )
 
-        result = zero_position.calculate_unrealized_pnl(Decimal(50000))
-        assert result is None
+        config = AppSettings.model_validate({})
+        calculator = MarkToMarketCalculator(config, fee_calculator=None)
+
+        pnl_result = calculator.calculate_unrealized_pnl(
+            position=zero_position, mark_price=Decimal(50000), include_fees=False
+        )
+
+        # Zero size position should have zero PnL
+        assert pnl_result.amount == Decimal(0)

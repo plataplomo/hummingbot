@@ -400,6 +400,7 @@ class PerformanceTracker:
         - Includes fees if config.calculation.performance_metrics.include_fees_in_metrics
         - All calculations use Decimal, NOT float
         - Returns explicit statistics, no derived metrics
+        - NO ASSUMPTIONS about trading side determining profit/loss
         """
         fills = await self._get_fills_in_period(period_start, period_end)
 
@@ -414,62 +415,31 @@ class PerformanceTracker:
                 "profit_factor": Decimal(0),
             }
 
-        # Analyze fills to determine winning and losing trades
-        # In a complete implementation, this would use position tracking
-        # to match opening and closing trades properly
-        winning_fills: list[Decimal] = []
-        losing_fills: list[Decimal] = []
+        # CRITICAL: Proper win/loss calculation requires matched trades
+        # A BUY at $100 sold at $110 is a WIN (not a loss)
+        # A SHORT sold at $100 bought back at $90 is a WIN
+        # Individual fills cannot determine profit/loss without matching
 
-        for fill in fills:
-            # Calculate notional value of fill
-            # For proper win/loss calculation, we'd need to match with opening trades
-            # For now, we treat each fill independently based on side
-            fill_value = fill.quantity * fill.price
+        # For now, return zero statistics rather than incorrect assumptions
+        # Proper implementation requires:
+        # 1. Trade matching system to pair opening and closing trades
+        # 2. Position tracking to determine actual realized PnL
+        # 3. Use of the PnLCalculatorProtocol for accurate calculations
 
-            # For statistics purposes, consider sells as potential wins
-            # and buys as costs (this is a simplification)
-            fill_pnl = fill_value if fill.side == OrderSide.SELL else -fill_value
-
-            if self._include_fees:
-                fill_pnl -= fill.fee
-
-            if fill_pnl > Decimal(0):
-                winning_fills.append(fill_pnl)
-            elif fill_pnl < Decimal(0):
-                losing_fills.append(fill_pnl)
-
-        # Calculate statistics
-        total_fills = len(fills)
-        num_winners = len(winning_fills)
-        num_losers = len(losing_fills)
-
-        win_rate = (
-            (Decimal(num_winners) / Decimal(total_fills) * Decimal(100))
-            if total_fills > 0
-            else Decimal(0)
+        logger.warning(
+            "Trading statistics calculation requires matched trades. "
+            "Returning zero statistics to avoid incorrect assumptions. "
+            "Implement trade matching for accurate win/loss statistics."
         )
-
-        average_win = (
-            sum(winning_fills) / Decimal(len(winning_fills)) if winning_fills else Decimal(0)
-        )
-        average_loss = (
-            sum(losing_fills) / Decimal(len(losing_fills)) if losing_fills else Decimal(0)
-        )
-
-        # Profit factor
-        total_wins = sum(winning_fills) if winning_fills else Decimal(0)
-        total_loss_sum = sum(losing_fills) if losing_fills else Decimal(0)
-        total_losses = total_loss_sum if total_loss_sum >= Decimal(0) else -total_loss_sum
-        profit_factor = total_wins / total_losses if total_losses > Decimal(0) else Decimal(0)
 
         return {
-            "total_fills": total_fills,
-            "winning_fills": num_winners,
-            "losing_fills": num_losers,
-            "win_rate": win_rate,
-            "average_win": average_win,
-            "average_loss": average_loss,
-            "profit_factor": profit_factor,
+            "total_fills": len(fills),
+            "winning_fills": 0,  # Cannot determine without matched trades
+            "losing_fills": 0,  # Cannot determine without matched trades
+            "win_rate": Decimal(0),  # Cannot calculate without matched trades
+            "average_win": Decimal(0),  # Cannot calculate without matched trades
+            "average_loss": Decimal(0),  # Cannot calculate without matched trades
+            "profit_factor": Decimal(0),  # Cannot calculate without matched trades
         }
 
     async def update_equity_curve(self, timestamp: datetime, equity: Decimal) -> None:

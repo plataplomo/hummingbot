@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import cast
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 
@@ -82,7 +82,8 @@ def performance_tracker(
     Returns:
         PerformanceTracker: Performance tracker instance.
     """
-    return PerformanceTracker(mock_config, mock_portfolio_service)
+    mock_market_data_service = Mock()
+    return PerformanceTracker(mock_config, mock_portfolio_service, mock_market_data_service)
 
 
 @pytest.fixture
@@ -112,7 +113,8 @@ class TestPerformanceTracker:
     @pytest.mark.asyncio
     async def test_init(self, mock_config: MagicMock, mock_portfolio_service: AsyncMock) -> None:
         """Test performance tracker initialization."""
-        tracker = PerformanceTracker(mock_config, mock_portfolio_service)
+        mock_market_data_service = Mock()
+        tracker = PerformanceTracker(mock_config, mock_portfolio_service, mock_market_data_service)
 
         assert tracker.config == mock_config
 

@@ -9,6 +9,9 @@ from __future__ import annotations
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.financial.calculators.factory import CalculatorFactory, PnLCalculatorType
+from cyberdelta.domain.financial.calculators.performance_metrics_calculator import (
+    PerformanceMetricsCalculator,
+)
 from cyberdelta.domain.financial.fee_calculator import FeeCalculator
 from cyberdelta.protocols.financial import FeeCalculatorProtocol
 
@@ -59,53 +62,17 @@ class FinancialServicesFactory:
         return CalculatorFactory.create_pnl_calculator(config, fee_calculator)
 
     @staticmethod
-    def create_performance_calculator(config: AppSettings) -> object:
+    def create_performance_calculator(config: AppSettings) -> PerformanceMetricsCalculator:
         """Create performance metrics calculator.
 
         Args:
             config: Application settings containing performance configuration
 
         Returns:
-            Performance metrics calculator
+            Performance metrics calculator with type-safe interface
         """
         logger.info("creating_performance_calculator")
         return CalculatorFactory.create_performance_calculator(config)
-
-    @staticmethod
-    def create_all_financial_services(config: AppSettings) -> dict[str, object]:
-        """Create complete financial services suite.
-
-        Args:
-            config: Application settings containing all financial configuration
-
-        Returns:
-            Dictionary containing all financial services:
-            - fee_calculator: Fee calculation service
-            - pnl_calculator: PnL calculation service (with fee support)
-            - performance_calculator: Performance metrics service
-        """
-        logger.info("creating_complete_financial_services_suite")
-
-        # Create fee calculator first (used by others)
-        fee_calculator = FinancialServicesFactory.create_fee_calculator(config)
-
-        # Create all calculators with proper dependencies
-        pnl_calculator = CalculatorFactory.create_pnl_calculator(config, fee_calculator)
-        performance_calculator = CalculatorFactory.create_performance_calculator(config)
-
-        services: dict[str, object] = {
-            "fee_calculator": fee_calculator,
-            "pnl_calculator": pnl_calculator,
-            "performance_calculator": performance_calculator,
-        }
-
-        logger.info(
-            "financial_services_created",
-            services=list(services.keys()),
-            pnl_calculator_type=type(pnl_calculator).__name__,
-        )
-
-        return services
 
 
 # Convenience functions for common use cases
