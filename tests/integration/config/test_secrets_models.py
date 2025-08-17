@@ -450,7 +450,7 @@ class TestSecretsConfig:
 
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert "Hyperliquid configuration in secrets must have auth_type 'private_key'" in str(
+        assert "hyperliquid configuration in secrets must have auth_type 'private_key'" in str(
             exc_info.value,
         )
 
@@ -464,7 +464,7 @@ class TestSecretsConfig:
 
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert "Hyperliquid 'private_key' cannot be empty" in str(exc_info.value)
+        assert "hyperliquid 'private_key' cannot be empty" in str(exc_info.value)
 
     def test_backpack_wrong_auth_type(self) -> None:
         """Test Backpack validation when wrong auth_type is provided."""
@@ -476,7 +476,7 @@ class TestSecretsConfig:
 
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert "Backpack configuration in secrets must have auth_type 'api_key'" in str(
+        assert "backpack configuration in secrets must have auth_type 'api_key'" in str(
             exc_info.value,
         )
 
@@ -492,7 +492,7 @@ class TestSecretsConfig:
         }
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert "Backpack 'api_key' (ED25519 Public Key) cannot be empty" in str(exc_info.value)
+        assert "backpack 'api_key' (ED25519 Public Key) cannot be empty" in str(exc_info.value)
 
         # Test empty api_secret
         data["exchanges"]["backpack"] = {
@@ -502,7 +502,7 @@ class TestSecretsConfig:
         }
         with pytest.raises(ValidationError) as exc_info:
             SecretsConfig.model_validate(data)
-        assert "Backpack 'api_secret' (ED25519 Private Key) cannot be empty" in str(exc_info.value)
+        assert "backpack 'api_secret' (ED25519 Private Key) cannot be empty" in str(exc_info.value)
 
     def test_non_hyperliquid_backpack_exchange_no_validation(self) -> None:
         """Test that exchanges other than Hyperliquid/Backpack don't trigger special validation."""

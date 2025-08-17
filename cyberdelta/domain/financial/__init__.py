@@ -8,7 +8,10 @@ Calculator modules in /calculators/:
 - fifo_calculator: FIFO accounting method for regulatory compliance
 - performance_metrics_calculator: Performance metrics calculations
 - factory: Configuration-driven calculator creation
+
+Main modules:
 - fee_calculator: Fee calculations (standalone)
+- factory: Comprehensive financial services factory (main entry point)
 """
 
 # Import calculators from the calculators submodule
@@ -18,6 +21,11 @@ from cyberdelta.domain.financial.calculators import (
     MarkToMarketCalculator,
     PerformanceMetricsCalculator,
 )
+from cyberdelta.domain.financial.factory import (
+    FinancialServicesFactory,
+    create_default_fee_calculator,
+    create_default_pnl_calculator,
+)
 from cyberdelta.domain.financial.fee_calculator import FeeCalculator
 
 
@@ -25,6 +33,9 @@ __all__ = [
     "CalculatorFactory",
     "FIFOCalculator",
     "FeeCalculator",
+    "FinancialServicesFactory",
     "MarkToMarketCalculator",
     "PerformanceMetricsCalculator",
+    "create_default_fee_calculator",
+    "create_default_pnl_calculator",
 ]

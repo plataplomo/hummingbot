@@ -5,13 +5,12 @@ import time
 import pytest
 
 from cyberdelta.apis.base.rate_limit_behavior import RateLimitBehavior
+from cyberdelta.apis.enums.websocket import RateLimitAlgorithm, RateLimitType
 from cyberdelta.apis.websocket.exceptions import RateLimitError
 from cyberdelta.apis.websocket.rate_limiter import (
-    RateLimitAlgorithm,
     RateLimitConfig,
     RateLimitMiddleware,
     RateLimitResult,
-    RateLimitType,
     SlidingWindowCounter,
     TokenBucket,
     WebSocketRateLimiter,

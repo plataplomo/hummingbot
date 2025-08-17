@@ -646,10 +646,10 @@ class TestMonitoringSettings:
             MonitoringSettings.model_validate({"alert_methods": ["invalid"]})
         assert "alert_methods" in str(exc_info.value)
 
-        # Non-list alert_methods (raises ValidationError for type mismatch)
-        with pytest.raises(ValidationError) as exc_info_validation:
+        # Non-list alert_methods (raises TypeError for type mismatch)
+        with pytest.raises(TypeError) as exc_info_type:
             MonitoringSettings.model_validate({"alert_methods": "log"})
-        assert "alert_methods" in str(exc_info_validation.value)
+        assert "alert_methods" in str(exc_info_type.value)
 
 
 class TestAppSettings:

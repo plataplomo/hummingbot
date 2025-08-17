@@ -4,6 +4,9 @@
 requires = ["setuptools>=61.0", "wheel"]  # Required packages for building the project
 build-backend = "setuptools.build_meta"    # Backend used for building the package
 
+[tool.setuptools]
+packages = ["cyberdelta"]  # Explicitly specify the package to include
+
 # Project metadata including name, version, description, and other details
 [project]
 name = "CyberDeltaEngine"  # Name of the project
@@ -11,7 +14,7 @@ version = "0.0.1"   # Current version of the project
 description = "CyberDeltaEngine: An automated, asyncio-based Python trading engine for delta-neutral arbitrage strategies (initially funding rate arbitrage between Hyperliquid and Backpack perpetuals)."  # Brief description of the project
 readme = { file = "README.md", content-type = "text/markdown" }  # Readme file and its content type
 requires-python = ">=3.13"  # Minimum required Python version
-license = { text = "MIT" }  # License information for the project
+license = "AGPL-3.0-or-later"  # License information for the project
 authors = [  # List of authors with their names and emails
     {name = "plataplomo", email = "bizonum@gmail.com"},
 ]
@@ -20,7 +23,6 @@ classifiers = [  # Classifiers for the project to help users find it
     "Development Status :: 2 - Pre-Alpha",  # Current development status
     "Intended Audience :: Developers",
     "Intended Audience :: Financial and Insurance Industry",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.13",
@@ -87,6 +89,8 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
+timeout = 120  # Default timeout of 60 seconds per test
+timeout_method = "thread"  # Use thread-based timeout
 addopts = [
     "--cov=cyberdelta",
     "--cov-report=term-missing",

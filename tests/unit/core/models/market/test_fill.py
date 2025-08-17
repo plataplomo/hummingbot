@@ -410,7 +410,7 @@ class TestFillModelProperties:
         # Properties: Mathematical invariants for cost
         calculated_cost = price * quantity
         assert fill.cost == calculated_cost  # Exact arithmetic
-        # Cost should always be non-negative for positive price and quantity  
+        # Cost should always be non-negative for positive price and quantity
         assert calculated_cost >= Decimal(0)
 
         # Properties: Precision preservation

@@ -167,7 +167,7 @@ class PortfolioPositionEventHandler(EventHandlerActor):
         )
 
         # Update position using position service protocol
-        await self._position_service.update_position_directly(symbol, event.exchange, new_position)
+        await self._position_service.set_position(symbol, event.exchange, new_position)
 
         # Symbol created successfully - no caching needed (cache only accepts msgspec.Struct)
 
@@ -218,9 +218,7 @@ class PortfolioPositionEventHandler(EventHandlerActor):
             timestamp=datetime.fromtimestamp(event.timestamp, tz=UTC),
         )
 
-        await self._position_service.update_position_directly(
-            symbol, event.exchange, updated_position
-        )
+        await self._position_service.set_position(symbol, event.exchange, updated_position)
 
     async def _handle_position_closed(self, event: PositionEvent, symbol: Symbol) -> None:
         """Handle position closed event with realized PnL calculation.
@@ -274,9 +272,7 @@ class PortfolioPositionEventHandler(EventHandlerActor):
             timestamp=datetime.fromtimestamp(event.timestamp, tz=UTC),
         )
 
-        await self._position_service.update_position_directly(
-            symbol, event.exchange, closed_position
-        )
+        await self._position_service.set_position(symbol, event.exchange, closed_position)
 
     async def _handle_position_liquidated(self, event: PositionEvent, symbol: Symbol) -> None:
         """Handle position liquidated event.
@@ -325,9 +321,7 @@ class PortfolioPositionEventHandler(EventHandlerActor):
             timestamp=datetime.fromtimestamp(event.timestamp, tz=UTC),
         )
 
-        await self._position_service.update_position_directly(
-            symbol, event.exchange, liquidated_position
-        )
+        await self._position_service.set_position(symbol, event.exchange, liquidated_position)
 
     def _get_or_create_symbol(self, symbol_str: str, exchange: ExchangeName) -> Symbol:
         """Create Symbol object.

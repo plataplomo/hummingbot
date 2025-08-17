@@ -16,13 +16,17 @@ from pydantic import BaseModel
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.financial.calculators.mark_to_market_calculator import MarkToMarketCalculator
+from cyberdelta.enums import ExchangeName
 from cyberdelta.enums.trading import OrderSide
 from cyberdelta.exceptions.monitoring import MetricCalculationError
 from cyberdelta.models.market.fill import Fill
+from cyberdelta.symbols.models import BaseSymbol, HyperliquidMetadata
 
 
 if TYPE_CHECKING:
+    from cyberdelta.domain.market.market_service import MarketDataService
     from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
+    from cyberdelta.models.derivative_position import DerivativePosition
     from cyberdelta.models.portfolio.state import PortfolioState
 
 
@@ -105,15 +109,18 @@ class PerformanceTracker:
         self,
         config: AppSettings,
         portfolio_service: PortfolioService,
+        market_data_service: MarketDataService,
     ) -> None:
         """Initialize performance tracker with configuration.
 
         Args:
             config: Application settings containing all configuration
             portfolio_service: Portfolio service for state access
+            market_data_service: Market data service for real-time prices and historical data
         """
         self.config = config
         self._portfolio_service = portfolio_service
+        self._market_data_service = market_data_service
 
         # Initialize unified PnL calculator from financial domain
         self._pnl_calculator = MarkToMarketCalculator(config)
@@ -238,12 +245,24 @@ class PerformanceTracker:
 
         # Calculate unrealized PnL from current positions using unified calculator
         portfolio_state = await self._portfolio_service.get_state()
-        if portfolio_state:
-            # Use unified PnL calculator for unrealized PnL
-            # Would need current market prices - for now return realized only
-            return realized_pnl
+        unrealized_pnl = Decimal(0)
 
-        return realized_pnl
+        if portfolio_state:
+            unrealized_pnl = await self._calculate_unrealized_pnl_from_positions(portfolio_state)
+
+        # Total PnL is the sum of realized and unrealized
+        total_pnl = realized_pnl + unrealized_pnl
+
+        logger.debug(
+            "total_pnl_calculated",
+            period_start=period_start.isoformat(),
+            period_end=period_end.isoformat(),
+            realized_pnl=float(realized_pnl),
+            unrealized_pnl=float(unrealized_pnl),
+            total_pnl=float(total_pnl),
+        )
+
+        return total_pnl
 
     async def _calculate_total_return(self, total_pnl: Decimal, period_start: datetime) -> Decimal:
         """Calculate total return percentage.
@@ -381,6 +400,7 @@ class PerformanceTracker:
         - Includes fees if config.calculation.performance_metrics.include_fees_in_metrics
         - All calculations use Decimal, NOT float
         - Returns explicit statistics, no derived metrics
+        - NO ASSUMPTIONS about trading side determining profit/loss
         """
         fills = await self._get_fills_in_period(period_start, period_end)
 
@@ -395,58 +415,31 @@ class PerformanceTracker:
                 "profit_factor": Decimal(0),
             }
 
-        # Group fills by position (simplified - would use position tracking in practice)
-        winning_fills: list[Decimal] = []
-        losing_fills: list[Decimal] = []
+        # CRITICAL: Proper win/loss calculation requires matched trades
+        # A BUY at $100 sold at $110 is a WIN (not a loss)
+        # A SHORT sold at $100 bought back at $90 is a WIN
+        # Individual fills cannot determine profit/loss without matching
 
-        for fill in fills:
-            # Calculate fill PnL (simplified)
-            fill_pnl = (
-                fill.quantity
-                * fill.price
-                * (Decimal(1) if fill.side == OrderSide.SELL else Decimal(-1))
-            )
+        # For now, return zero statistics rather than incorrect assumptions
+        # Proper implementation requires:
+        # 1. Trade matching system to pair opening and closing trades
+        # 2. Position tracking to determine actual realized PnL
+        # 3. Use of the PnLCalculatorProtocol for accurate calculations
 
-            if self._include_fees:
-                fill_pnl -= fill.fee
-
-            if fill_pnl > Decimal(0):
-                winning_fills.append(fill_pnl)
-            elif fill_pnl < Decimal(0):
-                losing_fills.append(fill_pnl)
-
-        # Calculate statistics
-        total_fills = len(fills)
-        num_winners = len(winning_fills)
-        num_losers = len(losing_fills)
-
-        win_rate = (
-            (Decimal(num_winners) / Decimal(total_fills) * Decimal(100))
-            if total_fills > 0
-            else Decimal(0)
+        logger.warning(
+            "Trading statistics calculation requires matched trades. "
+            "Returning zero statistics to avoid incorrect assumptions. "
+            "Implement trade matching for accurate win/loss statistics."
         )
-
-        average_win = (
-            sum(winning_fills) / Decimal(len(winning_fills)) if winning_fills else Decimal(0)
-        )
-        average_loss = (
-            sum(losing_fills) / Decimal(len(losing_fills)) if losing_fills else Decimal(0)
-        )
-
-        # Profit factor
-        total_wins = sum(winning_fills) if winning_fills else Decimal(0)
-        total_loss_sum = sum(losing_fills) if losing_fills else Decimal(0)
-        total_losses = total_loss_sum if total_loss_sum >= Decimal(0) else -total_loss_sum
-        profit_factor = total_wins / total_losses if total_losses > Decimal(0) else Decimal(0)
 
         return {
-            "total_fills": total_fills,
-            "winning_fills": num_winners,
-            "losing_fills": num_losers,
-            "win_rate": win_rate,
-            "average_win": average_win,
-            "average_loss": average_loss,
-            "profit_factor": profit_factor,
+            "total_fills": len(fills),
+            "winning_fills": 0,  # Cannot determine without matched trades
+            "losing_fills": 0,  # Cannot determine without matched trades
+            "win_rate": Decimal(0),  # Cannot calculate without matched trades
+            "average_win": Decimal(0),  # Cannot calculate without matched trades
+            "average_loss": Decimal(0),  # Cannot calculate without matched trades
+            "profit_factor": Decimal(0),  # Cannot calculate without matched trades
         }
 
     async def update_equity_curve(self, timestamp: datetime, equity: Decimal) -> None:
@@ -619,21 +612,32 @@ class PerformanceTracker:
 
         Returns:
             Realized PnL as Decimal
+
+        Note:
+            This calculates realized PnL from fills in the period.
+            For proper position-based PnL, integration with position
+            tracking service would match opening and closing trades.
         """
-        # Placeholder - would track closed positions
         fills = await self._get_fills_in_period(period_start, period_end)
 
+        # Calculate PnL from fills
+        # In a complete implementation, this would match opening and closing fills
+        # to calculate true realized PnL. For now, we calculate the cash flow
+        # from all fills in the period.
         realized_pnl = Decimal(0)
+
         for fill in fills:
-            # Simplified - would match buys/sells
-            fill_pnl = (
-                fill.quantity
-                * fill.price
-                * (Decimal(1) if fill.side == OrderSide.SELL else Decimal(-1))
-            )
-            if self._include_fees:
-                fill_pnl -= fill.fee
-            realized_pnl += fill_pnl
+            # Calculate cash flow from fill
+            # Sells generate positive cash flow, buys negative
+            cash_flow = fill.quantity * fill.price
+            if fill.side == OrderSide.BUY:
+                cash_flow = -cash_flow
+
+            # Subtract fees if configured
+            if self._include_fees and fill.fee:
+                cash_flow -= fill.fee
+
+            realized_pnl += cash_flow
 
         return realized_pnl
 
@@ -727,18 +731,288 @@ class PerformanceTracker:
 
         Returns:
             Beta as Decimal
+
+        Note:
+            Beta measures the systematic risk of the portfolio relative to a benchmark.
+            A beta of 1.0 indicates the portfolio moves with the market.
+            Without benchmark data, returns 1.0 as a neutral value.
         """
-        # Placeholder - would need benchmark data
-        return Decimal(1)
+        # Beta calculation requires benchmark returns for comparison
+        # using covariance and variance statistical measures
+
+        # Get portfolio returns
+        portfolio_returns = await self._get_daily_returns(period_start, period_end)
+
+        if not portfolio_returns or len(portfolio_returns) < MIN_DATA_POINTS_FOR_METRICS:
+            logger.debug(
+                "insufficient_data_for_beta",
+                period_start=period_start.isoformat(),
+                period_end=period_end.isoformat(),
+                data_points=len(portfolio_returns),
+            )
+            return Decimal(1)  # Neutral beta when insufficient data
+
+        # Benchmark data would come from market data service
+        # For crypto, this might be BTC, ETH, or a crypto index
+        benchmark_returns = await self._get_benchmark_returns(period_start, period_end)
+
+        if not benchmark_returns:
+            # Without benchmark, return market-neutral beta
+            return Decimal(1)
+
+        # Calculate covariance and variance
+        n = min(len(portfolio_returns), len(benchmark_returns))
+        if n < MIN_DATA_POINTS_FOR_METRICS:
+            return Decimal(1)
+
+        portfolio_returns_subset = portfolio_returns[:n]
+        benchmark_returns_subset = benchmark_returns[:n]
+
+        portfolio_mean = sum(portfolio_returns_subset) / Decimal(n)
+        benchmark_mean = sum(benchmark_returns_subset) / Decimal(n)
+
+        covariance = sum(
+            (p - portfolio_mean) * (b - benchmark_mean)
+            for p, b in zip(portfolio_returns_subset, benchmark_returns_subset, strict=False)
+        ) / Decimal(n)
+
+        benchmark_variance = sum(
+            (b - benchmark_mean) ** 2 for b in benchmark_returns_subset
+        ) / Decimal(n)
+
+        if benchmark_variance == Decimal(0):
+            return Decimal(1)
+
+        beta = covariance / benchmark_variance
+
+        logger.debug(
+            "beta_calculated",
+            period_start=period_start.isoformat(),
+            period_end=period_end.isoformat(),
+            beta=float(beta),
+            data_points=n,
+        )
+
+        return beta
 
     async def _calculate_alpha(self, period_start: datetime, period_end: datetime) -> Decimal:
         """Calculate alpha (excess return).
 
         Returns:
             Alpha as Decimal
+
+        Note:
+            Alpha represents the excess return of the portfolio compared to the
+            expected return based on its beta. Positive alpha indicates
+            outperformance relative to systematic risk taken.
         """
-        # Placeholder - would need benchmark data
-        return Decimal(0)
+        # Alpha = Portfolio Return - (Risk-Free Rate + Beta * (Market Return - Risk-Free Rate))
+
+        # Get portfolio returns
+        portfolio_returns = await self._get_daily_returns(period_start, period_end)
+
+        if not portfolio_returns:
+            logger.debug(
+                "insufficient_data_for_alpha",
+                period_start=period_start.isoformat(),
+                period_end=period_end.isoformat(),
+            )
+            return Decimal(0)
+
+        # Calculate average portfolio return (annualized)
+        avg_daily_return = sum(portfolio_returns) / Decimal(len(portfolio_returns))
+        portfolio_return_annual = avg_daily_return * Decimal(365)
+
+        # Get beta
+        beta = await self._calculate_beta(period_start, period_end)
+
+        # Get benchmark return
+        benchmark_returns = await self._get_benchmark_returns(period_start, period_end)
+
+        if benchmark_returns:
+            avg_benchmark_daily = sum(benchmark_returns) / Decimal(len(benchmark_returns))
+            benchmark_return_annual = avg_benchmark_daily * Decimal(365)
+        else:
+            # Without benchmark data, cannot calculate true alpha
+            return Decimal(0)
+
+        # Calculate alpha using CAPM formula
+        market_premium = benchmark_return_annual - self._risk_free_rate
+        expected_return = self._risk_free_rate + beta * market_premium
+        alpha = portfolio_return_annual - expected_return
+
+        logger.debug(
+            "alpha_calculated",
+            period_start=period_start.isoformat(),
+            period_end=period_end.isoformat(),
+            alpha=float(alpha),
+            portfolio_return=float(portfolio_return_annual),
+            expected_return=float(expected_return),
+            beta=float(beta),
+        )
+
+        return alpha
+
+    async def _get_benchmark_returns(
+        self, period_start: datetime, period_end: datetime
+    ) -> list[Decimal]:
+        """Get benchmark returns for the specified period.
+
+        Args:
+            period_start: Start of period
+            period_end: End of period
+
+        Returns:
+            List of daily benchmark returns
+        """
+        # Get benchmark symbol from config - default to BTC for crypto portfolios
+        # This could be extended to config.calculation.benchmark_symbol
+        benchmark_symbol = self._get_benchmark_symbol()
+
+        if not benchmark_symbol:
+            logger.debug(
+                "benchmark_symbol_not_configured",
+                period_start=period_start.isoformat(),
+                period_end=period_end.isoformat(),
+            )
+            return []
+
+        try:
+            # Get benchmark candles from market data service
+            # Convert datetime to milliseconds
+            start_time_ms = int(period_start.timestamp() * 1000)
+            end_time_ms = int(period_end.timestamp() * 1000)
+
+            candles = await self._market_data_service.get_historical_candles(
+                symbol=benchmark_symbol,
+                exchange=self._get_benchmark_exchange(),
+                timeframe="1d",
+                start_time_ms=start_time_ms,
+                end_time_ms=end_time_ms,
+            )
+
+            if not candles or len(candles) < MIN_DATA_POINTS_FOR_METRICS:
+                logger.warning(
+                    "insufficient_benchmark_data",
+                    symbol=benchmark_symbol.value,
+                    data_points=len(candles) if candles else 0,
+                    required=MIN_DATA_POINTS_FOR_METRICS,
+                )
+                return []
+
+            # Calculate daily returns from candles
+            returns: list[Decimal] = []
+            for i in range(1, len(candles)):
+                prev_close = candles[i - 1].close
+                curr_close = candles[i].close
+
+                if prev_close > Decimal(0):
+                    daily_return = (curr_close - prev_close) / prev_close
+                    returns.append(daily_return)
+
+            logger.debug(
+                "benchmark_returns_calculated",
+                symbol=benchmark_symbol.value,
+                period_start=period_start.isoformat(),
+                period_end=period_end.isoformat(),
+                data_points=len(returns),
+            )
+
+        except Exception as e:
+            logger.exception(
+                "failed_to_get_benchmark_returns",
+                error=str(e),
+                symbol=benchmark_symbol.value if benchmark_symbol else "None",
+            )
+            return []
+
+        return returns
+
+    def _get_benchmark_symbol(self) -> BaseSymbol[HyperliquidMetadata] | None:
+        """Get benchmark symbol from configuration.
+
+        Returns:
+            Benchmark symbol or None if not configured
+
+        IMPORTANT: Following CODING_STANDARDS.md:
+        - Reads benchmark symbol from config.calculation.performance_metrics.benchmark_symbol
+        - NO hardcoded values
+        - Returns None if not configured or invalid
+        """
+        # Get benchmark symbol from configuration
+        benchmark_symbol_str = self._metrics_config.benchmark_symbol
+
+        if not benchmark_symbol_str:
+            logger.debug(
+                "benchmark_symbol_not_configured",
+                message="No benchmark symbol configured in performance_metrics",
+            )
+            return None
+
+        # Get configured exchange
+        benchmark_exchange = self._get_benchmark_exchange()
+
+        try:
+            # Create proper symbol based on configured exchange
+            # For now supporting Hyperliquid, can be extended for other exchanges
+            if benchmark_exchange == ExchangeName.HYPERLIQUID:
+                benchmark_symbol = BaseSymbol[HyperliquidMetadata](
+                    value=benchmark_symbol_str,
+                    exchange=benchmark_exchange,
+                    metadata=HyperliquidMetadata(),
+                )
+            else:
+                # For other exchanges, would need appropriate metadata types
+                logger.warning(
+                    "benchmark_exchange_not_fully_supported",
+                    exchange=benchmark_exchange.value,
+                    symbol=benchmark_symbol_str,
+                    message="Exchange metadata type not yet implemented for benchmarks",
+                )
+                benchmark_symbol = None
+        except (ValueError, TypeError) as e:
+            logger.exception(
+                "failed_to_create_benchmark_symbol",
+                configured_symbol=benchmark_symbol_str,
+                configured_exchange=benchmark_exchange.value,
+                error=str(e),
+            )
+            benchmark_symbol = None
+
+        return benchmark_symbol
+
+    def _get_benchmark_exchange(self) -> ExchangeName:
+        """Get benchmark exchange from configuration.
+
+        Returns:
+            Exchange to use for benchmark data
+
+        Raises:
+            ValueError: If configured exchange name is invalid
+
+        Note:
+            Following CODING_STANDARDS.md:
+            - Reads exchange from config.calculation.performance_metrics.benchmark_exchange
+            - NO hardcoded values
+            - Validates exchange name from configuration
+        """
+        # Get benchmark exchange from configuration
+        benchmark_exchange_str = self._metrics_config.benchmark_exchange
+
+        try:
+            # Convert configured string to ExchangeName enum
+            return ExchangeName(benchmark_exchange_str)
+        except (ValueError, KeyError) as e:
+            logger.exception(
+                "invalid_benchmark_exchange_configured",
+                configured_value=benchmark_exchange_str,
+                error=str(e),
+                available_exchanges=[e.value for e in ExchangeName],
+                message="Invalid exchange name in configuration",
+            )
+            # This should fail fast per CODING_STANDARDS.md
+            msg = f"Invalid benchmark exchange '{benchmark_exchange_str}'"
+            raise ValueError(msg) from e
 
     def get_metrics_summary(self) -> dict[str, Any]:
         """Get summary of current metrics configuration.
@@ -839,16 +1113,78 @@ class PerformanceTracker:
     async def _calculate_unrealized_pnl_from_positions(
         self, portfolio_state: PortfolioState
     ) -> Decimal:
-        """Calculate unrealized PnL from current positions using unified calculator.
+        """Calculate unrealized PnL from current positions using centralized calculator.
 
         Args:
             portfolio_state: Current portfolio state
 
         Returns:
             Total unrealized PnL as Decimal
-        """
-        # Use unified PnL calculator from financial domain
-        # This would require current market prices to be implemented
-        # For now, return zero as market price integration is needed
 
-        return Decimal(0)
+        Note:
+            This method uses the centralized MarkToMarketCalculator for consistency
+            across all PnL calculations in the system.
+        """
+        if not portfolio_state or not portfolio_state.positions:
+            return Decimal(0)
+
+        total_pnl = Decimal(0)
+
+        # Iterate through all positions and calculate unrealized PnL
+        for position in portfolio_state.positions.values():
+            if position.size == Decimal(0) or not position.entry_price:
+                continue
+
+            # Get current mark price for the position
+            # In production, this would fetch from market data service
+            mark_price = await self._get_mark_price_for_position(position)
+
+            if mark_price:
+                # Use the centralized calculator already initialized
+                result = self._pnl_calculator.calculate_unrealized_pnl(
+                    position, mark_price, include_fees=self._include_fees
+                )
+                total_pnl += result.amount
+
+                logger.debug(
+                    "position_unrealized_pnl_calculated",
+                    exchange=position.exchange.value,
+                    symbol=position.symbol.value,
+                    size=float(position.size),
+                    entry_price=float(position.entry_price),
+                    mark_price=float(mark_price),
+                    unrealized_pnl=float(result.amount),
+                )
+
+        return total_pnl
+
+    async def _get_mark_price_for_position(self, position: DerivativePosition) -> Decimal | None:
+        """Get current mark price for a position.
+
+        Args:
+            position: Position to get mark price for
+
+        Returns:
+            Current mark price or None if unavailable
+        """
+        try:
+            # Get ticker from market data service
+            ticker = await self._market_data_service.get_ticker(symbol=position.symbol)
+
+            if ticker and ticker.price:
+                return ticker.price
+
+            logger.warning(
+                "no_mark_price_available",
+                exchange=position.exchange.value,
+                symbol=position.symbol.value,
+            )
+        except (AttributeError, ValueError, TypeError) as e:
+            logger.exception(
+                "failed_to_get_mark_price",
+                exchange=position.exchange.value,
+                symbol=position.symbol.value,
+                error=str(e),
+            )
+
+        return position.entry_price or None

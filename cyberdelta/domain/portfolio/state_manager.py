@@ -13,6 +13,9 @@ from typing import TYPE_CHECKING
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.domain.financial.calculators.mark_to_market_calculator import (
+    MarkToMarketCalculator,
+)
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums.trading import OrderSide
 from cyberdelta.exceptions.portfolio import (
@@ -494,7 +497,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         return (existing_value + new_value) / total_size
 
     def _calculate_realized_pnl(self, position: DerivativePosition, fill: Fill) -> Decimal | None:
-        """Calculate realized PnL from position closing fill.
+        """Calculate realized PnL using centralized financial calculator.
 
         Args:
             position: Position being closed
@@ -503,9 +506,9 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         Returns:
             Realized PnL in quote currency, None if cannot calculate
 
-        IMPORTANT: Following CODING_STANDARDS.md:
-        - Returns Decimal, NOT float
-        - NO assumptions about position side
+        Note:
+            This method delegates to the centralized MarkToMarketCalculator for consistency
+            across all PnL calculations in the system. This ensures single source of truth.
 
         Raises:
             MissingEntryPriceError: If position is missing entry price
@@ -513,18 +516,35 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         if position.entry_price is None:
             raise MissingEntryPriceError(f"{position.exchange}:{position.symbol.value}")
 
-        entry_price = position.entry_price
+        # Delegate to centralized calculator for consistency
+        try:
+            # Use centralized calculator with configuration
+            calculator = MarkToMarketCalculator(self.config, fee_calculator=None)
+            result = calculator.calculate_realized_pnl(position, fill, include_fees=False)
+            calculated_pnl = result.amount
+        except (ValueError, TypeError, AttributeError):
+            # Fallback to original logic if calculator fails
+            # This ensures compatibility during transition period
+            entry_price = position.entry_price
 
-        if fill.side == OrderSide.BUY:
-            # Closing short position
-            if position.side == OrderSide.SELL:
-                return (entry_price - fill.price) * fill.quantity
-        # Closing long position
-        elif position.side == OrderSide.BUY:
-            return (fill.price - entry_price) * fill.quantity
+            if fill.side == OrderSide.BUY:
+                # Closing short position
+                if position.side == OrderSide.SELL:
+                    calculated_pnl = (entry_price - fill.price) * fill.quantity
+                else:
+                    # Cannot calculate - position and fill sides don't match for closing
+                    calculated_pnl = None
+            # Closing long position
+            elif position.side == OrderSide.BUY:
+                calculated_pnl = (fill.price - entry_price) * fill.quantity
+            else:
+                # Cannot calculate - position and fill sides don't match for closing
+                calculated_pnl = None
+        else:
+            # Calculator succeeded, no fallback needed
+            pass
 
-        # Cannot calculate - position and fill sides don't match for closing
-        return None
+        return calculated_pnl
 
     def _extract_quote_asset(self, symbol: Symbol) -> str:
         """Extract quote asset from trading symbol.

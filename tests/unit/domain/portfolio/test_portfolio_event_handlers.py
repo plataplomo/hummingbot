@@ -71,7 +71,8 @@ class TestPortfolioPositionEventHandler:
         service.get_exchange_positions = AsyncMock(
             return_value=mock_get_positions(ExchangeName.HYPERLIQUID)
         )
-        service.update_position_directly = AsyncMock()
+        service.set_position = AsyncMock()
+        service.remove_position = AsyncMock()
         return service
 
     @pytest.fixture
@@ -126,9 +127,9 @@ class TestPortfolioPositionEventHandler:
         await handler.handle_event(event)
 
         # Verify position service was called to update the position
-        mock_position_service.update_position_directly.assert_called_once()
+        mock_position_service.set_position.assert_called_once()
         # Verify the call arguments
-        call_args = mock_position_service.update_position_directly.call_args
+        call_args = mock_position_service.set_position.call_args
         assert call_args[0][1] == ExchangeName.HYPERLIQUID  # exchange
         position = call_args[0][2]  # position object
         assert isinstance(position, DerivativePosition)
@@ -223,8 +224,8 @@ class TestPortfolioPositionEventHandler:
 
         # Verify the handler processed the event and called the position service
         # The symbol conversion is internal implementation detail, we test observable behavior
-        mock_position_service.update_position_directly.assert_called_once()
-        call_args = mock_position_service.update_position_directly.call_args
+        mock_position_service.set_position.assert_called_once()
+        call_args = mock_position_service.set_position.call_args
         # First argument should be a Symbol object (converted from string)
         symbol_arg = call_args[0][0]
         assert symbol_arg.value == "BTC-USDC"  # Symbol object has correct value

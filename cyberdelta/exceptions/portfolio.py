@@ -53,6 +53,18 @@ class ReconciliationError(PortfolioError):
         super().__init__(f"Portfolio reconciliation failed for all {exchange_count} exchanges")
 
 
+class PositionNotFoundError(PortfolioError):
+    """Raised when requested position doesn't exist."""
+
+    def __init__(self, symbol: str = "", exchange: str = "") -> None:
+        """Initialize with symbol and exchange."""
+        if symbol and exchange:
+            message = f"Position not found: {symbol}@{exchange}"
+        else:
+            message = "Position not found"
+        super().__init__(message)
+
+
 class InvalidPositionDataError(PortfolioError):
     """Raised when position data is invalid or incomplete."""
 

@@ -95,11 +95,14 @@ class PortfolioService(HealthCheckable):
         # Initialize modules
         self._state_manager = PortfolioStateManager(config, storage)
         self._balance_manager = BalanceManager(config, self._state_manager)
-        self._position_manager = PositionManager(config, self._state_manager)
+        # Create PnL calculator before position manager (required dependency)
+        self._pnl_calculator = MarkToMarketCalculator(config)
+        self._position_manager = PositionManager(
+            config, self._state_manager, self._pnl_calculator, self._event_bus
+        )
         self._reconciliation_engine = ReconciliationEngine(
             config, storage, self._balance_manager, self._position_manager
         )
-        self._pnl_calculator = MarkToMarketCalculator(config)
 
         # Health tracking attributes
         self._operation_count = 0
@@ -345,22 +348,31 @@ class PortfolioService(HealthCheckable):
         Returns:
             Dictionary of symbol -> DerivativePosition for the exchange
         """
-        return await self._position_manager.get_all_positions(exchange)
+        return await self._position_manager.get_positions_for_exchange(exchange)
 
-    async def update_position_directly(
+    async def set_position(
         self,
         symbol: Symbol,
         exchange: ExchangeName,
-        new_position: DerivativePosition | None,
+        position: DerivativePosition,
     ) -> None:
-        """Update position directly (for reconciliation).
+        """Set a position to a specific state.
 
         Args:
             symbol: Trading symbol
             exchange: Exchange name
-            new_position: New position to set, None to remove
+            position: Position to set
         """
-        await self._state_manager.update_position(exchange, symbol, new_position)
+        await self._state_manager.update_position(exchange, symbol, position)
+
+    async def remove_position(self, symbol: Symbol, exchange: ExchangeName) -> None:
+        """Remove a position completely.
+
+        Args:
+            symbol: Trading symbol
+            exchange: Exchange name
+        """
+        await self._state_manager.update_position(exchange, symbol, None)
 
     # Fill updates (coordinated across managers)
 

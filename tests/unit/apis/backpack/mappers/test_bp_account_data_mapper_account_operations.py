@@ -454,7 +454,7 @@ def trading_symbol_strategy() -> SearchStrategy[str]:
 
     def build_symbol(base: str, quote: str, sep: str) -> str:
         return f"{base}{sep}{quote}"
-    
+
     return st.builds(
         build_symbol,
         base=st.sampled_from(bases),

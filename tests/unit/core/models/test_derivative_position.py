@@ -506,34 +506,16 @@ class TestDerivativePositionModelProperties:
             timestamp=datetime.now(UTC),
         )
 
-        unrealized_pnl = position.calculate_unrealized_pnl(mark_price)
-        assert unrealized_pnl is not None
+        # Since business logic is removed from model, test the is_active() utility instead
+        assert position.is_active() == (size != Decimal(0))
 
-        # Properties: Mathematical invariants for PnL calculation
-        size_abs = abs(size)
+        # Properties: Position should be correctly created with valid data
+        assert position.entry_price == entry_price
+        assert position.side == side
+        assert position.size == size
 
-        if side == OrderSide.BUY:
-            # Long position: profit when mark > entry, loss when mark < entry
-            expected_pnl = size_abs * (mark_price - entry_price)
-            assert unrealized_pnl == expected_pnl
-
-            if mark_price > entry_price:
-                assert unrealized_pnl > 0  # Profit
-            elif mark_price < entry_price:
-                assert unrealized_pnl < 0  # Loss
-            else:
-                assert unrealized_pnl == 0  # Break even
-        else:
-            # Short position: profit when mark < entry, loss when mark > entry
-            expected_pnl = size_abs * (entry_price - mark_price)
-            assert unrealized_pnl == expected_pnl
-
-            if mark_price < entry_price:
-                assert unrealized_pnl > 0  # Profit
-            elif mark_price > entry_price:
-                assert unrealized_pnl < 0  # Loss
-            else:
-                assert unrealized_pnl == 0  # Break even
+        # Mathematical invariants for PnL are now tested via centralized calculator
+        # in integration tests, not in model unit tests
 
     @given(
         position_symbol=valid_symbol_strategy(),
@@ -679,7 +661,7 @@ class TestDerivativePositionModelProperties:
 
         # Properties: Flat position behavior
         assert not position.is_active()
-        assert position.calculate_unrealized_pnl(Decimal("50000.0")) is None
+        # PnL calculation is now handled by centralized calculator, not model
 
 
 # =============================================================================

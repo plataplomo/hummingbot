@@ -66,6 +66,7 @@ class MarkToMarketCalculator:
         position: DerivativePosition,
         mark_price: Decimal,
         include_fees: bool | None = None,
+        target_currency: str | None = None,
     ) -> PnLResult:
         """Calculate unrealized PnL with configuration support.
 
@@ -73,6 +74,7 @@ class MarkToMarketCalculator:
             position: Position to calculate PnL for
             mark_price: Current market price
             include_fees: Override config default for fee inclusion
+            target_currency: Target currency for result (uses base if None)
 
         Returns:
             PnLResult with amount, currency, and calculation metadata
@@ -169,6 +171,7 @@ class MarkToMarketCalculator:
         position: DerivativePosition,
         fill: Fill,
         include_fees: bool | None = None,
+        target_currency: str | None = None,
     ) -> PnLResult:
         """Calculate realized PnL for position closing fill.
 
@@ -176,6 +179,7 @@ class MarkToMarketCalculator:
             position: Position being closed/reduced
             fill: Fill that closes/reduces the position
             include_fees: Override config default for fee inclusion
+            target_currency: Target currency for result (uses base if None)
 
         Returns:
             PnLResult with realized amount, currency, and calculation metadata
@@ -272,6 +276,7 @@ class MarkToMarketCalculator:
         positions: list[DerivativePosition],
         mark_prices: dict[str, Decimal],
         include_fees: bool | None = None,
+        target_currency: str | None = None,
     ) -> PnLResult:
         """Calculate total portfolio PnL across all positions.
 
@@ -279,6 +284,7 @@ class MarkToMarketCalculator:
             positions: List of all portfolio positions
             mark_prices: Current market prices by symbol
             include_fees: Override config default for fee inclusion
+            target_currency: Target currency for result (uses base if None)
 
         Returns:
             PnLResult with total portfolio PnL and calculation metadata

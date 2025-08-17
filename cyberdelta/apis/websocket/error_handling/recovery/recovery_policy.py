@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime
-from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
-from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.enums.websocket import CircuitState, WebSocketErrorCode
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.structlog_config import get_logger
@@ -28,14 +27,6 @@ if TYPE_CHECKING:
 # ============================================================================
 # State Models
 # ============================================================================
-
-
-class CircuitState(StrEnum):
-    """Circuit breaker states."""
-
-    CLOSED = "closed"  # Normal operation
-    OPEN = "open"  # Circuit tripped, rejecting requests
-    HALF_OPEN = "half_open"  # Testing if service recovered
 
 
 class CircuitBreakerState(BaseModel):

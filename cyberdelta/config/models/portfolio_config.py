@@ -45,6 +45,13 @@ class PerformanceMetricsConfig(BaseModel):
     drawdown_calculation_method: str = Field(
         default="peak_to_trough", description="Drawdown calculation method"
     )
+    benchmark_symbol: str = Field(
+        default="BTC_USD",
+        description="Benchmark symbol for beta and alpha calculations (e.g., BTC_USD, ETH_USD)",
+    )
+    benchmark_exchange: str = Field(
+        default="HYPERLIQUID", description="Exchange to use for fetching benchmark market data"
+    )
 
 
 class PortfolioCacheSettings(BaseModel):
