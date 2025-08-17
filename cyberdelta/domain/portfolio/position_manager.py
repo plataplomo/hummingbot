@@ -12,6 +12,9 @@ from decimal import Decimal
 import structlog
 
 from cyberdelta.config import AppSettings
+from cyberdelta.domain.financial.calculators.mark_to_market_calculator import (
+    MarkToMarketCalculator,
+)
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models import DerivativePosition
 from cyberdelta.models.market.fill import Fill
@@ -20,16 +23,11 @@ from cyberdelta.protocols.domain.portfolio import (
     PortfolioStateManagerProtocol,
     PositionManagerProtocol,
 )
-from cyberdelta.symbols.global_service import get_symbol_service
+from cyberdelta.protocols.financial import PnLCalculatorProtocol
 from cyberdelta.symbols.models import Symbol
 
 
 logger = structlog.get_logger(__name__)
-
-# Module-level symbol service initialization
-# Following the pattern from momentum_strategy.py - initialize once at module level
-# This avoids repeated calls to get_symbol_service() in methods
-_symbol_service = get_symbol_service()
 
 
 class PositionManager(PositionManagerProtocol):
@@ -45,15 +43,27 @@ class PositionManager(PositionManagerProtocol):
         self,
         config: AppSettings,
         state_manager: PortfolioStateManagerProtocol,
+        pnl_calculator: PnLCalculatorProtocol | None = None,
     ) -> None:
         """Initialize position manager.
 
         Args:
             config: Application settings
             state_manager: Portfolio state manager
+            pnl_calculator: Optional PnL calculator for centralized calculations
         """
         self.config = config
         self._state_manager = state_manager
+
+        # Use injected calculator or create default
+        # Type the calculator as the protocol to allow any implementation
+        self._pnl_calculator: PnLCalculatorProtocol
+        if pnl_calculator is None:
+            # Create default calculator for backward compatibility
+            # In production, should always inject the calculator
+            self._pnl_calculator = MarkToMarketCalculator(config, fee_calculator=None)
+        else:
+            self._pnl_calculator = pnl_calculator
 
         # Cache frequently used settings
         self._position_tolerance = config.validation.position_size_tolerance
@@ -118,10 +128,10 @@ class PositionManager(PositionManagerProtocol):
         position_key = f"{fill.exchange}:{fill.symbol.value}"
         position = state.positions.get(position_key)
 
-        # Calculate new position using model's business logic
+        # Calculate new position using position management logic
         if position:
-            # Use the model's apply_fill method for business logic
-            realized_pnl, new_avg_price = position.apply_fill(fill)
+            # Apply fill to existing position
+            realized_pnl, new_avg_price = self._apply_fill_to_position(position, fill)
 
             # Calculate new quantity (signed)
             current_qty = position.size if position.side == OrderSide.BUY else -position.size
@@ -176,7 +186,7 @@ class PositionManager(PositionManagerProtocol):
         exchange: ExchangeName,
         current_price: Decimal,
     ) -> dict[str, Decimal]:
-        """Calculate PnL for a specific position.
+        """Calculate PnL for a specific position using centralized calculator.
 
         Args:
             symbol: Trading symbol
@@ -190,20 +200,21 @@ class PositionManager(PositionManagerProtocol):
         if not position or not position.entry_price:
             return {"unrealized_pnl": Decimal(0), "pnl_percentage": Decimal(0)}
 
-        # Calculate unrealized PnL
-        if position.side == OrderSide.BUY:
-            unrealized_pnl = position.size * (current_price - position.entry_price)
-        else:
-            unrealized_pnl = position.size * (position.entry_price - current_price)
+        # Use centralized calculator for PnL calculation
+        pnl_result = self._pnl_calculator.calculate_unrealized_pnl(
+            position=position,
+            mark_price=current_price,
+            include_fees=False,  # Basic calculation without fees
+        )
 
         # Calculate percentage
         position_value = position.size * position.entry_price
         pnl_percentage = (
-            (unrealized_pnl / position_value * 100) if position_value > 0 else Decimal(0)
+            (pnl_result.amount / position_value * 100) if position_value > 0 else Decimal(0)
         )
 
         return {
-            "unrealized_pnl": unrealized_pnl,
+            "unrealized_pnl": pnl_result.amount,
             "pnl_percentage": pnl_percentage,
         }
 
@@ -391,3 +402,143 @@ class PositionManager(PositionManagerProtocol):
 
         state.timestamp = datetime.now(UTC)
         await self._state_manager.save_state()
+
+    def _apply_fill_to_position(
+        self, position: DerivativePosition, fill: Fill
+    ) -> tuple[Decimal | None, Decimal]:
+        """Apply a fill to an existing position and calculate realized PnL with calculator.
+
+        This method encapsulates the business logic for updating a position based on a fill,
+        including calculating realized PnL when reducing/closing positions and updating
+        the average entry price.
+
+        Args:
+            position: Existing position to update
+            fill: The fill to apply to this position
+
+        Returns:
+            Tuple of (realized_pnl, new_average_price)
+            - realized_pnl: Realized PnL if position was reduced/closed, None otherwise
+            - new_average_price: Updated average entry price after the fill
+
+        Note:
+            This method calculates but does not update the position. The caller is responsible
+            for updating the position fields based on the returned values.
+        """
+        # Calculate new quantity
+        new_quantity = self._calculate_new_quantity(position, fill)
+
+        # Use centralized calculator for realized PnL if position is being reduced
+        realized_pnl = None
+        current_qty = position.size if position.side == OrderSide.BUY else -position.size
+        if current_qty != 0 and abs(new_quantity) < abs(current_qty):
+            # Position is being reduced - use centralized calculator
+            pnl_result = self._pnl_calculator.calculate_realized_pnl(
+                position=position,
+                fill=fill,
+                include_fees=False,  # Basic calculation without fees
+            )
+            realized_pnl = pnl_result.amount
+
+        # Calculate new average price
+        new_average_price = self._calculate_average_price(position, fill, new_quantity)
+
+        return realized_pnl, new_average_price
+
+    def _calculate_new_quantity(self, position: DerivativePosition, fill: Fill) -> Decimal:
+        """Calculate new position quantity after fill.
+
+        Args:
+            position: Current position
+            fill: New fill to apply
+
+        Returns:
+            New position quantity (signed)
+        """
+        # Current position quantity (signed)
+        current_qty = position.size
+        if position.side == OrderSide.SELL:
+            current_qty = -current_qty
+
+        # Fill quantity (signed)
+        fill_qty = fill.quantity
+        if fill.side == OrderSide.SELL:
+            fill_qty = -fill_qty
+
+        # New position quantity
+        return current_qty + fill_qty
+
+    def _calculate_position_change(
+        self, position: DerivativePosition, fill: Fill
+    ) -> tuple[Decimal, Decimal | None]:
+        """Calculate position change from fill.
+
+        Args:
+            position: Current position
+            fill: New fill to apply
+
+        Returns:
+            Tuple of (new_quantity, realized_pnl)
+            - new_quantity: New position quantity (signed)
+            - realized_pnl: Realized PnL if reducing/closing, None otherwise
+        """
+        # Current position quantity (signed)
+        current_qty = position.size
+        if position.side == OrderSide.SELL:
+            current_qty = -current_qty
+
+        # Fill quantity (signed)
+        fill_qty = fill.quantity
+        if fill.side == OrderSide.SELL:
+            fill_qty = -fill_qty
+
+        # New position quantity
+        new_qty = current_qty + fill_qty
+
+        # Calculate realized PnL if reducing/closing position
+        realized_pnl = None
+        if current_qty != 0 and abs(new_qty) < abs(current_qty):
+            # Position is being reduced
+            reduced_qty = abs(current_qty) - abs(new_qty)
+            if position.entry_price:
+                if current_qty > 0:  # Was long
+                    realized_pnl = reduced_qty * (fill.price - position.entry_price)
+                else:  # Was short
+                    realized_pnl = reduced_qty * (position.entry_price - fill.price)
+
+        return new_qty, realized_pnl
+
+    def _calculate_average_price(
+        self, position: DerivativePosition, fill: Fill, new_quantity: Decimal
+    ) -> Decimal:
+        """Calculate new average price after fill.
+
+        Args:
+            position: Current position
+            fill: New fill
+            new_quantity: New position quantity (signed)
+
+        Returns:
+            New average price
+        """
+        # If position flipped sides, use trade price
+        old_signed_qty = position.size
+        if position.side == OrderSide.SELL:
+            old_signed_qty = -old_signed_qty
+
+        if (old_signed_qty > 0 and new_quantity < 0) or (old_signed_qty < 0 and new_quantity > 0):
+            return fill.price
+
+        # Calculate weighted average for same-side fills
+        if not position.entry_price:
+            return fill.price
+
+        old_value = abs(old_signed_qty) * position.entry_price
+        fill_value = fill.quantity * fill.price
+        total_value = old_value + fill_value
+        total_quantity = abs(old_signed_qty) + fill.quantity
+
+        if total_quantity == 0:
+            return fill.price
+
+        return total_value / total_quantity

@@ -5,6 +5,10 @@ from decimal import Decimal
 
 import pytest
 
+from cyberdelta.config import AppSettings
+from cyberdelta.domain.financial.calculators.mark_to_market_calculator import (
+    MarkToMarketCalculator,
+)
 from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models.derivative_position import DerivativePosition
 from tests.factories.symbol_test_factory import SymbolTestFactory
@@ -12,6 +16,17 @@ from tests.factories.symbol_test_factory import SymbolTestFactory
 
 class TestPnLCalculationConsistency:
     """Ensure all PnL calculation methods return identical results."""
+
+    @pytest.fixture
+    def pnl_calculator(self) -> MarkToMarketCalculator:
+        """Create a PnL calculator for testing.
+
+        Returns:
+            MarkToMarketCalculator instance configured for testing
+        """
+        # Create minimal valid AppSettings using model_validate
+        config = AppSettings.model_validate({})
+        return MarkToMarketCalculator(config, fee_calculator=None)
 
     @pytest.mark.parametrize(
         ("side", "size", "entry_price", "mark_price", "expected_pnl"),
@@ -28,6 +43,7 @@ class TestPnLCalculationConsistency:
     )
     def test_pnl_calculation_consistency_after_fix(
         self,
+        pnl_calculator: MarkToMarketCalculator,
         side: OrderSide,
         size: Decimal,
         entry_price: Decimal,
@@ -45,8 +61,11 @@ class TestPnLCalculationConsistency:
             timestamp=datetime.now(UTC),
         )
 
-        # Test DerivativePosition.calculate_unrealized_pnl()
-        position_pnl = position.calculate_unrealized_pnl(mark_price)
+        # Test centralized calculator
+        pnl_result = pnl_calculator.calculate_unrealized_pnl(
+            position=position, mark_price=mark_price, include_fees=False
+        )
+        position_pnl = pnl_result.amount
 
         # Should always calculate same PnL regardless of size sign
         assert position_pnl == expected_pnl, (
@@ -69,7 +88,14 @@ class TestPnLCalculationConsistency:
         # Price drops $5000 - should be $500K profit for short
         mark_price = Decimal(45000)
 
-        result = short_position.calculate_unrealized_pnl(mark_price)
+        # Create calculator for this test
+        config = AppSettings.model_validate({})
+        calculator = MarkToMarketCalculator(config, fee_calculator=None)
+
+        pnl_result = calculator.calculate_unrealized_pnl(
+            position=short_position, mark_price=mark_price, include_fees=False
+        )
+        result = pnl_result.amount
 
         # CRITICAL: Should show profit, not loss
         expected_profit = Decimal(500000)  # 100 * ($50K - $45K)
