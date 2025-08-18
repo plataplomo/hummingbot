@@ -29,7 +29,7 @@ from cyberdelta.exceptions.field_validation import (
 )
 from cyberdelta.utils.parsing import (
     check_str_parsable_to_finite_decimal,
-    parse_decimal_value,
+    parse_decimal_safely,
     validate_enum_field,
     validate_str_field,
 )
@@ -88,7 +88,7 @@ def _wrap_validate_finite_decimal_str(
     """
     field_name = info.field_name or "finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    d = parse_decimal_value(s, allow_none=True, field_name=field_name)
+    d = parse_decimal_safely(s, allow_none=True, field_name=field_name)
     if d is None or not d.is_finite():
         # Align with test_hl_raw_user_fills.py for 'inf'/'NaN' messages
         # and test_hl_raw_candles.py for 'Invalid finite decimal string'
@@ -400,7 +400,7 @@ def _wrap_validate_positive_finite_decimal_str(
     """
     field_name = info.field_name or "positive_finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    d = parse_decimal_value(s, allow_none=True, field_name=field_name)
+    d = parse_decimal_safely(s, allow_none=True, field_name=field_name)
     if d is None or not d.is_finite():
         raise DecimalFieldError(
             field_name=field_name,
@@ -433,7 +433,7 @@ def _wrap_validate_non_negative_finite_decimal_str(
     """
     field_name = info.field_name or "non_negative_finite_decimal_str_field"
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    d = parse_decimal_value(s, allow_none=True, field_name=field_name)
+    d = parse_decimal_safely(s, allow_none=True, field_name=field_name)
     if d is None or not d.is_finite():
         # Align with user_fills test message part "must be a parseable finite decimal string"
         raise DecimalFieldError(
@@ -515,9 +515,9 @@ def validate_and_return_finite_decimal_str(
     """
     # Use existing validate_str_field for initial string validation
     s = validate_str_field(raw_val, field_name=field_name, max_length=max_len, allow_empty=False)
-    # Use existing parse_decimal_value for decimal properties
-    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
-    if not d.is_finite():  # parse_decimal_value should raise, but defensive check.
+    # Use existing parse_decimal_safely for decimal properties
+    d = parse_decimal_safely(s, allow_none=False, field_name=field_name)
+    if not d.is_finite():  # parse_decimal_safely should raise, but defensive check.
         # Message adjusted for consistency
         raise DecimalFieldError(
             field_name=field_name,

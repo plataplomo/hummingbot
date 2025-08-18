@@ -382,13 +382,13 @@ class TestBoundaryValueConditions:
         """Test handling of zero and negative boundary values."""
         test_cases = [
             # Note: Zero positions are filtered out by the mapper, so we only test non-zero values
-            ("-1000000.0", "Large negative position"),
-            ("-0.000001", "Small negative position"),
+            ("-1000000.0", "LARGE-NEG"),
+            ("-0.000001", "SMALL-NEG"),
         ]
 
         for size_value, description in test_cases:
             position_info = HyperliquidRawPositionInfo(
-                coin=f"TEST-{description.replace(' ', '-').upper()}-PERP",
+                coin=f"TEST-{description}-PERP",
                 szi=size_value,
                 entryPx="1000.0",
                 leverage=HyperliquidRawLeverage(type="cross", value=1),
@@ -402,7 +402,7 @@ class TestBoundaryValueConditions:
             )
 
             asset_position = HyperliquidRawAssetPosition(
-                asset=f"TEST-{description.replace(' ', '-').upper()}-PERP",
+                asset=f"TEST-{description}-PERP",
                 position=position_info,
                 type=None,
             )
@@ -438,7 +438,7 @@ class TestBoundaryValueConditions:
                 raw_state,
             )
 
-            symbol = f"TEST-{description.replace(' ', '-').upper()}-PERP"
+            symbol = f"TEST-{description}-PERP"
             assert symbol in positions
             position = positions[symbol]
             assert position.size == Decimal(size_value)
@@ -618,7 +618,7 @@ class TestUnicodeAndEncodingSupport:
     def test_very_long_string_fields(self) -> None:
         """Test handling of very long string fields within allowed limits."""
         # Use shorter strings that fit within the model's constraints
-        long_symbol = "LONG_SYMBOL_" + "X" * 40 + "-PERP"  # Within 64 char limit
+        long_symbol = "LONG_" + "X" * 10 + "-PERP"  # Within 30 char limit for symbols
         long_client_id = "client_" + "a" * 50  # Within 64 char limit for Trade model
         long_hash = "0x" + "f" * 64  # Exactly 66 characters (0x + 64 hex chars)
 

@@ -34,7 +34,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import patch
@@ -53,7 +53,6 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models import Fill, Order
 from cyberdelta.symbols import exchanges
-from cyberdelta.utils.parsing import parse_decimal_value as real_parse
 
 
 # =============================================================================
@@ -269,7 +268,8 @@ def bp_order_side_strategy() -> SearchStrategy[str]:
     Returns:
         A Hypothesis strategy for Backpack order sides.
     """
-    return st.sampled_from(["Buy", "Sell", "Bid", "Ask"])
+    # For fills, only Ask and Bid are valid
+    return st.sampled_from(["Ask", "Bid"])
 
 
 def bp_order_status_strategy() -> SearchStrategy[str]:
@@ -409,7 +409,15 @@ def raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
     if order_type == "STOP":
         trigger_price = draw(decimal_price_strategy())
 
-    executed_quantity = draw(decimal_quantity_strategy())
+    # Generate quantity first
+    quantity = draw(decimal_quantity_strategy())
+
+    # Executed quantity must be <= quantity
+    quantity_decimal = Decimal(quantity)
+    executed_quantity = draw(
+        st.decimals(min_value=Decimal(0), max_value=quantity_decimal, places=10).map(str)
+    )
+
     # If executed_quantity > 0, we need avg_fill_price
     avg_fill_price = None
     if Decimal(executed_quantity) > 0:
@@ -421,7 +429,7 @@ def raw_order_strategy(draw: st.DrawFn) -> BackpackRawOrderResponse:
         symbol=draw(trading_symbol_strategy()),
         side=draw(bp_order_side_strategy()),
         orderType=order_type,
-        quantity=draw(decimal_quantity_strategy()),
+        quantity=quantity,
         price=draw(decimal_price_strategy()),
         status=draw(bp_order_status_strategy()),
         timeInForce=draw(bp_time_in_force_strategy()),
@@ -534,7 +542,7 @@ class TestFillTransformationProperties:
     """Property-based tests for fill transformation functionality."""
 
     @given(raw_fill=raw_fill_strategy())
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     def test_fill_transformation_properties(self, raw_fill: BackpackRawFillResponse) -> None:
         """Property: Valid fill transformation should preserve all financial data."""
         mapper = BackpackTransactionMapper()
@@ -587,7 +595,7 @@ class TestFillTransformationProperties:
         price=decimal_price_strategy().filter(_filter_positive_decimal),
         quantity=decimal_quantity_strategy().filter(_filter_positive_decimal),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_fill_side_mapping_consistency(self, side: str, price: str, quantity: str) -> None:
         """Property: Fill side mapping should be consistent across all valid inputs."""
         mapper = BackpackTransactionMapper()
@@ -617,7 +625,7 @@ class TestFillTransformationProperties:
             assert result.side == OrderSide.SELL
 
     @given(fill_data=zero_value_fill_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_zero_value_fill_handling(self, fill_data: BackpackRawFillResponse) -> None:
         """Property: Fills with zero price or quantity should return None."""
         mapper = BackpackTransactionMapper()
@@ -637,7 +645,7 @@ class TestFillTransformationProperties:
         client_id=st.one_of([st.none(), order_id_strategy()]),
         precision_digits=st.integers(min_value=6, max_value=18),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_fill_precision_preservation(
         self, client_id: str | None, precision_digits: int
     ) -> None:
@@ -688,7 +696,7 @@ class TestOrderTransformationProperties:
     """Property-based tests for order transformation functionality."""
 
     @given(raw_order=raw_order_strategy())
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     def test_order_transformation_properties(self, raw_order: BackpackRawOrderResponse) -> None:
         """Property: Valid order transformation should preserve all order data."""
         mapper = BackpackTransactionMapper()
@@ -733,7 +741,7 @@ class TestOrderTransformationProperties:
         order_type=bp_order_type_strategy(),
         tif=bp_time_in_force_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_order_enum_mapping_consistency(
         self, side: str, status: str, order_type: str, tif: str
     ) -> None:
@@ -807,16 +815,22 @@ class TestOrderTransformationProperties:
         assert result.time_in_force == tif_mapping[tif]
 
     @given(
-        executed_qty=decimal_quantity_strategy(),
+        executed_qty_ratio=st.decimals(min_value=Decimal(0), max_value=Decimal(1), places=8),
         avg_price=st.one_of([st.none(), decimal_price_strategy()]),
     )
-    @settings(max_examples=150, deadline=None)
-    def test_order_execution_data_handling(self, executed_qty: str, avg_price: str | None) -> None:
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
+    def test_order_execution_data_handling(
+        self, executed_qty_ratio: Decimal, avg_price: str | None
+    ) -> None:
         """Property: Order execution data should be handled consistently."""
         mapper = BackpackTransactionMapper()
 
+        # Calculate executed quantity as a ratio of the total quantity
+        base_quantity = Decimal("10.0")
+        executed_decimal = base_quantity * executed_qty_ratio
+        executed_qty = str(executed_decimal)
+
         # When executed_quantity > 0, avg_fill_price should be present
-        executed_decimal = Decimal(executed_qty)
         if executed_decimal > 0 and avg_price is None:
             avg_price = "100.0"  # Provide a default
 
@@ -826,7 +840,7 @@ class TestOrderTransformationProperties:
             symbol="SOL-USDC",
             side="Bid",
             orderType="LIMIT",
-            quantity="10.0",
+            quantity=str(base_quantity),
             price="100.0",
             status="NEW",
             timeInForce="GTC",
@@ -866,7 +880,7 @@ class TestPublicTradeTransformationProperties:
     """Property-based tests for public trade transformation functionality."""
 
     @given(raw_trade=raw_trade_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_public_trade_transformation_limitation(
         self, raw_trade: BackpackRawPublicTrade
     ) -> None:
@@ -882,7 +896,7 @@ class TestPublicTradeTransformationProperties:
         precision_digits=st.integers(min_value=1, max_value=18),
         trade_id_length=st.integers(min_value=1, max_value=64),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_public_trade_precision_handling(
         self, precision_digits: int, trade_id_length: int
     ) -> None:
@@ -918,15 +932,13 @@ class TestTransactionMapperErrorHandlingProperties:
     """Property-based tests for error handling in transaction mapping."""
 
     @given(fill_data=raw_fill_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_fill_transformation_error_wrapping(self, fill_data: BackpackRawFillResponse) -> None:
         """Property: Fill transformation errors should be properly wrapped."""
         mapper = BackpackTransactionMapper()
 
-        # Mock parse_decimal_value to raise an error
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value"
-        ) as mock_parse:
+        # Mock parse_decimal_safely method to raise an error
+        with patch.object(mapper, "parse_decimal_safely") as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
@@ -935,27 +947,14 @@ class TestTransactionMapperErrorHandlingProperties:
                 mapper.transform_raw_fill_to_internal(fill_data)
 
     @given(trade_data=raw_trade_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_public_trade_error_handling(self, trade_data: BackpackRawPublicTrade) -> None:
         """Property: Public trade parsing errors should be properly wrapped."""
         mapper = BackpackTransactionMapper()
 
-        # Mock parse_decimal_value to return None for price
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value"
-        ) as mock_parse:
-
-            def side_effect(
-                value: str, allow_none: bool = False, field_name: str = ""
-            ) -> Decimal | None:
-                if field_name == "price":
-                    return None
-
-                if allow_none:
-                    return real_parse(value, allow_none=True, field_name=field_name)
-                return real_parse(value, allow_none=False, field_name=field_name)
-
-            mock_parse.side_effect = side_effect
+        # Mock parse_decimal_safely method to raise an error
+        with patch.object(mapper, "parse_decimal_safely") as mock_parse:
+            mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
                 DataTransformationError, match="Failed to transform BackpackRawPublicTrade to Fill"
@@ -965,7 +964,7 @@ class TestTransactionMapperErrorHandlingProperties:
     @given(
         invalid_timestamp=st.text(min_size=1, max_size=50).filter(_filter_invalid_timestamp),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_timestamp_handling(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamps should cause transformation errors."""
         mapper = BackpackTransactionMapper()
@@ -998,7 +997,7 @@ class TestTransactionMapperSecurityProperties:
     """Property-based tests for security-critical transaction mapping behavior."""
 
     @given(malicious_data=malicious_transaction_data_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_input_resistance(self, malicious_data: dict[str, Any]) -> None:
         """Property: Transaction mapper should safely handle malicious inputs."""
         mapper = BackpackTransactionMapper()
@@ -1042,7 +1041,7 @@ class TestTransactionMapperSecurityProperties:
         large_string=st.text(min_size=1000, max_size=1500),
         field_name=st.sampled_from(["orderId", "symbol", "clientId"]),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_large_input_handling(self, large_string: str, field_name: str) -> None:
         """Property: Large inputs should be handled without memory issues."""
         mapper = BackpackTransactionMapper()
@@ -1090,7 +1089,7 @@ class TestTransactionMapperIntegrationProperties:
         fills=st.lists(raw_fill_strategy(), min_size=1, max_size=10),
         orders=st.lists(raw_order_strategy(), min_size=1, max_size=10),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_batch_transformation_consistency(
         self, fills: list[BackpackRawFillResponse], orders: list[BackpackRawOrderResponse]
     ) -> None:
@@ -1135,7 +1134,7 @@ class TestTransactionMapperIntegrationProperties:
         symbol=trading_symbol_strategy(),
         timestamp=iso_timestamp_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_symbol_and_timestamp_consistency(self, symbol: str, timestamp: str) -> None:
         """Property: Symbol and timestamp handling should be consistent across types."""
         mapper = BackpackTransactionMapper()

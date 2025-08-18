@@ -12,7 +12,7 @@ Following TESTING_SECURITY_RULES.md:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
@@ -257,7 +257,11 @@ class TestValidationServiceProperties:
         order_price=price_strategy(),
         order_quantity=quantity_strategy(),
     )
-    @settings(max_examples=50, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=50,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     @pytest.mark.asyncio
     async def test_valid_orders_within_all_limits_pass(
         self,
@@ -334,7 +338,7 @@ class TestValidationServiceProperties:
         order_price=price_strategy(),
         order_quantity=quantity_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_insufficient_balance_always_fails(
         self, insufficient_balance: Decimal, order_price: Decimal, order_quantity: Decimal
@@ -388,7 +392,7 @@ class TestValidationServiceProperties:
         is_reduce_only=st.booleans(),
         is_reconciling=st.booleans(),
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_trading_state_behavior_properties(
         self, trading_state: TradingState, is_reduce_only: bool, is_reconciling: bool
@@ -436,7 +440,7 @@ class TestValidationServiceProperties:
             min_value=10000.005, max_value=10000.995, allow_nan=False, allow_infinity=False
         ),
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_precision_violations_cause_early_termination(
         self, misaligned_quantity: float, misaligned_price: float
@@ -573,7 +577,7 @@ class TestValidationServiceProperties:
         order_price=price_strategy(),
         order_quantity=quantity_strategy(),
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_exchange_specific_validation_respected(
         self,

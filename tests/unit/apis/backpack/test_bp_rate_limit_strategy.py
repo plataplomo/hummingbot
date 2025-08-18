@@ -32,6 +32,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -327,7 +328,7 @@ class TestBackpackRateLimitStrategyProperties:
         retry_duration=retry_after_duration_strategy(),
         context=bp_rate_limit_context_strategy(),
     )
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_handle_exchange_retry_after_triggers_ip_ban(
         self, retry_duration: float, context: RateLimitRequestContext, mock_limiter: MagicMock
@@ -349,7 +350,7 @@ class TestBackpackRateLimitStrategyProperties:
         context=bp_rate_limit_context_strategy(),
         default_weight=request_weight_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_uses_correct_weight(
         self, context: RateLimitRequestContext, default_weight: int, mock_limiter: MagicMock
@@ -380,7 +381,7 @@ class TestBackpackRateLimitStrategyProperties:
         }),
         retry_duration=retry_after_duration_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_handles_missing_exchange_name_gracefully(
         self, context_data: dict[str, Any], retry_duration: float, mock_limiter: MagicMock
@@ -401,7 +402,7 @@ class TestBackpackRateLimitStrategyProperties:
             st.tuples(request_weight_strategy(), request_weight_strategy()), min_size=1, max_size=10
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_weight_consistency_across_multiple_requests(
         self, weight_scenarios: list[tuple[int, int]], mock_limiter: MagicMock
@@ -440,7 +441,7 @@ class TestBackpackRateLimitStrategyProperties:
         ]),
         context=bp_rate_limit_context_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_extreme_retry_duration_handling(
         self, extreme_duration: float, context: RateLimitRequestContext, mock_limiter: MagicMock
@@ -458,7 +459,7 @@ class TestBackpackRateLimitStrategyProperties:
         context=bp_rate_limit_context_strategy(),
         default_weights=st.lists(request_weight_strategy(), min_size=1, max_size=5),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_default_weight_behavior_consistency(
         self, context: RateLimitRequestContext, default_weights: list[int], mock_limiter: MagicMock
@@ -500,7 +501,7 @@ class TestBackpackRateLimitStrategySecurityProperties:
         malicious_context_data=malicious_context_strategy(),
         retry_duration=retry_after_duration_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_malicious_context_resistance(
         self, malicious_context_data: dict[str, Any], retry_duration: float, mock_limiter: MagicMock
@@ -525,7 +526,7 @@ class TestBackpackRateLimitStrategySecurityProperties:
         extreme_weight=st.integers(min_value=1000000, max_value=999999999),
         context_base=bp_rate_limit_context_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_extreme_weight_handling(
         self, extreme_weight: int, context_base: RateLimitRequestContext, mock_limiter: MagicMock
@@ -553,7 +554,7 @@ class TestBackpackRateLimitStrategySecurityProperties:
         timing_attack_durations=st.lists(retry_after_duration_strategy(), min_size=10, max_size=50),
         context=bp_rate_limit_context_strategy(),
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_timing_attack_resistance(
         self,
@@ -576,7 +577,7 @@ class TestBackpackRateLimitStrategySecurityProperties:
         negative_weight=st.integers(min_value=-1000, max_value=-1),
         context_base=bp_rate_limit_context_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_negative_weight_handling(
         self, negative_weight: int, context_base: RateLimitRequestContext, mock_limiter: MagicMock
@@ -604,7 +605,7 @@ class TestBackpackRateLimitStrategySecurityProperties:
         buffer_overflow_endpoint=st.text(min_size=1000, max_size=1500),
         context_base=bp_rate_limit_context_strategy(),
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_buffer_overflow_resistance(
         self,
@@ -651,7 +652,7 @@ class TestBackpackRateLimitStrategyIntegrationProperties:
             max_size=20,
         )
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_mixed_operation_sequence_consistency(
         self,
@@ -682,7 +683,7 @@ class TestBackpackRateLimitStrategyIntegrationProperties:
         contexts=st.lists(bp_rate_limit_context_strategy(), min_size=5, max_size=20),
         default_weight=request_weight_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_weight_accumulation_properties(
         self, contexts: list[RateLimitRequestContext], default_weight: int, mock_limiter: MagicMock
@@ -712,7 +713,7 @@ class TestBackpackRateLimitStrategyIntegrationProperties:
         strategy_configs=st.lists(request_weight_strategy(), min_size=1, max_size=5),
         test_context=bp_rate_limit_context_strategy(),
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_strategy_instance_isolation(
         self,

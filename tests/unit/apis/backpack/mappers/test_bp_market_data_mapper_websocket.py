@@ -33,7 +33,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -536,7 +536,7 @@ class TestWebSocketTickerTransformationProperties:
     """Property-based tests for WebSocket ticker event transformation."""
 
     @given(ticker_event=ticker_event_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_ticker_transformation_preserves_essential_data(
         self, ticker_event: BackpackRawTickerEvent, ticker_mapper: BackpackTickerMapper
     ) -> None:
@@ -567,7 +567,7 @@ class TestWebSocketTickerTransformationProperties:
         price=financial_decimal_string_strategy(),
         timestamp=timestamp_ms_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_ticker_transformation_decimal_precision(
         self, symbol: str, price: str, timestamp: int, ticker_mapper: BackpackTickerMapper
     ) -> None:
@@ -599,7 +599,7 @@ class TestWebSocketTickerTransformationProperties:
         assert str(result.price) == price or result.price == expected_price
 
     @given(base_event=ticker_event_strategy(), malicious_symbol=malicious_websocket_data_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_ticker_transformation_malicious_symbol_resistance(
         self,
         base_event: BackpackRawTickerEvent,
@@ -645,7 +645,7 @@ class TestWebSocketTickerTransformationProperties:
         symbols=st.lists(backpack_symbol_strategy(), min_size=2, max_size=10, unique=True),
         base_event=ticker_event_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_ticker_transformation_symbol_consistency(
         self,
         symbols: list[str],
@@ -692,7 +692,7 @@ class TestWebSocketDepthTransformationProperties:
     """Property-based tests for WebSocket depth event transformation."""
 
     @given(depth_data=depth_event_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_depth_transformation_preserves_order_book_structure(
         self,
         depth_data: tuple[BackpackRawDepthUpdateEvent, str],
@@ -730,7 +730,7 @@ class TestWebSocketDepthTransformationProperties:
         ask_levels=st.lists(price_level_strategy(), min_size=0, max_size=50),
         timestamp=timestamp_ms_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_depth_transformation_level_precision(
         self,
         symbol: str,
@@ -780,7 +780,7 @@ class TestWebSocketDepthTransformationProperties:
             max_size=5,
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_depth_transformation_malicious_level_resistance(
         self,
         base_depth: tuple[BackpackRawDepthUpdateEvent, str],
@@ -834,7 +834,7 @@ class TestWebSocketDepthTransformationProperties:
         symbol=backpack_symbol_strategy(),
         timestamp=timestamp_ms_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_depth_transformation_empty_levels_handling(
         self,
         empty_book_scenario: tuple[list[tuple[str, str]], list[tuple[str, str]]],
@@ -870,7 +870,7 @@ class TestWebSocketTradeTransformationProperties:
     """Property-based tests for WebSocket trade event transformation."""
 
     @given(trade_event=trade_event_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_trade_transformation_preserves_essential_data(
         self, trade_event: BackpackRawPublicTradeEvent, trade_mapper: BackpackFillMapper
     ) -> None:
@@ -921,7 +921,7 @@ class TestWebSocketTradeTransformationProperties:
         trade_id=trade_id_strategy(),
         timestamp=timestamp_ms_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_trade_side_mapping_consistency(
         self,
         is_buyer_maker: bool,
@@ -966,7 +966,7 @@ class TestWebSocketTradeTransformationProperties:
         assert result2.side == result.side
 
     @given(base_trade=trade_event_strategy(), malicious_data=malicious_websocket_data_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_trade_transformation_malicious_input_resistance(
         self,
         base_trade: BackpackRawPublicTradeEvent,
@@ -1008,7 +1008,7 @@ class TestWebSocketTradeTransformationProperties:
             pass
 
     @given(trades_batch=st.lists(trade_event_strategy(), min_size=2, max_size=10))
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_trade_transformation_batch_consistency(
         self, trades_batch: list[BackpackRawPublicTradeEvent], trade_mapper: BackpackFillMapper
     ) -> None:
@@ -1052,7 +1052,7 @@ class TestWebSocketTradeTransformationProperties:
         trade_id=trade_id_strategy(),
         timestamp=timestamp_ms_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_trade_transformation_zero_value_rejection(
         self,
         zero_value_scenario: tuple[str, str],
@@ -1102,7 +1102,7 @@ class TestWebSocketTransformationSecurityProperties:
             "%s%s%s%s",
         ]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_ticker_transformation_injection_resistance(
         self,
         ticker_event: BackpackRawTickerEvent,
@@ -1137,7 +1137,7 @@ class TestWebSocketTransformationSecurityProperties:
             pass
 
     @given(large_symbol=st.text(min_size=1000, max_size=10000), base_event=ticker_event_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_websocket_transformation_large_input_handling(
         self,
         large_symbol: str,
@@ -1180,7 +1180,7 @@ class TestWebSocketTransformationSecurityProperties:
         ),
         base_event=ticker_event_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_websocket_transformation_unicode_handling(
         self,
         unicode_data: str,
@@ -1230,7 +1230,7 @@ class TestWebSocketTransformationIntegrationProperties:
             max_size=10,
         )
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_mixed_event_processing_consistency(
         self,
         mixed_events: list[
@@ -1284,7 +1284,7 @@ class TestWebSocketTransformationIntegrationProperties:
                 assert result.exchange == ExchangeName.BACKPACK.value
 
     @given(event_stream=st.lists(trade_event_strategy(), min_size=5, max_size=20))
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     def test_real_time_event_stream_processing(
         self, event_stream: list[BackpackRawPublicTradeEvent], trade_mapper: BackpackFillMapper
     ) -> None:

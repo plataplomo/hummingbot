@@ -57,6 +57,10 @@ from tests.common_symbols import (
 )
 
 
+# Constants for datetime ranges - timezone-aware for ruff compliance
+MIN_TEST_DATE_NAIVE = datetime(2020, 1, 1)
+MAX_TEST_DATE_NAIVE = datetime(2030, 12, 31)
+
 pytestmark = pytest.mark.timing
 
 
@@ -168,13 +172,13 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     Returns:
         datetime: A valid UTC timestamp
     """
-    naive_dt = draw(
+    return draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=MIN_TEST_DATE_NAIVE,
+            max_value=MAX_TEST_DATE_NAIVE,
+            timezones=st.just(UTC),
         )
     )
-    return naive_dt.replace(tzinfo=UTC)
 
 
 @st.composite
@@ -318,7 +322,7 @@ class TestMarketModelProperties:
         step_size=positive_decimal_strategy(),
         status=market_status_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_market_creation_properties(
         self,
         symbol: Symbol,
@@ -370,7 +374,7 @@ class TestMarketModelProperties:
         bp_details=backpack_details_strategy(),
         hl_details=hyperliquid_details_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_market_creation_properties(
         self,
         symbol: Symbol,
@@ -429,7 +433,7 @@ class TestMarketModelProperties:
         step_size=positive_decimal_strategy(),
         status=market_status_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_market_immutability_properties(
         self,
         symbol: Symbol,
@@ -467,7 +471,7 @@ class TestMarketModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_positive_decimal_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -496,7 +500,7 @@ class TestMarketModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_non_negative_decimal_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -534,7 +538,7 @@ class TestMarketModelProperties:
             ),
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: Market should correctly parse various numeric input types to Decimal."""
         market = Market(
@@ -576,7 +580,7 @@ class TestMarketModelProperties:
             ),
         ),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_timestamp_parsing_properties(self, timestamp_input: datetime | int) -> None:
         """Property: Timestamp fields should parse various input types correctly."""
         market = Market(
@@ -600,7 +604,7 @@ class TestMarketModelProperties:
         ),
         field_name=st.sampled_from(["market_type", "status"]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_string_field_validation_properties(self, invalid_string: str, field_name: str) -> None:
         """Property: String fields should validate length and emptiness."""
         base_kwargs: dict[str, Any] = {
@@ -625,7 +629,7 @@ class TestMarketModelProperties:
         step_size=positive_decimal_strategy(),
         status=market_status_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_extra_fields_rejection_properties(
         self,
         symbol: Symbol,  # Will be Symbol at runtime, but keeping Any for now due to Hypothesis
@@ -662,7 +666,7 @@ class TestMarketExtensionSlotProperties:
     """Property-based tests for Market extension slots."""
 
     @given(bp_details=backpack_details_strategy())
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_backpack_details_properties(self, bp_details: BackpackMarketDetails) -> None:
         """Property: BackpackMarketDetails should work correctly as extension slot."""
         market = Market(
@@ -682,7 +686,7 @@ class TestMarketExtensionSlotProperties:
             bp_details.order_book_state = "Modified"
 
     @given(hl_details=hyperliquid_details_strategy())
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_properties(self, hl_details: HyperliquidMarketDetails) -> None:
         """Property: HyperliquidMarketDetails should work correctly as extension slot."""
         market = Market(
@@ -716,7 +720,7 @@ class TestMarketExtensionSlotProperties:
         bp_details=backpack_details_strategy(),
         hl_details=hyperliquid_details_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_both_extension_slots_properties(
         self,
         bp_details: BackpackMarketDetails,
@@ -745,7 +749,7 @@ class TestMarketExtensionSlotProperties:
             st.integers(min_value=1001),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_hyperliquid_leverage_validation_properties(self, invalid_leverage: int) -> None:
         """Property: HyperliquidMarketDetails should validate leverage bounds."""
         with pytest.raises(ValidationError):
@@ -761,7 +765,7 @@ class TestMarketExtensionSlotProperties:
             st.integers(min_value=19),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_hyperliquid_sz_decimals_validation_properties(self, invalid_sz_decimals: int) -> None:
         """Property: HyperliquidMarketDetails should validate sz_decimals bounds."""
         with pytest.raises(ValidationError):
@@ -789,7 +793,7 @@ class TestMarketBusinessLogicProperties:
         min_quantity=non_negative_decimal_strategy(max_value=1000.0),
         max_quantity=non_negative_decimal_strategy(max_value=10000.0),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_market_constraint_relationships_properties(
         self,
         symbol: Symbol,
@@ -847,7 +851,7 @@ class TestMarketBusinessLogicProperties:
         status=market_status_strategy(),
         created_at=valid_timestamp_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_market_serialization_properties(
         self,
         symbol: Symbol,
@@ -890,7 +894,7 @@ class TestMarketBusinessLogicProperties:
         step_size=positive_decimal_strategy(),
         status=market_status_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_market_deterministic_creation_properties(
         self,
         symbol: Symbol,
@@ -935,7 +939,7 @@ class TestMarketEdgeCaseProperties:
         decimal_value=positive_decimal_strategy(),
         operation=st.sampled_from(["addition", "multiplication", "precision_check"]),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_financial_calculation_properties(self, decimal_value: Decimal, operation: str) -> None:
         """Property: Financial values should maintain precision for calculations."""
         market = Market(
@@ -968,7 +972,7 @@ class TestMarketEdgeCaseProperties:
         base_time=valid_timestamp_strategy(),
         offset_seconds=st.integers(min_value=-86400, max_value=86400),  # ±1 day
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_market_timing_edge_cases_properties(
         self,
         base_time: datetime,
@@ -1009,7 +1013,7 @@ class TestMarketEdgeCaseProperties:
             max_size=10,
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_multiple_markets_independence_properties(
         self, markets: list[tuple[Any, str, Decimal, Decimal, str]]
     ) -> None:

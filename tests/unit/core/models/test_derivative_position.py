@@ -178,8 +178,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -313,7 +313,7 @@ class TestDerivativePositionModelProperties:
         position_data=consistent_position_data_strategy(),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_position_creation_properties(
         self,
         position_symbol: Symbol,
@@ -361,7 +361,11 @@ class TestDerivativePositionModelProperties:
         timestamp=valid_timestamp_strategy(),
         data=st.data(),
     )
-    @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=300,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_full_position_creation_properties(
         self,
         position_symbol: Symbol,
@@ -439,7 +443,7 @@ class TestDerivativePositionModelProperties:
         side=st.sampled_from([OrderSide.BUY, OrderSide.SELL]),
         entry_price=st.one_of(st.none(), positive_decimal_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_position_logic_validation_properties(
         self, size: Decimal, side: OrderSide, entry_price: Decimal | None
     ) -> None:
@@ -489,7 +493,7 @@ class TestDerivativePositionModelProperties:
         size=position_size_strategy().filter(lambda x: x != Decimal(0)),
         side=st.sampled_from([OrderSide.BUY, OrderSide.SELL]),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_unrealized_pnl_calculation_properties(
         self, mark_price: Decimal, entry_price: Decimal, size: Decimal, side: OrderSide
     ) -> None:
@@ -523,7 +527,7 @@ class TestDerivativePositionModelProperties:
         position_data=consistent_position_data_strategy(),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_position_mutability_properties(
         self,
         position_symbol: Symbol,
@@ -567,7 +571,7 @@ class TestDerivativePositionModelProperties:
         hl_details=hyperliquid_position_details_strategy(),
         bp_details=backpack_position_details_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_exchange_details_validation_properties(
         self,
         exchange: ExchangeName,
@@ -619,7 +623,7 @@ class TestDerivativePositionModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_financial_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -643,7 +647,7 @@ class TestDerivativePositionModelProperties:
     @given(
         side=st.sampled_from([OrderSide.BUY, OrderSide.SELL]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_flat_position_properties(self, side: OrderSide) -> None:
         """Property: Flat positions should have specific behavior."""
         # Generate flat position directly
@@ -683,7 +687,7 @@ class TestHyperliquidPositionDetailsProperties:
             ),
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_creation_properties(
         self,
         leverage_type: str,
@@ -716,7 +720,7 @@ class TestHyperliquidPositionDetailsProperties:
         field_name=st.sampled_from(["leverage_value", "max_leverage"]),
         invalid_value=st.one_of(st.just(-1), st.just(-100)),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_validation_properties(
         self, field_name: str, invalid_value: int
     ) -> None:
@@ -757,7 +761,7 @@ class TestBackpackPositionDetailsProperties:
         ),
         cumulative_funding=st.one_of(st.none(), pnl_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_backpack_details_creation_properties(
         self,
         leverage: int | None,
@@ -803,7 +807,7 @@ class TestBackpackPositionDetailsProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_backpack_details_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:

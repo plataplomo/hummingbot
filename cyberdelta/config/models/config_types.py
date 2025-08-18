@@ -10,7 +10,7 @@ from typing import Annotated
 from pydantic import BeforeValidator, ValidationInfo
 
 from cyberdelta.utils.parsing import (
-    parse_decimal_value,
+    parse_decimal_safely,
     validate_str_field,
 )
 
@@ -34,7 +34,7 @@ def _parse_yaml_input_to_required_decimal(
     field_name = info.field_name or "decimal_field"
     # allow_none=False because this is for fields that are expected to be Decimal.
     # Optionality of the field itself is handled by Pydantic's Optional[ConfigDecimal] typing.
-    parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
+    parsed = parse_decimal_safely(v, field_name=field_name, allow_none=False)
     # Note: parsed cannot be None when allow_none=False
     if not parsed.is_finite():
         msg = f"Field '{field_name}': Decimal value must be finite, got '{v}'."

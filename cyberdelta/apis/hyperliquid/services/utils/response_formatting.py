@@ -14,7 +14,7 @@ from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import CancelOrderResultStatus
 from cyberdelta.models.market.order import CancelOrderResult
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_safely
 
 
 logger = get_logger(__name__)
@@ -158,7 +158,7 @@ def validate_decimal_field(
         )
 
     try:
-        # Type check for parse_decimal_value compatibility
+        # Type check for parse_decimal_safely compatibility
         if not isinstance(value, (Decimal, str, float)):
             _raise_invalid_decimal_type_error(value, validation_context.field_name)
         # Use helper function for proper type handling
@@ -349,7 +349,7 @@ def _parse_validated_decimal(value: object) -> Decimal | None:
     if not isinstance(value, (Decimal, str, float)):
         msg = f"Internal error: expected decimal-compatible type, got {type(value)}"
         raise TypeError(msg)
-    return parse_decimal_value(value)
+    return parse_decimal_safely(value)
 
 
 def _raise_invalid_decimal_type_error(value: object, field_name: str) -> None:

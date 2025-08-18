@@ -21,6 +21,7 @@ SECURITY CRITICAL: Validators are the first line of defense against:
 
 from __future__ import annotations
 
+from datetime import timedelta
 from typing import Any, cast
 
 import pytest
@@ -206,7 +207,7 @@ class TestWebSocketPayloadValidators:
     """Property-based tests for WebSocketPayloadValidators functionality."""
 
     @given(payload=valid_dict_payload_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_dict_payload_properties(self, payload: dict[str, Any]) -> None:
         """Property: Valid dictionary payloads should be accepted and preserved."""
         result = WebSocketPayloadValidators.validate_dict_payload(payload)
@@ -220,7 +221,7 @@ class TestWebSocketPayloadValidators:
         min_keys=st.integers(min_value=0, max_value=5),
         max_keys=st.integers(min_value=5, max_value=15),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_dict_payload_with_constraints_properties(
         self, payload: dict[str, Any], min_keys: int, max_keys: int
     ) -> None:
@@ -248,14 +249,14 @@ class TestWebSocketPayloadValidators:
             st.none(),  # None instead of dict
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_dict_payload_type_rejection_properties(self, invalid_payload: object) -> None:
         """Property: Non-dictionary types should be rejected with InvalidPayloadTypeError."""
         with pytest.raises(InvalidPayloadTypeError):
             WebSocketPayloadValidators.validate_dict_payload(cast(ValidationInput, invalid_payload))
 
     @given(payload=valid_list_payload_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_list_payload_properties(self, payload: list[Any]) -> None:
         """Property: Valid list payloads should be accepted and preserved."""
         result = WebSocketPayloadValidators.validate_list_payload(payload)
@@ -270,7 +271,7 @@ class TestWebSocketPayloadValidators:
         max_length=st.integers(min_value=5, max_value=15),
         item_type=st.sampled_from([str, int, float, bool, None]),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_list_payload_with_constraints_properties(
         self, payload: list[Any], min_length: int, max_length: int, item_type: type | None
     ) -> None:
@@ -304,7 +305,7 @@ class TestWebSocketPayloadValidators:
         min_constraint=st.integers(min_value=0, max_value=50),
         max_constraint=st.integers(min_value=0, max_value=50),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_list_length_constraint_properties(
         self, payload_length: int, min_constraint: int, max_constraint: int
     ) -> None:
@@ -334,7 +335,7 @@ class TestWebSocketPayloadValidators:
             st.none(),  # None instead of list
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_list_payload_type_rejection_properties(self, invalid_payload: object) -> None:
         """Property: Non-list types should be rejected with InvalidPayloadTypeError."""
         with pytest.raises(InvalidPayloadTypeError):
@@ -349,7 +350,7 @@ class TestWebSocketPayloadValidators:
         ),
         num_required=st.integers(min_value=0, max_value=10),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_required_fields_properties(
         self, all_fields: list[str], num_required: int
     ) -> None:
@@ -388,7 +389,7 @@ class TestWebSocketPayloadValidators:
             unique=True,
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_optional_fields_properties(
         self, allowed_fields: list[str], extra_fields: list[str]
     ) -> None:
@@ -412,7 +413,7 @@ class TestWebSocketPayloadValidators:
                 WebSocketPayloadValidators.validate_optional_fields(bad_payload, allowed_fields)
 
     @given(symbol=valid_symbol_string_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_symbol_properties(self, symbol: str) -> None:
         """Property: Valid symbols should be accepted and preserved."""
         result = WebSocketPayloadValidators.validate_symbol(symbol)
@@ -438,14 +439,14 @@ class TestWebSocketPayloadValidators:
             ),  # Special chars
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_symbol_rejection_properties(self, invalid_symbol: object) -> None:
         """Property: Invalid symbols should be rejected."""
         with pytest.raises((InvalidFieldTypeError, InvalidFormatError)):
             WebSocketPayloadValidators.validate_symbol(cast(ValidationInput, invalid_symbol))
 
     @given(topic=valid_topic_string_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_topic_properties(self, topic: str) -> None:
         """Property: Valid topics should be accepted and preserved."""
         result = WebSocketPayloadValidators.validate_topic(topic)
@@ -469,14 +470,14 @@ class TestWebSocketPayloadValidators:
             ),  # Special chars
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_topic_rejection_properties(self, invalid_topic: object) -> None:
         """Property: Invalid topics should be rejected."""
         with pytest.raises((InvalidFieldTypeError, InvalidFormatError)):
             WebSocketPayloadValidators.validate_topic(cast(ValidationInput, invalid_topic))
 
     @given(numeric_str=numeric_string_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_numeric_string_properties(self, numeric_str: str) -> None:
         """Property: Valid numeric strings should be accepted and preserved."""
         result = WebSocketPayloadValidators.validate_numeric_string(numeric_str)
@@ -493,7 +494,7 @@ class TestWebSocketPayloadValidators:
         min_value=st.floats(min_value=-1000, max_value=1000, allow_nan=False, allow_infinity=False),
         max_value=st.floats(min_value=-1000, max_value=1000, allow_nan=False, allow_infinity=False),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_numeric_string_range_properties(
         self, numeric_str: str, min_value: float, max_value: float
     ) -> None:
@@ -527,7 +528,7 @@ class TestWebSocketPayloadValidators:
             # Note: "12e34" is actually valid scientific notation for Python's float()
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_numeric_string_rejection_properties(self, invalid_numeric: object) -> None:
         """Property: Invalid numeric strings should be rejected."""
         # Scientific notation is actually valid for Python's float()
@@ -547,7 +548,7 @@ class TestWebSocketPayloadValidators:
             max_value=2147483647,  # Max 32-bit timestamp (2038)
         )
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_timestamp_properties(self, timestamp: int) -> None:
         """Property: Valid timestamps should be accepted and preserved."""
         result = WebSocketPayloadValidators.validate_timestamp(timestamp)
@@ -562,13 +563,15 @@ class TestWebSocketPayloadValidators:
     @given(
         invalid_timestamp=st.one_of(
             st.text(),  # Wrong type (string)
-            st.floats(max_value=-1.0),  # Negative floats
-            st.floats(min_value=0.0, max_value=946684799.9),  # Before year 2000 (floats)
+            st.floats(max_value=-1.0, allow_infinity=False, allow_nan=False),  # Negative floats
+            st.floats(
+                min_value=0.0, max_value=946684799.9, allow_infinity=False, allow_nan=False
+            ),  # Before year 2000 (floats)
             st.integers(max_value=-1),  # Negative
             st.integers(min_value=0, max_value=946684799),  # Before year 2000
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_timestamp_rejection_properties(self, invalid_timestamp: object) -> None:
         """Property: Invalid timestamps should be rejected."""
         # We're intentionally testing invalid inputs, so we need to cast to bypass type checking
@@ -578,8 +581,14 @@ class TestWebSocketPayloadValidators:
                 WebSocketPayloadValidators.validate_timestamp(cast(int, invalid_timestamp))
         # Numeric types that are out of range will raise InvalidTimestampError
         elif isinstance(invalid_timestamp, (int, float)):
-            with pytest.raises(InvalidTimestampError):
-                WebSocketPayloadValidators.validate_timestamp(int(invalid_timestamp))
+            try:
+                # Try to convert float to int
+                timestamp_int = int(invalid_timestamp)
+                with pytest.raises(InvalidTimestampError):
+                    WebSocketPayloadValidators.validate_timestamp(timestamp_int)
+            except (OverflowError, ValueError):
+                # If conversion fails, that's also an invalid timestamp scenario
+                pass
         else:
             # Other types will cause runtime errors
             with pytest.raises((TypeError, AttributeError)):
@@ -605,7 +614,7 @@ class TestBackpackValidators:
     """Property-based tests for BackpackValidators functionality."""
 
     @given(topic=backpack_topic_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_validate_backpack_topic_properties(self, topic: str) -> None:
         """Property: Valid Backpack topics should be parsed correctly."""
         topic_type, symbol = BackpackValidators.validate_backpack_topic(topic)
@@ -640,7 +649,7 @@ class TestBackpackValidators:
             st.text(min_size=1, max_size=20).filter(lambda s: s.count(".") > 1),  # Too many dots
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_backpack_topic_rejection_properties(self, invalid_topic: str) -> None:
         """Property: Invalid Backpack topics should be rejected."""
         with pytest.raises((
@@ -669,7 +678,7 @@ class TestHyperliquidValidators:
             "candle",
         ])
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_hyperliquid_channel_properties(self, channel: str) -> None:
         """Property: Valid Hyperliquid channels should be accepted and preserved."""
         result = HyperliquidValidators.validate_hyperliquid_channel(channel)
@@ -694,7 +703,7 @@ class TestHyperliquidValidators:
             ]
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_validate_hyperliquid_channel_rejection_properties(self, invalid_channel: str) -> None:
         """Property: Unknown Hyperliquid channels should be rejected."""
         with pytest.raises(InvalidChannelError):

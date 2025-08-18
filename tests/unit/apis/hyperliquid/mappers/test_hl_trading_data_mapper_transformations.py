@@ -261,9 +261,10 @@ class TestTransformRawOrderToInternal:
         """Test that missing or invalid size raises TransformationError."""
         raw_order = create_raw_order()
 
-        # Mock parse_decimal_value to return None for size
-        mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+        # Mock parse_decimal_safely to return None for size
+        mock_parse = mocker.patch.object(
+            trading_data_mapper,
+            "parse_decimal_safely",
         )
         mock_parse.return_value = None
 
@@ -299,9 +300,9 @@ class TestTransformRawOrderToInternal:
         """Test that parsing exceptions are wrapped in TransformationError."""
         raw_order = create_raw_order()
 
-        # Mock parse_decimal_value to raise an exception
+        # Mock parse_decimal_safely to raise an exception
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
         mock_parse.side_effect = ValueError("Invalid decimal format")
 
@@ -330,7 +331,7 @@ class TestTransformRawOrderToInternal:
             return Decimal("1.0")
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
         mock_parse.side_effect = mock_parse_side_effect
 
@@ -361,7 +362,7 @@ class TestTransformRawOrderToInternal:
             return Decimal("1.0")
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
         mock_parse.side_effect = mock_parse_side_effect
 
@@ -489,7 +490,7 @@ class TestTransformRawHistoricalOrderToInternal:
         raw_order = create_raw_historical_order()
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
         mock_parse.return_value = None
 
@@ -567,7 +568,7 @@ class TestTransformRawHistoricalOrderToInternal:
         raw_order = create_raw_historical_order()
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
         mock_parse.side_effect = ValueError("Parse error")
 
@@ -680,7 +681,7 @@ class TestTransformationIntegration:
 
         # Mock to cause parsing error
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 

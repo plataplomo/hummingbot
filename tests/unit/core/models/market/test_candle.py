@@ -29,7 +29,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any, cast
 
@@ -180,8 +180,9 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     return draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
+            timezones=st.just(UTC),
         )
     )
 
@@ -231,7 +232,7 @@ class TestCandleModelProperties:
         ohlc_prices=consistent_ohlc_prices_strategy(),
         volume=volume_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_candle_creation_properties(
         self,
         symbol: Symbol,
@@ -280,7 +281,7 @@ class TestCandleModelProperties:
         ohlc_prices=consistent_ohlc_prices_strategy(),
         volume=volume_strategy(),
     )
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     def test_full_candle_creation_properties(
         self,
         symbol: Symbol,
@@ -322,7 +323,7 @@ class TestCandleModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_price_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -352,7 +353,7 @@ class TestCandleModelProperties:
         ohlc_prices=consistent_ohlc_prices_strategy(),
         volume=volume_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_candle_immutability_properties(
         self,
         symbol: Symbol,
@@ -391,7 +392,7 @@ class TestCandleModelProperties:
         low=price_strategy(),
         close=price_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_ohlc_consistency_validation_properties(
         self, open_price: Decimal, high: Decimal, low: Decimal, close: Decimal
     ) -> None:
@@ -443,7 +444,11 @@ class TestCandleModelProperties:
             ),
         ),
     )
-    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=200,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: Candle should correctly parse various numeric input types to Decimal."""
         # Skip edge cases that might cause precision issues
@@ -506,7 +511,11 @@ class TestCandleModelProperties:
             ]
         ),
     )
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=100,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_interval_validation_properties(self, interval: str) -> None:
         """Property: Invalid interval formats should be validated or accepted as strings."""
         base_kwargs: dict[str, Any] = {
@@ -539,7 +548,7 @@ class TestCandleModelProperties:
             st.just("2023/01/01"),  # Wrong format
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):

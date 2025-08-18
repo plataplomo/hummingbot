@@ -34,7 +34,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import contextlib
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -554,7 +554,7 @@ class TestBalanceTransformationProperties:
         total_balance=balance_amount_string_strategy(),
         available_balance=balance_amount_string_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_balance_data_transformation_properties(
         self, asset: str, total_balance: str, available_balance: str
     ) -> None:
@@ -594,7 +594,7 @@ class TestBalanceTransformationProperties:
         asset=asset_symbol_strategy(),
         raw_balance=raw_balance_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_raw_balance_transformation_properties(
         self, asset: str, raw_balance: BackpackRawBalanceResponse
     ) -> None:
@@ -633,7 +633,7 @@ class TestBalanceTransformationProperties:
         locked=decimal_amount_strategy(),
         staked=decimal_amount_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_balance_calculation_consistency_properties(
         self, asset: str, available: Decimal, locked: Decimal, staked: Decimal
     ) -> None:
@@ -665,7 +665,7 @@ class TestBalanceTransformationProperties:
             ("0.000000000000000000", "0.000000000000000000", "0.000000000000000000"),
         ]),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_zero_balance_handling_properties(
         self, asset: str, zero_values: tuple[str, str, str]
     ) -> None:
@@ -689,7 +689,7 @@ class TestBalanceTransformationProperties:
     @given(
         malicious_input=malicious_balance_input_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_balance_security_resistance_properties(self, malicious_input: str) -> None:
         """Property: Balance transformation should resist malicious inputs."""
         mapper = CompositeAccountMapper()
@@ -723,7 +723,7 @@ class TestPositionTransformationProperties:
     @given(
         raw_position=raw_position_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_position_transformation_properties(
         self, raw_position: BackpackRawPositionResponse
     ) -> None:
@@ -779,7 +779,7 @@ class TestPositionTransformationProperties:
         entry_price=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(100000), places=8),
         pnl=st.decimals(min_value=Decimal(-100000), max_value=Decimal(100000), places=18),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_position_side_detection_properties(
         self,
         symbol: str,
@@ -834,7 +834,7 @@ class TestPositionTransformationProperties:
     @given(
         zero_position=zero_position_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_zero_position_validation_properties(
         self, zero_position: BackpackRawPositionResponse
     ) -> None:
@@ -851,7 +851,7 @@ class TestPositionTransformationProperties:
         user_id=st.integers(min_value=1, max_value=999999999999),
         position_id=st.text(min_size=1, max_size=64).filter(lambda x: x.strip()),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_position_metadata_preservation_properties(
         self, symbol: str, user_id: int, position_id: str
     ) -> None:
@@ -906,7 +906,7 @@ class TestAccountSummaryTransformationProperties:
         ),
         positions=st.lists(raw_position_strategy(), min_size=0, max_size=5),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_account_summary_transformation_properties(
         self,
         raw_summary: BackpackRawAccountSummaryResponse,
@@ -956,7 +956,7 @@ class TestAccountSummaryTransformationProperties:
             st.sampled_from(["BTC", "ETH", "SOL"]), raw_balance_strategy(), min_size=0, max_size=3
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_usd_balance_aggregation_properties(
         self,
         usd_balances: dict[str, BackpackRawBalanceResponse],
@@ -1019,7 +1019,7 @@ class TestAccountSummaryTransformationProperties:
             max_size=5,
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_position_pnl_aggregation_properties(
         self, positions_with_pnl: list[tuple[str, str, str]]
     ) -> None:
@@ -1108,7 +1108,7 @@ class TestAccountDataSecurityProperties:
         malicious_balance=malicious_balance_input_strategy(),
         valid_balance=balance_amount_string_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_balance_resistance_properties(
         self, asset: str, malicious_balance: str, valid_balance: str
     ) -> None:
@@ -1150,7 +1150,7 @@ class TestAccountDataSecurityProperties:
         symbol=trading_symbol_strategy(),
         malicious_price=malicious_balance_input_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_malicious_position_data_resistance(self, symbol: str, malicious_price: str) -> None:
         """Property: Position transformation should resist malicious price inputs."""
         mapper = CompositeAccountMapper()
@@ -1205,7 +1205,7 @@ class TestAccountDataSecurityProperties:
             max_size=3,
         ),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_large_value_handling_properties(self, large_values: list[str]) -> None:
         """Property: Large financial values should be handled without overflow."""
         mapper = CompositeAccountMapper()
@@ -1323,7 +1323,7 @@ class TestAccountDataIntegrationProperties:
             st.lists(raw_position_strategy(), min_size=0, max_size=3),
         ),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_complete_account_workflow_properties(
         self,
         account_scenario: tuple[

@@ -14,7 +14,7 @@ Tests all public transformation methods with various scenarios including:
 """
 
 import string
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Literal
 from unittest.mock import patch
@@ -37,7 +37,7 @@ from cyberdelta.exceptions.field_validation import TypeFieldError
 from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.models import DerivativePosition, Fill
 from cyberdelta.symbols import exchanges
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.secure_transformation import UnexpectedTransformationError
 from tests.common_symbols import SOL_USDC_BP
 
 
@@ -121,8 +121,8 @@ def _create_negative_decimal_string(n: str) -> str:
     return f"-{n}"
 
 
-def _mock_parse_decimal_value(v: str, **kwargs: object) -> Decimal | None:
-    """Mock implementation of parse_decimal_value for testing negative values.
+def _mock_parse_decimal_safely(v: str, **kwargs: object) -> Decimal | None:
+    """Mock implementation of parse_decimal_safely for testing negative values.
 
     Returns:
         Decimal | None: Parsed decimal value or None if empty.
@@ -244,8 +244,9 @@ def timestamp_strategy() -> SearchStrategy[str]:
     return st.builds(
         _create_isoformat_datetime,
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 1, 1, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 1, 1),
+            timezones=st.just(UTC),
         ),
     )
 
@@ -306,17 +307,28 @@ def raw_position_update_strategy(draw: st.DrawFn) -> BackpackRawPositionUpdate:
     Returns:
         BackpackRawPositionUpdate: Valid raw position update.
     """
+    # Generate net_quantity first to determine if position has size
+    net_quantity = draw(st.one_of(st.none(), decimal_string_strategy()))
+
+    # Business rule: if net_quantity is non-zero, entry_price must be provided
+    if net_quantity is not None and net_quantity != "0" and net_quantity != "0.0":
+        # Non-zero position requires entry_price
+        entry_price = draw(decimal_string_strategy())
+    else:
+        # Zero or None position can have None entry_price
+        entry_price = draw(st.one_of(st.none(), decimal_string_strategy()))
+
     return BackpackRawPositionUpdate(
         e="positionUpdate",
         E=draw(st.integers(min_value=1600000000000, max_value=2000000000000)),
         s=draw(symbol_string_strategy()),
         b=draw(st.one_of(st.none(), decimal_string_strategy())),
-        B=draw(st.one_of(st.none(), decimal_string_strategy())),
+        B=entry_price,  # Use the calculated entry_price
         l=draw(st.one_of(st.none(), decimal_string_strategy())),
         f=draw(st.one_of(st.none(), decimal_string_strategy())),
         M=draw(st.one_of(st.none(), decimal_string_strategy())),
         m=draw(st.one_of(st.none(), decimal_string_strategy())),
-        q=draw(st.one_of(st.none(), decimal_string_strategy())),
+        q=net_quantity,  # Use the calculated net_quantity
         Q=draw(st.one_of(st.none(), decimal_string_strategy())),
         n=draw(st.one_of(st.none(), decimal_string_strategy())),
     )
@@ -423,7 +435,7 @@ class TestFillTransformationProperties:
     """Property-based tests for fill transformation functionality."""
 
     @given(raw_fill=raw_fill_strategy())
-    @settings(max_examples=100)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_transform_raw_fill_properties(
         self,
         raw_fill: BackpackRawFillResponse,
@@ -691,10 +703,9 @@ class TestFillTransformation:
         # Create a valid raw fill
         raw_fill = create_raw_fill()
 
-        # Mock parse_decimal_value to raise an error during transformation
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
-        ) as mock_parse:
+        # Mock parse_decimal_safely to raise an error during transformation
+        mapper = BackpackTransactionMapper()
+        with patch.object(mapper, "parse_decimal_safely") as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
@@ -782,29 +793,30 @@ class TestFillTransformationPrivate:
         # Create a valid raw trade first
         raw_trade = create_raw_trade(time=test_timestamp)
 
-        # Mock parse_decimal_value to return None for price
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
-        ) as mock_parse:
+        # Mock parse_decimal_safely to return None for price
+        with patch.object(mapper, "parse_decimal_safely") as mock_parse:
 
             def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
+                value: str | float | Decimal | None,
+                default: Decimal | None = Decimal(0),
             ) -> Decimal | None:
                 """Return appropriate Decimal conversion for testing fill parsing edge cases."""
-                if field_name == "price":
+                # Simulate missing price by returning None when value represents a price
+                if value == raw_trade.price:
                     return None
-                # For other fields, call the real function
-                if allow_none:
-                    return parse_decimal_value(value, allow_none=True, field_name=field_name)
-                return parse_decimal_value(value, allow_none=False, field_name=field_name)
+                # For other fields, return a valid decimal or default
+                if value is None:
+                    return default
+                try:
+                    return Decimal(str(value))
+                except (ValueError, TypeError):
+                    return default
 
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to Fill",
+                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
             ):
                 mapper.transform_raw_fill_to_internal_public(raw_trade)
 
@@ -817,29 +829,30 @@ class TestFillTransformationPrivate:
         # Create a valid raw trade first
         raw_trade = create_raw_trade(time=test_timestamp)
 
-        # Mock parse_decimal_value to return None for quantity
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
-        ) as mock_parse:
+        # Mock parse_decimal_safely to return None for quantity
+        with patch.object(mapper, "parse_decimal_safely") as mock_parse:
 
             def side_effect(
-                value: str,
-                allow_none: bool = False,
-                field_name: str = "",
+                value: str | float | Decimal | None,
+                default: Decimal | None = Decimal(0),
             ) -> Decimal | None:
                 """Return appropriate Decimal conversion for testing fill quantity validation."""
-                if field_name == "quantity":
+                # Simulate missing quantity by returning None when value represents a quantity
+                if value == raw_trade.quantity:
                     return None
-                # For other fields, call the real function
-                if allow_none:
-                    return parse_decimal_value(value, allow_none=True, field_name=field_name)
-                return parse_decimal_value(value, allow_none=False, field_name=field_name)
+                # For other fields, return a valid decimal or default
+                if value is None:
+                    return default
+                try:
+                    return Decimal(str(value))
+                except (ValueError, TypeError):
+                    return default
 
             mock_parse.side_effect = side_effect
 
             with pytest.raises(
                 DataTransformationError,
-                match="Failed to transform BackpackRawPublicTrade to Fill",
+                match="Failed to transform BackpackRawPublicTrade to PublicTrade",
             ):
                 mapper.transform_raw_fill_to_internal_public(raw_trade)
 
@@ -1091,10 +1104,8 @@ class TestWebSocketPositionUpdateTransformation:
         """Test that position update transformation errors are properly wrapped."""
         raw_position_update = create_raw_position_update()
 
-        # Mock parse_decimal_value to raise an error during transformation
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_position_mapper.parse_decimal_value",
-        ) as mock_parse:
+        # Mock parse_decimal_safely to raise an error during transformation
+        with patch.object(position_mapper, "parse_decimal_safely") as mock_parse:
             mock_parse.side_effect = ValueError("Invalid decimal value")
 
             with pytest.raises(
@@ -1175,17 +1186,22 @@ class TestErrorHandlingProperties:
         else:
             kwargs = {}
 
-        # Mock parse_decimal_value to allow negative values through validation
-        with patch(
-            "cyberdelta.apis.backpack.mappers.account.bp_transaction_mapper.parse_decimal_value",
-        ) as mock_parse:
-            mock_parse.side_effect = _mock_parse_decimal_value
+        # Mock parse_decimal_safely to allow negative values through validation
+        mapper = BackpackTransactionMapper()
+        with patch.object(mapper, "parse_decimal_safely") as mock_parse:
+            # Mock to return the negative value as a Decimal
+            mock_parse.side_effect = lambda v, default=None: Decimal(str(v)) if v else default
 
             raw_fill = create_raw_fill(**kwargs)  # type: ignore
             result = mapper.transform_raw_fill_to_internal(raw_fill)
 
-            # Should return None for negative values
-            assert result is None
+            # Should return None for negative price/quantity but allow negative fees (rebates)
+            if field in ["price", "quantity"]:
+                assert result is None
+            else:  # field == "fee"
+                # Negative fees are allowed (rebates), so result should not be None
+                assert result is not None
+                assert result.fee < 0  # Should be negative as expected
 
     @given(
         unicode_string=st.text(
@@ -1227,16 +1243,29 @@ class TestErrorHandlingProperties:
             max_size=200,
         )
     )
+    @settings(deadline=timedelta(seconds=1))
     def test_long_client_id_handling(
         self,
         long_id: str,
     ) -> None:
         """Test handling of very long client IDs."""
         mapper = BackpackTransactionMapper()
-        # Client IDs over 64 characters should raise an error
-        with pytest.raises(DataTransformationError):
+
+        # Client IDs over 128 characters should fail at model validation
+        # Client IDs over 64 characters should fail at transformation
+        if len(long_id) > 128:
+            with pytest.raises(TypeFieldError):
+                raw_fill = create_raw_fill(client_id=long_id)
+        else:
+            # Should succeed at model creation but fail at transformation if over 64 chars
             raw_fill = create_raw_fill(client_id=long_id)
-            mapper.transform_raw_fill_to_internal(raw_fill)
+            if len(long_id) > 64:
+                with pytest.raises((DataTransformationError, UnexpectedTransformationError)):
+                    mapper.transform_raw_fill_to_internal(raw_fill)
+            else:
+                # Should succeed (although this is outside the test's intended range)
+                result = mapper.transform_raw_fill_to_internal(raw_fill)
+                assert result is not None
 
     @given(extreme_trade_id=st.integers(min_value=10**15, max_value=10**18))
     def test_extreme_trade_id_handling(

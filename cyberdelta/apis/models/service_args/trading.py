@@ -27,7 +27,7 @@ from cyberdelta.exceptions.service_validation import (
     TimeRangeError,
 )
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_value
+from cyberdelta.utils.parsing import parse_datetime_utc, parse_decimal_safely
 from cyberdelta.utils.typing import PotentialDecimalInput, is_potential_decimal_input
 
 
@@ -96,9 +96,9 @@ class PlaceOrderArgs(BaseModel):
 
         parsed: Decimal | None
         if is_required:
-            parsed = parse_decimal_value(v, allow_none=False, field_name=field_name)
+            parsed = parse_decimal_safely(v, allow_none=False, field_name=field_name)
         else:
-            parsed = parse_decimal_value(v, allow_none=True, field_name=field_name)
+            parsed = parse_decimal_safely(v, allow_none=True, field_name=field_name)
         if parsed is not None and not parsed.is_finite():
             raise DecimalFieldError(
                 field_name=field_name,

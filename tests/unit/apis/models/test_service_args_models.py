@@ -1248,7 +1248,7 @@ class TestEdgeCasesAndBoundaryConditions:
 
     def test_comma_in_decimal_strings(self) -> None:
         """Test decimal parsing with commas in strings."""
-        # parse_decimal_value should strip commas
+        # parse_decimal_safely should strip commas
         args = PlaceOrderArgs(
             symbol=BTC_HL,
             side=OrderSide.BUY,

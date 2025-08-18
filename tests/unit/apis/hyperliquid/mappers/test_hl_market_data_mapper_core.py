@@ -445,15 +445,15 @@ class TestTransformRawAssetCtxToFundingRate:
     ) -> None:
         """Test funding rate transformation with extreme funding values."""
         test_cases = [
-            ("0.001", "Very high positive funding"),
-            ("-0.001", "Very high negative funding"),
-            ("0.000000001", "Very small positive funding"),
-            ("-0.000000001", "Very small negative funding"),
+            ("0.001", "HIGH-POS"),
+            ("-0.001", "HIGH-NEG"),
+            ("0.000000001", "SMALL-POS"),
+            ("-0.000000001", "SMALL-NEG"),
         ]
 
         for funding_value, description in test_cases:
             raw_ctx = create_asset_ctx(
-                name=f"EXTREME-{description.replace(' ', '-').upper()}-PERP",
+                name=f"EXT-{description}-PERP",
                 funding=funding_value,
                 mark_px="1500.0",
                 prev_day_px="1500.0",

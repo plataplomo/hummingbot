@@ -127,8 +127,9 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
+            timezones=st.just(UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -271,7 +272,7 @@ class TestMarginAccountSummaryProperties:
         total_equity=finite_positive_decimal_strategy(),
         available_equity=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_margin_summary_creation_properties(
         self,
         exchange: ExchangeName,
@@ -317,7 +318,7 @@ class TestMarginAccountSummaryProperties:
             finite_decimal_strategy(),  # Can be negative
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_margin_summary_creation_properties(
         self,
         exchange: ExchangeName,
@@ -361,7 +362,7 @@ class TestMarginAccountSummaryProperties:
         available_equity=finite_positive_decimal_strategy(),
         hl_details=hyperliquid_details_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_summary_with_hyperliquid_details_properties(
         self,
         exchange: ExchangeName,
@@ -396,7 +397,7 @@ class TestMarginAccountSummaryProperties:
         available_equity=finite_positive_decimal_strategy(),
         bp_details=backpack_details_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_summary_with_backpack_details_properties(
         self,
         exchange: ExchangeName,
@@ -425,7 +426,7 @@ class TestMarginAccountSummaryProperties:
         total_equity=parseable_decimal_strategy(),
         available_equity=parseable_decimal_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_margin_summary_decimal_parsing_properties(
         self,
         exchange: ExchangeName,
@@ -458,7 +459,7 @@ class TestMarginAccountSummaryProperties:
         total_equity=finite_positive_decimal_strategy(),
         available_equity=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_summary_immutability_properties(
         self,
         exchange: ExchangeName,
@@ -493,7 +494,7 @@ class TestMarginAccountSummaryProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_required_decimal_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -524,7 +525,7 @@ class TestMarginAccountSummaryProperties:
             st.just(Decimal("Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_optional_positive_decimal_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -549,7 +550,7 @@ class TestMarginAccountSummaryProperties:
         total_equity=finite_positive_decimal_strategy(),
         available_equity=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_extra_fields_rejection_properties(
         self,
         exchange: ExchangeName,
@@ -583,7 +584,7 @@ class TestHyperliquidMarginDetailsProperties:
         cross_maintenance_margin_used=finite_positive_decimal_strategy(),
         isolated_maintenance_margin_used=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_creation_properties(
         self,
         cross_maintenance_margin_used: Decimal,
@@ -607,7 +608,7 @@ class TestHyperliquidMarginDetailsProperties:
         cross_maintenance_margin_used=finite_positive_decimal_strategy(),
         isolated_maintenance_margin_used=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_immutability_properties(
         self,
         cross_maintenance_margin_used: Decimal,
@@ -631,7 +632,7 @@ class TestHyperliquidMarginDetailsProperties:
         isolated_maintenance_margin_used=finite_positive_decimal_strategy(),
         extra_field=st.text(min_size=1, max_size=20),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_extra_fields_ignored_properties(
         self,
         cross_maintenance_margin_used: Decimal,
@@ -661,7 +662,7 @@ class TestBackpackMarginDetailsProperties:
     """Property-based tests for BackpackMarginDetails model."""
 
     @given(bp_details=backpack_details_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_backpack_details_creation_properties(self, bp_details: BackpackMarginDetails) -> None:
         """Property: BackpackMarginDetails should maintain all field relationships."""
         # Property: All optional fields should be valid if set
@@ -681,7 +682,7 @@ class TestBackpackMarginDetailsProperties:
             assert 0 <= bp_details.subaccount_id <= 65535
 
     @given(bp_details=backpack_details_strategy())
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_backpack_details_immutability_properties(
         self, bp_details: BackpackMarginDetails
     ) -> None:
@@ -697,7 +698,7 @@ class TestBackpackMarginDetailsProperties:
         bp_details=backpack_details_strategy(),
         extra_field=st.text(min_size=1, max_size=20),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_backpack_details_extra_fields_ignored_properties(
         self,
         bp_details: BackpackMarginDetails,
@@ -734,7 +735,7 @@ class TestMarginAccountBusinessLogicProperties:
         total_equity=finite_positive_decimal_strategy(min_value=1000, max_value=100000),
         available_equity_ratio=st.floats(min_value=0.0, max_value=1.0, allow_nan=False),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_account_equity_relationship_properties(
         self,
         exchange: ExchangeName,
@@ -765,7 +766,7 @@ class TestMarginAccountBusinessLogicProperties:
         total_initial_margin_required=finite_positive_decimal_strategy(),
         total_maintenance_margin_required=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_account_margin_requirements_properties(
         self,
         exchange: ExchangeName,
@@ -800,7 +801,7 @@ class TestMarginAccountBusinessLogicProperties:
         total_equity=finite_positive_decimal_strategy(),
         available_equity=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_account_serialization_properties(
         self,
         exchange: ExchangeName,
@@ -837,7 +838,7 @@ class TestMarginAccountBusinessLogicProperties:
         total_equity=finite_positive_decimal_strategy(),
         available_equity=finite_positive_decimal_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_account_deterministic_creation_properties(
         self,
         exchange: ExchangeName,
@@ -878,7 +879,7 @@ class TestMarginAccountEdgeCaseProperties:
         base_time=valid_timestamp_strategy(),
         offset_seconds=st.integers(min_value=-86400, max_value=86400),  # ±1 day
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_margin_account_timing_edge_cases_properties(
         self,
         base_time: datetime,
@@ -911,7 +912,7 @@ class TestMarginAccountEdgeCaseProperties:
             min_value=1e12, max_value=1e15, allow_nan=False, allow_infinity=False
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_margin_account_extreme_values_properties(
         self,
         very_small_values: float,
@@ -952,7 +953,7 @@ class TestMarginAccountEdgeCaseProperties:
             max_size=10,
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_multiple_margin_accounts_independence_properties(
         self, summaries: list[tuple[ExchangeName, datetime, Decimal, Decimal]]
     ) -> None:

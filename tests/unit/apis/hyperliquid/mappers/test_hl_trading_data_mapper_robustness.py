@@ -339,7 +339,7 @@ class TestErrorHandlingAndExceptions:
 
         # Mock to raise a nested exception chain
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
 
         original_exception = ValueError("Original error")
@@ -400,7 +400,7 @@ class TestErrorHandlingAndExceptions:
         orders = [create_raw_order(oid=i) for i in range(5)]
 
         mock_parse = mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.hyperliquid.mappers.trading.hl_order_mapper.parse_decimal_safely",
         )
         mock_parse.side_effect = ValueError("Consistent error")
 

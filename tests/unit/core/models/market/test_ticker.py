@@ -168,8 +168,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
         )
     )
     # Convert to UTC timezone-aware datetime
@@ -241,7 +241,11 @@ class TestTickerModelProperties:
         exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=200,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_minimal_ticker_creation_properties(
         self, ticker_symbol: Symbol, exchange: ExchangeName, timestamp: datetime
     ) -> None:
@@ -272,7 +276,7 @@ class TestTickerModelProperties:
         bid_ask=bid_ask_spread_strategy(),
         volume=volume_strategy(),
     )
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     def test_full_ticker_creation_properties(
         self,
         ticker_symbol: Symbol,
@@ -314,7 +318,7 @@ class TestTickerModelProperties:
         timestamp=valid_timestamp_strategy(),
         bid_ask=bid_ask_spread_strategy(),
     )
-    @settings(max_examples=500, deadline=None)
+    @settings(max_examples=500, deadline=timedelta(seconds=1))
     def test_mid_price_calculation_properties(
         self,
         ticker_symbol: Symbol,
@@ -363,7 +367,7 @@ class TestTickerModelProperties:
         bid=st.one_of(st.none(), price_strategy()),
         ask=st.one_of(st.none(), price_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_mid_price_none_handling_properties(
         self,
         ticker_symbol: Symbol,
@@ -394,7 +398,7 @@ class TestTickerModelProperties:
         timestamp=valid_timestamp_strategy(),
         decimal_field=st.sampled_from(["price", "bid", "ask", "volume"]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_decimal_field_validation_properties(
         self,
         ticker_symbol: Symbol,
@@ -432,7 +436,7 @@ class TestTickerModelProperties:
         timestamp=valid_timestamp_strategy(),
         price=price_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_ticker_immutability_properties(
         self,
         ticker_symbol: Symbol,
@@ -468,7 +472,7 @@ class TestTickerModelProperties:
         hl_details=hyperliquid_details_strategy(),
         bp_details=backpack_details_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_exchange_details_properties(
         self,
         ticker_symbol: Symbol,
@@ -506,10 +510,16 @@ class TestTickerModelProperties:
         parseable_inputs=st.one_of(
             st.integers(min_value=0, max_value=1000000),
             st.floats(min_value=0.0, max_value=1000000.0, allow_nan=False, allow_infinity=False),
-            st.text().filter(lambda x: x.replace(".", "").replace("-", "").isdigit()),
+            st.text().filter(
+                lambda x: x.replace(".", "").replace("-", "").isdecimal() and len(x) > 0
+            ),
         ),
     )
-    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=200,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_decimal_parsing_properties(
         self,
         ticker_symbol: Symbol,
@@ -561,7 +571,11 @@ class TestTickerModelProperties:
             ),
         ),
     )
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=100,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_invalid_decimal_input_rejection_properties(
         self,
         ticker_symbol: Symbol,
@@ -592,7 +606,7 @@ class TestHyperliquidTickerDetailsProperties:
             st.text(min_size=1, max_size=20).filter(lambda x: x.strip()),
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_creation_properties(self, mid_price_source: str | None) -> None:
         """Property: HyperliquidTickerDetails should accept valid inputs correctly."""
         details = HyperliquidTickerDetails(mid_price_source=mid_price_source)
@@ -621,7 +635,7 @@ class TestBackpackTickerDetailsProperties:
         quote_volume=st.one_of(st.none(), volume_strategy()),
         trades=st.one_of(st.none(), st.integers(min_value=0, max_value=1000000)),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_backpack_details_creation_properties(
         self,
         first_price: Decimal | None,
@@ -666,7 +680,7 @@ class TestBackpackTickerDetailsProperties:
             min_value=-1000.0, max_value=-0.01, allow_zero=False
         ),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_backpack_details_non_negative_validation_properties(
         self, field_name: str, negative_value: Decimal
     ) -> None:
@@ -682,7 +696,7 @@ class TestBackpackTickerDetailsProperties:
             min_value=-1000.0, max_value=-0.01, allow_zero=False
         ),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_backpack_details_negative_change_allowed_properties(
         self, field_name: str, negative_value: Decimal
     ) -> None:
@@ -694,7 +708,7 @@ class TestBackpackTickerDetailsProperties:
         assert getattr(details, field_name) == negative_value
 
     @given(negative_trades=st.integers(min_value=-1000, max_value=-1))
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_backpack_details_trades_validation_properties(self, negative_trades: int) -> None:
         """Property: Trades field should reject negative values."""
         with pytest.raises(ValidationError, match="Input should be greater than or equal to 0"):

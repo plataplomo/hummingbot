@@ -33,6 +33,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 from typing import Any, Literal, cast
 
 import pytest
@@ -373,7 +374,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         method=ws_method_strategy(),
         params=params_list_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_public_subscription_properties(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], params: list[str]
     ) -> None:
@@ -396,7 +397,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         params=params_list_strategy(),
         signature=valid_signature_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_private_subscription_properties(
         self,
         method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],
@@ -422,7 +423,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         assert data["signature"] == signature
 
     @given(invalid_method=invalid_ws_method_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_method_rejection(self, invalid_method: str) -> None:
         """Property: Invalid methods should always be rejected."""
         with pytest.raises(ValidationError) as exc_info:
@@ -436,7 +437,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         method=ws_method_strategy(),
         invalid_signature=invalid_signature_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_signature_rejection(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], invalid_signature: object
     ) -> None:
@@ -452,7 +453,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         method=ws_method_strategy(),
         invalid_stream=invalid_stream_name_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_stream_name_rejection(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], invalid_stream: str
     ) -> None:
@@ -465,7 +466,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         method=ws_method_strategy(),
         params=params_list_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_immutability_enforcement(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], params: list[str]
     ) -> None:
@@ -485,7 +486,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         params=params_list_strategy(),
         signature=st.one_of([st.none(), valid_signature_strategy()]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_json_serialization_consistency(
         self,
         method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],
@@ -517,7 +518,7 @@ class TestBackpackRawWsSubscriptionRequestProperties:
         method=ws_method_strategy(),
         stream_count=st.integers(min_value=0, max_value=100),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_params_list_length_handling(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], stream_count: int
     ) -> None:
@@ -544,7 +545,7 @@ class TestBackpackWsPayloadSecurityProperties:
         method=ws_method_strategy(),
         malicious_params=malicious_payload_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_params_resistance(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], malicious_params: object
     ) -> None:
@@ -584,7 +585,7 @@ class TestBackpackWsPayloadSecurityProperties:
         method=ws_method_strategy(),
         large_params=st.lists(st.text(min_size=1000, max_size=10000), min_size=1, max_size=10),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_large_params_handling(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], large_params: list[str]
     ) -> None:
@@ -597,7 +598,7 @@ class TestBackpackWsPayloadSecurityProperties:
         method=ws_method_strategy(),
         unicode_params=st.lists(st.text(min_size=1, max_size=50), min_size=1, max_size=5),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_unicode_params_handling(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], unicode_params: list[str]
     ) -> None:
@@ -627,7 +628,7 @@ class TestBackpackWsPayloadSecurityProperties:
             max_leaves=10,
         ),
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     def test_deeply_nested_data_rejection(self, deeply_nested_data: object) -> None:
         """Property: Deeply nested data should be safely rejected."""
         # Should reject non-primitive types in params
@@ -644,7 +645,7 @@ class TestBackpackWsPayloadSecurityProperties:
             max_size=3,
         ),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_control_characters_handling(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], control_char_params: list[str]
     ) -> None:
@@ -675,7 +676,7 @@ class TestBackpackWsPayloadFieldValidationProperties:
         extra_field_name=st.text(min_size=1, max_size=20).filter(_filter_non_payload_fields),
         extra_field_value=st.one_of([st.text(), st.integers(), st.booleans(), st.none()]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_extra_fields_rejection(
         self,
         method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],
@@ -701,7 +702,7 @@ class TestBackpackWsPayloadFieldValidationProperties:
             st.dictionaries(st.text(), st.text()),
         ]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_field_type_validation(
         self, signature: tuple[str, str, str, str], wrong_type_field: str, wrong_type_value: object
     ) -> None:
@@ -717,7 +718,7 @@ class TestBackpackWsPayloadFieldValidationProperties:
             BackpackRawWsSubscriptionRequest.model_validate(data)
 
     @given(missing_field=st.sampled_from(["method", "params"]))
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     def test_required_fields_validation(self, missing_field: str) -> None:
         """Property: Required fields should always be enforced."""
         data = {"method": "SUBSCRIBE", "params": ["ticker.BTC_USDC"]}
@@ -730,7 +731,7 @@ class TestBackpackWsPayloadFieldValidationProperties:
         method=ws_method_strategy(),
         boundary_length_stream=st.integers(min_value=120, max_value=135),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_stream_length_boundary_validation(
         self, method: Literal["SUBSCRIBE", "UNSUBSCRIBE"], boundary_length_stream: int
     ) -> None:
@@ -766,7 +767,7 @@ class TestBackpackWsPayloadIntegrationProperties:
             max_size=5,
         )
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_batch_subscription_consistency(
         self, subscription_scenarios: list[tuple[str, list[str], tuple[str, str, str, str] | None]]
     ) -> None:
@@ -808,7 +809,7 @@ class TestBackpackWsPayloadIntegrationProperties:
         params=params_list_strategy(),
         signature=st.one_of([st.none(), valid_signature_strategy()]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_serialization_round_trip_consistency(
         self,
         method: Literal["SUBSCRIBE", "UNSUBSCRIBE"],

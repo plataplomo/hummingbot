@@ -654,10 +654,11 @@ class TestBackpackAPIMarketDataOperations:
         mock_bp_market_data_service.get_ticker.return_value = expected_ticker
 
         # Test delegation
-        result = await api.get_ticker(exchanges.backpack("SOL"))
+        symbol = exchanges.backpack("SOL")
+        result = await api.get_ticker(symbol)
 
         # Verify service was called with correct parameters
-        mock_bp_market_data_service.get_ticker.assert_called_once_with("SOL")
+        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol)
         assert result == expected_ticker
 
         await api.close()
@@ -710,12 +711,13 @@ class TestBackpackAPIMarketDataOperations:
         mock_bp_market_data_service.get_ticker.side_effect = symbol_not_found_error
 
         # Test exact error propagation
+        symbol = exchanges.backpack("UNKNOWN_SYMBOL")
         with pytest.raises(APIError) as exc_info:
-            await api.get_ticker(exchanges.backpack("UNKNOWN_SYMBOL"))
+            await api.get_ticker(symbol)
 
         assert exc_info.value is symbol_not_found_error  # Same instance
         assert exc_info.value.code == APIErrorCode.SYMBOL_NOT_FOUND.value
-        mock_bp_market_data_service.get_ticker.assert_called_once_with("UNKNOWN_SYMBOL")
+        mock_bp_market_data_service.get_ticker.assert_called_once_with(symbol)
 
         await api.close()
 

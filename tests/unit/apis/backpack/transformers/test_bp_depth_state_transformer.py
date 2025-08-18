@@ -19,7 +19,7 @@ SECURITY CRITICAL: Order book state management errors can lead to:
 - Market manipulation through state corruption
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
@@ -192,7 +192,7 @@ class TestOrderBookState:
     """Property-based tests for OrderBookState class."""
 
     @given(st.data())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_init_creates_empty_state_properties(self, data: st.DataObject) -> None:
         """Property: OrderBookState should always initialize with empty state."""
         state = OrderBookState()
@@ -205,7 +205,7 @@ class TestOrderBookState:
         assert state.last_update_time.tzinfo == UTC
 
     @given(update=depth_update_event_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_apply_first_update_properties(self, update: BackpackRawDepthUpdateEvent) -> None:
         """Property: First update should always succeed and populate state correctly."""
         state = OrderBookState()
@@ -250,7 +250,7 @@ class TestOrderBookState:
             min_value=0.1, max_value=1000.0, allow_nan=False, allow_infinity=False
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_zero_quantity_removes_level_properties(
         self, initial_price: float, initial_qty: float
     ) -> None:
@@ -296,7 +296,7 @@ class TestOrderBookState:
         initial_id=st.integers(min_value=1, max_value=1000),
         gap_size=st.integers(min_value=2, max_value=100),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_sequence_gap_detection_properties(self, initial_id: int, gap_size: int) -> None:
         """Property: Sequence gaps should always be detected and rejected."""
         state = OrderBookState()
@@ -343,7 +343,7 @@ class TestOrderBookState:
             st.just("-1"),
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_update_ids_rejection_properties(self, invalid_id: str) -> None:
         """Property: Invalid update IDs should always be rejected."""
         state = OrderBookState()
@@ -395,7 +395,7 @@ class TestOrderBookState:
             min_size=20,
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_orderbook_sorting_properties(
         self, bid_prices: list[float], ask_prices: list[float], quantities: list[float]
     ) -> None:
@@ -435,7 +435,7 @@ class TestOrderBookState:
             assert orderbook.bids[0][0] < orderbook.asks[0][0]
 
     @given(updates=sequential_updates_strategy(num_updates=5))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_incremental_updates_accumulation_properties(
         self, updates: list[BackpackRawDepthUpdateEvent]
     ) -> None:
@@ -506,7 +506,7 @@ class TestBackpackDepthStateTransformer:
         return context
 
     @given(st.data())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_init_creates_empty_transformer_properties(self, data: st.DataObject) -> None:
         """Property: Transformer should always initialize with empty state."""
         # Create transformer for each test
@@ -528,7 +528,7 @@ class TestBackpackDepthStateTransformer:
         assert new_stats["snapshots_processed"] == 0
 
     @given(initial_update=depth_update_event_strategy(), next_update=depth_update_event_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_transform_incremental_behavior_properties(
         self,
         initial_update: BackpackRawDepthUpdateEvent,
@@ -572,7 +572,7 @@ class TestBackpackDepthStateTransformer:
             pass
 
     @given(updates=sequential_updates_strategy(num_updates=3))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_transform_sequential_updates_properties(
         self,
         updates: list[BackpackRawDepthUpdateEvent],
@@ -604,7 +604,7 @@ class TestBackpackDepthStateTransformer:
         initial_id=st.integers(min_value=1, max_value=1000),
         gap_size=st.integers(min_value=2, max_value=100),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_transform_sequence_error_properties(
         self,
         initial_id: int,
@@ -651,7 +651,7 @@ class TestBackpackDepthStateTransformer:
         assert stats["sequence_errors"] == initial_errors + 1
 
     @given(event=depth_update_event_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_transform_none_context_rejection_properties(
         self, event: BackpackRawDepthUpdateEvent
     ) -> None:
@@ -666,7 +666,7 @@ class TestBackpackDepthStateTransformer:
         num_updates=st.integers(min_value=1, max_value=10),
         num_errors=st.integers(min_value=0, max_value=5),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_statistics_tracking_properties(self, num_updates: int, num_errors: int) -> None:
         """Property: Statistics should accurately track all processing."""
         # Create transformer and context for each test
@@ -721,7 +721,7 @@ class TestBackpackDepthStateTransformer:
         assert new_stats["incremental_updates_processed"] == successful
 
     @given(btc_update=depth_update_event_strategy(), eth_update=depth_update_event_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_multiple_symbols_isolation_properties(
         self,
         btc_update: BackpackRawDepthUpdateEvent,
@@ -767,7 +767,7 @@ class TestBackpackDepthStateTransformer:
         update_id=st.integers(min_value=1, max_value=10000),
         timestamp=st.integers(min_value=1600000000000, max_value=2000000000000),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_empty_update_handling_properties(
         self,
         update_id: int,

@@ -249,8 +249,9 @@ def timestamp_string_strategy() -> SearchStrategy[str]:
     return st.builds(
         _datetime_to_isoformat,
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 1, 1, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 1, 1),
+            timezones=st.just(UTC),
         ),
     )
 
@@ -928,7 +929,7 @@ class TestEdgeCases:
     ) -> None:
         """Test that missing quantity raises TransformationError."""
         mock_parse = mocker.patch(
-            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value",
+            "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_safely",
         )
         mock_parse.return_value = None
 

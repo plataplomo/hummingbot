@@ -23,7 +23,7 @@ from cyberdelta.models.base_validators import (
     ExtensionSlotModel,
     StandardModel,
 )
-from cyberdelta.utils.parsing import parse_decimal_value, validate_str_field
+from cyberdelta.utils.parsing import parse_decimal_safely, validate_str_field
 
 
 # --- Account Settings Core Model (MUTABLE CONFIGURATION) ---
@@ -81,7 +81,7 @@ class AccountSettings(ExchangeValidationMixin, StandardModel):
             DecimalFiniteError: If leverage limit is not finite or less than 1.
         """
         if new_limit is not None:
-            parsed = parse_decimal_value(new_limit, field_name="leverage_limit", allow_none=False)
+            parsed = parse_decimal_safely(new_limit, field_name="leverage_limit", allow_none=False)
             if not parsed.is_finite():
                 raise DecimalFiniteError(
                     field_name="leverage_limit",

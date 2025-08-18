@@ -29,7 +29,7 @@ from cyberdelta.exceptions.field_validation import (
 )
 from cyberdelta.models.base_validators import ImmutableModel, required_datetime_validator
 from cyberdelta.symbols.models import Symbol
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_safely
 
 
 # Order book structure constants
@@ -91,7 +91,7 @@ class OrderBook(ImmutableModel):
         2.  Iterates through each `level_raw` item in the list.
         3.  Validates `level_raw` structure: Must be a list or tuple of exactly length 2.
         4.  Parses `price_raw` (level_raw[0]) and `quantity_raw` (level_raw[1]) from potentially
-            mixed input types (Decimal, str, int, float) into Decimal using `parse_decimal_value`.
+            mixed input types (Decimal, str, int, float) into Decimal using `parse_decimal_safely`.
         5.  Validates parsed `price`: Must be finite (not NaN or Infinity).
         6.  Validates parsed `quantity`: Must be finite and non-negative (>= 0).
         7.  Appends the validated `(Decimal, Decimal)` tuple to the result list.
@@ -244,7 +244,7 @@ class OrderBook(ImmutableModel):
                 actual_value=price_raw,
             )
         try:
-            price = parse_decimal_value(price_raw)
+            price = parse_decimal_safely(price_raw)
         except ValueError as e:
             raise DecimalFieldError(
                 field_name=f"{field_name}[{index}].price",
@@ -304,7 +304,7 @@ class OrderBook(ImmutableModel):
                 actual_value=quantity_raw,
             )
         try:
-            quantity = parse_decimal_value(quantity_raw)
+            quantity = parse_decimal_safely(quantity_raw)
         except ValueError as e:
             raise DecimalFieldError(
                 field_name=f"{field_name}[{index}].quantity",

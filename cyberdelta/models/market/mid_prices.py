@@ -2,8 +2,9 @@
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, field_serializer
 
 from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.models.base_validators import ExchangeValidationMixin, StandardModel
@@ -16,11 +17,28 @@ class MidPrices(ExchangeValidationMixin, StandardModel):
     Represents a collection of mid prices (best bid + best ask / 2)
     for multiple symbols at a point in time. This is typically used
     for efficient batch price fetching and market order pricing.
+
+    NOTE: Due to Pydantic limitation (https://github.com/pydantic/pydantic/issues/5711),
+    Symbol objects as dict keys require custom serialization for model_dump().
     """
 
     prices: dict[Symbol, Decimal] = Field(description="Symbol to mid price mapping")
     timestamp: datetime | None = Field(default=None, description="When prices were captured")
     exchange: ExchangeName = Field(description="Source exchange name")
+
+    @field_serializer("prices")
+    def serialize_prices(self, prices: dict[Symbol, Decimal]) -> list[dict[str, Any]]:
+        """Serialize prices dict to list of dicts for JSON compatibility.
+
+        This is required because JSON doesn't support complex objects as keys.
+        See: https://github.com/pydantic/pydantic/issues/5711
+
+        Returns:
+            List of dicts with symbol and price data for JSON serialization.
+        """
+        return [
+            {"symbol": symbol.model_dump(), "price": str(price)} for symbol, price in prices.items()
+        ]
 
     def get(self, symbol: Symbol) -> Decimal | None:
         """Get mid price for symbol.

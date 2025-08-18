@@ -59,7 +59,7 @@ class BackpackFillMapper(CommonDataParserMixin, ValidationMixin, FillMapperProto
         Raises:
             FillTransformationError: If price or quantity validation fails
         """
-        # Type assertion: ensure price is compatible with parse_decimal_value
+        # Type assertion: ensure price is compatible with parse_decimal_safely
         if not isinstance(price, (str, float, int, type(None))):
             # Convert to string for parsing
             price = str(price) if price is not None else None
@@ -69,7 +69,7 @@ class BackpackFillMapper(CommonDataParserMixin, ValidationMixin, FillMapperProto
                 fill_source=context, reason=f"Invalid price value: {price}"
             )
 
-        # Type assertion: ensure quantity is compatible with parse_decimal_value
+        # Type assertion: ensure quantity is compatible with parse_decimal_safely
         if not isinstance(quantity, (str, float, int, type(None))):
             # Convert to string for parsing
             quantity = str(quantity) if quantity is not None else None

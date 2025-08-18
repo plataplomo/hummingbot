@@ -35,7 +35,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import string
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from unittest.mock import patch
@@ -523,7 +523,7 @@ class TestBoundaryValueHandlingProperties:
     """Property-based tests for boundary value scenarios."""
 
     @given(ticker_data=ticker_data_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_extreme_decimal_precision_handling(
         self, ticker_data: BackpackRawTickerResponse
     ) -> None:
@@ -551,7 +551,7 @@ class TestBoundaryValueHandlingProperties:
         bids=large_order_book_levels_strategy(),
         asks=large_order_book_levels_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_large_order_book_memory_handling(
         self, bids: list[tuple[str, str]], asks: list[tuple[str, str]]
     ) -> None:
@@ -602,7 +602,7 @@ class TestBoundaryValueHandlingProperties:
         precision_digits=st.integers(min_value=1, max_value=28),
         base_value=st.integers(min_value=1, max_value=999999),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_decimal_precision_consistency(self, precision_digits: int, base_value: int) -> None:
         """Property: Decimal precision should be consistently maintained."""
         mapper = BackpackTickerMapper()
@@ -640,7 +640,7 @@ class TestUnicodeEncodingSupportProperties:
     """Property-based tests for unicode and encoding edge cases."""
 
     @given(unicode_symbol=unicode_symbol_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_unicode_symbol_safety(self, unicode_symbol: str) -> None:
         """Property: Unicode symbols should be handled safely."""
         mapper = BackpackTickerMapper()
@@ -679,7 +679,7 @@ class TestUnicodeEncodingSupportProperties:
         ),
         symbol=unicode_symbol_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_unicode_trade_id_handling(self, trade_id: str, symbol: str) -> None:
         """Property: Unicode trade IDs should be handled appropriately."""
         mapper = BackpackFillMapper()
@@ -713,7 +713,7 @@ class TestUnicodeEncodingSupportProperties:
             st.sampled_from(["测试", "тест", "🚀", "αβγ", "العربية"]),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_mixed_unicode_ascii_consistency(self, mixed_content: str) -> None:
         """Property: Mixed unicode and ASCII should be handled consistently."""
         mapper = BackpackTickerMapper()
@@ -755,7 +755,7 @@ class TestErrorHandlingRecoveryProperties:
     """Property-based tests for error handling and recovery scenarios."""
 
     @given(malformed_price=malformed_decimal_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malformed_decimal_error_handling(self, malformed_price: str) -> None:
         """Property: Malformed decimal values should cause appropriate errors."""
         mapper = BackpackTickerMapper()
@@ -777,7 +777,7 @@ class TestErrorHandlingRecoveryProperties:
             mapper.transform_raw_ticker_to_internal(ticker_data)
 
     @given(invalid_timestamp=st.text(min_size=1, max_size=50).filter(_is_not_valid_timestamp))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_timestamp_error_handling(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamps should be handled appropriately."""
         mapper = BackpackFillMapper()
@@ -801,7 +801,7 @@ class TestErrorHandlingRecoveryProperties:
             pass
 
     @given(ticker_data=ticker_data_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_transformation_error_context_preservation(
         self, ticker_data: BackpackRawTickerResponse
     ) -> None:
@@ -830,7 +830,7 @@ class TestSecurityBoundariesProperties:
     """Property-based tests for security-critical boundary handling."""
 
     @given(malicious_data=malicious_data_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_input_resistance(self, malicious_data: dict[str, Any]) -> None:
         """Property: Mappers should resist malicious input attacks."""
         ticker_mapper = BackpackTickerMapper()
@@ -887,7 +887,7 @@ class TestSecurityBoundariesProperties:
         large_string=st.text(min_size=500, max_size=2000),  # Reasonable size to avoid memory issues
         field_name=st.sampled_from(["symbol", "trade_id"]),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_large_input_handling(self, large_string: str, field_name: str) -> None:
         """Property: Large inputs should be handled without system issues."""
         ticker_mapper = BackpackTickerMapper()
@@ -950,7 +950,7 @@ class TestPerformanceMemoryProperties:
         ticker_count=st.integers(min_value=1, max_value=100),
         base_price=st.decimals(min_value=Decimal(1), max_value=Decimal(100000), places=2),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_batch_transformation_efficiency(self, ticker_count: int, base_price: Decimal) -> None:
         """Property: Batch transformations should be memory efficient."""
         mapper = BackpackTickerMapper()
@@ -990,7 +990,7 @@ class TestPerformanceMemoryProperties:
         level_count=st.integers(min_value=1, max_value=200),  # Reduced to prevent memory issues
         base_price=st.decimals(min_value=Decimal(50), max_value=Decimal(150), places=2),
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     def test_order_book_memory_efficiency(self, level_count: int, base_price: Decimal) -> None:
         """Property: Order book processing should be memory efficient."""
         mapper = BackpackOrderBookMapper()
@@ -1035,7 +1035,7 @@ class TestDataConsistencyValidationProperties:
         bid_price=st.decimals(min_value=Decimal(90), max_value=Decimal(110), places=2),
         ask_price=st.decimals(min_value=Decimal(90), max_value=Decimal(110), places=2),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_order_book_price_relationship_handling(
         self, bid_price: Decimal, ask_price: Decimal
     ) -> None:
@@ -1064,7 +1064,7 @@ class TestDataConsistencyValidationProperties:
     @given(
         precision_value=st.decimals(min_value=Decimal(1), max_value=Decimal(1000), places=15),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_decimal_precision_consistency_across_fields(self, precision_value: Decimal) -> None:
         """Property: Decimal precision should be consistent across all fields."""
         mapper = BackpackTickerMapper()
