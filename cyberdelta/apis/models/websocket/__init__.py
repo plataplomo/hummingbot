@@ -4,6 +4,14 @@ This package contains all Pydantic models and dataclasses used throughout
 the WebSocket system, organized by domain for clear separation of concerns.
 """
 
+from .error_context import StreamErrorContext
+from .error_events import (
+    ConnectionHealthEvent,
+    ErrorEventMetadata,
+    RecoveryAttemptEvent,
+    SystemHealthEvent,
+    WebSocketErrorEvent,
+)
 from .error_metrics import (
     AggregatedMetrics,
     CollectorStatistics,
@@ -26,7 +34,9 @@ __all__ = [
     "AggregatedMetrics",
     "CollectorStatistics",
     "ComponentStatus",
+    "ConnectionHealthEvent",
     "ConnectionMetrics",
+    "ErrorEventMetadata",
     "ErrorOccurrence",
     "ErrorRateMetrics",
     "HealthCheckConfig",
@@ -36,5 +46,9 @@ __all__ = [
     "ProcessingMetrics",
     "ProcessorMetrics",
     "RecoveryAttempt",
+    "RecoveryAttemptEvent",
+    "StreamErrorContext",
     "SystemHealth",
+    "SystemHealthEvent",
+    "WebSocketErrorEvent",
 ]

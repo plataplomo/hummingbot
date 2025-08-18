@@ -8,14 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import time
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 import orjson
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.enums.websocket import MessageProcessingResult
 from cyberdelta.apis.models.websocket.processing import ProcessingMetrics, ProcessorMetrics
+from cyberdelta.apis.protocols.websocket.processing import MessageHandler, MessageTransformer
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 
@@ -24,23 +24,19 @@ if TYPE_CHECKING:
     from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
 
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.websocket.error_context.builders.processor_builder import (
+    ProcessorErrorContextBuilder,
+)
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_processor_error_context import (
-    ProcessorErrorContextBuilder,
-)
 
 
 # Type variables for input and output models
 T = TypeVar("T", bound=BaseModel)  # Raw WebSocket message model
 DomainModel = TypeVar("DomainModel", bound=BaseModel)  # Single domain model result
 BatchResult = TypeVar("BatchResult", bound=BaseModel)  # Element type for batch results
-
-# Protocol type variables
-T_contra = TypeVar("T_contra", bound=BaseModel, contravariant=True)  # Protocol input
-U_co = TypeVar("U_co", covariant=True)  # Protocol output (can be single or batch)
 
 # Type variables for input and output models
 TransformerResult = TypeVar("TransformerResult", bound=BaseModel)
@@ -50,33 +46,6 @@ TransformerResult = TypeVar("TransformerResult", bound=BaseModel)
 # - Batch results: list[U] (e.g., list[Trade])
 # - Failed/empty: None
 # This flexible pattern allows both MapperTransformer and BatchMapperTransformer to work
-
-# Message handler type - takes typed context
-MessageHandler = Callable[[WebSocketContextProtocol], Awaitable[None]]
-
-
-class MessageTransformer(Protocol[T_contra, U_co]):
-    """Protocol for transforming validated WebSocket messages to domain models."""
-
-    def transform(
-        self,
-        validated: T_contra,
-        context: WebSocketContextProtocol | None = None,
-    ) -> U_co:
-        """Transform validated WebSocket message to domain model.
-
-        Args:
-            validated: The validated Pydantic model from WebSocket.
-            context: Optional typed context containing additional data.
-
-        Returns:
-            The transformed domain model.
-
-        Raises:
-            Exception: If transformation fails.
-
-        """
-        ...
 
 
 # Validation metrics now implemented using typed ProcessingMetrics

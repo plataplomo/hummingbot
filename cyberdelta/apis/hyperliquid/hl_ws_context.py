@@ -8,8 +8,8 @@ from __future__ import annotations
 from pydantic import computed_field
 
 from cyberdelta.apis.hyperliquid.models.hl_ws_envelope import HyperliquidRawWebSocketEnvelope
+from cyberdelta.apis.models.websocket import StreamErrorContext
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 class HyperliquidMessageContext(WebSocketMessageContext[HyperliquidRawWebSocketEnvelope]):

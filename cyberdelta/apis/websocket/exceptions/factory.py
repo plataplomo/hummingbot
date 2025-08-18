@@ -14,7 +14,7 @@ from uuid import uuid4
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+    from cyberdelta.apis.models.websocket import StreamErrorContext
 
 # Import the error codes
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode

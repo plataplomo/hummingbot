@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any, Protocol, TypeVar
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -17,13 +17,17 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     MemoryOptimizationMode,
 )
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.protocols.websocket.processing import MessageHandler, MessageProcessor
 from cyberdelta.apis.websocket.connection.state_tracker import (
     ConnectionStateManager,
     WebSocketConnectionState,
 )
+from cyberdelta.apis.websocket.error_context.builders.router_builder import (
+    RouterErrorContextBuilder,
+)
 
 # Import WebSocket error handler
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.exceptions import (
@@ -38,7 +42,6 @@ from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCo
 from cyberdelta.apis.websocket.security.validators import WebSocketPayloadValidators
 from cyberdelta.apis.websocket.ws_context import WebSocketMessageContext
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router_error_context import RouterErrorContextBuilder
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.enums import ExchangeName
 
@@ -49,22 +52,6 @@ if TYPE_CHECKING:
 
 # Type variable for context types
 ContextType = TypeVar("ContextType", bound="WebSocketMessageContext[BaseModel]")
-
-# Message handler type - takes typed context
-MessageHandler = Callable[[WebSocketContextProtocol], Awaitable[None]]
-
-
-class MessageProcessor(Protocol):
-    """Protocol for message processors."""
-
-    async def process(
-        self,
-        payload: dict[str, Any] | list[Any],
-        handler: MessageHandler,
-        context: WebSocketContextProtocol,
-    ) -> None:
-        """Process a message payload with typed context."""
-        ...
 
 
 class WebSocketMessageRouter[EnvelopeType: BaseModel](ABC):

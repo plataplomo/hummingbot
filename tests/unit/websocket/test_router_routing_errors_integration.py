@@ -20,7 +20,7 @@ from cyberdelta.apis.websocket.exceptions import WebSocketValidationError
 from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
-from cyberdelta.apis.websocket.ws_message_router import MessageHandler, WebSocketMessageRouter
+from cyberdelta.apis.protocols.websocket.processing import MessageHandler, WebSocketMessageRouter
 from cyberdelta.enums import ExchangeName
 
 

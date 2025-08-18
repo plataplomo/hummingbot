@@ -18,7 +18,7 @@ from cyberdelta.apis.common.error_foundation import (
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+    from cyberdelta.apis.models.websocket import StreamErrorContext
 
 
 class WebSocketError(Exception):

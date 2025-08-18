@@ -27,7 +27,7 @@ from cyberdelta.apis.websocket.exceptions import (
     WebSocketValidationError,
 )
 from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.memory.stream_log_data import WebSocketStreamLogData
+from cyberdelta.apis.models.websocket.stream_log import WebSocketStreamLogData
 from cyberdelta.apis.websocket.validation.error_validator import StreamErrorContextValidator
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.config.models.websocket_error_config import (

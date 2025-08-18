@@ -17,7 +17,7 @@ from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimization
 from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
 from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
-from cyberdelta.apis.websocket.ws_message_router import MessageHandler, WebSocketMessageRouter
+from cyberdelta.apis.protocols.websocket.processing import MessageHandler, WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
 

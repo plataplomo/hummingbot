@@ -27,7 +27,7 @@ from pydantic import BaseModel, ValidationError
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
 from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
-from cyberdelta.apis.websocket.ws_message_router import MessageHandler, WebSocketMessageRouter
+from cyberdelta.apis.protocols.websocket.processing import MessageHandler, WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
 

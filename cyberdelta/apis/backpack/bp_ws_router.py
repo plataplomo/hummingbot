@@ -39,6 +39,7 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.models.websocket import StreamErrorContext
 from cyberdelta.apis.websocket.exceptions import WebSocketStreamError, WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.apis.websocket.ws_mapper_adapters import (
@@ -50,7 +51,6 @@ from cyberdelta.apis.websocket.ws_message_processor import (
 )
 from cyberdelta.apis.websocket.ws_message_router import WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.enums import ExchangeName
 from cyberdelta.exceptions.service_validation import EmptyStringParameterError
 from cyberdelta.models import DerivativePosition, Fill, Order, Ticker
@@ -67,7 +67,7 @@ if TYPE_CHECKING:
         TransactionMapperProtocol,
     )
     # Import WebSocket error handler
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
 
