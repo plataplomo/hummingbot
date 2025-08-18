@@ -11,10 +11,9 @@ Modules:
 - type_adapters: Type adapters for complex type conversions
 """
 
-from .security import (
-    SecurityConfig,
-    SecurityValidator,
-)
+from cyberdelta.apis.models.websocket.security import SecurityConfig
+
+from .security import SecurityValidator
 from .type_guards import (
     WebSocketTypeGuards,
 )

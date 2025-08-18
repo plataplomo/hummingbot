@@ -15,11 +15,11 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.memory.stream_log_data import WebSocketStreamLogData
+from cyberdelta.apis.models.websocket.stream_log import WebSocketStreamLogData
 
 
 if TYPE_CHECKING:
-    from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+    from cyberdelta.apis.models.websocket import StreamErrorContext
 
 
 # Recovery strategy constants

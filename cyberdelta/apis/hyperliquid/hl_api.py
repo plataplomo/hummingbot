@@ -60,7 +60,7 @@ from cyberdelta.apis.models.service_args.trading import (
 )
 
 # BaseErrorHandler import removed - deprecated and not used
-from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+from cyberdelta.apis.websocket.error_context.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
 from cyberdelta.apis.websocket.memory import get_memory_config_for_router

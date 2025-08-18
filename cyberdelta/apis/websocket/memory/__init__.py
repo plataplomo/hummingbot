@@ -10,16 +10,10 @@ Modules:
 - stream_log_data: Memory-efficient logging data structures
 """
 
-from .memory_config import (
-    get_memory_config_for_router,
-)
-from .memory_optimized import (
-    MemoryOptimizedMessageContext,
-    MemoryPool,
-)
-from .stream_log_data import (
-    WebSocketStreamLogData,
-)
+from cyberdelta.apis.models.websocket.stream_log import WebSocketStreamLogData
+
+from .memory_config import get_memory_config_for_router
+from .memory_optimized import MemoryOptimizedMessageContext, MemoryPool
 
 
 __all__ = [

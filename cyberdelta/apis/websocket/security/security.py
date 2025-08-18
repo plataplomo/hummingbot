@@ -13,7 +13,10 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from cyberdelta.apis.models.websocket import StreamErrorContext
+from cyberdelta.apis.models.websocket.security import (
+    SecurityConfig,
+)
 
 # Import security exceptions from unified hierarchy (Step 30: Migration completed)
 from cyberdelta.apis.websocket.exceptions import (
@@ -31,91 +34,17 @@ from cyberdelta.apis.websocket.security.type_guards import (
     is_secure_dict,
     is_secure_list,
 )
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 # Type alias for JSON-like data structures
 JSONLike = dict[str, Any] | list[Any] | str | int | float | bool | None
 
-
-# Security configuration constants
-DEFAULT_MAX_MESSAGE_SIZE_BYTES = 1024 * 1024  # 1MB
-DEFAULT_MAX_NESTING_DEPTH = 10
-DEFAULT_MAX_STRING_LENGTH = 10000
-DEFAULT_MAX_ARRAY_LENGTH = 1000
-DEFAULT_MAX_OBJECT_KEYS = 100
-
-# Constants for error context sanitization
+# Constants for error context sanitization (kept here as they're specific to this module)
 MAX_STRING_TRUNCATE_LENGTH = 1000
 MAX_CONTENT_PREVIEW_LENGTH = 100
 MAX_OBJECT_SIZE_FOR_LOGGING = 10000
 MAX_DICT_SIZE_FOR_LOGGING = 100
 MAX_LIST_SIZE_FOR_LOGGING = 1000
-
-
-class SecurityConfig(BaseModel):
-    """Security configuration for WebSocket processing.
-
-    This configuration defines limits and controls to protect against
-    various attack vectors in WebSocket message processing.
-    """
-
-    max_message_size_bytes: int = Field(
-        default=DEFAULT_MAX_MESSAGE_SIZE_BYTES,
-        gt=0,
-        le=10 * 1024 * 1024,  # Max 10MB
-        description="Maximum message size in bytes to prevent memory exhaustion attacks",
-    )
-    max_nesting_depth: int = Field(
-        default=DEFAULT_MAX_NESTING_DEPTH,
-        gt=0,
-        le=50,
-        description="Maximum object nesting depth to prevent stack overflow attacks",
-    )
-    max_string_length: int = Field(
-        default=DEFAULT_MAX_STRING_LENGTH,
-        gt=0,
-        le=100000,
-        description="Maximum string length to prevent memory exhaustion",
-    )
-    max_array_length: int = Field(
-        default=DEFAULT_MAX_ARRAY_LENGTH,
-        gt=0,
-        le=10000,
-        description="Maximum array length to prevent memory exhaustion",
-    )
-    max_object_keys: int = Field(
-        default=DEFAULT_MAX_OBJECT_KEYS,
-        gt=0,
-        le=1000,
-        description="Maximum number of keys in an object to prevent resource exhaustion",
-    )
-    enable_content_filtering: bool = Field(
-        default=True,
-        description="Enable content filtering for malicious patterns",
-    )
-    blocked_patterns: list[str] = Field(
-        default_factory=list,
-        description="List of regex patterns to block in string content",
-    )
-    enable_size_validation: bool = Field(
-        default=True,
-        description="Enable message size validation",
-    )
-    enable_depth_validation: bool = Field(
-        default=True,
-        description="Enable nesting depth validation",
-    )
-    enable_structure_validation: bool = Field(
-        default=True,
-        description="Enable data structure validation",
-    )
-
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        validate_assignment=True,
-    )
 
 
 class SecurityValidator:

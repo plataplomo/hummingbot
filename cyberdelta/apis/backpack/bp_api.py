@@ -42,7 +42,7 @@ from cyberdelta.apis.exceptions.configuration import (
 from cyberdelta.apis.rate_limiter import TokenBucketRateLimiterRuntime
 
 # BaseErrorHandler import removed - deprecated and not used
-from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+from cyberdelta.apis.websocket.error_context.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
 from cyberdelta.apis.websocket.memory import get_memory_config_for_router

@@ -16,17 +16,14 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.error_events import (
+from cyberdelta.apis.websocket.error_context.events import (
     LoggingEventHandler,
     SeverityEventFilter,
     WebSocketErrorEventPublisher,
 )
-from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
-from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+from cyberdelta.apis.websocket.error_context import (
+    WebSocketErrorHandler,
     WebSocketErrorHandlerFactory,
-)
-from cyberdelta.apis.websocket.error_handling.error_handler_registry import (
-    WebSocketErrorHandlerRegistry,
 )
 from cyberdelta.apis.websocket.exceptions import (
     WebSocketConfigurationError,

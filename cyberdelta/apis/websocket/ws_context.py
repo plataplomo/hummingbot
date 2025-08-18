@@ -14,7 +14,7 @@ from typing import Any, TypeVar
 import orjson
 from pydantic import BaseModel, Field, computed_field
 
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.models.websocket import StreamErrorContext
 from cyberdelta.enums import ExchangeName
 
 
@@ -182,7 +182,7 @@ class WebSocketMessageContext[EnvelopeType: "BaseModel"](BaseModel):
         return StreamErrorContext(
             # Core connection info
             connection_id=self.connection_id,
-            exchange=self.exchange_name,
+            exchange=self.exchange_type,
             environment="production",  # Could be configurable
             # Channel & subscription info
             channel=error_channel,
