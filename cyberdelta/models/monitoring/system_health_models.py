@@ -9,11 +9,10 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 
 from pydantic import BaseModel, Field
 
-from cyberdelta.enums.monitoring import ServiceType
+from cyberdelta.enums.monitoring import HealthStatus, ServiceType
 from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 
 
@@ -157,16 +156,6 @@ class CircuitBreakerSystemHealth(BaseModel):
 
         frozen = True  # Immutable for thread safety
         validate_assignment = True
-
-
-class HealthStatus(Enum):
-    """Health status levels."""
-
-    HEALTHY = "healthy"
-    DEGRADED = "degraded"
-    UNHEALTHY = "unhealthy"
-    CRITICAL = "critical"
-    UNKNOWN = "unknown"
 
 
 class ServiceHealthStatus(BaseModel):

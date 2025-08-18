@@ -142,7 +142,7 @@ class SystemEventHandler(EventHandlerActor):
         )
 
         # Alert if unexpected shutdown
-        if event.status == HealthStatus.FAILED and self._monitoring_config.notifications_enabled:
+        if event.status == HealthStatus.CRITICAL and self._monitoring_config.notifications_enabled:
             await self._send_alert(
                 component=event.component,
                 alert_type="unexpected_shutdown",
@@ -169,7 +169,7 @@ class SystemEventHandler(EventHandlerActor):
                 component=event.component,
                 message=event.message,
             )
-        elif event.status == HealthStatus.FAILED:
+        elif event.status == HealthStatus.CRITICAL:
             self._component_states[event.component] = ComponentState.FAULTED
             logger.error(
                 "component_failed",
@@ -251,7 +251,7 @@ class SystemEventHandler(EventHandlerActor):
             halt_event = SystemEvent(
                 event_type=SystemEventType.STOPPED,
                 component="trading",
-                status=HealthStatus.FAILED,
+                status=HealthStatus.CRITICAL,
                 message="Trading halted by safety systems",
                 timestamp=time.time(),
             )

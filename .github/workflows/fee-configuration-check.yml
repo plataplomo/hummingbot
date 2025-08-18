@@ -1,0 +1,122 @@
+name: Fee Configuration Compliance Check
+
+permissions:
+  pull-requests: write
+  contents: read
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - 'cyberdelta/domain/**/*.py'
+      - 'scripts/verify_no_hardcoded_fees.py'
+      - '.github/workflows/fee-configuration-check.yml'
+  pull_request:
+    paths:
+      - 'cyberdelta/domain/**/*.py'
+  workflow_dispatch:
+
+jobs:
+  check-hardcoded-fees:
+    runs-on: ubuntu-latest
+    name: Check for hard-coded fee configurations
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+
+    - name: Check for hard-coded fee configurations
+      id: fee-check
+      run: |
+        # Checks all Python files in cyberdelta/ by default
+        python scripts/verify_no_hardcoded_fees.py --format github --exit-on-failure
+      continue-on-error: true
+
+    - name: Generate JSON report
+      run: |
+        python scripts/verify_no_hardcoded_fees.py --format json --output fee-compliance.json
+
+    - name: Upload compliance report
+      uses: actions/upload-artifact@v4
+      with:
+        name: fee-compliance-report
+        path: fee-compliance.json
+
+    - name: Comment PR with results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('fee-compliance.json', 'utf8'));
+          const summary = report.summary;
+
+          // Build violations table if any exist
+          let violationsTable = '';
+          if (report.violations && report.violations.length > 0) {
+            violationsTable = '\n\n### ❌ Violations Found:\n\n| File | Line | Issue |\n|------|------|-------|\n';
+            report.violations.forEach(violation => {
+              violation.issues.forEach(issue => {
+                const fileName = violation.file.split('/').pop();
+                violationsTable += `| ${fileName} | ${issue.line} | \`include_fees=${issue.value}\` |\n`;
+              });
+            });
+          }
+
+          const statusIcon = summary.all_compliant ? '✅' : '❌';
+          const statusText = summary.all_compliant ? 'PASSED' : 'FAILED';
+          const statusColor = summary.all_compliant ? 'green' : 'red';
+
+          const comment = `## ${statusIcon} Fee Configuration Compliance Check: ${statusText}
+
+          | Metric | Value |
+          |--------|-------|
+          | **Compliance Rate** | ${summary.compliance_percentage}% |
+          | Files Checked | ${summary.total_files_checked} |
+          | Files Compliant | ${summary.files_found - summary.files_with_hardcoded} |
+          | Files with Hard-coded Values | ${summary.files_with_hardcoded} |
+          | Total Violations | ${summary.total_hardcoded_instances} |
+          | Files with Config Caching | ${summary.files_with_config_cache} |
+
+          ${summary.all_compliant
+            ? '✅ **All files properly use configuration for fee inclusion!**'
+            : `⚠️ **${summary.total_hardcoded_instances} hard-coded fee configuration(s) found that must be fixed.**`}
+          ${violationsTable}
+
+          ${!summary.all_compliant ? '\n### 📝 How to Fix:\n1. Cache the configuration value in `__init__`: `self._include_fees = config.financial.pnl.include_fees_in_pnl`\n2. Use the cached value: `include_fees=self._include_fees`\n3. Never hard-code `True` or `False` for `include_fees` parameters' : ''}
+          `;
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: comment
+          });
+
+    - name: Fail if violations found
+      if: steps.fee-check.outcome == 'failure'
+      run: |
+        echo "::error::Hard-coded fee configurations detected. Please fix all violations."
+        exit 1
+
+    - name: Create compliance badge data
+      if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+      run: |
+        COMPLIANCE=${{ steps.fee-check.outputs.compliance_percentage }}
+        COLOR="red"
+        if (( $(echo "$COMPLIANCE == 100" | bc -l) )); then
+          COLOR="brightgreen"
+        elif (( $(echo "$COMPLIANCE >= 90" | bc -l) )); then
+          COLOR="green"
+        elif (( $(echo "$COMPLIANCE >= 70" | bc -l) )); then
+          COLOR="yellow"
+        elif (( $(echo "$COMPLIANCE >= 50" | bc -l) )); then
+          COLOR="orange"
+        fi
+
+        echo "Badge URL: https://img.shields.io/badge/Fee%20Config%20Compliance-${COMPLIANCE}%25-${COLOR}"
+        echo "Add this badge to your README: ![Fee Config Compliance](https://img.shields.io/badge/Fee%20Config%20Compliance-${COMPLIANCE}%25-${COLOR})"

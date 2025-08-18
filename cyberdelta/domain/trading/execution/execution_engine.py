@@ -17,6 +17,7 @@ from cyberdelta.apis.models.service_args.trading import CancelOrderArgs, PlaceOr
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.core.enums import OrderStatus
+from cyberdelta.domain.monitoring.health_metrics import HealthMetrics
 from cyberdelta.domain.trading.execution.order_tracker import OrderTracker
 from cyberdelta.domain.trading.fills.fill_handler import FillHandler
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TradingState
@@ -24,9 +25,9 @@ from cyberdelta.enums.monitoring import ServiceType
 from cyberdelta.infrastructure.validation.validation_service import ValidationService
 from cyberdelta.models.market.fill import Fill
 from cyberdelta.models.market.order import Order
-from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.trading.execution_request import ExecutionRequest
 from cyberdelta.models.trading.fill_statistics import FillStatistics, OrderUpdateData
+from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 from cyberdelta.protocols.domain.market_data import MarketDataServiceProtocol
 from cyberdelta.protocols.domain.portfolio.state_management import PortfolioStateManagerProtocol
 from cyberdelta.protocols.infrastructure.monitoring import HealthCheckable
@@ -295,25 +296,65 @@ class ExecutionEngine(HealthCheckable):
         """
         return self._order_tracker.get_active_orders()
 
-    async def check_health(self) -> ExecutionStatistics:
+    async def check_health(self) -> HealthMetrics:
         """Health check implementation for ExecutionEngine.
 
         Returns:
-            Health status with composed statistics
+            Health metrics for the execution engine
         """
         order_stats = self._order_tracker.get_statistics()
 
-        return ExecutionStatistics(
-            order_tracking=order_stats,
-            api_clients_available=len(self._api_clients),
-            safe_mode_enabled=self._safe_mode,
-            max_slippage_pct=self._max_slippage,
-            max_retries=self._max_retries,
+        # Use the actual fields from OrderTrackerStatistics
+        error_count = order_stats.error_count
+        success_count = order_stats.success_count
+
+        # Return HealthMetrics instead of ExecutionStatistics
+        return HealthMetrics(
+            response_time_ms=None,  # Could track average execution time if needed
+            error_count=error_count,
+            success_count=success_count,
+            last_activity=order_stats.last_activity_timestamp,
+            uptime_seconds=None,  # Could track from service start
+            memory_usage_mb=None,  # Could get from system metrics
+            cpu_usage_percent=None,  # Could get from system metrics
+            is_running=True,  # Service is running if we're checking health
         )
 
     def get_service_type(self) -> ServiceType:
         """Return service type for health monitoring."""
         return ServiceType.EXECUTION
+
+    def get_order_tracker_statistics(self) -> OrderTrackerStatistics:
+        """Get statistics from the order tracker.
+
+        Returns:
+            Current order tracker statistics
+        """
+        return self._order_tracker.get_statistics()
+
+    def get_api_client_count(self) -> int:
+        """Get the number of available API clients.
+
+        Returns:
+            Number of API clients
+        """
+        return len(self._api_clients)
+
+    def get_max_slippage(self) -> Decimal:
+        """Get maximum allowed slippage percentage.
+
+        Returns:
+            Max slippage percentage
+        """
+        return self._max_slippage
+
+    def get_max_retries(self) -> int:
+        """Get maximum retry attempts for orders.
+
+        Returns:
+            Max retry count
+        """
+        return self._max_retries
 
     def get_fill_statistics(self) -> FillStatistics:
         """Get fill processing statistics from FillHandler.

@@ -82,6 +82,9 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         self._update_timeout = config.state.update_timeout
         self._atomic_updates = config.state.atomic_updates
 
+        # Cache PnL configuration - following CODING_STANDARDS.md: NO HARDCODED VALUES
+        self._include_fees_in_pnl = config.financial.pnl.include_fees_in_pnl
+
         logger.info(
             "state_manager_initialized",
             balance_tolerance=self._balance_tolerance,
@@ -321,7 +324,7 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
                 symbol=fill.symbol.value,
                 exchange=fill.exchange,
                 size=new_position.size,
-                entry_price=new_position.entry_price or 0.0,
+                entry_price=new_position.entry_price,
             )
 
         else:
@@ -520,7 +523,9 @@ class PortfolioStateManager(PortfolioStateManagerProtocol):
         try:
             # Use centralized calculator with configuration
             calculator = MarkToMarketCalculator(self.config, fee_calculator=None)
-            result = calculator.calculate_realized_pnl(position, fill, include_fees=False)
+            result = calculator.calculate_realized_pnl(
+                position, fill, include_fees=self._include_fees_in_pnl
+            )
             calculated_pnl = result.amount
         except (ValueError, TypeError, AttributeError):
             # Fallback to original logic if calculator fails

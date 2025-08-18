@@ -135,3 +135,66 @@ class StorageError(Exception):
             formatted_message += f" (caused by: {original_error})"
 
         super().__init__(formatted_message)
+
+
+class InsufficientLiquidityError(PortfolioError):
+    """Raised when there is insufficient liquidity for an operation."""
+
+
+class SymbolParsingError(PortfolioError):
+    """Raised when a symbol cannot be parsed correctly."""
+
+    def __init__(self, symbol: str, reason: str) -> None:
+        """Initialize symbol parsing error.
+
+        Args:
+            symbol: The symbol that couldn't be parsed
+            reason: Reason for parsing failure
+        """
+        self.symbol = symbol
+        self.reason = reason
+        super().__init__(f"Cannot parse symbol {symbol}: {reason}")
+
+
+class MissingPriceDataError(PortfolioError):
+    """Raised when required price data is missing."""
+
+    def __init__(self, symbol: str, exchange: str) -> None:
+        """Initialize missing price data error.
+
+        Args:
+            symbol: Symbol missing price data
+            exchange: Exchange where price is missing
+        """
+        self.symbol = symbol
+        self.exchange = exchange
+        super().__init__(
+            f"No price available for position {symbol} on {exchange}. "
+            f"Entry price and mark price are both None - cannot proceed without price data."
+        )
+
+
+class NoBalancesAvailableError(PortfolioError):
+    """Raised when no balances are available for calculation."""
+
+    def __init__(self) -> None:
+        """Initialize exception."""
+        super().__init__("No balances available for equity calculation")
+
+
+class NoPriceAvailableError(PortfolioError):
+    """Raised when no price is available from ticker."""
+
+    def __init__(self, symbol: str, exchange: str) -> None:
+        """Initialize with symbol and exchange information.
+
+        Args:
+            symbol: Symbol missing price data
+            exchange: Exchange where price data is missing
+        """
+        self.symbol = symbol
+        self.exchange = exchange
+        super().__init__(
+            f"No price available for {symbol} on {exchange}. "
+            f"Ticker has no price field and midpoint fallbacks are forbidden."
+        )

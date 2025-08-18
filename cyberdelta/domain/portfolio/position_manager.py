@@ -72,6 +72,9 @@ class PositionManager(PositionManagerProtocol):
         self._position_closure_threshold = config.validation.position_closure_threshold
         self._max_position_age = config.validation.max_position_age_seconds
 
+        # Cache PnL configuration - following CODING_STANDARDS.md: NO HARDCODED VALUES
+        self._include_fees_in_pnl = config.financial.pnl.include_fees_in_pnl
+
         # Subscribe to position queries
         self._event_bus.subscribe(PositionQuery, self._handle_position_query)
         logger.info("position_manager_initialized_with_event_bus")
@@ -264,7 +267,7 @@ class PositionManager(PositionManagerProtocol):
         pnl_result = self._pnl_calculator.calculate_unrealized_pnl(
             position=position,
             mark_price=current_price,
-            include_fees=False,  # Basic calculation without fees
+            include_fees=self._include_fees_in_pnl,  # From config - NO HARDCODED VALUES
         )
 
         # Calculate percentage
@@ -535,7 +538,7 @@ class PositionManager(PositionManagerProtocol):
             pnl_result = self._pnl_calculator.calculate_realized_pnl(
                 position=position,
                 fill=fill,
-                include_fees=False,  # Basic calculation without fees
+                include_fees=self._include_fees_in_pnl,  # From config - NO HARDCODED VALUES
             )
             realized_pnl = pnl_result.amount
         else:
@@ -580,7 +583,7 @@ class PositionManager(PositionManagerProtocol):
     def _calculate_position_change(
         self, position: DerivativePosition, fill: Fill
     ) -> PositionChangeResult:
-        """Calculate position change from fill.
+        """Calculate position change from fill using centralized calculator.
 
         Args:
             position: Current position
@@ -588,6 +591,10 @@ class PositionManager(PositionManagerProtocol):
 
         Returns:
             PositionChangeResult with new quantity and realized PnL
+
+        Note:
+            Now uses centralized MarkToMarketCalculator for PnL calculation
+            to ensure consistency across the system.
         """
         # Current position quantity (signed)
         current_qty = position.size
@@ -606,15 +613,24 @@ class PositionManager(PositionManagerProtocol):
         is_reducing = current_qty != 0 and abs(new_qty) < abs(current_qty)
 
         if is_reducing:
-            # Position is being reduced
-            reduced_qty = abs(current_qty) - abs(new_qty)
-            if position.entry_price:
-                if current_qty > 0:  # Was long
-                    realized_pnl = reduced_qty * (fill.price - position.entry_price)
-                else:  # Was short
-                    realized_pnl = reduced_qty * (position.entry_price - fill.price)
-            else:
-                realized_pnl = Decimal(0)
+            # Use centralized calculator for PnL calculation
+            # This ensures consistency with fee handling and calculation method
+            pnl_result = self._pnl_calculator.calculate_realized_pnl(
+                position=position,
+                fill=fill,
+                include_fees=self._include_fees_in_pnl,
+            )
+            realized_pnl = pnl_result.amount
+
+            logger.debug(
+                "position_reduction_pnl_calculated",
+                symbol=position.symbol.value,
+                exchange=position.exchange.value,
+                reduced_from=abs(current_qty),
+                reduced_to=abs(new_qty),
+                realized_pnl=float(realized_pnl),
+                fees_included=self._include_fees_in_pnl,
+            )
         else:
             realized_pnl = Decimal(0)
 

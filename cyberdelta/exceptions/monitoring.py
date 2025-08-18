@@ -58,3 +58,42 @@ class MetricCalculationError(MonitoringError):
         """
         message = f"Failed to calculate {metric_name}: {calculation}"
         super().__init__(message, metric=metric_name)
+
+
+class ServiceNotRegisteredError(MonitoringError):
+    """Raised when an unregistered service is accessed."""
+
+    def __init__(self, service_name: str, registered_services: list[str]) -> None:
+        """Initialize exception with service details.
+
+        Args:
+            service_name: Name of the unregistered service
+            registered_services: List of registered service names
+        """
+        self.service_name = service_name
+        self.registered_services = registered_services
+        message = f"Service '{service_name}' is not registered"
+        if registered_services:
+            message += f". Registered services: {', '.join(registered_services)}"
+        super().__init__(message, component=service_name)
+
+
+class ServiceAlreadyRegisteredError(MonitoringError):
+    """Raised when trying to register a service that already exists."""
+
+    def __init__(self, service_name: str) -> None:
+        """Initialize exception with service name.
+
+        Args:
+            service_name: Name of the already registered service
+        """
+        self.service_name = service_name
+        super().__init__(f"Service '{service_name}' is already registered", component=service_name)
+
+
+class HealthMonitorAlreadyRunningError(MonitoringError):
+    """Raised when trying to start a health monitor that is already running."""
+
+    def __init__(self) -> None:
+        """Initialize exception."""
+        super().__init__("Health monitor is already running")
