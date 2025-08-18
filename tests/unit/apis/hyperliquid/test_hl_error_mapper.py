@@ -33,6 +33,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 
 import pytest
 from hypothesis import given, settings, strategies as st
@@ -423,7 +424,7 @@ class TestHyperliquidErrorMapperProperties:
     @given(
         error_scenario=hl_error_scenario_strategy(),
     )
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     def test_error_mapping_preserves_http_status(
         self, error_scenario: tuple[int, str, str]
     ) -> None:
@@ -461,7 +462,7 @@ class TestHyperliquidErrorMapperProperties:
         status_code=hl_http_status_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_known_error_pattern_mapping(
         self, known_error: str, status_code: int, request_path: str
     ) -> None:
@@ -495,7 +496,7 @@ class TestHyperliquidErrorMapperProperties:
         error_body=hl_string_error_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_status_code_based_mapping_consistency(
         self, status_code: int, error_body: str, request_path: str
     ) -> None:
@@ -524,7 +525,7 @@ class TestHyperliquidErrorMapperProperties:
         status_code=hl_http_status_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_unknown_error_handling(
         self, unknown_error: str, status_code: int, request_path: str
     ) -> None:
@@ -563,7 +564,7 @@ class TestHyperliquidErrorMapperProperties:
         status_code=st.sampled_from([401, 403, 429, 500, 503]),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_empty_error_body_handling(
         self, empty_body: str, status_code: int, request_path: str
     ) -> None:
@@ -606,7 +607,7 @@ class TestHyperliquidIPBanDetectionProperties:
     @given(
         ip_ban_scenario=hl_ip_ban_scenario_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_ip_ban_detection_patterns(self, ip_ban_scenario: tuple[int, str, str]) -> None:
         """Property: IP ban patterns should be correctly detected."""
         status_code, error_body, request_path = ip_ban_scenario
@@ -640,7 +641,7 @@ class TestHyperliquidIPBanDetectionProperties:
         non_rate_limit_message=st.text(min_size=5, max_size=100).filter(_not_rate_limit_filter),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_non_ip_ban_403_handling(self, non_rate_limit_message: str, request_path: str) -> None:
         """Property: 403 without rate limit message should not be IP ban."""
         mapper = HyperliquidErrorMapper()
@@ -662,7 +663,7 @@ class TestHyperliquidIPBanDetectionProperties:
         non_403_status=st.sampled_from([400, 401, 404, 429, 500, 503]),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_non_403_rate_limit_handling(
         self, rate_limit_message: str, non_403_status: int, request_path: str
     ) -> None:
@@ -699,7 +700,7 @@ class TestHyperliquidOrderOwnershipProperties:
         status_code=st.sampled_from([200, 400, 404]),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_ownership_error_mapping(
         self, ownership_error: str, status_code: int, request_path: str
     ) -> None:
@@ -728,7 +729,7 @@ class TestHyperliquidOrderOwnershipProperties:
         status_code=hl_http_status_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_l1_user_error_patterns(
         self, wallet_addr: str, oid: int, status_code: int, request_path: str
     ) -> None:
@@ -763,7 +764,7 @@ class TestHyperliquidErrorMapperSecurityProperties:
         status_code=hl_http_status_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_malicious_input_resistance(
         self, malicious_input: str, status_code: int, request_path: str
     ) -> None:
@@ -796,7 +797,7 @@ class TestHyperliquidErrorMapperSecurityProperties:
         status_code=hl_http_status_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_large_input_handling(
         self, large_error: str, status_code: int, request_path: str
     ) -> None:
@@ -827,7 +828,7 @@ class TestHyperliquidErrorMapperSecurityProperties:
         status_code=hl_http_status_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_injection_attack_resistance(
         self, injection_payload: str, status_code: int, request_path: str
     ) -> None:
@@ -858,7 +859,7 @@ class TestHyperliquidErrorMapperIntegrationProperties:
     """Integration property tests for complete error mapping workflows."""
 
     @given(error_scenarios=st.lists(hl_error_scenario_strategy(), min_size=1, max_size=10))
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_batch_error_mapping_consistency(
         self, error_scenarios: list[tuple[int, str, str]]
     ) -> None:
@@ -903,7 +904,7 @@ class TestHyperliquidErrorMapperIntegrationProperties:
         error_body=hl_string_error_strategy(),
         request_path=hl_request_path_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_error_mapping_workflow(
         self, status_code: int, error_body: str, request_path: str
     ) -> None:

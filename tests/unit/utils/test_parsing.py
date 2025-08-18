@@ -34,7 +34,7 @@ from cyberdelta.exceptions.parsing import (
 from cyberdelta.utils.parsing import (
     check_str_parsable_to_finite_decimal,
     parse_datetime_utc,
-    parse_decimal_value,
+    parse_decimal_safely,
     timeframe_to_ms,
     validate_enum_field,
     validate_str_field,
@@ -171,12 +171,12 @@ def timestamp_strategy() -> SearchStrategy[float]:
 
 
 # =============================================================================
-# PROPERTY TESTS FOR parse_decimal_value
+# PROPERTY TESTS FOR parse_decimal_safely
 # =============================================================================
 
 
 class TestParseDecimalValueProperties:
-    """Property-based tests for parse_decimal_value function."""
+    """Property-based tests for parse_decimal_safely function."""
 
     @given(decimal_str=financial_decimal_strategy())
     @settings(max_examples=1000, verbosity=Verbosity.normal)
@@ -187,7 +187,7 @@ class TestParseDecimalValueProperties:
         could result in incorrect trading amounts.
         """
         # Parse the decimal string
-        result = parse_decimal_value(decimal_str, allow_none=False)
+        result = parse_decimal_safely(decimal_str, allow_none=False)
 
         # Property: Result should not be None for valid input
         assert result is not None
@@ -217,15 +217,15 @@ class TestParseDecimalValueProperties:
 
         # Parse different representations of the same value
         if isinstance(value, str):
-            str_result = parse_decimal_value(value, allow_none=False)
-            decimal_result = parse_decimal_value(Decimal(value), allow_none=False)
+            str_result = parse_decimal_safely(value, allow_none=False)
+            decimal_result = parse_decimal_safely(Decimal(value), allow_none=False)
 
             # Property: String and Decimal inputs should give same result
             assert str_result == decimal_result
 
         elif isinstance(value, Decimal):
-            decimal_result = parse_decimal_value(value, allow_none=False)
-            str_result = parse_decimal_value(str(value), allow_none=False)
+            decimal_result = parse_decimal_safely(value, allow_none=False)
+            str_result = parse_decimal_safely(str(value), allow_none=False)
 
             # Property: Decimal input should return itself unchanged
             assert decimal_result is value  # Same object reference
@@ -233,8 +233,8 @@ class TestParseDecimalValueProperties:
 
         else:  # float
             # Property: Float conversion should be consistent
-            float_result = parse_decimal_value(value, allow_none=False)
-            str_result = parse_decimal_value(str(value), allow_none=False)
+            float_result = parse_decimal_safely(value, allow_none=False)
+            str_result = parse_decimal_safely(str(value), allow_none=False)
 
             # Note: May differ due to float precision limits, but should be close
             assert isinstance(float_result, Decimal)
@@ -244,7 +244,7 @@ class TestParseDecimalValueProperties:
     def test_decimal_invalid_input_rejection(self, invalid_input: str) -> None:
         """Property: Invalid decimal strings should always raise DecimalFieldError."""
         with pytest.raises(DecimalFieldError) as exc_info:
-            parse_decimal_value(invalid_input, allow_none=False)
+            parse_decimal_safely(invalid_input, allow_none=False)
 
         # Property: Error should include field information
         error_msg = str(exc_info.value)
@@ -260,12 +260,12 @@ class TestParseDecimalValueProperties:
     def test_decimal_none_handling_properties(self) -> None:
         """Property: None handling should respect allow_none parameter."""
         # Property: allow_none=True should return None for None input
-        result_allowed = parse_decimal_value(None, allow_none=True)
+        result_allowed = parse_decimal_safely(None, allow_none=True)
         assert result_allowed is None
 
         # Property: allow_none=False should raise for None input
         with pytest.raises(DecimalFieldError) as exc_info:
-            parse_decimal_value(None, allow_none=False)
+            parse_decimal_safely(None, allow_none=False)
         assert "Value cannot be None" in str(exc_info.value)
 
     @given(
@@ -278,7 +278,7 @@ class TestParseDecimalValueProperties:
         invalid_value = value + ".invalid"
 
         with pytest.raises(DecimalFieldError) as exc_info:
-            parse_decimal_value(invalid_value, allow_none=False, field_name=field_name)
+            parse_decimal_safely(invalid_value, allow_none=False, field_name=field_name)
 
         # Property: Field name should be in error message
         error_msg = str(exc_info.value)
@@ -287,7 +287,7 @@ class TestParseDecimalValueProperties:
     @given(decimal_str=financial_decimal_strategy())
     def test_decimal_financial_invariants(self, decimal_str: str) -> None:
         """Property: Parsed decimals should maintain financial calculation invariants."""
-        result = parse_decimal_value(decimal_str, allow_none=False)
+        result = parse_decimal_safely(decimal_str, allow_none=False)
 
         # Property: Result should be finite (no NaN, infinity)
         assert result.is_finite()
@@ -735,10 +735,10 @@ class TestParsingIntegrationProperties:
     def test_decimal_validation_consistency(self, decimal_str: str, field_name: str) -> None:
         """Property: Decimal validation should be consistent across functions."""
         # Both functions should handle the same valid input consistently
-        parse_result = parse_decimal_value(decimal_str, allow_none=False, field_name=field_name)
+        parse_result = parse_decimal_safely(decimal_str, allow_none=False, field_name=field_name)
         validate_result = check_str_parsable_to_finite_decimal(decimal_str, field_name=field_name)
 
-        # Property: parse_decimal_value result should match string input
+        # Property: parse_decimal_safely result should match string input
         assert str(parse_result) == str(Decimal(decimal_str))
 
         # Property: check_str_parsable_to_finite_decimal should return original string

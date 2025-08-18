@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from cyberdelta.core.execution.orders.market_order_errors import MarketOrderParameterError
 from cyberdelta.symbols import Symbol
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_safely
 
 
 class MarketOrderConfig(BaseModel):
@@ -118,7 +118,7 @@ class MarketOrderConfig(BaseModel):
             raise MarketOrderParameterError.slippage_default_error()
 
         for base_asset, slippage in v.items():
-            parsed = parse_decimal_value(
+            parsed = parse_decimal_safely(
                 slippage,
                 allow_none=False,
                 field_name=f"slippage_by_base_asset[{base_asset}]",

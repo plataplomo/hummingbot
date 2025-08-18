@@ -20,6 +20,7 @@ SECURITY CRITICAL: Configuration errors can lead to:
 """
 
 import re
+from datetime import timedelta
 from typing import Any
 
 import pytest
@@ -229,7 +230,7 @@ class TestProcessedResponseHeaders:
     """Property-based tests for the ProcessedResponseHeaders model."""
 
     @given(content_type=content_type_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_content_type_properties(self, content_type: str) -> None:
         """Property: Valid content-type strings should be accepted and preserved.
 
@@ -247,7 +248,7 @@ class TestProcessedResponseHeaders:
         assert headers.model_config.get("extra") == "forbid"
 
     @given(invalid_content_type=invalid_content_type_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_invalid_content_type_rejection(self, invalid_content_type: str) -> None:
         """Property: Invalid content-type strings should be rejected.
 
@@ -277,7 +278,7 @@ class TestProcessedResponseHeaders:
             assert headers.content_type == invalid_content_type
 
     @given(content_type=st.one_of(st.none(), st.just(""), content_type_strategy()))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_optional_content_type_handling(self, content_type: str | None) -> None:
         """Property: Optional content-type should be handled correctly.
 
@@ -292,7 +293,7 @@ class TestProcessedResponseHeaders:
             assert headers.content_type == content_type
 
     @given(valid_content_type=content_type_strategy(), mutation_value=content_type_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_immutability_property(self, valid_content_type: str, mutation_value: str) -> None:
         """Property: Model should be immutable after creation.
 
@@ -314,7 +315,7 @@ class TestProcessedResponseHeaders:
             max_size=5,
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_extra_fields_rejection(self, content_type: str, extra_fields: dict[str, str]) -> None:
         """Property: Extra fields should always be rejected.
 
@@ -341,7 +342,7 @@ class TestHttpClientConfig:
         max_retries=st.one_of(st.none(), st.integers(min_value=0, max_value=10)),
         retry_delay=st.one_of(st.none(), st.floats(min_value=0.1, max_value=300.0)),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_config_properties(
         self, url: str, timeout: float, max_retries: int | None, retry_delay: float | None
     ) -> None:
@@ -378,7 +379,7 @@ class TestHttpClientConfig:
             st.just(float("nan")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_timeout_rejection(self, url: str, invalid_timeout: float) -> None:
         """Property: Invalid timeout values should be rejected.
 
@@ -391,7 +392,7 @@ class TestHttpClientConfig:
         url=http_url_strategy(),
         invalid_retries=st.integers(max_value=-1) | st.integers(min_value=11),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_retries_rejection(self, url: str, invalid_retries: int) -> None:
         """Property: Invalid retry counts should be rejected.
 
@@ -407,7 +408,7 @@ class TestHttpClientConfig:
             timeout=st.floats(min_value=0.1, max_value=120.0),
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_serialization_round_trip(self, valid_config_data: dict[str, Any]) -> None:
         """Property: Configurations should round-trip through serialization.
 
@@ -444,7 +445,7 @@ class TestWebSocketManagerConfig:
         max_reconnects=st.integers(min_value=0, max_value=20),
         conn_timeout=st.floats(min_value=0.1, max_value=120.0),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_ws_config_properties(
         self,
         url: str,
@@ -479,7 +480,7 @@ class TestWebSocketManagerConfig:
             st.floats(max_value=0.0), st.floats(min_value=60.1), st.just(float("inf"))
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_ping_interval_rejection(self, url: str, invalid_ping: float) -> None:
         """Property: Invalid ping intervals should be rejected.
 
@@ -500,7 +501,7 @@ class TestWebSocketManagerConfig:
             ping=st.floats(min_value=0.1, max_value=60.0),
         ),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_config_equality_properties(
         self, config1_data: dict[str, Any], config2_data: dict[str, Any]
     ) -> None:
@@ -520,7 +521,7 @@ class TestWebSocketManagerConfig:
             assert config1 != config2
 
     @given(url=websocket_url_strategy(), zero_attempts=st.just(0))
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_zero_reconnect_attempts_allowed(self, url: str, zero_attempts: int) -> None:
         """Property: Zero reconnect attempts should be valid (no reconnection).
 

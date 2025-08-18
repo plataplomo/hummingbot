@@ -12,7 +12,7 @@ Following TESTING_SECURITY_RULES.md:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
@@ -303,7 +303,7 @@ class TestBalanceValidationRuleProperties:
         order_price=price_strategy(),
         order_quantity=quantity_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_buy_orders_respect_balance_constraints(
         self, available_balance: Decimal, order_price: Decimal, order_quantity: Decimal
@@ -352,7 +352,7 @@ class TestBalanceValidationRuleProperties:
         order_price=price_strategy(),
         order_quantity=quantity_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_sell_orders_respect_balance_constraints(
         self, available_balance: Decimal, order_price: Decimal, order_quantity: Decimal
@@ -539,7 +539,7 @@ class TestOrderValueLimitsRuleProperties:
         order_price=price_strategy(),
         order_quantity=quantity_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_order_value_limits_properly_enforced(
         self, min_value: Decimal, max_value: Decimal, order_price: Decimal, order_quantity: Decimal
@@ -594,7 +594,7 @@ class TestOrderValueLimitsRuleProperties:
         order_price=price_strategy(),
         order_quantity=quantity_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_exchange_limits_properly_enforced(
         self,

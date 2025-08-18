@@ -13,7 +13,7 @@ Following TESTING_SECURITY_RULES.md:
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
@@ -132,7 +132,7 @@ class TestPricePrecisionRuleProperties:
     """Property-based tests for PricePrecisionRule."""
 
     @given(tick_size=tick_size_strategy())
-    @settings(max_examples=50, deadline=None)  # Reduce examples for async tests
+    @settings(max_examples=50, deadline=timedelta(seconds=1))  # Reduce examples for async tests
     @pytest.mark.asyncio
     async def test_aligned_prices_always_valid(self, tick_size: Decimal) -> None:
         """Property: Prices aligned to tick size should always be valid."""
@@ -167,7 +167,7 @@ class TestPricePrecisionRuleProperties:
         )
 
     @given(tick_size=tick_size_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_misaligned_prices_always_invalid(self, tick_size: Decimal) -> None:
         """Property: Prices NOT aligned to tick size should always be invalid."""
@@ -243,7 +243,7 @@ class TestQuantityPrecisionRuleProperties:
     """Property-based tests for QuantityPrecisionRule."""
 
     @given(lot_size=lot_size_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_aligned_quantities_always_valid(self, lot_size: Decimal) -> None:
         """Property: Quantities aligned to lot size should always be valid."""
@@ -282,7 +282,7 @@ class TestQuantityPrecisionRuleProperties:
             min_value=-1000000.0, max_value=0.0, allow_nan=False, allow_infinity=False
         )
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_negative_and_zero_quantities_always_invalid(self, quantity: float) -> None:
         """Property: Negative or zero quantities should always be invalid."""
@@ -321,7 +321,7 @@ class TestBalanceValidationRuleProperties:
         order_price=decimal_strategy(),
         order_quantity=decimal_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_buy_orders_respect_balance_constraints(
         self, available_balance: Decimal, order_price: Decimal, order_quantity: Decimal
@@ -379,7 +379,7 @@ class TestOrderValueLimitsRuleProperties:
         order_price=decimal_strategy(),
         order_quantity=decimal_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_order_value_limits_enforced(
         self, min_value: Decimal, max_value: Decimal, order_price: Decimal, order_quantity: Decimal
@@ -482,7 +482,7 @@ class TestValidationServiceProperties:
     """Property-based tests for the complete ValidationService."""
 
     @given(order=generate_order_strategy())
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_validation_always_returns_result(self, order: Order) -> None:
         """Property: Validation should always return a ValidationResult, never crash.

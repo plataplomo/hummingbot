@@ -39,7 +39,7 @@ from cyberdelta.enums import ExchangeName
 from cyberdelta.models import SpotBalance
 from cyberdelta.models.spot_balance import BackpackSpotBalanceDetails
 from cyberdelta.symbols import exchanges
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_safely
 from cyberdelta.utils.secure_transformation import secure_transform
 from cyberdelta.utils.typing import ParsedJsonResponse
 
@@ -263,7 +263,7 @@ class BackpackBalanceService:
 
                 if collateral_data:
                     # Calculate enhanced fields
-                    collateral_weight = parse_decimal_value(
+                    collateral_weight = parse_decimal_safely(
                         collateral_data.collateral_weight,
                         allow_none=False,
                         field_name="collateralWeight",
@@ -272,12 +272,12 @@ class BackpackBalanceService:
                     # Create enhanced details
                     enhanced_details = BackpackSpotBalanceDetails(
                         collateral_weight=collateral_weight,
-                        lend_quantity=parse_decimal_value(
+                        lend_quantity=parse_decimal_safely(
                             collateral_data.lend_quantity,
                             allow_none=True,
                             field_name="lend_quantity",
                         ),
-                        open_order_quantity=parse_decimal_value(
+                        open_order_quantity=parse_decimal_safely(
                             collateral_data.open_order_quantity,
                             allow_none=True,
                             field_name="open_order_quantity",
@@ -290,7 +290,7 @@ class BackpackBalanceService:
 
                     # When collateral data is available, update total_quantity to match
                     # the actual total from collateral (which includes lent amounts)
-                    collateral_total = parse_decimal_value(
+                    collateral_total = parse_decimal_safely(
                         collateral_data.total_quantity,
                         allow_none=False,
                         field_name="total_quantity",
@@ -468,7 +468,7 @@ class BackpackBalanceService:
 
                 if collateral_data:
                     # Calculate enhanced fields
-                    collateral_weight = parse_decimal_value(
+                    collateral_weight = parse_decimal_safely(
                         collateral_data.collateral_weight,
                         allow_none=False,
                         field_name="collateralWeight",
@@ -478,12 +478,12 @@ class BackpackBalanceService:
                     # Create enhanced details
                     enhanced_details = BackpackSpotBalanceDetails(
                         collateral_weight=collateral_weight,
-                        lend_quantity=parse_decimal_value(
+                        lend_quantity=parse_decimal_safely(
                             collateral_data.lend_quantity,
                             allow_none=True,
                             field_name="lend_quantity",
                         ),
-                        open_order_quantity=parse_decimal_value(
+                        open_order_quantity=parse_decimal_safely(
                             collateral_data.open_order_quantity,
                             allow_none=True,
                             field_name="open_order_quantity",

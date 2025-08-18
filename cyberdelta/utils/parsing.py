@@ -190,7 +190,7 @@ def _parse_string_as_numeric_timestamp(value: str, prefix: str, iso_error: Value
 
 
 @overload
-def parse_decimal_value(
+def parse_decimal_safely(
     value: Decimal | str | float | None,
     allow_none: Literal[True] = True,
     field_name: str = "",
@@ -198,14 +198,14 @@ def parse_decimal_value(
 
 
 @overload
-def parse_decimal_value(
+def parse_decimal_safely(
     value: Decimal | str | float | None,
     allow_none: Literal[False],
     field_name: str = "",
 ) -> Decimal: ...
 
 
-def parse_decimal_value(
+def parse_decimal_safely(
     value: Decimal | str | float | None,
     allow_none: bool = True,
     field_name: str = "",
@@ -401,7 +401,7 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
 
     Raises:
         DecimalFieldError: If the string cannot be parsed as a finite Decimal.
-        ValueError: Re-raised from validate_str_field or parse_decimal_value if field_name
+        ValueError: Re-raised from validate_str_field or parse_decimal_safely if field_name
             is not already in the error message.
 
     """
@@ -412,8 +412,10 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
 
     # Then, try to parse it as a Decimal and check finiteness
     try:
-        parsed_decimal = parse_decimal_value(validated_str, allow_none=False, field_name=field_name)
-        # parse_decimal_value raises if allow_none=False and input is None,
+        parsed_decimal = parse_decimal_safely(
+            validated_str, allow_none=False, field_name=field_name
+        )
+        # parse_decimal_safely raises if allow_none=False and input is None,
         # or if it can't convert. So parsed_decimal here should not be None.
         # allow_none=False ensures parsed_decimal is never None
         if not parsed_decimal.is_finite():
@@ -422,9 +424,9 @@ def check_str_parsable_to_finite_decimal(value: object, field_name: str = "") ->
                 value=validated_str,
                 reason="parsed decimal is not finite",
             )
-    except ValueError as e:  # Catch errors from validate_str_field or parse_decimal_value
+    except ValueError as e:  # Catch errors from validate_str_field or parse_decimal_safely
         # Re-raise to ensure the message includes field_name if passed down.
-        # If parse_decimal_value or validate_str_field already prefixed, this might duplicate.
+        # If parse_decimal_safely or validate_str_field already prefixed, this might duplicate.
         # However, ensuring the check for finiteness is clear.
         if field_name and field_name not in str(e):
             raise DecimalFieldError(

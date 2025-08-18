@@ -34,6 +34,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import contextlib
+from datetime import timedelta
 from typing import Any, Literal, cast
 
 import pytest
@@ -372,7 +373,7 @@ class TestBackpackRawGetTickerParamsProperties:
     """Property-based tests for BackpackRawGetTickerParams."""
 
     @given(symbol=valid_symbol_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_symbol_acceptance(self, symbol: str) -> None:
         """Property: Valid symbols should always be accepted."""
         params = BackpackRawGetTickerParams(symbol=symbol)
@@ -384,7 +385,7 @@ class TestBackpackRawGetTickerParamsProperties:
         assert params.model_config.get("frozen") is True
 
     @given(invalid_symbol=invalid_symbol_strategy())
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_invalid_symbol_rejection(self, invalid_symbol: str) -> None:
         """Property: Invalid symbols should always be rejected."""
         if not invalid_symbol.strip():
@@ -405,7 +406,7 @@ class TestBackpackRawGetTickerParamsProperties:
         extra_field_name=st.text(min_size=1, max_size=20).filter(lambda x: x != "symbol"),
         extra_field_value=st.one_of([st.text(), st.integers(), st.booleans(), st.none()]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_extra_fields_rejection(
         self, symbol: str, extra_field_name: str, extra_field_value: str | int | bool | None
     ) -> None:
@@ -416,7 +417,7 @@ class TestBackpackRawGetTickerParamsProperties:
             BackpackRawGetTickerParams.model_validate(data)
 
     @given(symbol=valid_symbol_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_immutability_enforcement(self, symbol: str) -> None:
         """Property: Params should be immutable after creation."""
         params = BackpackRawGetTickerParams(symbol=symbol)
@@ -425,7 +426,7 @@ class TestBackpackRawGetTickerParamsProperties:
             params.symbol = "new_symbol"
 
     @given(malicious_symbol=malicious_string_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_symbol_resistance(self, malicious_symbol: object) -> None:
         """Property: Malicious symbol inputs should be safely rejected."""
         # Convert to string if needed
@@ -454,7 +455,7 @@ class TestBackpackRawGetOrderBookParamsProperties:
         symbol=valid_symbol_strategy(),
         limit=st.one_of([st.none(), limit_strategy()]),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_params_acceptance(self, symbol: str, limit: int | None) -> None:
         """Property: Valid parameters should always be accepted."""
         params = BackpackRawGetOrderBookParams(symbol=symbol, limit=limit)
@@ -467,7 +468,7 @@ class TestBackpackRawGetOrderBookParamsProperties:
         symbol=valid_symbol_strategy(),
         invalid_limit=invalid_limit_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_negative_limit_rejection(self, symbol: str, invalid_limit: int) -> None:
         """Property: Negative limits should be rejected."""
         assume(invalid_limit < 0)
@@ -479,7 +480,7 @@ class TestBackpackRawGetOrderBookParamsProperties:
         symbol=valid_symbol_strategy(),
         wrong_type_limit=st.one_of([st.text(), st.booleans(), st.lists(st.integers())]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_limit_type_validation(self, symbol: str, wrong_type_limit: object) -> None:
         """Property: Non-integer limits should be rejected."""
         data = {"symbol": symbol, "limit": wrong_type_limit}
@@ -502,7 +503,7 @@ class TestBackpackRawGetHistoricalFundingRatesParamsProperties:
         end_time=st.one_of([st.none(), timestamp_strategy()]),
         limit=st.one_of([st.none(), limit_strategy()]),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_params_acceptance(
         self, symbol: str, start_time: int | None, end_time: int | None, limit: int | None
     ) -> None:
@@ -524,7 +525,7 @@ class TestBackpackRawGetHistoricalFundingRatesParamsProperties:
         symbol=valid_symbol_strategy(),
         negative_timestamp=st.integers(min_value=-2147483648, max_value=-1),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_negative_timestamps_allowed(self, symbol: str, negative_timestamp: int) -> None:
         """Property: Negative timestamps should be allowed for historical data."""
         params = BackpackRawGetHistoricalFundingRatesParams(
@@ -540,7 +541,7 @@ class TestBackpackRawGetHistoricalFundingRatesParamsProperties:
         symbol=valid_symbol_strategy(),
         invalid_limit=invalid_limit_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_negative_limit_rejection(self, symbol: str, invalid_limit: int) -> None:
         """Property: Negative limits should be rejected."""
         assume(invalid_limit < 0)
@@ -565,7 +566,7 @@ class TestBackpackRawGetOrderHistoryParamsProperties:
         start_time=st.one_of([st.none(), timestamp_strategy()]),
         end_time=st.one_of([st.none(), timestamp_strategy()]),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_params_acceptance(
         self,
         symbol: str | None,
@@ -602,7 +603,7 @@ class TestBackpackRawGetOrderHistoryParamsProperties:
         start_time=timestamp_strategy(),
         end_time=timestamp_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_alias_support(self, symbol: str, start_time: int, end_time: int) -> None:
         """Property: Field aliases should work correctly."""
         data = {
@@ -619,7 +620,7 @@ class TestBackpackRawGetOrderHistoryParamsProperties:
         empty_string_field=st.sampled_from(["orderId", "clientId"]),
         empty_value=st.sampled_from(["", "   ", "\t\n"]),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_empty_string_rejection(self, empty_string_field: str, empty_value: str) -> None:
         """Property: Empty strings should be rejected for ID fields."""
         kwargs = {empty_string_field: empty_value}
@@ -643,7 +644,7 @@ class TestBackpackRawGetMarketDataParamsProperties:
         end_time=st.one_of([st.none(), timestamp_strategy()]),
         limit=st.one_of([st.none(), limit_strategy()]),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_valid_params_acceptance(
         self,
         symbol: str,
@@ -688,7 +689,7 @@ class TestBackpackRawGetMarketDataParamsProperties:
         symbol=valid_symbol_strategy(),
         invalid_interval=invalid_interval_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_interval_rejection(self, symbol: str, invalid_interval: str) -> None:
         """Property: Invalid intervals should be rejected."""
         with pytest.raises(ValidationError, match="Input should be"):
@@ -698,7 +699,7 @@ class TestBackpackRawGetMarketDataParamsProperties:
             })
 
     @given(missing_field=st.sampled_from(["symbol", "interval"]))
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     def test_required_fields_validation(self, missing_field: str) -> None:
         """Property: Missing required fields should be rejected."""
         data = {"symbol": "BTC-USDC", "interval": "1h"}
@@ -724,7 +725,7 @@ class TestEmptyParamsModelsProperties:
             BackpackRawGetMarketsParams,
         ])
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_empty_params_validity(self, model_class: type[BaseModel]) -> None:
         """Property: Empty parameter models should always be valid."""
         # Should work with no parameters
@@ -748,7 +749,7 @@ class TestEmptyParamsModelsProperties:
         extra_field_name=st.text(min_size=1, max_size=20),
         extra_field_value=st.one_of([st.text(), st.integers(), st.booleans()]),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_extra_fields_rejection_empty_models(
         self,
         model_class: type[BaseModel],
@@ -774,7 +775,7 @@ class TestGeneralValidationBehaviorProperties:
         symbol=valid_symbol_strategy(),
         unicode_chars=st.text(min_size=1, max_size=20),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_unicode_symbol_handling(self, symbol: str, unicode_chars: str) -> None:
         """Property: Unicode characters in symbols should be handled appropriately."""
         # Combine symbol with unicode chars
@@ -797,7 +798,7 @@ class TestGeneralValidationBehaviorProperties:
         symbol=valid_symbol_strategy(),
         control_chars=st.text(min_size=1, max_size=5, alphabet="\x00\x01\x02\x03\x1f"),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_control_characters_handling(self, symbol: str, control_chars: str) -> None:
         """Property: Control characters should be handled without causing issues."""
         control_symbol = symbol + control_chars
@@ -823,7 +824,7 @@ class TestGeneralValidationBehaviorProperties:
         ),
         null_field=st.text(min_size=1, max_size=20),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_null_values_in_optional_fields(
         self, model_data: dict[str, Any], null_field: str
     ) -> None:
@@ -846,7 +847,7 @@ class TestGeneralValidationBehaviorProperties:
         alias_name=st.text(min_size=1, max_size=20),
         value=timestamp_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_populate_by_name_behavior(self, field_name: str, alias_name: str, value: int) -> None:
         """Property: populate_by_name should work for known aliases."""
         # Test known aliases
@@ -877,7 +878,7 @@ class TestQueryParamsSecurityProperties:
         malicious_input=malicious_string_strategy(),
         field_name=st.sampled_from(["symbol", "orderId", "clientId", "fromId"]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_input_resistance(self, malicious_input: object, field_name: str) -> None:
         """Property: Query parameter models should resist malicious inputs."""
         # Convert to string if needed
@@ -916,7 +917,7 @@ class TestQueryParamsSecurityProperties:
         large_input=st.text(min_size=1000, max_size=1500),
         field_name=st.sampled_from(["symbol", "orderId", "clientId"]),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_large_input_handling(self, large_input: str, field_name: str) -> None:
         """Property: Large inputs should be handled safely."""
         # Should reject oversized inputs with appropriate error
@@ -938,7 +939,7 @@ class TestQueryParamsSecurityProperties:
         ),
         field_name=st.text(min_size=1, max_size=10),
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     def test_deeply_nested_data_handling(self, deeply_nested_data: object, field_name: str) -> None:
         """Property: Deeply nested data should be handled safely."""
         data = {field_name: deeply_nested_data}
@@ -979,7 +980,7 @@ class TestQueryParamsIntegrationProperties:
             max_size=5,
         )
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_batch_validation_consistency(
         self, models_and_data: list[tuple[tuple[type[BaseModel], dict[str, Any]], dict[str, Any]]]
     ) -> None:

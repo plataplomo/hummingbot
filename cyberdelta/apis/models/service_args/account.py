@@ -12,7 +12,7 @@ from cyberdelta.apis.exceptions.field_validation import TypeFieldError
 from cyberdelta.apis.models.service_args.common import validate_api_str_field
 from cyberdelta.exceptions.field_validation import DecimalFieldError
 from cyberdelta.exceptions.service_validation import TransferAccountError
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_safely
 from cyberdelta.utils.typing import PotentialDecimalInput, is_potential_decimal_input
 
 
@@ -85,7 +85,7 @@ class TransferArgs(BaseModel):
                 actual_type=type(v).__name__,
             )
 
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
+        parsed = parse_decimal_safely(v, field_name=field_name, allow_none=False)
         if not parsed.is_finite():
             raise DecimalFieldError(
                 field_name=field_name,
@@ -187,7 +187,7 @@ class WithdrawArgs(BaseModel):
                 actual_type=type(v).__name__,
             )
 
-        parsed = parse_decimal_value(v, field_name=field_name, allow_none=False)
+        parsed = parse_decimal_safely(v, field_name=field_name, allow_none=False)
         if not parsed.is_finite():
             raise DecimalFieldError(
                 field_name=field_name,

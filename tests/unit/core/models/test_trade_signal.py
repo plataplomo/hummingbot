@@ -200,8 +200,9 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
+            timezones=st.just(UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -339,7 +340,7 @@ class TestTradeSignalModelProperties:
         price=price_strategy(),
         exchange=exchange_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_trade_signal_creation_properties(
         self,
         symbol: Symbol,
@@ -395,7 +396,7 @@ class TestTradeSignalModelProperties:
         take_profit=price_strategy(),
         metadata=metadata_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_trade_signal_creation_properties(
         self,
         symbol: Symbol,
@@ -454,7 +455,7 @@ class TestTradeSignalModelProperties:
         exchange=exchange_strategy(),
         offset_minutes=st.integers(min_value=1, max_value=60),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_signal_expiration_properties(
         self,
         symbol: Symbol,
@@ -505,7 +506,7 @@ class TestTradeSignalModelProperties:
         new_confidence=confidence_strategy(),
         new_strategy=strategy_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_trade_signal_mutability_properties(
         self,
         symbol: Symbol,
@@ -556,7 +557,7 @@ class TestTradeSignalModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_decimal_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -594,7 +595,7 @@ class TestTradeSignalModelProperties:
             ),
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_decimal_parsing_properties(self, parseable_inputs: ParseableInput) -> None:
         """Property: TradeSignal should correctly parse various numeric input types to Decimal."""
         signal = TradeSignal(
@@ -631,7 +632,7 @@ class TestTradeSignalModelProperties:
             ),
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_confidence_parsing_properties(self, confidence_input: ParseableInput) -> None:
         """Property: Confidence field should correctly parse various numeric input types.
 
@@ -659,7 +660,7 @@ class TestTradeSignalModelProperties:
             ),
         ),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_timestamp_parsing_properties(self, timestamp_input: ParseableInput) -> None:
         """Property: Timestamp fields should parse various input types correctly."""
         signal = TradeSignal(
@@ -680,7 +681,7 @@ class TestTradeSignalModelProperties:
             st.sampled_from(list(ExchangeName)), min_size=1, max_size=3, unique=True
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_exchange_list_validation_properties(self, exchange_list: list[ExchangeName]) -> None:
         """Property: Exchange field should handle lists of exchanges correctly."""
         signal = TradeSignal(
@@ -709,7 +710,7 @@ class TestTradeSignalModelProperties:
             st.just([]),  # Wrong type
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_timestamp_rejection_properties(
         self, invalid_timestamp: ParseableInput
     ) -> None:
@@ -732,7 +733,7 @@ class TestTradeSignalModelProperties:
             st.lists(st.integers(), min_size=1, max_size=3),  # List of wrong types
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_exchange_rejection_properties(self, invalid_exchange: ParseableInput) -> None:
         """Property: Invalid exchange inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, ListFieldError, TypeFieldError)):
@@ -759,7 +760,7 @@ class TestTradeSignalBusinessLogicProperties:
         stop_loss=price_strategy(),
         take_profit=price_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_stop_loss_take_profit_relationships_properties(
         self,
         symbol: Symbol,
@@ -811,7 +812,7 @@ class TestTradeSignalBusinessLogicProperties:
         price=price_strategy(),
         exchange=exchange_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_signal_consistency_properties(
         self,
         symbol: Symbol,
@@ -848,7 +849,7 @@ class TestTradeSignalBusinessLogicProperties:
         confidence=confidence_strategy(),
         metadata=metadata_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_signal_enrichment_properties(
         self,
         symbol: Symbol,
@@ -900,7 +901,7 @@ class TestTradeSignalEdgeCaseProperties:
         symbol=valid_symbol_strategy(),
         source_strategy=strategy_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_signal_id_uniqueness_properties(
         self,
         symbol: Symbol,
@@ -935,7 +936,7 @@ class TestTradeSignalEdgeCaseProperties:
         exchange=exchange_strategy(),
         metadata=metadata_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_signal_serialization_properties(
         self,
         symbol: Symbol,
@@ -974,7 +975,7 @@ class TestTradeSignalEdgeCaseProperties:
         base_time=valid_timestamp_strategy(),
         offset_seconds=st.integers(min_value=-3600, max_value=3600),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_signal_timing_edge_cases_properties(
         self,
         symbol: Symbol,

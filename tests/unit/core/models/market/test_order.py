@@ -30,7 +30,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -191,8 +191,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -348,7 +348,7 @@ class TestOrderModelProperties:
         exchange=st.sampled_from([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
         created_at=valid_timestamp_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_order_creation_properties(
         self,
         order_symbol: Symbol,
@@ -372,7 +372,6 @@ class TestOrderModelProperties:
             time_in_force=time_in_force,
             exchange=exchange,
             created_at=created_at,
-            updated_at=created_at,
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
@@ -419,7 +418,11 @@ class TestOrderModelProperties:
         created_at=valid_timestamp_strategy(),
         data=st.data(),
     )
-    @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=300,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_full_order_creation_properties(
         self,
         order_symbol: Symbol,
@@ -559,7 +562,7 @@ class TestOrderModelProperties:
         price=st.one_of(st.none(), price_strategy()),
         stop_price=st.one_of(st.none(), price_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_order_type_price_validation_properties(
         self, order_type: OrderType, price: Decimal | None, stop_price: Decimal | None
     ) -> None:
@@ -607,7 +610,7 @@ class TestOrderModelProperties:
         quantity_filled=st.data(),
         average_fill_price=st.one_of(st.none(), price_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_quantity_fill_validation_properties(
         self,
         quantity_requested: Decimal,
@@ -667,7 +670,7 @@ class TestOrderModelProperties:
         hl_details=st.one_of(st.none(), hyperliquid_order_details_strategy()),
         bp_details=st.one_of(st.none(), backpack_order_details_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_exchange_details_validation_properties(
         self,
         exchange: ExchangeName,
@@ -726,7 +729,7 @@ class TestOrderModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_financial_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -762,7 +765,7 @@ class TestOrderModelProperties:
     @given(
         quantity_requested=quantity_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_order_mutability_properties(self, quantity_requested: Decimal) -> None:
         """Property: Order instances should be mutable with validation on assignment."""
         order = Order(
@@ -802,7 +805,7 @@ class TestOrderModelProperties:
         hl_details=hyperliquid_order_details_strategy(),
         bp_details=backpack_order_details_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_exchange_details_immutability_properties(
         self, hl_details: HyperliquidOrderDetails, bp_details: BackpackOrderDetails
     ) -> None:
@@ -869,7 +872,7 @@ class TestHyperliquidOrderDetailsProperties:
             st.none(), financial_decimal_strategy(min_value=0.0, max_value=10000.0, allow_zero=True)
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_creation_properties(self, remaining_sz: Decimal | None) -> None:
         """Property: HyperliquidOrderDetails should handle all field combinations correctly."""
         details = HyperliquidOrderDetails(remaining_sz=remaining_sz)
@@ -888,7 +891,7 @@ class TestHyperliquidOrderDetailsProperties:
             st.just(Decimal("Infinity")),
         )
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_validation_properties(self, invalid_value: Decimal) -> None:
         """Property: HyperliquidOrderDetails should validate field values correctly."""
         with pytest.raises(ValidationError):
@@ -909,7 +912,7 @@ class TestBackpackOrderDetailsProperties:
         ),
         trigger_quantity=st.one_of(st.none(), quantity_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_backpack_details_creation_properties(
         self,
         executed_quote_quantity: Decimal | None,
@@ -947,7 +950,7 @@ class TestBackpackOrderDetailsProperties:
             st.just(Decimal("Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_backpack_details_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:

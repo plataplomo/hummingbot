@@ -45,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import string
 import time
+from datetime import timedelta
 from typing import Any
 from unittest.mock import Mock
 
@@ -423,7 +424,7 @@ class TestHyperliquidRateLimitStrategyProperties:
     @given(
         context=hl_rate_limit_context_strategy(),
     )
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_prepare_and_acquire_never_crashes(
         self, context: RateLimitRequestContext, hl_config: ExchangeSpecificConfig
@@ -437,7 +438,7 @@ class TestHyperliquidRateLimitStrategyProperties:
         # Property: prepare_and_acquire returns None (no payload modification)
 
     @given(action_counts=st.lists(hl_action_count_strategy(), min_size=1, max_size=20))
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_exchange_weight_calculation_consistency(
         self, action_counts: list[int], hl_config: ExchangeSpecificConfig
@@ -465,7 +466,7 @@ class TestHyperliquidRateLimitStrategyProperties:
             # but we can verify the operation completes successfully
 
     @given(info_types=st.lists(hl_info_request_type_strategy(), min_size=1, max_size=10))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_info_endpoint_weight_mapping(
         self, info_types: list[str], hl_config: ExchangeSpecificConfig
@@ -500,7 +501,7 @@ class TestHyperliquidRateLimitStrategyProperties:
             max_size=15,
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_payload_parsing_robustness(
         self, payload_scenarios: list[dict[str, Any] | None], hl_config: ExchangeSpecificConfig
@@ -522,7 +523,7 @@ class TestHyperliquidRateLimitStrategyProperties:
             await strategy.prepare_and_acquire(context)
 
     @given(concurrent_contexts=st.lists(hl_rate_limit_context_strategy(), min_size=2, max_size=10))
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_concurrent_requests_consistency(
         self, concurrent_contexts: list[RateLimitRequestContext], hl_config: ExchangeSpecificConfig
@@ -548,7 +549,7 @@ class TestHyperliquidRateLimitStrategyProperties:
             {"actions": None},  # None actions
         ])
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_empty_payload_handling(
         self, empty_scenarios: dict[str, Any], hl_config: ExchangeSpecificConfig
@@ -581,7 +582,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
         malicious_payload=malicious_hl_payload_strategy(),
         endpoint=hl_endpoint_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_malicious_payload_resistance(
         self, malicious_payload: dict[str, Any], endpoint: str, hl_config: ExchangeSpecificConfig
@@ -606,7 +607,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
     @given(
         extreme_action_count=st.integers(min_value=100000, max_value=1000000),
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_extreme_action_count_handling(
         self, extreme_action_count: int, hl_config: ExchangeSpecificConfig
@@ -636,7 +637,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
             "user": st.text(min_size=1000, max_size=1500),
         })
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_buffer_overflow_resistance(
         self, buffer_overflow_fields: dict[str, str], hl_config: ExchangeSpecificConfig
@@ -672,7 +673,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
             max_size=50,
         )
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_injection_attack_resistance(
         self, injection_actions: list[dict[str, str]], hl_config: ExchangeSpecificConfig
@@ -699,7 +700,7 @@ class TestHyperliquidRateLimitStrategySecurityProperties:
             max_leaves=100,
         )
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_deeply_nested_payload_handling(
         self,
@@ -744,7 +745,7 @@ class TestHyperliquidRateLimitStrategyIntegrationProperties:
             max_size=20,
         )
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_mixed_endpoint_request_consistency(
         self,
@@ -780,7 +781,7 @@ class TestHyperliquidRateLimitStrategyIntegrationProperties:
         ),
         test_context=hl_rate_limit_context_strategy(),
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_configuration_driven_behavior(
         self, config_variations: list[dict[str, int]], test_context: RateLimitRequestContext

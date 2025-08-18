@@ -11,7 +11,7 @@ from typing import Any, TypeGuard, TypeVar
 
 from cyberdelta.apis.exceptions.field_validation import FieldError
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.utils.parsing import parse_decimal_value
+from cyberdelta.utils.parsing import parse_decimal_safely
 
 
 class NumberValidationPolicy(Enum):
@@ -370,7 +370,7 @@ class HyperliquidCommonMappers:
             return value
 
         try:
-            parsed_value = parse_decimal_value(value=value, allow_none=True, field_name=field_name)
+            parsed_value = parse_decimal_safely(value=value, allow_none=True, field_name=field_name)
         except (ValueError, TypeError, InvalidOperation, AttributeError) as e:
             logger.warning(
                 "decimal_parsing_failed",

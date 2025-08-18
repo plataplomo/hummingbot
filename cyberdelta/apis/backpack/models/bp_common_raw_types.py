@@ -35,7 +35,7 @@ from cyberdelta.exceptions.parsing import (
 )
 from cyberdelta.utils.parsing import (
     parse_datetime_utc,
-    parse_decimal_value,
+    parse_decimal_safely,
     validate_enum_field,
     validate_str_field,
 )
@@ -115,8 +115,8 @@ def _validate_raw_string_to_finite_decimal(v: object, info: ValidationInfo) -> D
             actual_value=v,
         )
     validated_str = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    return parse_decimal_value(validated_str, allow_none=False, field_name=field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    return parse_decimal_safely(validated_str, allow_none=False, field_name=field_name)
 
 
 def _validate_raw_string_to_non_negative_finite_decimal(v: object, info: ValidationInfo) -> Decimal:
@@ -170,8 +170,8 @@ def _validate_raw_parsable_finite_decimal_string(v: object, info: ValidationInfo
 
     # Use actual_field_name consistently for other checks within this validator
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=actual_field_name)
     if not d.is_finite():
         # This generic message for non-finite values was already confirmed to work with tests.
         raise DecimalFieldError(
@@ -202,8 +202,8 @@ def _validate_raw_parsable_non_negative_finite_decimal_string(
     # Reuse _validate_raw_parsable_finite_decimal_string for initial parsing and validation
     s = _validate_raw_parsable_finite_decimal_string(v, info)
     # Then parse again to check non-negativity (value of s is already validated as parsable)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=field_name)
     if d < Decimal(0):
         raise RangeFieldError(
             field_name=field_name,
@@ -1647,8 +1647,8 @@ def _validate_raw_parsable_positive_finite_decimal_string(v: object, info: Valid
     # Reuse _validate_raw_parsable_finite_decimal_string for initial parsing and validation
     s = _validate_raw_parsable_finite_decimal_string(v, info)
     # Then parse again to check positivity (value of s is already validated as parsable)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=field_name)
     if d <= Decimal(0):
         raise RangeFieldError(
             field_name=field_name,
@@ -2059,9 +2059,9 @@ def _validate_raw_liquidation_quantity_string(v: object, info: ValidationInfo) -
         )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value will raise appropriate error for non-parsable strings
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    # parse_decimal_safely will raise appropriate error for non-parsable strings
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=field_name)
 
     if not d.is_finite():
         raise DecimalFieldError(
@@ -2111,8 +2111,8 @@ def _validate_raw_liquidation_price_string(v: object, info: ValidationInfo) -> s
         )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=field_name)
 
     if not d.is_finite():
         raise DecimalFieldError(
@@ -2162,8 +2162,8 @@ def _validate_raw_withdrawal_amount_string(v: object, info: ValidationInfo) -> s
         )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=field_name)
 
     if not d.is_finite():
         # Standard finite message, as test focuses on negative for this model
@@ -2214,8 +2214,8 @@ def _validate_raw_deposit_amount_string(v: object, info: ValidationInfo) -> str:
         )
 
     s = validate_str_field(v, field_name=field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=field_name)
 
     if not d.is_finite():
         # Standard finite message
@@ -2267,8 +2267,8 @@ def _validate_raw_fill_fee_string(v: object, info: ValidationInfo) -> str:
             actual_value=v,
         )
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=actual_field_name)
     if not d.is_finite():
         raise DecimalFieldError(
             field_name=actual_field_name,
@@ -2307,8 +2307,8 @@ def _validate_raw_fill_price_string(v: object, info: ValidationInfo) -> str:
             actual_value=v,
         )
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=actual_field_name)
     if not d.is_finite():
         raise DecimalFieldError(
             field_name=actual_field_name,
@@ -2347,8 +2347,8 @@ def _validate_raw_fill_quantity_string(v: object, info: ValidationInfo) -> str:
             actual_value=v,
         )
     s = validate_str_field(v, field_name=actual_field_name, max_length=64, allow_empty=False)
-    # parse_decimal_value with allow_none=False is guaranteed to return Decimal
-    d = parse_decimal_value(s, allow_none=False, field_name=actual_field_name)
+    # parse_decimal_safely with allow_none=False is guaranteed to return Decimal
+    d = parse_decimal_safely(s, allow_none=False, field_name=actual_field_name)
     if not d.is_finite():
         raise DecimalFieldError(
             field_name=actual_field_name,

@@ -40,6 +40,13 @@ from cyberdelta.utils.serialization import (
 )
 
 
+# Constants for datetime ranges - timezone-aware for ruff compliance
+TEST_MIN_DATE_AWARE = datetime(2020, 1, 1, tzinfo=UTC)
+TEST_MAX_DATE_AWARE = datetime(2030, 12, 31, tzinfo=UTC)
+SERIAL_MIN_DATE_AWARE = datetime(1970, 1, 1, tzinfo=UTC)
+SERIAL_MAX_DATE_AWARE = datetime(2100, 1, 1, tzinfo=UTC)
+
+
 class SampleOrder(BaseModel):
     """Sample order model for testing."""
 
@@ -150,8 +157,8 @@ def sample_order_strategy(draw: st.DrawFn) -> SampleOrder:
         side=draw(st.sampled_from(["BUY", "SELL"])),
         timestamp=draw(
             st.datetimes(
-                min_value=datetime(2020, 1, 1, tzinfo=UTC),
-                max_value=datetime(2030, 12, 31, tzinfo=UTC),
+                min_value=TEST_MIN_DATE_AWARE.replace(tzinfo=None),
+                max_value=TEST_MAX_DATE_AWARE.replace(tzinfo=None),
                 timezones=st.just(UTC),
             )
         ),
@@ -271,7 +278,7 @@ class TestMsgspecSerialization:
         assert abs((reconstructed.timestamp - order.timestamp).total_seconds()) < 0.001
 
     @given(decimals=st.lists(financial_decimal_strategy(), min_size=1, max_size=10))
-    @settings(max_examples=500, deadline=None)
+    @settings(max_examples=500, deadline=timedelta(seconds=1))
     def test_decimal_preservation_properties(self, decimals: list[Decimal]) -> None:
         """Property: Decimal precision must be preserved exactly.
 
@@ -305,8 +312,8 @@ class TestMsgspecSerialization:
 
     @given(
         dt=st.datetimes(
-            min_value=datetime(1970, 1, 1, tzinfo=UTC),
-            max_value=datetime(2100, 1, 1, tzinfo=UTC),
+            min_value=SERIAL_MIN_DATE_AWARE.replace(tzinfo=None),
+            max_value=SERIAL_MAX_DATE_AWARE.replace(tzinfo=None),
             timezones=st.just(UTC),
         )
     )

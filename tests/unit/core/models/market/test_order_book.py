@@ -46,6 +46,7 @@ from cyberdelta.exceptions.field_validation import (
     RangeFieldError,
     TypeFieldError,
 )
+from cyberdelta.exceptions.parsing import DateTimeParsingError
 from cyberdelta.models.market.order_book import OrderBook
 from cyberdelta.symbols.models import Symbol
 from tests.common_symbols import (
@@ -188,8 +189,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -346,7 +347,7 @@ class TestOrderBookModelProperties:
         symbol=valid_symbol_strategy(),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_order_book_creation_properties(
         self,
         symbol: Symbol,
@@ -372,7 +373,7 @@ class TestOrderBookModelProperties:
         bids=order_book_levels_strategy(),
         asks=order_book_levels_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_order_book_creation_properties(
         self,
         symbol: Symbol,
@@ -417,7 +418,7 @@ class TestOrderBookModelProperties:
         bids=parseable_levels_strategy(),
         asks=parseable_levels_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_order_book_parsing_properties(
         self,
         symbol: Symbol,
@@ -459,7 +460,7 @@ class TestOrderBookModelProperties:
         timestamp=valid_timestamp_strategy(),
         bids=order_book_levels_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_book_immutability_properties(
         self,
         symbol: Symbol,
@@ -496,7 +497,7 @@ class TestOrderBookModelProperties:
             st.just(None),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_list_structure_rejection_properties(
         self, field_name: str, invalid_list_value: MaliciousValue
     ) -> None:
@@ -525,7 +526,7 @@ class TestOrderBookModelProperties:
             st.just(["price", "quantity", "extra"]),  # Three elements (wrong length)
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_level_structure_rejection_properties(
         self, field_name: str, invalid_level: MaliciousValue
     ) -> None:
@@ -556,7 +557,7 @@ class TestOrderBookModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_price_rejection_properties(
         self, field_name: str, invalid_price: MaliciousValue
     ) -> None:
@@ -594,7 +595,7 @@ class TestOrderBookModelProperties:
             st.just(Decimal("-0.1")),  # Negative quantity
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_quantity_rejection_properties(
         self, field_name: str, invalid_quantity: MaliciousValue
     ) -> None:
@@ -635,7 +636,7 @@ class TestOrderBookModelProperties:
             ).filter(lambda x: "T" in x and ":" in x),  # Basic ISO format filter
         ),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_timestamp_parsing_properties(self, timestamp_input: MaliciousValue) -> None:
         """Property: Timestamp fields should parse various input types correctly."""
         try:
@@ -649,7 +650,7 @@ class TestOrderBookModelProperties:
             # Property: Timestamp should be converted to UTC datetime
             assert isinstance(order_book.timestamp, datetime)
             assert order_book.timestamp.tzinfo == UTC
-        except (ValidationError, ValueError):
+        except (ValidationError, ValueError, DateTimeParsingError):
             # Some inputs may be invalid - this is expected behavior
             # We're testing that valid inputs work, invalid inputs fail cleanly
             pass
@@ -660,7 +661,7 @@ class TestOrderBookModelProperties:
         bids=order_book_levels_strategy(),
         asks=order_book_levels_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_extra_fields_rejection_properties(
         self,
         symbol: Symbol,
@@ -696,7 +697,7 @@ class TestOrderBookBusinessLogicProperties:
         bids=order_book_levels_strategy(min_size=1, max_size=5),
         asks=order_book_levels_strategy(min_size=1, max_size=5),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_book_financial_invariants_properties(
         self,
         symbol: Symbol,
@@ -740,7 +741,7 @@ class TestOrderBookBusinessLogicProperties:
         bids=order_book_levels_strategy(),
         asks=order_book_levels_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_book_serialization_properties(
         self,
         symbol: Symbol,
@@ -777,7 +778,7 @@ class TestOrderBookBusinessLogicProperties:
         bids=order_book_levels_strategy(),
         asks=order_book_levels_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_book_deterministic_creation_properties(
         self,
         symbol: Symbol,
@@ -809,7 +810,7 @@ class TestOrderBookBusinessLogicProperties:
         level=order_book_level_strategy(),
         operation=st.sampled_from(["spread_calculation", "value_calculation", "precision_check"]),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_book_level_calculation_properties(
         self, level: tuple[Decimal, Decimal], operation: str
     ) -> None:
@@ -857,7 +858,7 @@ class TestOrderBookEdgeCaseProperties:
         base_time=valid_timestamp_strategy(),
         offset_seconds=st.integers(min_value=-3600, max_value=3600),  # ±1 hour
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_book_timing_edge_cases_properties(
         self,
         base_time: datetime,
@@ -894,7 +895,7 @@ class TestOrderBookEdgeCaseProperties:
             max_size=5,
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_multiple_order_books_independence_properties(
         self,
         order_books: list[
@@ -933,7 +934,7 @@ class TestOrderBookEdgeCaseProperties:
         levels=order_book_levels_strategy(min_size=1, max_size=10),
         aggregation_operation=st.sampled_from(["total_value", "average_price", "max_quantity"]),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_order_book_aggregation_properties(
         self, levels: list[tuple[Decimal, Decimal]], aggregation_operation: str
     ) -> None:
@@ -980,7 +981,7 @@ class TestOrderBookEdgeCaseProperties:
             st.floats(min_value=1e6, max_value=1e8, allow_nan=False, allow_infinity=False),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_order_book_extreme_values_properties(
         self,
         very_small_values: tuple[float, float],

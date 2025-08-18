@@ -634,7 +634,7 @@ class BackpackOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
                 quantity_requested = self.parse_decimal_safely(raw_order_update.quantity)
                 if quantity_requested is None:
                     raise MissingQuantityError
-                # parse_decimal_value with allow_none=False guarantees non-None result
+                # parse_decimal_safely with allow_none=False guarantees non-None result
             else:
                 quantity_requested = Decimal(0)
 

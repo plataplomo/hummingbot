@@ -432,7 +432,29 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
         created_at, updated_at = self._parse_order_timestamps(raw_order)
 
         # Parse trigger/stop logic
-        stop_price, trigger_by = self._parse_trigger_info(trigger)
+        # If order_type contains a trigger but no separate trigger param, extract it
+        if (
+            trigger is None
+            and isinstance(raw_order.order_type, dict)
+            and "trigger" in raw_order.order_type
+        ):
+            trigger_info = raw_order.order_type.get("trigger")
+            if isinstance(trigger_info, dict):
+                trigger_px = trigger_info.get("triggerPx")
+                stop_price = self.parse_decimal_safely(
+                    str(trigger_px) if trigger_px is not None else "",
+                    default=None,
+                )
+                # Map trigger type if available
+                trigger_type_str = trigger_info.get("trigger_type")
+                if isinstance(trigger_type_str, str):
+                    trigger_by = HyperliquidTradingEnumMapper.map_trigger_type(trigger_type_str)
+                else:
+                    trigger_by = None
+            else:
+                stop_price, trigger_by = self._parse_trigger_info(trigger)
+        else:
+            stop_price, trigger_by = self._parse_trigger_info(trigger)
 
         # Calculate average_fill_price
         average_fill_price, quantity_filled = HyperliquidOrderMapper._calculate_average_fill_price(

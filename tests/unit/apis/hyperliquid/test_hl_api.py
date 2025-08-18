@@ -609,12 +609,12 @@ class TestHyperliquidAPIMarketDataMethods:
         # Test invalid args - None symbol should fail validation
         with pytest.raises(ValidationError) as exc_info:
             GetMarketArgs(symbol=None)  # type: ignore[arg-type]
-        assert "Input should be an instance of BaseSymbol" in str(exc_info.value)
+        assert "Input should be a valid dictionary or instance of BaseSymbol" in str(exc_info.value)
 
         # Test args with invalid symbol type
         with pytest.raises(ValidationError) as exc_info:
             GetMarketArgs(symbol="INVALID")  # type: ignore[arg-type]
-        assert "Input should be an instance of BaseSymbol" in str(exc_info.value)
+        assert "Input should be a valid dictionary or instance of BaseSymbol" in str(exc_info.value)
 
     @pytest.mark.asyncio
     async def test_get_markets_args_validation(
@@ -873,7 +873,7 @@ class TestHyperliquidAPIAccountMethods:
         ]
 
         # Configure mock service
-        mock_hl_account_service.get_trade_history.return_value = expected_trades
+        mock_hl_account_service.get_fill_history.return_value = expected_trades
 
         # Create API instance with mocked service
         api = hl_api_with_di(account_service=mock_hl_account_service)
@@ -888,7 +888,7 @@ class TestHyperliquidAPIAccountMethods:
         assert result[0].id == "trade123"
 
         # Verify service was called correctly
-        mock_hl_account_service.get_trade_history.assert_called_once_with(args=args)
+        mock_hl_account_service.get_fill_history.assert_called_once_with(args=args)
 
 
 class TestHyperliquidAPITradingMethods:
@@ -955,7 +955,7 @@ class TestHyperliquidAPITradingMethods:
         assert result.status == OrderStatus.OPEN
 
         # Verify service was called correctly
-        mock_hl_trading_service.place_order.assert_called_once_with(args=args)
+        mock_hl_trading_service.place_order.assert_called_once_with(args)
 
     @pytest.mark.asyncio
     async def test_cancel_order_success(
@@ -1122,7 +1122,7 @@ class TestHyperliquidAPITradingMethods:
             quantity_filled=Decimal("0.5"),
             price=Decimal("50000.00"),
             stop_price=None,
-            average_fill_price=None,
+            average_fill_price=Decimal("49999.00"),
             trigger_by=None,
             time_in_force=TimeInForce.GTC,
             reduce_only=False,
@@ -1329,7 +1329,7 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         ]
 
         # Configure mock service
-        mock_hl_market_data_service.get_recent_trades.return_value = expected_trades
+        mock_hl_market_data_service.get_recent_fills.return_value = expected_trades
 
         # Create API instance with mocked service
         api = hl_api_with_di(market_data_service=mock_hl_market_data_service)
@@ -1343,8 +1343,8 @@ class TestHyperliquidAPIMarketDataAdditionalMethods:
         assert result[0].id == "trade123"
 
         # Verify service was called correctly
-        # Note: Hyperliquid's get_recent_trades only takes symbol parameter, not limit
-        mock_hl_market_data_service.get_recent_trades.assert_called_once_with(symbol=BTC_HL)
+        # Note: Hyperliquid's get_recent_fills only takes symbol parameter, not limit
+        mock_hl_market_data_service.get_recent_fills.assert_called_once_with(symbol=BTC_HL)
 
     @pytest.mark.asyncio
     async def test_get_funding_rates_success(
@@ -1540,7 +1540,7 @@ class TestHyperliquidAPIInitializationPaths:
         # Verify initialization
         assert api is not None
         assert api.exchange_name == "hyperliquid"
-        assert api.rest_endpoint == "https://api.testnet.hyperliquid.xyz"
+        assert api.rest_endpoint == "https://api.testnet.hyperliquid.xyz/"
         assert api.ws_endpoint == "wss://api.testnet.hyperliquid.xyz/ws"
 
     def test_api_initialization_testnet_fallback_to_mainnet(

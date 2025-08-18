@@ -208,8 +208,9 @@ def timestamp_strategy() -> SearchStrategy[str]:
     return st.builds(
         _create_isoformat_datetime,
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 1, 1, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 1, 1),
+            timezones=st.just(UTC),
         ),
     )
 
@@ -868,10 +869,8 @@ class TestMarketTransformation:
         """Test that transformation errors are properly wrapped."""
         raw_market = create_raw_market()
 
-        # Mock parse_decimal_value to raise an error for tick_size
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_market_mapper.parse_decimal_value",
-        ) as mock_parse:
+        # Mock parse_decimal_safely to raise an error for tick_size
+        with patch.object(mapper.market_mapper, "parse_decimal_safely") as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="tickSize",
                 value="0.01",
@@ -891,10 +890,8 @@ class TestMarketTransformation:
         """Test market transformation with invalid timestamp."""
         raw_market = create_raw_market(created_at="invalid-timestamp")
 
-        # Mock parse_datetime_utc to return None for invalid timestamp
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_market_mapper.parse_datetime_utc",
-        ) as mock_parse:
+        # Mock parse_timestamp to return None for invalid timestamp
+        with patch.object(mapper.market_mapper, "parse_timestamp") as mock_parse:
             mock_parse.return_value = None
 
             result = mapper.transform_raw_market_to_internal(raw_market)
@@ -937,7 +934,7 @@ class TestTickerTransformation:
         result = mapper.transform_raw_ticker_to_internal(raw_ticker)
 
         assert isinstance(result, Ticker)
-        assert result.symbol == exchanges.backpack("SOL_USDC")
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
         assert result.bid is None  # Not available from Backpack ticker endpoint
         assert result.ask is None  # Not available from Backpack ticker endpoint
@@ -988,11 +985,11 @@ class TestTickerTransformation:
     def test_transform_raw_ticker_with_none_timestamp(
         self,
         mapper: CompositeMarketDataMapper,
-        frozen_time: FreezerProtocol,
+        freezer: FreezerProtocol,
     ) -> None:
         """Test ticker transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(mock_now)
+        freezer.move_to(mock_now)
 
         # Create a valid raw ticker first
         raw_ticker = BackpackRawTickerResponse(
@@ -1023,8 +1020,9 @@ class TestTickerTransformation:
 
         # This test relies on the actual transformation logic to cause an error
         # We'll use an invalid decimal that passes basic validation but fails transformation
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper.parse_decimal_value",
+        with patch.object(
+            mapper.ticker_mapper,
+            "parse_decimal_safely",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="lastPrice",
@@ -1139,11 +1137,11 @@ class TestOrderBookTransformation:
     def test_transform_raw_order_book_with_none_timestamp(
         self,
         mapper: CompositeMarketDataMapper,
-        frozen_time: FreezerProtocol,
+        freezer: FreezerProtocol,
     ) -> None:
         """Test order book transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(mock_now)
+        freezer.move_to(mock_now)
 
         # Create a valid raw order book and mock the timestamp parsing to return None
         raw_book = create_raw_order_book(
@@ -1152,8 +1150,9 @@ class TestOrderBookTransformation:
             timestamp="2024-01-15T10:30:00Z",
         )
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper.parse_datetime_utc",
+        with patch.object(
+            mapper.order_book_mapper,
+            "parse_timestamp",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -1170,8 +1169,9 @@ class TestOrderBookTransformation:
         # Create a valid order book and mock parsing to cause error
         raw_book = create_raw_order_book(bids=[("100.25", "10.0")])
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_order_book_mapper.parse_decimal_value",
+        with patch.object(
+            mapper.order_book_mapper,
+            "parse_decimal_safely",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="price",
@@ -1242,7 +1242,7 @@ class TestFillTransformation:
 
         assert isinstance(result, Fill)
         assert result.id == "trade123"
-        assert result.symbol == exchanges.backpack("SOL_USDC")
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.price == Decimal("100.50")
         assert result.quantity == Decimal("10.0")
         assert result.order_id == "order123"
@@ -1259,8 +1259,9 @@ class TestFillTransformation:
         # Cannot create BackpackRawPublicTrade with None price, so patch parsing to return None
         raw_trade = create_raw_trade(price="100.50", time=test_timestamp)
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
+        with patch.object(
+            mapper.trade_mapper,
+            "parse_decimal_safely",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -1279,8 +1280,9 @@ class TestFillTransformation:
         # Cannot create BackpackRawPublicTrade with None qty, so patch parsing to return None
         raw_trade = create_raw_trade(qty="10.0", time=test_timestamp)
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
+        with patch.object(
+            mapper.trade_mapper,
+            "parse_decimal_safely",
         ) as mock_parse:
             # Return None only for quantity field
             def mock_parse_side_effect(
@@ -1304,11 +1306,11 @@ class TestFillTransformation:
     def test_transform_raw_trade_with_none_timestamp(
         self,
         mapper: CompositeMarketDataMapper,
-        frozen_time: FreezerProtocol,
+        freezer: FreezerProtocol,
     ) -> None:
         """Test trade transformation with None timestamp uses current time."""
         mock_now = datetime(2024, 1, 15, 12, 0, 0, tzinfo=UTC)
-        frozen_time.move_to(mock_now)
+        freezer.move_to(mock_now)
 
         # Create a valid raw trade and mock the timestamp parsing to return None
         raw_trade = create_raw_trade(
@@ -1320,8 +1322,9 @@ class TestFillTransformation:
             order_id="order123",
         )
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_datetime_utc",
+        with patch.object(
+            mapper.trade_mapper,
+            "parse_timestamp",
         ) as mock_parse:
             mock_parse.return_value = None
 
@@ -1337,8 +1340,9 @@ class TestFillTransformation:
         """Test that transformation errors are properly wrapped."""
         raw_trade = create_raw_trade(price="100.50")
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper.parse_decimal_value",
+        with patch.object(
+            mapper.trade_mapper,
+            "parse_decimal_safely",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="price",
@@ -1406,7 +1410,7 @@ class TestFundingRateTransformation:
         result = mapper.transform_raw_funding_rate_to_internal(raw_funding)
 
         assert isinstance(result, FundingRate)
-        assert result.symbol == exchanges.backpack("SOL_USDC")
+        assert result.symbol == exchanges.backpack("SOL-USDC")
         assert result.funding_rate == Decimal("0.0001")
         assert result.timestamp == datetime(2024, 1, 15, 10, 30, 0, tzinfo=UTC)
         assert result.bp_details is not None
@@ -1458,9 +1462,9 @@ class TestFundingRateTransformation:
         """Test that funding rate transformation errors are properly wrapped."""
         raw_funding = create_raw_funding_rate()
 
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_funding_rate_mapper"
-            ".parse_decimal_value",
+        with patch.object(
+            mapper.funding_rate_mapper,
+            "parse_decimal_safely",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="price",
@@ -1513,9 +1517,10 @@ class TestKlineTransformation:
         # Create a valid raw kline
         raw_kline = create_raw_kline()
 
-        # Mock parse_decimal_value to raise an error during transformation
-        with patch(
-            "cyberdelta.apis.backpack.mappers.market_data.bp_candle_mapper.parse_decimal_value",
+        # Mock parse_decimal_safely to raise an error during transformation
+        with patch.object(
+            mapper.candle_mapper,
+            "parse_decimal_safely",
         ) as mock_parse:
             mock_parse.side_effect = DecimalFieldError(
                 field_name="open_price",

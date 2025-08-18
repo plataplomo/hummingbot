@@ -33,7 +33,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -58,6 +58,10 @@ from cyberdelta.enums import OrderSide, OrderType, TimeInForce
 from cyberdelta.models import Order
 from cyberdelta.symbols import exchanges
 
+
+# Constants for datetime ranges - timezone-aware for ruff compliance
+MIN_TEST_DATE_AWARE = datetime(2020, 1, 1, tzinfo=UTC)
+MAX_TEST_DATE_AWARE = datetime(2030, 12, 31, tzinfo=UTC)
 
 logger = get_logger(__name__)
 
@@ -396,7 +400,9 @@ def iso_datetime_strategy() -> SearchStrategy[str]:
     return st.builds(
         _datetime_to_iso,
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC), max_value=datetime(2030, 12, 31, tzinfo=UTC)
+            min_value=MIN_TEST_DATE_AWARE.replace(tzinfo=None),
+            max_value=MAX_TEST_DATE_AWARE.replace(tzinfo=None),
+            timezones=st.just(UTC),
         ),
     )
 
@@ -538,7 +544,7 @@ class TestTradingDataTransformationRobustnessProperties:
     """Property-based tests for trading data transformation robustness."""
 
     @given(raw_order=backpack_raw_order_strategy())
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_order_transformation_preserves_essential_data(
         self, raw_order: BackpackRawOrderResponse, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -598,7 +604,7 @@ class TestTradingDataTransformationRobustnessProperties:
             financial_decimal_string_strategy(),  # Random values
         ]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_extreme_value_handling(
         self, extreme_quantity: str, extreme_price: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -655,7 +661,7 @@ class TestTradingDataTransformationRobustnessProperties:
             st.integers(min_value=1, max_value=999999),
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_decimal_precision_preservation(
         self, precision_scenario: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -712,7 +718,7 @@ class TestTradingDataTransformationRobustnessProperties:
             "commande_été_001",
         ]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_unicode_support_comprehensive(
         self, unicode_symbol: str, unicode_client_id: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -770,7 +776,7 @@ class TestTradingDataErrorHandlingProperties:
         malicious_field=malicious_input_strategy(),
         field_type=st.sampled_from(["symbol", "client_id", "order_id", "side", "status"]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_input_resistance(
         self, malicious_field: object, field_type: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -836,7 +842,7 @@ class TestTradingDataErrorHandlingProperties:
     @given(
         parsing_error_scenario=st.sampled_from(["decimal_error", "datetime_error", "both_errors"])
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_parsing_error_handling_consistency(
         self,
         parsing_error_scenario: str,
@@ -873,7 +879,7 @@ class TestTradingDataErrorHandlingProperties:
         # Mock parsing functions based on scenario
         if parsing_error_scenario == "decimal_error":
             mock_decimal = mocker.patch(
-                "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value"
+                "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_safely"
             )
             mock_decimal.side_effect = ValueError("Invalid decimal format")
         elif parsing_error_scenario == "datetime_error":
@@ -883,7 +889,7 @@ class TestTradingDataErrorHandlingProperties:
             mock_datetime.side_effect = ValueError("Invalid datetime format")
         elif parsing_error_scenario == "both_errors":
             mock_decimal = mocker.patch(
-                "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_value"
+                "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_decimal_safely"
             )
             mock_datetime = mocker.patch(
                 "cyberdelta.apis.backpack.mappers.trading.bp_order_mapper.parse_datetime_utc"
@@ -909,7 +915,7 @@ class TestTradingDataErrorHandlingProperties:
             max_size=3,
         )
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_invalid_decimal_field_handling(
         self, invalid_field_values: dict[str, str], trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -963,7 +969,7 @@ class TestTradingDataPerformanceProperties:
         batch_size=st.integers(min_value=10, max_value=100),
         order_variation=st.sampled_from(["identical", "varied", "extreme"]),
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     def test_batch_transformation_efficiency(
         self, batch_size: int, order_variation: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -1037,7 +1043,7 @@ class TestTradingDataPerformanceProperties:
         large_string_field=st.text(min_size=100, max_size=1000),  # Reasonable size per feedback
         field_type=st.sampled_from(["order_id", "client_id", "symbol"]),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_large_string_field_handling(
         self, large_string_field: str, field_type: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -1098,7 +1104,7 @@ class TestTradingDataPerformanceProperties:
             unique=True,
         )
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     def test_concurrent_transformation_safety(
         self, concurrent_orders: list[str], trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -1167,7 +1173,7 @@ class TestTradingDataConsistencyProperties:
             ("cancelled", OrderStatus.CANCELED),
         ])
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_status_mapping_consistency_property(
         self, status_mapping: tuple[str, OrderStatus], trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -1196,7 +1202,7 @@ class TestTradingDataConsistencyProperties:
             st.sampled_from(["gtc", "GTC", "Gtc", "ioc", "IOC", "Ioc", None]),
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_case_insensitive_enum_mappings(
         self,
         enum_mappings: tuple[str, str, str, str | None],
@@ -1229,7 +1235,7 @@ class TestTradingDataConsistencyProperties:
             assert result.time_in_force == expected_tif
 
     @given(precision_values=st.lists(financial_decimal_string_strategy(), min_size=3, max_size=5))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_decimal_precision_consistency_across_fields(
         self, precision_values: list[str], trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -1298,7 +1304,7 @@ class TestTradingDataConsistencyProperties:
             "all_optional_none",  # multiple None values
         ])
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_none_value_handling_consistency(
         self, none_scenario: str, trading_data_mapper: BackpackOrderMapper
     ) -> None:
@@ -1382,7 +1388,7 @@ class TestTradingDataIntegrationProperties:
     """Integration property tests for trading data transformation workflows."""
 
     @given(mixed_order_batch=st.lists(backpack_raw_order_strategy(), min_size=5, max_size=20))
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     def test_mixed_order_processing_workflow(
         self,
         mixed_order_batch: list[BackpackRawOrderResponse],
@@ -1496,7 +1502,7 @@ class TestTradingDataIntegrationProperties:
             max_size=10,
         )
     )
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=20, deadline=timedelta(seconds=1))
     def test_transformation_sequence_consistency(
         self,
         transformation_sequence: list[tuple[BackpackRawOrderResponse, str]],

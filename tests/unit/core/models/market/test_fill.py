@@ -28,7 +28,7 @@ Architecture Compliance:
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -173,13 +173,13 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     Returns:
         UTC datetime object for fill testing.
     """
-    naive_dt = draw(
+    return draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
+            timezones=st.just(UTC),
         )
     )
-    return naive_dt.replace(tzinfo=UTC)
 
 
 @st.composite
@@ -267,7 +267,7 @@ class TestFillModelProperties:
         price=price_strategy(),
         quantity=quantity_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_fill_creation_properties(
         self,
         fill_id: str,
@@ -328,7 +328,11 @@ class TestFillModelProperties:
         hl_details=st.one_of(st.none(), hyperliquid_fill_details_strategy()),
         bp_details=st.one_of(st.none(), backpack_fill_details_strategy()),
     )
-    @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=300,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_full_fill_creation_properties(
         self,
         fill_id: str,
@@ -393,7 +397,7 @@ class TestFillModelProperties:
         price=price_strategy(),
         quantity=quantity_strategy(),
     )
-    @settings(max_examples=500, deadline=None)
+    @settings(max_examples=500, deadline=timedelta(seconds=1))
     def test_cost_calculation_properties(self, price: Decimal, quantity: Decimal) -> None:
         """Property: Cost calculation should follow mathematical properties."""
         fill = Fill(
@@ -466,7 +470,7 @@ class TestFillModelProperties:
         fee=fee_strategy(),
         fee_asset=st.one_of(st.none(), fee_asset_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_fee_asset_validation_properties(self, fee: Decimal, fee_asset: str | None) -> None:
         """Property: Fee asset validation should enforce business rules correctly."""
         base_kwargs: dict[str, Any] = {
@@ -502,7 +506,7 @@ class TestFillModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_financial_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -533,7 +537,11 @@ class TestFillModelProperties:
             st.text(min_size=129, max_size=200),  # Too long
         ),
     )
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=100,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_string_field_validation_properties(
         self, string_field: str, invalid_string: str
     ) -> None:
@@ -565,7 +573,7 @@ class TestFillModelProperties:
         price=price_strategy(),
         quantity=quantity_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_fill_immutability_properties(
         self, fill_id: str, price: Decimal, quantity: Decimal
     ) -> None:
@@ -598,7 +606,7 @@ class TestFillModelProperties:
         hl_details=hyperliquid_fill_details_strategy(),
         bp_details=backpack_fill_details_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_exchange_details_properties(
         self, hl_details: HyperliquidFillDetails, bp_details: BackpackFillDetails
     ) -> None:
@@ -632,7 +640,7 @@ class TestFillModelProperties:
     @given(
         data=st.data(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_serialization_properties(self, data: st.DataObject) -> None:
         """Property: Fill serialization should preserve all data correctly."""
         # Generate a complete fill with random data
@@ -700,7 +708,7 @@ class TestHyperliquidFillDetailsProperties:
             st.none(), st.text(min_size=1, max_size=32).filter(lambda x: x.strip())
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_creation_properties(
         self,
         fill_hash: str,
@@ -727,7 +735,7 @@ class TestHyperliquidFillDetailsProperties:
             details.fill_hash = "modified"
 
     @given(invalid_hash=st.one_of(st.just(""), st.just("   "), st.text(min_size=129, max_size=200)))
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_validation_properties(self, invalid_hash: str) -> None:
         """Property: HyperliquidFillDetails should validate required fields correctly."""
         with pytest.raises((EmptyStringError, TypeFieldError)):
@@ -743,7 +751,7 @@ class TestBackpackFillDetailsProperties:
             st.text(min_size=1, max_size=32).filter(lambda x: x.strip()),
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_backpack_details_creation_properties(self, system_order_type: str | None) -> None:
         """Property: BackpackFillDetails should handle all field combinations correctly."""
         details = BackpackFillDetails(system_order_type=system_order_type)
@@ -756,7 +764,7 @@ class TestBackpackFillDetailsProperties:
             details.system_order_type = "modified"
 
     @given(invalid_type=st.text(min_size=33, max_size=100))
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_backpack_details_validation_properties(self, invalid_type: str) -> None:
         """Property: BackpackFillDetails should validate field length correctly."""
         with pytest.raises(TypeFieldError):

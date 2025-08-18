@@ -32,6 +32,7 @@ Architecture Compliance:
 from __future__ import annotations
 
 import json
+from datetime import timedelta
 
 from hypothesis import assume, given, settings, strategies as st
 from hypothesis.strategies import DrawFn, SearchStrategy
@@ -378,7 +379,7 @@ class TestBackpackErrorMapperProperties:
         status_code=http_status_strategy(),
         error_body=json_error_body_strategy(),
     )
-    @settings(max_examples=300, deadline=None)
+    @settings(max_examples=300, deadline=timedelta(seconds=1))
     def test_error_mapping_preserves_http_status(self, status_code: int, error_body: str) -> None:
         """Property: HTTP status code should always be preserved in mapped errors."""
         mapper = BackpackErrorMapper()
@@ -406,7 +407,7 @@ class TestBackpackErrorMapperProperties:
         message=error_message_strategy(),
         bp_code=backpack_error_code_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_status_code_mapping_consistency(
         self, status_code: int, message: str, bp_code: str
     ) -> None:
@@ -447,7 +448,7 @@ class TestBackpackErrorMapperProperties:
         message=error_message_strategy(),
         status_code=http_status_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_backpack_error_code_mapping(
         self, known_bp_code: str, message: str, status_code: int
     ) -> None:
@@ -476,7 +477,7 @@ class TestBackpackErrorMapperProperties:
         status_code=http_status_strategy(),
         error_body=non_json_error_body_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_non_json_error_handling(self, status_code: int, error_body: str) -> None:
         """Property: Non-JSON error bodies should be handled gracefully."""
         mapper = BackpackErrorMapper()
@@ -510,7 +511,7 @@ class TestBackpackErrorMapperProperties:
         retry_message_data=retry_after_message_strategy(),
         status_code=st.sampled_from([429, 503]),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_retry_after_parsing_properties(
         self, retry_message_data: tuple[str, float | None], status_code: int
     ) -> None:
@@ -552,7 +553,7 @@ class TestBackpackErrorMapperProperties:
         ),
         status_code=http_status_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_unknown_error_code_handling(
         self, message: str, unknown_code: str, status_code: int
     ) -> None:
@@ -588,7 +589,7 @@ class TestBackpackErrorMapperSecurityProperties:
         malicious_input=malicious_error_input_strategy(),
         status_code=http_status_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_malicious_input_resistance(self, malicious_input: str, status_code: int) -> None:
         """Property: Error mapper should safely handle malicious inputs."""
         mapper = BackpackErrorMapper()
@@ -621,7 +622,7 @@ class TestBackpackErrorMapperSecurityProperties:
         error_body=st.text(min_size=0, max_size=1500),
         status_code=http_status_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_large_input_handling(self, error_body: str, status_code: int) -> None:
         """Property: Error mapper should handle large inputs without memory issues."""
         mapper = BackpackErrorMapper()
@@ -647,7 +648,7 @@ class TestBackpackErrorMapperSecurityProperties:
         ),
         status_code=http_status_strategy(),
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_deeply_nested_json_handling(self, nested_json: JsonValue, status_code: int) -> None:
         """Property: Error mapper should handle deeply nested JSON safely."""
         mapper = BackpackErrorMapper()
@@ -678,7 +679,7 @@ class TestBackpackErrorMapperSecurityProperties:
         ]),
         status_code=http_status_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_injection_attack_resistance(
         self, field_name: str, injection_payload: str, status_code: int
     ) -> None:
@@ -719,7 +720,7 @@ class TestRetryAfterParsingProperties:
             "Wait for {} secs",
         ]),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_seconds_parsing_patterns(self, seconds: int, pattern: str) -> None:
         """Property: Various second patterns should parse correctly."""
         mapper = BackpackErrorMapper()
@@ -743,7 +744,7 @@ class TestRetryAfterParsingProperties:
             "Retry in {} ms",
         ]),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_milliseconds_parsing_patterns(self, milliseconds: int, pattern: str) -> None:
         """Property: Various millisecond patterns should parse correctly."""
         mapper = BackpackErrorMapper()
@@ -766,7 +767,7 @@ class TestRetryAfterParsingProperties:
             )
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_no_retry_info_parsing(self, message: str) -> None:
         """Property: Messages without retry info should return None."""
         mapper = BackpackErrorMapper()
@@ -787,7 +788,7 @@ class TestRetryAfterParsingProperties:
             "Retry in {:.3f} ms",  # Float milliseconds
         ]),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_float_time_parsing(self, time_value: float, corrupted_pattern: str) -> None:
         """Property: Float time values should be parsed when possible."""
         mapper = BackpackErrorMapper()
@@ -822,7 +823,7 @@ class TestBackpackErrorMapperIntegrationProperties:
         bp_code=backpack_error_code_strategy(),
         message=error_message_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_error_mapping_workflow(
         self, status_code: int, bp_code: str, message: str
     ) -> None:
@@ -865,7 +866,7 @@ class TestBackpackErrorMapperIntegrationProperties:
             max_size=10,
         )
     )
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_batch_error_mapping_consistency(self, error_scenarios: list[tuple[int, str]]) -> None:
         """Property: Batch error mapping should be consistent across multiple calls."""
         mapper = BackpackErrorMapper()

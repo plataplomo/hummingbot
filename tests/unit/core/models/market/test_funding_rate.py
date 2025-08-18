@@ -55,6 +55,10 @@ from tests.common_symbols import (
 )
 
 
+# Constants for datetime ranges - timezone-aware for ruff compliance
+MIN_TEST_DATE_NAIVE = datetime(2020, 1, 1)
+MAX_TEST_DATE_NAIVE = datetime(2030, 12, 31)
+
 pytestmark = pytest.mark.timing
 
 
@@ -197,13 +201,13 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     Returns:
         datetime: A valid UTC timestamp
     """
-    naive_dt = draw(
+    return draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=MIN_TEST_DATE_NAIVE,
+            max_value=MAX_TEST_DATE_NAIVE,
+            timezones=st.just(UTC),
         )
     )
-    return naive_dt.replace(tzinfo=UTC)
 
 
 @st.composite
@@ -282,7 +286,7 @@ class TestFundingRateModelProperties:
         symbol=valid_symbol_strategy(),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_funding_rate_creation_properties(
         self,
         symbol: Symbol,
@@ -315,7 +319,7 @@ class TestFundingRateModelProperties:
         mark_price=price_strategy(),
         index_price=price_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_funding_rate_creation_properties(
         self,
         symbol: Symbol,
@@ -358,7 +362,7 @@ class TestFundingRateModelProperties:
         funding_rate=funding_rate_strategy(),
         hl_details=hl_funding_details_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_hyperliquid_details_properties(
         self,
         symbol: Symbol,
@@ -389,7 +393,7 @@ class TestFundingRateModelProperties:
         funding_rate=funding_rate_strategy(),
         bp_details=bp_funding_details_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_backpack_details_properties(
         self,
         symbol: Symbol,
@@ -418,7 +422,7 @@ class TestFundingRateModelProperties:
         hl_details=hl_funding_details_strategy(),
         bp_details=bp_funding_details_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_details_can_coexist_properties(
         self,
         symbol: Symbol,
@@ -447,7 +451,7 @@ class TestFundingRateModelProperties:
         timestamp=valid_timestamp_strategy(),
         funding_rate=funding_rate_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_funding_rate_immutability_properties(
         self,
         symbol: Symbol,
@@ -489,7 +493,7 @@ class TestFundingRateModelProperties:
             ),
         ),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: FundingRate should correctly parse various numeric input types to Decimal."""
         # Convert to positive for prices (they must be > 0, not >= 0)
@@ -531,7 +535,7 @@ class TestFundingRateModelProperties:
             st.just("invalid_date_string"),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):
@@ -546,7 +550,7 @@ class TestFundingRateModelProperties:
         funding_rate=funding_rate_strategy(),
         next_offset_hours=st.integers(min_value=1, max_value=24),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_next_funding_time_consistency_properties(
         self,
         symbol: Symbol,
@@ -584,7 +588,7 @@ class TestHyperliquidFundingDetailsProperties:
     @given(
         hl_details=hl_funding_details_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_hl_details_properties(self, hl_details: HyperliquidFundingDetails) -> None:
         """Property: HyperliquidFundingDetails should be valid with any combination of fields.
 
@@ -612,7 +616,7 @@ class TestHyperliquidFundingDetailsProperties:
         hl_prev_day_px=price_strategy(),
         hl_impact_px=price_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_hl_details_properties(
         self,
         premium: Decimal,
@@ -641,7 +645,7 @@ class TestHyperliquidFundingDetailsProperties:
             assert details.hl_day_ntl_vlm >= 0
 
     @given(premium=st.one_of(st.none(), funding_rate_strategy()))
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_hl_details_immutability_properties(self, premium: Decimal | None) -> None:
         """Property: HyperliquidFundingDetails should be immutable."""
         details = HyperliquidFundingDetails(premium=premium)
@@ -659,7 +663,7 @@ class TestBackpackFundingDetailsProperties:
     """Property-based tests for Backpack-specific funding details."""
 
     @given(data=st.just(None))  # BackpackFundingDetails has no fields currently
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     def test_bp_details_creation_properties(self, data: None) -> None:
         """Property: BackpackFundingDetails should always be creatable."""
         details = BackpackFundingDetails()
@@ -686,7 +690,7 @@ class TestFundingRateEdgeCaseProperties:
         mark_price=price_strategy(),
         index_price=price_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_price_difference_calculation_properties(
         self,
         symbol: Symbol,
@@ -730,7 +734,7 @@ class TestFundingRateEdgeCaseProperties:
         funding_rate=funding_rate_strategy(),
         predicted_rate=funding_rate_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_rate_comparison_properties(
         self,
         symbol: Symbol,
@@ -767,7 +771,7 @@ class TestFundingRateEdgeCaseProperties:
             max_value=1893456000000,  # 2030-01-01
         ),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_timestamp_parsing_from_milliseconds_properties(
         self,
         symbol: Symbol,

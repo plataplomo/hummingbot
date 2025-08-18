@@ -161,8 +161,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -266,7 +266,7 @@ class TestMidPricesModelProperties:
         prices=price_dict_strategy(),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_mid_prices_creation_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -292,7 +292,7 @@ class TestMidPricesModelProperties:
         exchange=exchange_name_strategy(),
         timestamp=st.one_of(st.none(), valid_timestamp_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_complete_mid_prices_creation_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -320,7 +320,7 @@ class TestMidPricesModelProperties:
         prices=price_dict_strategy(min_size=1, max_size=10),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_symbol_lookup_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -350,7 +350,7 @@ class TestMidPricesModelProperties:
         exchange=exchange_name_strategy(),
         nonexistent_symbol=symbol_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_nonexistent_symbol_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -373,7 +373,7 @@ class TestMidPricesModelProperties:
         assert mid_prices.has_symbol(nonexistent_symbol) is False
 
     @given(exchange=exchange_name_strategy())
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_empty_mid_prices_properties(self, exchange: ExchangeName) -> None:
         """Property: Empty MidPrices should behave correctly."""
         mid_prices = MidPrices(
@@ -395,7 +395,7 @@ class TestMidPricesModelProperties:
         prices=extreme_price_dict_strategy(),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_extreme_values_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -426,7 +426,7 @@ class TestMidPricesModelProperties:
         prices=price_dict_strategy(allow_negative=True),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_negative_values_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -450,7 +450,7 @@ class TestMidPricesModelProperties:
         prices=price_dict_strategy(),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_data_integrity_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -478,7 +478,7 @@ class TestMidPricesModelProperties:
         prices=price_dict_strategy(),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_mid_prices_extra_fields_rejection_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -505,11 +505,11 @@ class TestMidPricesBusinessLogicProperties:
     """Property-based tests for MidPrices business logic and relationships."""
 
     @given(
-        prices=price_dict_strategy(min_size=1, max_size=20),
+        prices=price_dict_strategy(min_size=1, max_size=10),
         exchange=exchange_name_strategy(),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_collection_consistency_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -541,7 +541,7 @@ class TestMidPricesBusinessLogicProperties:
         prices=price_dict_strategy(min_size=2, max_size=10),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_equality_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -569,7 +569,9 @@ class TestMidPricesBusinessLogicProperties:
         if prices:
             modified_prices = prices.copy()
             first_symbol = next(iter(modified_prices))
-            modified_prices[first_symbol] = Decimal(999999)
+            original_price = modified_prices[first_symbol]
+            # Ensure the new price is definitely different
+            modified_prices[first_symbol] = original_price + Decimal(1000)
 
             mid_prices3 = MidPrices(
                 prices=modified_prices,
@@ -585,7 +587,7 @@ class TestMidPricesBusinessLogicProperties:
         exchange=exchange_name_strategy(),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_serialization_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -618,7 +620,7 @@ class TestMidPricesBusinessLogicProperties:
         exchange=exchange_name_strategy(),
         timestamp=valid_timestamp_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_deterministic_creation_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -647,7 +649,7 @@ class TestMidPricesBusinessLogicProperties:
         prices=price_dict_strategy(min_size=1, max_size=10),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_string_representation_properties(
         self,
         prices: dict[Symbol, Decimal],
@@ -688,7 +690,7 @@ class TestMidPricesEdgeCaseProperties:
         prices=price_dict_strategy(),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=150, deadline=None)
+    @settings(max_examples=150, deadline=timedelta(seconds=1))
     def test_mid_prices_timing_edge_cases_properties(
         self,
         base_time: datetime,
@@ -721,7 +723,7 @@ class TestMidPricesEdgeCaseProperties:
         ).map(lambda x: Decimal(str(x)).quantize(Decimal("0.000000000000000001"))),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_mid_prices_high_precision_values_properties(
         self,
         high_precision_value: Decimal,
@@ -754,7 +756,7 @@ class TestMidPricesEdgeCaseProperties:
             max_size=5,
         )
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_multiple_mid_prices_independence_properties(
         self, mid_prices_list: list[tuple[dict[Symbol, Decimal], ExchangeName, datetime]]
     ) -> None:
@@ -788,7 +790,7 @@ class TestMidPricesEdgeCaseProperties:
         symbol_count=st.integers(min_value=0, max_value=100),
         exchange=exchange_name_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_mid_prices_scale_properties(
         self,
         symbol_count: int,

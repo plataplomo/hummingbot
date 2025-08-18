@@ -161,8 +161,9 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1, tzinfo=UTC),
-            max_value=datetime(2030, 12, 31, tzinfo=UTC),
+            min_value=datetime(2020, 1, 1),
+            max_value=datetime(2030, 12, 31),
+            timezones=st.just(UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -220,7 +221,7 @@ class TestSpotBalanceModelProperties:
         timestamp=valid_timestamp_strategy(),
         balance_quantities=consistent_balance_quantities_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_minimal_balance_creation_properties(
         self,
         balance_symbol: Symbol,
@@ -260,7 +261,11 @@ class TestSpotBalanceModelProperties:
         balance_quantities=consistent_balance_quantities_strategy(),
         data=st.data(),
     )
-    @settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=300,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_full_balance_creation_properties(
         self,
         balance_symbol: Symbol,
@@ -311,7 +316,7 @@ class TestSpotBalanceModelProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_financial_field_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -337,7 +342,7 @@ class TestSpotBalanceModelProperties:
         timestamp=valid_timestamp_strategy(),
         balance_quantities=consistent_balance_quantities_strategy(),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_balance_mutability_properties(
         self,
         balance_symbol: Symbol,
@@ -378,7 +383,7 @@ class TestSpotBalanceModelProperties:
         hl_details=st.just(HyperliquidSpotBalanceDetails()),
         bp_details=backpack_balance_details_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_exchange_details_properties(
         self,
         exchange: ExchangeName,
@@ -432,7 +437,11 @@ class TestSpotBalanceModelProperties:
             ),
         ),
     )
-    @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=200,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_decimal_parsing_properties(self, parseable_inputs: float | str) -> None:
         """Property: Balance should correctly parse various numeric input types to Decimal."""
         # Skip edge cases that might cause precision issues
@@ -472,7 +481,11 @@ class TestSpotBalanceModelProperties:
             ),
         ),
     )
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=100,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_invalid_decimal_input_rejection_properties(self, invalid_input: str) -> None:
         """Property: Invalid decimal inputs should always raise ValidationError."""
         with pytest.raises(ValidationError):
@@ -494,7 +507,11 @@ class TestSpotBalanceModelProperties:
             st.just("abc123"),
         ),
     )
-    @settings(max_examples=100, deadline=None, suppress_health_check=[HealthCheck.filter_too_much])
+    @settings(
+        max_examples=100,
+        deadline=timedelta(seconds=1),
+        suppress_health_check=[HealthCheck.filter_too_much],
+    )
     def test_invalid_timestamp_rejection_properties(self, invalid_timestamp: str) -> None:
         """Property: Invalid timestamp inputs should always raise ValidationError."""
         with pytest.raises((ValidationError, DateTimeParsingError, ParsingError)):
@@ -510,7 +527,7 @@ class TestSpotBalanceModelProperties:
         total_quantity=balance_quantity_strategy(),
         available_quantity=balance_quantity_strategy(),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_quantity_relationship_properties(
         self, total_quantity: Decimal, available_quantity: Decimal
     ) -> None:
@@ -569,7 +586,7 @@ class TestBackpackSpotBalanceDetailsProperties:
         lend_quantity=st.one_of(st.none(), balance_quantity_strategy()),
         collateral_weight=st.one_of(st.none(), collateral_weight_strategy()),
     )
-    @settings(max_examples=200, deadline=None)
+    @settings(max_examples=200, deadline=timedelta(seconds=1))
     def test_backpack_details_creation_properties(
         self,
         open_order_quantity: Decimal | None,
@@ -608,7 +625,7 @@ class TestBackpackSpotBalanceDetailsProperties:
             st.just(Decimal("-Infinity")),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_backpack_details_validation_properties(
         self, field_name: str, invalid_value: Decimal
     ) -> None:
@@ -627,7 +644,7 @@ class TestBackpackSpotBalanceDetailsProperties:
             st.booleans(),
         ),
     )
-    @settings(max_examples=100, deadline=None)
+    @settings(max_examples=100, deadline=timedelta(seconds=1))
     def test_backpack_details_extra_fields_ignored_properties(
         self, base_data: BackpackSpotBalanceDetails, extra_field_value: object
     ) -> None:

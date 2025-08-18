@@ -13,7 +13,7 @@ Following TESTING_SECURITY_RULES.md:
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import Mock
 
@@ -302,7 +302,7 @@ class TestPricePrecisionRuleProperties:
             min_value=-1000000.0, max_value=0.0, allow_nan=False, allow_infinity=False
         )
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_negative_and_zero_prices_always_violation(self, negative_price: float) -> None:
         """Property: Negative or zero prices should always be rejected.
@@ -335,7 +335,7 @@ class TestPricePrecisionRuleProperties:
         assert any("Price must be positive" in v for v in result.violations)
 
     @given(tick_size=tick_size_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_aligned_prices_always_valid(self, tick_size: Decimal) -> None:
         """Property: Prices aligned to tick size should always be valid."""
@@ -362,7 +362,7 @@ class TestPricePrecisionRuleProperties:
         )
 
     @given(tick_size=tick_size_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_misaligned_prices_always_invalid(self, tick_size: Decimal) -> None:
         """Property: Prices NOT aligned to tick size should always be invalid."""
@@ -450,7 +450,7 @@ class TestQuantityPrecisionRuleProperties:
             min_value=-1000000.0, max_value=0.0, allow_nan=False, allow_infinity=False
         )
     )
-    @settings(max_examples=30, deadline=None)
+    @settings(max_examples=30, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_negative_and_zero_quantities_always_violation(
         self, negative_quantity: float
@@ -485,7 +485,7 @@ class TestQuantityPrecisionRuleProperties:
         assert any("Quantity must be positive" in v for v in result.violations)
 
     @given(lot_size=lot_size_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_aligned_quantities_always_valid(self, lot_size: Decimal) -> None:
         """Property: Quantities aligned to lot size should always be valid."""
@@ -512,7 +512,7 @@ class TestQuantityPrecisionRuleProperties:
         )
 
     @given(lot_size=lot_size_strategy())
-    @settings(max_examples=50, deadline=None)
+    @settings(max_examples=50, deadline=timedelta(seconds=1))
     @pytest.mark.asyncio
     async def test_misaligned_quantities_always_invalid(self, lot_size: Decimal) -> None:
         """Property: Quantities NOT aligned to lot size should always be invalid."""
