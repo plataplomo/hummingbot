@@ -208,8 +208,8 @@ def timestamp_strategy() -> SearchStrategy[str]:
     return st.builds(
         _create_isoformat_datetime,
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 1, 1),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 1, 1, tzinfo=UTC),
             timezones=st.just(UTC),
         ),
     )
