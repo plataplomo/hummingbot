@@ -17,7 +17,7 @@ from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
 from cyberdelta.apis.websocket.error_handling.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket.stream_log import WebSocketStreamLogData
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorConfig,

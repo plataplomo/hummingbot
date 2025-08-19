@@ -11,7 +11,7 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.ws_message_processor import (

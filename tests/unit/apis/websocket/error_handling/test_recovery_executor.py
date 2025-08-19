@@ -12,7 +12,8 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.recovery import (
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.recovery import (
     ConnectionManagerProtocol,
     MessageBufferProtocol,
     RecoveryExecutor,
@@ -20,8 +21,7 @@ from cyberdelta.apis.websocket.error_handling.recovery import (
     StateManagerProtocol,
     SubscriptionManagerProtocol,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 
 

@@ -12,17 +12,15 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
-from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.error_handler import WebSocketErrorHandler
+from cyberdelta.apis.websocket.error_context.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
-from cyberdelta.apis.websocket.error_handling.error_handler_registry import (
-    WebSocketErrorHandlerRegistry,
-)
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
+from tests.unit.websocket.test_helpers import MockWebSocketErrorHandlerRegistry
 
 
 @pytest.mark.asyncio
@@ -43,13 +41,13 @@ class TestMultiExchangeErrors:
         return config
 
     @pytest.fixture
-    def handler_registry(self) -> WebSocketErrorHandlerRegistry:
+    def handler_registry(self) -> MockWebSocketErrorHandlerRegistry:
         """Create handler registry for testing.
 
         Returns:
-            WebSocketErrorHandlerRegistry: Clean registry for multi-exchange testing.
+            MockWebSocketErrorHandlerRegistry: Clean registry for multi-exchange testing.
         """
-        return WebSocketErrorHandlerRegistry()
+        return MockWebSocketErrorHandlerRegistry()
 
     async def test_hyperliquid_error_handling(
         self,
@@ -135,7 +133,7 @@ class TestMultiExchangeErrors:
 
     async def test_exchange_specific_configurations(
         self,
-        handler_registry: WebSocketErrorHandlerRegistry,
+        handler_registry: MockWebSocketErrorHandlerRegistry,
     ) -> None:
         """Test that different exchanges get appropriate configurations."""
         # Get handlers for different exchanges
@@ -155,7 +153,7 @@ class TestMultiExchangeErrors:
 
     async def test_cross_exchange_error_isolation(
         self,
-        handler_registry: WebSocketErrorHandlerRegistry,
+        handler_registry: MockWebSocketErrorHandlerRegistry,
     ) -> None:
         """Test that errors in one exchange don't affect others."""
         # Get handlers for both exchanges
@@ -207,7 +205,7 @@ class TestMultiExchangeErrors:
 
     async def test_registry_handler_lifecycle(
         self,
-        handler_registry: WebSocketErrorHandlerRegistry,
+        handler_registry: MockWebSocketErrorHandlerRegistry,
     ) -> None:
         """Test handler lifecycle management in registry."""
         # Initially no handlers
@@ -230,7 +228,7 @@ class TestMultiExchangeErrors:
 
     async def test_concurrent_multi_exchange_processing(
         self,
-        handler_registry: WebSocketErrorHandlerRegistry,
+        handler_registry: MockWebSocketErrorHandlerRegistry,
     ) -> None:
         """Test concurrent error processing across multiple exchanges."""
         # Get handlers

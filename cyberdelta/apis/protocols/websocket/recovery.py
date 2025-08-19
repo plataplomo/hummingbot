@@ -11,7 +11,7 @@ from abc import abstractmethod
 from typing import Protocol
 
 from cyberdelta.apis.models.websocket.recovery import RecoveryResult
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.enums import ExchangeName
 
 

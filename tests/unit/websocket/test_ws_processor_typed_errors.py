@@ -12,17 +12,17 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketValidationError
+from cyberdelta.apis.exceptions.websocket import WebSocketValidationError
 from cyberdelta.apis.websocket.ws_message_processor import (
     MessageTransformer,
     SimpleDictTransformer,
     WebSocketMessageProcessor,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 
 
 class MessageForTest(BaseModel):

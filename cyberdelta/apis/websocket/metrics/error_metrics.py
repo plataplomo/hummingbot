@@ -20,7 +20,7 @@ from cyberdelta.apis.models.websocket.error_metrics import (
     ErrorRateMetrics,
     RecoveryAttempt,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorMetricsConfig
 
 

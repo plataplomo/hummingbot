@@ -15,7 +15,7 @@ from cyberdelta.apis.enums.websocket import CircuitState, WebSocketErrorCode
 from cyberdelta.apis.models.websocket.recovery import (
     RecoveryState,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.config.structlog_config import get_logger
 

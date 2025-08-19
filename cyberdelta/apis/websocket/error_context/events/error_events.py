@@ -22,7 +22,7 @@ from cyberdelta.apis.models.websocket import (
     WebSocketErrorEvent,
 )
 from cyberdelta.apis.protocols.websocket import EventFilterProtocol, EventHandlerProtocol
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 
 
 if TYPE_CHECKING:

@@ -206,8 +206,9 @@ class TestValidationErrorHandling:
     ) -> None:
         """Test that transformation errors are properly propagated."""
         # Mock parse_decimal_safely to raise an error
-        mocker.patch(
-            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_price_ticker_mapper.parse_decimal_safely",
+        mocker.patch.object(
+            ticker_mapper,
+            "parse_decimal_safely",
             side_effect=ValueError("Simulated parsing error"),
         )
 

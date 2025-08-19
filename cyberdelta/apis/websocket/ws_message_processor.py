@@ -30,7 +30,7 @@ from cyberdelta.apis.websocket.error_context.builders.processor_builder import (
 from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 
 
 # Type variables for input and output models

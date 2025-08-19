@@ -34,7 +34,7 @@ from cyberdelta.apis.common.base_types import (
     InvalidTopicTypeError,
 )
 from cyberdelta.apis.hyperliquid.hl_validators import HyperliquidValidators
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     InvalidFieldTypeError,
     InvalidFormatError,
     InvalidItemTypeError,

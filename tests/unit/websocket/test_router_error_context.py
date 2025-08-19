@@ -14,12 +14,12 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorMetadata
-from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router_error_context import (
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.builders.router_builder import (
     RouterErrorContextBuilder,
     RouterErrorMetadata,
 )
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 
 
 class TestEnvelopeModel(BaseModel):

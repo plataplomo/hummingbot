@@ -31,12 +31,12 @@ from cyberdelta.apis.websocket.error_context import (
 from cyberdelta.apis.websocket.error_context import (
     WebSocketErrorHandlerFactory,
 )
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     WebSocketConnectionError,
     WebSocketSubscriptionError,
     WebSocketValidationError,
 )
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket import StreamErrorContext
 from cyberdelta.enums import ExchangeName
 

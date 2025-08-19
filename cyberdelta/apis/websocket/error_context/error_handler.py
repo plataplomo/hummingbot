@@ -28,7 +28,7 @@ from cyberdelta.apis.websocket.error_context.recovery import (
     StateManagerProtocol,
     SubscriptionManagerProtocol,
 )
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     WebSocketConnectionError,
     WebSocketMessageFormatError,
     WebSocketSequenceError,

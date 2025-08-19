@@ -17,8 +17,8 @@ from cyberdelta.apis.backpack.mappers.market_data.bp_ticker_mapper import Backpa
 from cyberdelta.apis.backpack.mappers.market_data.bp_trade_mapper import BackpackFillMapper
 from cyberdelta.apis.backpack.mappers.trading.bp_order_mapper import BackpackOrderMapper
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
-from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.error_context.error_handler import WebSocketErrorHandler
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 

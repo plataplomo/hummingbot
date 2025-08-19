@@ -20,7 +20,7 @@ from cyberdelta.apis.protocols.websocket.recovery import (
 from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketConfigurationError
+from cyberdelta.apis.exceptions.websocket import WebSocketConfigurationError
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorAlertingConfig,

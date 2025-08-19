@@ -19,7 +19,7 @@ from cyberdelta.apis.models.websocket.security import (
 )
 
 # Import security exceptions from unified hierarchy (Step 30: Migration completed)
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     ArrayLengthExceedsLimitError,
     BlockedPatternFoundError,
     MessageSizeExceedsLimitError,

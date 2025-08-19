@@ -10,7 +10,7 @@ import re
 from typing import TYPE_CHECKING
 
 from cyberdelta.apis.common.error_foundation import ErrorContextValidator
-from cyberdelta.apis.websocket.exceptions import WebSocketSequenceValidationError
+from cyberdelta.apis.exceptions.websocket import WebSocketSequenceValidationError
 from cyberdelta.enums import ExchangeName
 
 

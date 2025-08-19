@@ -1,7 +1,7 @@
 """Tests for WebSocket Error System Health Checks.
 
 This module tests the health check functionality of the WebSocket error handling
-system using the current architecture with WebSocketErrorHandlerRegistry.
+system using the current architecture with .
 """
 
 from __future__ import annotations
@@ -10,33 +10,31 @@ import pytest
 
 from cyberdelta.apis.enums.websocket import HealthStatus
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.models.websocket.health import (
     ComponentStatus,
     HealthCheckConfig,
     SystemHealth,
 )
-from cyberdelta.apis.websocket.error_handling.error_handler_factory import (
+from cyberdelta.apis.websocket.error_context.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
-from cyberdelta.apis.websocket.error_handling.error_handler_registry import (
-    WebSocketErrorHandlerRegistry,
-)
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.enums import ExchangeName
+from tests.unit.websocket.test_helpers import MockWebSocketErrorHandlerRegistry
 
 
 class TestWebSocketErrorSystemHealthCheck:
     """Test WebSocket error system health check functionality."""
 
     @pytest.fixture
-    def registry(self) -> WebSocketErrorHandlerRegistry:
+    def registry(self) -> MockWebSocketErrorHandlerRegistry:
         """Create fresh registry for testing.
 
         Returns:
-            WebSocketErrorHandlerRegistry: Clean registry for health testing.
+            MockWebSocketErrorHandlerRegistry: Clean registry for health testing.
         """
-        return WebSocketErrorHandlerRegistry()
+        return MockWebSocketErrorHandlerRegistry()
 
     @pytest.fixture
     def error_context(self) -> StreamErrorContext:
@@ -57,7 +55,7 @@ class TestWebSocketErrorSystemHealthCheck:
             raw_message_size=256,
         )
 
-    def test_registry_health_check_empty(self, registry: WebSocketErrorHandlerRegistry) -> None:
+    def test_registry_health_check_empty(self, registry: MockWebSocketErrorHandlerRegistry) -> None:
         """Test health check with no handlers registered."""
         health = registry.health_check()
 
@@ -71,7 +69,7 @@ class TestWebSocketErrorSystemHealthCheck:
         assert health["active_handlers"] == 0
 
     def test_registry_health_check_with_handlers(
-        self, registry: WebSocketErrorHandlerRegistry
+        self, registry: MockWebSocketErrorHandlerRegistry
     ) -> None:
         """Test health check with active handlers."""
         # Create handlers for different exchanges
@@ -87,7 +85,7 @@ class TestWebSocketErrorSystemHealthCheck:
         # Keep references to prevent GC
         del hl_handler, bp_handler
 
-    def test_registry_statistics(self, registry: WebSocketErrorHandlerRegistry) -> None:
+    def test_registry_statistics(self, registry: MockWebSocketErrorHandlerRegistry) -> None:
         """Test registry statistics collection."""
         # Initially no handlers
         stats = registry.get_registry_statistics()
@@ -112,7 +110,7 @@ class TestWebSocketErrorSystemHealthCheck:
     @pytest.mark.asyncio
     async def test_error_handler_health_after_processing(
         self,
-        registry: WebSocketErrorHandlerRegistry,
+        registry: MockWebSocketErrorHandlerRegistry,
         error_context: StreamErrorContext,
     ) -> None:
         """Test error handler health after processing errors."""
@@ -241,7 +239,7 @@ class TestErrorHandlerHealthIntegration:
     @pytest.mark.asyncio
     async def test_registry_health_during_error_processing(self) -> None:
         """Test registry health during active error processing."""
-        registry = WebSocketErrorHandlerRegistry()
+        registry = MockWebSocketErrorHandlerRegistry()
 
         # Get handler and process errors
         handler = registry.get_handler(ExchangeName.HYPERLIQUID)

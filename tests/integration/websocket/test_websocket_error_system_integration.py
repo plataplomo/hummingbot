@@ -20,7 +20,7 @@ from cyberdelta.apis.websocket.error_handling import (
     WebSocketErrorHandlerFactory,
     WebSocketErrorHandlerRegistry,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext

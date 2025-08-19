@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from cyberdelta.apis.protocols.websocket.envelope import WebSocketEnvelope
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     EmptyRoutingKeyError,
     EnvelopeValidationFailedError,
     InvalidRoutingKeyFormatError,

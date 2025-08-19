@@ -40,7 +40,7 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsTradesSubscriptionPayload,
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
-from cyberdelta.apis.websocket.exceptions import EnvelopeValidatorNotSetError
+from cyberdelta.apis.exceptions.websocket import EnvelopeValidatorNotSetError
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.apis.websocket.ws_mapper_adapters import (
     WebSocketBatchMapperAdapter,

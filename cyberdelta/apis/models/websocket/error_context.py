@@ -13,8 +13,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field, field_validator
 
 from cyberdelta.apis.common.error_foundation import ErrorChain, ErrorMetadata
-from cyberdelta.apis.websocket.error_context.validation import StreamErrorContextValidator
-from cyberdelta.apis.websocket.exceptions import WebSocketFieldValidationError
+from cyberdelta.apis.exceptions.websocket import WebSocketFieldValidationError
 from cyberdelta.enums import ExchangeName
 
 
@@ -135,7 +134,13 @@ class StreamErrorContext(BaseModel):
         Returns:
             The validated connection ID
         """
-        return StreamErrorContextValidator.validate_connection_id(v)
+        # Model performs basic validation only
+        # Extended validation is done by StreamErrorContextValidator externally
+        if not v or not v.strip():
+            raise ValueError("connection_id must be a non-empty string")
+        if len(v) < 8 or len(v) > 128:
+            raise ValueError(f"connection_id must be 8-128 characters, got {len(v)}")
+        return v
 
     @field_validator("exchange")
     @classmethod
@@ -145,7 +150,8 @@ class StreamErrorContext(BaseModel):
         Returns:
             The validated exchange name enum
         """
-        return StreamErrorContextValidator.validate_exchange(v)
+        # ExchangeName enum validation is handled by Pydantic
+        return v
 
     @field_validator("channel")
     @classmethod
@@ -155,9 +161,13 @@ class StreamErrorContext(BaseModel):
         Returns:
             The validated channel name or None
         """
+        # Model performs basic validation only
+        # Extended validation is done by StreamErrorContextValidator externally
         if v is None:
             return v
-        return StreamErrorContextValidator.validate_channel(v)
+        if len(v) > 64:
+            raise ValueError(f"channel must be <= 64 characters, got {len(v)}")
+        return v
 
     @field_validator("sequence_number", "expected_sequence", "last_received_sequence")
     @classmethod

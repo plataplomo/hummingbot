@@ -35,8 +35,10 @@ MAX_RECONNECT_ATTEMPTS_FOR_DIFFERENT_ENDPOINT = 2  # Max reconnects before tryin
 _STATIC_CODE_STRATEGIES = {
     WebSocketErrorCode.PROTOCOL_ERROR: WebSocketRecoveryStrategy.FULL_RECONNECT,
     WebSocketErrorCode.STREAM_CORRUPTED: WebSocketRecoveryStrategy.FULL_RECONNECT,
+    WebSocketErrorCode.STREAM_INTERRUPTED: WebSocketRecoveryStrategy.IMMEDIATE_RETRY,
     WebSocketErrorCode.RATE_LIMITED: WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
     WebSocketErrorCode.CONNECTION_TIMEOUT: WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
+    WebSocketErrorCode.CONNECTION_RESET: WebSocketRecoveryStrategy.RECONNECT_SAME,
     WebSocketErrorCode.SEQUENCE_GAP: WebSocketRecoveryStrategy.IMMEDIATE_RETRY,
     WebSocketErrorCode.SEQUENCE_OUT_OF_ORDER: WebSocketRecoveryStrategy.IMMEDIATE_RETRY,
     WebSocketErrorCode.SEQUENCE_DUPLICATE: WebSocketRecoveryStrategy.NONE,
@@ -45,6 +47,8 @@ _STATIC_CODE_STRATEGIES = {
     WebSocketErrorCode.CHANNEL_CLOSED: WebSocketRecoveryStrategy.RESUBSCRIBE_ALL,
     WebSocketErrorCode.HEARTBEAT_TIMEOUT: WebSocketRecoveryStrategy.RECONNECT_SAME,
     WebSocketErrorCode.EXCHANGE_OVERLOADED: WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
+    WebSocketErrorCode.EXCHANGE_MAINTENANCE: WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
+    WebSocketErrorCode.RECOVERY_IN_PROGRESS: WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
     WebSocketErrorCode.AUTH_EXPIRED: WebSocketRecoveryStrategy.RESUBSCRIBE_SINGLE,
 }
 

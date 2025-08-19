@@ -13,11 +13,11 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.recovery_strategy_router import (
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.recovery.recovery_strategy_router import (
     RecoveryStrategyRouter,
 )
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 
 
 @pytest.mark.asyncio

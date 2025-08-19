@@ -20,7 +20,7 @@ from cyberdelta.apis.common.error_foundation import (
 )
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
 from cyberdelta.apis.models.websocket.error_metrics import AggregatedMetrics
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
