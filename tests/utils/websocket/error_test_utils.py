@@ -200,7 +200,7 @@ class ErrorScenarioGenerator:
                 name="Connection Timeout",
                 error_code=WebSocketErrorCode.CONNECTION_TIMEOUT,
                 expected_severity=ErrorSeverity.ERROR,
-                expected_recovery=WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
+                expected_recovery=WebSocketRecoveryStrategy.RECONNECT_SAME,  # Overridden by policy
                 should_be_retryable=True,
                 should_be_critical=False,
             ),
@@ -210,7 +210,7 @@ class ErrorScenarioGenerator:
                 expected_severity=ErrorSeverity.ERROR,
                 expected_recovery=WebSocketRecoveryStrategy.FULL_RECONNECT,
                 should_be_retryable=True,  # FULL_RECONNECT is a form of retry
-                should_be_critical=False,  # ERROR severity is not critical
+                should_be_critical=True,  # PROTOCOL_ERROR is in critical_errors list
             ),
         ])
 

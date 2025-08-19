@@ -176,11 +176,27 @@ class TestRecoveryExecutor:
     @pytest.mark.asyncio
     async def test_execute_recovery_exponential_backoff(
         self,
-        executor: RecoveryExecutor,
+        policy_manager: RecoveryPolicyManager,
         connection_manager: AsyncMock,
+        subscription_manager: AsyncMock,
+        state_manager: AsyncMock,
+        message_buffer: AsyncMock,
         stream_error: WebSocketStreamError,
     ) -> None:
         """Test exponential backoff strategy execution."""
+        # Create executor with config that doesn't override exponential backoff
+        config = WebSocketErrorConfig()
+        config.recovery.prefer_reconnect_for_connection_errors = False
+        policy_manager_no_override = RecoveryPolicyManager(config)
+        
+        executor = RecoveryExecutor(
+            policy=policy_manager_no_override,
+            connection_manager=connection_manager,
+            subscription_manager=subscription_manager,
+            state_manager=state_manager,
+            message_buffer=message_buffer,
+        )
+        
         error_with_backoff = WebSocketStreamError(
             message=stream_error.message,
             code=stream_error.code,

@@ -8,9 +8,9 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.websocket.error_context.recovery import RecoveryPolicyManager
-from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
 from cyberdelta.enums.safety.circuit_breaker import CircuitBreakerState
@@ -116,8 +116,14 @@ class TestRecoveryPolicyManager:
 
         # Should have statistics structure
         assert isinstance(stats, dict)
-        # Basic statistics should be present
-        expected_keys = ["active_recoveries", "circuit_breakers"]
+        # Basic statistics should be present based on current implementation
+        expected_keys = [
+            "total_connections_tracked",
+            "open_circuits",
+            "half_open_circuits",
+            "circuit_breaker_enabled",
+            "max_retry_attempts",
+        ]
         for key in expected_keys:
             assert key in stats
 

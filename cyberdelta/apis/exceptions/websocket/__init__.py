@@ -139,6 +139,11 @@ from .factory import (
     is_retryable_error_code,
 )
 
+# Import field validation error from separate module to avoid circular imports
+from .field_validation import (
+    WebSocketFieldValidationError,
+)
+
 # Import validation error classes from split modules
 from .payload_validation import (
     InvalidPayloadTypeError,
@@ -172,7 +177,6 @@ from .stream import (
     WebSocketAuthenticationError,
     WebSocketConnectionError,
     WebSocketContextCreationError,
-    WebSocketFieldValidationError,
     WebSocketInvalidChannelError,
     WebSocketMessageFormatError,
     WebSocketSecurityError,

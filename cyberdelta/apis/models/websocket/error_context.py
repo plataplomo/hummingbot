@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import BaseModel, Field, field_validator
 
 from cyberdelta.apis.common.error_foundation import ErrorChain, ErrorMetadata
-from cyberdelta.apis.exceptions.websocket import WebSocketFieldValidationError
+from cyberdelta.apis.exceptions.websocket.field_validation import WebSocketFieldValidationError
 from cyberdelta.enums import ExchangeName
 
 
