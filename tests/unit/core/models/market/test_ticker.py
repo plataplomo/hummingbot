@@ -587,7 +587,7 @@ class TestTickerModelProperties:
             Ticker(
                 symbol=ticker_symbol,
                 exchange=exchange,
-                timestamp=datetime.now(UTC),
+                timestamp=datetime.now(tz=UTC),
                 price=cast(Decimal, invalid_input),
             )
 

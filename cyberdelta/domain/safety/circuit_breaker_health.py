@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING, Any
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.enums.monitoring import HealthStatus
 from cyberdelta.enums.safety.circuit_breaker import CircuitBreakerState
 from cyberdelta.models.monitoring.system_health_models import (
     CircuitBreakerConfiguration,
     CircuitBreakerStatistics,
     CircuitBreakerSystemHealth,
-    HealthStatus,
 )
 
 

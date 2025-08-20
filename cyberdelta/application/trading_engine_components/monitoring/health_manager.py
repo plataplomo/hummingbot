@@ -9,8 +9,7 @@ from cyberdelta.config.models.app_config import AppSettings
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.domain.monitoring.alert_service import AlertService
 from cyberdelta.domain.monitoring.service_health_monitor import ServiceHealthMonitor
-from cyberdelta.enums.monitoring import AlertLevel
-from cyberdelta.models.monitoring.system_health_models import HealthStatus
+from cyberdelta.enums.monitoring import AlertLevel, HealthStatus
 
 
 if TYPE_CHECKING:

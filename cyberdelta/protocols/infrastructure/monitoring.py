@@ -6,10 +6,7 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 
 if TYPE_CHECKING:
-    from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
-
-
-if TYPE_CHECKING:
+    from cyberdelta.domain.monitoring.health_metrics import HealthMetrics
     from cyberdelta.enums.monitoring import ServiceType
 
 
@@ -20,11 +17,11 @@ class HealthCheckable(Protocol):
     must implement to participate in the health monitoring system.
     """
 
-    async def check_health(self) -> ExecutionStatistics:
+    async def check_health(self) -> HealthMetrics:
         """Return health status and metrics.
 
         Returns:
-            Typed execution statistics with health status and metrics
+            HealthMetrics with health status and metrics
         """
         ...
 

@@ -612,12 +612,12 @@ class TestSystemEvent:
         event = SystemEvent(
             component="exchange_connector",
             event_type=SystemEventType.ERROR,
-            status=HealthStatus.FAILED,
+            status=HealthStatus.CRITICAL,
             message="CRITICAL: Exchange API unreachable",
             error_count=10,
         )
 
-        assert event.status == HealthStatus.FAILED
+        assert event.status == HealthStatus.CRITICAL
         assert event.error_count == 10
 
 

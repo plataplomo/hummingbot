@@ -10,7 +10,8 @@ from unittest.mock import AsyncMock, MagicMock, Mock
 import pytest
 
 from cyberdelta.config.models.app_config import AppSettings
-from cyberdelta.domain.monitoring.performance_tracker import PerformanceMetrics, PerformanceTracker
+from cyberdelta.domain.monitoring.performance_metrics_models import PerformanceMetrics
+from cyberdelta.domain.monitoring.performance_tracker import PerformanceTracker
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.enums import ExchangeName
 from cyberdelta.enums.trading import OrderSide

@@ -13,6 +13,7 @@ from decimal import Decimal
 
 from cyberdelta.config.models import AppSettings
 from cyberdelta.config.structlog_config import get_logger
+from cyberdelta.domain.monitoring.health_metrics import HealthMetrics
 from cyberdelta.domain.portfolio.portfolio_service import PortfolioService
 from cyberdelta.domain.trading.execution import ExecutionEngine
 from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
@@ -27,7 +28,6 @@ from cyberdelta.models.market.order import Order
 from cyberdelta.models.monitoring.system_health_models import ExecutionStatistics
 from cyberdelta.models.risk.assessment import PositionSize
 from cyberdelta.models.trading.execution_request import ExecutionRequest
-from cyberdelta.models.trading.order_tracker_statistics import OrderTrackerStatistics
 from cyberdelta.protocols.infrastructure.monitoring import HealthCheckable
 
 
@@ -544,7 +544,7 @@ class TradingService(HealthCheckable):
             error_event = SystemEvent(
                 event_type=SystemEventType.ERROR,
                 component="strategy",
-                status=HealthStatus.FAILED,  # Use valid status from the model
+                status=HealthStatus.CRITICAL,  # Use valid status from the model
                 message=(
                     f"{error} (signal_id: {signal.signal_id}, symbol: {signal.symbol}, "
                     f"exchange: {error_exchange.value}, error_type: {type(error).__name__})"
@@ -571,7 +571,17 @@ class TradingService(HealthCheckable):
         - Returns explicit configuration state
         - NO hardcoded defaults in response
         """
-        return await self._execution_engine.check_health()
+        # Get order tracker statistics from execution engine
+        order_stats = self._execution_engine.get_order_tracker_statistics()
+
+        # Build ExecutionStatistics from the actual order stats
+        return ExecutionStatistics(
+            order_tracking=order_stats,
+            api_clients_available=self._execution_engine.get_api_client_count(),
+            safe_mode_enabled=self._safe_mode,
+            max_slippage_pct=self._execution_engine.get_max_slippage(),
+            max_retries=self._execution_engine.get_max_retries(),
+        )
 
     def is_safe_mode(self) -> bool:
         """Check if trading service is in safe mode.
@@ -584,11 +594,11 @@ class TradingService(HealthCheckable):
         """
         return self._safe_mode
 
-    async def check_health(self) -> ExecutionStatistics:
+    async def check_health(self) -> HealthMetrics:
         """Health check implementation for TradingService.
 
         Returns:
-            Typed execution statistics
+            Health metrics for the trading service
 
         IMPORTANT: Following CODING_STANDARDS.md:
         - Returns explicit health metrics
@@ -596,77 +606,40 @@ class TradingService(HealthCheckable):
         """
         # Get execution engine health if available
         execution_health = None
+        engine_is_healthy = True
         try:
             execution_health = await self._execution_engine.check_health()
         except (RuntimeError, ValueError, ConnectionError):
-            # Create minimal stats for failed health check
+            # Execution engine is unhealthy
+            engine_is_healthy = False
 
-            error_order_stats = OrderTrackerStatistics(
-                active_orders=0,
-                total_orders=0,
-                success_count=0,
-                error_count=1,
-                success_rate=Decimal(0),
-                last_activity_timestamp=None,
+        # Aggregate metrics from execution engine and trading service
+        if execution_health and engine_is_healthy:
+            # Use execution engine metrics as base and enhance with trading service data
+            total_errors = execution_health.error_count + self._error_count
+            total_successes = execution_health.success_count + self._success_count
+
+            return HealthMetrics(
+                response_time_ms=execution_health.response_time_ms,
+                error_count=total_errors,
+                success_count=total_successes,
+                last_activity=self._last_activity or execution_health.last_activity,
+                uptime_seconds=execution_health.uptime_seconds,
+                memory_usage_mb=execution_health.memory_usage_mb,
+                cpu_usage_percent=execution_health.cpu_usage_percent,
+                is_running=True,
             )
 
-            execution_health = ExecutionStatistics(
-                order_tracking=error_order_stats,
-                api_clients_available=0,
-                safe_mode_enabled=True,
-                max_slippage_pct=Decimal(0),
-                max_retries=0,
-            )
-
-        # Use execution engine stats as base, or create minimal stats
-        if execution_health:
-            # Update order tracking stats with trading service metrics
-
-            enhanced_order_stats = OrderTrackerStatistics(
-                active_orders=execution_health.order_tracking.active_orders,
-                total_orders=max(execution_health.order_tracking.total_orders, self._signal_count),
-                success_count=max(
-                    execution_health.order_tracking.success_count, self._success_count
-                ),
-                error_count=max(execution_health.order_tracking.error_count, self._error_count),
-                success_rate=(
-                    Decimal(self._success_count) / Decimal(self._signal_count)
-                    if self._signal_count > 0
-                    else execution_health.order_tracking.success_rate
-                ),
-                last_activity_timestamp=(
-                    self._last_activity or execution_health.order_tracking.last_activity_timestamp
-                ),
-            )
-
-            return ExecutionStatistics(
-                order_tracking=enhanced_order_stats,
-                api_clients_available=execution_health.api_clients_available,
-                safe_mode_enabled=self._safe_mode,
-                max_slippage_pct=execution_health.max_slippage_pct,
-                max_retries=execution_health.max_retries,
-            )
-        # Fallback stats when execution engine is unavailable
-
-        fallback_order_stats = OrderTrackerStatistics(
-            active_orders=0,
-            total_orders=self._signal_count,
+        # Fallback when execution engine is unavailable
+        return HealthMetrics(
+            response_time_ms=None,
+            error_count=self._error_count + (1 if not engine_is_healthy else 0),
             success_count=self._success_count,
-            error_count=self._error_count,
-            success_rate=(
-                Decimal(self._success_count) / Decimal(self._signal_count)
-                if self._signal_count > 0
-                else Decimal(0)
-            ),
-            last_activity_timestamp=self._last_activity,
-        )
-
-        return ExecutionStatistics(
-            order_tracking=fallback_order_stats,
-            api_clients_available=0,
-            safe_mode_enabled=self._safe_mode,
-            max_slippage_pct=Decimal(0),
-            max_retries=0,
+            last_activity=self._last_activity,
+            uptime_seconds=None,
+            memory_usage_mb=None,
+            cpu_usage_percent=None,
+            is_running=engine_is_healthy,
         )
 
     def _get_required_quantity(self, order: Order) -> Decimal:

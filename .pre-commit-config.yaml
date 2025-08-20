@@ -23,16 +23,20 @@ repos:
       # Run the linter first (includes import sorting)
       - id: ruff
         args: ["--fix", "--show-fixes"]
-        exclude: ^workflow/
+        files: ^(cyberdelta/.*\.py|main\.py)$
+        exclude: ^(workflow/|tests/)
       # Run the formatter second
       - id: ruff-format
+        files: ^(cyberdelta/.*\.py|main\.py)$
+        exclude: ^(workflow/|tests/)
 
   # MyPy - Static type checking
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.17.0
     hooks:
       - id: mypy
-        exclude: ^workflow/
+        files: ^(cyberdelta/.*\.py|main\.py)$
+        exclude: ^(workflow/|tests/)
         additional_dependencies:
           # Type stubs
           - types-jsonschema==4.23.0.20241208
@@ -45,10 +49,9 @@ repos:
           - types-orjson
           - types-aiofiles
           # Core runtime dependencies
-          - pydantic==2.11.4
+          - pydantic==2.11.5
           - aiohttp==3.11.18
           - numpy==2.2.5
-          - pandas==2.2.3
           # Testing dependencies
           - pytest==8.3.5
           - pytest-asyncio==0.26.0
@@ -65,18 +68,41 @@ repos:
           - mnemonic==0.21
           # Other dependencies
           - structlog==25.3.0
-          - plotly==6.0.1
           - opentelemetry-sdk==1.33.1
           - orjson==3.10.18
           - cachetools==6.1.0
-          # Frontend dependencies
-          - dash==3.0.4
-          - dash-bootstrap-components==2.0.2
           - msgspec==0.19.0
           - types-psutil>=7.0.0.20250601,<7.1.0
           - tenacity==9.1.2
-          - psutil==7.0.0,<7.1.0
+          - psutil>=7.0.0,<7.1.0
         args: ["--show-error-codes"]
+
+  # Pyright - Static type checking (strict mode)
+  - repo: https://github.com/RobertCraigie/pyright-python
+    rev: v1.1.403
+    hooks:
+      - id: pyright
+        files: ^(cyberdelta/.*\.py|main\.py)$
+        exclude: ^(workflow/|tests/)
+        additional_dependencies:
+          # Core runtime dependencies needed for type checking
+          - pydantic==2.11.5
+          - aiohttp==3.11.18
+          - numpy==2.2.5
+          - structlog==25.3.0
+          - orjson==3.10.18
+          - cachetools==6.1.0
+          - tenacity==9.1.2
+          - psutil>=7.0.0,<7.1.0
+          - aiofiles==24.1.0
+          - cryptography==45.0.3
+          - eth_account==0.13.7
+          - web3==7.11.1
+          - mnemonic==0.21
+          - msgspec==0.19.0
+          - PyYAML==6.0.2
+          - python-dotenv==1.1.0
+        args: ["--pythonversion", "3.13"]
 
   # Custom hooks
   - repo: local
@@ -95,3 +121,12 @@ repos:
         entry: scripts/check_timing_marker.py
         language: python
         files: ^tests/.*\.py$
+
+      # Check for hard-coded fee configurations
+      - id: no-hardcoded-fees
+        name: Check for hard-coded fee configurations
+        entry: python scripts/verify_no_hardcoded_fees.py --exit-on-failure
+        language: system
+        files: 'cyberdelta/domain/.*\.py$'
+        pass_filenames: false
+        description: Ensure no hard-coded include_fees values in financial calculations

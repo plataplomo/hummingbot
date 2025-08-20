@@ -14,6 +14,7 @@ class ServiceType(Enum):
     SIGNAL = "signal_service"
     STRATEGY = "strategy_service"
     EVENT_BUS = "event_bus"
+    UNKNOWN = "unknown"
 
 
 class MetricType(Enum):
@@ -196,12 +197,16 @@ class HealthStatus(Enum):
     standardized component status reporting.
     - HEALTHY: Component operating normally
     - DEGRADED: Component functional with reduced performance
-    - FAILED: Component non-functional, requires attention
+    - UNHEALTHY: Component not functioning properly
+    - CRITICAL: Component in critical state, requires immediate attention
+    - UNKNOWN: Component status cannot be determined
     """
 
-    HEALTHY = "HEALTHY"
-    DEGRADED = "DEGRADED"
-    FAILED = "FAILED"
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+    CRITICAL = "critical"
+    UNKNOWN = "unknown"
 
 
 class WorkflowStatus(Enum):

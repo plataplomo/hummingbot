@@ -480,7 +480,7 @@ class TestOrderBookModelProperties:
             order_book.symbol = BTC_HL
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
-            order_book.timestamp = datetime.now(UTC)
+            order_book.timestamp = datetime.now(tz=UTC)
 
         with pytest.raises(ValidationError, match="Instance is frozen"):
             order_book.bids = []
@@ -504,7 +504,7 @@ class TestOrderBookModelProperties:
         """Property: Invalid list structures should be rejected."""
         base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
             "bids": [],
             "asks": [],
         }
@@ -533,7 +533,7 @@ class TestOrderBookModelProperties:
         """Property: Invalid level structures should be rejected."""
         base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
             "bids": [],
             "asks": [],
         }
@@ -564,7 +564,7 @@ class TestOrderBookModelProperties:
         """Property: Invalid price values should be rejected."""
         base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
             "bids": [],
             "asks": [],
         }
@@ -602,7 +602,7 @@ class TestOrderBookModelProperties:
         """Property: Invalid quantity values should be rejected."""
         base_kwargs: dict[str, Any] = {
             "symbol": BTC_HL,
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
             "bids": [],
             "asks": [],
         }
@@ -819,7 +819,7 @@ class TestOrderBookBusinessLogicProperties:
 
         order_book = OrderBook(
             symbol=BTC_HL,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
             bids=[level],
             asks=[(price + Decimal("0.01"), quantity)],  # Slight spread
         )
@@ -941,7 +941,7 @@ class TestOrderBookEdgeCaseProperties:
         """Property: OrderBook should support aggregation operations correctly."""
         order_book = OrderBook(
             symbol=BTC_HL,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
             bids=levels,
             asks=[],
         )
@@ -994,7 +994,7 @@ class TestOrderBookEdgeCaseProperties:
         # Property: Very small values should be handled correctly
         small_order_book = OrderBook(
             symbol=BTC_HL,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
             bids=[(Decimal(str(small_price)), Decimal(str(small_quantity)))],
             asks=[],
         )
@@ -1005,7 +1005,7 @@ class TestOrderBookEdgeCaseProperties:
         # Property: Very large values should be handled correctly
         large_order_book = OrderBook(
             symbol=BTC_HL,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
             bids=[(Decimal(str(large_price)), Decimal(str(large_quantity)))],
             asks=[],
         )

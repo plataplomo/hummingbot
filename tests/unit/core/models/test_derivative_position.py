@@ -454,7 +454,7 @@ class TestDerivativePositionModelProperties:
             "side": side,
             "size": size,
             "entry_price": entry_price,
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
         }
 
         # Check if this combination violates business rules
@@ -507,7 +507,7 @@ class TestDerivativePositionModelProperties:
             side=side,
             size=size,
             entry_price=entry_price,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
         )
 
         # Since business logic is removed from model, test the is_active() utility instead
@@ -584,7 +584,7 @@ class TestDerivativePositionModelProperties:
             "side": OrderSide.BUY,
             "size": Decimal("1.0"),
             "entry_price": Decimal("50000.0"),
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
             "exchange": exchange,
         }
 
@@ -634,7 +634,7 @@ class TestDerivativePositionModelProperties:
             "side": OrderSide.BUY,
             "size": Decimal("1.0"),
             "entry_price": Decimal("50000.0"),
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
         }
 
         kwargs: dict[str, Any] = base_kwargs.copy()
@@ -660,7 +660,7 @@ class TestDerivativePositionModelProperties:
             side=side,
             size=size,
             entry_price=entry_price,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
         )
 
         # Properties: Flat position behavior

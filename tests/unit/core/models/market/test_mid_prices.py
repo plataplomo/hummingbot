@@ -159,13 +159,13 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     Returns:
         datetime: A valid UTC timestamp
     """
-    naive_dt = draw(
+    # Already timezone-aware, no need to replace
+    return draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
             max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
-    return naive_dt.replace(tzinfo=UTC)
 
 
 @st.composite
@@ -548,7 +548,7 @@ class TestMidPricesBusinessLogicProperties:
         exchange: ExchangeName,
     ) -> None:
         """Property: MidPrices equality should be deterministic."""
-        timestamp = datetime.now(UTC)
+        timestamp = datetime.now(tz=UTC)
 
         # Create identical instances
         mid_prices1 = MidPrices(

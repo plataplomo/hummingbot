@@ -189,13 +189,13 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     Returns:
         UTC datetime object for order testing.
     """
-    naive_dt = draw(
+    # Already timezone-aware, no need to replace
+    return draw(
         st.datetimes(
             min_value=datetime(2020, 1, 1, tzinfo=UTC),
             max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
-    return naive_dt.replace(tzinfo=UTC)
 
 
 @st.composite
@@ -577,8 +577,8 @@ class TestOrderModelProperties:
             "stop_price": stop_price,
             "time_in_force": TimeInForce.GTC,
             "exchange": ExchangeName.HYPERLIQUID,
-            "created_at": datetime.now(UTC),
-            "updated_at": datetime.now(UTC),
+            "created_at": datetime.now(tz=UTC),
+            "updated_at": datetime.now(tz=UTC),
             "triggered_at": None,
             "strategy_name": None,
             "signal_id": None,
@@ -636,8 +636,8 @@ class TestOrderModelProperties:
             "price": Decimal("50000.0"),
             "time_in_force": TimeInForce.GTC,
             "exchange": ExchangeName.HYPERLIQUID,
-            "created_at": datetime.now(UTC),
-            "updated_at": datetime.now(UTC),
+            "created_at": datetime.now(tz=UTC),
+            "updated_at": datetime.now(tz=UTC),
             "triggered_at": None,
             "strategy_name": None,
             "signal_id": None,
@@ -687,8 +687,8 @@ class TestOrderModelProperties:
             "price": Decimal("50000.0"),
             "time_in_force": TimeInForce.GTC,
             "exchange": exchange,
-            "created_at": datetime.now(UTC),
-            "updated_at": datetime.now(UTC),
+            "created_at": datetime.now(tz=UTC),
+            "updated_at": datetime.now(tz=UTC),
             "triggered_at": None,
             "strategy_name": None,
             "signal_id": None,
@@ -743,8 +743,8 @@ class TestOrderModelProperties:
             "price": Decimal("50000.0"),
             "time_in_force": TimeInForce.GTC,
             "exchange": ExchangeName.HYPERLIQUID,
-            "created_at": datetime.now(UTC),
-            "updated_at": datetime.now(UTC),
+            "created_at": datetime.now(tz=UTC),
+            "updated_at": datetime.now(tz=UTC),
             "triggered_at": None,
             "strategy_name": None,
             "signal_id": None,
@@ -777,8 +777,8 @@ class TestOrderModelProperties:
             price=Decimal("50000.0"),
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.HYPERLIQUID,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
@@ -788,7 +788,7 @@ class TestOrderModelProperties:
         order.status = OrderStatus.PARTIALLY_FILLED
         order.average_fill_price = Decimal("50001.0")  # Set this before quantity_filled
         order.quantity_filled = quantity_requested / 2
-        order.updated_at = datetime.now(UTC)
+        order.updated_at = datetime.now(tz=UTC)
 
         assert order.status == OrderStatus.PARTIALLY_FILLED
         assert order.quantity_filled == quantity_requested / 2
@@ -819,8 +819,8 @@ class TestOrderModelProperties:
             price=Decimal("50000.0"),
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.HYPERLIQUID,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
@@ -835,8 +835,8 @@ class TestOrderModelProperties:
             price=Decimal("50000.0"),
             time_in_force=TimeInForce.GTC,
             exchange=ExchangeName.BACKPACK,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(tz=UTC),
+            updated_at=datetime.now(tz=UTC),
             triggered_at=None,
             strategy_name=None,
             signal_id=None,
