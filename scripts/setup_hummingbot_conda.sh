@@ -17,8 +17,8 @@ if [ ! -f "bin/hummingbot.py" ]; then
 fi
 
 # Check if conda is already installed in this worktree
-if [ -d "./conda" ]; then
-    echo "⚠️  Conda already exists in this worktree at ./conda"
+if [ -d "./.conda" ]; then
+    echo "⚠️  Conda already exists in this worktree at ./.conda"
     read -p "Do you want to reinstall? (y/n): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -26,7 +26,7 @@ if [ -d "./conda" ]; then
         exit 0
     fi
     echo "Removing existing conda installation..."
-    rm -rf ./conda
+    rm -rf ./.conda
 fi
 
 # Download and install Miniconda locally in this worktree
@@ -34,23 +34,23 @@ echo ""
 echo "📥 Downloading Miniconda..."
 curl -sSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh
 
-echo "📦 Installing Miniconda to ./conda..."
-bash miniconda.sh -b -p ./conda
+echo "📦 Installing Miniconda to ./.conda..."
+bash miniconda.sh -b -p ./.conda
 rm miniconda.sh
 
 echo "🔧 Setting up conda..."
-./conda/bin/conda init zsh
-./conda/bin/conda config --set auto_activate_base false
+./.conda/bin/conda init zsh
+./.conda/bin/conda config --set auto_activate_base false
 
 echo ""
 echo "🐍 Creating Hummingbot environment from environment.yml..."
 # Use Hummingbot's official environment.yml for proper setup
-./conda/bin/conda env create -f setup/environment.yml
+./.conda/bin/conda env create -f setup/environment.yml
 
 echo ""
 echo "📦 Installing additional Hummingbot dependencies..."
 # Activate environment and install remaining packages
-source ./conda/bin/activate hummingbot
+source ./.conda/bin/activate hummingbot
 
 # Add the project directory to module search paths (important for Hummingbot)
 conda develop .
@@ -82,15 +82,15 @@ echo "3. Activate the environment: conda activate hummingbot"
 echo "4. Run Hummingbot: python bin/hummingbot.py"
 echo ""
 echo "This conda installation is isolated to this worktree."
-echo "Location: $(pwd)/conda"
+echo "Location: $(pwd)/.conda"
 echo "==================================="
 
 # Add to .gitignore if not already there
 if [ -f ".gitignore" ]; then
-    if ! grep -q "^conda/$" .gitignore; then
+    if ! grep -q "^\.conda/$" .gitignore; then
         echo "" >> .gitignore
         echo "# Local conda installation" >> .gitignore
-        echo "conda/" >> .gitignore
-        echo "✅ Added conda/ to .gitignore"
+        echo ".conda/" >> .gitignore
+        echo "✅ Added .conda/ to .gitignore"
     fi
 fi
