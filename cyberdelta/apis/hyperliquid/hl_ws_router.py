@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.common.types import MessageHandler
+from cyberdelta.apis.exceptions.websocket import EnvelopeValidatorNotSetError
 from cyberdelta.apis.hyperliquid.models.hl_raw_all_mids import (
     HyperliquidRawAllMids,
     HyperliquidRawAllMidsWrapper,
@@ -40,7 +41,6 @@ from cyberdelta.apis.hyperliquid.models.hl_ws_payloads import (
     HyperliquidRawWsTradesSubscriptionPayload,
     HyperliquidRawWsUserEventsSubscriptionPayload,
 )
-from cyberdelta.apis.exceptions.websocket import EnvelopeValidatorNotSetError
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.apis.websocket.ws_mapper_adapters import (
     WebSocketBatchMapperAdapter,

@@ -396,12 +396,14 @@ class TestCreateMarketFromAssetDefinition:
         )  # Valid but will be mocked to fail
 
         # Mock parse_decimal_safely to return None for invalid sz_decimals
-        with patch.object(mapper, "parse_decimal_safely", return_value=None):
-            with pytest.raises(
+        with (
+            patch.object(mapper, "parse_decimal_safely", return_value=None),
+            pytest.raises(
                 MissingRequiredFieldError,
                 match="sz_decimals is required for asset definition for INVALID-PERP",
-            ):
-                mapper.transform_single_asset_to_market(asset_def)
+            ),
+        ):
+            mapper.transform_single_asset_to_market(asset_def)
 
     def test_create_market_from_asset_definition_extreme_sz_decimals(
         self,

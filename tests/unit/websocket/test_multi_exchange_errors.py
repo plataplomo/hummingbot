@@ -12,12 +12,12 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.websocket.error_context.error_handler import WebSocketErrorHandler
 from cyberdelta.apis.websocket.error_context.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
-from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
 from tests.unit.websocket.test_helpers import MockWebSocketErrorHandlerRegistry

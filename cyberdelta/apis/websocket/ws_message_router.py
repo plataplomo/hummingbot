@@ -17,6 +17,10 @@ from cyberdelta.apis.base.infrastructure_config_domain import (
     MemoryOptimizationMode,
 )
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import (
+    EnvelopeValidatorNotSetError,
+    WebSocketValidationError,
+)
 from cyberdelta.apis.protocols.websocket.processing import MessageHandler, MessageProcessor
 from cyberdelta.apis.websocket.connection.state_tracker import (
     ConnectionStateManager,
@@ -29,10 +33,6 @@ from cyberdelta.apis.websocket.error_context.builders.router_builder import (
 # Import WebSocket error handler
 from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
-)
-from cyberdelta.apis.exceptions.websocket import (
-    EnvelopeValidatorNotSetError,
-    WebSocketValidationError,
 )
 from cyberdelta.apis.websocket.memory.memory_optimized import (
     MemoryOptimizedMessageContext,

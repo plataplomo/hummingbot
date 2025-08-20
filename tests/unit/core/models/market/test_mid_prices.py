@@ -161,8 +161,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)

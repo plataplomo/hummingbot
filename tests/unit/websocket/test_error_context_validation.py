@@ -12,9 +12,9 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.websocket.error_context.validation import StreamErrorContextValidator
-from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.enums import ExchangeName
 from tests.utils.websocket.error_test_utils import (
     ErrorAssertions,
@@ -29,7 +29,7 @@ class TestErrorContextValidation:
         """Test creating valid error contexts."""
         context = ErrorTestFactory.create_test_context(
             connection_id="conn-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             sequence_number=1000,
@@ -46,7 +46,7 @@ class TestErrorContextValidation:
         """Test creating context with minimal required fields."""
         context = StreamErrorContext(
             connection_id="conn-min",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             error_timestamp_ms=int(datetime.now(UTC).timestamp() * 1000),
         )
 
@@ -272,7 +272,7 @@ class TestErrorContextValidation:
         # Context with all fields
         full_context = StreamErrorContext(
             connection_id="full-conn",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
             topic="ETH-USDC",
             sequence_number=5000,
@@ -297,7 +297,7 @@ class TestErrorContextValidation:
         """Test context summary generation."""
         context = StreamErrorContext(
             connection_id="very-long-connection-id-that-should-be-truncated",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             error_timestamp_ms=1000,
@@ -358,18 +358,18 @@ class TestErrorContextValidation:
         """Test field constraints and limits."""
         # Test maximum field lengths based on actual validator patterns
         max_connection_id = "x" * 128  # Maximum allowed per CONNECTION_ID_PATTERN
-        max_exchange = "y" * 32  # Maximum allowed per EXCHANGE_PATTERN
         max_channel = "z" * 64  # Maximum allowed per CHANNEL_PATTERN
 
         context = StreamErrorContext(
             connection_id=max_connection_id,
-            exchange=max_exchange,
+            exchange=ExchangeName.HYPERLIQUID,  # Use valid enum value
             channel=max_channel,
             error_timestamp_ms=1000,
         )
 
         assert len(context.connection_id) == 128
-        assert len(context.exchange) == 32
+        # Exchange is an enum, not a string with length constraints
+        assert context.exchange == ExchangeName.HYPERLIQUID
         assert context.channel is not None
         assert len(context.channel) == 64
 
@@ -403,13 +403,13 @@ class TestErrorContextValidation:
         """Test context comparison and equality."""
         context1 = ErrorTestFactory.create_test_context(
             connection_id="connection-1",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
         )
 
         context2 = ErrorTestFactory.create_test_context(
             connection_id="connection-1",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             error_timestamp_ms=int(datetime.now(UTC).timestamp() * 1000)
             + 1000,  # Different timestamp
@@ -417,7 +417,7 @@ class TestErrorContextValidation:
 
         context3 = ErrorTestFactory.create_test_context(
             connection_id="connection-2",  # Different
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
         )
 
@@ -432,7 +432,7 @@ class TestErrorContextValidation:
         """Test context serialization and deserialization."""
         original = ErrorTestFactory.create_test_context(
             connection_id="ser-test",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             channel="account",
             topic="balances",
             sequence_number=1000,
@@ -461,7 +461,7 @@ class TestErrorContextValidation:
         """Test context with metrics fields."""
         context = StreamErrorContext(
             connection_id="metrics-conn",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             error_timestamp_ms=1000,
             active_subscriptions=25,
             raw_message_size=4096,

@@ -16,8 +16,7 @@ from cyberdelta.apis.backpack.models.bp_raw_margin_functions import (
 from cyberdelta.apis.backpack.models.bp_raw_position import BackpackRawPositionResponse
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.enums import OrderSide
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums import ExchangeName, OrderSide
 from tests.common_symbols import BTC_USDC_BP, SOL_BP, SOL_USDC_BP
 
 
@@ -65,7 +64,7 @@ class TestBackpackAccountServicePositions:
         ]
 
         # Expected values to check against actual mapper behavior
-        # Mapper returns exchange="backpack" not "backpack_test_account"
+        # Mapper returns exchange=ExchangeName.BACKPACK not "backpack_test_account"
 
         # These mocks are no longer needed as we're using the composite service pattern
 
@@ -81,7 +80,7 @@ class TestBackpackAccountServicePositions:
 
         result_no_symbol = await bp_account_service.get_positions(symbol=None)
 
-        # Business logic returns positions with exchange="backpack"
+        # Business logic returns positions with exchange=ExchangeName.BACKPACK
         assert len(result_no_symbol) == 1
         assert result_no_symbol[0].exchange == ExchangeName.BACKPACK
         assert result_no_symbol[0].symbol == symbol_arg
@@ -110,7 +109,7 @@ class TestBackpackAccountServicePositions:
 
         result_with_symbol = await bp_account_service.get_positions(symbol=symbol_arg)
 
-        # Business logic returns positions with exchange="backpack"
+        # Business logic returns positions with exchange=ExchangeName.BACKPACK
         assert len(result_with_symbol) == 1
         assert result_with_symbol[0].exchange == ExchangeName.BACKPACK
         assert result_with_symbol[0].symbol == symbol_arg
@@ -234,7 +233,7 @@ class TestBackpackAccountServicePositions:
 
         result = await bp_account_service.get_positions(symbol=None)
 
-        # Business logic returns positions with exchange="backpack"
+        # Business logic returns positions with exchange=ExchangeName.BACKPACK
         assert len(result) == 1
         assert result[0].exchange == ExchangeName.BACKPACK
         assert result[0].symbol == SOL_USDC_BP
@@ -283,7 +282,7 @@ class TestBackpackAccountServicePositions:
 
         result = await bp_account_service.get_positions(symbol=None)
 
-        # Business logic returns positions with exchange="backpack"
+        # Business logic returns positions with exchange=ExchangeName.BACKPACK
         assert len(result) == 1
         assert result[0].exchange == ExchangeName.BACKPACK
         assert result[0].symbol == SOL_USDC_BP

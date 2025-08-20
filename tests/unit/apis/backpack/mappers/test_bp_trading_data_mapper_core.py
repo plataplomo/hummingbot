@@ -249,8 +249,8 @@ def timestamp_string_strategy() -> SearchStrategy[str]:
     return st.builds(
         _datetime_to_isoformat,
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 1, 1),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 1, 1, tzinfo=UTC),
             timezones=st.just(UTC),
         ),
     )

@@ -3,20 +3,21 @@
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from cyberdelta.apis.common.error_foundation import (
     ErrorSeverity,
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.websocket.metrics.error_metrics import (
     MetricsAggregator,
     WebSocketErrorMetrics,
 )
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorMetricsConfig
+from cyberdelta.enums import ExchangeName
 
 
 class TestWebSocketErrorMetrics:
@@ -42,7 +43,7 @@ class TestWebSocketErrorMetrics:
         # Create a proper WebSocketStreamError
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
         error = WebSocketStreamError(
@@ -79,7 +80,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -114,7 +115,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -140,7 +141,7 @@ class TestWebSocketErrorMetrics:
         collector = WebSocketErrorMetrics(config)
 
         # Record errors from different exchanges
-        exchanges = ["hyperliquid", "backpack", "hyperliquid"]
+        exchanges = [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK, ExchangeName.HYPERLIQUID]
 
         for exchange in exchanges:
             context = StreamErrorContext(
@@ -168,7 +169,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -205,7 +206,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -224,19 +225,18 @@ class TestWebSocketErrorMetrics:
         summary = collector.get_summary()
         assert summary.average_recovery_duration_ms == 20.0  # Average of 10, 20, 30
 
-    @patch("time.time")
-    def test_error_rate_calculation(self, mock_time: MagicMock) -> None:
+    def test_error_rate_calculation(self, mock_time_patch: MagicMock) -> None:
         """Test error rate calculation."""
         config = WebSocketErrorMetricsConfig()
         collector = WebSocketErrorMetrics(config)
 
         # Simulate errors over time
         base_time = 1000.0
-        mock_time.return_value = base_time
+        mock_time_patch.return_value = base_time
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -252,7 +252,7 @@ class TestWebSocketErrorMetrics:
             collector.record_error(error)
 
         # Move forward 60 seconds
-        mock_time.return_value = base_time + 60
+        mock_time_patch.return_value = base_time + 60
 
         # Test through public interface - get overall error rate
         summary = collector.get_summary()
@@ -269,7 +269,7 @@ class TestWebSocketErrorMetrics:
         # Add an error
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
         error = WebSocketStreamError(
@@ -291,7 +291,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -324,7 +324,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -353,7 +353,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -388,7 +388,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -405,7 +405,7 @@ class TestWebSocketErrorMetrics:
 
         # Record some recovery attempts
         collector.record_recovery_attempt(
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             connection_id="test-connection",
             strategy=WebSocketRecoveryStrategy.RECONNECT_SAME,
             attempt_number=1,
@@ -424,7 +424,7 @@ class TestWebSocketErrorMetrics:
         collector = WebSocketErrorMetrics(config)
 
         # Record errors for different exchanges
-        exchanges = ["hyperliquid"] * 5 + ["backpack"] * 3
+        exchanges = [ExchangeName.HYPERLIQUID] * 5 + [ExchangeName.BACKPACK] * 3
 
         for exchange in exchanges:
             context = StreamErrorContext(
@@ -472,7 +472,7 @@ class TestWebSocketErrorMetrics:
 
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 
@@ -540,7 +540,7 @@ class TestMetricsAggregator:
         config = WebSocketErrorMetricsConfig()
         context = StreamErrorContext(
             connection_id="test-connection",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 

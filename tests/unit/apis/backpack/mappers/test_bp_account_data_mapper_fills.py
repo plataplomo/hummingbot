@@ -121,15 +121,6 @@ def _create_negative_decimal_string(n: str) -> str:
     return f"-{n}"
 
 
-def _mock_parse_decimal_safely(v: str, **kwargs: object) -> Decimal | None:
-    """Mock implementation of parse_decimal_safely for testing negative values.
-
-    Returns:
-        Decimal | None: Parsed decimal value or None if empty.
-    """
-    return Decimal(str(v)) if v else None
-
-
 def decimal_string_strategy() -> SearchStrategy[str]:
     """Generate valid decimal strings for prices and quantities.
 
@@ -244,8 +235,8 @@ def timestamp_strategy() -> SearchStrategy[str]:
     return st.builds(
         _create_isoformat_datetime,
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 1, 1),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 1, 1, tzinfo=UTC),
             timezones=st.just(UTC),
         ),
     )
@@ -311,7 +302,8 @@ def raw_position_update_strategy(draw: st.DrawFn) -> BackpackRawPositionUpdate:
     net_quantity = draw(st.one_of(st.none(), decimal_string_strategy()))
 
     # Business rule: if net_quantity is non-zero, entry_price must be provided
-    if net_quantity is not None and net_quantity != "0" and net_quantity != "0.0":
+    entry_price: str | None
+    if net_quantity is not None and net_quantity not in {"0", "0.0"}:
         # Non-zero position requires entry_price
         entry_price = draw(decimal_string_strategy())
     else:
@@ -1190,7 +1182,15 @@ class TestErrorHandlingProperties:
         mapper = BackpackTransactionMapper()
         with patch.object(mapper, "parse_decimal_safely") as mock_parse:
             # Mock to return the negative value as a Decimal
-            mock_parse.side_effect = lambda v, default=None: Decimal(str(v)) if v else default
+            def parse_side_effect(v: str, default: Decimal | None = None) -> Decimal | None:
+                """Mock side effect for parse_decimal_safely.
+
+                Returns:
+                    Decimal or None based on input.
+                """
+                return Decimal(str(v)) if v else default
+
+            mock_parse.side_effect = parse_side_effect
 
             raw_fill = create_raw_fill(**kwargs)  # type: ignore
             result = mapper.transform_raw_fill_to_internal(raw_fill)

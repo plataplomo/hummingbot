@@ -18,17 +18,18 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.error_context.error_handler import WebSocketErrorHandler
 from cyberdelta.apis.websocket.error_context.recovery import (
     RecoveryExecutor,
     RecoveryPolicyManager,
 )
-from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorConfig,
     WebSocketErrorMetricsConfig,
     WebSocketErrorRecoveryConfig,
 )
+from cyberdelta.enums import ExchangeName
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
@@ -137,6 +138,7 @@ class TestConcurrentErrorHandling:
         await asyncio.sleep(delay)
         return True
 
+    @pytest.mark.timing
     async def test_concurrent_same_error_type(
         self,
         error_config: WebSocketErrorConfig,
@@ -164,6 +166,7 @@ class TestConcurrentErrorHandling:
         assert all(r is None or isinstance(r, Exception) for r in results)
 
         # Check metrics
+        assert handler.metrics_collector is not None
         stats = handler.metrics_collector.get_statistics()
         assert stats.total_errors_recorded == 20
 
@@ -205,6 +208,7 @@ class TestConcurrentErrorHandling:
         assert len(results) == 25
 
         # Check error distribution in metrics
+        assert handler.metrics_collector is not None
         stats = handler.metrics_collector.get_statistics()
         assert stats.total_errors_recorded == 25
         # Check that we have multiple error types in summary
@@ -340,6 +344,7 @@ class TestConcurrentErrorHandling:
             await asyncio.gather(*tasks, return_exceptions=True)
 
         # Check final metrics
+        assert handler.metrics_collector is not None
         stats = handler.metrics_collector.get_statistics()
         assert stats.total_errors_recorded == num_errors
 
@@ -369,6 +374,7 @@ class TestConcurrentErrorHandling:
         await asyncio.gather(*tasks, return_exceptions=True)
 
         # Verify metrics accuracy
+        assert handler.metrics_collector is not None
         stats = handler.metrics_collector.get_statistics()
         assert stats.total_errors_recorded == sum(error_counts.values())
 
@@ -480,14 +486,14 @@ class TestConcurrentErrorHandling:
             for _ in range(15)
         ]
         for error in hl_errors:
-            error.context.exchange = "hyperliquid"
+            error.context.exchange = ExchangeName.HYPERLIQUID
 
         bp_errors = [
             ErrorTestFactory.create_test_error(code=WebSocketErrorCode.RATE_LIMITED)
             for _ in range(15)
         ]
         for error in bp_errors:
-            error.context.exchange = "backpack"
+            error.context.exchange = ExchangeName.BACKPACK
 
         # Handle concurrently
         hl_tasks = [hl_handler.handle_stream_error(error) for error in hl_errors]
@@ -496,6 +502,8 @@ class TestConcurrentErrorHandling:
         all_results = await asyncio.gather(*hl_tasks, *bp_tasks, return_exceptions=True)
 
         # Check isolation
+        assert hl_handler.metrics_collector is not None
+        assert bp_handler.metrics_collector is not None
         hl_stats = hl_handler.metrics_collector.get_statistics()
         bp_stats = bp_handler.metrics_collector.get_statistics()
 
@@ -562,6 +570,7 @@ class TestConcurrentErrorHandling:
         assert len(resources_freed) == 50
         assert set(resources_allocated) == set(resources_freed)
 
+    @pytest.mark.timing
     async def test_performance_under_concurrent_load(
         self,
         error_config: WebSocketErrorConfig,
@@ -601,5 +610,6 @@ class TestConcurrentErrorHandling:
         assert speedup > 2.0, f"Expected significant speedup, got {speedup:.2f}x"
 
         # Verify same number of errors processed
+        assert handler.metrics_collector is not None
         stats = handler.metrics_collector.get_statistics()
         assert stats.total_errors_recorded == 100

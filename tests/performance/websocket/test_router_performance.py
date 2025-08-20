@@ -25,9 +25,10 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
-from cyberdelta.apis.websocket.error_handling.error_handler import WebSocketErrorHandler
+from cyberdelta.apis.protocols.websocket.processing import MessageHandler
+from cyberdelta.apis.websocket.error_context.error_handler import WebSocketErrorHandler
 from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
-from cyberdelta.apis.protocols.websocket.processing import MessageHandler, WebSocketMessageRouter
+from cyberdelta.apis.websocket.ws_message_router import WebSocketMessageRouter
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
 
@@ -189,6 +190,7 @@ class TestWebSocketRouterPerformance:
             envelope_validator=envelope_validator,
         )
 
+    @pytest.mark.timing
     async def test_router_successful_message_processing_performance(
         self,
         performance_router: TestRouterImpl,
@@ -223,6 +225,7 @@ class TestWebSocketRouterPerformance:
         assert processor.processed_count == 1
         handler.assert_called_once()
 
+    @pytest.mark.timing
     async def test_router_bulk_message_processing_performance(
         self,
         performance_router: TestRouterImpl,
@@ -268,6 +271,7 @@ class TestWebSocketRouterPerformance:
         assert processor.processed_count == 100
         assert handler.call_count == 100
 
+    @pytest.mark.timing
     async def test_router_concurrent_message_processing_performance(
         self,
         performance_router: TestRouterImpl,
@@ -320,6 +324,7 @@ class TestWebSocketRouterPerformance:
         assert processor.processed_count == 50
         assert handler.call_count == 50
 
+    @pytest.mark.timing
     async def test_router_envelope_validation_error_performance(
         self,
         performance_router: TestRouterImpl,
@@ -354,6 +359,7 @@ class TestWebSocketRouterPerformance:
         # Verify error was handled
         mock_error_handler.handle_stream_error.assert_called_once()
 
+    @pytest.mark.timing
     async def test_router_bulk_validation_error_performance(
         self,
         performance_router: TestRouterImpl,
@@ -393,6 +399,7 @@ class TestWebSocketRouterPerformance:
         # Verify all errors were handled
         assert mock_error_handler.handle_stream_error.call_count == 50
 
+    @pytest.mark.timing
     async def test_router_missing_processor_error_performance(
         self,
         performance_router: TestRouterImpl,
@@ -420,6 +427,7 @@ class TestWebSocketRouterPerformance:
         # Verify error was handled
         mock_error_handler.handle_stream_error.assert_called_once()
 
+    @pytest.mark.timing
     async def test_router_mixed_success_error_performance(
         self,
         performance_router: TestRouterImpl,
@@ -473,6 +481,7 @@ class TestWebSocketRouterPerformance:
         assert handler.call_count == 70
         # 30 error messages should have been handled by error system
 
+    @pytest.mark.timing
     async def test_router_memory_optimization_performance(
         self,
         performance_router: TestRouterImpl,
@@ -527,6 +536,7 @@ class TestWebSocketRouterPerformance:
         memory_stats = performance_router.get_memory_stats()
         assert memory_stats is not None
 
+    @pytest.mark.timing
     async def test_router_comprehensive_stats_performance(
         self,
         performance_router: TestRouterImpl,
@@ -564,6 +574,7 @@ class TestWebSocketRouterPerformance:
         )
         assert max_stats_time < 5.0, f"Max stats collection {max_stats_time:.2f}ms, should be < 5ms"
 
+    @pytest.mark.timing
     async def test_router_error_recovery_performance(
         self,
         performance_router: TestRouterImpl,
@@ -613,6 +624,7 @@ class TestWebSocketRouterPerformance:
         # Verify error was handled
         mock_error_handler.handle_stream_error.assert_called_once()
 
+    @pytest.mark.timing
     async def test_router_processor_registration_performance(
         self,
         performance_router: TestRouterImpl,
@@ -668,6 +680,7 @@ class TestWebSocketRouterPerformance:
         assert avg_info_time < 2.0, f"Average info retrieval {avg_info_time:.2f}ms, should be < 2ms"
         assert max_info_time < 10.0, f"Max info retrieval {max_info_time:.2f}ms, should be < 10ms"
 
+    @pytest.mark.timing
     async def test_router_high_frequency_scenario_performance(
         self,
         performance_router: TestRouterImpl,

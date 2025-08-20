@@ -10,6 +10,7 @@ import pytest
 
 from cyberdelta.apis.enums.websocket import HealthStatus
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.models.websocket.health import (
     ComponentStatus,
@@ -19,7 +20,6 @@ from cyberdelta.apis.models.websocket.health import (
 from cyberdelta.apis.websocket.error_context.error_handler_factory import (
     WebSocketErrorHandlerFactory,
 )
-from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.enums import ExchangeName
 from tests.unit.websocket.test_helpers import MockWebSocketErrorHandlerRegistry
 

@@ -126,6 +126,38 @@ class StreamErrorContext(BaseModel):
     # Validation
     # ========================================================================
 
+    # Validation constants
+    MIN_CONNECTION_ID_LENGTH = 8
+    MAX_CONNECTION_ID_LENGTH = 128
+    MAX_CHANNEL_LENGTH = 64
+
+    @classmethod
+    def _connection_id_error_message(cls, actual_length: int) -> str:
+        """Generate connection ID validation error message.
+
+        Args:
+            actual_length: Actual length of the connection ID
+
+        Returns:
+            Formatted error message
+        """
+        return (
+            f"connection_id must be {cls.MIN_CONNECTION_ID_LENGTH}-{cls.MAX_CONNECTION_ID_LENGTH} "
+            f"characters, got {actual_length}"
+        )
+
+    @classmethod
+    def _channel_error_message(cls, actual_length: int) -> str:
+        """Generate channel validation error message.
+
+        Args:
+            actual_length: Actual length of the channel
+
+        Returns:
+            Formatted error message
+        """
+        return f"channel must be <= {cls.MAX_CHANNEL_LENGTH} characters, got {actual_length}"
+
     @field_validator("connection_id")
     @classmethod
     def validate_connection_id(cls, v: str) -> str:
@@ -133,13 +165,17 @@ class StreamErrorContext(BaseModel):
 
         Returns:
             The validated connection ID
+
+        Raises:
+            ValueError: If connection ID is empty or invalid length
         """
         # Model performs basic validation only
         # Extended validation is done by StreamErrorContextValidator externally
         if not v or not v.strip():
-            raise ValueError("connection_id must be a non-empty string")
-        if len(v) < 8 or len(v) > 128:
-            raise ValueError(f"connection_id must be 8-128 characters, got {len(v)}")
+            msg = "connection_id must be a non-empty string"
+            raise ValueError(msg)
+        if len(v) < cls.MIN_CONNECTION_ID_LENGTH or len(v) > cls.MAX_CONNECTION_ID_LENGTH:
+            raise ValueError(cls._connection_id_error_message(len(v)))
         return v
 
     @field_validator("exchange")
@@ -160,13 +196,16 @@ class StreamErrorContext(BaseModel):
 
         Returns:
             The validated channel name or None
+
+        Raises:
+            ValueError: If channel name exceeds maximum length
         """
         # Model performs basic validation only
         # Extended validation is done by StreamErrorContextValidator externally
         if v is None:
             return v
-        if len(v) > 64:
-            raise ValueError(f"channel must be <= 64 characters, got {len(v)}")
+        if len(v) > cls.MAX_CHANNEL_LENGTH:
+            raise ValueError(cls._channel_error_message(len(v)))
         return v
 
     @field_validator("sequence_number", "expected_sequence", "last_received_sequence")

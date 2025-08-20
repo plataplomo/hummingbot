@@ -58,8 +58,8 @@ from tests.common_symbols import (
 
 
 # Constants for datetime ranges - timezone-aware for ruff compliance
-MIN_TEST_DATE_NAIVE = datetime(2020, 1, 1)
-MAX_TEST_DATE_NAIVE = datetime(2030, 12, 31)
+MIN_TEST_DATE_NAIVE = datetime(2020, 1, 1, tzinfo=UTC)
+MAX_TEST_DATE_NAIVE = datetime(2030, 12, 31, tzinfo=UTC)
 
 pytestmark = pytest.mark.timing
 

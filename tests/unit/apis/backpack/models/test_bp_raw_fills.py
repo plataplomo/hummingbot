@@ -103,8 +103,8 @@ def iso_timestamp_strategy() -> SearchStrategy[str]:
         Hypothesis strategy that generates valid ISO 8601 timestamp strings
     """
     return st.datetimes(
-        min_value=datetime(2020, 1, 1),
-        max_value=datetime(2030, 1, 1),
+        min_value=datetime(2020, 1, 1, tzinfo=UTC),
+        max_value=datetime(2030, 1, 1, tzinfo=UTC),
         timezones=st.just(UTC),
     ).map(lambda dt: dt.isoformat().replace("+00:00", "Z"))
 

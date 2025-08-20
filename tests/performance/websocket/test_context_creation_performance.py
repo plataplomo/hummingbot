@@ -12,7 +12,8 @@ from datetime import UTC, datetime
 
 import pytest
 
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.enums import ExchangeName
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
@@ -83,7 +84,7 @@ class TestContextCreationPerformance:
         for _ in range(5):
             StreamErrorContext(
                 connection_id="full-perf-test",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 channel="trades",
                 topic="BTC-USDC",
                 sequence_number=1000,
@@ -101,7 +102,7 @@ class TestContextCreationPerformance:
         start_time = time.perf_counter()
         context = StreamErrorContext(
             connection_id="full-perf-test",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             sequence_number=1000,
@@ -137,7 +138,7 @@ class TestContextCreationPerformance:
         for _ in range(10):
             StreamErrorContext(
                 connection_id="validation-perf-test",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 channel="trades",
                 topic="BTC-USDC",
                 sequence_number=1000,
@@ -148,7 +149,7 @@ class TestContextCreationPerformance:
         start_time = time.perf_counter()
         context_no_validation = StreamErrorContext.model_construct(
             connection_id="validation-perf-test",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             sequence_number=1000,
@@ -161,7 +162,7 @@ class TestContextCreationPerformance:
         start_time = time.perf_counter()
         context_with_validation = StreamErrorContext(
             connection_id="validation-perf-test",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             sequence_number=1000,
@@ -261,7 +262,7 @@ class TestContextCreationPerformance:
 
         base_data = {
             "connection_id": "scaling-test",
-            "exchange": "hyperliquid",
+            "exchange": ExchangeName.HYPERLIQUID,
             "error_timestamp_ms": int(datetime.now(UTC).timestamp() * 1000),
         }
 

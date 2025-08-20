@@ -16,6 +16,12 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import (
+    WebSocketConfigurationError,
+    WebSocketConnectionError,
+    WebSocketSubscriptionError,
+)
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.websocket.error_context import (
     WebSocketErrorHandler,
@@ -26,12 +32,6 @@ from cyberdelta.apis.websocket.error_context.events import (
     SeverityEventFilter,
     WebSocketErrorEventPublisher,
 )
-from cyberdelta.apis.exceptions.websocket import (
-    WebSocketConfigurationError,
-    WebSocketConnectionError,
-    WebSocketSubscriptionError,
-)
-from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
@@ -686,6 +686,7 @@ class TestEventPublisherIntegration:
         return LoggingEventHandler(logger=logger, log_level="INFO")
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_error_event_publishing_flow(
         self,
         event_publisher: WebSocketErrorEventPublisher,

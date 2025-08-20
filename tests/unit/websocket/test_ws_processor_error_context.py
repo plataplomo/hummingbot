@@ -82,7 +82,7 @@ class MockContext:
         self.domain_model: object = None
 
         # Required by BaseContextProtocol
-        self.exchange_name = "hyperliquid"
+        self.exchange_name = ExchangeName.HYPERLIQUID
         self.validated_envelope = None
         self.raw_model = None
 
@@ -99,7 +99,7 @@ class MockContext:
         """
         return {
             "connection_id": self.connection_id,
-            "exchange_name": self.exchange_name,
+            "exchange_name": self.exchange_name.value,  # Convert enum to string for serialization
             "channel": self.channel,
             "routing_key": self.routing_key,
             "sequence_number": self.sequence_number,
@@ -530,7 +530,7 @@ class TestProcessorErrorContextBuilder:
         # Arrange
         context = StreamErrorContext(
             connection_id="test-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             # Uses default metadata from factory
         )
 

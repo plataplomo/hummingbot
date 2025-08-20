@@ -13,11 +13,11 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import WebSocketValidationError
 from cyberdelta.apis.protocols.websocket.processing import MessageHandler
 from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.exceptions.websocket import WebSocketValidationError
 from cyberdelta.apis.websocket.registry.registry_factory import WebSocketRegistryFactory
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor

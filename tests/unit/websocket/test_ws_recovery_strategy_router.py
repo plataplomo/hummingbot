@@ -13,11 +13,12 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.websocket.error_context.recovery.recovery_strategy_router import (
     RecoveryStrategyRouter,
 )
-from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
+from cyberdelta.enums import ExchangeName
 
 
 @pytest.mark.asyncio
@@ -58,7 +59,7 @@ class TestRecoveryStrategyRouter:
         """
         context = StreamErrorContext(
             connection_id="test-conn-id",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="test-channel",
             reconnect_count=2,
         )

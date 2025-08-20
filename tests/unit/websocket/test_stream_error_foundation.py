@@ -17,9 +17,6 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
-from cyberdelta.apis.models.websocket.stream_log import WebSocketStreamLogData
-from cyberdelta.apis.websocket.error_context.validation import StreamErrorContextValidator
 from cyberdelta.apis.exceptions.websocket import (
     WebSocketAuthenticationError,
     WebSocketConnectionError,
@@ -30,6 +27,9 @@ from cyberdelta.apis.exceptions.websocket import (
     WebSocketValidationError,
 )
 from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.models.websocket.stream_log import WebSocketStreamLogData
+from cyberdelta.apis.websocket.error_context.validation import StreamErrorContextValidator
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorAlertingConfig,
     WebSocketErrorConfig,
@@ -37,6 +37,7 @@ from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorMetricsConfig,
     WebSocketErrorRecoveryConfig,
 )
+from cyberdelta.enums import ExchangeName
 
 
 # ============================================================================
@@ -246,7 +247,7 @@ class TestStreamErrorContext:
         """
         return StreamErrorContext(
             connection_id="test-connection-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             sequence_number=100,
@@ -267,21 +268,22 @@ class TestStreamErrorContext:
         with pytest.raises(ValidationError):
             StreamErrorContext(
                 connection_id="",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             )
 
-        # Empty exchange should fail
+        # Invalid exchange type should fail (testing Pydantic validation)
+        # Using dict to bypass type checking for validation test
         with pytest.raises(ValidationError):
-            StreamErrorContext(
-                connection_id="test-123",
-                exchange="",
-            )
+            StreamErrorContext.model_validate({
+                "connection_id": "test-123",
+                "exchange": "",  # Invalid exchange value
+            })
 
         # Negative sequence numbers should fail
         with pytest.raises(ValidationError):
             StreamErrorContext(
                 connection_id="test-123",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 sequence_number=-1,
             )
 
@@ -350,7 +352,7 @@ class TestWebSocketStreamLogData:
         """
         return StreamErrorContext(
             connection_id="test-123",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             channel="orderbook",
             topic="ETH-USDC",
         )
@@ -432,7 +434,7 @@ class TestWebSocketStreamError:
         """
         return StreamErrorContext(
             connection_id="test-456",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             reconnect_count=2,
         )
 
@@ -561,15 +563,17 @@ class TestStreamErrorContextValidator:
     def test_validate_exchange(self) -> None:
         """Test exchange name validation."""
         # Valid exchanges
-        assert StreamErrorContextValidator.validate_exchange("hyperliquid") == "hyperliquid"
-        assert StreamErrorContextValidator.validate_exchange("BACKPACK") == "backpack"  # Lowercased
+        assert (
+            StreamErrorContextValidator.validate_exchange(ExchangeName.HYPERLIQUID)
+            == ExchangeName.HYPERLIQUID
+        )
+        assert (
+            StreamErrorContextValidator.validate_exchange(ExchangeName.BACKPACK)
+            == ExchangeName.BACKPACK
+        )
 
-        # Invalid exchanges
-        with pytest.raises(ValueError, match="non-empty"):
-            StreamErrorContextValidator.validate_exchange("")
-
-        with pytest.raises(ValueError, match="format"):
-            StreamErrorContextValidator.validate_exchange("123exchange")  # Starts with number
+        # Note: Invalid exchange validation is handled by Pydantic's type enforcement
+        # The validate_exchange method expects an ExchangeName enum, not strings
 
     def test_validate_sequence_consistency(self) -> None:
         """Test sequence consistency validation."""
@@ -616,7 +620,7 @@ class TestWebSocketExceptions:
         """
         return StreamErrorContext(
             connection_id="test-789",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
         )
 
     def test_connection_error(self, sample_context: StreamErrorContext) -> None:
@@ -789,12 +793,12 @@ class TestWebSocketErrorConfig:
         )
 
         # Get config with overrides
-        hl_config = config.get_exchange_config("hyperliquid")
+        hl_config = config.get_exchange_config(ExchangeName.HYPERLIQUID)
         assert hl_config.recovery.max_recovery_attempts == 5
         assert hl_config.recovery.initial_backoff_ms == 2000
 
         # Get config without overrides
-        bp_config = config.get_exchange_config("backpack")
+        bp_config = config.get_exchange_config(ExchangeName.BACKPACK)
         assert bp_config.recovery.max_recovery_attempts == 3  # Default
         assert bp_config.recovery.initial_backoff_ms == 1000  # Default
 
@@ -812,7 +816,7 @@ class TestFoundationIntegration:
         # Create context
         context = StreamErrorContext(
             connection_id="integration-test",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             channel="orderbook",
             topic="SOL-USDC",
             sequence_number=1000,
@@ -860,7 +864,7 @@ class TestFoundationIntegration:
         # Create error
         context = StreamErrorContext(
             connection_id="config-test",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
         )
         context.metadata.retry_count = 2
         context.metadata.backoff_ms = config.recovery.initial_backoff_ms
@@ -880,7 +884,7 @@ class TestFoundationIntegration:
         """Test that all exceptions properly inherit from WebSocketStreamError."""
         context = StreamErrorContext(
             connection_id="hierarchy-test",
-            exchange="test",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Test various exception types

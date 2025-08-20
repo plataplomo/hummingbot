@@ -638,7 +638,7 @@ def mock_ticker_strategy() -> SearchStrategy[Ticker]:
         volume=st.decimals(min_value=Decimal(0), max_value=Decimal(1000000), places=2),
         bid=st.decimals(min_value=Decimal("0.01"), max_value=Decimal(99999), places=2),
         ask=st.decimals(min_value=Decimal("0.02"), max_value=Decimal(100000), places=2),
-        timestamp=st.datetimes(min_value=datetime(2024, 1, 1)),
+        timestamp=st.datetimes(min_value=datetime(2024, 1, 1, tzinfo=UTC)),
     )
 
 

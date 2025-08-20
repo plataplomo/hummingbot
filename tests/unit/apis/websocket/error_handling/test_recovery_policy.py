@@ -10,12 +10,13 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 from cyberdelta.apis.websocket.error_context.recovery import (
     RecoveryPolicyManager,
 )
-from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
+from cyberdelta.enums import ExchangeName
 
 
 class TestRecoveryPolicyManager:
@@ -51,7 +52,7 @@ class TestRecoveryPolicyManager:
         """
         return StreamErrorContext(
             connection_id="test-conn-1",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             is_authenticated=True,
         )
@@ -427,7 +428,7 @@ class TestRecoveryPolicyManager:
         # Create another connection
         context2 = StreamErrorContext(
             connection_id="test-conn-2",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
         )
 
         # Create some retry state for second connection
@@ -457,11 +458,11 @@ class TestRecoveryPolicyManager:
         """Test that different connections have isolated state."""
         context1 = StreamErrorContext(
             connection_id="connection-one",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
         )
         context2 = StreamErrorContext(
             connection_id="connection-two",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
         )
 
         # Update state for connection 1
@@ -479,12 +480,12 @@ class TestRecoveryPolicyManager:
         """Test that different channels have separate state."""
         context1 = StreamErrorContext(
             connection_id="connection-one",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
         )
         context2 = StreamErrorContext(
             connection_id="connection-one",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
         )
 

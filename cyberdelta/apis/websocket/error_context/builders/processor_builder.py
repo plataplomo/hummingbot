@@ -11,8 +11,8 @@ from typing import TYPE_CHECKING, TypeVar
 from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorMetadata
-from cyberdelta.apis.models.websocket import StreamErrorContext
 from cyberdelta.apis.exceptions.websocket import WebSocketContextCreationError
+from cyberdelta.apis.models.websocket import StreamErrorContext
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 
 

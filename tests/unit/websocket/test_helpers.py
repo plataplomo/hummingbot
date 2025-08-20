@@ -117,7 +117,7 @@ class MockWebSocketErrorHandlerRegistry:
         Returns:
             Health check results
         """
-        issues = []
+        issues: list[str] = []
 
         if len(self._handlers) == 0:
             issues.append("No active handlers registered")
