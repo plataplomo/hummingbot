@@ -16,25 +16,26 @@ from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import (
+    WebSocketConfigurationError,
+    WebSocketConnectionError,
+    WebSocketSubscriptionError,
+)
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context import (
+    WebSocketErrorHandler,
+    WebSocketErrorHandlerFactory,
+)
 from cyberdelta.apis.websocket.error_context.events import (
     LoggingEventHandler,
     SeverityEventFilter,
     WebSocketErrorEventPublisher,
 )
-from cyberdelta.apis.websocket.error_context import (
-    WebSocketErrorHandler,
-    WebSocketErrorHandlerFactory,
-)
-from cyberdelta.apis.websocket.exceptions import (
-    WebSocketConfigurationError,
-    WebSocketConnectionError,
-    WebSocketSubscriptionError,
-)
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
+from tests.unit.websocket.test_helpers import MockWebSocketErrorHandlerRegistry
 
 
 # ============================================================================
@@ -389,15 +390,15 @@ class TestErrorHandlerRegistry:
     """Test error handler registry integration."""
 
     @pytest.fixture
-    def registry(self) -> WebSocketErrorHandlerRegistry:
+    def registry(self) -> MockWebSocketErrorHandlerRegistry:
         """Fixture for clean registry.
 
         Returns:
             Fresh WebSocket error handler registry.
         """
-        return WebSocketErrorHandlerRegistry()
+        return MockWebSocketErrorHandlerRegistry()
 
-    def test_registry_caching_behavior(self, registry: WebSocketErrorHandlerRegistry) -> None:
+    def test_registry_caching_behavior(self, registry: MockWebSocketErrorHandlerRegistry) -> None:
         """Test that registry properly caches handlers."""
         # First request creates handler
         handler1 = registry.get_handler(ExchangeName.HYPERLIQUID)
@@ -415,7 +416,7 @@ class TestErrorHandlerRegistry:
 
     def test_registry_different_environments(
         self,
-        registry: WebSocketErrorHandlerRegistry,
+        registry: MockWebSocketErrorHandlerRegistry,
     ) -> None:
         """Test that different environments create different handlers."""
         handler_prod = registry.get_handler(ExchangeName.HYPERLIQUID, environment="production")
@@ -429,7 +430,7 @@ class TestErrorHandlerRegistry:
 
     def test_registry_handler_removal(
         self,
-        registry: WebSocketErrorHandlerRegistry,
+        registry: MockWebSocketErrorHandlerRegistry,
     ) -> None:
         """Test handler removal from registry."""
         # Keep a reference to prevent garbage collection
@@ -454,7 +455,7 @@ class TestErrorHandlerRegistry:
         )
         assert isinstance(handler, WebSocketErrorHandler)
 
-    def test_registry_health_check(self, registry: WebSocketErrorHandlerRegistry) -> None:
+    def test_registry_health_check(self, registry: MockWebSocketErrorHandlerRegistry) -> None:
         """Test registry health check."""
         # Empty registry
         health = registry.health_check()
@@ -685,6 +686,7 @@ class TestEventPublisherIntegration:
         return LoggingEventHandler(logger=logger, log_level="INFO")
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_error_event_publishing_flow(
         self,
         event_publisher: WebSocketErrorEventPublisher,

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RouterErrorMetadata(BaseModel):
@@ -43,10 +43,4 @@ class RouterErrorMetadata(BaseModel):
 
     # Performance data
     processing_start_time_ms: int | None = None
-    error_timestamp_ms: int | None = None
-
-    def model_post_init(self, /, __context: object) -> None:
-        """Set error timestamp if not provided."""
-        if self.error_timestamp_ms is None:
-            # Use setattr for frozen model
-            self.error_timestamp_ms = int(time.time() * 1000)
+    error_timestamp_ms: int = Field(default_factory=lambda: int(time.time() * 1000))

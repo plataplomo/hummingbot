@@ -13,7 +13,7 @@ from typing import Any
 from cyberdelta.apis.base.validation_policies import TimestampPolicy
 
 # Import exceptions from unified hierarchy (Step 30: Migration completed)
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     InvalidFieldTypeError,
     InvalidFormatError,
     InvalidItemTypeError,

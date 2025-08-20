@@ -15,8 +15,7 @@ from cyberdelta.apis.models.service_args.trading import (
     GetOrderHistoryArgs,
     GetTradeHistoryArgs,
 )
-from cyberdelta.enums import OrderSide
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums import ExchangeName, OrderSide
 from cyberdelta.models.operations import Withdrawal
 from tests.common_symbols import SOL_USDC_BP
 
@@ -242,7 +241,7 @@ class TestBackpackAccountServiceHistoryOperations:
             GetTradeHistoryArgs(symbol=SOL_USDC_BP, limit=limit),
         )
 
-        # The mapper returns trades with exchange="backpack" not "backpack_test_account"
+        # The mapper returns trades with exchange=ExchangeName.BACKPACK not "backpack_test_account"
         assert len(result) == 1
         assert result[0].id == "123"
         assert result[0].symbol.value == SOL_USDC_BP.value

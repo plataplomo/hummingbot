@@ -12,9 +12,10 @@ import pytest
 from pydantic import ValidationError
 
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.validation.error_validator import StreamErrorContextValidator
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.validation import StreamErrorContextValidator
+from cyberdelta.enums import ExchangeName
 from tests.utils.websocket.error_test_utils import (
     ErrorAssertions,
     ErrorTestFactory,
@@ -28,7 +29,7 @@ class TestErrorContextValidation:
         """Test creating valid error contexts."""
         context = ErrorTestFactory.create_test_context(
             connection_id="conn-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             sequence_number=1000,
@@ -45,7 +46,7 @@ class TestErrorContextValidation:
         """Test creating context with minimal required fields."""
         context = StreamErrorContext(
             connection_id="conn-min",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             error_timestamp_ms=int(datetime.now(UTC).timestamp() * 1000),
         )
 
@@ -85,30 +86,19 @@ class TestErrorContextValidation:
 
     def test_exchange_validation(self) -> None:
         """Test exchange name validation."""
-        # Valid exchanges
+        # Valid exchanges - now using ExchangeName enum
         valid_exchanges = [
-            "hyperliquid",
-            "backpack",
-            "binance",
-            "coinbase",
-            "test-exchange",
+            ExchangeName.HYPERLIQUID,
+            ExchangeName.BACKPACK,
         ]
 
         for exchange in valid_exchanges:
             validated = StreamErrorContextValidator.validate_exchange(exchange)
-            assert validated == exchange.lower()
+            assert validated == exchange  # Now returns the same enum
+            assert isinstance(validated, ExchangeName)
 
-        # Case normalization
-        assert StreamErrorContextValidator.validate_exchange("HYPERLIQUID") == "hyperliquid"
-        assert StreamErrorContextValidator.validate_exchange("BackPack") == "backpack"
-
-        # Invalid exchanges
-        with pytest.raises(ValueError, match="exchange must be a non-empty string"):
-            StreamErrorContextValidator.validate_exchange("")
-
-        # Too long (>32 chars per pattern)
-        with pytest.raises(ValueError, match="Must be 2-32 lowercase characters"):
-            StreamErrorContextValidator.validate_exchange("x" * 33)
+        # The validator now expects ExchangeName enum, not strings
+        # So string-based tests are no longer valid
 
     def test_sequence_number_validation(self) -> None:
         """Test sequence number validation."""
@@ -154,8 +144,8 @@ class TestErrorContextValidation:
 
         # Valid timestamps
         context = StreamErrorContext(
-            connection_id="conn-1",
-            exchange="test",
+            connection_id="conn-123",  # Fixed: minimum 8 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=now_ms,
             connection_started_ms=now_ms - 10000,
             last_heartbeat_ms=now_ms - 1000,
@@ -166,8 +156,8 @@ class TestErrorContextValidation:
         # Invalid: connection started in future
         with pytest.raises(ValidationError):
             StreamErrorContext(
-                connection_id="conn-1",
-                exchange="test",
+                connection_id="conn-123",  # Fixed: minimum 8 characters
+                exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
                 error_timestamp_ms=now_ms,
                 connection_started_ms=now_ms + 10000,  # Future!
             )
@@ -175,8 +165,8 @@ class TestErrorContextValidation:
         # Invalid: negative timestamp
         with pytest.raises(ValidationError):
             StreamErrorContext(
-                connection_id="conn-1",
-                exchange="test",
+                connection_id="conn-123",  # Fixed: minimum 8 characters
+                exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
                 error_timestamp_ms=-1000,
             )
 
@@ -185,8 +175,8 @@ class TestErrorContextValidation:
         # Valid counts
         for count in [0, 1, 10, 100]:
             context = StreamErrorContext(
-                connection_id="conn-1",
-                exchange="test",
+                connection_id="conn-sub",  # Fixed: minimum 8 characters
+                exchange=ExchangeName.BACKPACK,  # Fixed: use enum
                 error_timestamp_ms=1000,
                 active_subscriptions=count,
             )
@@ -195,8 +185,8 @@ class TestErrorContextValidation:
         # Invalid: negative count
         with pytest.raises(ValidationError):
             StreamErrorContext(
-                connection_id="conn-1",
-                exchange="test",
+                connection_id="conn-sub",  # Fixed: minimum 8 characters
+                exchange=ExchangeName.BACKPACK,  # Fixed: use enum
                 error_timestamp_ms=1000,
                 active_subscriptions=-1,
             )
@@ -250,8 +240,8 @@ class TestErrorContextValidation:
     def test_message_size_validation(self) -> None:
         """Test message size tracking in context."""
         context = StreamErrorContext(
-            connection_id="conn-1",
-            exchange="test",
+            connection_id="conn-msg",  # Fixed: minimum 8 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=1000,
             raw_message_size=1024,
         )
@@ -261,8 +251,8 @@ class TestErrorContextValidation:
         # Invalid: negative size
         with pytest.raises(ValidationError):
             StreamErrorContext(
-                connection_id="conn-1",
-                exchange="test",
+                connection_id="conn-msg",  # Fixed: minimum 8 characters
+                exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
                 error_timestamp_ms=1000,
                 raw_message_size=-100,
             )
@@ -282,7 +272,7 @@ class TestErrorContextValidation:
         # Context with all fields
         full_context = StreamErrorContext(
             connection_id="full-conn",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="orderbook",
             topic="ETH-USDC",
             sequence_number=5000,
@@ -307,7 +297,7 @@ class TestErrorContextValidation:
         """Test context summary generation."""
         context = StreamErrorContext(
             connection_id="very-long-connection-id-that-should-be-truncated",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             topic="BTC-USDC",
             error_timestamp_ms=1000,
@@ -327,8 +317,8 @@ class TestErrorContextValidation:
 
         # Fresh connection
         fresh_context = StreamErrorContext(
-            connection_id="fresh",
-            exchange="test",
+            connection_id="fresh-ctx",  # Fixed: minimum 8 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=int(now.timestamp() * 1000),
             last_message_received_ms=int((now - timedelta(seconds=10)).timestamp() * 1000),
         )
@@ -337,8 +327,8 @@ class TestErrorContextValidation:
 
         # Stale connection
         stale_context = StreamErrorContext(
-            connection_id="stale",
-            exchange="test",
+            connection_id="stale-ctx",  # Fixed: minimum 8 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=int(now.timestamp() * 1000),
             last_message_received_ms=int((now - timedelta(minutes=5)).timestamp() * 1000),
         )
@@ -351,8 +341,8 @@ class TestErrorContextValidation:
         established = now - timedelta(hours=2, minutes=30, seconds=45)
 
         context = StreamErrorContext(
-            connection_id="conn",
-            exchange="test",
+            connection_id="conn-duration",  # Fixed: minimum 8 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=int(now.timestamp() * 1000),
             connection_started_ms=int(established.timestamp() * 1000),
         )
@@ -368,18 +358,18 @@ class TestErrorContextValidation:
         """Test field constraints and limits."""
         # Test maximum field lengths based on actual validator patterns
         max_connection_id = "x" * 128  # Maximum allowed per CONNECTION_ID_PATTERN
-        max_exchange = "y" * 32  # Maximum allowed per EXCHANGE_PATTERN
         max_channel = "z" * 64  # Maximum allowed per CHANNEL_PATTERN
 
         context = StreamErrorContext(
             connection_id=max_connection_id,
-            exchange=max_exchange,
+            exchange=ExchangeName.HYPERLIQUID,  # Use valid enum value
             channel=max_channel,
             error_timestamp_ms=1000,
         )
 
         assert len(context.connection_id) == 128
-        assert len(context.exchange) == 32
+        # Exchange is an enum, not a string with length constraints
+        assert context.exchange == ExchangeName.HYPERLIQUID
         assert context.channel is not None
         assert len(context.channel) == 64
 
@@ -387,7 +377,7 @@ class TestErrorContextValidation:
         with pytest.raises(ValidationError):
             StreamErrorContext(
                 connection_id="x" * 129,  # Too long
-                exchange="test",
+                exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
                 error_timestamp_ms=1000,
             )
 
@@ -413,13 +403,13 @@ class TestErrorContextValidation:
         """Test context comparison and equality."""
         context1 = ErrorTestFactory.create_test_context(
             connection_id="connection-1",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
         )
 
         context2 = ErrorTestFactory.create_test_context(
             connection_id="connection-1",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
             error_timestamp_ms=int(datetime.now(UTC).timestamp() * 1000)
             + 1000,  # Different timestamp
@@ -427,7 +417,7 @@ class TestErrorContextValidation:
 
         context3 = ErrorTestFactory.create_test_context(
             connection_id="connection-2",  # Different
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="trades",
         )
 
@@ -442,7 +432,7 @@ class TestErrorContextValidation:
         """Test context serialization and deserialization."""
         original = ErrorTestFactory.create_test_context(
             connection_id="ser-test",
-            exchange="backpack",
+            exchange=ExchangeName.BACKPACK,
             channel="account",
             topic="balances",
             sequence_number=1000,
@@ -471,7 +461,7 @@ class TestErrorContextValidation:
         """Test context with metrics fields."""
         context = StreamErrorContext(
             connection_id="metrics-conn",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             error_timestamp_ms=1000,
             active_subscriptions=25,
             raw_message_size=4096,
@@ -486,16 +476,16 @@ class TestErrorContextValidation:
         """Test edge case combinations of context fields."""
         # Minimal required fields only
         minimal = StreamErrorContext(
-            connection_id="min",
-            exchange="test",
+            connection_id="minimal-test",  # Fixed: minimum 8 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=1000,
         )
         ErrorAssertions.assert_context_valid(minimal)
 
         # All optional fields None
         all_none = StreamErrorContext(
-            connection_id="none-test",
-            exchange="test",
+            connection_id="none-test",  # Already 9 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=1000,
             channel=None,
             topic=None,
@@ -508,8 +498,8 @@ class TestErrorContextValidation:
 
         # Mix of set and unset fields
         mixed = StreamErrorContext(
-            connection_id="mixed",
-            exchange="hyperliquid",
+            connection_id="mixed-ctx",  # Fixed: minimum 8 characters
+            exchange=ExchangeName.HYPERLIQUID,  # Fixed: use enum
             error_timestamp_ms=1000,
             channel="trades",  # Set
             topic=None,  # Not set

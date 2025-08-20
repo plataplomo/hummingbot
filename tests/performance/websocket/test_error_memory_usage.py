@@ -14,11 +14,12 @@ import tracemalloc
 import pytest
 
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
+from cyberdelta.enums import ExchangeName
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
 
@@ -187,9 +188,10 @@ class TestErrorMemoryUsage:
         snapshot_base = tracemalloc.take_snapshot()
 
         # Create many contexts
+        exchanges = [ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]
         _contexts = [
             ErrorTestFactory.create_test_context(
-                exchange=f"exchange_{i % 3}",
+                exchange=exchanges[i % len(exchanges)],
                 connection_id=f"conn_{i}",
             )
             for i in range(1000)

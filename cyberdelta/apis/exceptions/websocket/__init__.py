@@ -30,7 +30,7 @@ WebSocketError (base for all WebSocket errors)
 ### Basic Error Creation
 
 ```python
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     InvalidPayloadTypeError,
     PayloadSizeError,
     SecurityValidationError,
@@ -53,7 +53,7 @@ size_error = PayloadSizeError(
 ### Using the Error Factory (Recommended)
 
 ```python
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     create_error_factory,
 )
 
@@ -76,7 +76,7 @@ assert validation_error.correlation_id == security_error.correlation_id
 ### Error Categorization and Handling
 
 ```python
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     WebSocketError,
     WebSocketDataValidationError,
     WebSocketSecurityValidationError,
@@ -139,6 +139,11 @@ from .factory import (
     is_retryable_error_code,
 )
 
+# Import field validation error from separate module to avoid circular imports
+from .field_validation import (
+    WebSocketFieldValidationError,
+)
+
 # Import validation error classes from split modules
 from .payload_validation import (
     InvalidPayloadTypeError,
@@ -172,7 +177,6 @@ from .stream import (
     WebSocketAuthenticationError,
     WebSocketConnectionError,
     WebSocketContextCreationError,
-    WebSocketFieldValidationError,
     WebSocketInvalidChannelError,
     WebSocketMessageFormatError,
     WebSocketSecurityError,

@@ -178,8 +178,8 @@ def valid_timestamp_strategy(draw: st.DrawFn) -> datetime:
     """
     naive_dt = draw(
         st.datetimes(
-            min_value=datetime(2020, 1, 1),
-            max_value=datetime(2030, 12, 31),
+            min_value=datetime(2020, 1, 1, tzinfo=UTC),
+            max_value=datetime(2030, 12, 31, tzinfo=UTC),
         )
     )
     return naive_dt.replace(tzinfo=UTC)
@@ -454,7 +454,7 @@ class TestDerivativePositionModelProperties:
             "side": side,
             "size": size,
             "entry_price": entry_price,
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
         }
 
         # Check if this combination violates business rules
@@ -507,7 +507,7 @@ class TestDerivativePositionModelProperties:
             side=side,
             size=size,
             entry_price=entry_price,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
         )
 
         # Since business logic is removed from model, test the is_active() utility instead
@@ -584,7 +584,7 @@ class TestDerivativePositionModelProperties:
             "side": OrderSide.BUY,
             "size": Decimal("1.0"),
             "entry_price": Decimal("50000.0"),
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
             "exchange": exchange,
         }
 
@@ -634,7 +634,7 @@ class TestDerivativePositionModelProperties:
             "side": OrderSide.BUY,
             "size": Decimal("1.0"),
             "entry_price": Decimal("50000.0"),
-            "timestamp": datetime.now(UTC),
+            "timestamp": datetime.now(tz=UTC),
         }
 
         kwargs: dict[str, Any] = base_kwargs.copy()
@@ -660,7 +660,7 @@ class TestDerivativePositionModelProperties:
             side=side,
             size=size,
             entry_price=entry_price,
-            timestamp=datetime.now(UTC),
+            timestamp=datetime.now(tz=UTC),
         )
 
         # Properties: Flat position behavior

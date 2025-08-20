@@ -12,17 +12,18 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from pydantic import BaseModel, ValidationError
 
-from cyberdelta.apis.websocket.error_handling.error_handler import (
-    WebSocketErrorHandler,
-)
-from cyberdelta.apis.websocket.exceptions import WebSocketValidationError
-from cyberdelta.apis.websocket.ws_message_processor import (
+from cyberdelta.apis.exceptions.websocket import WebSocketValidationError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket import (
     MessageTransformer,
     SimpleDictTransformer,
     WebSocketMessageProcessor,
 )
+from cyberdelta.apis.websocket.error_context.error_handler import (
+    WebSocketErrorHandler,
+)
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.enums import ExchangeName
 
 
 class MessageForTest(BaseModel):
@@ -101,7 +102,7 @@ class TestTypedProcessorErrorHandling:
         context.domain_model = None  # Initialize domain_model attribute
         context.create_error_context.return_value = StreamErrorContext(
             connection_id="test-connection-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="test_channel",
             topic="test.route",
             sequence_number=12345,

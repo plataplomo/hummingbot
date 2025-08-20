@@ -12,7 +12,7 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.recovery import (
+from cyberdelta.apis.websocket.error_context.recovery import (
     RecoveryExecutor,
     RecoveryPolicyManager,
 )

@@ -11,6 +11,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
+from cyberdelta.apis.exceptions.websocket import WebSocketConfigurationError
 from cyberdelta.apis.protocols.websocket.configuration import AppConfigProtocol
 from cyberdelta.apis.protocols.websocket.recovery import (
     ConnectionManagerProtocol,
@@ -20,7 +21,6 @@ from cyberdelta.apis.protocols.websocket.recovery import (
 from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketConfigurationError
 from cyberdelta.apis.websocket.metrics.error_metrics import WebSocketErrorMetrics
 from cyberdelta.config.models.websocket_error_config import (
     WebSocketErrorAlertingConfig,

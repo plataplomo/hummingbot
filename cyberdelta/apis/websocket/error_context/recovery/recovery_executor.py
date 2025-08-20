@@ -11,13 +11,13 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.protocols.websocket.recovery import (
     ConnectionManagerProtocol,
     MessageBufferProtocol,
     StateManagerProtocol,
     SubscriptionManagerProtocol,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.config.structlog_config import get_logger
 
 

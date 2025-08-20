@@ -5,7 +5,7 @@ including error context models, builders, handlers, events, and recovery mechani
 """
 
 # Import the model from models directory
-from cyberdelta.apis.models.websocket import StreamErrorContext
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
 
 # Import builders
 from .builders.processor_builder import ProcessorErrorContextBuilder

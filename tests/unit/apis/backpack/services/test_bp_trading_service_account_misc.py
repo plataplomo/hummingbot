@@ -19,8 +19,7 @@ from cyberdelta.core.enums import (
     CancelOrderResultStatus,
     OrderStatus,
 )
-from cyberdelta.enums import OrderSide, OrderType, TimeInForce
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums import ExchangeName, OrderSide, OrderType, TimeInForce
 from cyberdelta.models.market.order import CancelOrderResult, Order
 from tests.common_symbols import SOL_USDC_BP
 

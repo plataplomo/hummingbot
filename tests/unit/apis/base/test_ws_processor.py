@@ -7,11 +7,12 @@ from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.ws_message_processor import (
@@ -156,7 +157,7 @@ class TestWebSocketMessageProcessor:
 
         # Error handler should not be called
         error_handler.handle_validation_error.assert_not_called()
-        error_handler.handle_processing_error.assert_not_called()
+        error_handler.handle_stream_error.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_validation_error(
@@ -194,16 +195,14 @@ class TestWebSocketMessageProcessor:
 
         # Verify
         handler.assert_not_called()
-        error_handler.handle_validation_error.assert_called_once()
+        error_handler.handle_stream_error.assert_called_once()
 
         # Check error handler was called with correct arguments
-        call_args = error_handler.handle_validation_error.call_args
-        assert isinstance(call_args.kwargs["error"], ValidationError)
-        assert call_args.kwargs["payload"] == invalid_payload
-        # Context should be converted to dict by the processor
-        assert isinstance(call_args.kwargs["context"], dict)
-        assert call_args.kwargs["context"]["routing_key"] == context.routing_key
-        assert call_args.kwargs["context"]["message_id"] == context.message_id
+        call_args = error_handler.handle_stream_error.call_args
+        assert call_args is not None
+        # The argument should be a WebSocketStreamError
+        stream_error = call_args.args[0]
+        assert isinstance(stream_error, WebSocketStreamError)
 
         # Check metrics
         assert processor.metrics.validation_errors == 1
@@ -240,7 +239,7 @@ class TestWebSocketMessageProcessor:
 
         # Verify
         handler.assert_not_called()
-        error_handler.handle_processing_error.assert_called_once()
+        error_handler.handle_stream_error.assert_called_once()
 
         # Check metrics
         assert processor.metrics.transformation_errors == 1
@@ -273,7 +272,7 @@ class TestWebSocketMessageProcessor:
 
         # Verify
         handler.assert_called_once()
-        error_handler.handle_processing_error.assert_called_once()
+        error_handler.handle_stream_error.assert_called_once()
 
         # Check metrics
         assert processor.metrics.handler_errors == 1

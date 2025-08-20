@@ -15,10 +15,10 @@ from unittest.mock import AsyncMock
 import pytest
 
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.error_handler import (
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
+from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from tests.utils.websocket.error_test_utils import ErrorTestFactory
 
@@ -149,6 +149,8 @@ class TestErrorHandlerOptimization:
         """
         return OptimizedErrorHandler(config)
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_caching_performance_improvement(
         self,
         optimized_handler: OptimizedErrorHandler,
@@ -185,6 +187,8 @@ class TestErrorHandlerOptimization:
         assert stats["cache_hits"] > 0, "Should have cache hits"
         assert stats["hit_rate"] > 0.4, "Cache hit rate should be reasonable"
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_batch_processing_efficiency(
         self,
         optimized_handler: OptimizedErrorHandler,
@@ -216,6 +220,8 @@ class TestErrorHandlerOptimization:
         speedup = individual_time / batch_time
         assert speedup > 2.0, f"Batch processing only {speedup:.1f}x faster"
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_async_concurrency_optimization(
         self,
         config: WebSocketErrorConfig,
@@ -246,6 +252,8 @@ class TestErrorHandlerOptimization:
         # Should be much faster than sequential (10 * 0.1 = 1 second)
         assert concurrent_time < 0.3, f"Concurrent processing too slow: {concurrent_time:.2f}s"
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_error_grouping_optimization(
         self,
         optimized_handler: OptimizedErrorHandler,
@@ -296,6 +304,8 @@ class TestErrorHandlerOptimization:
             f"Grouping didn't help: {grouped_time:.3f}s vs {mixed_time:.3f}s"
         )
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_circuit_breaker_fast_fail(
         self,
         config: WebSocketErrorConfig,
@@ -323,6 +333,8 @@ class TestErrorHandlerOptimization:
         # Should be fast due to circuit breaker (not attempting recovery for all)
         assert elapsed < 0.1, f"Circuit breaker didn't provide fast fail: {elapsed:.2f}s"
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_metrics_collection_overhead_optimization(
         self,
         config: WebSocketErrorConfig,
@@ -360,6 +372,8 @@ class TestErrorHandlerOptimization:
             overhead = (with_metrics_time - without_metrics_time) / without_metrics_time
             assert overhead < 0.1, f"Metrics overhead too high: {overhead * 100:.1f}%"
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_lazy_initialization_optimization(self) -> None:
         """Test that components are lazily initialized for better startup performance."""
         config = WebSocketErrorConfig()
@@ -376,6 +390,8 @@ class TestErrorHandlerOptimization:
         per_handler = creation_time / 100
         assert per_handler < 0.001, f"Handler creation too slow: {per_handler * 1000:.2f}ms"
 
+    @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_error_deduplication_optimization(
         self,
         optimized_handler: OptimizedErrorHandler,

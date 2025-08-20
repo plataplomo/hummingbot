@@ -25,8 +25,8 @@ import pytest
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from cyberdelta.apis.common.base_types import DomainModelProtocol
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError, WebSocketSubscriptionError
 from cyberdelta.apis.hyperliquid.hl_api import HyperliquidAPI
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError, WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.config.structlog_config import get_logger
 from cyberdelta.symbols import Symbol

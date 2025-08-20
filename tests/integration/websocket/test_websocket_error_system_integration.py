@@ -13,19 +13,19 @@ from pydantic import BaseModel
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling import (
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context import (
     RecoveryExecutor,
     RecoveryPolicyManager,
     RecoveryStrategyRouter,
     WebSocketErrorHandlerFactory,
-    WebSocketErrorHandlerRegistry,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.apis.websocket.ws_message_processor import WebSocketMessageProcessor
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
+from tests.unit.websocket.test_helpers import MockWebSocketErrorHandlerRegistry
 
 
 class ErrorMetricsProtocol(Protocol):
@@ -107,13 +107,13 @@ class TestWebSocketErrorSystemIntegration:
         return WebSocketErrorHandlerFactory()
 
     @pytest.fixture
-    def error_handler_registry(self) -> WebSocketErrorHandlerRegistry:
+    def error_handler_registry(self) -> MockWebSocketErrorHandlerRegistry:
         """Create error handler registry.
 
         Returns:
-            WebSocketErrorHandlerRegistry: Handler registry for testing
+            MockWebSocketErrorHandlerRegistry: Handler registry for testing
         """
-        return WebSocketErrorHandlerRegistry()
+        return MockWebSocketErrorHandlerRegistry()
 
     @pytest.fixture
     def recovery_router(self) -> RecoveryStrategyRouter:
@@ -185,19 +185,18 @@ class TestWebSocketErrorSystemIntegration:
 
     async def test_error_handler_registry_integration(
         self,
-        error_handler_registry: WebSocketErrorHandlerRegistry,
+        error_handler_registry: MockWebSocketErrorHandlerRegistry,
     ) -> None:
         """Test error handler registry functionality."""
         # Get handler for exchange
-        error_config = WebSocketErrorConfig()
-        handler1 = error_handler_registry.get_handler(ExchangeName.HYPERLIQUID, error_config)
+        handler1 = error_handler_registry.get_handler(ExchangeName.HYPERLIQUID)
         handler2 = error_handler_registry.get_handler(ExchangeName.HYPERLIQUID)
 
         # Verify same handler returned (cached)
         assert handler1 is handler2
 
         # Get handler for different exchange
-        handler3 = error_handler_registry.get_handler(ExchangeName.BACKPACK, error_config)
+        handler3 = error_handler_registry.get_handler(ExchangeName.BACKPACK)
 
         # Verify different handler
         assert handler3 is not handler1
@@ -216,7 +215,7 @@ class TestWebSocketErrorSystemIntegration:
                 code=WebSocketErrorCode.CONNECTION_LOST,
                 context=StreamErrorContext(
                     connection_id="test-conn-id",
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID,
                 ),
             ),
             WebSocketStreamError(
@@ -224,7 +223,7 @@ class TestWebSocketErrorSystemIntegration:
                 code=WebSocketErrorCode.RATE_LIMITED,
                 context=StreamErrorContext(
                     connection_id="test-conn-id",
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID,
                 ),
             ),
         ]
@@ -254,7 +253,7 @@ class TestWebSocketErrorSystemIntegration:
                 code=WebSocketErrorCode.CONNECTION_LOST,
                 context=StreamErrorContext(
                     connection_id="test-conn-id",
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID,
                 ),
             ),
             WebSocketStreamError(
@@ -262,7 +261,7 @@ class TestWebSocketErrorSystemIntegration:
                 code=WebSocketErrorCode.VALIDATION_FAILED,
                 context=StreamErrorContext(
                     connection_id="test-conn-id",
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID,
                 ),
             ),
         ]
@@ -336,7 +335,7 @@ class TestWebSocketErrorSystemIntegration:
                 code=code,
                 context=StreamErrorContext(
                     connection_id="test-conn-id",
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID,
                 ),
             )
             assert error.code == code
@@ -361,7 +360,7 @@ class TestWebSocketErrorSystemIntegration:
                 code=WebSocketErrorCode.CONNECTION_LOST,
                 context=StreamErrorContext(
                     connection_id="test-conn-id",
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID,
                 ),
             )
 
@@ -378,7 +377,7 @@ class TestWebSocketErrorSystemIntegration:
         """Validate type safety across components."""
         # Create all components and verify they instantiate correctly
         factory = WebSocketErrorHandlerFactory()
-        registry = WebSocketErrorHandlerRegistry()
+        registry = MockWebSocketErrorHandlerRegistry()
         router = RecoveryStrategyRouter()
 
         # Create typed error
@@ -387,7 +386,7 @@ class TestWebSocketErrorSystemIntegration:
             code=WebSocketErrorCode.CONNECTION_LOST,
             context=StreamErrorContext(
                 connection_id="test-conn-id",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
             ),
         )
 
@@ -400,7 +399,7 @@ class TestWebSocketErrorSystemIntegration:
         handler = factory.create_handler(ExchangeName.HYPERLIQUID, error_config)
         assert handler is not None
 
-        cached_handler = registry.get_handler(ExchangeName.HYPERLIQUID, error_config)
+        cached_handler = registry.get_handler(ExchangeName.HYPERLIQUID)
         assert cached_handler is not None
 
         # Verify recovery routing
@@ -456,7 +455,7 @@ class TestWebSocketErrorSystemIntegration:
                 code=WebSocketErrorCode.CONNECTION_LOST,
                 context=StreamErrorContext(
                     connection_id="test-conn-id",
-                    exchange="hyperliquid",
+                    exchange=ExchangeName.HYPERLIQUID,
                 ),
             )
 

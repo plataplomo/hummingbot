@@ -24,13 +24,13 @@ if TYPE_CHECKING:
     from cyberdelta.apis.websocket.metrics.general_metrics import WebSocketMetricsCollector
 
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.websocket.error_context.builders.processor_builder import (
     ProcessorErrorContextBuilder,
 )
 from cyberdelta.apis.websocket.error_context.error_handler import (
     WebSocketErrorHandler,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 
 
 # Type variables for input and output models

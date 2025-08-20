@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, NoReturn, TypedDict
+from typing import Any, NoReturn, TypedDict, TypeGuard
 
 from cyberdelta.apis.base.protocols.mapper_protocols import CommonDataParserMixin
 from cyberdelta.apis.common import TransformationError
@@ -74,6 +74,40 @@ class OrderComponents(TypedDict):
     trigger_by: TriggerType | None
     created_at: datetime
     updated_at: datetime
+
+
+class TriggerInfoDict(TypedDict, total=False):
+    """TypedDict for trigger info from raw API."""
+
+    triggerPx: object  # Can be string, number, or None
+    trigger_type: object  # Can be string or None
+
+
+def is_trigger_info_dict(value: object) -> TypeGuard[TriggerInfoDict]:
+    """Check if a value is a valid trigger info dictionary.
+
+    Args:
+        value: Value to check
+
+    Returns:
+        True if value is a dict that could be a TriggerInfoDict
+    """
+    return isinstance(value, dict)
+
+
+def is_dict_with_trigger(order_type: dict[str, object]) -> TypeGuard[dict[str, TriggerInfoDict]]:
+    """Check if order_type dict contains a trigger field.
+
+    Args:
+        order_type: Order type dictionary from raw API
+
+    Returns:
+        True if order_type contains a trigger field that is a dict
+    """
+    if "trigger" not in order_type:
+        return False
+    trigger_value = order_type.get("trigger")
+    return isinstance(trigger_value, dict)
 
 
 class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
@@ -433,26 +467,21 @@ class HyperliquidOrderMapper(CommonDataParserMixin, OrderMapperProtocol):
 
         # Parse trigger/stop logic
         # If order_type contains a trigger but no separate trigger param, extract it
-        if (
-            trigger is None
-            and isinstance(raw_order.order_type, dict)
-            and "trigger" in raw_order.order_type
-        ):
-            trigger_info = raw_order.order_type.get("trigger")
-            if isinstance(trigger_info, dict):
-                trigger_px = trigger_info.get("triggerPx")
-                stop_price = self.parse_decimal_safely(
-                    str(trigger_px) if trigger_px is not None else "",
-                    default=None,
-                )
-                # Map trigger type if available
-                trigger_type_str = trigger_info.get("trigger_type")
-                if isinstance(trigger_type_str, str):
-                    trigger_by = HyperliquidTradingEnumMapper.map_trigger_type(trigger_type_str)
-                else:
-                    trigger_by = None
+        if trigger is None and is_dict_with_trigger(raw_order.order_type):
+            # TypeGuard has narrowed the type - we know trigger exists and is a dict
+            trigger_info: TriggerInfoDict = raw_order.order_type["trigger"]
+
+            # Extract trigger price - handle as object since API can return various types
+            trigger_px_raw = trigger_info.get("triggerPx")
+            trigger_px_str = str(trigger_px_raw) if trigger_px_raw is not None else ""
+            stop_price = self.parse_decimal_safely(trigger_px_str, default=None)
+
+            # Map trigger type if available
+            trigger_type_raw = trigger_info.get("trigger_type")
+            if isinstance(trigger_type_raw, str):
+                trigger_by = HyperliquidTradingEnumMapper.map_trigger_type(trigger_type_raw)
             else:
-                stop_price, trigger_by = self._parse_trigger_info(trigger)
+                trigger_by = None
         else:
             stop_price, trigger_by = self._parse_trigger_info(trigger)
 

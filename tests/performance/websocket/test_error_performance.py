@@ -21,23 +21,21 @@ from pydantic import BaseModel, Field, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_context.events import (
-    LoggingEventHandler,
-    WebSocketErrorEventPublisher,
-)
-from cyberdelta.apis.websocket.error_context import (
-    WebSocketErrorHandler,
-)
-from cyberdelta.apis.websocket.error_context import (
-    WebSocketErrorHandlerFactory,
-)
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     WebSocketConnectionError,
     WebSocketSubscriptionError,
     WebSocketValidationError,
 )
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
 from cyberdelta.apis.models.websocket import StreamErrorContext
+from cyberdelta.apis.websocket.error_context import (
+    WebSocketErrorHandler,
+    WebSocketErrorHandlerFactory,
+)
+from cyberdelta.apis.websocket.error_context.events import (
+    LoggingEventHandler,
+    WebSocketErrorEventPublisher,
+)
 from cyberdelta.enums import ExchangeName
 
 
@@ -71,7 +69,7 @@ class MockContext:
         self.domain_model: object = None
 
         # Required by BaseContextProtocol
-        self.exchange_name = "hyperliquid"
+        self.exchange_name = ExchangeName.HYPERLIQUID
         self.validated_envelope = None
         self.raw_model = None
 
@@ -143,7 +141,7 @@ def test_context() -> StreamErrorContext:
     """
     return StreamErrorContext(
         connection_id="perf-test-conn-123",
-        exchange="hyperliquid",
+        exchange=ExchangeName.HYPERLIQUID,
         channel="orderbook",
         topic="BTC-USD",
         sequence_number=42,
@@ -302,7 +300,7 @@ class TestErrorCreationPerformance:
         for i in range(performance_config["warmup_iterations"]):
             StreamErrorContext(
                 connection_id=f"conn-{i}",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 channel="orderbook",
                 topic="BTC-USD",
                 sequence_number=i,
@@ -316,7 +314,7 @@ class TestErrorCreationPerformance:
         for i in range(iterations):
             context = StreamErrorContext(
                 connection_id=f"conn-{i}",
-                exchange="hyperliquid",
+                exchange=ExchangeName.HYPERLIQUID,
                 channel="orderbook",
                 topic="BTC-USD",
                 sequence_number=i,
@@ -484,7 +482,7 @@ class TestErrorHandlingPerformance:
                 self.domain_model: object = None
 
                 # Required by BaseContextProtocol
-                self.exchange_name = "hyperliquid"
+                self.exchange_name = ExchangeName.HYPERLIQUID
                 self.validated_envelope = None
                 self.raw_model = None
 

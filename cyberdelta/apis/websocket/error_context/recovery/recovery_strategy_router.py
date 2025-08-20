@@ -11,8 +11,8 @@ from abc import abstractmethod
 from typing import TYPE_CHECKING, Protocol
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.models.websocket.recovery import RecoveryAction, RecoveryResult
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.config.structlog_config import get_logger
 
 

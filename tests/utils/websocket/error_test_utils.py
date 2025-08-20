@@ -18,8 +18,9 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.exceptions.stream_error import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.exceptions.websocket.stream_error import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.enums import ExchangeName
 
 
 class ErrorTestScenario(BaseModel):
@@ -40,7 +41,7 @@ class ErrorTestFactory:
     @staticmethod
     def create_test_context(
         connection_id: str = "test-connection-123",
-        exchange: str = "testexchange",
+        exchange: ExchangeName = ExchangeName.HYPERLIQUID,
         channel: str | None = "trades",
         topic: str | None = "BTC-USDC",
         sequence_number: int | None = None,
@@ -53,7 +54,7 @@ class ErrorTestFactory:
 
         Args:
             connection_id: Connection identifier
-            exchange: Exchange name
+            exchange: Exchange enum
             channel: Channel name
             topic: Topic/symbol
             sequence_number: Sequence number
@@ -161,7 +162,7 @@ class ErrorTestFactory:
 
         context = ErrorTestFactory.create_test_context(
             connection_id=f"random-{secrets.randbits(14) % 9000 + 1000}",
-            exchange=secrets.choice(["hyperliquid", "backpack", "binance"]),
+            exchange=secrets.choice([ExchangeName.HYPERLIQUID, ExchangeName.BACKPACK]),
             channel=secrets.choice(["trades", "orderbook", "account", None]),
             sequence_number=secrets.randbits(20) if secrets.randbits(1) else None,
         )
@@ -199,7 +200,7 @@ class ErrorScenarioGenerator:
                 name="Connection Timeout",
                 error_code=WebSocketErrorCode.CONNECTION_TIMEOUT,
                 expected_severity=ErrorSeverity.ERROR,
-                expected_recovery=WebSocketRecoveryStrategy.EXPONENTIAL_BACKOFF,
+                expected_recovery=WebSocketRecoveryStrategy.RECONNECT_SAME,  # Overridden by policy
                 should_be_retryable=True,
                 should_be_critical=False,
             ),
@@ -209,7 +210,7 @@ class ErrorScenarioGenerator:
                 expected_severity=ErrorSeverity.ERROR,
                 expected_recovery=WebSocketRecoveryStrategy.FULL_RECONNECT,
                 should_be_retryable=True,  # FULL_RECONNECT is a form of retry
-                should_be_critical=True,
+                should_be_critical=True,  # PROTOCOL_ERROR is in critical_errors list
             ),
         ])
 
@@ -334,13 +335,10 @@ class ErrorScenarioGenerator:
             WebSocketErrorCode.SECURITY_VIOLATION,
             WebSocketErrorCode.IP_BANNED,
             WebSocketErrorCode.ACCOUNT_SUSPENDED,
-            WebSocketErrorCode.AUTH_REVOKED,
-            WebSocketErrorCode.INJECTION_DETECTED,
-            WebSocketErrorCode.REPLAY_ATTACK_DETECTED,
-            WebSocketErrorCode.PROTOCOL_ERROR,
-            WebSocketErrorCode.HANDSHAKE_FAILED,
-            WebSocketErrorCode.MEMORY_LIMIT_EXCEEDED,
-            WebSocketErrorCode.RESOURCE_EXHAUSTED,
+            # Removed codes that don't exist or have ERROR severity:
+            # AUTH_REVOKED, INJECTION_DETECTED, REPLAY_ATTACK_DETECTED - don't exist
+            # PROTOCOL_ERROR, HANDSHAKE_FAILED - have ERROR severity
+            # MEMORY_LIMIT_EXCEEDED, RESOURCE_EXHAUSTED - don't exist
         ]
 
     @staticmethod

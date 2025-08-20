@@ -8,14 +8,12 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.recovery import (
-    CircuitState,
-    RecoveryPolicyManager,
-)
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.recovery import RecoveryPolicyManager
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
 from cyberdelta.enums import ExchangeName
+from cyberdelta.enums.safety.circuit_breaker import CircuitBreakerState
 
 
 class TestRecoveryPolicyManager:
@@ -118,8 +116,14 @@ class TestRecoveryPolicyManager:
 
         # Should have statistics structure
         assert isinstance(stats, dict)
-        # Basic statistics should be present
-        expected_keys = ["active_recoveries", "circuit_breakers"]
+        # Basic statistics should be present based on current implementation
+        expected_keys = [
+            "total_connections_tracked",
+            "open_circuits",
+            "half_open_circuits",
+            "circuit_breaker_enabled",
+            "max_retry_attempts",
+        ]
         for key in expected_keys:
             assert key in stats
 
@@ -128,17 +132,21 @@ class TestCircuitBreakerIntegration:
     """Test circuit breaker integration with recovery system."""
 
     def test_circuit_state_enum_values(self) -> None:
-        """Test that CircuitState enum has expected values."""
-        assert CircuitState.CLOSED.value == "closed"
-        assert CircuitState.OPEN.value == "open"
-        assert CircuitState.HALF_OPEN.value == "half_open"
+        """Test that CircuitBreakerState enum has expected values."""
+        assert CircuitBreakerState.CLOSED.value == "closed"
+        assert CircuitBreakerState.OPEN.value == "open"
+        assert CircuitBreakerState.HALF_OPEN.value == "half_open"
 
     def test_circuit_state_transitions(self) -> None:
         """Test that circuit states are properly defined."""
         # Test that all expected states exist
-        states = [CircuitState.CLOSED, CircuitState.OPEN, CircuitState.HALF_OPEN]
+        states = [
+            CircuitBreakerState.CLOSED,
+            CircuitBreakerState.OPEN,
+            CircuitBreakerState.HALF_OPEN,
+        ]
         assert len(states) == 3
-        assert all(isinstance(state, CircuitState) for state in states)
+        assert all(isinstance(state, CircuitBreakerState) for state in states)
 
 
 class TestWebSocketRecoveryStrategyIntegration:

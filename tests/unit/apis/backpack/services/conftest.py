@@ -21,7 +21,7 @@ from cyberdelta.apis.base.authenticator_interface import IAuthenticator
 
 # Removed in refactor
 from cyberdelta.core.enums import InternalWithdrawalStatus
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models.operations import Withdrawal
 from cyberdelta.utils.typing import ParsedJsonResponse
 

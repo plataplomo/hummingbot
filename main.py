@@ -199,19 +199,20 @@ class TradingEngineBootstrap:
         # Initialize file storage for portfolio state persistence
         portfolio_storage = FilePortfolioStorage(self.config)
 
-        # Initialize portfolio service with config and storage
+        # Initialize market data service with config and API clients (needed for portfolio)
+        market_data_service = MarketDataService(
+            config=self.config, api_clients=api_clients, event_bus=event_bus
+        )
+
+        # Initialize portfolio service with config, storage, and market data service
         portfolio_service = PortfolioService(
             config=self.config,
             storage=portfolio_storage,
             event_bus=event_bus,
             api_clients=api_clients,
+            market_data_service=market_data_service,
         )
         await portfolio_service.initialize()
-
-        # Initialize market data service with config and API clients
-        market_data_service = MarketDataService(
-            config=self.config, api_clients=api_clients, event_bus=event_bus
-        )
 
         # Initialize risk service with config and portfolio service
         risk_service = RiskService(
@@ -251,7 +252,7 @@ class TradingEngineBootstrap:
             api_clients=api_clients,
             order_validator=order_validator,
             fill_handler=fill_handler,
-            portfolio_service=portfolio_service,
+            portfolio_service=portfolio_service.state_manager,
             market_data_service=market_data_service,
         )
 

@@ -42,8 +42,8 @@ from cyberdelta.apis.models.service_args.trading import (
 from cyberdelta.config.models.exchange_config import ExchangeSpecificConfig
 from cyberdelta.config.secrets_models import PrivateKeyAuthSecrets
 from cyberdelta.core.enums import CancelOrderResultStatus, OrderStatus
+from cyberdelta.enums import ExchangeName
 from cyberdelta.enums.environment import EnvironmentType
-from cyberdelta.enums.exchange_names import ExchangeName
 from cyberdelta.enums.trading import MakerTaker, OrderSide, OrderType, TimeInForce
 from cyberdelta.exceptions.base import RequiredParameterError
 from cyberdelta.models import (

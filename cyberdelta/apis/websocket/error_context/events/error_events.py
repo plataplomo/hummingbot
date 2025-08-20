@@ -15,6 +15,7 @@ from pydantic import BaseModel
 
 from cyberdelta.apis.common.error_foundation import ErrorSeverity, WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.models.websocket import (
     ConnectionHealthEvent,
     RecoveryAttemptEvent,
@@ -22,7 +23,6 @@ from cyberdelta.apis.models.websocket import (
     WebSocketErrorEvent,
 )
 from cyberdelta.apis.protocols.websocket import EventFilterProtocol, EventHandlerProtocol
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 
 
 if TYPE_CHECKING:

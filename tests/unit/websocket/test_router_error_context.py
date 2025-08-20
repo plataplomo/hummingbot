@@ -14,12 +14,13 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from cyberdelta.apis.common.error_foundation import ErrorMetadata
-from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
-from cyberdelta.apis.websocket.ws_router_error_context import (
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.builders import (
     RouterErrorContextBuilder,
     RouterErrorMetadata,
 )
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
+from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
+from cyberdelta.enums import ExchangeName
 
 
 class TestEnvelopeModel(BaseModel):
@@ -48,6 +49,7 @@ class TestRouterErrorMetadata:
         assert metadata.error_timestamp_ms is not None
         assert isinstance(metadata.error_timestamp_ms, int)
 
+    @pytest.mark.timing
     def test_router_error_metadata_with_all_fields(self) -> None:
         """Test RouterErrorMetadata with all optional fields."""
         start_time = int(time.time() * 1000)
@@ -88,6 +90,7 @@ class TestRouterErrorMetadata:
         with pytest.raises(ValidationError):
             metadata.router_type = "NewRouter"  # Should fail - frozen model
 
+    @pytest.mark.timing
     def test_router_error_metadata_auto_timestamp(self) -> None:
         """Test automatic timestamp setting in post_init."""
         before_time = int(time.time() * 1000)
@@ -300,13 +303,14 @@ class TestRouterErrorContextBuilder:
         assert router_metadata["error_stage"] == "custom_routing_stage"
         assert router_metadata["message_keys"] == ["stream", "data"]
 
+    @pytest.mark.timing
     def test_enhance_context_with_timing(self) -> None:
         """Test enhancing existing context with timing information."""
         # Create base context
         base_metadata = ErrorMetadata()
         original_context = StreamErrorContext(
             connection_id="test-conn-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             error_timestamp_ms=int(time.time() * 1000),
             metadata=base_metadata,
             extra_context={"original": "data"},
@@ -329,11 +333,12 @@ class TestRouterErrorContextBuilder:
         assert enhanced_context.extra_context["processing_duration_ms"] == 100
         assert enhanced_context.extra_context["original"] == "data"  # Original data preserved
 
+    @pytest.mark.timing
     def test_enhance_context_with_timing_no_extra_context(self) -> None:
         """Test enhancing context that has no existing extra_context."""
         original_context = StreamErrorContext(
             connection_id="test-conn-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             error_timestamp_ms=int(time.time() * 1000),
             extra_context={},
         )
@@ -346,11 +351,12 @@ class TestRouterErrorContextBuilder:
         # Should return enhanced context with timing information
         assert enhanced_context.extra_context["processing_start_time_ms"] == 12345
 
+    @pytest.mark.timing
     def test_create_recovery_context(self, mock_router: Mock) -> None:
         """Test creating recovery context from original error context."""
         original_context = StreamErrorContext(
             connection_id="test-conn-123",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="test_channel",
             topic="test.topic",
             sequence_number=456,

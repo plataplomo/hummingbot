@@ -11,7 +11,7 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
 from cyberdelta.apis.enums.websocket import RateLimitAlgorithm, RateLimitType
-from cyberdelta.apis.websocket.exceptions import BurstSizeTooLargeError
+from cyberdelta.apis.exceptions.websocket import BurstSizeTooLargeError
 
 
 class RateLimitConfig(BaseModel):

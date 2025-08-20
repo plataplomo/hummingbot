@@ -39,8 +39,8 @@ from cyberdelta.apis.backpack.transformers.bp_depth_state_transformer import (
 from cyberdelta.apis.base.infrastructure_config_domain import MemoryOptimizationMode
 from cyberdelta.apis.common.types import MessageHandler
 from cyberdelta.apis.enums.websocket import WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError, WebSocketSubscriptionError
 from cyberdelta.apis.models.websocket import StreamErrorContext
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError, WebSocketSubscriptionError
 from cyberdelta.apis.websocket.ws_context_factory import WebSocketContextFactory
 from cyberdelta.apis.websocket.ws_mapper_adapters import (
     WebSocketControlMessageAdapter,

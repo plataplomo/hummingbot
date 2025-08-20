@@ -30,7 +30,7 @@ from cyberdelta.apis.backpack.models.bp_raw_account import BackpackRawBalanceRes
 from cyberdelta.apis.backpack.models.bp_raw_query_params import BackpackRawGetBalancesParams
 from cyberdelta.apis.backpack.services.bp_account_service import BackpackAccountService
 from cyberdelta.apis.common import APIError, APIErrorCode
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums import ExchangeName
 from cyberdelta.utils.typing import ParsedJsonResponse
 
 
@@ -64,7 +64,7 @@ class TestBackpackAccountServiceBalances:
 
         result = await bp_account_service.get_balances()
 
-        # The mapper transforms to exchange="backpack" not "backpack_test_account"
+        # The mapper transforms to exchange=ExchangeName.BACKPACK not "backpack_test_account"
         assert result["USDC"].exchange == ExchangeName.BACKPACK
         assert result["USDC"].asset.value == "USDC"
         assert isinstance(result["USDC"].timestamp, datetime)

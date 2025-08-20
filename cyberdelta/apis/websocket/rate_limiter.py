@@ -14,11 +14,11 @@ from typing import Any
 
 from cyberdelta.apis.base.rate_limit_behavior import RateLimitBehavior
 from cyberdelta.apis.enums.websocket import RateLimitAlgorithm, RateLimitType
-from cyberdelta.apis.models.websocket.rate_limiting import RateLimitConfig, RateLimitResult
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     RateLimitError,
     UnsupportedAlgorithmError,
 )
+from cyberdelta.apis.models.websocket.rate_limiting import RateLimitConfig, RateLimitResult
 
 
 class TokenBucket:

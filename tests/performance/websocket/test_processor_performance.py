@@ -19,12 +19,12 @@ from pydantic import BaseModel, Field
 
 from cyberdelta.apis.backpack.bp_ws_context import BackpackMessageContext
 from cyberdelta.apis.backpack.models.bp_ws_envelope import BackpackRawWebSocketEnvelope
-from cyberdelta.apis.websocket.error_handling.error_handler import (
-    WebSocketErrorHandler,
-)
-from cyberdelta.apis.websocket.ws_message_processor import (
+from cyberdelta.apis.websocket import (
     MessageTransformer,
     WebSocketMessageProcessor,
+)
+from cyberdelta.apis.websocket.error_context.error_handler import (
+    WebSocketErrorHandler,
 )
 from cyberdelta.apis.websocket.ws_protocols import WebSocketContextProtocol
 from cyberdelta.enums import ExchangeName
@@ -244,6 +244,7 @@ class TestProcessorPerformance:
     """Test processor performance with typed error system."""
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_successful_processing_performance(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -280,6 +281,7 @@ class TestProcessorPerformance:
         assert metrics.processing_metrics.get_average_processing_time_ms() > 0
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_validation_error_performance(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -307,6 +309,7 @@ class TestProcessorPerformance:
         assert simple_processor.metrics.total_processed == 0
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_complex_model_performance(
         self,
         complex_processor: WebSocketMessageProcessor[TestComplexModel, Any],
@@ -339,6 +342,7 @@ class TestProcessorPerformance:
         assert complex_processor.metrics.total_processed == iterations + 5
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_concurrent_processing_performance(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -381,6 +385,7 @@ class TestProcessorPerformance:
         assert simple_processor.metrics.transformation_errors == 0
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_mixed_success_error_performance(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -412,6 +417,7 @@ class TestProcessorPerformance:
         assert simple_processor.metrics.validation_errors == iterations // 2
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_metrics_overhead(
         self,
         mock_error_handler: AsyncMock,
@@ -459,6 +465,7 @@ class TestProcessorPerformance:
         assert overhead_percent < 10  # Less than 10% overhead acceptable
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_error_recovery_performance(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -495,6 +502,7 @@ class TestProcessorPerformance:
         assert simple_processor.metrics.handler_errors < iterations * 0.15  # Close to expected rate
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_memory_efficiency(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -520,6 +528,7 @@ class TestProcessorPerformance:
         await simple_processor.process(valid_order_payload, handler, test_context)
         assert handler.called
 
+    @pytest.mark.timing
     def test_metrics_calculation_performance(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -552,6 +561,7 @@ class TestProcessorPerformance:
         assert avg_time_ms < 0.1  # Less than 0.1ms per calculation
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_processor_creation_performance(
         self,
         mock_error_handler: AsyncMock,
@@ -583,6 +593,7 @@ class TestProcessorPerformanceComparison:
     """Compare performance between old and new error handling."""
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_compare_error_handling_approaches(
         self,
         mock_error_handler: AsyncMock,
@@ -638,6 +649,7 @@ class TestPerformanceBenchmarks:
     """Benchmark tests for establishing performance baselines."""
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_baseline_throughput(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],
@@ -668,6 +680,7 @@ class TestPerformanceBenchmarks:
         logger.info("Average latency: %.3f ms", (actual_duration / message_count) * 1000)
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_sustained_load_performance(
         self,
         simple_processor: WebSocketMessageProcessor[TestOrderModel, TestOrderModel],

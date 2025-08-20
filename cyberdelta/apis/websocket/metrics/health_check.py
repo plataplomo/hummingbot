@@ -19,6 +19,7 @@ from cyberdelta.apis.common.error_foundation import (
     WebSocketRecoveryStrategy,
 )
 from cyberdelta.apis.enums.websocket import HealthStatus, WebSocketErrorCode
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
 from cyberdelta.apis.models.websocket import StreamErrorContext
 from cyberdelta.apis.models.websocket.health import (
     ComponentStatus,
@@ -26,7 +27,6 @@ from cyberdelta.apis.models.websocket.health import (
     PerformanceHealth,
     SystemHealth,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
 from cyberdelta.apis.websocket.metrics.error_metrics import (
     WebSocketErrorMetrics,
 )

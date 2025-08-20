@@ -33,7 +33,10 @@ from cyberdelta.models.portfolio.pnl_report import (
 from cyberdelta.models.portfolio.state import PortfolioState
 from cyberdelta.protocols import HealthCheckable
 from cyberdelta.protocols.domain.market_data import MarketDataServiceProtocol
-from cyberdelta.protocols.domain.portfolio import PortfolioStorageProtocol
+from cyberdelta.protocols.domain.portfolio import (
+    PortfolioStateManagerProtocol,
+    PortfolioStorageProtocol,
+)
 from cyberdelta.symbols.models import Symbol
 
 from .balance_manager import BalanceManager
@@ -141,6 +144,17 @@ class PortfolioService(HealthCheckable):
             market_data_service_type=type(self._market_data_service).__name__,
             exchange_count=len(self._api_clients),
         )
+
+    # ========== Properties ==========
+
+    @property
+    def state_manager(self) -> PortfolioStateManagerProtocol:
+        """Get the portfolio state manager for protocol compliance.
+
+        Returns:
+            The state manager that implements PortfolioStateManagerProtocol
+        """
+        return self._state_manager
 
     # ========== Initialization Methods ==========
 

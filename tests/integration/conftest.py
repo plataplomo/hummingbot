@@ -67,7 +67,7 @@ from cyberdelta.config import AppSettings
 
 # PortfolioTrackerConfig removed - using AppSettings portfolio_tracker section instead
 from cyberdelta.config.structlog_config import get_logger
-from cyberdelta.enums.exchange_names import ExchangeName
+from cyberdelta.enums import ExchangeName
 from cyberdelta.models import Ticker
 from cyberdelta.symbols import exchanges, get_symbol_service
 from cyberdelta.symbols.service import SymbolService

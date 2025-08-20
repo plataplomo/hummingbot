@@ -26,6 +26,13 @@ from tests.fixtures.config_fixtures import (
     test_secrets_config,
     test_secrets_file_path,
 )
+from tests.fixtures.time_fixtures import (
+    frozen_time,
+    market_time_simulation,
+    mock_time_factory,
+    mock_time_patch,
+    rate_limit_timer,
+)
 
 
 # Re-export all imported fixtures so they can be discovered by pytest
@@ -34,8 +41,13 @@ __all__: list[str] = [
     "active_bp_secrets",
     "active_hl_config",
     "active_hl_secrets",
+    "frozen_time",
     "hl_test_environment",
     "hl_test_environment_from_config",
+    "market_time_simulation",
+    "mock_time_factory",
+    "mock_time_patch",
+    "rate_limit_timer",
     "test_app_settings",
     "test_config_file_path",
     "test_secrets_config",

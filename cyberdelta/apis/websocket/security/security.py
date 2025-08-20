@@ -13,13 +13,8 @@ from __future__ import annotations
 import sys
 from typing import Any
 
-from cyberdelta.apis.models.websocket import StreamErrorContext
-from cyberdelta.apis.models.websocket.security import (
-    SecurityConfig,
-)
-
 # Import security exceptions from unified hierarchy (Step 30: Migration completed)
-from cyberdelta.apis.websocket.exceptions import (
+from cyberdelta.apis.exceptions.websocket import (
     ArrayLengthExceedsLimitError,
     BlockedPatternFoundError,
     MessageSizeExceedsLimitError,
@@ -28,6 +23,10 @@ from cyberdelta.apis.websocket.exceptions import (
     ObjectKeysExceedLimitError,
     SecurityValidationError,
     StringLengthExceedsLimitError,
+)
+from cyberdelta.apis.models.websocket import StreamErrorContext
+from cyberdelta.apis.models.websocket.security import (
+    SecurityConfig,
 )
 from cyberdelta.apis.websocket.security.type_guards import (
     SecureValue,

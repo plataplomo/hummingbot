@@ -396,16 +396,14 @@ class TestCreateMarketFromAssetDefinition:
         )  # Valid but will be mocked to fail
 
         # Mock parse_decimal_safely to return None for invalid sz_decimals
-        with patch(
-            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper.parse_decimal_safely",
-        ) as mock_parse:
-            mock_parse.return_value = None
-
-            with pytest.raises(
+        with (
+            patch.object(mapper, "parse_decimal_safely", return_value=None),
+            pytest.raises(
                 MissingRequiredFieldError,
                 match="sz_decimals is required for asset definition for INVALID-PERP",
-            ):
-                mapper.transform_single_asset_to_market(asset_def)
+            ),
+        ):
+            mapper.transform_single_asset_to_market(asset_def)
 
     def test_create_market_from_asset_definition_extreme_sz_decimals(
         self,
@@ -434,9 +432,7 @@ class TestCreateMarketFromAssetDefinition:
         asset_def = create_asset_definition("MALFORMED-PERP")
 
         # Create context with invalid mark_px that will fail parsing
-        with patch(
-            "cyberdelta.apis.hyperliquid.mappers.market_data.hl_market_metadata_mapper.parse_decimal_safely",
-        ) as mock_parse:
+        with patch.object(mapper, "parse_decimal_safely") as mock_parse:
             # Return valid value for step_size calculation, None for context parsing
             def mock_parse_side_effect(
                 value: str,

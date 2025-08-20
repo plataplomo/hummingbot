@@ -12,7 +12,9 @@ import pytest
 
 from cyberdelta.apis.common.error_foundation import WebSocketRecoveryStrategy
 from cyberdelta.apis.enums.websocket.error_codes import WebSocketErrorCode
-from cyberdelta.apis.websocket.error_handling.recovery import (
+from cyberdelta.apis.exceptions.websocket import WebSocketStreamError
+from cyberdelta.apis.models.websocket.error_context import StreamErrorContext
+from cyberdelta.apis.websocket.error_context.recovery import (
     ConnectionManagerProtocol,
     MessageBufferProtocol,
     RecoveryExecutor,
@@ -20,9 +22,8 @@ from cyberdelta.apis.websocket.error_handling.recovery import (
     StateManagerProtocol,
     SubscriptionManagerProtocol,
 )
-from cyberdelta.apis.websocket.exceptions import WebSocketStreamError
-from cyberdelta.apis.websocket.ws_stream_context import StreamErrorContext
 from cyberdelta.config.models.websocket_error_config import WebSocketErrorConfig
+from cyberdelta.enums import ExchangeName
 
 
 class TestRecoveryExecutor:
@@ -120,7 +121,7 @@ class TestRecoveryExecutor:
         """
         context = StreamErrorContext(
             connection_id="test-conn-1",
-            exchange="hyperliquid",
+            exchange=ExchangeName.HYPERLIQUID,
             channel="test_channel",
             topic="test_topic",
             environment="test",
@@ -174,13 +175,30 @@ class TestRecoveryExecutor:
         connection_manager.reconnect.assert_called_once()
 
     @pytest.mark.asyncio
+    @pytest.mark.timing
     async def test_execute_recovery_exponential_backoff(
         self,
-        executor: RecoveryExecutor,
+        policy_manager: RecoveryPolicyManager,
         connection_manager: AsyncMock,
+        subscription_manager: AsyncMock,
+        state_manager: AsyncMock,
+        message_buffer: AsyncMock,
         stream_error: WebSocketStreamError,
     ) -> None:
         """Test exponential backoff strategy execution."""
+        # Create executor with config that doesn't override exponential backoff
+        config = WebSocketErrorConfig()
+        config.recovery.prefer_reconnect_for_connection_errors = False
+        policy_manager_no_override = RecoveryPolicyManager(config)
+
+        executor = RecoveryExecutor(
+            policy=policy_manager_no_override,
+            connection_manager=connection_manager,
+            subscription_manager=subscription_manager,
+            state_manager=state_manager,
+            message_buffer=message_buffer,
+        )
+
         error_with_backoff = WebSocketStreamError(
             message=stream_error.message,
             code=stream_error.code,
