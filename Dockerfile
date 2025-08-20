@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # RUN curl -fsSL https://bun.sh/install | bash
 
 # Copy project files for building
-COPY pyproject.toml setup.py README.md ./
+COPY pyproject.toml README.md ./
 COPY cyberdelta ./cyberdelta
 
 # Build the wheel
