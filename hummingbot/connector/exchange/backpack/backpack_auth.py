@@ -8,16 +8,11 @@ import time
 from typing import Any, Dict, Optional
 from urllib.parse import urlencode
 
-from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest
-
-try:
-    from cryptography.hazmat.primitives.asymmetric import ed25519
-except ImportError:
-    # Fallback for environments without cryptography
-    ed25519 = None
+from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
+from hummingbot.core.web_assistant.auth import AuthBase
+from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest
 
 
 class BackpackAuth(AuthBase):
@@ -48,12 +43,6 @@ class BackpackAuth(AuthBase):
         self.api_key = api_key
         self.api_secret = api_secret
         self._time_provider = time_provider or self._get_timestamp
-
-        if ed25519 is None:
-            raise ImportError(
-                "cryptography library is required for Ed25519 signatures. "
-                "Install with: pip install cryptography"
-            )
 
         # Load and validate the private key
         try:
