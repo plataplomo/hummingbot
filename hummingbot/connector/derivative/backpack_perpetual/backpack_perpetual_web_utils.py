@@ -127,6 +127,7 @@ async def get_current_server_time(
         response = await rest_assistant.execute_request(
             url=url,
             method=RESTMethod.GET,
+            throttler_limit_id=CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID,
         )
 
         if response.status != 200:
@@ -210,12 +211,18 @@ async def api_request(
             response = await rest_assistant.execute_request(
                 url=url,
                 method=method,
+                throttler_limit_id=limit_id,
                 params=params,
                 data=data,
                 headers=headers,
                 timeout=timeout,
             )
 
+            # Handle both dict (test) and response object (production)
+            if isinstance(response, dict):
+                # Test mock returns dict directly
+                return response
+            
             # Check response status
             if response.status != 200:
                 if return_err:

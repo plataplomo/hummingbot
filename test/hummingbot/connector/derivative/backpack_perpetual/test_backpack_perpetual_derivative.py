@@ -97,7 +97,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
     @property
     def balance_url(self):
-        url = web_utils.private_rest_url(path_url=CONSTANTS.ACCOUNT_INFO_URL)
+        url = web_utils.private_rest_url(path_url=CONSTANTS.BALANCE_URL)
         return url
 
     @property

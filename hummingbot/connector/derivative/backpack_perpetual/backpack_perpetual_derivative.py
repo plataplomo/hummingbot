@@ -369,8 +369,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Process balances - focus on USDC for perpetuals
         for balance_info in response.get("balances", []):
-            asset = balance_info["symbol"]
-            free = Decimal(str(balance_info.get("available", "0")))
+            asset = balance_info["asset"]
+            free = Decimal(str(balance_info.get("free", "0")))
             total = Decimal(str(balance_info.get("total", "0")))
 
             self._account_available_balances[asset] = free

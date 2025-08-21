@@ -45,7 +45,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         self.connector = BackpackPerpetualDerivative(
             client_config_map=client_config_map,
             backpack_perpetual_api_key="testAPIKey",
-            backpack_perpetual_api_secret="testSecret",
+            backpack_perpetual_api_secret="3vhqlRTtvgmZ7fqExSoGxxHpJvQBwlmuhDoYpqryw1A=",
             trading_pairs=[self.trading_pair],
         )
 
@@ -151,7 +151,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         }
         mock_api.get(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
+        result = self.run_async_with_timeout(
             self.data_source.get_last_traded_prices([self.trading_pair])
         )
 
@@ -190,7 +190,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         }
         mock_api.get(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(self.data_source.fetch_trading_pairs())
+        result = self.run_async_with_timeout(self.data_source.fetch_trading_pairs())
 
         self.assertEqual(len(result), 2)
         self.assertIn("BTC-USDC", result)
@@ -216,7 +216,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         }
         mock_api.get(regex_url, status=200, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
+        result = self.run_async_with_timeout(
             self.data_source.get_order_book_data(self.trading_pair)
         )
 
@@ -234,7 +234,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         mock_api.get(regex_url, status=400, body=json.dumps({"error": "Invalid symbol"}))
 
         with self.assertRaises(IOError) as context:
-            self.async_run_with_timeout(
+            self.run_async_with_timeout(
                 self.data_source.get_order_book_data(self.trading_pair)
             )
 
@@ -254,7 +254,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         }
         mock_api.get(regex_url, status=200, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
+        result = self.run_async_with_timeout(
             self.data_source.get_new_order_book(self.trading_pair)
         )
 
@@ -277,7 +277,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         }
         mock_api.get(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
+        result = self.run_async_with_timeout(
             self.data_source.get_funding_info(self.trading_pair)
         )
 
@@ -296,7 +296,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         msg_queue = asyncio.Queue()
 
         with self.assertRaises(asyncio.CancelledError):
-            self.listening_task = self.async_run_with_timeout(
+            self.listening_task = self.run_async_with_timeout(
                 self.data_source.listen_for_trades(self.local_event_loop, msg_queue)
             )
 
@@ -312,7 +312,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
             self.data_source.listen_for_trades(self.local_event_loop, msg_queue)
         )
 
-        self.async_run_with_timeout(self.resume_test_event.wait())
+        self.run_async_with_timeout(self.resume_test_event.wait())
 
         self.assertTrue(
             self._is_logged(
@@ -325,18 +325,24 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     def test_listen_for_trades_successful(self, mock_ws):
         """Test successful trade message processing."""
         msg_queue: asyncio.Queue = asyncio.Queue()
-        mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
-
-        self.mocking_assistant.add_websocket_aiohttp_message(
-            mock_ws.return_value,
-            json.dumps(self._orderbook_trade_event()["data"])
-        )
-
-        self.listening_task = self.local_event_loop.create_task(
-            self.data_source.listen_for_trades(self.local_event_loop, msg_queue)
-        )
-
-        msg = self.async_run_with_timeout(msg_queue.get())
+        
+        async def setup_and_run():
+            self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
+            await self.mocking_assistant.async_init()
+            mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
+            
+            self.mocking_assistant.add_websocket_aiohttp_message(
+                mock_ws.return_value,
+                json.dumps(self._orderbook_trade_event()["data"])
+            )
+            
+            self.listening_task = asyncio.create_task(
+                self.data_source.listen_for_trades(asyncio.get_event_loop(), msg_queue)
+            )
+            
+            return await asyncio.wait_for(msg_queue.get(), timeout=1.0)
+        
+        msg = self.run_async_with_timeout(setup_and_run())
 
         self.assertIsInstance(msg, OrderBookMessage)
         self.assertEqual(msg.type, OrderBookMessageType.TRADE)
@@ -345,9 +351,11 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         self.assertEqual(msg.content["price"], "50000.00")
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_order_book_diffs_successful(self, mock_ws):
+    async def test_listen_for_order_book_diffs_successful(self, mock_ws):
         """Test successful order book diff message processing."""
         msg_queue: asyncio.Queue = asyncio.Queue()
+        self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
+        await self.mocking_assistant.async_init()
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
         diff_event = self._orderbook_update_event()
@@ -360,7 +368,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
             self.data_source.listen_for_order_book_diffs(self.local_event_loop, msg_queue)
         )
 
-        msg = self.async_run_with_timeout(msg_queue.get())
+        msg = self.run_async_with_timeout(msg_queue.get())
 
         self.assertIsInstance(msg, OrderBookMessage)
         self.assertEqual(msg.type, OrderBookMessageType.DIFF)
@@ -369,9 +377,11 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         self.assertEqual(len(msg.content["asks"]), 2)
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_order_book_snapshots_successful(self, mock_ws):
+    async def test_listen_for_order_book_snapshots_successful(self, mock_ws):
         """Test successful order book snapshot message processing."""
         msg_queue: asyncio.Queue = asyncio.Queue()
+        self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
+        await self.mocking_assistant.async_init()
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
         # For snapshots, we typically get a full order book state
@@ -400,7 +410,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
             self.data_source.listen_for_order_book_snapshots(self.local_event_loop, msg_queue)
         )
 
-        msg = self.async_run_with_timeout(msg_queue.get())
+        msg = self.run_async_with_timeout(msg_queue.get())
 
         self.assertIsInstance(msg, OrderBookMessage)
         self.assertEqual(msg.type, OrderBookMessageType.SNAPSHOT)
@@ -424,7 +434,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         }
         mock_api.get(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
+        result = self.run_async_with_timeout(
             self.data_source.get_funding_info(self.trading_pair)
         )
 
@@ -441,14 +451,16 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         mock_api.get(regex_url, status=500, body=json.dumps({"error": "Internal server error"}))
 
         with self.assertRaises(IOError):
-            self.async_run_with_timeout(
+            self.run_async_with_timeout(
                 self.data_source.get_funding_info(self.trading_pair)
             )
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_websocket_connection_reconnects_on_error(self, mock_ws):
+    async def test_websocket_connection_reconnects_on_error(self, mock_ws):
         """Test WebSocket reconnection after error."""
         msg_queue: asyncio.Queue = asyncio.Queue()
+        self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
+        await self.mocking_assistant.async_init()
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
         # First, simulate a connection error
@@ -468,7 +480,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         )
 
         # Should eventually get the message after reconnection
-        msg = self.async_run_with_timeout(msg_queue.get(), timeout=5)
+        msg = self.run_async_with_timeout(msg_queue.get(), timeout=5)
         self.assertIsInstance(msg, OrderBookMessage)
 
     @aioresponses()
@@ -504,7 +516,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         }
         mock_api.get(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(self.data_source.fetch_trading_pairs())
+        result = self.run_async_with_timeout(self.data_source.fetch_trading_pairs())
 
         # Should only include perpetual contracts
         self.assertEqual(len(result), 2)
@@ -531,7 +543,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
             }
             mock_api.get(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
+        result = self.run_async_with_timeout(
             self.data_source.get_last_traded_prices(trading_pairs)
         )
 
@@ -541,9 +553,11 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         self.assertEqual(result["SOL-USDC"], 60000.00)
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_funding_info_update(self, mock_ws):
+    async def test_listen_for_funding_info_update(self, mock_ws):
         """Test listening for funding info updates via WebSocket."""
         msg_queue: asyncio.Queue = asyncio.Queue()
+        self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
+        await self.mocking_assistant.async_init()
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
         funding_event = self._funding_info_event()
@@ -556,7 +570,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
             self.data_source.listen_for_funding_info(msg_queue)
         )
 
-        msg = self.async_run_with_timeout(msg_queue.get())
+        msg = self.run_async_with_timeout(msg_queue.get())
 
         self.assertIsInstance(msg, FundingInfo)
         self.assertEqual(msg.trading_pair, self.trading_pair)

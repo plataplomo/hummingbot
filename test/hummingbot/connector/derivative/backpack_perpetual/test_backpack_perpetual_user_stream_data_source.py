@@ -36,13 +36,13 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         self.connector = BackpackPerpetualDerivative(
             client_config_map=self.client_config_map,
             backpack_perpetual_api_key="testAPIKey",
-            backpack_perpetual_api_secret="testSecret",
+            backpack_perpetual_api_secret="3vhqlRTtvgmZ7fqExSoGxxHpJvQBwlmuhDoYpqryw1A=",
             trading_pairs=[self.trading_pair],
         )
 
         self.auth = BackpackPerpetualAuth(
             api_key="testAPIKey",
-            api_secret="testSecret",
+            api_secret="3vhqlRTtvgmZ7fqExSoGxxHpJvQBwlmuhDoYpqryw1A=",
         )
 
         self.data_source = BackpackPerpetualUserStreamDataSource(

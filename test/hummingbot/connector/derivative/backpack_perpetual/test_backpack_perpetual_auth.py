@@ -71,15 +71,17 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
             time_provider=self.time_provider
         )
 
-        # Test GET request payload
+        # Test GET request payload with instruction-based format
         payload = auth._build_signature_payload(
             timestamp=str(self.emulated_time),
             method="GET",
             path="/api/v1/positions",
-            params={"symbol": "BTC-PERP"}
+            params={"symbol": "BTC-PERP"},
+            window="5000"
         )
 
-        expected = f"{self.emulated_time}GET/api/v1/positions?symbol=BTC-PERP"
+        # Expect instruction-based format
+        expected = f"instruction=positionQuery&symbol=BTC-PERP&timestamp={self.emulated_time}&window=5000"
         self.assertEqual(payload, expected)
 
     @patch('hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth.ed25519')
@@ -95,16 +97,18 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
             time_provider=self.time_provider
         )
 
-        # Test POST request payload
+        # Test POST request payload with instruction-based format
         data = '{"symbol":"BTC-PERP","side":"Buy","quantity":"0.01"}'
         payload = auth._build_signature_payload(
             timestamp=str(self.emulated_time),
             method="POST",
             path="/api/v1/order",
-            data=data
+            body=data,
+            window="5000"
         )
 
-        expected = f'{self.emulated_time}POST/api/v1/order{data}'
+        # Expect instruction-based format with sorted params
+        expected = f'instruction=orderExecute&quantity=0.01&side=Buy&symbol=BTC-PERP&timestamp={self.emulated_time}&window=5000'
         self.assertEqual(payload, expected)
 
     @patch('hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth.ed25519')

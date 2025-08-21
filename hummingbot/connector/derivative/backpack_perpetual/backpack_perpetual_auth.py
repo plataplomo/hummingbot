@@ -4,8 +4,10 @@ Reuses the same authentication logic as the spot connector.
 """
 
 import base64
+import json
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
@@ -52,6 +54,29 @@ class BackpackPerpetualAuth(AuthBase):
         except Exception as e:
             raise ValueError(f"Invalid API secret format. Expected base64 encoded Ed25519 private key: {e}")
 
+        # Initialize instruction mapping for Backpack REST API endpoints
+        self.INSTRUCTION_MAP: Dict[Tuple[str, str], str] = {
+            # Account endpoints
+            ("GET", "/api/v1/account"): "accountQuery",
+            # Capital and Balance endpoints
+            ("GET", "/api/v1/capital"): "balanceQuery",
+            # Position endpoints for perpetuals
+            ("GET", "/api/v1/position"): "positionQuery",
+            ("GET", "/api/v1/positions"): "positionQuery",
+            # Order Management endpoints
+            ("POST", "/api/v1/order"): "orderExecute",
+            ("DELETE", "/api/v1/order"): "orderCancel",
+            ("DELETE", "/api/v1/orders"): "orderCancelAll",
+            ("GET", "/api/v1/order"): "orderQuery",
+            ("GET", "/api/v1/orders"): "orderQueryAll",
+            # Historical Data endpoints
+            ("GET", "/api/v1/history/orders"): "orderHistoryQueryAll",
+            ("GET", "/api/v1/history/fills"): "fillHistoryQueryAll",
+            # Trading Data endpoints
+            ("GET", "/api/v1/trades/history"): "fillHistoryQueryAll",
+            ("GET", "/api/v1/fills"): "fillHistoryQueryAll",
+        }
+
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
         return int(time.time() * 1000)
@@ -72,42 +97,98 @@ class BackpackPerpetualAuth(AuthBase):
         except Exception as e:
             raise ValueError(f"Failed to generate signature: {e}")
 
+    def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
+        """
+        Get the instruction string for a given method and path.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            path: API endpoint path
+
+        Returns:
+            Instruction string for signing
+        """
+        # Remove query parameters from path for lookup
+        lookup_path = path.split("?")[0] if "?" in path else path
+        
+        # Try exact match first
+        instruction = self.INSTRUCTION_MAP.get((method.upper(), lookup_path))
+        
+        if not instruction:
+            # For unknown endpoints, generate a default instruction
+            # This helps with new endpoints that might not be mapped yet
+            instruction = f"{method.lower()}Query"
+            
+        return instruction
+
     def _build_signature_payload(
         self,
         timestamp: str,
         method: str,
         path: str,
-        body: Optional[str] = None
+        params: Optional[Dict[str, Any]] = None,
+        body: Optional[str] = None,
+        window: str = "5000"
     ) -> str:
         """
-        Build the payload string for signing.
+        Build the payload string for signing using instruction-based format.
 
         Backpack signature format:
-        - For GET/DELETE: timestamp + method + path (with query params)
-        - For POST/PUT: timestamp + method + path + body
+        instruction=<instruction>&<sorted_params>&timestamp=<timestamp>&window=<window>
 
         Args:
             timestamp: Request timestamp as string
             method: HTTP method (GET, POST, etc.)
-            path: Request path including query parameters
-            body: Request body for POST/PUT requests
+            path: Request path
+            params: Query parameters (for GET) or parsed body parameters
+            body: Request body for POST/PUT requests (JSON string)
+            window: Time window for request validity
 
         Returns:
             Formatted payload string for signing
         """
-        # Start with timestamp + method + path
-        payload = f"{timestamp}{method.upper()}{path}"
-
-        # Add body for POST/PUT requests
-        if method.upper() in ["POST", "PUT"] and body:
-            payload += body
-
-        return payload
+        # Get the instruction for this endpoint
+        instruction = self._get_instruction_for_endpoint(method, path)
+        
+        # Start building the payload
+        payload_parts = [f"instruction={instruction}"]
+        
+        # Handle parameters based on method
+        if method.upper() == "GET" and params:
+            # For GET requests, add query parameters
+            sorted_params = sorted(params.items())
+            for key, value in sorted_params:
+                if value is not None:
+                    # Convert booleans to lowercase strings
+                    if isinstance(value, bool):
+                        value = "true" if value else "false"
+                    payload_parts.append(f"{key}={value}")
+        elif method.upper() in ["POST", "PUT", "DELETE"] and body:
+            # For POST/PUT/DELETE, parse JSON body and add as parameters
+            try:
+                body_dict = json.loads(body) if isinstance(body, str) else body
+                sorted_params = sorted(body_dict.items())
+                for key, value in sorted_params:
+                    if value is not None:
+                        # Convert booleans to lowercase strings
+                        if isinstance(value, bool):
+                            value = "true" if value else "false"
+                        payload_parts.append(f"{key}={value}")
+            except (json.JSONDecodeError, TypeError):
+                # If body is not JSON, skip parameter extraction
+                pass
+        
+        # Add timestamp and window
+        payload_parts.append(f"timestamp={timestamp}")
+        payload_parts.append(f"window={window}")
+        
+        return "&".join(payload_parts)
 
     def _generate_auth_headers(
         self,
         method: str,
         path: str,
+        params: Optional[Dict[str, Any]] = None,
         body: Optional[str] = None
     ) -> Dict[str, str]:
         """
@@ -117,13 +198,16 @@ class BackpackPerpetualAuth(AuthBase):
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
         """
         timestamp = str(self._time_provider())
+        window = "5000"
 
-        # Build signature payload
+        # Build signature payload using instruction-based format
         signature_payload = self._build_signature_payload(
             timestamp=timestamp,
             method=method,
             path=path,
-            body=body
+            params=params,
+            body=body,
+            window=window
         )
 
         # Generate signature
@@ -133,7 +217,7 @@ class BackpackPerpetualAuth(AuthBase):
             "X-API-Key": self.api_key,
             "X-Timestamp": timestamp,
             "X-Signature": signature,
-            "X-Window": "5000",  # 5 second window for request validity
+            "X-Window": window,
         }
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
@@ -161,16 +245,25 @@ class BackpackPerpetualAuth(AuthBase):
         # For Backpack API, we need just the path part without the base URL
         if full_path.startswith("http"):
             # Extract path from full URL
-            from urllib.parse import urlparse
             parsed = urlparse(full_path)
             full_path = parsed.path
             if parsed.query:
                 full_path += f"?{parsed.query}"
 
-        # Generate auth headers
+        # Extract query parameters if present
+        params = None
+        clean_path = full_path
+        if "?" in full_path and method == "GET":
+            clean_path, query_string = full_path.split("?", 1)
+            params = {k: v[0] for k, v in parse_qs(query_string).items()}
+        elif request.params:
+            params = request.params
+            
+        # Generate auth headers with instruction-based signatures
         auth_headers = self._generate_auth_headers(
             method=method,
-            path=full_path,
+            path=clean_path,
+            params=params,
             body=request.data
         )
 
@@ -206,9 +299,11 @@ class BackpackPerpetualAuth(AuthBase):
             Authentication message to send after WebSocket connection
         """
         timestamp = str(self._time_provider())
+        window = "5000"
 
-        # Build auth payload for WebSocket
-        auth_payload = f"{timestamp}AUTH"
+        # Build auth payload for WebSocket using instruction-based format
+        # For WebSocket auth, the instruction is "subscribe"
+        auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
         return {
@@ -217,6 +312,6 @@ class BackpackPerpetualAuth(AuthBase):
                 "apiKey": self.api_key,
                 "timestamp": timestamp,
                 "signature": signature,
-                "window": "5000"
+                "window": window
             }
         }

@@ -127,7 +127,7 @@ class BackpackPerpetualWebUtilsTests(TestCase):
     @aioresponses()
     def test_api_request_with_auth(self, mock_api):
         """Test API request with authentication."""
-        url = web_utils.private_rest_url(CONSTANTS.ACCOUNT_INFO_URL)
+        url = web_utils.private_rest_url(CONSTANTS.ACCOUNT_URL)
         regex_url = f"^{url}"
 
         expected_response = {
@@ -151,7 +151,7 @@ class BackpackPerpetualWebUtilsTests(TestCase):
 
         response = self.async_run_with_timeout(
             web_utils.api_request(
-                path=CONSTANTS.ACCOUNT_INFO_URL,
+                path=CONSTANTS.ACCOUNT_URL,
                 api_factory=api_factory,
                 method=RESTMethod.GET,
                 is_auth_required=True,

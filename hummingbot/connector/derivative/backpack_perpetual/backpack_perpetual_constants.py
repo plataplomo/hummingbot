@@ -11,6 +11,9 @@ from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
 EXCHANGE_NAME = "backpack_perpetual"
 DEFAULT_DOMAIN = "backpack_perpetual"
 
+# Quote currency for perpetuals
+PERPETUAL_QUOTE_CURRENCY = "USDC"
+
 # Base URLs
 REST_URL = "https://api.backpack.exchange/"
 REST_URL_TESTNET = "https://api.backpack.exchange/"  # Backpack doesn't have separate testnet
