@@ -17,7 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # RUN curl -fsSL https://bun.sh/install | bash
 
 # Copy project files for building
-COPY pyproject.toml setup.py README.md ./
+COPY pyproject.toml README.md ./
 COPY cyberdelta ./cyberdelta
 
 # Build the wheel
@@ -33,9 +33,6 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    g++ \
-    make \
-    build-essential \
     libssl-dev \
     ca-certificates \
     nodejs \
@@ -51,8 +48,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nano \
     neovim \
     procps \
-    wget \
-    sudo \
     && fc-cache -f -v && rm -rf /var/lib/apt/lists/*
 
 # <<< ADDED: Configure locale to support UTF-8 characters for themes
@@ -87,16 +82,18 @@ RUN mkdir -p /app/data/state_backups /app/logs /app/config
 COPY main.py ./
 COPY cyberdelta ./cyberdelta
 
-# Create non-root user with /workspaces permissions and sudo access
-RUN useradd -m -u 1000 -s /bin/zsh trader && \
-    mkdir -p /workspaces && \
-    chown -R trader:trader /app /workspaces && \
-    echo "trader ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+# Create non-root user
+RUN useradd -m -u 1000 trader && \
+    chown -R trader:trader /app
 
 # Copy the .zshrc and .oh-my-zsh config from root to the new user's home directory
+# and set the correct ownership for all app and config files.
 RUN cp /root/.zshrc /home/trader/.zshrc && \
     cp -r /root/.oh-my-zsh /home/trader/.oh-my-zsh && \
-    chown -R trader:trader /home/trader/.zshrc /home/trader/.oh-my-zsh
+    chown -R trader:trader /app /home/trader/.zshrc /home/trader/.oh-my-zsh
+
+# <<< MODIFIED: Set zsh as the default shell for the 'trader' user
+RUN usermod -s /bin/zsh trader
 
 # Switch to non-root user
 USER trader
