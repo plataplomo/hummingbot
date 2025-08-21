@@ -1,8 +1,10 @@
 import asyncio
 import json
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
-from typing import List
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import List, Optional
+from unittest.mock import AsyncMock, patch
+
+from bidict import bidict
 
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter
@@ -54,7 +56,14 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         self.data_source.logger().setLevel(1)
         self.data_source.logger().addHandler(self)
 
-        self.mocking_assistant = NetworkMockingAssistant(self.local_event_loop)
+        # Set up trading pair symbol map
+        self.connector._set_trading_pair_symbol_map(
+            bidict({self.ex_trading_pair: self.trading_pair})
+        )
+
+    async def asyncSetUp(self) -> None:
+        await super().asyncSetUp()
+        self.mocking_assistant = NetworkMockingAssistant()
         self.resume_test_event = asyncio.Event()
 
     def tearDown(self) -> None:
@@ -166,7 +175,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         return resp
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_authenticates_and_subscribes(self, mock_ws):
+    async def test_listen_for_user_stream_authenticates_and_subscribes(self, mock_ws):
         """Test user stream authentication and subscription."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -182,7 +191,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        self.async_run_with_timeout(asyncio.sleep(0.5))
+        await self.mocking_assistant.run_until_all_aiohttp_messages_delivered(mock_ws.return_value)
 
         # Check that auth message was sent
         sent_messages = self.mocking_assistant.json_messages_sent_through_websocket(mock_ws.return_value)
@@ -197,7 +206,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         self.assertIn("subscriptions", subscribe_msg["params"])
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_processes_order_event(self, mock_ws):
+    async def test_listen_for_user_stream_processes_order_event(self, mock_ws):
         """Test processing of order update events."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -219,14 +228,14 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        msg = self.async_run_with_timeout(output_queue.get())
+        msg = await asyncio.wait_for(output_queue.get(), timeout=1.0)
 
         self.assertEqual("order", msg["type"])
         self.assertEqual("1234567890", msg["data"]["orderId"])
         self.assertEqual(self.trading_pair, msg["data"]["trading_pair"])
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_processes_balance_event(self, mock_ws):
+    async def test_listen_for_user_stream_processes_balance_event(self, mock_ws):
         """Test processing of balance update events."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -248,14 +257,14 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        msg = self.async_run_with_timeout(output_queue.get())
+        msg = await asyncio.wait_for(output_queue.get(), timeout=1.0)
 
         self.assertEqual("balance", msg["type"])
         self.assertEqual("USDC", msg["data"]["asset"])
         self.assertEqual("10000.00", msg["data"]["free"])
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_processes_position_event(self, mock_ws):
+    async def test_listen_for_user_stream_processes_position_event(self, mock_ws):
         """Test processing of position update events."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -277,14 +286,14 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        msg = self.async_run_with_timeout(output_queue.get())
+        msg = await asyncio.wait_for(output_queue.get(), timeout=1.0)
 
         self.assertEqual("position", msg["type"])
         self.assertEqual(self.trading_pair, msg["data"]["trading_pair"])
         self.assertEqual("0.100", msg["data"]["size"])
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_processes_fill_event(self, mock_ws):
+    async def test_listen_for_user_stream_processes_fill_event(self, mock_ws):
         """Test processing of trade fill events."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -306,14 +315,14 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        msg = self.async_run_with_timeout(output_queue.get())
+        msg = await asyncio.wait_for(output_queue.get(), timeout=1.0)
 
         self.assertEqual("fill", msg["type"])
         self.assertEqual(self.trading_pair, msg["data"]["trading_pair"])
         self.assertEqual("9876543210", msg["data"]["tradeId"])
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_processes_funding_event(self, mock_ws):
+    async def test_listen_for_user_stream_processes_funding_event(self, mock_ws):
         """Test processing of funding payment events."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -335,14 +344,14 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        msg = self.async_run_with_timeout(output_queue.get())
+        msg = await asyncio.wait_for(output_queue.get(), timeout=1.0)
 
         self.assertEqual("funding", msg["type"])
         self.assertEqual(self.trading_pair, msg["data"]["trading_pair"])
         self.assertEqual("0.0001", msg["data"]["fundingRate"])
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_processes_liquidation_event(self, mock_ws):
+    async def test_listen_for_user_stream_processes_liquidation_event(self, mock_ws):
         """Test processing of liquidation warning events."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -364,7 +373,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        msg = self.async_run_with_timeout(output_queue.get())
+        msg = await asyncio.wait_for(output_queue.get(), timeout=1.0)
 
         self.assertEqual("liquidation", msg["type"])
         self.assertEqual(self.trading_pair, msg["data"]["trading_pair"])
@@ -383,7 +392,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
     @patch("hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_user_stream_data_source."
            "BackpackPerpetualUserStreamDataSource._sleep")
-    def test_listen_for_user_stream_logs_exception_on_error(self, mock_sleep, mock_ws):
+    async def test_listen_for_user_stream_logs_exception_on_error(self, mock_sleep, mock_ws):
         """Test error handling in user stream listener."""
         mock_sleep.side_effect = lambda _: self._raise_exception_and_unlock_test_with_event(
             asyncio.CancelledError
@@ -395,7 +404,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        self.async_run_with_timeout(self.resume_test_event.wait())
+        await self.resume_test_event.wait()
 
         self.assertTrue(
             self._is_logged(
@@ -405,7 +414,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         )
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    def test_listen_for_user_stream_reconnects_on_disconnect(self, mock_ws):
+    async def test_listen_for_user_stream_reconnects_on_disconnect(self, mock_ws):
         """Test reconnection after WebSocket disconnect."""
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
@@ -427,7 +436,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
             self.data_source.listen_for_user_stream(output=output_queue)
         )
 
-        self.async_run_with_timeout(asyncio.sleep(0.5))
+        await asyncio.sleep(0.5)
 
         # Verify that it attempted to reconnect (would call ws_connect again)
         self.assertTrue(mock_ws.called)

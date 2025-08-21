@@ -337,23 +337,19 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         """Test successful trade message processing."""
         msg_queue: asyncio.Queue = asyncio.Queue()
         
-        async def setup_and_run():
-            self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
-            await self.mocking_assistant.async_init()
-            mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
-            
-            self.mocking_assistant.add_websocket_aiohttp_message(
-                mock_ws.return_value,
-                json.dumps(self._orderbook_trade_event()["data"])
-            )
-            
-            self.listening_task = asyncio.create_task(
-                self.data_source.listen_for_trades(asyncio.get_event_loop(), msg_queue)
-            )
-            
-            return await asyncio.wait_for(msg_queue.get(), timeout=1.0)
+        # Set up the websocket mock
+        mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
         
-        msg = self.run_async_with_timeout(setup_and_run())
+        self.mocking_assistant.add_websocket_aiohttp_message(
+            mock_ws.return_value,
+            json.dumps(self._orderbook_trade_event()["data"])
+        )
+        
+        self.listening_task = self.local_event_loop.create_task(
+            self.data_source.listen_for_trades(self.local_event_loop, msg_queue)
+        )
+        
+        msg = self.run_async_with_timeout(msg_queue.get())
 
         self.assertIsInstance(msg, OrderBookMessage)
         self.assertEqual(msg.type, OrderBookMessageType.TRADE)
@@ -362,11 +358,11 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         self.assertEqual(msg.content["price"], "50000.00")
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    async def test_listen_for_order_book_diffs_successful(self, mock_ws):
+    def test_listen_for_order_book_diffs_successful(self, mock_ws):
         """Test successful order book diff message processing."""
         msg_queue: asyncio.Queue = asyncio.Queue()
-        self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
-        await self.mocking_assistant.async_init()
+        
+        # Set up the websocket mock
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
         diff_event = self._orderbook_update_event()
@@ -388,11 +384,11 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         self.assertEqual(len(msg.content["asks"]), 2)
 
     @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
-    async def test_listen_for_order_book_snapshots_successful(self, mock_ws):
+    def test_listen_for_order_book_snapshots_successful(self, mock_ws):
         """Test successful order book snapshot message processing."""
         msg_queue: asyncio.Queue = asyncio.Queue()
-        self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
-        await self.mocking_assistant.async_init()
+        
+        # Set up the websocket mock
         mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
 
         # For snapshots, we typically get a full order book state
@@ -585,24 +581,20 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         """Test listening for funding info updates via WebSocket."""
         msg_queue: asyncio.Queue = asyncio.Queue()
         
-        async def run_test():
-            self.mocking_assistant = NetworkMockingAssistant(asyncio.get_event_loop())
-            await self.mocking_assistant.async_init()
-            mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
-
-            funding_event = self._funding_info_event()
-            self.mocking_assistant.add_websocket_aiohttp_message(
-                mock_ws.return_value,
-                json.dumps(funding_event["data"])
-            )
-
-            self.listening_task = self.local_event_loop.create_task(
-                self.data_source.listen_for_funding_info(msg_queue)
-            )
-
-            return await msg_queue.get()
+        # Set up the websocket mock
+        mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
         
-        msg = self.run_async_with_timeout(run_test())
+        funding_event = self._funding_info_event()
+        self.mocking_assistant.add_websocket_aiohttp_message(
+            mock_ws.return_value,
+            json.dumps(funding_event["data"])
+        )
+        
+        self.listening_task = self.local_event_loop.create_task(
+            self.data_source.listen_for_funding_info(msg_queue)
+        )
+        
+        msg = self.run_async_with_timeout(msg_queue.get())
 
         self.assertIsInstance(msg, FundingInfo)
         self.assertEqual(msg.trading_pair, self.trading_pair)

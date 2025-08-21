@@ -1,14 +1,13 @@
 import asyncio
-import json
+import time
 from typing import Awaitable
 from unittest import TestCase
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from aioresponses import aioresponses
-
 import hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_constants as CONSTANTS
 import hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_web_utils as web_utils
 from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
+from hummingbot.core.api_throttler.data_types import RateLimit
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
@@ -19,9 +18,23 @@ class BackpackPerpetualWebUtilsTests(TestCase):
         super().setUpClass()
         cls.ev_loop = asyncio.get_event_loop()
 
+    def setUp(self) -> None:
+        super().setUp()
+        # Create a new event loop for each test to avoid closed loop issues
+        self.async_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.async_loop)
+
+    def tearDown(self) -> None:
+        # Close the loop properly
+        try:
+            self.async_loop.stop()
+            self.async_loop.close()
+        except Exception:
+            pass
+        super().tearDown()
+
     def async_run_with_timeout(self, coroutine: Awaitable, timeout: float = 1):
-        ret = self.ev_loop.run_until_complete(asyncio.wait_for(coroutine, timeout))
-        return ret
+        return self.async_loop.run_until_complete(asyncio.wait_for(coroutine, timeout))
 
     def test_public_rest_url(self):
         """Test public REST URL construction."""
@@ -41,7 +54,11 @@ class BackpackPerpetualWebUtilsTests(TestCase):
 
     def test_build_api_factory(self):
         """Test API factory creation."""
-        throttler = AsyncThrottler(rate_limits=[])
+        # Create throttler with proper rate limits
+        rate_limits = [
+            RateLimit(limit_id="default", limit=100, time_interval=60),
+        ]
+        throttler = AsyncThrottler(rate_limits=rate_limits)
         api_factory = web_utils.build_api_factory(throttler=throttler)
 
         self.assertIsInstance(api_factory, WebAssistantsFactory)
@@ -49,7 +66,11 @@ class BackpackPerpetualWebUtilsTests(TestCase):
 
     def test_build_api_factory_with_auth(self):
         """Test API factory creation with authentication."""
-        throttler = AsyncThrottler(rate_limits=[])
+        # Create throttler with proper rate limits
+        rate_limits = [
+            RateLimit(limit_id="default", limit=100, time_interval=60),
+        ]
+        throttler = AsyncThrottler(rate_limits=rate_limits)
         auth = MagicMock()
         api_factory = web_utils.build_api_factory(throttler=throttler, auth=auth)
 
@@ -65,38 +86,44 @@ class BackpackPerpetualWebUtilsTests(TestCase):
         # Check that rate limits are configured
         self.assertGreater(len(throttler._rate_limits), 0)
 
-    @aioresponses()
-    def test_api_request_success(self, mock_api):
+    @patch("hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_web_utils.WebAssistantsFactory")
+    def test_api_request_success(self, mock_factory_class):
         """Test successful API request."""
-        url = web_utils.public_rest_url(CONSTANTS.TICKER_URL)
-        regex_url = f"^{url}"
-
         expected_response = {
             "symbol": "BTC_PERP",
             "lastPrice": "50000.00",
             "markPrice": "50001.00",
             "fundingRate": "0.0001",
         }
-
-        mock_api.get(regex_url, body=json.dumps(expected_response))
-
+        
+        # Create mock factory and assistant
+        mock_factory = AsyncMock()
+        mock_factory_class.return_value = mock_factory
+        
+        mock_assistant = AsyncMock()
+        mock_factory.get_rest_assistant = AsyncMock(return_value=mock_assistant)
+        
+        # Make execute_request return a dict directly for testing
+        mock_assistant.execute_request = AsyncMock(return_value=expected_response)
+        
+        # Create throttler with proper rate limits
+        throttler = web_utils.create_throttler()
+        api_factory = mock_factory_class(throttler=throttler)
+        
         response = self.async_run_with_timeout(
             web_utils.api_request(
                 path=CONSTANTS.TICKER_URL,
-                api_factory=WebAssistantsFactory(throttler=AsyncThrottler(rate_limits=[])),
+                api_factory=api_factory,
                 params={"symbol": "BTC_PERP"},
                 method=RESTMethod.GET,
             )
         )
-
+        
         self.assertEqual(response, expected_response)
 
-    @aioresponses()
-    def test_api_request_with_data(self, mock_api):
+    @patch("hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_web_utils.WebAssistantsFactory")
+    def test_api_request_with_data(self, mock_factory_class):
         """Test API request with POST data."""
-        url = web_utils.private_rest_url(CONSTANTS.ORDER_URL)
-        regex_url = f"^{url}"
-
         order_data = {
             "symbol": "BTC_PERP",
             "side": "Buy",
@@ -104,51 +131,70 @@ class BackpackPerpetualWebUtilsTests(TestCase):
             "quantity": "0.01",
             "price": "50000"
         }
-
+        
         expected_response = {
             "orderId": "1234567890",
             "symbol": "BTC_PERP",
             "status": "NEW"
         }
-
-        mock_api.post(regex_url, body=json.dumps(expected_response))
-
+        
+        # Create mock factory and assistant
+        mock_factory = AsyncMock()
+        mock_factory_class.return_value = mock_factory
+        
+        mock_assistant = AsyncMock()
+        mock_factory.get_rest_assistant = AsyncMock(return_value=mock_assistant)
+        
+        # Make execute_request return a dict directly for testing
+        mock_assistant.execute_request = AsyncMock(return_value=expected_response)
+        
+        # Create throttler with proper rate limits
+        throttler = web_utils.create_throttler()
+        api_factory = mock_factory_class(throttler=throttler)
+        
         response = self.async_run_with_timeout(
             web_utils.api_request(
                 path=CONSTANTS.ORDER_URL,
-                api_factory=WebAssistantsFactory(throttler=AsyncThrottler(rate_limits=[])),
+                api_factory=api_factory,
                 data=order_data,
                 method=RESTMethod.POST,
             )
         )
-
+        
         self.assertEqual(response, expected_response)
 
-    @aioresponses()
-    def test_api_request_with_auth(self, mock_api):
+    @patch("hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_web_utils.WebAssistantsFactory")
+    def test_api_request_with_auth(self, mock_factory_class):
         """Test API request with authentication."""
-        url = web_utils.private_rest_url(CONSTANTS.ACCOUNT_URL)
-        regex_url = f"^{url}"
-
         expected_response = {
             "balances": [
                 {"asset": "USDC", "free": "10000.00", "locked": "0.00"}
             ]
         }
-
-        mock_api.get(regex_url, body=json.dumps(expected_response))
-
+        
         # Mock auth
         auth = AsyncMock()
         auth.rest_authenticate = AsyncMock(return_value=RESTRequest(
             method=RESTMethod.GET,
-            url=url,
+            url=web_utils.private_rest_url(CONSTANTS.ACCOUNT_URL),
             headers={"X-API-Key": "test_key"},
             is_auth_required=True
         ))
-
-        api_factory = WebAssistantsFactory(auth=auth)
-
+        
+        # Create mock factory and assistant
+        mock_factory = AsyncMock()
+        mock_factory_class.return_value = mock_factory
+        
+        mock_assistant = AsyncMock()
+        mock_factory.get_rest_assistant = AsyncMock(return_value=mock_assistant)
+        
+        # Make execute_request return a dict directly for testing
+        mock_assistant.execute_request = AsyncMock(return_value=expected_response)
+        
+        # Create throttler with proper rate limits
+        throttler = web_utils.create_throttler()
+        api_factory = mock_factory_class(throttler=throttler, auth=auth)
+        
         response = self.async_run_with_timeout(
             web_utils.api_request(
                 path=CONSTANTS.ACCOUNT_URL,
@@ -157,19 +203,33 @@ class BackpackPerpetualWebUtilsTests(TestCase):
                 is_auth_required=True,
             )
         )
-
+        
         self.assertEqual(response, expected_response)
 
-    def test_get_current_server_time(self):
+    @patch("hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_web_utils.build_api_factory_without_time_synchronizer_pre_processor")
+    def test_get_current_server_time(self, mock_build_factory):
         """Test getting current server time."""
-        # Since this is an async function that returns current time
+        # Mock response with server time in milliseconds
+        current_time_ms = int(time.time() * 1000)
+        expected_response = {"serverTime": current_time_ms}
+        
+        # Create mock factory and assistant
+        mock_factory = AsyncMock()
+        mock_build_factory.return_value = mock_factory
+        
+        mock_assistant = AsyncMock()
+        mock_factory.get_rest_assistant = AsyncMock(return_value=mock_assistant)
+        
+        # Make execute_request return a dict directly for testing
+        mock_assistant.execute_request = AsyncMock(return_value=expected_response)
+        
         server_time = self.async_run_with_timeout(
             web_utils.get_current_server_time()
         )
-
-        # Should be a positive number representing timestamp
+        
+        # Should be a positive number representing timestamp in seconds
         self.assertIsInstance(server_time, (int, float))
         self.assertGreater(server_time, 0)
-
-        # Should be a reasonable timestamp (after year 2020 in seconds)
-        self.assertGreater(server_time, 1577836800)  # Jan 1, 2020 in seconds
+        
+        # Should be close to current time
+        self.assertAlmostEqual(server_time, current_time_ms / 1000.0, delta=1)

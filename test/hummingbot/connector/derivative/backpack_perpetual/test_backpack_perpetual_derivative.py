@@ -734,8 +734,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.exchange._process_position_message(position_update)
 
         # Verify position was updated
-        self.assertIn(self.trading_pair, self.exchange._account_positions)
-        position = self.exchange._account_positions[self.trading_pair]
+        position_key = self.exchange._perpetual_trading.position_key(self.trading_pair)
+        self.assertIn(position_key, self.exchange._perpetual_trading._account_positions)
+        position = self.exchange._perpetual_trading._account_positions[position_key]
         self.assertEqual(position.amount, Decimal("0.5"))
 
     @aioresponses()
@@ -1087,7 +1088,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     def test_wrong_symbol_position_detected_on_positions_update(self, mock_api):
         """Test that positions for wrong symbols are ignored."""
-        url = self.balance_url()
+        url = self.balance_url
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         positions_data = [
@@ -1112,9 +1113,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.async_run_with_timeout(self.exchange._update_positions())
 
         # Should only have position for our trading pair
-        self.assertEqual(len(self.exchange._account_positions), 1)
-        self.assertIn(self.trading_pair, self.exchange._account_positions)
-        self.assertNotIn("ETH-USDC", self.exchange._account_positions)
+        self.assertEqual(len(self.exchange._perpetual_trading._account_positions), 1)
+        position_key = self.exchange._perpetual_trading.position_key(self.trading_pair)
+        self.assertIn(position_key, self.exchange._perpetual_trading._account_positions)
+        eth_position_key = self.exchange._perpetual_trading.position_key("ETH-USDC")
+        self.assertNotIn(eth_position_key, self.exchange._perpetual_trading._account_positions)
 
     @aioresponses()
     def test_account_position_updated_on_positions_update(self, mock_api):
@@ -1167,9 +1170,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     def test_new_account_position_detected_on_positions_update(self, mock_api):
         """Test that new positions are detected and added."""
         # Start with no positions
-        self.exchange._account_positions.clear()
+        self.exchange._perpetual_trading._account_positions.clear()
 
-        url = self.balance_url()
+        url = self.balance_url
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         new_position = {
@@ -1186,8 +1189,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.async_run_with_timeout(self.exchange._update_positions())
 
         # Check new position was added
-        self.assertIn(self.trading_pair, self.exchange._account_positions)
-        position = self.exchange._account_positions[self.trading_pair]
+        position_key = self.exchange._perpetual_trading.position_key(self.trading_pair)
+        self.assertIn(position_key, self.exchange._perpetual_trading._account_positions)
+        position = self.exchange._perpetual_trading._account_positions[position_key]
         self.assertEqual(position.position_side, PositionSide.SHORT)
         self.assertEqual(position.amount, Decimal("-0.05"))  # Negative for short
         self.assertEqual(position.unrealized_pnl, Decimal("50"))

@@ -21,7 +21,7 @@ WS_PUBLIC_URL = "wss://ws.backpack.exchange/stream"
 WS_PRIVATE_URL = "wss://ws.backpack.exchange/stream"
 
 # Public API endpoints
-EXCHANGE_INFO_URL = "api/v1/capital"
+EXCHANGE_INFO_URL = "api/v1/markets"
 TICKER_URL = "api/v1/ticker"
 TICKER_24H_URL = "api/v1/tickers"
 ORDER_BOOK_URL = "api/v1/depth"
