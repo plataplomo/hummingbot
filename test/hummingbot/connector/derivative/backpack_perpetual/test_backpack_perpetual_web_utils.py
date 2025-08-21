@@ -36,8 +36,8 @@ class BackpackPerpetualWebUtilsTests(TestCase):
         url = web_utils.private_rest_url(CONSTANTS.POSITIONS_URL)
         self.assertEqual(url, f"{CONSTANTS.REST_URL}{CONSTANTS.POSITIONS_URL}")
 
-        url = web_utils.private_rest_url(CONSTANTS.PLACE_ORDER_URL)
-        self.assertEqual(url, f"{CONSTANTS.REST_URL}{CONSTANTS.PLACE_ORDER_URL}")
+        url = web_utils.private_rest_url(CONSTANTS.ORDER_URL)
+        self.assertEqual(url, f"{CONSTANTS.REST_URL}{CONSTANTS.ORDER_URL}")
 
     def test_build_api_factory(self):
         """Test API factory creation."""
@@ -83,7 +83,7 @@ class BackpackPerpetualWebUtilsTests(TestCase):
         response = self.async_run_with_timeout(
             web_utils.api_request(
                 path=CONSTANTS.TICKER_URL,
-                api_factory=WebAssistantsFactory(),
+                api_factory=WebAssistantsFactory(throttler=AsyncThrottler(rate_limits=[])),
                 params={"symbol": "BTC_PERP"},
                 method=RESTMethod.GET,
             )
@@ -94,7 +94,7 @@ class BackpackPerpetualWebUtilsTests(TestCase):
     @aioresponses()
     def test_api_request_with_data(self, mock_api):
         """Test API request with POST data."""
-        url = web_utils.private_rest_url(CONSTANTS.PLACE_ORDER_URL)
+        url = web_utils.private_rest_url(CONSTANTS.ORDER_URL)
         regex_url = f"^{url}"
 
         order_data = {
@@ -115,8 +115,8 @@ class BackpackPerpetualWebUtilsTests(TestCase):
 
         response = self.async_run_with_timeout(
             web_utils.api_request(
-                path=CONSTANTS.PLACE_ORDER_URL,
-                api_factory=WebAssistantsFactory(),
+                path=CONSTANTS.ORDER_URL,
+                api_factory=WebAssistantsFactory(throttler=AsyncThrottler(rate_limits=[])),
                 data=order_data,
                 method=RESTMethod.POST,
             )
@@ -162,12 +162,14 @@ class BackpackPerpetualWebUtilsTests(TestCase):
 
     def test_get_current_server_time(self):
         """Test getting current server time."""
-        # Since this is a utility function that returns current time in milliseconds
-        server_time = web_utils.get_current_server_time()
+        # Since this is an async function that returns current time
+        server_time = self.async_run_with_timeout(
+            web_utils.get_current_server_time()
+        )
 
-        # Should be a positive integer representing milliseconds
-        self.assertIsInstance(server_time, int)
+        # Should be a positive number representing timestamp
+        self.assertIsInstance(server_time, (int, float))
         self.assertGreater(server_time, 0)
 
-        # Should be a reasonable timestamp (after year 2020)
-        self.assertGreater(server_time, 1577836800000)  # Jan 1, 2020 in milliseconds
+        # Should be a reasonable timestamp (after year 2020 in seconds)
+        self.assertGreater(server_time, 1577836800)  # Jan 1, 2020 in seconds

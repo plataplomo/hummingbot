@@ -343,3 +343,221 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         self.assertEqual(msg.content["trading_pair"], self.trading_pair)
         self.assertEqual(msg.content["trade_id"], "12345")
         self.assertEqual(msg.content["price"], "50000.00")
+
+    @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
+    def test_listen_for_order_book_diffs_successful(self, mock_ws):
+        """Test successful order book diff message processing."""
+        msg_queue: asyncio.Queue = asyncio.Queue()
+        mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
+
+        diff_event = self._orderbook_update_event()
+        self.mocking_assistant.add_websocket_aiohttp_message(
+            mock_ws.return_value,
+            json.dumps(diff_event["data"])
+        )
+
+        self.listening_task = self.local_event_loop.create_task(
+            self.data_source.listen_for_order_book_diffs(self.local_event_loop, msg_queue)
+        )
+
+        msg = self.async_run_with_timeout(msg_queue.get())
+
+        self.assertIsInstance(msg, OrderBookMessage)
+        self.assertEqual(msg.type, OrderBookMessageType.DIFF)
+        self.assertEqual(msg.content["trading_pair"], self.trading_pair)
+        self.assertEqual(len(msg.content["bids"]), 2)
+        self.assertEqual(len(msg.content["asks"]), 2)
+
+    @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
+    def test_listen_for_order_book_snapshots_successful(self, mock_ws):
+        """Test successful order book snapshot message processing."""
+        msg_queue: asyncio.Queue = asyncio.Queue()
+        mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
+
+        # For snapshots, we typically get a full order book state
+        snapshot_event = {
+            "type": "snapshot",
+            "symbol": self.ex_trading_pair,
+            "bids": [
+                ["50000.00", "1.000"],
+                ["49999.00", "2.000"],
+                ["49998.00", "1.500"],
+            ],
+            "asks": [
+                ["50001.00", "1.000"],
+                ["50002.00", "2.000"],
+                ["50003.00", "1.500"],
+            ],
+            "timestamp": 1641288825000,
+        }
+
+        self.mocking_assistant.add_websocket_aiohttp_message(
+            mock_ws.return_value,
+            json.dumps(snapshot_event)
+        )
+
+        self.listening_task = self.local_event_loop.create_task(
+            self.data_source.listen_for_order_book_snapshots(self.local_event_loop, msg_queue)
+        )
+
+        msg = self.async_run_with_timeout(msg_queue.get())
+
+        self.assertIsInstance(msg, OrderBookMessage)
+        self.assertEqual(msg.type, OrderBookMessageType.SNAPSHOT)
+        self.assertEqual(msg.content["trading_pair"], self.trading_pair)
+        self.assertEqual(len(msg.content["bids"]), 3)
+        self.assertEqual(len(msg.content["asks"]), 3)
+
+    @aioresponses()
+    def test_get_funding_info_with_zero_rate(self, mock_api):
+        """Test fetching funding info when rate is zero."""
+        url = web_utils.public_rest_url(CONSTANTS.TICKER_URL)
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+
+        mock_response = {
+            "symbol": self.ex_trading_pair,
+            "lastPrice": "50000.00",
+            "markPrice": "50001.00",
+            "indexPrice": "50000.50",
+            "fundingRate": "0",  # Zero funding rate
+            "nextFundingTime": 1641312000000,
+        }
+        mock_api.get(regex_url, body=json.dumps(mock_response))
+
+        result = self.async_run_with_timeout(
+            self.data_source.get_funding_info(self.trading_pair)
+        )
+
+        self.assertIsInstance(result, FundingInfo)
+        self.assertEqual(result.trading_pair, self.trading_pair)
+        self.assertEqual(result.rate, Decimal("0"))
+
+    @aioresponses()
+    def test_get_funding_info_error_response(self, mock_api):
+        """Test funding info error handling."""
+        url = web_utils.public_rest_url(CONSTANTS.TICKER_URL)
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+
+        mock_api.get(regex_url, status=500, body=json.dumps({"error": "Internal server error"}))
+
+        with self.assertRaises(IOError):
+            self.async_run_with_timeout(
+                self.data_source.get_funding_info(self.trading_pair)
+            )
+
+    @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
+    def test_websocket_connection_reconnects_on_error(self, mock_ws):
+        """Test WebSocket reconnection after error."""
+        msg_queue: asyncio.Queue = asyncio.Queue()
+        mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
+
+        # First, simulate a connection error
+        self.mocking_assistant.add_websocket_aiohttp_exception(
+            mock_ws.return_value,
+            ConnectionError("Connection lost")
+        )
+
+        # Then provide a valid message after reconnection
+        self.mocking_assistant.add_websocket_aiohttp_message(
+            mock_ws.return_value,
+            json.dumps(self._orderbook_trade_event()["data"])
+        )
+
+        self.listening_task = self.local_event_loop.create_task(
+            self.data_source.listen_for_trades(self.local_event_loop, msg_queue)
+        )
+
+        # Should eventually get the message after reconnection
+        msg = self.async_run_with_timeout(msg_queue.get(), timeout=5)
+        self.assertIsInstance(msg, OrderBookMessage)
+
+    @aioresponses()
+    def test_fetch_trading_pairs_filters_non_perpetual(self, mock_api):
+        """Test that non-perpetual pairs are filtered out."""
+        url = web_utils.public_rest_url(CONSTANTS.EXCHANGE_INFO_URL)
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+
+        mock_response = {
+            "symbols": [
+                {
+                    "symbol": "BTC_PERP",
+                    "baseAsset": "BTC",
+                    "quoteAsset": "USDC",
+                    "status": "TRADING",
+                    "contractType": "PERPETUAL",
+                },
+                {
+                    "symbol": "ETH_QUARTERLY",  # Non-perpetual future
+                    "baseAsset": "ETH",
+                    "quoteAsset": "USDC",
+                    "status": "TRADING",
+                    "contractType": "QUARTERLY",
+                },
+                {
+                    "symbol": "SOL_PERP",
+                    "baseAsset": "SOL",
+                    "quoteAsset": "USDC",
+                    "status": "TRADING",
+                    "contractType": "PERPETUAL",
+                },
+            ]
+        }
+        mock_api.get(regex_url, body=json.dumps(mock_response))
+
+        result = self.async_run_with_timeout(self.data_source.fetch_trading_pairs())
+
+        # Should only include perpetual contracts
+        self.assertEqual(len(result), 2)
+        self.assertIn("BTC-USDC", result)
+        self.assertIn("SOL-USDC", result)
+        self.assertNotIn("ETH-USDC", result)
+
+    @aioresponses()
+    def test_get_last_traded_prices_multiple_pairs(self, mock_api):
+        """Test fetching last traded prices for multiple pairs."""
+        trading_pairs = ["BTC-USDC", "ETH-USDC", "SOL-USDC"]
+        
+        for i, pair in enumerate(trading_pairs):
+            base = pair.split("-")[0]
+            symbol = f"{base}_PERP"
+            url = web_utils.public_rest_url(CONSTANTS.TICKER_URL)
+            regex_url = re.compile(f"^{url}.*symbol={symbol}".replace(".", r"\.").replace("?", r"\?"))
+            
+            mock_response = {
+                "symbol": symbol,
+                "lastPrice": f"{40000 + i * 10000}.00",
+                "markPrice": f"{40001 + i * 10000}.00",
+                "indexPrice": f"{40000.50 + i * 10000}.00",
+            }
+            mock_api.get(regex_url, body=json.dumps(mock_response))
+
+        result = self.async_run_with_timeout(
+            self.data_source.get_last_traded_prices(trading_pairs)
+        )
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result["BTC-USDC"], 40000.00)
+        self.assertEqual(result["ETH-USDC"], 50000.00)
+        self.assertEqual(result["SOL-USDC"], 60000.00)
+
+    @patch("aiohttp.ClientSession.ws_connect", new_callable=AsyncMock)
+    def test_listen_for_funding_info_update(self, mock_ws):
+        """Test listening for funding info updates via WebSocket."""
+        msg_queue: asyncio.Queue = asyncio.Queue()
+        mock_ws.return_value = self.mocking_assistant.create_websocket_mock()
+
+        funding_event = self._funding_info_event()
+        self.mocking_assistant.add_websocket_aiohttp_message(
+            mock_ws.return_value,
+            json.dumps(funding_event["data"])
+        )
+
+        self.listening_task = self.local_event_loop.create_task(
+            self.data_source.listen_for_funding_info(msg_queue)
+        )
+
+        msg = self.async_run_with_timeout(msg_queue.get())
+
+        self.assertIsInstance(msg, FundingInfo)
+        self.assertEqual(msg.trading_pair, self.trading_pair)
+        self.assertEqual(msg.rate, Decimal("0.0001"))

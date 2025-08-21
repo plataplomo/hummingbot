@@ -239,6 +239,34 @@ async def api_request(
             raise IOError(f"Error in API request {method} {url}: {str(e)}")
 
 
+def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
+    """
+    Get the full URL for a public REST endpoint.
+    
+    Args:
+        path_url: API endpoint path
+        domain: Exchange domain
+    
+    Returns:
+        Full URL for the public endpoint
+    """
+    return f"{CONSTANTS.REST_URL}{path_url}"
+
+
+def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
+    """
+    Get the full URL for a private REST endpoint.
+    
+    Args:
+        path_url: API endpoint path
+        domain: Exchange domain
+    
+    Returns:
+        Full URL for the private endpoint
+    """
+    return f"{CONSTANTS.REST_URL}{path_url}"
+
+
 def get_rest_url_for_endpoint(
     endpoint: str,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,

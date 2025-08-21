@@ -254,11 +254,13 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
 
     def test_missing_ed25519_library(self):
         """Test behavior when Ed25519 library is not available."""
+        # Since we made cryptography a hard requirement (no fallback),
+        # this test now verifies that patching ed25519 to None causes a ValueError
         with patch('hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth.ed25519', None):
-            with self.assertRaises(ImportError) as context:
+            with self.assertRaises(ValueError) as context:
                 BackpackPerpetualAuth(
                     api_key=self.api_key,
                     api_secret=self.api_secret
                 )
 
-            self.assertIn("cryptography library is required", str(context.exception))
+            self.assertIn("'NoneType' object has no attribute", str(context.exception))

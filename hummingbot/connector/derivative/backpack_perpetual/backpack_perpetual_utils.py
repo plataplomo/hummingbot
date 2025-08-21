@@ -3,7 +3,7 @@ Utility functions for Backpack Perpetual Exchange connector.
 """
 
 from decimal import Decimal
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Literal, Optional, Tuple
 
 from pydantic import Field, SecretStr
 
@@ -239,7 +239,7 @@ class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
     Configuration map for Backpack Perpetual connector.
     """
 
-    connector: str = Field(default="backpack_perpetual", const=True, client_data=None)
+    connector: Literal["backpack_perpetual"] = Field(default="backpack_perpetual", client_data=None)
 
     backpack_perpetual_api_key: SecretStr = Field(
         default=...,
