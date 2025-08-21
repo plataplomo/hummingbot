@@ -338,15 +338,14 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 if trading_pair is None:
                     continue
 
-                filters = market_info.get("filters", {})
-
+                # Backpack API returns trading rules directly on the symbol object
                 trading_rules[trading_pair] = TradingRule(
                     trading_pair=trading_pair,
-                    min_order_size=Decimal(str(filters.get("minQuantity", "0.001"))),
-                    max_order_size=Decimal(str(filters.get("maxQuantity", "10000"))),
-                    min_price_increment=Decimal(str(filters.get("tickSize", "0.01"))),
-                    min_base_amount_increment=Decimal(str(filters.get("stepSize", "0.001"))),
-                    min_notional_size=Decimal(str(filters.get("minNotional", "1"))),
+                    min_order_size=Decimal(str(market_info.get("minQuantity", "0.001"))),
+                    max_order_size=Decimal(str(market_info.get("maxQuantity", "10000"))),
+                    min_price_increment=Decimal(str(market_info.get("tickSize", "0.01"))),
+                    min_base_amount_increment=Decimal(str(market_info.get("stepSize", "0.001"))),
+                    min_notional_size=Decimal(str(market_info.get("minNotional", "1"))),
                     buy_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
                     sell_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
                 )
@@ -801,6 +800,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
                 # Extract trading rules from symbol info
                 min_order_size = Decimal(str(symbol_info.get("minQuantity", "0.001")))
+                max_order_size = Decimal(str(symbol_info.get("maxQuantity", "10000")))
                 tick_size = Decimal(str(symbol_info.get("tickSize", "0.01")))
                 step_size = Decimal(str(symbol_info.get("stepSize", "0.001")))
                 min_notional = Decimal(str(symbol_info.get("minNotional", "10")))
@@ -812,6 +812,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     TradingRule(
                         trading_pair=trading_pair,
                         min_order_size=min_order_size,
+                        max_order_size=max_order_size,
                         min_price_increment=tick_size,
                         min_base_amount_increment=step_size,
                         min_notional_size=min_notional,

@@ -316,7 +316,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         amount = Decimal("0.1")
 
         # Mock order placement
-        url = web_utils.private_rest_url(path_url=CONSTANTS.PLACE_ORDER_URL)
+        url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
@@ -364,7 +364,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         price = Decimal("51000")
 
         # Mock order placement
-        url = web_utils.private_rest_url(path_url=CONSTANTS.PLACE_ORDER_URL)
+        url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
@@ -427,7 +427,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         )
 
         # Mock cancel request
-        url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_ORDER_URL)
+        url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
@@ -498,7 +498,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     def test_set_leverage(self, mock_api):
         """Test setting leverage."""
-        url = web_utils.private_rest_url(path_url=CONSTANTS.SET_LEVERAGE_URL)
+        url = web_utils.private_rest_url(path_url=CONSTANTS.LEVERAGE_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         leverage = 5
@@ -841,7 +841,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.exchange._order_tracker.start_tracking_order(order)
 
         # Mock order not found response
-        cancel_url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_ORDER_URL)
+        cancel_url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_URL)
         mock_api.delete(cancel_url, status=404, body=json.dumps({"error": "Order not found"}))
 
         result = self.async_run_with_timeout(
@@ -1091,7 +1091,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "markPrice": "50000.00",
         }
 
-        self.exchange._account_positions[self.trading_pair] = Position(
+        # Set the position using the perpetual trading object
+        position_key = self.exchange._perpetual_trading.position_key(self.trading_pair)
+        self.exchange._perpetual_trading._account_positions[position_key] = Position(
             trading_pair=self.trading_pair,
             position_side=PositionSide.LONG,
             unrealized_pnl=Decimal("0"),
@@ -1100,25 +1102,26 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             leverage=Decimal("10"),
         )
 
-        # Update with new data
-        url = self.balance_url()
+        # Update with new data - positions endpoint
+        url = web_utils.private_rest_url(path_url=CONSTANTS.POSITIONS_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         updated_position = {
             "symbol": self.ex_trading_pair,
-            "side": "LONG",
-            "size": "0.2",  # Size increased
+            "side": "Long",  # Backpack uses capitalized sides
+            "netQuantity": "0.2",  # Changed from size to netQuantity
             "entryPrice": "49500.00",  # Entry price changed
             "markPrice": "51000.00",  # Mark price changed
-            "unrealizedPnl": "300.00",
+            "pnlUnrealized": "300.00",  # Backpack uses pnlUnrealized with capital U
         }
 
         mock_api.get(regex_url, body=json.dumps({"positions": [updated_position]}))
 
         self.async_run_with_timeout(self.exchange._update_positions())
 
-        # Check position was updated
-        position = self.exchange._account_positions[self.trading_pair]
+        # Check position was updated using proper API
+        position_key = self.exchange._perpetual_trading.position_key(self.trading_pair)
+        position = self.exchange._perpetual_trading._account_positions[position_key]
         self.assertEqual(position.amount, Decimal("0.2"))
         self.assertEqual(position.entry_price, Decimal("49500"))
         self.assertEqual(position.unrealized_pnl, Decimal("300"))
