@@ -87,7 +87,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
     @property
     def network_status_url(self):
-        url = web_utils.public_rest_url(path_url=CONSTANTS.PING_URL)
+        url = web_utils.public_rest_url(path_url=CONSTANTS.TIME_URL)
         return url
 
     @property
@@ -207,8 +207,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     def test_check_network_success(self, mock_api):
         """Test successful network check."""
         url = self.network_status_url
-        # Backpack ping endpoint returns plain text "pong"
-        mock_api.get(url, body="pong", content_type="text/plain")
+        # Mock the time endpoint response (using TIME_URL instead of PING_URL)
+        mock_api.get(url, body=json.dumps({"serverTime": 1234567890000}))
 
         result = self.async_run_with_timeout(self.exchange.check_network())
         self.assertEqual(result, NetworkStatus.CONNECTED)
@@ -517,22 +517,20 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     def test_existing_account_position_detected_on_positions_update(self, mock_api):
         """Test that existing positions are properly detected and updated."""
-        # Set up initial position
-        self.exchange._account_positions[self.trading_pair] = MagicMock()
+        # Set up initial position - using _perpetual_trading directly like the implementation does
+        self.exchange._perpetual_trading.account_positions[self.trading_pair] = MagicMock()
 
         position_response = {
             "positions": [
                 {
                     "symbol": self.symbol,
-                    "side": "LONG",
-                    "size": "0.5",
+                    "netQuantity": "0.5",  # Positive for long position
                     "entryPrice": "45000.00",
                     "markPrice": "46000.00",
-                    "unrealizedPnl": "500.00",
-                    "realizedPnl": "0.00",
-                    "margin": "450.00",
-                    "liquidationPrice": "40000.00",
-                    "leverage": "10"
+                    "pnlUnrealized": "500.00",
+                    "pnlRealized": "0.00",
+                    "estLiquidationPrice": "40000.00",
+                    "breakEvenPrice": "45000.00"
                 }
             ]
         }
@@ -542,16 +540,21 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         self.async_run_with_timeout(self.exchange._update_positions())
 
-        # Verify position was updated
-        self.assertIn(self.trading_pair, self.exchange._account_positions)
-        position = self.exchange._account_positions[self.trading_pair]
-        self.assertEqual(position.position_value, Decimal("22500"))  # 0.5 * 45000
+        # Verify position was updated - use public property for reading
+        self.assertIn(self.trading_pair, self.exchange.account_positions)
+        position = self.exchange.account_positions[self.trading_pair]
+        # Check position attributes
+        self.assertEqual(position.trading_pair, self.trading_pair)
+        self.assertEqual(position.position_side, PositionSide.LONG)
+        self.assertEqual(position.amount, Decimal("0.5"))
+        self.assertEqual(position.entry_price, Decimal("45000"))
+        self.assertEqual(position.unrealized_pnl, Decimal("500"))
 
     @aioresponses()
     def test_closed_account_position_removed_on_positions_update(self, mock_api):
         """Test that closed positions are properly removed."""
-        # Set up initial position
-        self.exchange._account_positions[self.trading_pair] = MagicMock()
+        # Set up initial position - using _perpetual_trading directly like the implementation does
+        self.exchange._perpetual_trading.account_positions[self.trading_pair] = MagicMock()
 
         # Empty positions response indicates closed position
         position_response = {"positions": []}
@@ -561,8 +564,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         self.async_run_with_timeout(self.exchange._update_positions())
 
-        # Verify position was removed
-        self.assertNotIn(self.trading_pair, self.exchange._account_positions)
+        # Verify position was removed - use public property for reading
+        self.assertNotIn(self.trading_pair, self.exchange.account_positions)
 
     @aioresponses()
     def test_order_event_with_cancelled_status_marks_order_as_cancelled(self, mock_api):

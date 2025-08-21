@@ -11,8 +11,8 @@ from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
 EXCHANGE_NAME = "backpack_perpetual"
 DEFAULT_DOMAIN = "backpack_perpetual"
 
-# Quote currency for perpetuals
-PERPETUAL_QUOTE_CURRENCY = "USDC"
+# Collateral token (Backpack uses USDC for all perpetuals)
+COLLATERAL_TOKEN = "USDC"
 
 # Base URLs
 REST_URL = "https://api.backpack.exchange/"
@@ -171,9 +171,6 @@ ORDER_NOT_EXIST_ERROR_CODE = -2013
 ORDER_NOT_EXIST_MESSAGE = "Order does not exist"
 UNKNOWN_ORDER_ERROR_CODE = -2011
 UNKNOWN_ORDER_MESSAGE = "Unknown order sent"
-
-# Collateral token (Backpack uses USDC for all perpetuals)
-COLLATERAL_TOKEN = "USDC"
 
 # Trading rules update interval
 TRADING_RULES_UPDATE_INTERVAL = 3600  # Update every hour

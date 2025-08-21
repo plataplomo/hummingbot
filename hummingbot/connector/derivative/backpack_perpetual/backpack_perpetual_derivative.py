@@ -131,7 +131,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     @property
     def check_network_request_path(self) -> str:
-        return CONSTANTS.PING_URL
+        return CONSTANTS.TIME_URL
 
     @property
     def trading_pairs(self):
@@ -383,8 +383,25 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True
         )
 
-        for position_data in response:
-            self._process_position_update(position_data)
+        # Handle both list format (direct response) and object format (wrapped in "positions" key)
+        positions = response if isinstance(response, list) else response.get("positions", [])
+        
+        # Track which trading pairs have positions in the response
+        trading_pairs_in_response = set()
+        
+        for position_data in positions:
+            symbol = position_data.get("symbol")
+            if symbol:
+                trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+                if trading_pair:
+                    trading_pairs_in_response.add(trading_pair)
+                    self._process_position_update(position_data)
+        
+        # Remove positions that are no longer in the response
+        current_positions = list(self._perpetual_trading.account_positions.keys())
+        for trading_pair in current_positions:
+            if trading_pair not in trading_pairs_in_response:
+                del self._perpetual_trading.account_positions[trading_pair]
 
     def _process_position_update(self, position_data: Dict[str, Any]):
         """Process a position update from API or WebSocket."""
@@ -935,8 +952,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         Make a network check request to verify connectivity.
         This is called by check_network() from the parent class.
+        
+        Uses TIME endpoint since Backpack's ping returns plain text "pong", not JSON,
+        which is incompatible with the standard REST assistant used by Hummingbot.
         """
         await self._api_get(
-            path_url=CONSTANTS.PING_URL,
+            path_url=CONSTANTS.TIME_URL,
             is_auth_required=False
         )
