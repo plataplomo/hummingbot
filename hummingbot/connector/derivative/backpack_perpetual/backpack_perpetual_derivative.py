@@ -3,11 +3,9 @@ Backpack Perpetual Exchange connector for Hummingbot.
 Main derivative class implementing perpetual futures trading functionality.
 """
 
-import asyncio
 import json
-import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, AsyncIterable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from hummingbot.connector.constants import s_decimal_NaN
 from hummingbot.connector.derivative.backpack_perpetual import (
@@ -25,7 +23,6 @@ from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_user_
 from hummingbot.connector.derivative.position import Position
 from hummingbot.connector.perpetual_derivative_py_base import PerpetualDerivativePyBase
 from hummingbot.connector.trading_rule import TradingRule
-from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.api_throttler.data_types import RateLimit
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.funding_info import FundingInfo
@@ -39,7 +36,7 @@ from hummingbot.core.event.events import (
     MarketEvent,
     PositionModeChangeEvent,
 )
-from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
+from hummingbot.core.utils.async_utils import safe_gather
 from hummingbot.core.utils.estimate_fee import build_perpetual_trade_fee
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
@@ -375,7 +372,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             asset = balance_info["symbol"]
             free = Decimal(str(balance_info.get("available", "0")))
             total = Decimal(str(balance_info.get("total", "0")))
-            locked = Decimal(str(balance_info.get("locked", "0")))
 
             self._account_available_balances[asset] = free
             self._account_balances[asset] = total

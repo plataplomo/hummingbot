@@ -52,11 +52,11 @@ RATE_LIMITS = [
     RateLimit(limit_id=CANCEL_ORDER_URL, limit=10, time_interval=1),
     RateLimit(limit_id=OPEN_ORDERS_URL, limit=10, time_interval=1),
     RateLimit(limit_id=ORDER_HISTORY_URL, limit=10, time_interval=1),
-    
+
     # Account endpoints
     RateLimit(limit_id=BALANCES_URL, limit=10, time_interval=1),
     RateLimit(limit_id=FILLS_URL, limit=10, time_interval=1),
-    
+
     # Public endpoints
     RateLimit(limit_id=PING_URL, limit=20, time_interval=1),
     RateLimit(limit_id=TIME_URL, limit=20, time_interval=1),
@@ -74,7 +74,7 @@ MAX_ORDER_ID_LEN = 32
 # Order states mapping from Backpack to Hummingbot
 ORDER_STATE_MAP = {
     "New": "OPEN",
-    "PartiallyFilled": "PARTIALLY_FILLED", 
+    "PartiallyFilled": "PARTIALLY_FILLED",
     "Filled": "FILLED",
     "Cancelled": "CANCELED",
     "Expired": "CANCELED",
@@ -96,7 +96,7 @@ ORDER_SIDE_MAP = {
 # Time in force
 TIME_IN_FORCE_MAP = {
     "GTC": "GTC",
-    "IOC": "IOC", 
+    "IOC": "IOC",
     "FOK": "FOK",
 }
 

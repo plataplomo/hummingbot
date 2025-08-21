@@ -6,19 +6,15 @@ Reuses the same authentication logic as the spot connector.
 import base64
 import time
 from typing import Any, Dict, Optional
-from urllib.parse import urlencode
 
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, WSJSONRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest
 
 try:
-    from cryptography.hazmat.primitives import serialization
     from cryptography.hazmat.primitives.asymmetric import ed25519
 except ImportError:
     # Fallback for environments without cryptography
     ed25519 = None
-
-from hummingbot.connector.derivative.backpack_perpetual import backpack_perpetual_constants as CONSTANTS
 
 
 class BackpackPerpetualAuth(AuthBase):

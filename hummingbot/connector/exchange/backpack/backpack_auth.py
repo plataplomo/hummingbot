@@ -9,11 +9,10 @@ from typing import Any, Dict, Optional
 from urllib.parse import urlencode
 
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest, WSJSONRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest
 
 try:
     from cryptography.hazmat.primitives.asymmetric import ed25519
-    from cryptography.hazmat.primitives import serialization
 except ImportError:
     # Fallback for environments without cryptography
     ed25519 = None
@@ -24,7 +23,7 @@ from hummingbot.connector.exchange.backpack import backpack_constants as CONSTAN
 class BackpackAuth(AuthBase):
     """
     Backpack Exchange authentication using Ed25519 signatures.
-    
+
     Implements the authentication pattern required by Backpack:
     - X-API-Key: API key
     - X-Timestamp: Unix timestamp in milliseconds
@@ -40,7 +39,7 @@ class BackpackAuth(AuthBase):
     ):
         """
         Initialize Backpack authentication.
-        
+
         Args:
             api_key: Backpack API key
             api_secret: Backpack API secret (base64 encoded private key)
@@ -70,10 +69,10 @@ class BackpackAuth(AuthBase):
     def _generate_signature(self, payload: str) -> str:
         """
         Generate Ed25519 signature for the given payload.
-        
+
         Args:
             payload: String to sign (timestamp + method + path + body)
-            
+
         Returns:
             Base64 encoded signature
         """
@@ -93,31 +92,31 @@ class BackpackAuth(AuthBase):
     ) -> str:
         """
         Build the payload string for signature generation.
-        
+
         Format: timestamp + method + path + query_string + body
-        
+
         Args:
             timestamp: Request timestamp
             method: HTTP method (GET, POST, etc.)
             path: API endpoint path
             params: Query parameters for GET requests
             data: Request body for POST requests
-            
+
         Returns:
             Signature payload string
         """
         payload = f"{timestamp}{method.upper()}{path}"
-        
+
         # Add query string for GET requests
         if params and method.upper() == "GET":
             query_string = urlencode(sorted(params.items()))
             if query_string:
                 payload += f"?{query_string}"
-        
+
         # Add body for POST requests
         if data:
             payload += data
-            
+
         return payload
 
     def _generate_auth_headers(
@@ -129,13 +128,13 @@ class BackpackAuth(AuthBase):
     ) -> Dict[str, str]:
         """
         Generate authentication headers for REST requests.
-        
+
         Args:
             method: HTTP method
             path: API endpoint path
             params: Query parameters
             data: Request body
-            
+
         Returns:
             Dictionary of authentication headers
         """
@@ -153,10 +152,10 @@ class BackpackAuth(AuthBase):
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
         """
         Add authentication headers to REST request.
-        
+
         Args:
             request: REST request to authenticate
-            
+
         Returns:
             Authenticated request
         """
@@ -186,15 +185,15 @@ class BackpackAuth(AuthBase):
     async def ws_authenticate(self, request: WSJSONRequest) -> WSJSONRequest:
         """
         Add authentication to WebSocket request.
-        
+
         Args:
             request: WebSocket request to authenticate
-            
+
         Returns:
             Authenticated WebSocket request
         """
         timestamp = str(self._time_provider())
-        
+
         # For WebSocket auth, we typically sign a simpler payload
         auth_payload = f"{timestamp}websocket_auth"
         signature = self._generate_signature(auth_payload)
@@ -219,7 +218,7 @@ class BackpackAuth(AuthBase):
     def get_ws_auth_message(self) -> Dict[str, Any]:
         """
         Generate WebSocket authentication message.
-        
+
         Returns:
             Authentication message for WebSocket
         """

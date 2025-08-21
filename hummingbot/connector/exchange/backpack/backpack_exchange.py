@@ -3,12 +3,10 @@ Backpack Exchange connector for Hummingbot.
 Main exchange class implementing all required trading functionality.
 """
 
-import asyncio
 import json
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
-from hummingbot.connector.constants import s_decimal_NaN
 from hummingbot.connector.exchange.backpack import (
     backpack_constants as CONSTANTS,
     backpack_utils as utils,
@@ -19,13 +17,11 @@ from hummingbot.connector.exchange.backpack.backpack_api_user_stream_data_source
 from hummingbot.connector.exchange.backpack.backpack_auth import BackpackAuth
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
-from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
-from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
+from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
-from hummingbot.core.utils.async_utils import safe_gather
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
@@ -36,15 +32,15 @@ if TYPE_CHECKING:
 class BackpackExchange(ExchangePyBase):
     """
     Backpack exchange connector implementing all required Hummingbot functionality.
-    
+
     Features:
     - Order placement and cancellation
-    - Balance and position tracking  
+    - Balance and position tracking
     - Trading rules management
     - Real-time data via WebSocket
     - Ed25519 authentication
     """
-    
+
     UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
     HEARTBEAT_TIME_INTERVAL = 30.0
 
@@ -61,7 +57,7 @@ class BackpackExchange(ExchangePyBase):
     ):
         """
         Initialize Backpack exchange connector.
-        
+
         Args:
             client_config_map: Client configuration
             backpack_api_key: API key for authentication
@@ -281,7 +277,7 @@ class BackpackExchange(ExchangePyBase):
     ) -> Dict[str, Any]:
         """
         Execute API request with proper error handling and rate limiting.
-        
+
         Args:
             method: HTTP method
             path_url: API endpoint path
@@ -289,17 +285,17 @@ class BackpackExchange(ExchangePyBase):
             data: Request body data
             is_auth_required: Whether authentication is required
             limit_id: Rate limit identifier
-            
+
         Returns:
             API response data
         """
         rest_assistant = await self._web_assistants_factory.get_rest_assistant()
-        
+
         if limit_id is None:
             limit_id = path_url
-            
+
         url = web_utils.get_rest_url_for_endpoint(path_url, self._domain)
-        
+
         async with self._throttler.execute_task(limit_id=limit_id):
             response = await rest_assistant.execute_request(
                 url=url,
@@ -308,12 +304,12 @@ class BackpackExchange(ExchangePyBase):
                 data=json.dumps(data) if data else None,
                 is_auth_required=is_auth_required
             )
-            
+
             if response.status != 200:
                 error_data = await response.json()
                 error_msg = error_data.get("msg", f"HTTP {response.status}")
                 raise IOError(f"API request failed: {error_msg}")
-                
+
             return await response.json()
 
     # Network check
@@ -333,23 +329,23 @@ class BackpackExchange(ExchangePyBase):
                 path_url=self.trading_rules_request_path,
                 limit_id=CONSTANTS.EXCHANGE_INFO_URL
             )
-            
+
             trading_rules = {}
-            
+
             if "symbols" not in exchange_info:
                 self.logger().error("Invalid exchange info response")
                 return
-                
+
             for symbol_info in exchange_info["symbols"]:
                 try:
                     if symbol_info.get("status") != "TRADING":
                         continue
-                        
+
                     exchange_symbol = symbol_info["symbol"]
                     trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
-                    
+
                     filters = symbol_info.get("filters", {})
-                    
+
                     trading_rules[trading_pair] = TradingRule(
                         trading_pair=trading_pair,
                         min_order_size=Decimal(filters.get("minQty", "0")),
@@ -358,13 +354,13 @@ class BackpackExchange(ExchangePyBase):
                         min_base_amount_increment=Decimal(filters.get("stepSize", "0.01")),
                         min_notional_size=Decimal(filters.get("minNotional", "0")),
                     )
-                    
+
                 except Exception as e:
                     self.logger().error(f"Error parsing trading rule for {symbol_info}: {e}")
                     continue
-                    
+
             self._trading_rules = trading_rules
-            
+
         except Exception as e:
             self.logger().error(f"Error updating trading rules: {e}")
             self._trading_rules = {}
@@ -376,9 +372,9 @@ class BackpackExchange(ExchangePyBase):
                 path_url=CONSTANTS.TICKER_URL,
                 limit_id=CONSTANTS.TICKER_URL
             )
-            
+
             prices = {}
-            
+
             if isinstance(ticker_data, list):
                 for ticker in ticker_data:
                     exchange_symbol = ticker.get("symbol")
@@ -393,9 +389,9 @@ class BackpackExchange(ExchangePyBase):
                     trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
                     if trading_pair in trading_pairs:
                         prices[trading_pair] = Decimal(ticker_data.get("price", "0"))
-                        
+
             return prices
-            
+
         except Exception as e:
             self.logger().error(f"Error fetching last traded prices: {e}")
             return {}
@@ -409,15 +405,15 @@ class BackpackExchange(ExchangePyBase):
                 is_auth_required=True,
                 limit_id=CONSTANTS.BALANCES_URL
             )
-            
+
             for balance_info in balances_data.get("balances", []):
                 asset = balance_info["asset"]
                 free_balance = Decimal(balance_info["free"])
                 total_balance = Decimal(balance_info["total"])
-                
+
                 self._account_available_balances[asset] = free_balance
                 self._account_balances[asset] = total_balance
-                
+
         except Exception as e:
             self.logger().error(f"Error updating balances: {e}")
 
@@ -434,7 +430,7 @@ class BackpackExchange(ExchangePyBase):
     ) -> Tuple[str, float]:
         """
         Place an order on Backpack exchange.
-        
+
         Args:
             order_id: Client order ID
             trading_pair: Trading pair
@@ -442,12 +438,12 @@ class BackpackExchange(ExchangePyBase):
             trade_type: Buy or sell
             order_type: Limit or market
             price: Order price (required for limit orders)
-            
+
         Returns:
             Tuple of (exchange_order_id, timestamp)
         """
         exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-        
+
         order_data = {
             "symbol": exchange_symbol,
             "side": self.backpack_order_side(trade_type),
@@ -455,17 +451,17 @@ class BackpackExchange(ExchangePyBase):
             "quantity": str(amount),
             "clientId": order_id,
         }
-        
+
         if order_type == OrderType.LIMIT:
             if price is None:
                 raise ValueError("Price is required for limit orders")
             order_data["price"] = str(price)
-        
+
         # Add time in force if specified
         time_in_force = kwargs.get("time_in_force")
         if time_in_force:
             order_data["timeInForce"] = CONSTANTS.TIME_IN_FORCE_MAP.get(time_in_force, "GTC")
-            
+
         try:
             response = await self._api_post(
                 path_url=CONSTANTS.ORDER_URL,
@@ -473,12 +469,12 @@ class BackpackExchange(ExchangePyBase):
                 is_auth_required=True,
                 limit_id=CONSTANTS.ORDER_URL
             )
-            
+
             exchange_order_id = response["orderId"]
             timestamp = self.current_timestamp
-            
+
             return exchange_order_id, timestamp
-            
+
         except Exception as e:
             self.logger().error(f"Error placing order {order_id}: {e}")
             raise
@@ -486,21 +482,21 @@ class BackpackExchange(ExchangePyBase):
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder) -> bool:
         """
         Cancel an order on Backpack exchange.
-        
+
         Args:
             order_id: Client order ID
             tracked_order: InFlightOrder being cancelled
-            
+
         Returns:
             True if cancellation successful
         """
         exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
-        
+
         cancel_data = {
             "symbol": exchange_symbol,
             "orderId": tracked_order.exchange_order_id,
         }
-        
+
         try:
             await self._api_delete(
                 path_url=CONSTANTS.CANCEL_ORDER_URL,
@@ -508,9 +504,9 @@ class BackpackExchange(ExchangePyBase):
                 is_auth_required=True,
                 limit_id=CONSTANTS.CANCEL_ORDER_URL
             )
-            
+
             return True
-            
+
         except Exception as e:
             if self._is_order_not_found_during_cancelation_error(e):
                 # Order already cancelled or filled
@@ -523,7 +519,7 @@ class BackpackExchange(ExchangePyBase):
         """Get all trade updates for a specific order."""
         try:
             exchange_symbol = utils.convert_to_exchange_trading_pair(order.trading_pair)
-            
+
             fills_data = await self._api_get(
                 path_url=CONSTANTS.FILLS_URL,
                 params={
@@ -533,9 +529,9 @@ class BackpackExchange(ExchangePyBase):
                 is_auth_required=True,
                 limit_id=CONSTANTS.FILLS_URL
             )
-            
+
             trade_updates = []
-            
+
             for fill in fills_data.get("fills", []):
                 trade_update = TradeUpdate(
                     trade_id=fill["tradeId"],
@@ -557,9 +553,9 @@ class BackpackExchange(ExchangePyBase):
                     )
                 )
                 trade_updates.append(trade_update)
-                
+
             return trade_updates
-            
+
         except Exception as e:
             self.logger().error(f"Error getting trade updates for order {order.client_order_id}: {e}")
             return []
@@ -568,7 +564,7 @@ class BackpackExchange(ExchangePyBase):
         """Request current status of an order."""
         try:
             exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
-            
+
             order_data = await self._api_get(
                 path_url=CONSTANTS.ORDER_URL,
                 params={
@@ -578,9 +574,9 @@ class BackpackExchange(ExchangePyBase):
                 is_auth_required=True,
                 limit_id=CONSTANTS.ORDER_URL
             )
-            
+
             order_state = CONSTANTS.ORDER_STATE_MAP.get(order_data["status"], OrderState.OPEN)
-            
+
             order_update = OrderUpdate(
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=tracked_order.exchange_order_id,
@@ -591,9 +587,9 @@ class BackpackExchange(ExchangePyBase):
                 executed_amount_base=Decimal(order_data.get("executedQuantity", "0")),
                 executed_amount_quote=Decimal(order_data.get("executedQuantity", "0")) * Decimal(order_data.get("price", "0")),
             )
-            
+
             return order_update
-            
+
         except Exception as e:
             if self._is_order_not_found_during_status_update_error(e):
                 # Order not found, mark as cancelled
@@ -627,10 +623,10 @@ class BackpackExchange(ExchangePyBase):
                 fee_asset=fee_asset,
                 fee_amount=fee_amount
             )
-        
+
         # Calculate estimated fee (typically 0.1% for Backpack)
         fee_rate = Decimal("0.001")  # 0.1%
-        
+
         if order_side == TradeType.BUY:
             # Fee paid in base currency
             fee_amount = amount * fee_rate
@@ -639,7 +635,7 @@ class BackpackExchange(ExchangePyBase):
             # Fee paid in quote currency
             fee_amount = amount * price * fee_rate
             fee_asset = quote_currency
-            
+
         return DeductedFromReturnsTradeFee(
             fee_asset=fee_asset,
             fee_amount=fee_amount
@@ -651,14 +647,14 @@ class BackpackExchange(ExchangePyBase):
         async for event_message in self._iter_user_event_queue():
             try:
                 message_type = event_message.get("message_type")
-                
+
                 if message_type == "order_update":
                     self._process_order_message(event_message)
                 elif message_type == "balance_update":
                     self._process_balance_message(event_message)
                 elif message_type == "trade_update":
                     self._process_trade_message(event_message)
-                    
+
             except Exception:
                 self.logger().error("Error processing user stream event", exc_info=True)
 
@@ -667,17 +663,17 @@ class BackpackExchange(ExchangePyBase):
         try:
             data = order_msg.get("data", {})
             client_order_id = data.get("clientId")
-            
+
             if not client_order_id:
                 return
-                
+
             tracked_order = self._order_tracker.fetch_order(client_order_id)
             if not tracked_order:
                 return
-                
+
             order_state = CONSTANTS.ORDER_STATE_MAP.get(data["status"], "OPEN")
             new_state = getattr(OrderState, order_state)
-            
+
             order_update = OrderUpdate(
                 client_order_id=client_order_id,
                 exchange_order_id=data.get("orderId"),
@@ -687,9 +683,9 @@ class BackpackExchange(ExchangePyBase):
                 fill_price=Decimal(data.get("price", "0")),
                 executed_amount_base=Decimal(data.get("executedQuantity", "0")),
             )
-            
+
             self._order_tracker.process_order_update(order_update)
-            
+
         except Exception:
             self.logger().error(f"Error processing order message: {order_msg}", exc_info=True)
 
@@ -698,14 +694,14 @@ class BackpackExchange(ExchangePyBase):
         try:
             data = balance_msg.get("data", {})
             asset = data.get("asset")
-            
+
             if asset:
                 free_balance = Decimal(data.get("free", "0"))
                 total_balance = Decimal(data.get("total", "0"))
-                
+
                 self._account_available_balances[asset] = free_balance
                 self._account_balances[asset] = total_balance
-                
+
         except Exception:
             self.logger().error(f"Error processing balance message: {balance_msg}", exc_info=True)
 
@@ -714,14 +710,14 @@ class BackpackExchange(ExchangePyBase):
         try:
             data = trade_msg.get("data", {})
             client_order_id = data.get("clientId")
-            
+
             if not client_order_id:
                 return
-                
+
             tracked_order = self._order_tracker.fetch_order(client_order_id)
             if not tracked_order:
                 return
-                
+
             trade_update = TradeUpdate(
                 trade_id=data["tradeId"],
                 client_order_id=client_order_id,
@@ -741,8 +737,8 @@ class BackpackExchange(ExchangePyBase):
                     fee_amount=Decimal(data.get("fee", "0"))
                 )
             )
-            
+
             self._order_tracker.process_trade_update(trade_update)
-            
+
         except Exception:
             self.logger().error(f"Error processing trade message: {trade_msg}", exc_info=True)
