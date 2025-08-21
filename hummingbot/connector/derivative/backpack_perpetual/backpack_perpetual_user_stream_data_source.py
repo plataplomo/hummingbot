@@ -171,9 +171,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         Args:
             ws: WebSocket assistant
         """
-        self._message_id_counter += 1
-
         # Subscribe to all required private channels
+        # Backpack uses the format: {"method": "SUBSCRIBE", "params": ["stream1", "stream2", ...]}
         channels = [
             CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,      # Order updates
             CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL,    # Balance updates
@@ -184,11 +183,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         ]
 
         subscribe_msg = {
-            "id": self._message_id_counter,
-            "method": "subscribe",
-            "params": {
-                "subscriptions": channels
-            }
+            "method": "SUBSCRIBE",
+            "params": channels
         }
 
         await ws.send(json.dumps(subscribe_msg))
@@ -205,21 +201,33 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             Processed event or None if not relevant
         """
         try:
-            event_type = event.get("type", event.get("stream", ""))
+            # Backpack wraps all stream data in {"stream": "<stream>", "data": "<payload>"}
+            # Check if this is a wrapped message
+            if "stream" in event and "data" in event:
+                event_type = event["stream"]
+                inner_data = event["data"]
+            else:
+                # Direct format (for auth responses or other non-stream messages)
+                event_type = event.get("type", "")
+                inner_data = event
+                
+            # Skip auth responses and subscription confirmations
+            if event_type in ["authenticated", "subscribed"] or event.get("result") == "success":
+                return None
 
-            # Route based on event type
+            # Route based on event type/stream name
             if "order" in event_type.lower():
-                return self._process_order_event(event)
+                return self._process_order_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
             elif "balance" in event_type.lower():
-                return self._process_balance_event(event)
+                return self._process_balance_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
             elif "position" in event_type.lower():
-                return self._process_position_event(event)
+                return self._process_position_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
             elif "fill" in event_type.lower() or "trade" in event_type.lower():
-                return self._process_fill_event(event)
+                return self._process_fill_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
             elif "funding" in event_type.lower():
-                return self._process_funding_event(event)
+                return self._process_funding_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
             elif "liquidation" in event_type.lower():
-                return self._process_liquidation_event(event)
+                return self._process_liquidation_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
             else:
                 # Unknown event type - log for debugging
                 self.logger().debug(f"Unknown event type: {event_type}")

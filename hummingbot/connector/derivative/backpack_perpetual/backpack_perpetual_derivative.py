@@ -7,6 +7,7 @@ import json
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from hummingbot.client.config.trade_fee_schema_loader import TradeFeeSchemaLoader
 from hummingbot.connector.constants import s_decimal_NaN
 from hummingbot.connector.derivative.backpack_perpetual import (
     backpack_perpetual_constants as CONSTANTS,
@@ -28,7 +29,7 @@ from hummingbot.core.data_type.common import OrderType, PositionAction, Position
 from hummingbot.core.data_type.funding_info import FundingInfo
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
-from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase
+from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase, TradeFeeSchema
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.event.events import (
     AccountEvent,
@@ -136,6 +137,30 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     @property
     def trading_pairs(self):
         return self._trading_pairs
+    
+    def set_leverage(self, trading_pair: str, leverage: int = 1):
+        """
+        Set leverage for a trading pair (stored locally).
+        
+        Note: Backpack uses account-wide leverage limits rather than per-position leverage.
+        This method stores the leverage locally for use in calculations.
+        
+        Args:
+            trading_pair: The trading pair
+            leverage: The leverage value (default 1)
+        
+        Returns:
+            The leverage value that was set
+        """
+        self._leverage_map[trading_pair] = leverage
+        self._perpetual_trading.set_leverage(trading_pair, leverage)
+        
+        self.logger().info(
+            f"Leverage {leverage}x stored locally for {trading_pair}. "
+            f"Note: Backpack uses account-wide leverage limits."
+        )
+        
+        return leverage
 
     @property
     def is_cancel_request_in_exchange_synchronous(self) -> bool:
@@ -156,6 +181,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         return [OrderType.LIMIT, OrderType.MARKET, OrderType.LIMIT_MAKER]
 
+    @property
     def supported_position_modes(self) -> List[PositionMode]:
         """
         Backpack supports ONE-WAY mode only.
@@ -169,6 +195,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     def get_sell_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for short positions"""
         return CONSTANTS.COLLATERAL_TOKEN
+
+    def trade_fee_schema(self) -> TradeFeeSchema:
+        """Returns the trade fee schema for Backpack exchange."""
+        return TradeFeeSchemaLoader.configured_schema_for_exchange(exchange_name=self.name)
 
     # Helper methods for order and trade type conversion
     @staticmethod
@@ -544,10 +574,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
             return True
 
-        except Exception as e:
-            if self._is_order_not_found_during_cancelation_error(e):
-                # Order already cancelled or filled
-                return True
+        except Exception:
+            # Re-raise all exceptions to let the base class handle them properly
+            # The base class will call _is_order_not_found_during_cancelation_error
             raise
 
     # Order status and trade updates
@@ -689,24 +718,24 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     # Leverage management
     async def _execute_set_leverage(self, trading_pair: str, leverage: int):
-        """Set leverage for a trading pair."""
-        symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-
-        response = await self._api_post(
-            path_url=CONSTANTS.LEVERAGE_URL,
-            data={
-                "symbol": symbol,
-                "leverage": leverage,
-            },
-            is_auth_required=True
+        """
+        Set leverage for a trading pair.
+        
+        Note: Backpack uses account-wide leverage limits rather than per-position leverage.
+        This method updates the account-wide leverage limit.
+        """
+        # Backpack doesn't support per-position leverage setting
+        # Leverage is an account-wide setting (leverageLimit)
+        # For now, we'll store the desired leverage locally and log a warning
+        
+        self._leverage_map[trading_pair] = leverage
+        self._perpetual_trading.set_leverage(trading_pair, leverage)
+        
+        self.logger().warning(
+            f"Backpack uses account-wide leverage limits. "
+            f"Storing leverage {leverage}x for {trading_pair} locally. "
+            f"To change actual leverage, update account settings via the exchange interface."
         )
-
-        if response.get("success"):
-            self._leverage_map[trading_pair] = leverage
-            self._perpetual_trading.set_leverage(trading_pair, leverage)
-            self.logger().info(f"Leverage set to {leverage}x for {trading_pair}")
-        else:
-            raise ValueError(f"Failed to set leverage: {response}")
 
     async def _execute_set_position_mode(self, mode: PositionMode):
         """
@@ -747,15 +776,197 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             except Exception:
                 self.logger().exception("Error processing user stream event")
 
-    def _process_order_message(self, order_msg: Dict[str, Any]):
+    def _process_order_message(self, order_msg: dict[str, Any]):
         """Process order update messages."""
-        # Implementation similar to spot connector
-        pass
+        try:
+            # Handle both order updates and trade fills
+            data = order_msg.get("data", order_msg)
+            
+            # Check if this is a trade/fill event
+            if "tradeId" in data:
+                self._process_trade_fill(data)
+            else:
+                # Regular order status update
+                self._process_order_status_update(data)
+                
+        except Exception:
+            self.logger().exception(f"Error processing order message: {order_msg}")
 
-    def _process_balance_message(self, balance_msg: Dict[str, Any]):
+    def _process_trade_fill(self, fill_data: dict[str, Any]):
+        """Process trade fill event."""
+        try:
+            # Get order by exchange order ID
+            exchange_order_id = fill_data.get("orderId")
+            if not exchange_order_id:
+                return
+                
+            # Find the tracked order
+            tracked_order = None
+            for order in self._order_tracker.active_orders.values():
+                if order.exchange_order_id == exchange_order_id:
+                    tracked_order = order
+                    break
+                    
+            if not tracked_order:
+                return
+            
+            # Determine position action based on order side
+            # For one-way mode: BUY opens long/closes short, SELL opens short/closes long
+            position_action = tracked_order.position if hasattr(tracked_order, 'position') else PositionAction.NIL
+            
+            # Get fee details
+            fee_amount = Decimal(str(fill_data.get("fee", "0")))
+            fee_asset = fill_data.get("feeAsset", tracked_order.quote_asset)
+            
+            # Create flat_fees list - always include even if fee is zero
+            flat_fees = [TokenAmount(token=fee_asset, amount=fee_amount)]
+            
+            # Create fee object
+            fee = TradeFeeBase.new_perpetual_fee(
+                fee_schema=self.trade_fee_schema(),
+                position_action=position_action,
+                percent_token=fee_asset,
+                flat_fees=flat_fees
+            )
+                
+            # Create trade update
+            trade_update = TradeUpdate(
+                trade_id=str(fill_data["tradeId"]),
+                client_order_id=tracked_order.client_order_id,
+                exchange_order_id=exchange_order_id,
+                trading_pair=tracked_order.trading_pair,
+                fill_timestamp=fill_data.get("timestamp", self.current_timestamp) / 1000,
+                fill_price=Decimal(str(fill_data.get("price", "0"))),
+                fill_base_amount=Decimal(str(fill_data.get("quantity", "0"))),
+                fill_quote_amount=Decimal(str(fill_data.get("price", "0"))) * Decimal(str(fill_data.get("quantity", "0"))),
+                fee=fee
+            )
+            
+            self._order_tracker.process_trade_update(trade_update)
+            
+        except Exception:
+            self.logger().exception(f"Error processing trade fill: {fill_data}")
+    
+    def _process_order_status_update(self, order_data: dict[str, Any]):
+        """Process order status update."""
+        try:
+            # Handle both REST (clientId) and WebSocket (c) field names
+            client_order_id = order_data.get("clientId") or order_data.get("c")
+            if not client_order_id:
+                # If no client order ID, try to use exchange order ID to find order
+                exchange_order_id = order_data.get("orderId") or order_data.get("id") or order_data.get("i")
+                if exchange_order_id:
+                    # Find order by exchange ID
+                    for order in self._order_tracker.active_orders.values():
+                        if order.exchange_order_id == exchange_order_id:
+                            client_order_id = order.client_order_id
+                            break
+                
+                if not client_order_id:
+                    return
+                
+            tracked_order = self._order_tracker.fetch_order(client_order_id)
+            if not tracked_order:
+                # For new orders from WebSocket, create an InFlightOrder
+                exchange_order_id = order_data.get("orderId") or order_data.get("id") or order_data.get("i")
+                if exchange_order_id and order_data.get("status") in ["NEW", "New"]:
+                    # Extract order details
+                    symbol = order_data.get("symbol") or order_data.get("s")
+                    if not symbol:
+                        return
+                        
+                    # Convert symbol to trading pair
+                    trading_pair = symbol.replace("_", "-")
+                    
+                    # Map side
+                    side = order_data.get("side") or order_data.get("S")
+                    if side in ["Buy", "Bid"]:
+                        trade_type = TradeType.BUY
+                    elif side in ["Sell", "Ask"]:
+                        trade_type = TradeType.SELL
+                    else:
+                        return
+                    
+                    # Map order type
+                    order_type_str = order_data.get("orderType") or order_data.get("o") or "LIMIT"
+                    if "MARKET" in order_type_str.upper():
+                        order_type = OrderType.MARKET
+                    else:
+                        order_type = OrderType.LIMIT
+                    
+                    # Get price and quantity
+                    price = Decimal(str(order_data.get("price") or order_data.get("p") or "0"))
+                    quantity = Decimal(str(order_data.get("quantity") or order_data.get("q") or "0"))
+                    
+                    # Create InFlightOrder
+                    order = InFlightOrder(
+                        client_order_id=client_order_id,
+                        exchange_order_id=exchange_order_id,
+                        trading_pair=trading_pair,
+                        order_type=order_type,
+                        trade_type=trade_type,
+                        price=price,
+                        amount=quantity,
+                        creation_timestamp=order_data.get("timestamp", self.current_timestamp)
+                    )
+                    self._order_tracker.start_tracking_order(order)
+                    tracked_order = order
+                else:
+                    return
+                
+            # Map order status
+            order_state = CONSTANTS.ORDER_STATE_MAP.get(order_data.get("status"), "OPEN")
+            new_state = getattr(OrderState, order_state)
+            
+            # Create order update
+            order_update = OrderUpdate(
+                client_order_id=client_order_id,
+                exchange_order_id=order_data.get("orderId"),
+                trading_pair=tracked_order.trading_pair,
+                update_timestamp=order_data.get("timestamp", self.current_timestamp) / 1000,
+                new_state=new_state,
+            )
+            
+            self._order_tracker.process_order_update(order_update)
+            
+        except Exception:
+            self.logger().exception(f"Error processing order status: {order_data}")
+    
+    def _process_balance_message(self, balance_msg: dict[str, Any]):
         """Process balance update messages."""
-        # Implementation similar to spot connector
-        pass
+        try:
+            data = balance_msg.get("data", balance_msg)
+            
+            # Handle different balance message formats
+            if "balances" in data:
+                # Multiple balance updates
+                for balance in data["balances"]:
+                    self._update_single_balance(balance)
+            else:
+                # Single balance update
+                self._update_single_balance(data)
+                
+        except Exception:
+            self.logger().exception(f"Error processing balance message: {balance_msg}")
+    
+    def _update_single_balance(self, balance_data: dict[str, Any]):
+        """Update a single asset balance."""
+        try:
+            asset = balance_data.get("asset") or balance_data.get("symbol")
+            if not asset:
+                return
+                
+            # Get balance values
+            free_balance = Decimal(str(balance_data.get("free", "0")))
+            locked_balance = Decimal(str(balance_data.get("locked", "0")))
+            total_balance = free_balance + locked_balance
+            
+            # Update internal balance tracking
+            self._account_available_balances[asset] = free_balance
+            self._account_balances[asset] = total_balance
+            
+        except Exception:
+            self.logger().exception(f"Error updating balance: {balance_data}")
 
     def _process_position_message(self, position_msg: Dict[str, Any]):
         """Process position update messages from WebSocket."""
@@ -921,6 +1132,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     async def _set_trading_pair_leverage(self, trading_pair: str, leverage: int) -> Tuple[bool, str]:
         """
         Set leverage for a trading pair.
+        
+        Note: Backpack uses account-wide leverage limits rather than per-position leverage.
+        This method stores the leverage locally for use in calculations.
 
         Args:
             trading_pair: The trading pair
@@ -929,33 +1143,20 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         Returns:
             Tuple of (success, message)
         """
-        symbol = await self.exchange_symbol_associated_to_pair(trading_pair)
-
-        try:
-            response = await self._api_post(
-                path_url=CONSTANTS.LEVERAGE_URL,
-                data={
-                    "symbol": symbol,
-                    "leverage": leverage,
-                },
-                is_auth_required=True,
-            )
-
-            # Check if successful - Backpack may return different success indicators
-            if isinstance(response, dict):
-                # Could be {"leverage": 5} on success or {"error": "..."} on failure
-                if "error" in response:
-                    return False, f"Failed to set leverage: {response['error']}"
-                elif "leverage" in response:
-                    return True, f"Leverage set to {response['leverage']}x for {trading_pair}"
-                else:
-                    # Assume success if no error
-                    return True, f"Leverage set to {leverage}x for {trading_pair}"
-            else:
-                return False, f"Unexpected response format: {response}"
-
-        except Exception as e:
-            return False, f"Error setting leverage: {str(e)}"
+        # Backpack doesn't support per-position leverage setting
+        # Leverage is an account-wide setting (leverageLimit)
+        # Store the desired leverage locally for calculations
+        
+        self._leverage_map[trading_pair] = leverage
+        self._perpetual_trading.set_leverage(trading_pair, leverage)
+        
+        msg = (
+            f"Leverage {leverage}x stored locally for {trading_pair}. "
+            f"Note: Backpack uses account-wide leverage limits."
+        )
+        self.logger().info(msg)
+        
+        return True, msg
 
     async def _fetch_last_fee_payment(self, trading_pair: str) -> Tuple[int, Decimal, Decimal]:
         """
@@ -971,16 +1172,26 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         try:
             response = await self._api_get(
-                path_url=CONSTANTS.FUNDING_PAYMENT_URL,
-                params={"symbol": symbol},
+                path_url=CONSTANTS.FUNDING_HISTORY_URL,
+                params={"symbol": symbol, "limit": 1},
                 is_auth_required=True,
             )
 
             if response and len(response) > 0:
                 last_payment = response[0]
-                timestamp = int(last_payment["timestamp"])
+                # Convert timestamp from ISO format or milliseconds
+                if "intervalEndTimestamp" in last_payment:
+                    # Parse ISO timestamp
+                    from datetime import datetime
+                    timestamp_str = last_payment["intervalEndTimestamp"]
+                    dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                    timestamp = int(dt.timestamp() * 1000)
+                else:
+                    timestamp = int(last_payment.get("timestamp", 0))
+                    
                 funding_rate = Decimal(str(last_payment["fundingRate"]))
-                payment = Decimal(str(last_payment["payment"]))
+                # The 'quantity' field represents the payment amount (positive if received, negative if paid)
+                payment = Decimal(str(last_payment.get("quantity", last_payment.get("fundingFee", "0"))))
                 return timestamp, funding_rate, payment
             else:
                 return 0, s_decimal_NaN, s_decimal_NaN

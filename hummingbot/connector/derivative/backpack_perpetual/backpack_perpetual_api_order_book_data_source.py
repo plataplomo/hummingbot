@@ -362,10 +362,10 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             try:
                 ws = await self._create_websocket_connection()
 
-                # Subscribe to funding rate channels
+                # Subscribe to mark price channels (which include funding rate info)
                 for trading_pair in self._trading_pairs:
                     symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-                    await self._subscribe_to_channel(ws, CONSTANTS.WS_FUNDING_RATE_CHANNEL, symbol)
+                    await self._subscribe_to_channel(ws, CONSTANTS.WS_MARK_PRICE_CHANNEL, symbol)
 
                 async for ws_response in ws.iter_messages():
                     data = json.loads(ws_response.data)
@@ -400,29 +400,39 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             channel: Channel name
             symbol: Trading symbol
         """
-        self._message_id_counter += 1
-
+        # Backpack uses the format: {"method": "SUBSCRIBE", "params": ["stream_name"]}
         subscribe_msg = {
-            "id": self._message_id_counter,
-            "method": "subscribe",
-            "params": {
-                "subscriptions": [f"{channel}@{symbol}"]
-            }
+            "method": "SUBSCRIBE",
+            "params": [f"{channel}.{symbol}"]  # Use dot notation as per Backpack docs
         }
 
         await ws.send(json.dumps(subscribe_msg))
 
     def _is_trade_message(self, data: Dict[str, Any]) -> bool:
         """Check if message is a trade update."""
-        return data.get("type") == "trade" or data.get("stream", "").startswith("trades@")
+        # Check both wrapped format (stream + data) and direct format
+        if "stream" in data and data.get("stream", "").startswith("trade."):
+            return True
+        inner_data = data.get("data", data)
+        return inner_data.get("e") == "trade" or inner_data.get("type") == "trade"
 
     def _is_order_book_diff_message(self, data: Dict[str, Any]) -> bool:
         """Check if message is an order book diff."""
-        return data.get("type") == "depth" or data.get("stream", "").startswith("depth@")
+        # Check both wrapped format (stream + data) and direct format
+        if "stream" in data and data.get("stream", "").startswith("depth."):
+            return True
+        # Also check the data field if it exists
+        inner_data = data.get("data", data)
+        return inner_data.get("e") == "depth" or inner_data.get("type") == "depth"
 
     def _is_funding_rate_message(self, data: Dict[str, Any]) -> bool:
         """Check if message is a funding rate update."""
-        return data.get("type") == "funding" or data.get("stream", "").startswith("funding@")
+        # Check both wrapped format (stream + data) and direct format
+        if "stream" in data and (data.get("stream", "").startswith("funding.") or 
+                                  data.get("stream", "").startswith("markPrice.")):
+            return True
+        inner_data = data.get("data", data)
+        return inner_data.get("e") in ["funding", "markPrice"] or inner_data.get("type") == "funding"
 
     def _parse_trade_message(self, data: Dict[str, Any]) -> Optional[OrderBookMessage]:
         """
@@ -486,19 +496,19 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 message_type=OrderBookMessageType.DIFF,
                 content={
                     "trading_pair": trading_pair,
-                    "bids": depth_data.get("bids", []),
-                    "asks": depth_data.get("asks", []),
+                    "bids": depth_data.get("b", depth_data.get("bids", [])),
+                    "asks": depth_data.get("a", depth_data.get("asks", [])),
                     "update_id": depth_data.get("lastUpdateId", depth_data.get("u")),
                     "first_update_id": depth_data.get("firstUpdateId", depth_data.get("U")),
                 },
-                timestamp=depth_data.get("timestamp", self._time() * 1000) / 1000.0,
+                timestamp=depth_data.get("timestamp", depth_data.get("T", self._time() * 1000)) / 1000.0,
             )
 
         except Exception:
             self.logger().exception("Error parsing order book diff message")
             return None
 
-    def _parse_funding_rate_message(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _parse_funding_rate_message(self, data: Dict[str, Any]) -> Optional[FundingInfo]:
         """
         Parse funding rate message from WebSocket.
 
@@ -506,26 +516,46 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             data: Raw funding rate data
 
         Returns:
-            Parsed funding info or None if parsing fails
+            Parsed FundingInfo or None if parsing fails
         """
         try:
             # Extract funding data
             funding_data = data.get("data", data)
 
-            # Get trading pair
-            symbol = funding_data.get("symbol", "")
+            # Get trading pair from 's' field (symbol)
+            symbol = funding_data.get("s", funding_data.get("symbol", ""))
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
 
             if not trading_pair:
                 return None
 
-            return {
-                "trading_pair": trading_pair,
-                "funding_rate": Decimal(str(funding_data.get("fundingRate", "0"))),
-                "next_funding_time": funding_data.get("nextFundingTime"),
-                "mark_price": Decimal(str(funding_data.get("markPrice", "0"))),
-                "index_price": Decimal(str(funding_data.get("indexPrice", "0"))),
-            }
+            # Parse markPrice format (used for funding info)
+            # Format from OpenAPI spec:
+            # "p": mark price, "f": funding rate, "i": index price, "n": next funding time
+            if funding_data.get("e") == "markPrice":
+                mark_price = Decimal(str(funding_data.get("p", "0")))
+                funding_rate = Decimal(str(funding_data.get("f", "0")))
+                index_price = Decimal(str(funding_data.get("i", "0")))
+                next_funding_time = funding_data.get("n", 0)
+            else:
+                # Legacy format support
+                funding_rate = Decimal(str(funding_data.get("fundingRate", "0")))
+                next_funding_time = funding_data.get("nextFundingTime", 0)
+                mark_price = Decimal(str(funding_data.get("markPrice", "0")))
+                index_price = Decimal(str(funding_data.get("indexPrice", "0")))
+            
+            # Convert next funding time from microseconds to seconds
+            # Note: markPrice stream uses microseconds for 'n' field
+            if next_funding_time:
+                next_funding_time = next_funding_time / 1000000  # microseconds to seconds
+                
+            return FundingInfo(
+                trading_pair=trading_pair,
+                index_price=index_price,
+                mark_price=mark_price,
+                next_funding_utc_timestamp=next_funding_time,
+                rate=funding_rate,
+            )
 
         except Exception:
             self.logger().exception("Error parsing funding rate message")

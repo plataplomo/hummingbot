@@ -73,6 +73,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.exchange._order_tracker.logger().setLevel(1)
         self.exchange._order_tracker.logger().addHandler(self)
         self.mocking_assistant = NetworkMockingAssistant(self.local_event_loop)
+        # Initialize the mocking assistant asynchronously
+        self.run_async_with_timeout(self.mocking_assistant.async_init())
         self.test_task: Optional[asyncio.Task] = None
         self.resume_test_event = asyncio.Event()
         self._initialize_event_loggers()
@@ -292,7 +294,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         mock_response = [
             {
                 "orderId": "123456",
-                "clientOrderId": "HBOT-1",
+                "clientId": "HBOT-1",
                 "symbol": self.symbol,
                 "side": "Buy",
                 "orderType": "Limit",
@@ -324,7 +326,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         mock_response = {
             "orderId": "123456",
-            "clientOrderId": order_id,
+            "clientId": order_id,
             "symbol": self.symbol,
             "side": "Buy",
             "orderType": "Market",
@@ -372,7 +374,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         mock_response = {
             "orderId": "123457",
-            "clientOrderId": order_id,
+            "clientId": order_id,
             "symbol": self.symbol,
             "side": "Sell",
             "orderType": "Limit",
@@ -435,7 +437,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         mock_response = {
             "orderId": exchange_order_id,
-            "clientOrderId": order_id,
+            "clientId": order_id,
             "status": "CANCELLED",
         }
         mock_api.delete(regex_url, body=json.dumps(mock_response))
@@ -498,24 +500,20 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(len(supported_modes), 1)
         self.assertIn(PositionMode.ONEWAY, supported_modes)
 
-    @aioresponses()
-    def test_set_leverage(self, mock_api):
-        """Test setting leverage."""
-        url = web_utils.private_rest_url(path_url=CONSTANTS.LEVERAGE_URL)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-
+    def test_set_leverage(self):
+        """Test setting leverage.
+        
+        Note: Backpack uses account-wide leverage limits, not per-position leverage.
+        This test verifies that leverage is stored locally for calculations.
+        """
         leverage = 5
-        mock_response = {
-            "symbol": self.symbol,
-            "leverage": leverage,
-        }
-        mock_api.post(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
-            self.exchange.set_leverage(self.trading_pair, leverage)
-        )
+        # set_leverage is synchronous, not async
+        result = self.exchange.set_leverage(self.trading_pair, leverage)
 
+        # Leverage should be stored locally even though Backpack doesn't support per-position leverage
         self.assertEqual(result, leverage)
+        self.assertEqual(self.exchange._leverage_map[self.trading_pair], leverage)
 
     @aioresponses()
     def test_existing_account_position_detected_on_positions_update(self, mock_api):
@@ -593,7 +591,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         order_status = {
             "order": {
                 "orderId": exchange_order_id,
-                "clientOrderId": client_order_id,
+                "clientId": client_order_id,
                 "symbol": self.symbol,
                 "status": "CANCELLED",
                 "side": "Buy",
@@ -686,7 +684,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         order_response = {
             "order": {
                 "orderId": "12345",
-                "clientOrderId": client_order_id,
+                "clientId": client_order_id,  # Correct field name per API spec
                 "symbol": self.symbol,
                 "status": "NEW",
                 "side": "Buy",

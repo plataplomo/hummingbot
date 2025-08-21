@@ -32,7 +32,7 @@ PING_URL = "api/v1/ping"
 
 # Perpetual-specific public endpoints
 FUNDING_RATE_URL = "api/v1/funding"
-FUNDING_HISTORY_URL = "api/v1/fundingRates"
+FUNDING_HISTORY_URL = "wapi/v1/history/funding"
 MARK_PRICE_URL = "api/v1/markPrice"
 INDEX_PRICE_URL = "api/v1/indexPrice"
 
@@ -50,7 +50,7 @@ ACCOUNT_URL = "api/v1/account"
 
 # Perpetual-specific private endpoints
 POSITIONS_URL = "api/v1/positions"
-LEVERAGE_URL = "api/v1/leverage"
+# Note: Backpack doesn't have a dedicated leverage endpoint - leverage is account-wide
 MARGIN_TYPE_URL = "api/v1/marginType"
 POSITION_MARGIN_URL = "api/v1/positionMargin"
 
@@ -87,7 +87,6 @@ RATE_LIMITS = [
     RateLimit(limit_id=ORDER_URL, limit=10, time_interval=1),
     RateLimit(limit_id=CANCEL_URL, limit=10, time_interval=1),
     RateLimit(limit_id=POSITIONS_URL, limit=100, time_interval=60),
-    RateLimit(limit_id=LEVERAGE_URL, limit=10, time_interval=60),
     RateLimit(limit_id=FUNDING_RATE_URL, limit=100, time_interval=60),
     RateLimit(limit_id=BALANCE_URL, limit=100, time_interval=60),
 ]
