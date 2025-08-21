@@ -4,6 +4,7 @@ import json
 import re
 from decimal import Decimal
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
+from collections.abc import Callable
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -44,10 +45,12 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         cls.ex_trading_pair = f"{cls.base_asset}_PERP"
         cls.symbol = f"{cls.base_asset}_PERP"
         cls.listen_key = "TEST_LISTEN_KEY"
+        cls.client_order_id_prefix = "HBOT"
 
     def setUp(self) -> None:
         super().setUp()
         self.log_records = []
+        self.expected_exchange_order_id = "123456789"
 
         self.ws_sent_messages = []
         self.ws_incoming_messages = asyncio.Queue()
@@ -648,7 +651,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             }
         }
 
-        self.exchange._process_trade_message(trade_update)
+        # Process trade update through order message handler
+        self.exchange._process_order_message(trade_update)
 
         # Verify fee was recorded
         self.assertEqual(len(order.order_fills), 1)
@@ -822,34 +826,61 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         self.assertEqual(prices[self.trading_pair], Decimal("50000"))
 
-    @aioresponses()
-    def test_cancel_order_not_found_in_the_exchange(self, mock_api):
-        """Test cancellation of order not found on exchange."""
-        client_order_id = "test_order_1"
+    def configure_order_not_found_error_cancelation_response(
+            self, order: InFlightOrder, mock_api: aioresponses,
+            callback: Optional[Callable] = lambda *args, **kwargs: None
+    ) -> str:
+        """Configure mock response for order not found during cancellation."""
+        url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_URL)
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?") + ".*")
+        
+        # Backpack returns error code -2011 for unknown order
+        response = {
+            "code": CONSTANTS.UNKNOWN_ORDER_ERROR_CODE,
+            "msg": CONSTANTS.UNKNOWN_ORDER_MESSAGE
+        }
+        
+        mock_api.delete(
+            regex_url,
+            body=json.dumps(response),
+            callback=callback,
+            status=400
+        )
+        return url
 
-        # Create in-flight order
-        order = InFlightOrder(
-            client_order_id=client_order_id,
-            exchange_order_id="12345",
+    @aioresponses()
+    async def test_cancel_order_not_found_in_the_exchange(self, mock_api):
+        """Test that order not found during cancellation is handled correctly."""
+        self.exchange._set_current_timestamp(1640780000)
+        request_sent_event = asyncio.Event()
+        
+        self.exchange.start_tracking_order(
+            order_id="HBOT1",
+            exchange_order_id=str(self.expected_exchange_order_id),
             trading_pair=self.trading_pair,
             order_type=OrderType.LIMIT,
             trade_type=TradeType.BUY,
-            price=Decimal("50000"),
-            amount=Decimal("0.1"),
-            creation_timestamp=self.start_timestamp,
+            price=Decimal("10000"),
+            amount=Decimal("1"),
         )
-        self.exchange._order_tracker.start_tracking_order(order)
-
-        # Mock order not found response
-        cancel_url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_URL)
-        mock_api.delete(cancel_url, status=404, body=json.dumps({"error": "Order not found"}))
-
-        result = self.async_run_with_timeout(
-            self.exchange.cancel(self.trading_pair, client_order_id)
+        
+        self.assertIn("HBOT1", self.exchange.in_flight_orders)
+        order = self.exchange.in_flight_orders["HBOT1"]
+        
+        self.configure_order_not_found_error_cancelation_response(
+            order=order, mock_api=mock_api, callback=lambda *args, **kwargs: request_sent_event.set()
         )
-
-        # Order should be marked as cancelled even if not found
-        self.assertTrue(order.is_cancelled)
+        
+        self.exchange.cancel(trading_pair=self.trading_pair, client_order_id="HBOT1")
+        await request_sent_event.wait()
+        
+        # When order is not found, it should NOT be marked as cancelled
+        # The connector should handle it as per _is_order_not_found_during_cancelation_error
+        self.assertFalse(order.is_done)
+        self.assertFalse(order.is_failure)
+        self.assertFalse(order.is_cancelled)
+        self.assertIn(order.client_order_id, self.exchange._order_tracker.all_updatable_orders)
+        self.assertEqual(1, self.exchange._order_tracker._order_not_found_records[order.client_order_id])
 
     def test_get_buy_and_sell_collateral_tokens(self):
         """Test getting collateral tokens for buy and sell."""
@@ -884,8 +915,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         # Cancel the task
         task.cancel()
 
-        # Verify funding payment was recorded
-        self.assertTrue(len(self.exchange._funding_payment_span) > 0)
+        # Verify funding payment was recorded in the event logger
+        self.assertEqual(1, len(self.funding_payment_completed_logger.event_log))
+        funding_event = self.funding_payment_completed_logger.event_log[0]
+        self.assertEqual(self.trading_pair, funding_event.trading_pair)
+        self.assertEqual(Decimal("0.5"), funding_event.amount)  # From the mock response
 
     @aioresponses()
     def test_set_position_mode_initial_mode_is_none(self, mock_api):
@@ -978,13 +1012,15 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "timestamp": 1641288826000,
         }
 
-        self.exchange._process_trade_message(fill_data)
+        # Process fill data through order message handler  
+        self.exchange._process_order_message(fill_data)
 
         # Check that fill was recorded
         self.assertEqual(len(order.order_fills), 1)
 
         # Send the same fill again (duplicate trade ID)
-        self.exchange._process_trade_message(fill_data)
+        # Process fill data through order message handler  
+        self.exchange._process_order_message(fill_data)
 
         # Should still have only 1 fill
         self.assertEqual(len(order.order_fills), 1)
@@ -1017,7 +1053,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "timestamp": 1641288826000,
         }
 
-        self.exchange._process_trade_message(fill_data)
+        # Process fill data through order message handler  
+        self.exchange._process_order_message(fill_data)
 
         # Check that fill was recorded with zero fee
         self.assertEqual(len(order.order_fills), 1)
