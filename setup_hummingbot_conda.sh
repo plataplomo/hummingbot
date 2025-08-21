@@ -32,7 +32,21 @@ fi
 # Download and install Miniconda locally in this worktree
 echo ""
 echo "📥 Downloading Miniconda..."
-curl -sSL https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -o miniconda.sh
+
+# Detect architecture and download appropriate version
+ARCH=$(uname -m)
+if [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+    echo "   Detected ARM64 architecture"
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh"
+elif [ "$ARCH" = "x86_64" ]; then
+    echo "   Detected x86_64 architecture"
+    MINICONDA_URL="https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh"
+else
+    echo "❌ Unsupported architecture: $ARCH"
+    exit 1
+fi
+
+curl -sSL "$MINICONDA_URL" -o miniconda.sh
 
 echo "📦 Installing Miniconda to ./.conda..."
 bash miniconda.sh -b -p ./.conda
