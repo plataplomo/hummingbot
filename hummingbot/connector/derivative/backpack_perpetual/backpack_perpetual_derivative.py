@@ -755,3 +755,188 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             )
         except Exception:
             self.logger().exception("Error processing liquidation warning")
+
+    async def _update_trading_fees(self):
+        """Update trading fees from the exchange."""
+        # Backpack fees are typically fixed and configured in constants
+        # For perpetuals: 0.05% maker, 0.10% taker typically
+        pass
+
+    async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
+        """
+        Format trading rules from exchange info.
+
+        Args:
+            exchange_info_dict: Exchange trading pair information
+
+        Returns:
+            List of TradingRule objects
+        """
+        trading_rules = []
+
+        for symbol_info in exchange_info_dict.get("symbols", []):
+            try:
+                symbol = symbol_info["symbol"]
+                if "_PERP" not in symbol:
+                    continue
+
+                trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol)
+
+                # Extract trading rules from symbol info
+                min_order_size = Decimal(str(symbol_info.get("minQuantity", "0.001")))
+                tick_size = Decimal(str(symbol_info.get("tickSize", "0.01")))
+                step_size = Decimal(str(symbol_info.get("stepSize", "0.001")))
+                min_notional = Decimal(str(symbol_info.get("minNotional", "10")))
+
+                # For Backpack perpetuals, collateral is usually USDC
+                collateral_token = symbol_info.get("quoteCurrency", "USDC")
+
+                trading_rules.append(
+                    TradingRule(
+                        trading_pair=trading_pair,
+                        min_order_size=min_order_size,
+                        min_price_increment=tick_size,
+                        min_base_amount_increment=step_size,
+                        min_notional_size=min_notional,
+                        buy_order_collateral_token=collateral_token,
+                        sell_order_collateral_token=collateral_token,
+                    )
+                )
+            except Exception as e:
+                self.logger().error(
+                    f"Error parsing trading rule for {symbol_info}. Error: {e}",
+                    exc_info=True
+                )
+
+        return trading_rules
+
+    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
+        """
+        Initialize the trading pair symbol mapping from exchange info.
+
+        Args:
+            exchange_info: Exchange information containing symbol mappings
+        """
+        mapping = {}
+
+        for symbol_info in exchange_info.get("symbols", []):
+            try:
+                symbol = symbol_info["symbol"]
+                if "_PERP" not in symbol:
+                    continue
+
+                # Extract base and quote from symbol (e.g., BTC_PERP -> BTC-USDC)
+                base = symbol.replace("_PERP", "")
+                quote = symbol_info.get("quoteCurrency", "USDC")
+
+                trading_pair = f"{base}-{quote}"
+                mapping[symbol] = trading_pair
+
+            except Exception as e:
+                self.logger().error(
+                    f"Error parsing symbol mapping for {symbol_info}. Error: {e}",
+                    exc_info=True
+                )
+
+        self._set_trading_pair_symbol_map(mapping)
+
+    async def _trading_pair_position_mode_set(self, mode: PositionMode, trading_pair: str) -> Tuple[bool, str]:
+        """
+        Set the position mode for a trading pair.
+
+        Args:
+            mode: The position mode to set
+            trading_pair: The trading pair
+
+        Returns:
+            Tuple of (success, message)
+        """
+        # Backpack may not support position mode changes via API
+        # Check if the exchange supports this feature
+
+        if mode == PositionMode.HEDGE:
+            return False, "Backpack perpetuals only support ONE-WAY position mode"
+
+        # If already in ONEWAY mode, no action needed
+        if self.position_mode == PositionMode.ONEWAY:
+            return True, "Position mode already set to ONE-WAY"
+
+        # For Backpack, position mode might be fixed
+        self._position_mode = PositionMode.ONEWAY
+        return True, "Position mode set to ONE-WAY"
+
+    async def _set_trading_pair_leverage(self, trading_pair: str, leverage: int) -> Tuple[bool, str]:
+        """
+        Set leverage for a trading pair.
+
+        Args:
+            trading_pair: The trading pair
+            leverage: The leverage value
+
+        Returns:
+            Tuple of (success, message)
+        """
+        symbol = await self.exchange_symbol_associated_to_pair(trading_pair)
+
+        try:
+            response = await self._api_post(
+                path_url=CONSTANTS.SET_LEVERAGE_URL,
+                data={
+                    "symbol": symbol,
+                    "leverage": leverage,
+                },
+                is_auth_required=True,
+            )
+
+            if response.get("success"):
+                return True, f"Leverage set to {leverage}x for {trading_pair}"
+            else:
+                return False, f"Failed to set leverage: {response.get('error', 'Unknown error')}"
+
+        except Exception as e:
+            return False, f"Error setting leverage: {str(e)}"
+
+    async def _fetch_last_fee_payment(self, trading_pair: str) -> Tuple[int, Decimal, Decimal]:
+        """
+        Fetch the last funding fee payment for a trading pair.
+
+        Args:
+            trading_pair: The trading pair
+
+        Returns:
+            Tuple of (timestamp, funding_rate, payment_amount)
+        """
+        symbol = await self.exchange_symbol_associated_to_pair(trading_pair)
+
+        try:
+            response = await self._api_get(
+                path_url=CONSTANTS.FUNDING_PAYMENT_URL,
+                params={"symbol": symbol},
+                is_auth_required=True,
+            )
+
+            if response and len(response) > 0:
+                last_payment = response[0]
+                timestamp = int(last_payment["timestamp"])
+                funding_rate = Decimal(str(last_payment["fundingRate"]))
+                payment = Decimal(str(last_payment["payment"]))
+                return timestamp, funding_rate, payment
+            else:
+                return 0, s_decimal_NaN, s_decimal_NaN
+
+        except Exception as e:
+            self.logger().error(
+                f"Error fetching last fee payment for {trading_pair}: {e}",
+                exc_info=True
+            )
+            return 0, s_decimal_NaN, s_decimal_NaN
+
+    async def _make_network_check_request(self):
+        """
+        Make a network check request to verify connectivity.
+        This is called by check_network() from the parent class.
+        """
+        await self._api_get(
+            path_url=CONSTANTS.PING_URL,
+            is_auth_required=False
+        )

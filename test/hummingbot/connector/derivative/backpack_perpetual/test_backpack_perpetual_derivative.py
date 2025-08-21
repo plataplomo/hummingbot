@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import re
 from decimal import Decimal
@@ -15,17 +16,17 @@ import hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_web
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter
 from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import BackpackPerpetualDerivative
+from hummingbot.connector.derivative.position import Position
 from hummingbot.connector.test_support.network_mocking_assistant import NetworkMockingAssistant
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.connector.utils import get_new_client_order_id
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
 from hummingbot.core.data_type.limit_order import LimitOrder
-from hummingbot.core.data_type.perpetual_api_order_book_data_source import PerpetualAPIOrderBookDataSource
-from hummingbot.core.data_type.position import Position
 from hummingbot.core.data_type.trade_fee import TokenAmount
 from hummingbot.core.event.event_logger import EventLogger
 from hummingbot.core.event.events import MarketEvent, OrderFilledEvent
+from hummingbot.core.network_iterator import NetworkStatus
 
 
 class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
@@ -40,6 +41,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         cls.base_asset = "BTC"
         cls.quote_asset = "USDC"
         cls.trading_pair = f"{cls.base_asset}-{cls.quote_asset}"
+        cls.ex_trading_pair = f"{cls.base_asset}_PERP"
         cls.symbol = f"{cls.base_asset}_PERP"
         cls.listen_key = "TEST_LISTEN_KEY"
 
@@ -52,10 +54,13 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.resume_test_event = asyncio.Event()
         self.client_config_map = ClientConfigAdapter(ClientConfigMap())
 
+        # Use a valid base64 encoded test key (32 bytes)
+        test_secret = base64.b64encode(b"0" * 32).decode()
+
         self.exchange = BackpackPerpetualDerivative(
             client_config_map=self.client_config_map,
             backpack_perpetual_api_key="testAPIKey",
-            backpack_perpetual_api_secret="testSecret",
+            backpack_perpetual_api_secret=test_secret,
             trading_pairs=[self.trading_pair],
         )
 
@@ -110,6 +115,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     def tearDown(self) -> None:
         self.test_task and self.test_task.cancel()
         super().tearDown()
+
+    def async_run_with_timeout(self, coroutine, timeout: int = 1):
+        """Run async coroutine with timeout."""
+        ret = asyncio.get_event_loop().run_until_complete(asyncio.wait_for(coroutine, timeout))
+        return ret
 
     def _initialize_event_loggers(self):
         self.buy_order_completed_logger = EventLogger()
@@ -197,11 +207,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     def test_check_network_success(self, mock_api):
         """Test successful network check."""
         url = self.network_status_url
-        mock_response = {"status": "ok"}
-        mock_api.get(url, body=json.dumps(mock_response))
+        # Backpack ping endpoint returns plain text "pong"
+        mock_api.get(url, body="pong", content_type="text/plain")
 
         result = self.async_run_with_timeout(self.exchange.check_network())
-        self.assertEqual(result, 0)
+        self.assertEqual(result, NetworkStatus.CONNECTED)
 
     @aioresponses()
     def test_check_network_failure(self, mock_api):
@@ -209,8 +219,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         url = self.network_status_url
         mock_api.get(url, status=500)
 
-        with self.assertRaises(Exception):
-            self.async_run_with_timeout(self.exchange.check_network())
+        result = self.async_run_with_timeout(self.exchange.check_network())
+        self.assertEqual(result, NetworkStatus.NOT_CONNECTED)
 
     @aioresponses()
     def test_update_trading_rules(self, mock_api):
@@ -509,7 +519,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that existing positions are properly detected and updated."""
         # Set up initial position
         self.exchange._account_positions[self.trading_pair] = MagicMock()
-        
+
         position_response = {
             "positions": [
                 {
@@ -526,12 +536,12 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                 }
             ]
         }
-        
+
         positions_url = web_utils.private_rest_url(path_url=CONSTANTS.POSITIONS_URL)
         mock_api.get(positions_url, body=json.dumps(position_response))
-        
+
         self.async_run_with_timeout(self.exchange._update_positions())
-        
+
         # Verify position was updated
         self.assertIn(self.trading_pair, self.exchange._account_positions)
         position = self.exchange._account_positions[self.trading_pair]
@@ -542,15 +552,15 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that closed positions are properly removed."""
         # Set up initial position
         self.exchange._account_positions[self.trading_pair] = MagicMock()
-        
+
         # Empty positions response indicates closed position
         position_response = {"positions": []}
-        
+
         positions_url = web_utils.private_rest_url(path_url=CONSTANTS.POSITIONS_URL)
         mock_api.get(positions_url, body=json.dumps(position_response))
-        
+
         self.async_run_with_timeout(self.exchange._update_positions())
-        
+
         # Verify position was removed
         self.assertNotIn(self.trading_pair, self.exchange._account_positions)
 
@@ -559,7 +569,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that cancelled order events properly update order status."""
         client_order_id = "test_order_1"
         exchange_order_id = "12345"
-        
+
         # Create in-flight order
         order = InFlightOrder(
             client_order_id=client_order_id,
@@ -572,7 +582,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             creation_timestamp=self.start_timestamp,
         )
         self.exchange._order_tracker.start_tracking_order(order)
-        
+
         # Mock cancelled order status
         order_status = {
             "order": {
@@ -588,14 +598,14 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                 "timestamp": 1640780000000
             }
         }
-        
+
         order_url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_URL)
         mock_api.get(order_url, body=json.dumps(order_status))
-        
+
         self.async_run_with_timeout(
             self.exchange._update_order_status()
         )
-        
+
         # Verify order is marked as cancelled
         self.assertTrue(order.is_cancelled)
         self.assertEqual(order.current_state, OrderState.CANCELED)
@@ -605,7 +615,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that order fill events properly extract fee information."""
         client_order_id = "test_order_1"
         exchange_order_id = "12345"
-        
+
         # Create in-flight order
         order = InFlightOrder(
             client_order_id=client_order_id,
@@ -618,7 +628,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             creation_timestamp=self.start_timestamp,
         )
         self.exchange._order_tracker.start_tracking_order(order)
-        
+
         # Mock filled order with fee
         trade_update = {
             "type": "fill",
@@ -634,9 +644,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                 "timestamp": 1640780000000
             }
         }
-        
+
         self.exchange._process_trade_message(trade_update)
-        
+
         # Verify fee was recorded
         self.assertEqual(len(order.order_fills), 1)
         fill = order.order_fills[list(order.order_fills.keys())[0]]
@@ -657,14 +667,14 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                     position_action=PositionAction.NIL,  # Invalid action
                 )
             )
-        
+
         self.assertIn("Invalid position action", str(context.exception))
 
     @aioresponses()
     def test_user_stream_update_for_new_order(self, mock_api):
         """Test that user stream order updates are properly processed."""
         client_order_id = "test_order_1"
-        
+
         # Mock order placement
         order_response = {
             "order": {
@@ -679,18 +689,18 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                 "timestamp": 1640780000000
             }
         }
-        
+
         order_url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_URL)
         mock_api.post(order_url, body=json.dumps(order_response))
-        
+
         # Simulate user stream update
         user_stream_update = {
             "type": "order",
             "data": order_response["order"]
         }
-        
+
         self.exchange._process_order_message(user_stream_update)
-        
+
         # Verify order tracking
         tracked_orders = self.exchange.in_flight_orders
         self.assertEqual(len(tracked_orders), 1)
@@ -713,9 +723,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                 "leverage": "10"
             }
         }
-        
+
         self.exchange._process_position_message(position_update)
-        
+
         # Verify position was updated
         self.assertIn(self.trading_pair, self.exchange._account_positions)
         position = self.exchange._account_positions[self.trading_pair]
@@ -726,7 +736,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that lost orders are removed when not found on exchange."""
         client_order_id = "test_order_1"
         exchange_order_id = "12345"
-        
+
         # Create in-flight order
         order = InFlightOrder(
             client_order_id=client_order_id,
@@ -739,15 +749,15 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             creation_timestamp=self.start_timestamp - 1000,  # Old order
         )
         self.exchange._order_tracker.start_tracking_order(order)
-        
+
         # Mock order not found response
         order_url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_URL)
         mock_api.get(order_url, status=404, body=json.dumps({"error": "Order not found"}))
-        
+
         self.async_run_with_timeout(
             self.exchange._update_order_status()
         )
-        
+
         # Verify order was marked as failed
         self.assertTrue(order.is_failure)
 
@@ -774,14 +784,14 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                 }
             ]
         }
-        
+
         url = self.all_symbols_url
         mock_api.get(url, body=json.dumps(exchange_info))
-        
+
         self.async_run_with_timeout(self.exchange._update_trading_rules())
-        
+
         trading_rule = self.exchange._trading_rules[self.trading_pair]
-        
+
         self.assertEqual(trading_rule.min_order_size, Decimal("0.001"))
         self.assertEqual(trading_rule.max_order_size, Decimal("1000"))
         self.assertEqual(trading_rule.min_price_increment, Decimal("0.01"))
@@ -799,21 +809,21 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "fundingRate": "0.0001",
             "nextFundingTime": 1640790000000
         }
-        
+
         url = self.latest_prices_url
         mock_api.get(url, body=json.dumps(ticker_response))
-        
+
         prices = self.async_run_with_timeout(
             self.exchange.get_last_traded_prices([self.trading_pair])
         )
-        
+
         self.assertEqual(prices[self.trading_pair], Decimal("50000"))
 
     @aioresponses()
     def test_cancel_order_not_found_in_the_exchange(self, mock_api):
         """Test cancellation of order not found on exchange."""
         client_order_id = "test_order_1"
-        
+
         # Create in-flight order
         order = InFlightOrder(
             client_order_id=client_order_id,
@@ -826,15 +836,15 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             creation_timestamp=self.start_timestamp,
         )
         self.exchange._order_tracker.start_tracking_order(order)
-        
+
         # Mock order not found response
         cancel_url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_ORDER_URL)
         mock_api.delete(cancel_url, status=404, body=json.dumps({"error": "Order not found"}))
-        
+
         result = self.async_run_with_timeout(
             self.exchange.cancel(self.trading_pair, client_order_id)
         )
-        
+
         # Order should be marked as cancelled even if not found
         self.assertTrue(order.is_cancelled)
 
@@ -842,7 +852,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test getting collateral tokens for buy and sell."""
         buy_collateral = self.exchange.get_buy_collateral_token(self.trading_pair)
         sell_collateral = self.exchange.get_sell_collateral_token(self.trading_pair)
-        
+
         # For perpetuals, collateral is typically the quote asset
         self.assertEqual(buy_collateral, self.quote_asset)
         self.assertEqual(sell_collateral, self.quote_asset)
@@ -856,21 +866,21 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "fundingFee": "0.50",
             "timestamp": 1640780000000
         }
-        
+
         funding_url = web_utils.private_rest_url(path_url=CONSTANTS.FUNDING_HISTORY_URL)
         mock_api.get(funding_url, body=json.dumps([funding_rate_response]))
-        
+
         # Start funding payment polling
         task = self.local_event_loop.create_task(
             self.exchange._funding_payment_polling_loop()
         )
-        
+
         # Wait for one iteration
         self.async_run_with_timeout(asyncio.sleep(0.5))
-        
+
         # Cancel the task
         task.cancel()
-        
+
         # Verify funding payment was recorded
         self.assertTrue(len(self.exchange._funding_payment_span) > 0)
 
@@ -879,22 +889,22 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test setting position mode when initial mode is None."""
         # Initially position mode is None
         self.assertIsNone(self.exchange.position_mode)
-        
+
         # Mock API response for setting position mode
         url = self.funding_info_url()
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-        
+
         mock_response = {
             "success": True,
             "positionMode": "ONE_WAY"
         }
         mock_api.post(regex_url, body=json.dumps(mock_response))
-        
+
         # Set position mode
         self.async_run_with_timeout(
             self.exchange._set_position_mode(PositionMode.ONEWAY)
         )
-        
+
         self.assertEqual(self.exchange.position_mode, PositionMode.ONEWAY)
 
     @aioresponses()
@@ -902,12 +912,12 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test setting position mode when it's already set to the same mode."""
         # Set initial position mode
         self.exchange._position_mode = PositionMode.ONEWAY
-        
+
         # No API call should be made
         self.async_run_with_timeout(
             self.exchange._set_position_mode(PositionMode.ONEWAY)
         )
-        
+
         # Position mode should remain the same
         self.assertEqual(self.exchange.position_mode, PositionMode.ONEWAY)
 
@@ -924,10 +934,10 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "liquidationPrice": "45000.00",
             "marginRatio": "0.95"  # High margin ratio - danger zone
         }
-        
+
         # Process margin call warning
         self.exchange._process_position_message(position_data)
-        
+
         # Check if warning was logged
         self.assertTrue(
             self._is_logged(
@@ -951,7 +961,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             creation_timestamp=1641288825000,
         )
         self.exchange._order_tracker.start_tracking_order(order)
-        
+
         # First fill event
         fill_data = {
             "orderId": "123456789",
@@ -964,15 +974,15 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "feeAsset": "USDC",
             "timestamp": 1641288826000,
         }
-        
+
         self.exchange._process_trade_message(fill_data)
-        
+
         # Check that fill was recorded
         self.assertEqual(len(order.order_fills), 1)
-        
+
         # Send the same fill again (duplicate trade ID)
         self.exchange._process_trade_message(fill_data)
-        
+
         # Should still have only 1 fill
         self.assertEqual(len(order.order_fills), 1)
 
@@ -991,7 +1001,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             creation_timestamp=1641288825000,
         )
         self.exchange._order_tracker.start_tracking_order(order)
-        
+
         # Fill event without fee
         fill_data = {
             "orderId": "123456789",
@@ -1003,9 +1013,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             # No fee field
             "timestamp": 1641288826000,
         }
-        
+
         self.exchange._process_trade_message(fill_data)
-        
+
         # Check that fill was recorded with zero fee
         self.assertEqual(len(order.order_fills), 1)
         fill = list(order.order_fills.values())[0]
@@ -1018,16 +1028,16 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.exchange._user_stream_tracker.user_stream.get = AsyncMock(
             side_effect=asyncio.CancelledError
         )
-        
+
         # Start listening task
         listening_task = self.local_event_loop.create_task(
             self.exchange._user_stream_event_listener()
         )
-        
+
         # Should handle cancellation gracefully
         self.async_run_with_timeout(asyncio.sleep(0.1))
         listening_task.cancel()
-        
+
         # No exception should propagate
         try:
             self.async_run_with_timeout(listening_task)
@@ -1039,7 +1049,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that positions for wrong symbols are ignored."""
         url = self.balance_url()
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-        
+
         positions_data = [
             {
                 "symbol": "ETH_PERP",  # Wrong symbol
@@ -1056,11 +1066,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                 "markPrice": "50000.00",
             }
         ]
-        
+
         mock_api.get(regex_url, body=json.dumps({"positions": positions_data}))
-        
+
         self.async_run_with_timeout(self.exchange._update_positions())
-        
+
         # Should only have position for our trading pair
         self.assertEqual(len(self.exchange._account_positions), 1)
         self.assertIn(self.trading_pair, self.exchange._account_positions)
@@ -1077,7 +1087,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "entryPrice": "50000.00",
             "markPrice": "50000.00",
         }
-        
+
         self.exchange._account_positions[self.trading_pair] = Position(
             trading_pair=self.trading_pair,
             position_side=PositionSide.LONG,
@@ -1086,11 +1096,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             amount=Decimal("0.1"),
             leverage=Decimal("10"),
         )
-        
+
         # Update with new data
         url = self.balance_url()
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-        
+
         updated_position = {
             "symbol": self.ex_trading_pair,
             "side": "LONG",
@@ -1099,11 +1109,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "markPrice": "51000.00",  # Mark price changed
             "unrealizedPnl": "300.00",
         }
-        
+
         mock_api.get(regex_url, body=json.dumps({"positions": [updated_position]}))
-        
+
         self.async_run_with_timeout(self.exchange._update_positions())
-        
+
         # Check position was updated
         position = self.exchange._account_positions[self.trading_pair]
         self.assertEqual(position.amount, Decimal("0.2"))
@@ -1115,10 +1125,10 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that new positions are detected and added."""
         # Start with no positions
         self.exchange._account_positions.clear()
-        
+
         url = self.balance_url()
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
-        
+
         new_position = {
             "symbol": self.ex_trading_pair,
             "side": "SHORT",
@@ -1127,11 +1137,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "markPrice": "51000.00",
             "unrealizedPnl": "50.00",
         }
-        
+
         mock_api.get(regex_url, body=json.dumps({"positions": [new_position]}))
-        
+
         self.async_run_with_timeout(self.exchange._update_positions())
-        
+
         # Check new position was added
         self.assertIn(self.trading_pair, self.exchange._account_positions)
         position = self.exchange._account_positions[self.trading_pair]
