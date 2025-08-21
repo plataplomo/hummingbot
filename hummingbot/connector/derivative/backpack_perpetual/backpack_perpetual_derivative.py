@@ -1,0 +1,761 @@
+"""
+Backpack Perpetual Exchange connector for Hummingbot.
+Main derivative class implementing perpetual futures trading functionality.
+"""
+
+import asyncio
+import json
+import time
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any, AsyncIterable, Dict, List, Optional, Tuple
+
+from hummingbot.connector.constants import s_decimal_NaN
+from hummingbot.connector.derivative.backpack_perpetual import (
+    backpack_perpetual_constants as CONSTANTS,
+    backpack_perpetual_utils as utils,
+    backpack_perpetual_web_utils as web_utils,
+)
+from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_api_order_book_data_source import (
+    BackpackPerpetualAPIOrderBookDataSource,
+)
+from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth import BackpackPerpetualAuth
+from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_user_stream_data_source import (
+    BackpackPerpetualUserStreamDataSource,
+)
+from hummingbot.connector.derivative.position import Position
+from hummingbot.connector.perpetual_derivative_py_base import PerpetualDerivativePyBase
+from hummingbot.connector.trading_rule import TradingRule
+from hummingbot.connector.utils import combine_to_hb_trading_pair
+from hummingbot.core.api_throttler.data_types import RateLimit
+from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
+from hummingbot.core.data_type.funding_info import FundingInfo
+from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
+from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
+from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase
+from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.event.events import (
+    AccountEvent,
+    FundingPaymentCompletedEvent,
+    MarketEvent,
+    PositionModeChangeEvent,
+)
+from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
+from hummingbot.core.utils.estimate_fee import build_perpetual_trade_fee
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
+
+if TYPE_CHECKING:
+    from hummingbot.client.config.config_helpers import ClientConfigAdapter
+
+
+class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
+    """
+    Backpack perpetual futures exchange connector implementing derivatives trading.
+
+    Features:
+    - Perpetual futures trading with leverage
+    - Position tracking and management
+    - Funding rate updates
+    - Real-time data via WebSocket
+    - Ed25519 authentication
+    """
+
+    web_utils = web_utils
+    SHORT_POLL_INTERVAL = 5.0
+    UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
+    LONG_POLL_INTERVAL = 120.0
+
+    def __init__(
+        self,
+        client_config_map: "ClientConfigAdapter",
+        backpack_perpetual_api_key: str = None,
+        backpack_perpetual_api_secret: str = None,
+        trading_pairs: Optional[List[str]] = None,
+        trading_required: bool = True,
+        domain: str = CONSTANTS.DEFAULT_DOMAIN,
+    ):
+        """
+        Initialize Backpack perpetual derivative connector.
+
+        Args:
+            client_config_map: Client configuration
+            backpack_perpetual_api_key: API key for authentication
+            backpack_perpetual_api_secret: API secret for authentication
+            trading_pairs: List of trading pairs to track
+            trading_required: Whether trading functionality is required
+            domain: Exchange domain
+        """
+        self.backpack_perpetual_api_key = backpack_perpetual_api_key
+        self.backpack_perpetual_api_secret = backpack_perpetual_api_secret
+        self._trading_required = trading_required
+        self._trading_pairs = trading_pairs
+        self._domain = domain
+        self._position_mode = CONSTANTS.DEFAULT_POSITION_MODE
+        self._last_trade_history_timestamp = None
+        self._leverage_map: Dict[str, int] = {}  # Store leverage per trading pair
+        super().__init__(client_config_map)
+
+    # Required properties from PerpetualDerivativePyBase
+    @property
+    def name(self) -> str:
+        return CONSTANTS.EXCHANGE_NAME
+
+    @property
+    def authenticator(self) -> BackpackPerpetualAuth:
+        return BackpackPerpetualAuth(
+            self.backpack_perpetual_api_key,
+            self.backpack_perpetual_api_secret,
+            self._time_synchronizer
+        )
+
+    @property
+    def rate_limits_rules(self) -> List[RateLimit]:
+        return CONSTANTS.RATE_LIMITS
+
+    @property
+    def domain(self) -> str:
+        return self._domain
+
+    @property
+    def client_order_id_max_length(self) -> int:
+        return CONSTANTS.MAX_ORDER_ID_LEN
+
+    @property
+    def client_order_id_prefix(self) -> str:
+        return CONSTANTS.BROKER_ID
+
+    @property
+    def trading_rules_request_path(self) -> str:
+        return CONSTANTS.EXCHANGE_INFO_URL
+
+    @property
+    def trading_pairs_request_path(self) -> str:
+        return CONSTANTS.EXCHANGE_INFO_URL
+
+    @property
+    def check_network_request_path(self) -> str:
+        return CONSTANTS.PING_URL
+
+    @property
+    def trading_pairs(self):
+        return self._trading_pairs
+
+    @property
+    def is_cancel_request_in_exchange_synchronous(self) -> bool:
+        return True
+
+    @property
+    def is_trading_required(self) -> bool:
+        return self._trading_required
+
+    @property
+    def funding_fee_poll_interval(self) -> int:
+        """Poll funding rates every 10 minutes"""
+        return CONSTANTS.FUNDING_INFO_UPDATE_INTERVAL
+
+    def supported_order_types(self) -> List[OrderType]:
+        """
+        :return a list of OrderType supported by this connector
+        """
+        return [OrderType.LIMIT, OrderType.MARKET, OrderType.LIMIT_MAKER]
+
+    def supported_position_modes(self) -> List[PositionMode]:
+        """
+        Backpack supports ONE-WAY mode only.
+        """
+        return CONSTANTS.SUPPORTED_POSITION_MODES
+
+    def get_buy_collateral_token(self, trading_pair: str) -> str:
+        """Returns collateral token for long positions"""
+        return CONSTANTS.COLLATERAL_TOKEN
+
+    def get_sell_collateral_token(self, trading_pair: str) -> str:
+        """Returns collateral token for short positions"""
+        return CONSTANTS.COLLATERAL_TOKEN
+
+    # Helper methods for order and trade type conversion
+    @staticmethod
+    def backpack_order_type(order_type: OrderType) -> str:
+        """Convert Hummingbot order type to Backpack format."""
+        return CONSTANTS.ORDER_TYPE_MAP.get(order_type.name, order_type.name)
+
+    @staticmethod
+    def to_hb_order_type(backpack_type: str) -> OrderType:
+        """Convert Backpack order type to Hummingbot format."""
+        type_map = {v: k for k, v in CONSTANTS.ORDER_TYPE_MAP.items()}
+        return OrderType[type_map.get(backpack_type, backpack_type)]
+
+    @staticmethod
+    def backpack_order_side(trade_type: TradeType) -> str:
+        """Convert Hummingbot trade type to Backpack format."""
+        return CONSTANTS.ORDER_SIDE_MAP.get(trade_type.name, trade_type.name)
+
+    def _is_request_exception_related_to_time_synchronizer(self, request_exception: Exception):
+        error_description = str(request_exception)
+        is_time_synchronizer_related = (
+            "timestamp" in error_description.lower()
+            or "time" in error_description.lower() and "sync" in error_description.lower()
+        )
+        return is_time_synchronizer_related
+
+    def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
+        return (
+            str(CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE) in str(status_update_exception)
+            and CONSTANTS.ORDER_NOT_EXIST_MESSAGE in str(status_update_exception)
+        )
+
+    def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
+        return (
+            str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in str(cancelation_exception)
+            and CONSTANTS.UNKNOWN_ORDER_MESSAGE in str(cancelation_exception)
+        )
+
+    def _create_web_assistants_factory(self) -> WebAssistantsFactory:
+        return web_utils.build_api_factory(
+            throttler=self._throttler,
+            time_synchronizer=self._time_synchronizer,
+            domain=self._domain,
+            auth=self._auth
+        )
+
+    def _create_order_book_data_source(self) -> OrderBookTrackerDataSource:
+        return BackpackPerpetualAPIOrderBookDataSource(
+            trading_pairs=self._trading_pairs,
+            connector=self,
+            api_factory=self._web_assistants_factory,
+            domain=self.domain,
+        )
+
+    def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
+        return BackpackPerpetualUserStreamDataSource(
+            auth=self._auth,
+            connector=self,
+            api_factory=self._web_assistants_factory,
+            domain=self.domain,
+        )
+
+    def _get_fee(
+        self,
+        base_currency: str,
+        quote_currency: str,
+        order_type: OrderType,
+        order_side: TradeType,
+        position_action: PositionAction,
+        amount: Decimal,
+        price: Decimal = s_decimal_NaN,
+        is_maker: Optional[bool] = None
+    ) -> TradeFeeBase:
+        is_maker = is_maker or (order_type == OrderType.LIMIT_MAKER)
+        fee = build_perpetual_trade_fee(
+            self.name,
+            is_maker,
+            position_action=position_action,
+            base_currency=base_currency,
+            quote_currency=quote_currency,
+            order_type=order_type,
+            order_side=order_side,
+            amount=amount,
+            price=price,
+        )
+        return fee
+
+    # API request methods
+    async def _api_get(
+        self,
+        path_url: str,
+        params: Optional[Dict[str, Any]] = None,
+        is_auth_required: bool = False,
+        limit_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute GET request."""
+        return await web_utils.api_request(
+            path=path_url,
+            api_factory=self._web_assistants_factory,
+            throttler=self._throttler,
+            time_synchronizer=self._time_synchronizer,
+            domain=self._domain,
+            params=params,
+            method=RESTMethod.GET,
+            is_auth_required=is_auth_required,
+            limit_id=limit_id,
+        )
+
+    async def _api_post(
+        self,
+        path_url: str,
+        data: Optional[Dict[str, Any]] = None,
+        is_auth_required: bool = True,
+        limit_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute POST request."""
+        return await web_utils.api_request(
+            path=path_url,
+            api_factory=self._web_assistants_factory,
+            throttler=self._throttler,
+            time_synchronizer=self._time_synchronizer,
+            domain=self._domain,
+            data=json.dumps(data) if data else None,
+            method=RESTMethod.POST,
+            is_auth_required=is_auth_required,
+            limit_id=limit_id,
+            headers={"Content-Type": "application/json"},
+        )
+
+    async def _api_delete(
+        self,
+        path_url: str,
+        params: Optional[Dict[str, Any]] = None,
+        is_auth_required: bool = True,
+        limit_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Execute DELETE request."""
+        return await web_utils.api_request(
+            path=path_url,
+            api_factory=self._web_assistants_factory,
+            throttler=self._throttler,
+            time_synchronizer=self._time_synchronizer,
+            domain=self._domain,
+            params=params,
+            method=RESTMethod.DELETE,
+            is_auth_required=is_auth_required,
+            limit_id=limit_id,
+        )
+
+    # Trading rules and exchange info
+    async def _update_trading_rules(self):
+        """Fetch and update trading rules from exchange."""
+        response = await self._api_get(
+            path_url=self.trading_rules_request_path,
+            is_auth_required=False
+        )
+
+        trading_rules = {}
+
+        for market_info in response.get("symbols", []):
+            try:
+                # Only process perpetual markets
+                if not utils.is_perpetual_symbol(market_info["symbol"]):
+                    continue
+
+                trading_pair = utils.convert_from_exchange_trading_pair(market_info["symbol"])
+                if trading_pair is None:
+                    continue
+
+                filters = market_info.get("filters", {})
+
+                trading_rules[trading_pair] = TradingRule(
+                    trading_pair=trading_pair,
+                    min_order_size=Decimal(str(filters.get("minQuantity", "0.001"))),
+                    max_order_size=Decimal(str(filters.get("maxQuantity", "10000"))),
+                    min_price_increment=Decimal(str(filters.get("tickSize", "0.01"))),
+                    min_base_amount_increment=Decimal(str(filters.get("stepSize", "0.001"))),
+                    min_notional_size=Decimal(str(filters.get("minNotional", "1"))),
+                    buy_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
+                    sell_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
+                )
+
+            except Exception:
+                self.logger().exception(f"Error parsing trading rule: {market_info}")
+
+        self._trading_rules = trading_rules
+
+    # Balance and position management
+    async def _update_balances(self):
+        """Update account balances."""
+        response = await self._api_get(
+            path_url=CONSTANTS.BALANCE_URL,
+            is_auth_required=True
+        )
+
+        self._account_available_balances.clear()
+        self._account_balances.clear()
+
+        # Process balances - focus on USDC for perpetuals
+        for balance_info in response.get("balances", []):
+            asset = balance_info["symbol"]
+            free = Decimal(str(balance_info.get("available", "0")))
+            total = Decimal(str(balance_info.get("total", "0")))
+            locked = Decimal(str(balance_info.get("locked", "0")))
+
+            self._account_available_balances[asset] = free
+            self._account_balances[asset] = total
+
+    async def _update_positions(self):
+        """Update open positions."""
+        response = await self._api_get(
+            path_url=CONSTANTS.POSITIONS_URL,
+            is_auth_required=True
+        )
+
+        for position_data in response:
+            self._process_position_update(position_data)
+
+    def _process_position_update(self, position_data: Dict[str, Any]):
+        """Process a position update from API or WebSocket."""
+        try:
+            symbol = position_data["symbol"]
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+
+            if trading_pair is None:
+                return
+
+            # Parse position data
+            net_quantity = Decimal(str(position_data["netQuantity"]))
+
+            # Skip if no position
+            if net_quantity == Decimal("0"):
+                if trading_pair in self._perpetual_trading.account_positions:
+                    del self._perpetual_trading.account_positions[trading_pair]
+                return
+
+            is_long = net_quantity > 0
+
+            position = Position(
+                trading_pair=trading_pair,
+                position_side=PositionSide.LONG if is_long else PositionSide.SHORT,
+                unrealized_pnl=Decimal(str(position_data.get("pnlUnrealized", "0"))),
+                entry_price=Decimal(str(position_data.get("entryPrice", "0"))),
+                amount=abs(net_quantity),
+                leverage=self._leverage_map.get(trading_pair, 1),
+            )
+
+            # Store position
+            self._perpetual_trading.account_positions[trading_pair] = position
+
+        except Exception:
+            self.logger().exception(f"Error processing position update: {position_data}")
+
+    # Order placement and cancellation
+    async def _place_order(
+        self,
+        order_id: str,
+        trading_pair: str,
+        amount: Decimal,
+        trade_type: TradeType,
+        order_type: OrderType,
+        price: Optional[Decimal] = None,
+        position_action: PositionAction = PositionAction.OPEN,
+        **kwargs
+    ) -> Tuple[str, float]:
+        """
+        Place an order on Backpack perpetual.
+        """
+        symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+
+        # Determine if this is a reduce-only order
+        reduce_only = position_action == PositionAction.CLOSE
+
+        order_data = {
+            "symbol": symbol,
+            "side": self.backpack_order_side(trade_type),
+            "orderType": self.backpack_order_type(order_type),
+            "quantity": str(amount),
+            "clientId": order_id,
+        }
+
+        # Add reduce-only flag for closing positions
+        if reduce_only:
+            order_data["reduceOnly"] = True
+
+        # Add price for limit orders
+        if order_type == OrderType.LIMIT or order_type == OrderType.LIMIT_MAKER:
+            order_data["price"] = str(price)
+
+        # Add time in force
+        order_data["timeInForce"] = kwargs.get("time_in_force", "GTC")
+
+        # Add post-only flag for maker orders
+        if order_type == OrderType.LIMIT_MAKER:
+            order_data["postOnly"] = True
+
+        response = await self._api_post(
+            path_url=CONSTANTS.ORDER_URL,
+            data=order_data,
+            is_auth_required=True
+        )
+
+        exchange_order_id = response.get("orderId", response.get("id"))
+        timestamp = self.current_timestamp
+
+        return exchange_order_id, timestamp
+
+    async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder) -> bool:
+        """
+        Cancel an order on the exchange.
+        """
+        symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
+
+        try:
+            # Try to cancel by exchange order ID if available
+            if tracked_order.exchange_order_id:
+                params = {
+                    "symbol": symbol,
+                    "orderId": tracked_order.exchange_order_id,
+                }
+            else:
+                # Fall back to client order ID
+                params = {
+                    "symbol": symbol,
+                    "clientId": order_id,
+                }
+
+            await self._api_delete(
+                path_url=CONSTANTS.CANCEL_URL,
+                params=params,
+                is_auth_required=True
+            )
+
+            return True
+
+        except Exception as e:
+            if self._is_order_not_found_during_cancelation_error(e):
+                # Order already cancelled or filled
+                return True
+            raise
+
+    # Order status and trade updates
+    async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
+        """
+        Request current order status from exchange.
+        """
+        symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
+
+        # Query open orders
+        response = await self._api_get(
+            path_url=CONSTANTS.OPEN_ORDERS_URL,
+            params={"symbol": symbol},
+            is_auth_required=True
+        )
+
+        # Look for our order
+        for order_data in response:
+            if (order_data.get("clientId") == tracked_order.client_order_id or
+                    order_data.get("orderId") == tracked_order.exchange_order_id):
+
+                return self._parse_order_update(order_data, tracked_order)
+
+        # If not in open orders, check order history
+        history_response = await self._api_get(
+            path_url=CONSTANTS.ORDER_HISTORY_URL,
+            params={"symbol": symbol, "limit": 50},
+            is_auth_required=True
+        )
+
+        for order_data in history_response:
+            if (order_data.get("clientId") == tracked_order.client_order_id or
+                    order_data.get("orderId") == tracked_order.exchange_order_id):
+
+                return self._parse_order_update(order_data, tracked_order)
+
+        # Order not found - assume cancelled
+        return OrderUpdate(
+            trading_pair=tracked_order.trading_pair,
+            update_timestamp=self.current_timestamp,
+            new_state=OrderState.CANCELED,
+            client_order_id=tracked_order.client_order_id,
+            exchange_order_id=tracked_order.exchange_order_id,
+        )
+
+    def _parse_order_update(self, order_data: Dict[str, Any], tracked_order: InFlightOrder) -> OrderUpdate:
+        """Parse order data into OrderUpdate."""
+        status = order_data.get("status", "")
+        state = OrderState[CONSTANTS.ORDER_STATE_MAP.get(status, "FAILED")]
+
+        return OrderUpdate(
+            trading_pair=tracked_order.trading_pair,
+            update_timestamp=self.current_timestamp,
+            new_state=state,
+            client_order_id=order_data.get("clientId", tracked_order.client_order_id),
+            exchange_order_id=order_data.get("orderId", tracked_order.exchange_order_id),
+        )
+
+    async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
+        """
+        Get all trade fills for an order.
+        """
+        symbol = utils.convert_to_exchange_trading_pair(order.trading_pair)
+
+        response = await self._api_get(
+            path_url=CONSTANTS.FILLS_URL,
+            params={
+                "symbol": symbol,
+                "orderId": order.exchange_order_id,
+            },
+            is_auth_required=True
+        )
+
+        trade_updates = []
+
+        for fill_data in response:
+            trade_updates.append(
+                TradeUpdate(
+                    trade_id=str(fill_data.get("tradeId", fill_data.get("id"))),
+                    client_order_id=order.client_order_id,
+                    exchange_order_id=order.exchange_order_id,
+                    trading_pair=order.trading_pair,
+                    fill_timestamp=fill_data.get("timestamp", self.current_timestamp),
+                    fill_price=Decimal(str(fill_data.get("price", "0"))),
+                    fill_base_amount=Decimal(str(fill_data.get("quantity", "0"))),
+                    fill_quote_amount=Decimal(str(fill_data.get("price", "0"))) * Decimal(str(fill_data.get("quantity", "0"))),
+                    fee=self._get_trade_fee_from_fill(fill_data),
+                )
+            )
+
+        return trade_updates
+
+    def _get_trade_fee_from_fill(self, fill_data: Dict[str, Any]) -> TradeFeeBase:
+        """Extract trade fee from fill data."""
+        fee_amount = Decimal(str(fill_data.get("fee", "0")))
+        fee_asset = fill_data.get("feeAsset", CONSTANTS.COLLATERAL_TOKEN)
+
+        return TradeFeeBase.new_perpetual_fee(
+            fee_schema=self.trade_fee_schema(),
+            position_action=PositionAction.OPEN,  # Determine from context if needed
+            percent_token=fee_asset,
+            flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)]
+        )
+
+    # Funding rate management
+    async def _update_funding_info(self):
+        """Update funding rate information for all trading pairs."""
+        tasks = []
+        for trading_pair in self._trading_pairs:
+            tasks.append(self._fetch_funding_rate(trading_pair))
+
+        funding_infos = await safe_gather(*tasks, return_exceptions=True)
+
+        for trading_pair, funding_info in zip(self._trading_pairs, funding_infos):
+            if isinstance(funding_info, Exception):
+                self.logger().error(
+                    f"Error fetching funding rate for {trading_pair}: {funding_info}"
+                )
+            else:
+                self._perpetual_trading.set_funding_info(trading_pair, funding_info)
+
+    async def _fetch_funding_rate(self, trading_pair: str) -> FundingInfo:
+        """Fetch current funding rate for a trading pair."""
+        symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+
+        response = await self._api_get(
+            path_url=CONSTANTS.FUNDING_RATE_URL,
+            params={"symbol": symbol},
+            is_auth_required=False
+        )
+
+        return FundingInfo(
+            trading_pair=trading_pair,
+            index_price=Decimal(str(response.get("indexPrice", "0"))),
+            mark_price=Decimal(str(response.get("markPrice", "0"))),
+            next_funding_utc_timestamp=int(response.get("nextFundingTime", 0)),
+            rate=Decimal(str(response.get("nextFundingRate", "0"))),
+        )
+
+    # Leverage management
+    async def _execute_set_leverage(self, trading_pair: str, leverage: int):
+        """Set leverage for a trading pair."""
+        symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+
+        response = await self._api_post(
+            path_url=CONSTANTS.LEVERAGE_URL,
+            data={
+                "symbol": symbol,
+                "leverage": leverage,
+            },
+            is_auth_required=True
+        )
+
+        if response.get("success"):
+            self._leverage_map[trading_pair] = leverage
+            self._perpetual_trading.set_leverage(trading_pair, leverage)
+            self.logger().info(f"Leverage set to {leverage}x for {trading_pair}")
+        else:
+            raise ValueError(f"Failed to set leverage: {response}")
+
+    async def _execute_set_position_mode(self, mode: PositionMode):
+        """
+        Set position mode on the exchange.
+        Backpack only supports ONE-WAY mode, so this is mostly a no-op.
+        """
+        if mode != PositionMode.ONEWAY:
+            raise ValueError(f"Backpack only supports ONE-WAY position mode, not {mode}")
+
+        self._position_mode = mode
+        self.trigger_event(
+            AccountEvent.PositionModeChangeSucceeded,
+            PositionModeChangeEvent(
+                timestamp=self.current_timestamp,
+                trading_pair=None,
+                position_mode=mode,
+            )
+        )
+
+    # WebSocket event processing
+    async def _user_stream_event_listener(self):
+        """Process user stream events."""
+        async for event_message in self._iter_user_event_queue():
+            try:
+                event_type = event_message.get("type")
+
+                if event_type == "order":
+                    self._process_order_message(event_message)
+                elif event_type == "balance":
+                    self._process_balance_message(event_message)
+                elif event_type == "position":
+                    self._process_position_message(event_message)
+                elif event_type == "funding":
+                    self._process_funding_payment_message(event_message)
+                elif event_type == "liquidation":
+                    self._process_liquidation_warning(event_message)
+
+            except Exception:
+                self.logger().exception("Error processing user stream event")
+
+    def _process_order_message(self, order_msg: Dict[str, Any]):
+        """Process order update messages."""
+        # Implementation similar to spot connector
+        pass
+
+    def _process_balance_message(self, balance_msg: Dict[str, Any]):
+        """Process balance update messages."""
+        # Implementation similar to spot connector
+        pass
+
+    def _process_position_message(self, position_msg: Dict[str, Any]):
+        """Process position update messages from WebSocket."""
+        try:
+            self._process_position_update(position_msg.get("data", position_msg))
+        except Exception:
+            self.logger().exception("Error processing position update")
+
+    def _process_funding_payment_message(self, funding_msg: Dict[str, Any]):
+        """Process funding payment messages."""
+        try:
+            data = funding_msg.get("data", funding_msg)
+
+            trading_pair = utils.convert_from_exchange_trading_pair(data["symbol"])
+            if trading_pair:
+                self.trigger_event(
+                    MarketEvent.FundingPaymentCompleted,
+                    FundingPaymentCompletedEvent(
+                        timestamp=self.current_timestamp,
+                        market=self.name,
+                        trading_pair=trading_pair,
+                        funding_rate=Decimal(str(data.get("fundingRate", "0"))),
+                        payment=Decimal(str(data.get("payment", "0"))),
+                    )
+                )
+        except Exception:
+            self.logger().exception("Error processing funding payment")
+
+    def _process_liquidation_warning(self, liquidation_msg: Dict[str, Any]):
+        """Process liquidation warning messages."""
+        try:
+            data = liquidation_msg.get("data", liquidation_msg)
+
+            self.logger().warning(
+                f"LIQUIDATION WARNING for {data['symbol']}: "
+                f"Mark price {data['markPrice']} approaching "
+                f"liquidation price {data['liquidationPrice']}"
+            )
+        except Exception:
+            self.logger().exception("Error processing liquidation warning")
