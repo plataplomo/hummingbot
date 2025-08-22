@@ -648,11 +648,12 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.exchange._order_tracker.start_tracking_order(order)
 
         # Mock cancelled order status - Backpack uses 'id' not 'orderId'
+        # Note: Backpack API uses "Cancelled" not "CANCELLED" 
         order_status = {
             "id": exchange_order_id,
             "clientId": client_order_id,
             "symbol": self.symbol,
-            "status": "CANCELLED",
+            "status": "Cancelled",  # Correct Backpack status format
             "side": "Buy",
             "orderType": "Limit",
             "price": "50000.00",
@@ -826,15 +827,31 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         )
         self.exchange._order_tracker.start_tracking_order(order)
 
-        # Mock order not found response
-        order_url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_URL)
-        mock_api.get(order_url, status=404, body=json.dumps({"error": "Order not found"}))
+        # Mock open orders response (empty - order not found)
+        open_orders_url = web_utils.private_rest_url(path_url=CONSTANTS.OPEN_ORDERS_URL)
+        regex_open_orders_url = re.compile(f"^{open_orders_url}".replace(".", r"\.").replace("?", r"\?"))
+        mock_api.get(regex_open_orders_url, body=json.dumps([]))
+
+        # Mock order history response (empty - order not found)
+        history_url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_HISTORY_URL)
+        regex_history_url = re.compile(f"^{history_url}".replace(".", r"\.").replace("?", r"\?"))
+        mock_api.get(regex_history_url, body=json.dumps([]))
+
+        # Mock fills response (empty - no fills)
+        fills_url = web_utils.private_rest_url(path_url=CONSTANTS.FILLS_URL)
+        regex_fills_url = re.compile(f"^{fills_url}".replace(".", r"\.").replace("?", r"\?"))
+        mock_api.get(regex_fills_url, body=json.dumps([]))
+
+        # Set order_not_found counter to simulate retries
+        self.exchange._order_tracker._order_not_found_records[client_order_id] = (
+            self.exchange._order_tracker._lost_order_count_limit - 1
+        )
 
         self.async_run_with_timeout(
             self.exchange._update_order_status()
         )
 
-        # Verify order was marked as failed
+        # Verify order was marked as failed after reaching lost order limit
         self.assertTrue(order.is_failure)
 
     @aioresponses()
@@ -1032,26 +1049,35 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     def test_margin_call_event(self, mock_api):
         """Test margin call event handling."""
         # Create a position near liquidation using correct WebSocket field names
+        # Mark price needs to be within maintenance margin rate of liquidation price
         position_data = {
             "s": self.ex_trading_pair,  # symbol
             "q": "0.100",  # net quantity (positive for long)
             "B": "50000.00",  # entry price
-            "M": "45500.00",  # mark price - near liquidation
+            "M": "45800.00",  # mark price - at risk (45000 * 1.025 = 46125, so 45800 < 46125)
             "l": "45000.00",  # liquidation price
             "m": "0.025",  # maintenance margin fraction
             "f": "0.05",  # initial margin fraction
+            "pnlUnrealized": "-1000.00",  # negative PnL
         }
 
-        # Process margin call warning
-        self.exchange._process_position_message(position_data)
+        # Process position update which checks for margin call
+        self.exchange._process_position_update(position_data)
 
-        # Check if warning was logged (search for partial match)
-        has_warning = any(
-            "Margin call warning" in log.msg and self.trading_pair in log.msg 
+        # Check if margin call warning was logged (matching Binance style)
+        self.assertTrue(self._is_logged(
+            "WARNING",
+            "Margin Call: Your position risk is too high, and you are at risk of liquidation. "
+            "Close your positions or add additional margin to your wallet."
+        ))
+        
+        # Check if additional info was logged
+        has_info = any(
+            "Maintenance Margin" in log.msg or "Negative PnL" in log.msg
             for log in self.log_records 
-            if log.levelname == "WARNING"
+            if log.levelname == "INFO"
         )
-        self.assertTrue(has_warning, "Margin call warning not logged")
+        self.assertTrue(has_info, "Margin call info not logged")
 
     @aioresponses()
     def test_order_fill_event_ignored_for_repeated_trade_id(self, mock_api):

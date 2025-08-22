@@ -525,41 +525,46 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Store position
             self._perpetual_trading.account_positions[trading_pair] = position
 
-            # Check for margin call conditions based on maintenance margin fraction
-            # The 'm' field is maintenance margin fraction from WebSocket
-            maint_margin_fraction = position_data.get("m")
+            # Check for margin call conditions based on maintenance margin and liquidation price
+            # Similar to Binance implementation
             liquidation_price = position_data.get("l")
             mark_price = position_data.get("M")
+            maint_margin_fraction = position_data.get("m")
             
-            if maint_margin_fraction and mark_price and liquidation_price:
-                # Check if position is approaching liquidation
-                # If mark price is getting close to liquidation price, warn the user
+            if liquidation_price and mark_price:
                 mark_price_decimal = Decimal(str(mark_price))
                 liquidation_price_decimal = Decimal(str(liquidation_price))
                 
-                # Calculate how close we are to liquidation
+                # Check if position is at risk using maintenance margin rate from constants
+                at_risk = False
+                
                 if is_long:
-                    # For long positions, liquidation happens when price drops
-                    if mark_price_decimal > liquidation_price_decimal:
-                        price_distance = (mark_price_decimal - liquidation_price_decimal) / mark_price_decimal
-                        # Warn if within 10% of liquidation price
-                        if price_distance < Decimal("0.1"):
-                            self.logger().warning(
-                                f"Margin call warning: Position for {trading_pair} is approaching "
-                                f"liquidation price {liquidation_price_decimal}. Current mark price: {mark_price_decimal}. "
-                                f"Close position or add margin."
-                            )
+                    # For long positions, risk when mark price approaches liquidation price from above
+                    # Use maintenance margin rate from constants as buffer
+                    at_risk = (mark_price_decimal <= liquidation_price_decimal * (Decimal("1") + CONSTANTS.MAINTENANCE_MARGIN_RATE))
                 else:
-                    # For short positions, liquidation happens when price rises
-                    if mark_price_decimal < liquidation_price_decimal:
-                        price_distance = (liquidation_price_decimal - mark_price_decimal) / mark_price_decimal
-                        # Warn if within 10% of liquidation price
-                        if price_distance < Decimal("0.1"):
-                            self.logger().warning(
-                                f"Margin call warning: Position for {trading_pair} is approaching "
-                                f"liquidation price {liquidation_price_decimal}. Current mark price: {mark_price_decimal}. "
-                                f"Close position or add margin."
-                            )
+                    # For short positions, risk when mark price approaches liquidation price from below
+                    at_risk = (mark_price_decimal >= liquidation_price_decimal * (Decimal("1") - CONSTANTS.MAINTENANCE_MARGIN_RATE))
+                
+                if at_risk:
+                    # Issue margin call warning similar to Binance connector
+                    self.logger().warning(
+                        "Margin Call: Your position risk is too high, and you are at risk of "
+                        "liquidation. Close your positions or add additional margin to your wallet."
+                    )
+                    
+                    # Log additional info similar to Binance
+                    negative_pnl_msg = ""
+                    if unrealized_pnl < Decimal("0"):
+                        negative_pnl_msg = f"{trading_pair}: {unrealized_pnl}, "
+                    
+                    maint_margin_msg = ""
+                    if maint_margin_fraction:
+                        maint_margin_msg = f"Maintenance Margin: {maint_margin_fraction}. "
+                    
+                    self.logger().info(
+                        f"{maint_margin_msg}Negative PnL assets: {negative_pnl_msg}."
+                    )
 
         except Exception:
             self.logger().exception(f"Error processing position update: {position_data}")
