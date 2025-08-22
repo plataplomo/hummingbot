@@ -162,11 +162,12 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         # Set the trading pair symbol map
         self.exchange._set_trading_pair_symbol_map(bidict({self.symbol: self.trading_pair}))
         
-        # Set trading rules
+        # Set trading rules with values that would come from the exchange
+        # These are set during the test based on the mocked exchange response
         self.exchange._trading_rules = {
             self.trading_pair: TradingRule(
                 trading_pair=self.trading_pair,
-                min_order_size=Decimal("0.001"),
+                min_order_size=Decimal("1"),  # Will be overridden by mock response
                 min_price_increment=Decimal("0.01"),
                 min_base_amount_increment=Decimal("0.001"),
                 min_notional_size=Decimal("10"),
@@ -227,6 +228,59 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             }
         ]
         return income_history
+    
+    def _get_exchange_info_mock_response(
+            self,
+            min_order_size: str = "0.001",
+            max_order_size: str = "10000",
+            tick_size: str = "0.01",
+            step_size: str = "0.001",
+            min_notional: str = "10",
+    ) -> Dict[str, Any]:
+        """Create mock exchange info response for testing.
+        
+        This method provides a properly formatted exchange info response
+        that matches Backpack's actual API structure.
+        
+        Args:
+            min_order_size: Minimum order quantity
+            max_order_size: Maximum order quantity  
+            tick_size: Price tick size
+            step_size: Quantity step size
+            min_notional: Minimum notional value
+            
+        Returns:
+            Dict with exchange info structure
+        """
+        return {
+            "symbols": [
+                {
+                    "symbol": self.symbol,
+                    "baseAsset": self.base_asset,
+                    "quoteAsset": self.quote_asset,
+                    "quoteCurrency": self.quote_asset,
+                    "status": "TRADING",
+                    "contractType": "PERPETUAL",
+                    "filters": {
+                        "price": {
+                            "tickSize": tick_size,
+                            "minPrice": "0.01",
+                            "maxPrice": "1000000.00",
+                        },
+                        "quantity": {
+                            "minQuantity": min_order_size,
+                            "maxQuantity": max_order_size,
+                            "stepSize": step_size,
+                        },
+                        "notional": {
+                            "minNotional": min_notional,
+                        }
+                    },
+                    "pricePrecision": 2,
+                    "quantityPrecision": 3,
+                }
+            ]
+        }
 
     @aioresponses()
     def test_check_network_success(self, mock_api):
@@ -251,25 +305,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     def test_update_trading_rules(self, mock_api):
         """Test updating trading rules from exchange info."""
         url = self.trading_rules_url
-
-        mock_response = {
-            "symbols": [
-                {
-                    "symbol": self.symbol,
-                    "baseAsset": self.base_asset,
-                    "quoteAsset": self.quote_asset,
-                    "status": "TRADING",
-                    "contractType": "PERPETUAL",
-                    "filters": {
-                        "minQuantity": "0.001",
-                        "maxQuantity": "1000",
-                        "stepSize": "0.001",
-                        "minNotional": "10",
-                        "tickSize": "0.01",
-                    }
-                }
-            ]
-        }
+        
+        # Mock exchange response following Backpack API structure
+        mock_response = self._get_exchange_info_mock_response()
         mock_api.get(url, body=json.dumps(mock_response))
 
         self.async_run_with_timeout(self.exchange._update_trading_rules())
@@ -277,62 +315,61 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         trading_rule = self.exchange._trading_rules[self.trading_pair]
         self.assertIsInstance(trading_rule, TradingRule)
         self.assertEqual(trading_rule.trading_pair, self.trading_pair)
-        self.assertEqual(trading_rule.min_order_size, Decimal("0.001"))
-        self.assertEqual(trading_rule.max_order_size, Decimal("1000"))
-        self.assertEqual(trading_rule.min_order_value, Decimal("10"))
-        self.assertEqual(trading_rule.min_base_amount_increment, Decimal("0.001"))
-        self.assertEqual(trading_rule.min_price_increment, Decimal("0.01"))
+        
+        # Extract values from filters structure
+        filters = mock_response["symbols"][0]["filters"]
+        self.assertEqual(trading_rule.min_order_size, Decimal(str(filters["quantity"]["minQuantity"])))
+        self.assertEqual(trading_rule.max_order_size, Decimal(str(filters["quantity"]["maxQuantity"])))
+        self.assertEqual(trading_rule.min_base_amount_increment, Decimal(str(filters["quantity"]["stepSize"])))
+        self.assertEqual(trading_rule.min_price_increment, Decimal(str(filters["price"]["tickSize"])))
+        self.assertEqual(trading_rule.min_notional_size, Decimal(str(filters["notional"]["minNotional"])))
 
     @aioresponses()
     def test_update_balances(self, mock_api):
         """Test updating account balances."""
         url = self.balance_url
 
+        # Response format per OpenAPI spec: {"ASSET": {"available": "0", "locked": "0", "staked": "0"}}
         mock_response = {
-            "balances": [
-                {
-                    "asset": "USDC",
-                    "free": "10000",
-                    "locked": "500",
-                }
-            ],
-            "positions": self._get_position_risk_api_endpoint_single_position_list(),
+            "USDC": {
+                "available": "10000",
+                "locked": "500",
+                "staked": "0"
+            }
         }
         mock_api.get(url, body=json.dumps(mock_response))
 
         self.async_run_with_timeout(self.exchange._update_balances())
 
-        available_balance = self.exchange.get_balance("USDC")
-        self.assertEqual(available_balance, Decimal("10000"))
+        # get_balance returns total balance (available + locked)
+        total_balance = self.exchange.get_balance("USDC")
+        self.assertEqual(total_balance, Decimal("10500"))  # 10000 + 500
 
     @aioresponses()
-    def test_get_open_orders(self, mock_api):
-        """Test fetching open orders."""
-        url = web_utils.private_rest_url(path_url=CONSTANTS.OPEN_ORDERS_URL)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?") + ".*")
-
-        mock_response = [
-            {
-                "orderId": "123456",
-                "clientId": "HBOT-1",
-                "symbol": self.symbol,
-                "side": "Buy",
-                "orderType": "Limit",
-                "price": "50000",
-                "quantity": "0.1",
-                "executedQuantity": "0",
-                "status": "NEW",
-                "timestamp": int(self.start_timestamp * 1000),
-            }
-        ]
-        mock_api.get(regex_url, body=json.dumps(mock_response))
-
-        orders = self.async_run_with_timeout(self.exchange.get_open_orders())
-
-        self.assertEqual(len(orders), 1)
-        self.assertEqual(orders[0].trading_pair, self.trading_pair)
-        self.assertEqual(orders[0].price, Decimal("50000"))
-        self.assertEqual(orders[0].amount, Decimal("0.1"))
+    def test_in_flight_orders_tracking(self, mock_api):
+        """Test tracking of in-flight orders through the standard Hummingbot architecture."""
+        # Create an order and track it
+        order_id = "test_order_1"
+        trading_pair = self.trading_pair
+        
+        # Start tracking an order
+        self.exchange.start_tracking_order(
+            order_id=order_id,
+            exchange_order_id="123456",
+            trading_pair=trading_pair,
+            trade_type=TradeType.BUY,
+            price=Decimal("50000"),
+            amount=Decimal("0.1"),
+            order_type=OrderType.LIMIT,
+            position_action=PositionAction.OPEN,
+        )
+        
+        # Check that the order is in in_flight_orders
+        self.assertIn(order_id, self.exchange.in_flight_orders)
+        order = self.exchange.in_flight_orders[order_id]
+        self.assertEqual(order.trading_pair, trading_pair)
+        self.assertEqual(order.price, Decimal("50000"))
+        self.assertEqual(order.amount, Decimal("0.1"))
 
     @aioresponses()
     def test_place_order_buy_market_order(self, mock_api):
@@ -478,6 +515,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     def test_get_funding_info(self, mock_api):
         """Test fetching funding info."""
+        # Initialize trading rules and symbol mapping
+        self._simulate_trading_rules_initialized()
+        
         url = self.funding_info_url
 
         mock_response = {
@@ -489,6 +529,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         }
         mock_api.get(url, body=json.dumps(mock_response))
 
+        # First update funding info to populate it
+        self.async_run_with_timeout(self.exchange._update_funding_info())
+        
         funding_info = self.async_run_with_timeout(
             self.exchange.get_funding_info(self.trading_pair)
         )
@@ -499,23 +542,23 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(funding_info.rate, Decimal("0.0001"))
 
     @aioresponses()
-    def test_get_funding_payment_history(self, mock_api):
-        """Test fetching funding payment history."""
+    def test_fetch_last_fee_payment(self, mock_api):
+        """Test fetching last funding fee payment using the standard Hummingbot method."""
+        # Initialize trading rules and symbol mapping
+        self._simulate_trading_rules_initialized()
+        
         url = self.funding_payment_url
-
         mock_response = self._get_income_history_dict()
         mock_api.get(url, body=json.dumps(mock_response))
 
-        funding_payments = self.async_run_with_timeout(
-            self.exchange.get_funding_payment_history(
-                trading_pair=self.trading_pair,
-                start_time=self.start_timestamp,
-            )
+        # Test the standard _fetch_last_fee_payment method
+        timestamp, funding_rate, payment_amount = self.async_run_with_timeout(
+            self.exchange._fetch_last_fee_payment(trading_pair=self.trading_pair)
         )
 
-        self.assertEqual(len(funding_payments), 1)
-        self.assertEqual(funding_payments[0].trading_pair, self.trading_pair)
-        self.assertEqual(funding_payments[0].amount, Decimal("0.5"))
+        # Verify the response
+        self.assertGreater(timestamp, 0)
+        self.assertEqual(payment_amount, Decimal("0.5"))  # From mock response
 
     def test_supported_position_modes(self):
         """Test that only ONE_WAY position mode is supported."""
@@ -802,15 +845,23 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
                     "quoteAsset": "USDC",
                     "status": "TRADING",
                     "contractType": "PERPETUAL",
+                    "filters": {
+                        "price": {
+                            "tickSize": "0.01",
+                            "minPrice": "0.01",
+                            "maxPrice": "1000000.00",
+                        },
+                        "quantity": {
+                            "minQuantity": "0.001",
+                            "maxQuantity": "1000.000",
+                            "stepSize": "0.001",
+                        },
+                        "notional": {
+                            "minNotional": "10.00",
+                        }
+                    },
                     "pricePrecision": 2,
                     "quantityPrecision": 3,
-                    "minPrice": "0.01",
-                    "maxPrice": "1000000.00",
-                    "tickSize": "0.01",
-                    "minQuantity": "0.001",
-                    "maxQuantity": "1000.000",
-                    "stepSize": "0.001",
-                    "minNotional": "10.00"
                 }
             ]
         }

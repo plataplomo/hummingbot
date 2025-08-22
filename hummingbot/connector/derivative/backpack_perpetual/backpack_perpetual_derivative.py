@@ -368,22 +368,49 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 if trading_pair is None:
                     continue
 
-                # Check if filters are nested or at top level
-                filters = market_info.get("filters", market_info)
+                # Parse filters according to Backpack API structure
+                filters = market_info.get("filters", {})
+                price_filter = filters.get("price", {})
+                quantity_filter = filters.get("quantity", {})
+                notional_filter = filters.get("notional", {})
                 
-                trading_rules[trading_pair] = TradingRule(
+                # Extract required fields - will raise exception if missing
+                min_order_size = Decimal(str(quantity_filter["minQuantity"]))
+                step_size = Decimal(str(quantity_filter["stepSize"]))
+                tick_size = Decimal(str(price_filter["tickSize"]))
+                
+                # Optional fields
+                max_order_size = quantity_filter.get("maxQuantity")
+                if max_order_size:
+                    max_order_size = Decimal(str(max_order_size))
+                
+                min_notional = notional_filter.get("minNotional")
+                if min_notional:
+                    min_notional = Decimal(str(min_notional))
+                
+                # Create trading rule
+                trading_rule = TradingRule(
                     trading_pair=trading_pair,
-                    min_order_size=Decimal(str(filters.get("minQuantity", "0.001"))),
-                    max_order_size=Decimal(str(filters.get("maxQuantity", "10000"))),
-                    min_price_increment=Decimal(str(filters.get("tickSize", "0.01"))),
-                    min_base_amount_increment=Decimal(str(filters.get("stepSize", "0.001"))),
-                    min_notional_size=Decimal(str(filters.get("minNotional", "1"))),
+                    min_order_size=min_order_size,
+                    min_price_increment=tick_size,
+                    min_base_amount_increment=step_size,
                     buy_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
                     sell_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
                 )
+                
+                # Add optional fields if present
+                if max_order_size:
+                    trading_rule.max_order_size = max_order_size
+                if min_notional:
+                    trading_rule.min_notional_size = min_notional
+                
+                trading_rules[trading_pair] = trading_rule
 
-            except Exception:
-                self.logger().exception(f"Error parsing trading rule: {market_info}")
+            except Exception as e:
+                self.logger().error(
+                    f"Error parsing trading rule for {market_info.get('symbol', 'unknown')}: {e}. Skipping...",
+                    exc_info=True
+                )
 
         self._trading_rules = trading_rules
 
@@ -1056,33 +1083,51 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         for symbol_info in exchange_info_dict.get("symbols", []):
             try:
                 symbol = symbol_info["symbol"]
-                if "_PERP" not in symbol:
+                # Check for perpetual markets
+                if symbol_info.get("contractType") != "PERPETUAL":
                     continue
 
                 trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol)
 
-                # Extract trading rules from symbol info
-                min_order_size = Decimal(str(symbol_info.get("minQuantity", "0.001")))
-                max_order_size = Decimal(str(symbol_info.get("maxQuantity", "10000")))
-                tick_size = Decimal(str(symbol_info.get("tickSize", "0.01")))
-                step_size = Decimal(str(symbol_info.get("stepSize", "0.001")))
-                min_notional = Decimal(str(symbol_info.get("minNotional", "10")))
+                # Extract from filters structure matching Backpack API
+                filters = symbol_info["filters"]
+                price_filter = filters["price"]
+                quantity_filter = filters["quantity"]
+                notional_filter = filters.get("notional", {})
+                
+                # Extract required values - no fallbacks
+                min_order_size = Decimal(str(quantity_filter["minQuantity"]))
+                tick_size = Decimal(str(price_filter["tickSize"]))
+                step_size = Decimal(str(quantity_filter["stepSize"]))
+                
+                # Optional values
+                max_order_size = quantity_filter.get("maxQuantity")
+                if max_order_size:
+                    max_order_size = Decimal(str(max_order_size))
+                
+                min_notional = notional_filter.get("minNotional")
+                if min_notional:
+                    min_notional = Decimal(str(min_notional))
 
-                # For Backpack perpetuals, collateral is usually USDC
-                collateral_token = symbol_info.get("quoteCurrency", "USDC")
+                # Get collateral token from symbol info
+                collateral_token = symbol_info.get("quoteCurrency", CONSTANTS.COLLATERAL_TOKEN)
 
-                trading_rules.append(
-                    TradingRule(
-                        trading_pair=trading_pair,
-                        min_order_size=min_order_size,
-                        max_order_size=max_order_size,
-                        min_price_increment=tick_size,
-                        min_base_amount_increment=step_size,
-                        min_notional_size=min_notional,
-                        buy_order_collateral_token=collateral_token,
-                        sell_order_collateral_token=collateral_token,
-                    )
+                trading_rule = TradingRule(
+                    trading_pair=trading_pair,
+                    min_order_size=min_order_size,
+                    min_price_increment=tick_size,
+                    min_base_amount_increment=step_size,
+                    buy_order_collateral_token=collateral_token,
+                    sell_order_collateral_token=collateral_token,
                 )
+                
+                # Add optional fields if present
+                if max_order_size:
+                    trading_rule.max_order_size = max_order_size
+                if min_notional:
+                    trading_rule.min_notional_size = min_notional
+                
+                trading_rules.append(trading_rule)
             except Exception as e:
                 self.logger().error(
                     f"Error parsing trading rule for {symbol_info}. Error: {e}",
