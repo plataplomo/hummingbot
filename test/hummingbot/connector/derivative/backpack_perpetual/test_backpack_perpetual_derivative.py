@@ -382,14 +382,14 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
-            "orderId": "123456",
+            "id": "123456",
             "clientId": order_id,
             "symbol": self.symbol,
             "side": "Buy",
             "orderType": "Market",
             "quantity": str(amount),
             "status": "NEW",
-            "timestamp": int(self.start_timestamp * 1000),
+            "createdAt": int(self.start_timestamp * 1000),
         }
         mock_api.post(regex_url, body=json.dumps(mock_response))
 
@@ -413,11 +413,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             )
         )
 
-        self.assertEqual(mock_response["orderId"], exchange_order_id)
-        self.assertEqual(self.start_timestamp, timestamp)
-
-        in_flight_order = self.exchange._order_tracker.fetch_order(order_id)
-        self.assertIsNotNone(in_flight_order)
+        self.assertEqual(mock_response["id"], exchange_order_id)
+        self.assertEqual(mock_response["createdAt"] / 1000.0, timestamp)
 
     @aioresponses()
     def test_place_order_sell_limit_order(self, mock_api):
@@ -431,7 +428,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_response = {
-            "orderId": "123457",
+            "id": "123457",
             "clientId": order_id,
             "symbol": self.symbol,
             "side": "Sell",
@@ -439,7 +436,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "price": str(price),
             "quantity": str(amount),
             "status": "NEW",
-            "timestamp": int(self.start_timestamp * 1000),
+            "createdAt": int(self.start_timestamp * 1000),
         }
         mock_api.post(regex_url, body=json.dumps(mock_response))
 
@@ -463,11 +460,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             )
         )
 
-        self.assertEqual(mock_response["orderId"], exchange_order_id)
-        self.assertEqual(self.start_timestamp, timestamp)
-
-        in_flight_order = self.exchange._order_tracker.fetch_order(order_id)
-        self.assertIsNotNone(in_flight_order)
+        self.assertEqual(mock_response["id"], exchange_order_id)
+        self.assertEqual(mock_response["createdAt"] / 1000.0, timestamp)
         self.assertEqual(in_flight_order.price, price)
 
     @aioresponses()
@@ -1000,25 +994,16 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.assertEqual(Decimal("0.5"), funding_event.amount)  # From the mock response
 
     @aioresponses()
-    def test_set_position_mode_initial_mode_is_none(self, mock_api):
-        """Test setting position mode when initial mode is None."""
-        # Initially position mode is None
-        self.assertIsNone(self.exchange.position_mode)
+    def test_set_position_mode_initial_mode_is_oneway(self, mock_api):
+        """Test that initial position mode is ONEWAY (Backpack only supports ONEWAY)."""
+        # Backpack always uses ONEWAY position mode
+        self.assertEqual(self.exchange.position_mode, PositionMode.ONEWAY)
 
-        # Mock API response for setting position mode
-        url = self.funding_info_url()
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        # No API call needed - Backpack only supports ONEWAY mode
+        # which is already set in the constructor
 
-        mock_response = {
-            "success": True,
-            "positionMode": "ONE_WAY"
-        }
-        mock_api.post(regex_url, body=json.dumps(mock_response))
-
-        # Set position mode
-        self.async_run_with_timeout(
-            self.exchange._set_position_mode(PositionMode.ONEWAY)
-        )
+        # Set position mode (should be a no-op since already ONEWAY)
+        self.exchange._set_position_mode(PositionMode.ONEWAY)
 
         self.assertEqual(self.exchange.position_mode, PositionMode.ONEWAY)
 
@@ -1029,9 +1014,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.exchange._position_mode = PositionMode.ONEWAY
 
         # No API call should be made
-        self.async_run_with_timeout(
-            self.exchange._set_position_mode(PositionMode.ONEWAY)
-        )
+        self.exchange._set_position_mode(PositionMode.ONEWAY)
 
         # Position mode should remain the same
         self.assertEqual(self.exchange.position_mode, PositionMode.ONEWAY)

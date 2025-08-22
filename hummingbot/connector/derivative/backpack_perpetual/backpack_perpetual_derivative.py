@@ -577,8 +577,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True
         )
 
-        exchange_order_id = response.get("orderId", response.get("id"))
-        timestamp = self.current_timestamp
+        exchange_order_id = response["id"]  # Backpack returns 'id' field
+        # Get timestamp from response - Backpack returns createdAt in milliseconds
+        timestamp = response["createdAt"] / 1000.0  # Convert to seconds
 
         return exchange_order_id, timestamp
 
@@ -738,19 +739,52 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Fetch current funding rate for a trading pair."""
         symbol = utils.convert_to_exchange_trading_pair(trading_pair)
 
+        # Use markPrices endpoint which provides current funding rate
         response = await self._api_get(
-            path_url=CONSTANTS.FUNDING_RATE_URL,
+            path_url=CONSTANTS.MARK_PRICE_URL,
             params={"symbol": symbol},
             is_auth_required=False
         )
 
+        # Response is a list, find the matching symbol
+        if isinstance(response, list):
+            mark_data = None
+            for item in response:
+                if item["symbol"] == symbol:
+                    mark_data = item
+                    break
+            if not mark_data:
+                raise ValueError(f"No mark price data found for {symbol}")
+        else:
+            mark_data = response
+
         return FundingInfo(
             trading_pair=trading_pair,
-            index_price=Decimal(str(response.get("indexPrice", "0"))),
-            mark_price=Decimal(str(response.get("markPrice", "0"))),
-            next_funding_utc_timestamp=int(response.get("nextFundingTime", 0)),
-            rate=Decimal(str(response.get("nextFundingRate", "0"))),
+            index_price=Decimal(str(mark_data["indexPrice"])),
+            mark_price=Decimal(str(mark_data["markPrice"])),
+            next_funding_utc_timestamp=int(mark_data["nextFundingTime"]),
+            rate=Decimal(str(mark_data["fundingRate"])),
         )
+
+    async def _get_last_traded_price(self, trading_pair: str) -> float:
+        """
+        Get the last traded price for a trading pair.
+        
+        Args:
+            trading_pair: The trading pair to get price for
+            
+        Returns:
+            The last traded price as a float
+        """
+        symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+        
+        response = await self._api_get(
+            path_url=CONSTANTS.TICKER_URL,
+            params={"symbol": symbol},
+            is_auth_required=False
+        )
+        
+        return float(response["lastPrice"])
 
     # Leverage management
     async def _execute_set_leverage(self, trading_pair: str, leverage: int):
@@ -1033,8 +1067,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         timestamp=self.current_timestamp,
                         market=self.name,
                         trading_pair=trading_pair,
-                        funding_rate=Decimal(str(data.get("fundingRate", "0"))),
-                        payment=Decimal(str(data.get("payment", "0"))),
+                        funding_rate=Decimal(str(data["fundingRate"])),
+                        payment=Decimal(str(data["payment"])),
                     )
                 )
         except Exception:
@@ -1252,7 +1286,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 else:
                     timestamp = int(last_payment.get("timestamp", 0))
                     
-                funding_rate = Decimal(str(last_payment["fundingRate"]))
+                funding_rate = Decimal(str(last_payment.get("fundingRate", last_payment.get("rate", "0"))))
                 # The 'quantity' field represents the payment amount (positive if received, negative if paid)
                 payment = Decimal(str(last_payment.get("quantity", last_payment.get("fundingFee", "0"))))
                 return timestamp, funding_rate, payment

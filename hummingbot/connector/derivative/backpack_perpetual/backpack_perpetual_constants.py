@@ -34,9 +34,9 @@ TIME_URL = "api/v1/time"
 PING_URL = "api/v1/ping"
 
 # Perpetual-specific public endpoints
-FUNDING_RATE_URL = "api/v1/funding"
-FUNDING_HISTORY_URL = "wapi/v1/history/funding"
-MARK_PRICE_URL = "api/v1/markPrice"
+FUNDING_RATE_URL = "api/v1/fundingRates"  # Historical funding rates
+FUNDING_HISTORY_URL = "wapi/v1/history/funding"  # Personal funding history
+MARK_PRICE_URL = "api/v1/markPrices"  # Current mark prices with funding info
 INDEX_PRICE_URL = "api/v1/indexPrice"
 
 # Private API endpoints (require authentication)
