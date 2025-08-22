@@ -223,9 +223,9 @@ async def api_request(
                 timeout=timeout,
             )
 
-            # Handle both dict (test) and response object (production)
-            if isinstance(response, dict):
-                # Test mock returns dict directly
+            # Handle both dict/list (test) and response object (production)
+            if isinstance(response, (dict, list)):
+                # Test mock returns dict/list directly
                 return response
             
             # Check response status

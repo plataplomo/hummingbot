@@ -88,7 +88,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self._domain = domain
-        self._position_mode = CONSTANTS.DEFAULT_POSITION_MODE
+        self._position_mode = None  # Initialize as None, set during connection
         self._last_trade_history_timestamp = None
         self._leverage_map: Dict[str, int] = {}  # Store leverage per trading pair
         super().__init__(client_config_map)
@@ -368,14 +368,16 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 if trading_pair is None:
                     continue
 
-                # Backpack API returns trading rules directly on the symbol object
+                # Check if filters are nested or at top level
+                filters = market_info.get("filters", market_info)
+                
                 trading_rules[trading_pair] = TradingRule(
                     trading_pair=trading_pair,
-                    min_order_size=Decimal(str(market_info.get("minQuantity", "0.001"))),
-                    max_order_size=Decimal(str(market_info.get("maxQuantity", "10000"))),
-                    min_price_increment=Decimal(str(market_info.get("tickSize", "0.01"))),
-                    min_base_amount_increment=Decimal(str(market_info.get("stepSize", "0.001"))),
-                    min_notional_size=Decimal(str(market_info.get("minNotional", "1"))),
+                    min_order_size=Decimal(str(filters.get("minQuantity", "0.001"))),
+                    max_order_size=Decimal(str(filters.get("maxQuantity", "10000"))),
+                    min_price_increment=Decimal(str(filters.get("tickSize", "0.01"))),
+                    min_base_amount_increment=Decimal(str(filters.get("stepSize", "0.001"))),
+                    min_notional_size=Decimal(str(filters.get("minNotional", "1"))),
                     buy_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
                     sell_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
                 )
@@ -387,7 +389,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     # Balance and position management
     async def _update_balances(self):
-        """Update account balances."""
+        """Update account balances.
+        
+        According to OpenAPI spec, the response format is:
+        {"USDC": {"available": "0", "locked": "0", "staked": "0"}, ...}
+        """
         response = await self._api_get(
             path_url=CONSTANTS.BALANCE_URL,
             is_auth_required=True
@@ -396,14 +402,16 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._account_available_balances.clear()
         self._account_balances.clear()
 
-        # Process balances - focus on USDC for perpetuals
-        for balance_info in response.get("balances", []):
-            asset = balance_info["asset"]
-            free = Decimal(str(balance_info.get("free", "0")))
-            total = Decimal(str(balance_info.get("total", "0")))
-
-            self._account_available_balances[asset] = free
-            self._account_balances[asset] = total
+        # Response format per OpenAPI spec: {"ASSET": {"available": "0", "locked": "0", "staked": "0"}}
+        for asset, balance_info in response.items():
+            if isinstance(balance_info, dict):
+                available = Decimal(str(balance_info.get("available", "0")))
+                locked = Decimal(str(balance_info.get("locked", "0")))
+                # Note: staked is in the response but not used for trading
+                total = available + locked
+                
+                self._account_available_balances[asset] = available
+                self._account_balances[asset] = total
 
     async def _update_positions(self):
         """Update open positions."""
@@ -754,6 +762,15 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 position_mode=mode,
             )
         )
+
+    def _set_position_mode(self, mode: PositionMode):
+        """
+        Synchronously set position mode (for testing).
+        Backpack only supports ONE-WAY mode.
+        """
+        if mode != PositionMode.ONEWAY:
+            raise ValueError(f"Backpack only supports ONE-WAY position mode, not {mode}")
+        self._position_mode = mode
 
     # WebSocket event processing
     async def _user_stream_event_listener(self):

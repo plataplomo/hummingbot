@@ -14,6 +14,9 @@ DEFAULT_DOMAIN = "backpack_perpetual"
 # Collateral token (Backpack uses USDC for all perpetuals)
 COLLATERAL_TOKEN = "USDC"
 
+# Position mode - Backpack only supports ONEWAY mode
+DEFAULT_POSITION_MODE = PositionMode.ONEWAY
+
 # Base URLs
 REST_URL = "https://api.backpack.exchange/"
 REST_URL_TESTNET = "https://api.backpack.exchange/"  # Backpack doesn't have separate testnet

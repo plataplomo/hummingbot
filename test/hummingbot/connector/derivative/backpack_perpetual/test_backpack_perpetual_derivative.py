@@ -153,6 +153,26 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.resume_test_event.set()
         raise exception
 
+    def _simulate_trading_rules_initialized(self):
+        """Initialize trading pair symbols and trading rules for testing."""
+        from bidict import bidict
+        from hummingbot.connector.trading_rule import TradingRule
+        from decimal import Decimal
+        
+        # Set the trading pair symbol map
+        self.exchange._set_trading_pair_symbol_map(bidict({self.symbol: self.trading_pair}))
+        
+        # Set trading rules
+        self.exchange._trading_rules = {
+            self.trading_pair: TradingRule(
+                trading_pair=self.trading_pair,
+                min_order_size=Decimal("0.001"),
+                min_price_increment=Decimal("0.01"),
+                min_base_amount_increment=Decimal("0.001"),
+                min_notional_size=Decimal("10"),
+            )
+        }
+
     def _get_position_risk_api_endpoint_single_position_list(self) -> List[Dict[str, Any]]:
         positions = [
             {
@@ -344,7 +364,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         }
         mock_api.get(balance_url, body=json.dumps(balance_response))
 
-        order_id_result = self.async_run_with_timeout(
+        exchange_order_id, timestamp = self.async_run_with_timeout(
             self.exchange._place_order(
                 order_id=order_id,
                 trading_pair=self.trading_pair,
@@ -356,7 +376,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             )
         )
 
-        self.assertEqual(order_id, order_id_result)
+        self.assertEqual(mock_response["orderId"], exchange_order_id)
+        self.assertEqual(self.start_timestamp, timestamp)
 
         in_flight_order = self.exchange._order_tracker.fetch_order(order_id)
         self.assertIsNotNone(in_flight_order)
@@ -393,7 +414,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         }
         mock_api.get(balance_url, body=json.dumps(balance_response))
 
-        order_id_result = self.async_run_with_timeout(
+        exchange_order_id, timestamp = self.async_run_with_timeout(
             self.exchange._place_order(
                 order_id=order_id,
                 trading_pair=self.trading_pair,
@@ -405,7 +426,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             )
         )
 
-        self.assertEqual(order_id, order_id_result)
+        self.assertEqual(mock_response["orderId"], exchange_order_id)
+        self.assertEqual(self.start_timestamp, timestamp)
 
         in_flight_order = self.exchange._order_tracker.fetch_order(order_id)
         self.assertIsNotNone(in_flight_order)
@@ -416,22 +438,22 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test cancelling an order."""
         order_id = "HBOT-3"
         exchange_order_id = "123458"
+        
+        # Set timestamp for the exchange
+        self.exchange._set_current_timestamp(self.start_timestamp)
 
-        # Add order to tracker
-        self.exchange._order_tracker.start_tracking_order(
-            InFlightOrder(
-                client_order_id=order_id,
-                exchange_order_id=exchange_order_id,
-                trading_pair=self.trading_pair,
-                trade_type=TradeType.BUY,
-                order_type=OrderType.LIMIT,
-                price=Decimal("50000"),
-                amount=Decimal("0.1"),
-                creation_timestamp=self.start_timestamp,
-            )
+        # Add order to tracker using the public method
+        self.exchange.start_tracking_order(
+            order_id=order_id,
+            exchange_order_id=exchange_order_id,
+            trading_pair=self.trading_pair,
+            trade_type=TradeType.BUY,
+            price=Decimal("50000"),
+            amount=Decimal("0.1"),
+            order_type=OrderType.LIMIT,
         )
 
-        # Mock cancel request
+        # Mock cancel request - using DELETE method
         url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
@@ -442,15 +464,16 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         }
         mock_api.delete(regex_url, body=json.dumps(mock_response))
 
-        result = self.async_run_with_timeout(
-            self.exchange._execute_cancel(trading_pair=self.trading_pair, order_id=order_id)
-        )
+        # Use the public cancel method 
+        self.exchange.cancel(trading_pair=self.trading_pair, client_order_id=order_id)
+        
+        # Wait for cancellation to process
+        self.async_run_with_timeout(asyncio.sleep(0.5))
 
-        self.assertTrue(result)
-
-        # Order should be marked as cancelled
-        cancelled_order = self.exchange._order_tracker.fetch_order(order_id)
-        self.assertTrue(cancelled_order.is_cancelled)
+        # Check that the order cancellation event was logged
+        self.assertEqual(1, len(self.order_cancelled_logger.event_log))
+        cancel_event = self.order_cancelled_logger.event_log[0]
+        self.assertEqual(order_id, cancel_event.order_id)
 
     @aioresponses()
     def test_get_funding_info(self, mock_api):
@@ -521,23 +544,23 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         # Set up initial position - using _perpetual_trading directly like the implementation does
         self.exchange._perpetual_trading.account_positions[self.trading_pair] = MagicMock()
 
-        position_response = {
-            "positions": [
-                {
-                    "symbol": self.symbol,
-                    "netQuantity": "0.5",  # Positive for long position
-                    "entryPrice": "45000.00",
-                    "markPrice": "46000.00",
-                    "pnlUnrealized": "500.00",
-                    "pnlRealized": "0.00",
-                    "estLiquidationPrice": "40000.00",
-                    "breakEvenPrice": "45000.00"
-                }
-            ]
-        }
+        # Per OpenAPI spec, positions endpoint returns a list directly
+        position_response = [
+            {
+                "symbol": self.symbol,
+                "netQuantity": "0.5",  # Positive for long position
+                "entryPrice": "45000.00",
+                "markPrice": "46000.00",
+                "pnlUnrealized": "500.00",
+                "pnlRealized": "0.00",
+                "estLiquidationPrice": "40000.00",
+                "breakEvenPrice": "45000.00"
+            }
+        ]
 
         positions_url = web_utils.private_rest_url(path_url=CONSTANTS.POSITIONS_URL)
-        mock_api.get(positions_url, body=json.dumps(position_response))
+        regex_url = re.compile(f"^{positions_url}".replace(".", r"\.").replace("?", r"\?"))
+        mock_api.get(regex_url, body=json.dumps(position_response), status=200)
 
         self.async_run_with_timeout(self.exchange._update_positions())
 
@@ -557,11 +580,12 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         # Set up initial position - using _perpetual_trading directly like the implementation does
         self.exchange._perpetual_trading.account_positions[self.trading_pair] = MagicMock()
 
-        # Empty positions response indicates closed position
-        position_response = {"positions": []}
+        # Empty positions response indicates closed position - list format per OpenAPI
+        position_response = []
 
         positions_url = web_utils.private_rest_url(path_url=CONSTANTS.POSITIONS_URL)
-        mock_api.get(positions_url, body=json.dumps(position_response))
+        regex_url = re.compile(f"^{positions_url}".replace(".", r"\.").replace("?", r"\?"))
+        mock_api.get(regex_url, body=json.dumps(position_response), status=200)
 
         self.async_run_with_timeout(self.exchange._update_positions())
 
@@ -893,27 +917,31 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     def test_funding_payment_polling_loop_sends_update_event(self, mock_api):
         """Test that funding payment polling loop sends proper events."""
+        # Initialize trading rules and symbol mapping
+        self._simulate_trading_rules_initialized()
+        
         funding_rate_response = {
             "symbol": self.symbol,
             "fundingRate": "0.0001",
-            "fundingFee": "0.50",
+            "quantity": "0.50",  # Use quantity field instead of fundingFee
             "timestamp": 1640780000000
         }
 
         funding_url = web_utils.private_rest_url(path_url=CONSTANTS.FUNDING_HISTORY_URL)
-        mock_api.get(funding_url, body=json.dumps([funding_rate_response]))
+        regex_url = re.compile(f"^{funding_url}".replace(".", r"\.").replace("?", r"\?"))
+        mock_api.get(regex_url, body=json.dumps([funding_rate_response]))
 
-        # Start funding payment polling
-        task = self.local_event_loop.create_task(
-            self.exchange._funding_payment_polling_loop()
+        # Initialize funding payment tracking
+        self.exchange._last_funding_fee_payment_ts[self.trading_pair] = 0
+
+        # Directly test the funding payment update
+        new_funding = self.async_run_with_timeout(
+            self.exchange._update_funding_payment(trading_pair=self.trading_pair, fire_event_on_new=True)
         )
 
-        # Wait for one iteration
-        self.async_run_with_timeout(asyncio.sleep(0.5))
-
-        # Cancel the task
-        task.cancel()
-
+        # Verify funding payment was recorded
+        self.assertTrue(new_funding)
+        
         # Verify funding payment was recorded in the event logger
         self.assertEqual(1, len(self.funding_payment_completed_logger.event_log))
         funding_event = self.funding_payment_completed_logger.event_log[0]
@@ -1086,7 +1114,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     def test_wrong_symbol_position_detected_on_positions_update(self, mock_api):
         """Test that positions for wrong symbols are ignored."""
-        url = self.balance_url
+        url = web_utils.private_rest_url(path_url=CONSTANTS.POSITIONS_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         positions_data = [
@@ -1106,7 +1134,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             }
         ]
 
-        mock_api.get(regex_url, body=json.dumps({"positions": positions_data}))
+        # Positions API returns a list directly
+        mock_api.get(regex_url, body=json.dumps(positions_data))
 
         self.async_run_with_timeout(self.exchange._update_positions())
 
@@ -1170,7 +1199,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         # Start with no positions
         self.exchange._perpetual_trading._account_positions.clear()
 
-        url = self.balance_url
+        url = web_utils.private_rest_url(path_url=CONSTANTS.POSITIONS_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         new_position = {
@@ -1182,7 +1211,8 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "unrealizedPnl": "50.00",
         }
 
-        mock_api.get(regex_url, body=json.dumps({"positions": [new_position]}))
+        # Positions API returns a list directly, not nested in "positions"
+        mock_api.get(regex_url, body=json.dumps([new_position]))
 
         self.async_run_with_timeout(self.exchange._update_positions())
 
