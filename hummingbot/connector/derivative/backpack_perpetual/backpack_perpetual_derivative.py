@@ -525,6 +525,42 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Store position
             self._perpetual_trading.account_positions[trading_pair] = position
 
+            # Check for margin call conditions based on maintenance margin fraction
+            # The 'm' field is maintenance margin fraction from WebSocket
+            maint_margin_fraction = position_data.get("m")
+            liquidation_price = position_data.get("l")
+            mark_price = position_data.get("M")
+            
+            if maint_margin_fraction and mark_price and liquidation_price:
+                # Check if position is approaching liquidation
+                # If mark price is getting close to liquidation price, warn the user
+                mark_price_decimal = Decimal(str(mark_price))
+                liquidation_price_decimal = Decimal(str(liquidation_price))
+                
+                # Calculate how close we are to liquidation
+                if is_long:
+                    # For long positions, liquidation happens when price drops
+                    if mark_price_decimal > liquidation_price_decimal:
+                        price_distance = (mark_price_decimal - liquidation_price_decimal) / mark_price_decimal
+                        # Warn if within 10% of liquidation price
+                        if price_distance < Decimal("0.1"):
+                            self.logger().warning(
+                                f"Margin call warning: Position for {trading_pair} is approaching "
+                                f"liquidation price {liquidation_price_decimal}. Current mark price: {mark_price_decimal}. "
+                                f"Close position or add margin."
+                            )
+                else:
+                    # For short positions, liquidation happens when price rises
+                    if mark_price_decimal < liquidation_price_decimal:
+                        price_distance = (liquidation_price_decimal - mark_price_decimal) / mark_price_decimal
+                        # Warn if within 10% of liquidation price
+                        if price_distance < Decimal("0.1"):
+                            self.logger().warning(
+                                f"Margin call warning: Position for {trading_pair} is approaching "
+                                f"liquidation price {liquidation_price_decimal}. Current mark price: {mark_price_decimal}. "
+                                f"Close position or add margin."
+                            )
+
         except Exception:
             self.logger().exception(f"Error processing position update: {position_data}")
 
@@ -630,10 +666,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True
         )
 
-        # Look for our order
+        # Look for our order - Backpack uses 'id' not 'orderId'
         for order_data in response:
             if (order_data.get("clientId") == tracked_order.client_order_id or
-                    order_data.get("orderId") == tracked_order.exchange_order_id):
+                    order_data.get("id") == tracked_order.exchange_order_id):
 
                 return self._parse_order_update(order_data, tracked_order)
 
@@ -646,7 +682,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         for order_data in history_response:
             if (order_data.get("clientId") == tracked_order.client_order_id or
-                    order_data.get("orderId") == tracked_order.exchange_order_id):
+                    order_data.get("id") == tracked_order.exchange_order_id):
 
                 return self._parse_order_update(order_data, tracked_order)
 
@@ -669,7 +705,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             update_timestamp=self.current_timestamp,
             new_state=state,
             client_order_id=order_data.get("clientId", tracked_order.client_order_id),
-            exchange_order_id=order_data.get("orderId", tracked_order.exchange_order_id),
+            exchange_order_id=order_data.get("id", tracked_order.exchange_order_id),
         )
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> List[TradeUpdate]:
@@ -682,7 +718,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             path_url=CONSTANTS.FILLS_URL,
             params={
                 "symbol": symbol,
-                "orderId": order.exchange_order_id,
+                "orderId": order.exchange_order_id,  # Fills endpoint uses orderId parameter
             },
             is_auth_required=True
         )
@@ -997,10 +1033,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             order_state = CONSTANTS.ORDER_STATE_MAP.get(order_data.get("status"), "OPEN")
             new_state = getattr(OrderState, order_state)
             
-            # Create order update
+            # Create order update - Backpack uses 'id' field for order ID
             order_update = OrderUpdate(
                 client_order_id=client_order_id,
-                exchange_order_id=order_data.get("orderId"),
+                exchange_order_id=order_data.get("id") or order_data.get("orderId"),  # Handle both formats
                 trading_pair=tracked_order.trading_pair,
                 update_timestamp=order_data.get("timestamp", self.current_timestamp) / 1000,
                 new_state=new_state,
