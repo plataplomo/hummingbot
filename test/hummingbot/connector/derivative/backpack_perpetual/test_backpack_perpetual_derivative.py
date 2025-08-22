@@ -1272,5 +1272,6 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.assertIn(position_key, self.exchange._perpetual_trading._account_positions)
         position = self.exchange._perpetual_trading._account_positions[position_key]
         self.assertEqual(position.position_side, PositionSide.SHORT)
-        self.assertEqual(position.amount, Decimal("-0.05"))  # Negative for short
+        # Position amount is always positive, side indicates direction
+        self.assertEqual(position.amount, Decimal("0.05"))
         self.assertEqual(position.unrealized_pnl, Decimal("50"))

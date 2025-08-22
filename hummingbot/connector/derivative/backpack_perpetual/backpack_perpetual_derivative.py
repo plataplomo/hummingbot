@@ -457,7 +457,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             symbol = position_data.get("symbol")
             if symbol:
                 trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-                if trading_pair:
+                # Only process positions for trading pairs we're actually tracking
+                if trading_pair and trading_pair in self._trading_pairs:
                     trading_pairs_in_response.add(trading_pair)
                     self._process_position_update(position_data)
         
