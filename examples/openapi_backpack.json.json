@@ -2,7 +2,7 @@
   "openapi": "3.0.0",
   "info": {
     "title": "Backpack Exchange API",
-    "description": "\n# Introduction\n\nWelcome to the Backpack Exchange API. This API is for programmatic trade execution. All of the endpoints require requests to be signed with an ED25519 keypair for authentication.\n\nThe API is hosted at `https://api.backpack.exchange/` and the WS API is hosted at `wss://ws.backpack.exchange/`.\n\n# Authentication\n\n\n## Signing requests\n\nSigned requests are required for any API calls that mutate state. Additionally, some read only requests can be performed by signing or via session authentication.\n\nSigned requests require the following additional headers:\n\n- `X-Timestamp` - Unix time in milliseconds that the request was sent.\n- `X-Window` - Time window in milliseconds that the request is valid for, default is `5000` and maximum is `60000`.\n- `X-API-Key` - Base64 encoded verifying key of the ED25519 keypair.\n- `X-Signature` - Base64 encoded signature generated according to the instructions below.\n\nTo generate a signature perform the following:\n\n1) The key/values of the request body or query parameters should be ordered alphabetically and then turned into query string format.\n\n2) Append the header values for the timestamp and receive window to the above generated string in the format `&timestamp=<timestamp>&window=<window>`. If no `X-Window` header is passed the default value of `5000` still needs to be added to the signing string.\n\nEach request also has an instruction type, valid instructions are:\n\n```\naccountQuery\nbalanceQuery\nborrowLendExecute\nborrowHistoryQueryAll\ncollateralQuery\ndepositAddressQuery\ndepositQueryAll\nfillHistoryQueryAll\nfundingHistoryQueryAll\ninterestHistoryQueryAll\norderCancel\norderCancelAll\norderExecute\norderHistoryQueryAll\norderQuery\norderQueryAll\npnlHistoryQueryAll\npositionQuery\nquoteSubmit\nstrategyCancel\nstrategyCancelAll\nstrategyCreate\nstrategyHistoryQueryAll\nstrategyQuery\nstrategyQueryAll\nwithdraw\nwithdrawalQueryAll\n```\n\nThe correct instruction type should be prefixed to the signing string. The instruction types for each request are documented alongside the request.\n\nFor example, an API request to cancel an order with the following body:\n\n```json\n{\n    \"orderId\": 28\n    \"symbol\": \"BTC_USDT\",\n}\n```\n\nWould require the following to be signed:\n\n```text\ninstruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=1614550000000&window=5000\n```\n\nRegarding batch order execution (`POST /orders`), for each order in the batch, the order parameters should be ordered alphabetically and then turned into query string format. The orderExecute instruction should then be prefixed to that string.\nThe query strings for the orders should be concatenated with `&` and the timestamp and window appended at the end.\n\nFor example, an API request for an order execution batch with the following body:\n\n```json\n[\n    {\n        \"symbol\": \"SOL_USDC_PERP\",\n        \"side\": \"Bid\",\n        \"orderType\": \"Limit\",\n        \"price\": \"141\",\n        \"quantity\": \"12\"\n    },\n    {\n        \"symbol\": \"SOL_USDC_PERP\",\n        \"side\": \"Bid\",\n        \"orderType\": \"Limit\",\n        \"price\": \"140\",\n        \"quantity\": \"11\"\n    }\n]\n```\n\nWould require the following to be signed:\n\n```text\ninstruction=orderExecute&orderType=Limit&price=141&quantity=12&side=Bid&symbol=SOL_USDC_PERP&instruction=orderExecute&orderType=Limit&price=140&quantity=11&side=Bid&symbol=SOL_USDC_PERP&timestamp=1750793021519&window=5000\n```\n\nIf the API endpoint requires query parameters instead of a request body, the same procedure should be used on the query parameters. If the API endpoint does not have a request body or query parameters, only the timestamp and receive window need to be signed.\n\nThis message should be signed using the private key of the ED25519 keypair that corresponds to the public key in the `X-API-Key` header. The signature should then be base64 encoded and submitted in the `X-Signature` header.\n\n\n<br /><br />\n\n---\n\n# Changelog\n\n## 2025-06-08\n\n- The order id format is changing, it is no longer a byte shifted timestamp. It is no longer possible to derive the\n  order timestamp from the order id. This change will take place at Monday June 9th, 01:00 UTC.\n\n## 2025-04-22\n\n- The `/fills` endpoint now returns all fills for the account, including fills from system orders as well as client\n  orders. System orders include liquidations, ADLs and collateral conversions. Previously, by default, it only returned\n  fills from client orders. This behavior can be achieved by setting the `fillType` parameter to `User`.\n\n## 2025-04-08\n\n- Added funding rate lower and upper bounds to `/markets` and `/market` endpoints.\n\n## 2025-03-26\n\n- Add open interest stream `openInterest.<symbol>`.\n- Added the option to query `/history/borrowLend/positions` with a signed request using the instruction\n  `borrowPositionHistoryQueryAll`.\n\n## 2025-03-19\n\n- The leverage filter has been removed from `/markets` and `/market` endpoints.\n- Added `/openInterest` now takes `symbol` as an optional parameter. When not set, all markets are returned.\n- `/openInterests` has been deprecated.\n- Add stop loss and take profit fields to `/orders/execute`.\n- Add `I` field to the order update stream (related order id).\n- Add `a` and `b` fields to the order update stream (take profit trigger price and stop loss trigger price).\n\n## 2025-02-28\n\n- Added `clientId` to fill history.\n\n## 2025-02-11\n\n- An `O` field has been added to the order update stream. It denotes the origin of the update. The possible values are:\n    - `USER`: The origin of the update was due to order entry by the user.\n    - `LIQUIDATION_AUTOCLOSE`: The origin of the update was due to a liquidation by the liquidation engine.\n    - `ADL_AUTOCLOSE`: The origin of the update was due to an ADL (auto-deleveraging) event.\n    - `COLLATERAL_CONVERSION`: The origin of the update was due to a collateral conversion to settle debt on the\n      account.\n    - `SETTLEMENT_AUTOCLOSE`: The origin of the update was due to the settlement of a position on a dated market.\n    - `BACKSTOP_LIQUIDITY_PROVIDER`: The origin of the update was due to a backstop liquidity provider facilitating a\n      liquidation.\n\n## 2025-02-07\n\n- Added `r` to denote a reduce only order on the order updates stream.\n- Added `reduceOnly` to the get orders endpoint.\n\n## 2025-02-03\n\n- Added `openInterestLimit` to the markets endpoint. Applicable to futures markets only.\n- Added `orderModified` event to the order update stream. A resting reduce only order's quantity can be decreased in\n  order to prevent position side reversal.\n\n## 2025-01-09\n\n- Added `marketType` to the markets endpoint.\n- Added an optional `marketType` filter to the fills and the orders endpoints.\n\n## 2024-12-03\n\n- Add order expiry reason to order update stream.\n- Add `cumulativeInterest` to borrow lend position.\n\n## 2024-12-02\n\n- Add borrow lend history per position endpoint.\n\n## 2024-11-10\n\n- Add `timestamp` field denoting the system time in unix-epoch microseconds to the depth endpoint.\n\n## 2024-10-15\n\n- Convert all error responses to JSON and add a error code.\n\n## 2024-05-14\n\n- Add `executedQuantity` and `executedQuoteQuantity` to order history endpoint.\n\n## 2024-05-03\n\n- Add single market order update stream `account.orderUpdate.<symbol>`.\n\n## 2024-05-02\n\n- Add optional `from` and `to` timestamp to get withdrawals endpoint.\n\n## 2024-05-01\n\n- Add optional `from` and `to` timestamp to get deposits endpoint.\n\n## 2024-03-14\n\n- Add optional `orderId` filter to order history endpoint.\n- Add optional `from` and `to` timestamp to order fills endpoint.\n\n## 2024-02-28\n\n- Return the withdrawal in request withdrawal response.\n\n## 2024-02-24\n\n- An additional field `t` was added to the private order update stream. It is the `trade_id` of the fill that generated\n  the order update.\n- Added a maximum value for the `X-Window` header of `60000`.\n\n## 2024-01-16\n\n### Breaking\n\n- A new websocket API is available at `wss://ws.backpack.exchange`. Please see the documentation. The previous API\n  remains on the same endpoint and will be deprecated after a migration period. The new API changes the following:\n    - Subscription endpoint is now `wss://ws.backpack.exchange` instead of `wss://ws.backpack.exchange/stream`.\n    - Can subscribe and unsubscribe to/from multiple streams by passing more than one in the `params` field.\n    - Signature should now be sent in a separate `signature` field.\n    - Signature instruction changed from `accountQuery` to `subscribe`.\n    - Event and engine timestamps are now in `microseconds` instead of `milliseconds`.\n    - Add engine timestamp to `bookTicker`, `depth`, and `order` streams.\n    - Add quote asset volume to ticker stream.\n    - Add sequential trade id to trade stream.\n    - Rename the event type in the depth stream from `depthEvent` to `depth`.\n    - Change the format of streams from `<symbol>@<type>` to `<type>.<symbol>` or `kline.<interval>.<symbol>` for\n      K-lines.\n    - Flatten the K-Line in the K-line stream so its not nested.\n\n## 2024-01-11\n\n### Breaking\n\n- Replaced `identifier` field on deposits with `transaction_hash` and `provider_id`.\n  This aims to provide clearer representation of the field, particularly for fiat deposits.\n- Removed duplicate `pending` values from the `WithdrawalStatus` and `DepositStatus` spec enum.\n\n\n<br /><br />\n\n---\n    ",
+    "description": "\n# Introduction\n\nWelcome to the Backpack Exchange API. This API is for programmatic trade execution. All of the endpoints require requests to be signed with an ED25519 keypair for authentication.\n\nThe API is hosted at `https://api.backpack.exchange/` and the WS API is hosted at `wss://ws.backpack.exchange/`.\n\n# Authentication\n\n\n## Signing requests\n\nSigned requests are required for any API calls that mutate state. Additionally, some read only requests can be performed by signing or via session authentication.\n\nSigned requests require the following additional headers:\n\n- `X-Timestamp` - Unix time in milliseconds that the request was sent.\n- `X-Window` - Time window in milliseconds that the request is valid for, default is `5000` and maximum is `60000`.\n- `X-API-Key` - Base64 encoded verifying key of the ED25519 keypair.\n- `X-Signature` - Base64 encoded signature generated according to the instructions below.\n\nTo generate a signature perform the following:\n\n1) The key/values of the request body or query parameters should be ordered alphabetically and then turned into query string format.\n\n2) Append the header values for the timestamp and receive window to the above generated string in the format `&timestamp=<timestamp>&window=<window>`. If no `X-Window` header is passed the default value of `5000` still needs to be added to the signing string.\n\nEach request also has an instruction type, valid instructions are:\n\n```\naccountQuery\nbalanceQuery\nborrowLendExecute\nborrowHistoryQueryAll\ncollateralQuery\ndepositAddressQuery\ndepositQueryAll\nfillHistoryQueryAll\nfundingHistoryQueryAll\ninterestHistoryQueryAll\norderCancel\norderCancelAll\norderExecute\norderHistoryQueryAll\norderQuery\norderQueryAll\npnlHistoryQueryAll\npositionQuery\nquoteSubmit\nstrategyCancel\nstrategyCancelAll\nstrategyCreate\nstrategyHistoryQueryAll\nstrategyQuery\nstrategyQueryAll\nwithdraw\nwithdrawalQueryAll\n```\n\nThe correct instruction type should be prefixed to the signing string. The instruction types for each request are documented alongside the request.\n\nFor example, an API request to cancel an order with the following body:\n\n```json\n{\n    \"orderId\": 28\n    \"symbol\": \"BTC_USDT\",\n}\n```\n\nWould require the following to be signed:\n\n```text\ninstruction=orderCancel&orderId=28&symbol=BTC_USDT&timestamp=1614550000000&window=5000\n```\n\nRegarding batch order execution (`POST /orders`), for each order in the batch, the order parameters should be ordered alphabetically and then turned into query string format. The orderExecute instruction should then be prefixed to that string.\nThe query strings for the orders should be concatenated with `&` and the timestamp and window appended at the end.\n\nFor example, an API request for an order execution batch with the following body:\n\n```json\n[\n    {\n        \"symbol\": \"SOL_USDC_PERP\",\n        \"side\": \"Bid\",\n        \"orderType\": \"Limit\",\n        \"price\": \"141\",\n        \"quantity\": \"12\"\n    },\n    {\n        \"symbol\": \"SOL_USDC_PERP\",\n        \"side\": \"Bid\",\n        \"orderType\": \"Limit\",\n        \"price\": \"140\",\n        \"quantity\": \"11\"\n    }\n]\n```\n\nWould require the following to be signed:\n\n```text\ninstruction=orderExecute&orderType=Limit&price=141&quantity=12&side=Bid&symbol=SOL_USDC_PERP&instruction=orderExecute&orderType=Limit&price=140&quantity=11&side=Bid&symbol=SOL_USDC_PERP&timestamp=1750793021519&window=5000\n```\n\nIf the API endpoint requires query parameters instead of a request body, the same procedure should be used on the query parameters. If the API endpoint does not have a request body or query parameters, only the timestamp and receive window need to be signed.\n\nThis message should be signed using the private key of the ED25519 keypair that corresponds to the public key in the `X-API-Key` header. The signature should then be base64 encoded and submitted in the `X-Signature` header.\n\n\n<br /><br />\n\n---\n\n# Changelog\n\n## 2025-08-07\n\n- `/history/pnl` has been removed.\n\n## 2025-06-08\n\n- The order id format is changing, it is no longer a byte shifted timestamp. It is no longer possible to derive the\n  order timestamp from the order id. This change will take place at Monday June 9th, 01:00 UTC.\n\n## 2025-04-22\n\n- The `/fills` endpoint now returns all fills for the account, including fills from system orders as well as client\n  orders. System orders include liquidations, ADLs and collateral conversions. Previously, by default, it only returned\n  fills from client orders. This behavior can be achieved by setting the `fillType` parameter to `User`.\n\n## 2025-04-08\n\n- Added funding rate lower and upper bounds to `/markets` and `/market` endpoints.\n\n## 2025-03-26\n\n- Add open interest stream `openInterest.<symbol>`.\n- Added the option to query `/history/borrowLend/positions` with a signed request using the instruction\n  `borrowPositionHistoryQueryAll`.\n\n## 2025-03-19\n\n- The leverage filter has been removed from `/markets` and `/market` endpoints.\n- Added `/openInterest` now takes `symbol` as an optional parameter. When not set, all markets are returned.\n- `/openInterests` has been deprecated.\n- Add stop loss and take profit fields to `/orders/execute`.\n- Add `I` field to the order update stream (related order id).\n- Add `a` and `b` fields to the order update stream (take profit trigger price and stop loss trigger price).\n\n## 2025-02-28\n\n- Added `clientId` to fill history.\n\n## 2025-02-11\n\n- An `O` field has been added to the order update stream. It denotes the origin of the update. The possible values are:\n    - `USER`: The origin of the update was due to order entry by the user.\n    - `LIQUIDATION_AUTOCLOSE`: The origin of the update was due to a liquidation by the liquidation engine.\n    - `ADL_AUTOCLOSE`: The origin of the update was due to an ADL (auto-deleveraging) event.\n    - `COLLATERAL_CONVERSION`: The origin of the update was due to a collateral conversion to settle debt on the\n      account.\n    - `SETTLEMENT_AUTOCLOSE`: The origin of the update was due to the settlement of a position on a dated market.\n    - `BACKSTOP_LIQUIDITY_PROVIDER`: The origin of the update was due to a backstop liquidity provider facilitating a\n      liquidation.\n\n## 2025-02-07\n\n- Added `r` to denote a reduce only order on the order updates stream.\n- Added `reduceOnly` to the get orders endpoint.\n\n## 2025-02-03\n\n- Added `openInterestLimit` to the markets endpoint. Applicable to futures markets only.\n- Added `orderModified` event to the order update stream. A resting reduce only order's quantity can be decreased in\n  order to prevent position side reversal.\n\n## 2025-01-09\n\n- Added `marketType` to the markets endpoint.\n- Added an optional `marketType` filter to the fills and the orders endpoints.\n\n## 2024-12-03\n\n- Add order expiry reason to order update stream.\n- Add `cumulativeInterest` to borrow lend position.\n\n## 2024-12-02\n\n- Add borrow lend history per position endpoint.\n\n## 2024-11-10\n\n- Add `timestamp` field denoting the system time in unix-epoch microseconds to the depth endpoint.\n\n## 2024-10-15\n\n- Convert all error responses to JSON and add a error code.\n\n## 2024-05-14\n\n- Add `executedQuantity` and `executedQuoteQuantity` to order history endpoint.\n\n## 2024-05-03\n\n- Add single market order update stream `account.orderUpdate.<symbol>`.\n\n## 2024-05-02\n\n- Add optional `from` and `to` timestamp to get withdrawals endpoint.\n\n## 2024-05-01\n\n- Add optional `from` and `to` timestamp to get deposits endpoint.\n\n## 2024-03-14\n\n- Add optional `orderId` filter to order history endpoint.\n- Add optional `from` and `to` timestamp to order fills endpoint.\n\n## 2024-02-28\n\n- Return the withdrawal in request withdrawal response.\n\n## 2024-02-24\n\n- An additional field `t` was added to the private order update stream. It is the `trade_id` of the fill that generated\n  the order update.\n- Added a maximum value for the `X-Window` header of `60000`.\n\n## 2024-01-16\n\n### Breaking\n\n- A new websocket API is available at `wss://ws.backpack.exchange`. Please see the documentation. The previous API\n  remains on the same endpoint and will be deprecated after a migration period. The new API changes the following:\n    - Subscription endpoint is now `wss://ws.backpack.exchange` instead of `wss://ws.backpack.exchange/stream`.\n    - Can subscribe and unsubscribe to/from multiple streams by passing more than one in the `params` field.\n    - Signature should now be sent in a separate `signature` field.\n    - Signature instruction changed from `accountQuery` to `subscribe`.\n    - Event and engine timestamps are now in `microseconds` instead of `milliseconds`.\n    - Add engine timestamp to `bookTicker`, `depth`, and `order` streams.\n    - Add quote asset volume to ticker stream.\n    - Add sequential trade id to trade stream.\n    - Rename the event type in the depth stream from `depthEvent` to `depth`.\n    - Change the format of streams from `<symbol>@<type>` to `<type>.<symbol>` or `kline.<interval>.<symbol>` for\n      K-lines.\n    - Flatten the K-Line in the K-line stream so its not nested.\n\n## 2024-01-11\n\n### Breaking\n\n- Replaced `identifier` field on deposits with `transaction_hash` and `provider_id`.\n  This aims to provide clearer representation of the field, particularly for fiat deposits.\n- Removed duplicate `pending` values from the `WithdrawalStatus` and `DepositStatus` spec enum.\n\n\n<br /><br />\n\n---\n    ",
     "version": "1.0",
     "x-logo": {
       "url": "https://raw.githubusercontent.com/backpack-exchange/bpx-openapi/refs/heads/master/assets/backpack.png"
@@ -15,28 +15,8 @@
   ],
   "tags": [
     {
-      "name": "API Keys",
-      "description": "API key Management."
-    },
-    {
       "name": "Account",
       "description": "Account settings and limits."
-    },
-    {
-      "name": "AccountLimits",
-      "description": "Account Limits."
-    },
-    {
-      "name": "Achievements",
-      "description": "Achievements."
-    },
-    {
-      "name": "Address",
-      "description": "Saved addresses."
-    },
-    {
-      "name": "Affiliate",
-      "description": "Affiliate program."
     },
     {
       "name": "Assets",
@@ -55,22 +35,6 @@
       "description": "Capital management."
     },
     {
-      "name": "Country",
-      "description": "Country management."
-    },
-    {
-      "name": "Disclosures",
-      "description": "Disclosures"
-    },
-    {
-      "name": "Entity",
-      "description": "Entity operations."
-    },
-    {
-      "name": "FtxCreditor",
-      "description": "FTX Creditor Claims."
-    },
-    {
       "name": "Funding",
       "description": "Futures funding."
     },
@@ -83,18 +47,6 @@
       "description": "Historical account data."
     },
     {
-      "name": "Keypair",
-      "description": "Keypair management."
-    },
-    {
-      "name": "Know Your Customer",
-      "description": "KYC management."
-    },
-    {
-      "name": "MarketData",
-      "description": "Market data."
-    },
-    {
       "name": "Markets",
       "description": "Public market data."
     },
@@ -103,56 +55,12 @@
       "description": "Order management."
     },
     {
-      "name": "Performance",
-      "description": "Performance."
-    },
-    {
       "name": "Position",
       "description": "Account position summary."
     },
     {
-      "name": "Preferences",
-      "description": "User preferences."
-    },
-    {
-      "name": "ProofOfReserves",
-      "description": "Proof of reserves."
-    },
-    {
       "name": "Request For Quote",
       "description": "Request For Quote."
-    },
-    {
-      "name": "Rewards",
-      "description": "Rewards."
-    },
-    {
-      "name": "RiskDashboard",
-      "description": "Risk Dashboard."
-    },
-    {
-      "name": "Safe",
-      "description": "Safe data."
-    },
-    {
-      "name": "SatoshiTest",
-      "description": "Satoshi test for address ownership verification."
-    },
-    {
-      "name": "Service",
-      "description": "Service tokens."
-    },
-    {
-      "name": "Session",
-      "description": "Login session management."
-    },
-    {
-      "name": "Staking",
-      "description": "Staking."
-    },
-    {
-      "name": "Statistics",
-      "description": "Statistics"
     },
     {
       "name": "Strategy",
@@ -160,11 +68,7 @@
     },
     {
       "name": "Streams",
-      "description": "# Usage\n\n## Subscribing\n\nTo use the websocket API, connect to\n`wss://ws.backpack.exchange`.\n\nTo subscribe to a stream with the name `stream` send a text frame\nover the websocket connection with the following JSON payload:\n\n```\n{\n  \"method\": \"SUBSCRIBE\",\n  \"params\": [\"stream\"]\n}\n```\n\nSimilarly, to unsubscribe from a stream with the name `stream`:\n\n```\n{\n  \"method\": \"UNSUBSCRIBE\",\n  \"params\": [\"stream\"]\n}\n```\n\nYou can subscribe or unsubscribe from multiple streams if you include\nmore than one in the params field.\n\nAll data from streams is wrapped in a JSON object of the following form:\n\n```\n{\n  \"stream\": \"<stream>\",\n  \"data\": \"<payload>\"\n}\n```\n\nThe following command can be used to test subscribing to a stream:\n```\n(sleep 1; \\\necho '{\"method\":\"SUBSCRIBE\",\"params\":[\"depth.SOL_USDC\"]}';\\\ncat) |\\\nwscat -c wss://ws.backpack.exchange\n```\nThe payloads for each stream time are outlined below.\n\n## Timing\n\nTimestamps are in microseconds (except for the K-line start and end\ntimes). The event timestamp is the time the event was emitted from\nthe websocket server, and the engine timestamp is the time the event\nwas generated by the matching engine.\n\nIf a message aggregates more than one event (for example, a depth\nmessage), the engine timestamp will be the timestamp of the last\nmatching engine event.\n\n## Keeping the connection alive\n\nTo keep the connection alive, a `Ping` frame will be sent from the\nserver every 60s, and a `Pong` is expected to be received from the\nclient. If a `Pong` is not received within 120s, a `Close` frame will be\nsent and the connection will be closed.\n\nIf the server is shutting down, a `Close` frame will be sent and then a\ngrace period of 30s will be given before the connection is closed. The\nclient should reconnect after receiving the `Close` frame. The client\nwill be reconnected to a server that is not shutting down.\n\n# Private\n\nSubscribing to a private stream requires a valid signature generated\nfrom an ED25519 keypair. For stream subscriptions, the signature\nshould be of the form:\n\n```text\ninstruction=subscribe&timestamp=1614550000000&window=5000\n```\n\nWhere the timestamp and window are in milliseconds.\n\nPrivate streams are prefixed with `account.` and require signature data\nto be submitted in the subscribe parameters. The verifying key and\nsignature should be base64 encoded.\n\n```\n{\n  \"method\": \"SUBSCRIBE\",\n  \"params\": [\"stream\"],\n  \"signature\": [\"<verifying key>\", \"<signature>\", \"<timestamp>\", \"<window>\"]\n}\n````\n\n## Order update\n\nOn any mutation to an order the order will be pushed to the order update\nstream. The event type of the order update will be one of the\nfollowing:\n\n- `orderAccepted`\n- `orderCancelled`\n- `orderExpired`\n- `orderFill`\n- `orderModified`\n- `triggerPlaced`\n- `triggerFailed`\n\nAn `orderModified` update will be received when a resting reduce only\norder's quantity is decreased in order to prevent position side\nreversal.\n\n### Stream Name Format\n- For all markets: `account.orderUpdate`\n- For single market: `account.orderUpdate.<symbol>`\n\n```\n{\n  \"e\": \"orderAccepted\",   // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USD\",         // Symbol\n  \"c\": 123,               // Client order ID\n  \"S\": \"Bid\",             // Side\n  \"o\": \"LIMIT\",           // Order type\n  \"f\": \"GTC\",             // Time in force\n  \"q\": \"32123\",           // Quantity\n  \"Q\": \"32123\",           // Quantity in quote\n  \"p\": \"20\",              // Price\n  \"P\": \"21\",              // Trigger price\n  \"B\": \"LastPrice\",       // Trigger by\n  \"a\": \"30\",              // Take profit trigger price\n  \"b\": \"10\",              // Stop loss trigger price\n  \"d\": \"MarkPrice\",       // Take profit trigger by\n  \"g\": \"IndexPrice\",      // Stop loss trigger by\n  \"Y\": \"10\",              // Trigger quantity\n  \"X\": \"Filled\",          // Order state\n  \"R\": \"PRICE_BAND\",      // Order expiry reason\n  \"i\": \"1111343026172067\" // Order ID\n  \"t\": 567,               // Trade ID\n  \"l\": \"1.23\",            // Fill quantity\n  \"z\": \"321\",             // Executed quantity\n  \"Z\": \"123\",             // Executed quantity in quote\n  \"L\": \"20\",              // Fill price\n  \"m\": true,              // Whether the order was maker\n  \"n\": \"23\",              // Fee\n  \"N\": \"USD\",             // Fee symbol\n  \"V\": \"RejectTaker\",     // Self trade prevention\n  \"T\": 1694687692989999,  // Engine timestamp in microseconds\n  \"O\": \"USER\"             // Origin of the update\n  \"I\": \"1111343026156135\" // Related order ID\n}\n```\n\nThere are several possible values for the `O` field (origin of the\nupdate):\n- `USER`: The origin of the update was due to order entry by the user.\n- `LIQUIDATION_AUTOCLOSE`: The origin of the update was due to a\nliquidation by the liquidation engine.\n- `ADL_AUTOCLOSE`: The origin of the update was due to an ADL\n(auto-deleveraging) event.\n- `COLLATERAL_CONVERSION`: The origin of the update was due to a\ncollateral conversion to settle debt on the account.\n- `SETTLEMENT_AUTOCLOSE`: The origin of the update was due to the\nsettlement of a position on a dated market.\n- `BACKSTOP_LIQUIDITY_PROVIDER`: The origin of the update was due to a\nbackstop liquidity provider facilitating a liquidation.\n\nSome fields are conditional on the order settings or event type:\n\n- `c` - Only present if the order has a client order ID.\n- `q` - Only present if the order has a quantity set.\n- `Q` - Only present if the order is reverse market order.\n- `p` - Only present if the order is a limit order.\n- `P` - Only present if the order is a trigger order.\n- `B` - Only present if the order is a trigger order.\n- `a` - Only present if the order has a take profit trigger price set.\n- `b` - Only present if the order has a stop loss trigger price set.\n- `d` - Only present if the order has a take profit trigger price set.\n- `g` - Only present if the order has a stop loss trigger price set.\n- `Y` - Only present if the order is a trigger order.\n- `R` - Only present if the event is a `orderExpired` event.\n- `t` - Only present if the event is a `orderFill` event.\n- `l` - Only present if the event is a `orderFill` event.\n- `L` - Only present if the event is a `orderFill` event.\n- `m` - Only present if the event is a `orderFill` event.\n- `n` - Only present if the event is a `orderFill` event.\n- `N` - Only present if the event is a `orderFill` event.\n\n## Position update\n\nOn any mutation to a position the position will be pushed to the\nposition update stream. The event type of the position update will\nbe one of the following:\n\n- `positionAdjusted`\n- `positionOpened`\n- `positionClosed`\n\nOn subscription, a message will be sent to the client with the current\nopen positions, if any. The `e` field will not be present in the\nmessage.\n\n### Stream Name Format\n- For all markets: `account.positionUpdate`\n- For single market: `account.positionUpdate.<symbol>`\n\n```\n{\n  \"e\": \"positionOpened\",  // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USDC_PERP\",    // Symbol\n  \"b\": 123,               // Break event price\n  \"B\": 122,               // Entry price\n  \"l\": 50,                // Estimated liquidation price\n  \"f\": 0.5,               // Initial margin fraction\n  \"M\": 122,               // Mark price\n  \"m\": 0.01,              // Maintenance margin fraction\n  \"q\": 5,                 // Net quantity\n  \"Q\": 6,                 // Net exposure quantity\n  \"n\": 732 ,              // Net exposure notional\n  \"i\": \"1111343026172067\" // Position ID\n  \"p\": \"-1\",              // PnL realized\n  \"P\": \"0\",               // PnL unrealized\n  \"T\": 1694687692989999   // Engine timestamp in microseconds\n}\n```\n\nThe net quantity field will be positive if the position is long and\nnegative if the position is short.\n\nThe net exposure quantity field includes exposure from the open\nposition, as well as any open orders.\n\n## RFQ Update\n\nThis WebSocket stream provides real-time updates on RFQs (Request for\nQuotes) that are relevant to makers. Events are pushed to this\nstream whenever there is a significant state change in an RFQ or its\nassociated quotes, allowing makers to monitor and respond to RFQs as\nthey progress through various states.\n\n### Event Types\n\nFor RFQs that submitted by other requesters.\n- `rfqActive`: Indicates that an RFQ is active and open for quotes.\n\nFor RFQs that submitted by your account.\n- `rfqAccepted`: Indicates that an RFQ has been accepted and is no\n- `rfqRefreshed`: Indicates that an RFQ has been refreshed, is active\nand open for quotes.\n- `rfqCancelled`: Indicates that an RFQ has been cancelled or expired.\n- `rfqCandidate`: RFQ has received a new best quote.\n- `rfqFilled`: Indicates that an RFQ has been fully filled with a quote.\n\nFor Quotes submitted by your account.\n- `quoteAccepted`: Indicates that a quote submitted by the maker has\nbeen accepted.\n- `quoteCancelled`: Indicates that a quote has been cancelled due to\nquote submission, RFQ being filled, refreshed, cancelled, or expired.\n\n### Quote Submission and RFQ Timing\n\nMakers should submit quotes before the **submission time** (`w` field)\nis reached, as indicated in each `rfqActive` event. An RFQ remains\nactive until the **expiration time** (`W` field). If no quote is\naccepted or the RFQ is not cancelled, makers may continue to submit\nquotes until expiration.\n\nRFQs can periodically request new quotes by issuing additional\n`rfqActive` events. Each new `rfqActive` event will have the same\nRFQ ID (`R` field) but updated values for **submission time** and\n**expiration time**, allowing makers to participate in extended or\nrenewed quoting periods for ongoing RFQs.\n\n### Stream Name Format\n- For all markets: `account.rfqUpdate`\n- For single market: `account.rfqUpdate.<symbol>`\n\n### Example Messages\n\n**RFQ Accepted** (sent to requester)\n```\n{\n  \"e\": \"rfqAccepted\",            // Event type\n  \"E\": 1730225420369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"q\": \"10\",                     // Quantity (if quantity in base asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225420368765          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Active** (broadcast to all rfq listeners)\n```\n{\n  \"e\": \"rfqActive\",              // Event type\n  \"E\": 1730225420369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"q\": \"10\",                     // Quantity (optional) (if quantity in base asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225420368765          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Refreshed** (sent to requester)\n```\n{\n  \"e\": \"rfqRefreshed\",           // Event type\n  \"E\": 1730225450369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"q\": \"10\",                     // Quantity (optional) (if quantity in base asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225450368765          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Cancelled** (sent to taker only)\n```\n{\n  \"e\": \"rfqCancelled\",           // Event type\n  \"E\": 1730225460369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"Q\": \"150\",                    // Quote quantity (optional) (if quantity in quote asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"Cancelled\",              // RFQ status\n  \"T\": 1730225460368765          // Engine timestamp in microseconds\n}\n```\n\n**Quote Accepted** (sent to quoter)\n```\n{\n  \"e\": \"quoteAccepted\",          // Event type\n  \"E\": 1730225434631394,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client Quote ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"X\": \"New\",                    // Quote status\n  \"T\": 1730225434629778          // Engine timestamp in microseconds\n}\n```\n\n**Quote Cancelled** (sent to quoter)\n```\n{\n  \"e\": \"quoteCancelled\",         // Event type\n  \"E\": 1730225583761963,         // Event time in microseconds\n  \"R\": 113392061354344448,       // RFQ ID\n  \"u\": 113392062870847488,       // Quote ID\n  \"C\": \"123\",                    // Client Quote ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"X\": \"Cancelled\",              // Quote status\n  \"T\": 1730225583753811          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Candidate** (sent to requester with quote details)\n```\n{\n  \"e\": \"rfqCandidate\",           // Event type\n  \"E\": 1730225490648996,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"q\": \"10\",                     // RFQ quantity (in base asset)\n  \"Q\": \"150\",                    // RFQ quote quantity (in quote asset)\n  \"p\": \"15.50\",                  // Taker price (quote price + fee)\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225490647080          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Filled** (sent to both requester and quoter)\n```\n// To requester\n{\n  \"e\": \"rfqFilled\",              // Event type\n  \"E\": 1730225497648996,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"Q\": \"150\",                    // RFQ quote quantity (optional) (if quantity in quote asset)\n  \"p\": \"15.50\",                  // Taker price (quote price + fee)\n  \"X\": \"Filled\",                 // RFQ status\n  \"T\": 1730225497647080          // Engine timestamp in microseconds\n}\n\n// To quoter\n{\n  \"e\": \"rfqFilled\",              // Event type\n  \"E\": 1730225497648996,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client Quote ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"p\": \"15.00\",                  // Price\n  \"X\": \"Filled\",                 // Quote status\n  \"T\": 1730225497647080          // Engine timestamp in microseconds\n}\n```\n\n### Field Descriptions\n\n- `e` - Event type (e.g., `rfqActive`, `rfqAccepted`, `rfqRefreshed`,\n`rfqCancelled`, `quoteAccepted`, `quoteCancelled`, `rfqCandidate`,\n`rfqFilled`).\n- `E` - Event time in microseconds.\n- `R` - RFQ ID, identifying the request for quote.\n- `u` - Quote ID, identifying the specific quote.\n- `C` - Client ID (either Client RFQ ID or Client Quote ID depending on\ncontext).\n- `s` - Symbol the RFQ is for.\n- `S` - Side of the RFQ, either \"Bid\" or \"Ask\".\n- `q` - Quantity for the RFQ (in base asset, if quantity in base asset).\n- `Q` - Quote quantity for the RFQ (in quote asset, if quantity in quote\nasset).\n- `p` - Price associated with the quote/fill event.\n- `w` - Submission time for the RFQ in milliseconds.\n- `W` - Expiry time for the RFQ in milliseconds.\n- `X` - Order status (e.g., `New`, `Cancelled`, `Filled`).\n- `T` - Engine timestamp in microseconds.\n\nSome fields are conditional and may be present only in specific events.\n\n# Public\n\n## Book ticker\n\nStream name format: `bookTicker.<symbol>`\n```\n{\n  \"e\": \"bookTicker\",          // Event type\n  \"E\": 1694687965941000,      // Event time in microseconds\n  \"s\": \"SOL_USDC\",            // Symbol\n  \"a\": \"18.70\",               // Inside ask price\n  \"A\": \"1.000\",               // Inside ask quantity\n  \"b\": \"18.67\",               // Inside bid price\n  \"B\": \"2.000\",               // Inside bid quantity\n  \"u\": \"111063070525358080\",  // Update ID of event\n  \"T\": 1694687965940999       // Engine timestamp in microseconds\n}\n```\n\n## Depth\n\nContains incremental depth updates. Each depth update has the absolute\nvalue of the depths at the given levels, and only changes when the\ndepth has changed.\n\nTo obtain an initial snapshot of the depth, the client should query the\n[REST API](https://docs.backpack.exchange/#tag/Markets/operation/get_depth).\n\nThe depth stream will push updates as quickly as possible, but under\nload it may aggregate more than one update into a single event. In\nthis case the `U` and `u` fields will not be the same. The `U` field\nis the first update ID in the event, and the `u` field is the final\nupdate ID in the event.\n\nThere are alternative depth streams that aggregates updates into a\nsingle message over a 200ms or 1000ms period instead of pushing updates\nin realtime. This is useful for reducing network traffic.\n\nUpdates are sequential, so `U` will always be `u + 1` from the previous\nmessage. If this is not the case, the client should assume that the\ndepth has been invalidated and requery the REST API.\n\nStream name format: `depth.<symbol>` (realtime)\nStream name format: `depth.200ms.<symbol>` (aggregated)\nStream name format: `depth.1000ms.<symbol>` (aggregated)\n```\n{\n  \"e\": \"depth\",           // Event type\n  \"E\": 1694687965941000,  // Event time in microseconds\n  \"s\": \"SOL_USDC\",        // Symbol\n  \"a\": [                  // Asks\n    [\n      \"18.70\",\n      \"0.000\"\n    ]\n  ],\n  \"b\": [                  // Bids\n    [\n      \"18.67\",\n      \"0.832\"\n    ],\n    [\n      \"18.68\",\n      \"0.000\"\n    ]\n  ],\n  \"U\": 94978271,          // First update ID in event\n  \"u\": 94978271,          // Last update ID in event\n  \"T\": 1694687965940999   // Engine timestamp in microseconds\n}\n```\n\n## K-Line\n\nStream name format: `kline.<interval>.<symbol>`\n\n```\n{\n  \"e\": \"kline\",           // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USD\",         // Symbol\n  \"t\": 123400000,         // K-Line start time in seconds\n  \"T\": 123460000,         // K-Line close time in seconds\n  \"o\": \"18.75\",           // Open price\n  \"c\": \"19.25\",           // Close price\n  \"h\": \"19.80\",           // High price\n  \"l\": \"18.50\",           // Low price\n  \"v\": \"32123\",           // Base asset volume\n  \"n\": 93828,             // Number of trades\n  \"X\": false              // Is this k-line closed?\n}\n```\n\n## Liquidation\n\nContains updates for liquidation events for all liquidation types.\n\nStream name format: `liquidation`\n\n```\n{\n  \"e\": \"liquidation\",         // Event type\n  \"E\": 1694688638091000,      // Event time in microseconds\n  \"q\": \"10\",                  // Quantity\n  \"p\": \"18.70\",               // Price\n  \"S\": \"Bid\",                 // Side\n  \"s\": \"SOL_USDC\",            // Symbol\n  \"T\": 567,                   // Engine timestamp in microseconds\n}\n```\n\n## Mark price\n\nStream name format: `markPrice.<symbol>`\n\n```\n{\n  \"e\": \"markPrice\",           // Event type\n  \"E\": 1694687965941000,      // Event time in microseconds\n  \"s\": \"SOL_USDC\",            // Symbol\n  \"p\": \"18.70\",               // Mark price\n  \"f\": \"1.70\",                // Estimated funding rate\n  \"i\": \"19.70\",               // Index price\n  \"n\": 1694687965941000,      // Next funding timestamp in microseconds\n}\n```\n\n## Ticker\n\nThe ticker stream pushes 24hr rolling statistics for a single symbol\nevery second.\n\nStream name format: `ticker.<symbol>`\n\n```\n{\n  \"e\": \"ticker\",          // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USD\",         // Symbol\n  \"o\": \"18.75\",           // First price\n  \"c\": \"19.24\",           // Last price\n  \"h\": \"19.80\",           // High price\n  \"l\": \"18.50\",           // Low price\n  \"v\": \"32123\",           // Base asset volume\n  \"V\": \"928190\",          // Quote asset volume\n  \"n\": 93828              // Number of trades\n}\n```\n## Open interest\n\nOpen interest updates are pushed to the openInterest stream every 60\nseconds.\n\nStream name format: `openInterest.<symbol>`\n```\n{\n  \"e\": \"openInterest\",          // Event type\n  \"E\": 1694687965941000,        // Event time in microseconds\n  \"s\": \"SOL_USDC_PERP\",         // Symbol\n  \"o\": \"100\",                   // Open interest in contracts\n}\n```\n\n## Trade\n\nContains public trade data for a single symbol. The trade ID is a\nsequential number specific to the symbol. This stream includes updates\nfor trades executed as a result of liquidations.\n\nStream name format: `trade.<symbol>`\n```\n{\n  \"e\": \"trade\",                   // Event type\n  \"E\": 1694688638091000,          // Event time in microseconds\n  \"s\": \"SOL_USDC\",                // Symbol\n  \"p\": \"18.68\",                   // Price\n  \"q\": \"0.122\",                   // Quantity\n  \"b\": \"111063114377265150\",      // Buyer order ID\n  \"a\": \"111063114585735170\",      // Seller order ID\n  \"t\": 12345,                     // Trade ID\n  \"T\": 1694688638089000,          // Engine timestamp in microseconds\n  \"m\": true                       // Is the buyer the maker?\n}\n```"
-    },
-    {
-      "name": "Subaccount",
-      "description": "Subaccounts"
+      "description": "# Usage\n\n## Subscribing\n\nTo use the websocket API, connect to\n`wss://ws.backpack.exchange`.\n\nTo subscribe to a stream with the name `stream` send a text frame\nover the websocket connection with the following JSON payload:\n\n```\n{\n  \"method\": \"SUBSCRIBE\",\n  \"params\": [\"stream\"]\n}\n```\n\nSimilarly, to unsubscribe from a stream with the name `stream`:\n\n```\n{\n  \"method\": \"UNSUBSCRIBE\",\n  \"params\": [\"stream\"]\n}\n```\n\nYou can subscribe or unsubscribe from multiple streams if you include\nmore than one in the params field.\n\nAll data from streams is wrapped in a JSON object of the following form:\n\n```\n{\n  \"stream\": \"<stream>\",\n  \"data\": \"<payload>\"\n}\n```\n\nThe following command can be used to test subscribing to a stream:\n```\n(sleep 1; \\\necho '{\"method\":\"SUBSCRIBE\",\"params\":[\"depth.SOL_USDC\"]}';\\\ncat) |\\\nwscat -c wss://ws.backpack.exchange\n```\nThe payloads for each stream time are outlined below.\n\n## Timing\n\nTimestamps are in microseconds (except for the K-line start and end\ntimes). The event timestamp is the time the event was emitted from\nthe websocket server, and the engine timestamp is the time the event\nwas generated by the matching engine.\n\nIf a message aggregates more than one event (for example, a depth\nmessage), the engine timestamp will be the timestamp of the last\nmatching engine event.\n\n## Keeping the connection alive\n\nTo keep the connection alive, a `Ping` frame will be sent from the\nserver every 60s, and a `Pong` is expected to be received from the\nclient. If a `Pong` is not received within 120s, a `Close` frame will be\nsent and the connection will be closed.\n\nIf the server is shutting down, a `Close` frame will be sent and then a\ngrace period of 30s will be given before the connection is closed. The\nclient should reconnect after receiving the `Close` frame. The client\nwill be reconnected to a server that is not shutting down.\n\n# Private\n\nSubscribing to a private stream requires a valid signature generated\nfrom an ED25519 keypair. For stream subscriptions, the signature\nshould be of the form:\n\n```text\ninstruction=subscribe&timestamp=1614550000000&window=5000\n```\n\nWhere the timestamp and window are in milliseconds.\n\nPrivate streams are prefixed with `account.` and require signature data\nto be submitted in the subscribe parameters. The verifying key and\nsignature should be base64 encoded.\n\n```\n{\n  \"method\": \"SUBSCRIBE\",\n  \"params\": [\"stream\"],\n  \"signature\": [\"<verifying key>\", \"<signature>\", \"<timestamp>\", \"<window>\"]\n}\n````\n\n## Order update\n\nOn any mutation to an order the order will be pushed to the order update\nstream. The event type of the order update will be one of the\nfollowing:\n\n- `orderAccepted`\n- `orderCancelled`\n- `orderExpired`\n- `orderFill`\n- `orderModified`\n- `triggerPlaced`\n- `triggerFailed`\n\nAn `orderModified` update will be received when a resting reduce only\norder's quantity is decreased in order to prevent position side\nreversal.\n\n### Stream Name Format\n- For all markets: `account.orderUpdate`\n- For single market: `account.orderUpdate.<symbol>`\n\n```\n{\n  \"e\": \"orderAccepted\",   // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USD\",         // Symbol\n  \"c\": 123,               // Client order ID\n  \"S\": \"Bid\",             // Side\n  \"o\": \"LIMIT\",           // Order type\n  \"f\": \"GTC\",             // Time in force\n  \"q\": \"32123\",           // Quantity\n  \"Q\": \"32123\",           // Quantity in quote\n  \"p\": \"20\",              // Price\n  \"P\": \"21\",              // Trigger price\n  \"B\": \"LastPrice\",       // Trigger by\n  \"a\": \"30\",              // Take profit trigger price\n  \"b\": \"10\",              // Stop loss trigger price\n  \"d\": \"MarkPrice\",       // Take profit trigger by\n  \"g\": \"IndexPrice\",      // Stop loss trigger by\n  \"Y\": \"10\",              // Trigger quantity\n  \"X\": \"Filled\",          // Order state\n  \"R\": \"PRICE_BAND\",      // Order expiry reason\n  \"i\": \"1111343026172067\" // Order ID\n  \"t\": 567,               // Trade ID\n  \"l\": \"1.23\",            // Fill quantity\n  \"z\": \"321\",             // Executed quantity\n  \"Z\": \"123\",             // Executed quantity in quote\n  \"L\": \"20\",              // Fill price\n  \"m\": true,              // Whether the order was maker\n  \"n\": \"23\",              // Fee\n  \"N\": \"USD\",             // Fee symbol\n  \"V\": \"RejectTaker\",     // Self trade prevention\n  \"T\": 1694687692989999,  // Engine timestamp in microseconds\n  \"O\": \"USER\"             // Origin of the update\n  \"I\": \"1111343026156135\" // Related order ID\n  \"H\": 6023471188         // Strategy ID\n}\n```\n\nThere are several possible values for the `O` field (origin of the\nupdate):\n- `USER`: The origin of the update was due to order entry by the user.\n- `LIQUIDATION_AUTOCLOSE`: The origin of the update was due to a\nliquidation by the liquidation engine.\n- `ADL_AUTOCLOSE`: The origin of the update was due to an ADL\n(auto-deleveraging) event.\n- `COLLATERAL_CONVERSION`: The origin of the update was due to a\ncollateral conversion to settle debt on the account.\n- `SETTLEMENT_AUTOCLOSE`: The origin of the update was due to the\nsettlement of a position on a dated market.\n- `BACKSTOP_LIQUIDITY_PROVIDER`: The origin of the update was due to a\nbackstop liquidity provider facilitating a liquidation.\n\nSome fields are conditional on the order settings or event type:\n\n- `c` - Only present if the order has a client order ID.\n- `q` - Only present if the order has a quantity set.\n- `Q` - Only present if the order is reverse market order.\n- `p` - Only present if the order is a limit order.\n- `P` - Only present if the order is a trigger order.\n- `B` - Only present if the order is a trigger order.\n- `a` - Only present if the order has a take profit trigger price set.\n- `b` - Only present if the order has a stop loss trigger price set.\n- `d` - Only present if the order has a take profit trigger price set.\n- `g` - Only present if the order has a stop loss trigger price set.\n- `Y` - Only present if the order is a trigger order.\n- `R` - Only present if the event is a `orderExpired` event.\n- `t` - Only present if the event is a `orderFill` event.\n- `l` - Only present if the event is a `orderFill` event.\n- `L` - Only present if the event is a `orderFill` event.\n- `m` - Only present if the event is a `orderFill` event.\n- `n` - Only present if the event is a `orderFill` event.\n- `N` - Only present if the event is a `orderFill` event.\n\n## Position update\n\nOn any mutation to a position the position will be pushed to the\nposition update stream. The event type of the position update will\nbe one of the following:\n\n- `positionAdjusted`\n- `positionOpened`\n- `positionClosed`\n\nOn subscription, a message will be sent to the client with the current\nopen positions, if any. The `e` field will not be present in the\nmessage.\n\n### Stream Name Format\n- For all markets: `account.positionUpdate`\n- For single market: `account.positionUpdate.<symbol>`\n\n```\n{\n  \"e\": \"positionOpened\",  // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USDC_PERP\",    // Symbol\n  \"b\": 123,               // Break event price\n  \"B\": 122,               // Entry price\n  \"l\": 50,                // Estimated liquidation price\n  \"f\": 0.5,               // Initial margin fraction\n  \"M\": 122,               // Mark price\n  \"m\": 0.01,              // Maintenance margin fraction\n  \"q\": 5,                 // Net quantity\n  \"Q\": 6,                 // Net exposure quantity\n  \"n\": 732 ,              // Net exposure notional\n  \"i\": \"1111343026172067\" // Position ID\n  \"p\": \"-1\",              // PnL realized\n  \"P\": \"0\",               // PnL unrealized\n  \"T\": 1694687692989999   // Engine timestamp in microseconds\n}\n```\n\nThe net quantity field will be positive if the position is long and\nnegative if the position is short.\n\nThe net exposure quantity field includes exposure from the open\nposition, as well as any open orders.\n\n## RFQ Update\n\nThis WebSocket stream provides real-time updates on RFQs (Request for\nQuotes) that are relevant to makers. Events are pushed to this\nstream whenever there is a significant state change in an RFQ or its\nassociated quotes, allowing makers to monitor and respond to RFQs as\nthey progress through various states.\n\n### Event Types\n\nFor RFQs that submitted by other requesters.\n- `rfqActive`: Indicates that an RFQ is active and open for quotes.\n\nFor RFQs that submitted by your account.\n- `rfqAccepted`: Indicates that an RFQ has been accepted and is no\n- `rfqRefreshed`: Indicates that an RFQ has been refreshed, is active\nand open for quotes.\n- `rfqCancelled`: Indicates that an RFQ has been cancelled or expired.\n- `rfqCandidate`: RFQ has received a new best quote.\n- `rfqFilled`: Indicates that an RFQ has been fully filled with a quote.\n\nFor Quotes submitted by your account.\n- `quoteAccepted`: Indicates that a quote submitted by the maker has\nbeen accepted.\n- `quoteCancelled`: Indicates that a quote has been cancelled due to\nquote submission, RFQ being filled, refreshed, cancelled, or expired.\n\n### Quote Submission and RFQ Timing\n\nMakers should submit quotes before the **submission time** (`w` field)\nis reached, as indicated in each `rfqActive` event. An RFQ remains\nactive until the **expiration time** (`W` field). If no quote is\naccepted or the RFQ is not cancelled, makers may continue to submit\nquotes until expiration.\n\nRFQs can periodically request new quotes by issuing additional\n`rfqActive` events. Each new `rfqActive` event will have the same\nRFQ ID (`R` field) but updated values for **submission time** and\n**expiration time**, allowing makers to participate in extended or\nrenewed quoting periods for ongoing RFQs.\n\n### Stream Name Format\n- For all markets: `account.rfqUpdate`\n- For single market: `account.rfqUpdate.<symbol>`\n\n### Example Messages\n\n**RFQ Accepted** (sent to requester)\n```\n{\n  \"e\": \"rfqAccepted\",            // Event type\n  \"E\": 1730225420369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"q\": \"10\",                     // Quantity (if quantity in base asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225420368765          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Active** (broadcast to all rfq listeners)\n```\n{\n  \"e\": \"rfqActive\",              // Event type\n  \"E\": 1730225420369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"q\": \"10\",                     // Quantity (optional) (if quantity in base asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225420368765          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Refreshed** (sent to requester)\n```\n{\n  \"e\": \"rfqRefreshed\",           // Event type\n  \"E\": 1730225450369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"q\": \"10\",                     // Quantity (optional) (if quantity in base asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225450368765          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Cancelled** (sent to taker only)\n```\n{\n  \"e\": \"rfqCancelled\",           // Event type\n  \"E\": 1730225460369829,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"Q\": \"150\",                    // Quote quantity (optional) (if quantity in quote asset)\n  \"w\": 1730225480368,            // Submission time in milliseconds\n  \"W\": 1730225540368,            // Expiry time in milliseconds\n  \"X\": \"Cancelled\",              // RFQ status\n  \"T\": 1730225460368765          // Engine timestamp in microseconds\n}\n```\n\n**Quote Accepted** (sent to quoter)\n```\n{\n  \"e\": \"quoteAccepted\",          // Event type\n  \"E\": 1730225434631394,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client Quote ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"X\": \"New\",                    // Quote status\n  \"T\": 1730225434629778          // Engine timestamp in microseconds\n}\n```\n\n**Quote Cancelled** (sent to quoter)\n```\n{\n  \"e\": \"quoteCancelled\",         // Event type\n  \"E\": 1730225583761963,         // Event time in microseconds\n  \"R\": 113392061354344448,       // RFQ ID\n  \"u\": 113392062870847488,       // Quote ID\n  \"C\": \"123\",                    // Client Quote ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"X\": \"Cancelled\",              // Quote status\n  \"T\": 1730225583753811          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Candidate** (sent to requester with quote details)\n```\n{\n  \"e\": \"rfqCandidate\",           // Event type\n  \"E\": 1730225490648996,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"q\": \"10\",                     // RFQ quantity (in base asset)\n  \"Q\": \"150\",                    // RFQ quote quantity (in quote asset)\n  \"p\": \"15.50\",                  // Taker price (quote price + fee)\n  \"X\": \"New\",                    // RFQ status\n  \"T\": 1730225490647080          // Engine timestamp in microseconds\n}\n```\n\n**RFQ Filled** (sent to both requester and quoter)\n```\n// To requester\n{\n  \"e\": \"rfqFilled\",              // Event type\n  \"E\": 1730225497648996,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client RFQ ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"S\": \"Bid\",                    // RFQ side\n  \"Q\": \"150\",                    // RFQ quote quantity (optional) (if quantity in quote asset)\n  \"p\": \"15.50\",                  // Taker price (quote price + fee)\n  \"X\": \"Filled\",                 // RFQ status\n  \"T\": 1730225497647080          // Engine timestamp in microseconds\n}\n\n// To quoter\n{\n  \"e\": \"rfqFilled\",              // Event type\n  \"E\": 1730225497648996,         // Event time in microseconds\n  \"R\": 113392053149171712,       // RFQ ID\n  \"u\": 113392054083780608,       // Quote ID\n  \"C\": \"123\",                    // Client Quote ID\n  \"s\": \"SOL_USDC_RFQ\",           // Symbol\n  \"p\": \"15.00\",                  // Price\n  \"X\": \"Filled\",                 // Quote status\n  \"T\": 1730225497647080          // Engine timestamp in microseconds\n}\n```\n\n### Field Descriptions\n\n- `e` - Event type (e.g., `rfqActive`, `rfqAccepted`, `rfqRefreshed`,\n`rfqCancelled`, `quoteAccepted`, `quoteCancelled`, `rfqCandidate`,\n`rfqFilled`).\n- `E` - Event time in microseconds.\n- `R` - RFQ ID, identifying the request for quote.\n- `u` - Quote ID, identifying the specific quote.\n- `C` - Client ID (either Client RFQ ID or Client Quote ID depending on\ncontext).\n- `s` - Symbol the RFQ is for.\n- `S` - Side of the RFQ, either \"Bid\" or \"Ask\".\n- `q` - Quantity for the RFQ (in base asset, if quantity in base asset).\n- `Q` - Quote quantity for the RFQ (in quote asset, if quantity in quote\nasset).\n- `p` - Price associated with the quote/fill event.\n- `w` - Submission time for the RFQ in milliseconds.\n- `W` - Expiry time for the RFQ in milliseconds.\n- `X` - Order status (e.g., `New`, `Cancelled`, `Filled`).\n- `T` - Engine timestamp in microseconds.\n\nSome fields are conditional and may be present only in specific events.\n\n# Public\n\n## Book ticker\n\nStream name format: `bookTicker.<symbol>`\n```\n{\n  \"e\": \"bookTicker\",          // Event type\n  \"E\": 1694687965941000,      // Event time in microseconds\n  \"s\": \"SOL_USDC\",            // Symbol\n  \"a\": \"18.70\",               // Inside ask price\n  \"A\": \"1.000\",               // Inside ask quantity\n  \"b\": \"18.67\",               // Inside bid price\n  \"B\": \"2.000\",               // Inside bid quantity\n  \"u\": \"111063070525358080\",  // Update ID of event\n  \"T\": 1694687965940999       // Engine timestamp in microseconds\n}\n```\n\n## Depth\n\nContains incremental depth updates. Each depth update has the absolute\nvalue of the depths at the given levels, and only changes when the\ndepth has changed.\n\nTo obtain an initial snapshot of the depth, the client should query the\n[REST API](https://docs.backpack.exchange/#tag/Markets/operation/get_depth).\n\nThe depth stream will push updates as quickly as possible, but under\nload it may aggregate more than one update into a single event. In\nthis case the `U` and `u` fields will not be the same. The `U` field\nis the first update ID in the event, and the `u` field is the final\nupdate ID in the event.\n\nThere are alternative depth streams that aggregates updates into a\nsingle message over a 200ms or 1000ms period instead of pushing updates\nin realtime. This is useful for reducing network traffic.\n\nUpdates are sequential, so `U` will always be `u + 1` from the previous\nmessage. If this is not the case, the client should assume that the\ndepth has been invalidated and requery the REST API.\n\nStream name format: `depth.<symbol>` (realtime)\nStream name format: `depth.200ms.<symbol>` (aggregated)\nStream name format: `depth.1000ms.<symbol>` (aggregated)\n```\n{\n  \"e\": \"depth\",           // Event type\n  \"E\": 1694687965941000,  // Event time in microseconds\n  \"s\": \"SOL_USDC\",        // Symbol\n  \"a\": [                  // Asks\n    [\n      \"18.70\",\n      \"0.000\"\n    ]\n  ],\n  \"b\": [                  // Bids\n    [\n      \"18.67\",\n      \"0.832\"\n    ],\n    [\n      \"18.68\",\n      \"0.000\"\n    ]\n  ],\n  \"U\": 94978271,          // First update ID in event\n  \"u\": 94978271,          // Last update ID in event\n  \"T\": 1694687965940999   // Engine timestamp in microseconds\n}\n```\n\n## K-Line\n\nStream name format: `kline.<interval>.<symbol>`\n\n```\n{\n  \"e\": \"kline\",           // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USD\",         // Symbol\n  \"t\": 123400000,         // K-Line start time in seconds\n  \"T\": 123460000,         // K-Line close time in seconds\n  \"o\": \"18.75\",           // Open price\n  \"c\": \"19.25\",           // Close price\n  \"h\": \"19.80\",           // High price\n  \"l\": \"18.50\",           // Low price\n  \"v\": \"32123\",           // Base asset volume\n  \"n\": 93828,             // Number of trades\n  \"X\": false              // Is this k-line closed?\n}\n```\n\n## Liquidation\n\nContains updates for liquidation events for all liquidation types.\n\nStream name format: `liquidation`\n\n```\n{\n  \"e\": \"liquidation\",         // Event type\n  \"E\": 1694688638091000,      // Event time in microseconds\n  \"q\": \"10\",                  // Quantity\n  \"p\": \"18.70\",               // Price\n  \"S\": \"Bid\",                 // Side\n  \"s\": \"SOL_USDC\",            // Symbol\n  \"T\": 567,                   // Engine timestamp in microseconds\n}\n```\n\n## Mark price\n\nStream name format: `markPrice.<symbol>`\n\n```\n{\n  \"e\": \"markPrice\",           // Event type\n  \"E\": 1694687965941000,      // Event time in microseconds\n  \"s\": \"SOL_USDC\",            // Symbol\n  \"p\": \"18.70\",               // Mark price\n  \"f\": \"1.70\",                // Estimated funding rate\n  \"i\": \"19.70\",               // Index price\n  \"n\": 1694687965941000,      // Next funding timestamp in microseconds\n}\n```\n\n## Ticker\n\nThe ticker stream pushes 24hr rolling statistics for a single symbol\nevery second.\n\nStream name format: `ticker.<symbol>`\n\n```\n{\n  \"e\": \"ticker\",          // Event type\n  \"E\": 1694687692980000,  // Event time in microseconds\n  \"s\": \"SOL_USD\",         // Symbol\n  \"o\": \"18.75\",           // First price\n  \"c\": \"19.24\",           // Last price\n  \"h\": \"19.80\",           // High price\n  \"l\": \"18.50\",           // Low price\n  \"v\": \"32123\",           // Base asset volume\n  \"V\": \"928190\",          // Quote asset volume\n  \"n\": 93828              // Number of trades\n}\n```\n## Open interest\n\nOpen interest updates are pushed to the openInterest stream every 60\nseconds.\n\nStream name format: `openInterest.<symbol>`\n```\n{\n  \"e\": \"openInterest\",          // Event type\n  \"E\": 1694687965941000,        // Event time in microseconds\n  \"s\": \"SOL_USDC_PERP\",         // Symbol\n  \"o\": \"100\",                   // Open interest in contracts\n}\n```\n\n## Trade\n\nContains public trade data for a single symbol. The trade ID is a\nsequential number specific to the symbol. This stream includes updates\nfor trades executed as a result of liquidations.\n\nStream name format: `trade.<symbol>`\n```\n{\n  \"e\": \"trade\",                   // Event type\n  \"E\": 1694688638091000,          // Event time in microseconds\n  \"s\": \"SOL_USDC\",                // Symbol\n  \"p\": \"18.68\",                   // Price\n  \"q\": \"0.122\",                   // Quantity\n  \"b\": \"111063114377265150\",      // Buyer order ID\n  \"a\": \"111063114585735170\",      // Seller order ID\n  \"t\": 12345,                     // Trade ID\n  \"T\": 1694688638089000,          // Engine timestamp in microseconds\n  \"m\": true                       // Is the buyer the maker?\n}\n```"
     },
     {
       "name": "System",
@@ -173,26 +77,6 @@
     {
       "name": "Trades",
       "description": "Public trade data."
-    },
-    {
-      "name": "User",
-      "description": "User operations."
-    },
-    {
-      "name": "UserNotifications",
-      "description": "User notification preferences."
-    },
-    {
-      "name": "Vasp",
-      "description": "VASP data."
-    },
-    {
-      "name": "WalletLinks",
-      "description": "Wallet links."
-    },
-    {
-      "name": "WebAuthn",
-      "description": "WebAuthn."
     }
   ],
   "paths": {
@@ -1166,6 +1050,83 @@
           }
         },
         "operationId": "execute_borrow_lend"
+      }
+    },
+    "/api/v1/borrowLend/position/liquidationPrice": {
+      "get": {
+        "tags": [
+          "Borrow Lend"
+        ],
+        "summary": "Get an estimated liquidation price for potential borrow lend position.",
+        "description": "Retrieves the estimated liquidation price for a potential borrow lend\nposition.",
+        "parameters": [
+          {
+            "name": "subaccountId",
+            "schema": {
+              "type": "integer",
+              "format": "uint16"
+            },
+            "in": "query",
+            "description": "Optional subaccount.",
+            "required": false,
+            "deprecated": false,
+            "explode": true
+          },
+          {
+            "name": "borrow",
+            "schema": {
+              "type": "string"
+            },
+            "in": "query",
+            "description": "Standard base64 encoded json of [`BorrowLendExecutePayload`]",
+            "required": true,
+            "deprecated": false,
+            "explode": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionEstimatedLiquidationPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request.",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json; charset=utf-8": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "operationId": "get_borrow_lend_estimated_liquidation_price"
       }
     },
     "/api/v1/borrowLend/markets": {
@@ -6345,208 +6306,6 @@
         "operationId": "get_order_history"
       }
     },
-    "/wapi/v1/history/pnl": {
-      "get": {
-        "tags": [
-          "History"
-        ],
-        "summary": "Get profit and loss history.",
-        "description": "History of profit and loss realization for an account.\n\n**Instruction:** `pnlHistoryQueryAll`",
-        "parameters": [
-          {
-            "name": "X-API-KEY",
-            "schema": {
-              "type": "string"
-            },
-            "in": "header",
-            "description": "API key",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "X-SIGNATURE",
-            "schema": {
-              "type": "string"
-            },
-            "in": "header",
-            "description": "Signature of the request",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "X-TIMESTAMP",
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            },
-            "in": "header",
-            "description": "Timestamp of the request in milliseconds",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "X-WINDOW",
-            "schema": {
-              "type": "integer",
-              "format": "uint64"
-            },
-            "in": "header",
-            "description": "Time the request is valid for in milliseconds (default `5000`, maximum `60000`)",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "subaccountId",
-            "schema": {
-              "type": "integer",
-              "format": "uint16"
-            },
-            "in": "query",
-            "description": "Filter for a subaccount.",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "symbol",
-            "schema": {
-              "type": "string"
-            },
-            "in": "query",
-            "description": "Market symbol to query. If not set, all markets are returned.",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "limit",
-            "schema": {
-              "type": "integer",
-              "format": "uint64"
-            },
-            "in": "query",
-            "description": "Maximum number to return. Default `100`, maximum `1000`.",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "offset",
-            "schema": {
-              "type": "integer",
-              "format": "uint64"
-            },
-            "in": "query",
-            "description": "Offset for pagination. Default `0`.",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          },
-          {
-            "name": "sortDirection",
-            "schema": {
-              "$ref": "#/components/schemas/SortDirection"
-            },
-            "in": "query",
-            "description": "Sort direction.",
-            "required": false,
-            "deprecated": false,
-            "explode": true
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Success.",
-            "content": {
-              "application/json; charset=utf-8": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/PnlPayment"
-                  }
-                }
-              }
-            },
-            "headers": {
-              "ACCESS-CONTROL-EXPOSE-HEADERS": {
-                "required": true,
-                "deprecated": false,
-                "schema": {
-                  "type": "string"
-                }
-              },
-              "X-PAGE-COUNT": {
-                "required": true,
-                "deprecated": false,
-                "schema": {
-                  "type": "integer",
-                  "format": "uint64"
-                }
-              },
-              "X-CURRENT-PAGE": {
-                "required": true,
-                "deprecated": false,
-                "schema": {
-                  "type": "integer",
-                  "format": "uint64"
-                }
-              },
-              "X-PAGE-SIZE": {
-                "required": true,
-                "deprecated": false,
-                "schema": {
-                  "type": "integer",
-                  "format": "uint64"
-                }
-              },
-              "X-TOTAL": {
-                "required": true,
-                "deprecated": false,
-                "schema": {
-                  "type": "integer",
-                  "format": "uint64"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request.",
-            "content": {
-              "application/json; charset=utf-8": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized.",
-            "content": {
-              "application/json; charset=utf-8": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error.",
-            "content": {
-              "application/json; charset=utf-8": {
-                "schema": {
-                  "$ref": "#/components/schemas/ApiErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "operationId": "get_pnl_payments"
-      }
-    },
     "/wapi/v1/history/rfq": {
       "get": {
         "tags": [
@@ -7728,7 +7487,12 @@
           "PUMP",
           "WCT",
           "ES",
-          "SEI"
+          "SEI",
+          "CRV",
+          "TON",
+          "HBAR",
+          "XLM",
+          "ZORA"
         ]
       },
       "Balance": {
@@ -7822,6 +7586,7 @@
       "Blockchain": {
         "type": "string",
         "enum": [
+          "Aptos",
           "Arbitrum",
           "Avalanche",
           "Base",
@@ -8050,7 +7815,7 @@
           "throttleUtilizationBound": {
             "type": "string",
             "format": "decimal",
-            "description": "The max utilization threhsold for any given timestep. Any borrow\nor lend redemption should fail if it puts utilization above this\n(with the exception of liquidations)."
+            "description": "The max utilization threshold for any given timestep. Any borrow\nor lend redemption should fail if it puts utilization above this\n(with the exception of liquidations)."
           },
           "throttleUpdateFraction": {
             "type": "string",
@@ -8641,6 +8406,7 @@
         "type": "string",
         "enum": [
           "administrator",
+          "aptos",
           "arbitrum",
           "avalanche",
           "base",
@@ -9531,7 +9297,7 @@
         "properties": {
           "symbol": {
             "type": "string",
-            "description": "Symbol of the market, e.g. ETH_USDC"
+            "description": "Symbol of the market, e.g. `ETH_USDC`"
           },
           "baseSymbol": {
             "description": "The base asset of the market.",
@@ -10354,6 +10120,7 @@
         "type": "string",
         "enum": [
           "AccountTradingSuspended",
+          "BorrowRequiresLendRedeem",
           "FillOrKill",
           "InsufficientBorrowableQuantity",
           "InsufficientFunds",
@@ -10550,28 +10317,21 @@
           "UnrealizedNegativePnl"
         ]
       },
-      "PnlPayment": {
+      "PositionEstimatedLiquidationPrice": {
         "type": "object",
-        "title": "PnlPayment",
+        "title": "PositionEstimatedLiquidationPrice",
         "required": [
-          "pnlRealized",
-          "symbol",
-          "timestamp"
+          "liquidationPrice",
+          "markPrice"
         ],
         "properties": {
-          "pnlRealized": {
+          "liquidationPrice": {
             "type": "string",
-            "format": "decimal",
-            "description": "Quantity of the payment (`USDC`)."
+            "format": "decimal"
           },
-          "symbol": {
+          "markPrice": {
             "type": "string",
-            "description": "The market symbol the payment is associated with."
-          },
-          "timestamp": {
-            "type": "string",
-            "format": "naive-date-time",
-            "description": "The timestamp of the payment (UTC)."
+            "format": "decimal"
           }
         }
       },
@@ -10641,7 +10401,7 @@
           "tolerancePct": {
             "type": "string",
             "format": "decimal",
-            "description": "Maximum allowed deviation from the mean premium. E.g. if\ntolerance_pct is 0.05 (5%), and the mean premium is 5%, then\norders will be prevented from being placed if the premium exceeds 10%."
+            "description": "Maximum allowed deviation from the mean premium. E.g. if\n`tolerance_pct` is 0.05 (5%), and the mean premium is 5%, then\norders will be prevented from being placed if the premium exceeds 10%."
           }
         }
       },
@@ -10733,7 +10493,7 @@
           "minQuantity": {
             "type": "string",
             "format": "decimal",
-            "description": "Minimum quantity the order book will allow.\n\nFor futures, this will be the threshold at which a position gets closed\nand so it should be as close as possible, preferably equal, to the\nstep_size."
+            "description": "Minimum quantity the order book will allow.\n\nFor futures, this will be the threshold at which a position gets closed\nand so it should be as close as possible, preferably equal, to the\n`step_size`."
           },
           "maxQuantity": {
             "type": "string",
@@ -10973,6 +10733,17 @@
             "type": "integer",
             "format": "int64",
             "description": "Time (milliseconds since epoch) by which quotes must be submitted for\nthe RFQ."
+          },
+          "systemOrderType": {
+            "description": "The type of system order, only when RFQ was initiated by the system.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SystemOrderType"
+              },
+              {
+                "description": "The type of system order, only when RFQ was initiated by the system."
+              }
+            ]
           },
           "expiryTime": {
             "type": "integer",
