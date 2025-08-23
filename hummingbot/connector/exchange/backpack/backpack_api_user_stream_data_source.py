@@ -208,17 +208,25 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             output: Output queue for processed messages
         """
         try:
-            message_type = message.get("type")
-
-            if message_type == CONSTANTS.WS_MESSAGE_TYPE_ORDER_UPDATE:
-                await self._process_order_update(message, output)
-            elif message_type == CONSTANTS.WS_MESSAGE_TYPE_BALANCE_UPDATE:
-                await self._process_balance_update(message, output)
-            elif message_type == CONSTANTS.WS_MESSAGE_TYPE_TRADE_UPDATE:
-                await self._process_trade_update(message, output)
+            # Backpack wraps all stream data in {"stream": "<stream>", "data": "<payload>"}
+            stream_name = message.get("stream", "")
+            data = message.get("data", message)  # Fallback to message itself if not wrapped
+            
+            # Check for authentication/subscription confirmations
+            if message.get("result") == "success" or message.get("type") == "authenticated":
+                self.logger().info(f"WebSocket confirmation: {message}")
+                return
+            
+            # Route based on stream name
+            if stream_name == CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL or "orderUpdate" in stream_name:
+                await self._process_order_update({"stream": stream_name, "data": data}, output)
+            elif stream_name == CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL or "balanceUpdate" in stream_name:
+                await self._process_balance_update({"stream": stream_name, "data": data}, output)
+            elif "fill" in stream_name.lower() or "trade" in stream_name.lower():
+                await self._process_trade_update({"stream": stream_name, "data": data}, output)
             else:
                 # Log unknown message types for debugging
-                self.logger().debug(f"Unknown user stream message type: {message_type}")
+                self.logger().debug(f"Unknown user stream: {stream_name}")
 
         except Exception:
             self.logger().error(

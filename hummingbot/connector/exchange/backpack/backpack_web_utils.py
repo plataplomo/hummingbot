@@ -4,10 +4,11 @@ Provides factory methods for creating web assistants and helpers for API communi
 """
 
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Callable, Dict, Optional
 
 from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
+from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
 from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest
@@ -41,9 +42,10 @@ class BackpackRESTPreProcessor(RESTPreProcessorBase):
 
 
 def build_api_factory(
-    throttler: AsyncThrottler,
-    time_synchronizer: TimeSynchronizer,
+    throttler: Optional[AsyncThrottler] = None,
+    time_synchronizer: Optional[TimeSynchronizer] = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
+    time_provider: Optional[Callable] = None,
     auth: Optional[AuthBase] = None,
 ) -> WebAssistantsFactory:
     """
@@ -52,6 +54,43 @@ def build_api_factory(
     Args:
         throttler: Async throttler for rate limiting
         time_synchronizer: Time synchronizer for server time sync
+        domain: Exchange domain
+        time_provider: Function to get current server time
+        auth: Authentication instance (optional)
+
+    Returns:
+        Configured WebAssistantsFactory
+    """
+    throttler = throttler or create_throttler()
+    time_synchronizer = time_synchronizer or TimeSynchronizer()
+    time_provider = time_provider or (lambda: get_current_server_time(
+        throttler=throttler,
+        domain=domain,
+    ))
+    
+    api_factory = WebAssistantsFactory(
+        throttler=throttler,
+        auth=auth,
+        rest_pre_processors=[
+            TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+            BackpackRESTPreProcessor(),
+        ]
+    )
+
+    return api_factory
+
+
+def build_api_factory_without_time_synchronizer_pre_processor(
+    throttler: AsyncThrottler,
+    domain: str = CONSTANTS.DEFAULT_DOMAIN,
+    auth: Optional[AuthBase] = None,
+) -> WebAssistantsFactory:
+    """
+    Build WebAssistantsFactory without time synchronization pre-processor.
+    Used for initial time sync requests.
+
+    Args:
+        throttler: Async throttler for rate limiting
         domain: Exchange domain
         auth: Authentication instance (optional)
 
@@ -70,7 +109,7 @@ def build_api_factory(
 
 
 async def get_current_server_time(
-    throttler: AsyncThrottler,
+    throttler: Optional[AsyncThrottler] = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
 ) -> float:
     """
@@ -81,12 +120,12 @@ async def get_current_server_time(
         domain: Exchange domain
 
     Returns:
-        Server time as Unix timestamp
+        Server time as Unix timestamp in seconds
     """
-    # Create temporary factory for time request
-    api_factory = build_api_factory(
+    throttler = throttler or create_throttler()
+    # Create temporary factory without time sync to avoid circular dependency
+    api_factory = build_api_factory_without_time_synchronizer_pre_processor(
         throttler=throttler,
-        time_synchronizer=None,  # Don't need sync for time request
         domain=domain
     )
 
@@ -109,6 +148,19 @@ async def get_current_server_time(
         else:
             # Fallback to local time if server time not available
             return time.time()
+
+
+def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:
+    """
+    Create and configure async throttler for Backpack exchange.
+
+    Args:
+        domain: Exchange domain
+
+    Returns:
+        Configured AsyncThrottler
+    """
+    return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
 
 def get_rest_url_for_endpoint(endpoint: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:

@@ -1,9 +1,11 @@
-"""
-Constants for Backpack Exchange connector.
+"""Constants for Backpack Exchange connector.
+
 Based on Backpack API documentation and CyberDelta implementation insights.
 """
 
-from hummingbot.core.api_throttler.data_types import RateLimit
+from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
+from hummingbot.core.data_type.common import OrderType, TradeType
+
 
 # Default domain
 DEFAULT_DOMAIN = "backpack"
@@ -32,7 +34,7 @@ CANCEL_ORDER_URL = "api/v1/order"
 OPEN_ORDERS_URL = "api/v1/orders"
 ORDER_HISTORY_URL = "api/v1/orderHistory"
 FILLS_URL = "api/v1/fills"
-BALANCES_URL = "api/v1/balances"
+BALANCES_URL = "api/v1/capital"  # Backpack uses /capital for balance information
 
 # WebSocket channels
 # Note: Public channels require symbol suffix (e.g., "depth.SOL_USDC")
@@ -49,28 +51,49 @@ WS_ACCOUNT_TRANSACTIONS_CHANNEL = "account.transactionUpdate"  # May not exist i
 
 # Rate limits based on Backpack documentation
 # Orders: 10 requests per second
+# Rate limit pools
+PUBLIC_ENDPOINT_LIMIT_ID = "PublicEndpoints"
+PRIVATE_ENDPOINT_LIMIT_ID = "PrivateEndpoints"
+
 # Cancel: 10 requests per second
 # Public endpoints: 20 requests per second
 # Private account endpoints: 10 requests per second
 RATE_LIMITS = [
-    # Order management
-    RateLimit(limit_id=ORDER_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=CANCEL_ORDER_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=OPEN_ORDERS_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=ORDER_HISTORY_URL, limit=10, time_interval=1),
+    # Pool limits - Based on Backpack API documentation
+    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1200, time_interval=60),
+    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=100, time_interval=60),
+    
+    # Order management endpoints (private)
+    RateLimit(limit_id=ORDER_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=CANCEL_ORDER_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=OPEN_ORDERS_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=ORDER_HISTORY_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
 
-    # Account endpoints
-    RateLimit(limit_id=BALANCES_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=FILLS_URL, limit=10, time_interval=1),
+    # Account endpoints (private)
+    RateLimit(limit_id=BALANCES_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=FILLS_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
 
     # Public endpoints
-    RateLimit(limit_id=PING_URL, limit=20, time_interval=1),
-    RateLimit(limit_id=TIME_URL, limit=20, time_interval=1),
-    RateLimit(limit_id=EXCHANGE_INFO_URL, limit=20, time_interval=1),
-    RateLimit(limit_id=TICKER_URL, limit=20, time_interval=1),
-    RateLimit(limit_id=DEPTH_URL, limit=20, time_interval=1),
-    RateLimit(limit_id=KLINES_URL, limit=20, time_interval=1),
-    RateLimit(limit_id=TRADES_URL, limit=20, time_interval=1),
+    RateLimit(limit_id=PING_URL, limit=20, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=TIME_URL, limit=20, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=EXCHANGE_INFO_URL, limit=20, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)]),
+    RateLimit(limit_id=TICKER_URL, limit=20, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=DEPTH_URL, limit=20, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)]),
+    RateLimit(limit_id=KLINES_URL, limit=20, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=TRADES_URL, limit=20, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
 ]
 
 # Connector configuration
@@ -88,22 +111,25 @@ ORDER_STATE_MAP = {
 }
 
 # Order types
+# Note: PostOnly is handled via timeInForce parameter, not orderType
 ORDER_TYPE_MAP = {
-    "LIMIT": "Limit",
-    "MARKET": "Market",
+    OrderType.LIMIT.name: "Limit",
+    OrderType.MARKET.name: "Market",
+    # OrderType.LIMIT_MAKER is not directly supported - use LIMIT with PostOnly timeInForce
 }
 
 # Order sides
 ORDER_SIDE_MAP = {
-    "BUY": "Buy",
-    "SELL": "Sell",
+    TradeType.BUY.name: "Buy",
+    TradeType.SELL.name: "Sell",
 }
 
 # Time in force
 TIME_IN_FORCE_MAP = {
-    "GTC": "GTC",
-    "IOC": "IOC",
-    "FOK": "FOK",
+    "GTC": "GTC",  # Good Till Cancel
+    "IOC": "IOC",  # Immediate or Cancel
+    "FOK": "FOK",  # Fill or Kill
+    "PostOnly": "PostOnly",  # Post Only orders (maker only)
 }
 
 # WebSocket message types

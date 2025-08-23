@@ -91,6 +91,19 @@ class BackpackExchange(ExchangePyBase):
         """Convert Hummingbot trade type to Backpack format."""
         return CONSTANTS.ORDER_SIDE_MAP.get(trade_type.name, trade_type.name)
 
+    async def exchange_symbol_associated_to_pair(self, trading_pair: str) -> str:
+        """
+        Convert Hummingbot trading pair format to Backpack exchange format.
+        
+        Args:
+            trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
+            
+        Returns:
+            Exchange symbol format (e.g., "BTC_USDC")
+        """
+        # For spot, Backpack uses underscore format like "BTC_USDC"
+        return trading_pair.replace("-", "_")
+
     # Required properties
     @property
     def authenticator(self) -> BackpackAuth:
@@ -365,6 +378,19 @@ class BackpackExchange(ExchangePyBase):
             self.logger().error(f"Error updating trading rules: {e}")
             self._trading_rules = {}
 
+    async def _get_last_traded_price(self, trading_pair: str) -> float:
+        """
+        Get the last traded price for a trading pair.
+        
+        Args:
+            trading_pair: Trading pair in Hummingbot format
+            
+        Returns:
+            Last traded price as float
+        """
+        prices = await self._get_last_traded_prices([trading_pair])
+        return float(prices.get(trading_pair, Decimal("0")))
+    
     async def _get_last_traded_prices(self, trading_pairs: List[str]) -> Dict[str, Decimal]:
         """Get last traded prices for specified trading pairs."""
         try:
@@ -640,6 +666,66 @@ class BackpackExchange(ExchangePyBase):
             fee_asset=fee_asset,
             fee_amount=fee_amount
         )
+
+    async def _update_trading_fees(self):
+        """
+        Update trading fees from exchange.
+        Note: Backpack typically uses a fixed fee structure
+        """
+        # Backpack uses fixed fees for all trading pairs
+        # Maker: 0.1%, Taker: 0.1%
+        pass
+
+    async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
+        """
+        Format trading rules from exchange info.
+        
+        Args:
+            exchange_info_dict: Exchange market information
+            
+        Returns:
+            List of TradingRule objects
+        """
+        trading_rules = []
+        
+        for symbol_info in exchange_info_dict.get("data", []):
+            try:
+                symbol = symbol_info.get("symbol")
+                if not symbol:
+                    continue
+                    
+                # Convert exchange format to Hummingbot format
+                trading_pair = symbol.replace("_", "-")
+                
+                # Extract trading rule parameters
+                min_base_size = Decimal(str(symbol_info.get("minQuantity", "0.001")))
+                min_quote_size = Decimal(str(symbol_info.get("minQuoteQuantity", "1")))
+                tick_size = Decimal(str(symbol_info.get("tickSize", "0.01")))
+                step_size = Decimal(str(symbol_info.get("stepSize", "0.001")))
+                
+                trading_rule = TradingRule(
+                    trading_pair=trading_pair,
+                    min_order_size=min_base_size,
+                    max_order_size=Decimal("1000000"),  # No max specified by Backpack
+                    min_price_increment=tick_size,
+                    min_base_amount_increment=step_size,
+                    min_quote_amount_increment=min_quote_size,
+                    min_notional_size=min_quote_size,
+                    min_order_value=min_quote_size,
+                    max_price_significant_digits=Decimal(str(tick_size)).as_tuple().exponent * -1,
+                    supports_limit_orders=True,
+                    supports_market_orders=True,
+                    buy_order_collateral_token=trading_pair.split("-")[1],
+                    sell_order_collateral_token=trading_pair.split("-")[0]
+                )
+                
+                trading_rules.append(trading_rule)
+                
+            except Exception as e:
+                self.logger().error(f"Error parsing trading rule for {symbol}: {e}")
+                continue
+                
+        return trading_rules
 
     # User stream event processing
     async def _user_stream_event_listener(self):

@@ -1,11 +1,10 @@
-"""
-Constants for Backpack Perpetual Exchange connector.
-"""
+"""Constants for Backpack Perpetual Exchange connector."""
 
 from decimal import Decimal
 
 from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
 from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
+
 
 # Exchange name
 EXCHANGE_NAME = "backpack_perpetual"
@@ -16,6 +15,7 @@ COLLATERAL_TOKEN = "USDC"
 
 # Position mode - Backpack only supports ONEWAY mode
 DEFAULT_POSITION_MODE = PositionMode.ONEWAY
+SUPPORTED_POSITION_MODES = [PositionMode.ONEWAY]  # Backpack only supports one-way mode
 
 # Base URLs
 # Backpack does not have a testnet, so we only have mainnet configuration
@@ -89,33 +89,44 @@ PUBLIC_ENDPOINT_LIMIT_ID = "PublicEndpoints"
 PRIVATE_ENDPOINT_LIMIT_ID = "PrivateEndpoints"
 
 RATE_LIMITS = [
+    # Pool limits
     RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1200, time_interval=60),
     RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=100, time_interval=60),
-    # Specific endpoint limits
-    RateLimit(limit_id=ORDER_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=CANCEL_URL, limit=10, time_interval=1),
-    RateLimit(limit_id=POSITIONS_URL, limit=100, time_interval=60),
-    RateLimit(limit_id=FUNDING_RATE_URL, limit=100, time_interval=60),
-    RateLimit(limit_id=BALANCE_URL, limit=100, time_interval=60),
+    
+    # Specific endpoint limits with weighted connections
+    RateLimit(limit_id=ORDER_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=CANCEL_URL, limit=10, time_interval=1,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=POSITIONS_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=FUNDING_RATE_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=BALANCE_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
+    
+    # Public market data endpoints
+    RateLimit(limit_id=EXCHANGE_INFO_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=TICKER_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=ORDER_BOOK_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)]),
+    RateLimit(limit_id=TRADES_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=CANDLES_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(limit_id=TIME_URL, limit=100, time_interval=60,
+              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
 ]
 
-# Linked limits for public endpoints
-PUBLIC_ENDPOINTS = LinkedLimitWeightPair(
-    limit_id=PUBLIC_ENDPOINT_LIMIT_ID,
-    weight=1
-)
-
-# Linked limits for private endpoints
-PRIVATE_ENDPOINTS = LinkedLimitWeightPair(
-    limit_id=PRIVATE_ENDPOINT_LIMIT_ID,
-    weight=1
-)
-
 # Order type mapping
+# Note: Backpack only supports Limit and Market order types
+# PostOnly is handled via timeInForce parameter, not orderType
 ORDER_TYPE_MAP = {
     OrderType.LIMIT.name: "Limit",
     OrderType.MARKET.name: "Market",
-    OrderType.LIMIT_MAKER.name: "PostOnly",
+    # OrderType.LIMIT_MAKER is not directly supported - use LIMIT with PostOnly timeInForce
 }
 
 # Trade type mapping
@@ -140,7 +151,8 @@ TIME_IN_FORCE_MAP = {
     "GTC": "GTC",  # Good Till Cancel
     "IOC": "IOC",  # Immediate or Cancel
     "FOK": "FOK",  # Fill or Kill
-    "GTX": "GTX",  # Good Till Crossing (Post Only)
+    "PostOnly": "PostOnly",  # Post Only orders (maker only)
+    "GTX": "PostOnly",  # Map GTX to PostOnly for compatibility
 }
 
 # Position side mapping
@@ -156,18 +168,23 @@ MARGIN_TYPE_MAP = {
 }
 
 # Default configuration
-DEFAULT_LEVERAGE = 1
-MAX_LEVERAGE = 20
-DEFAULT_POSITION_MODE = PositionMode.ONEWAY
-SUPPORTED_POSITION_MODES = [PositionMode.ONEWAY]  # Backpack only supports one-way mode
+DEFAULT_LEVERAGE = 1  # Safe default, actual max per market from API
+# TODO: MAX_LEVERAGE should be fetched per market from /api/v1/markets endpoint
+# Each market has its own maxLeverage field
+MAX_LEVERAGE = 20  # Temporary fallback - MUST BE REPLACED with per-market value
 
 # Margin and leverage configuration
-INITIAL_MARGIN_RATE = Decimal("0.05")  # 5% for 20x leverage
-MAINTENANCE_MARGIN_RATE = Decimal("0.025")  # 2.5%
+# TODO: These values MUST be fetched from /api/v1/markets endpoint per symbol
+# API provides: initialMarginRatio, maintenanceMarginRatio per market
+# These are temporary defaults that should NOT be used in production
+INITIAL_MARGIN_RATE = Decimal("0.05")  # TEMPORARY - fetch from API
+MAINTENANCE_MARGIN_RATE = Decimal("0.025")  # TEMPORARY - fetch from API
 
 # Funding rate configuration
-FUNDING_INTERVAL_HOURS = 8  # Every 8 hours
-FUNDING_SETTLEMENT_TIMES = ["00:00", "08:00", "16:00"]  # UTC
+# TODO: Verify if funding schedule is configurable per market
+# API provides: nextFundingTime, fundingRateLowerBound, fundingRateUpperBound
+FUNDING_INTERVAL_HOURS = 8  # Standard for crypto perpetuals
+FUNDING_SETTLEMENT_TIMES = ["00:00", "08:00", "16:00"]  # UTC standard
 
 # WebSocket configuration
 WS_HEARTBEAT_INTERVAL = 30  # Send ping every 30 seconds

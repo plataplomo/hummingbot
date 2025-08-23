@@ -4,6 +4,7 @@ Main derivative class implementing perpetual futures trading functionality.
 """
 
 import json
+import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
@@ -91,6 +92,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._position_mode = None  # Initialize as None, set during connection
         self._last_trade_history_timestamp = None
         self._leverage_map: Dict[str, int] = {}  # Store leverage per trading pair
+        self._market_margin_requirements: Dict[str, Dict[str, Decimal]] = {}  # Store margin requirements per market
+        self._funding_info_cache: Dict[str, Tuple[FundingInfo, float]] = {}  # Cache funding info with timestamp
         super().__init__(client_config_map)
 
     # Required properties from PerpetualDerivativePyBase
@@ -178,8 +181,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     def supported_order_types(self) -> List[OrderType]:
         """
         :return a list of OrderType supported by this connector
+        Note: Backpack only supports LIMIT and MARKET order types.
+        PostOnly orders are handled via timeInForce parameter with LIMIT orders.
         """
-        return [OrderType.LIMIT, OrderType.MARKET, OrderType.LIMIT_MAKER]
+        return [OrderType.LIMIT, OrderType.MARKET]
 
     @property
     def supported_position_modes(self) -> List[PositionMode]:
@@ -187,6 +192,30 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         Backpack supports ONE-WAY mode only.
         """
         return CONSTANTS.SUPPORTED_POSITION_MODES
+
+    @property
+    def position_mode(self) -> PositionMode:
+        """
+        Get the current position mode.
+        
+        Returns:
+            Current position mode (always ONEWAY for Backpack)
+        """
+        if self._position_mode is None:
+            self._position_mode = PositionMode.ONEWAY
+        return self._position_mode
+
+    def validate_position_mode(self, mode: PositionMode) -> bool:
+        """
+        Validate if the given position mode is supported.
+        
+        Args:
+            mode: Position mode to validate
+            
+        Returns:
+            True if mode is supported, False otherwise
+        """
+        return mode in CONSTANTS.SUPPORTED_POSITION_MODES
 
     def get_buy_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for long positions"""
@@ -196,9 +225,42 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Returns collateral token for short positions"""
         return CONSTANTS.COLLATERAL_TOKEN
 
+    def get_max_leverage(self, trading_pair: str) -> Decimal:
+        """Get the maximum leverage for a trading pair."""
+        if trading_pair in self._market_margin_requirements:
+            return self._market_margin_requirements[trading_pair]["max_leverage"]
+        return Decimal(str(CONSTANTS.MAX_LEVERAGE))
+
+    def get_initial_margin_ratio(self, trading_pair: str) -> Decimal:
+        """Get the initial margin ratio for a trading pair."""
+        if trading_pair in self._market_margin_requirements:
+            return self._market_margin_requirements[trading_pair]["initial_margin"]
+        return CONSTANTS.INITIAL_MARGIN_RATE
+
+    def get_maintenance_margin_ratio(self, trading_pair: str) -> Decimal:
+        """Get the maintenance margin ratio for a trading pair."""
+        if trading_pair in self._market_margin_requirements:
+            return self._market_margin_requirements[trading_pair]["maintenance_margin"]
+        return CONSTANTS.MAINTENANCE_MARGIN_RATE
+
     def trade_fee_schema(self) -> TradeFeeSchema:
         """Returns the trade fee schema for Backpack exchange."""
         return TradeFeeSchemaLoader.configured_schema_for_exchange(exchange_name=self.name)
+
+    async def exchange_symbol_associated_to_pair(self, trading_pair: str) -> str:
+        """
+        Convert Hummingbot trading pair format to Backpack exchange format.
+        
+        Args:
+            trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
+            
+        Returns:
+            Exchange symbol format (e.g., "BTC_PERP")
+        """
+        # For perpetuals, Backpack uses format like "BTC_PERP"
+        # Extract base asset from trading pair (remove quote asset)
+        base_asset = trading_pair.split("-")[0]
+        return f"{base_asset}_PERP"
 
     # Helper methods for order and trade type conversion
     @staticmethod
@@ -779,7 +841,19 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 self._perpetual_trading._funding_info[trading_pair] = funding_info
 
     async def _fetch_funding_rate(self, trading_pair: str) -> FundingInfo:
-        """Fetch current funding rate for a trading pair."""
+        """
+        Fetch current funding rate for a trading pair with caching.
+        
+        Cache is valid for the duration specified in CONSTANTS.FUNDING_INFO_UPDATE_INTERVAL.
+        """
+        # Check cache first
+        current_time = time.time()
+        if trading_pair in self._funding_info_cache:
+            cached_info, cache_timestamp = self._funding_info_cache[trading_pair]
+            # Use cached value if it's still fresh (within update interval)
+            if current_time - cache_timestamp < CONSTANTS.FUNDING_INFO_UPDATE_INTERVAL:
+                return cached_info
+        
         symbol = utils.convert_to_exchange_trading_pair(trading_pair)
 
         # Use markPrices endpoint which provides current funding rate
@@ -801,13 +875,18 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         else:
             mark_data = response
 
-        return FundingInfo(
+        funding_info = FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(str(mark_data["indexPrice"])),
             mark_price=Decimal(str(mark_data["markPrice"])),
             next_funding_utc_timestamp=int(mark_data["nextFundingTime"]),
             rate=Decimal(str(mark_data["fundingRate"])),
         )
+        
+        # Update cache
+        self._funding_info_cache[trading_pair] = (funding_info, current_time)
+        
+        return funding_info
 
     async def _get_last_traded_price(self, trading_pair: str) -> float:
         """
@@ -853,11 +932,27 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     async def _execute_set_position_mode(self, mode: PositionMode):
         """
         Set position mode on the exchange.
-        Backpack only supports ONE-WAY mode, so this is mostly a no-op.
+        Backpack only supports ONE-WAY mode, so this validates and sets it.
         """
-        if mode != PositionMode.ONEWAY:
-            raise ValueError(f"Backpack only supports ONE-WAY position mode, not {mode}")
+        if not self.validate_position_mode(mode):
+            error_msg = (
+                f"Invalid position mode {mode}. "
+                f"Backpack only supports: {', '.join(str(m) for m in CONSTANTS.SUPPORTED_POSITION_MODES)}"
+            )
+            self.logger().error(error_msg)
+            self.trigger_event(
+                AccountEvent.PositionModeChangeFailed,
+                PositionModeChangeEvent(
+                    timestamp=self.current_timestamp,
+                    trading_pair=None,
+                    position_mode=mode,
+                    message=error_msg,
+                )
+            )
+            raise ValueError(error_msg)
 
+        # Backpack doesn't have an API to set position mode - it's always ONEWAY
+        # So we just store it locally and emit success event
         self._position_mode = mode
         self.trigger_event(
             AccountEvent.PositionModeChangeSucceeded,
@@ -865,6 +960,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 timestamp=self.current_timestamp,
                 trading_pair=None,
                 position_mode=mode,
+                message="Position mode confirmed as ONE-WAY (Backpack default)",
             )
         )
 
@@ -873,8 +969,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         Synchronously set position mode (for testing).
         Backpack only supports ONE-WAY mode.
         """
-        if mode != PositionMode.ONEWAY:
-            raise ValueError(f"Backpack only supports ONE-WAY position mode, not {mode}")
+        if not self.validate_position_mode(mode):
+            raise ValueError(
+                f"Invalid position mode {mode}. "
+                f"Backpack only supports: {', '.join(str(m) for m in CONSTANTS.SUPPORTED_POSITION_MODES)}"
+            )
         self._position_mode = mode
 
     # WebSocket event processing
@@ -1189,6 +1288,21 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
                 # Get collateral token from symbol info
                 collateral_token = symbol_info.get("quoteCurrency", CONSTANTS.COLLATERAL_TOKEN)
+                
+                # Extract margin and leverage data from API
+                max_leverage = symbol_info.get("maxLeverage", CONSTANTS.MAX_LEVERAGE)
+                initial_margin_ratio = symbol_info.get("initialMarginRatio", CONSTANTS.INITIAL_MARGIN_RATE)
+                maintenance_margin_ratio = symbol_info.get("maintenanceMarginRatio", CONSTANTS.MAINTENANCE_MARGIN_RATE)
+                
+                # Store market-specific margin requirements
+                self._market_margin_requirements[trading_pair] = {
+                    "max_leverage": Decimal(str(max_leverage)),
+                    "initial_margin": Decimal(str(initial_margin_ratio)),
+                    "maintenance_margin": Decimal(str(maintenance_margin_ratio)),
+                }
+                
+                # Also store max leverage in the leverage map for compatibility
+                self._leverage_map[trading_pair] = int(max_leverage)
 
                 trading_rule = TradingRule(
                     trading_pair=trading_pair,

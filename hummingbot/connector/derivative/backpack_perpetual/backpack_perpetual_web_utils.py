@@ -9,6 +9,7 @@ from aiohttp import ContentTypeError
 
 from hummingbot.connector.derivative.backpack_perpetual import backpack_perpetual_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
+from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
 from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
@@ -40,20 +41,18 @@ def build_api_factory(
         Configured WebAssistantsFactory instance
     """
     throttler = throttler or create_throttler()
-
-    # Set up time synchronizer if provided
-    time_provider = time_provider or (lambda: get_current_server_time(throttler, domain))
+    time_synchronizer = time_synchronizer or TimeSynchronizer()
+    time_provider = time_provider or (lambda: get_current_server_time(
+        throttler=throttler,
+        domain=domain,
+    ))
 
     api_factory = WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
-            # Add any pre-processors if needed
-        ],
-        rest_post_processors=[
-            # Add any post-processors if needed
-        ],
-    )
+            TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+        ])
 
     return api_factory
 
