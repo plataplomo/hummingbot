@@ -205,7 +205,8 @@ async def api_request(
             limit_id = CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID
 
     # Build full URL
-    url = f"{CONSTANTS.REST_URL}{path}"
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    url = f"{base_url}{path}"
 
     # Get REST assistant
     rest_assistant = await api_factory.get_rest_assistant()
@@ -295,7 +296,8 @@ def get_rest_url_for_endpoint(
     Returns:
         Full URL for the endpoint
     """
-    return f"{CONSTANTS.REST_URL}{endpoint}"
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    return f"{base_url}{endpoint}"
 
 
 def get_ws_url_for_endpoint(
@@ -314,10 +316,10 @@ def get_ws_url_for_endpoint(
     Returns:
         WebSocket URL
     """
-    if public:
-        return CONSTANTS.WS_PUBLIC_URL
-    else:
-        return CONSTANTS.WS_PRIVATE_URL
+    # Backpack uses the same WebSocket URL for public and private channels
+    # Authentication determines access to private channels
+    base_ws_url = CONSTANTS.WSS_URLS.get(domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    return f"{base_ws_url}{endpoint}" if endpoint else base_ws_url
 
 
 async def build_ws_connection(

@@ -385,8 +385,10 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
     async def _create_websocket_connection(self) -> WSAssistant:
         """Create and return a WebSocket connection."""
         ws = await self._api_factory.get_ws_assistant()
+        # Get WebSocket URL using proper domain-based lookup
+        ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
         await ws.connect(
-            ws_url=CONSTANTS.WS_PUBLIC_URL,
+            ws_url=ws_url,
             message_timeout=CONSTANTS.WS_MESSAGE_TIMEOUT,
         )
         return ws

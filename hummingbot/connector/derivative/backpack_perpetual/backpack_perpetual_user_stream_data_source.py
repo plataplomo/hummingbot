@@ -119,8 +119,10 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             Connected WSAssistant instance
         """
         self._ws_assistant = await self._api_factory.get_ws_assistant()
+        # Get WebSocket URL using proper domain-based lookup (same URL for public and private)
+        ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
         await self._ws_assistant.connect(
-            ws_url=CONSTANTS.WS_PRIVATE_URL,
+            ws_url=ws_url,
             message_timeout=CONSTANTS.WS_MESSAGE_TIMEOUT,
         )
         return self._ws_assistant

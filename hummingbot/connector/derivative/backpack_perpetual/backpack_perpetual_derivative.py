@@ -227,21 +227,30 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def get_max_leverage(self, trading_pair: str) -> Decimal:
         """Get the maximum leverage for a trading pair."""
-        if trading_pair in self._market_margin_requirements:
-            return self._market_margin_requirements[trading_pair]["max_leverage"]
-        return Decimal(str(CONSTANTS.MAX_LEVERAGE))
+        if trading_pair not in self._market_margin_requirements:
+            raise ValueError(
+                f"Market margin requirements not available for {trading_pair}. "
+                "Please wait for market data to load."
+            )
+        return self._market_margin_requirements[trading_pair]["max_leverage"]
 
     def get_initial_margin_ratio(self, trading_pair: str) -> Decimal:
         """Get the initial margin ratio for a trading pair."""
-        if trading_pair in self._market_margin_requirements:
-            return self._market_margin_requirements[trading_pair]["initial_margin"]
-        return CONSTANTS.INITIAL_MARGIN_RATE
+        if trading_pair not in self._market_margin_requirements:
+            raise ValueError(
+                f"Market margin requirements not available for {trading_pair}. "
+                "Please wait for market data to load."
+            )
+        return self._market_margin_requirements[trading_pair]["initial_margin"]
 
     def get_maintenance_margin_ratio(self, trading_pair: str) -> Decimal:
         """Get the maintenance margin ratio for a trading pair."""
-        if trading_pair in self._market_margin_requirements:
-            return self._market_margin_requirements[trading_pair]["maintenance_margin"]
-        return CONSTANTS.MAINTENANCE_MARGIN_RATE
+        if trading_pair not in self._market_margin_requirements:
+            raise ValueError(
+                f"Market margin requirements not available for {trading_pair}. "
+                "Please wait for market data to load."
+            )
+        return self._market_margin_requirements[trading_pair]["maintenance_margin"]
 
     def trade_fee_schema(self) -> TradeFeeSchema:
         """Returns the trade fee schema for Backpack exchange."""
@@ -600,15 +609,25 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 # Check if position is at risk using maintenance margin rate from constants
                 at_risk = False
 
-                if is_long:
-                    # For long positions, risk when mark price approaches liquidation price from above
-                    # Use maintenance margin rate from constants as buffer
-                    risk_threshold = liquidation_price_decimal * (Decimal(1) + CONSTANTS.MAINTENANCE_MARGIN_RATE)
-                    at_risk = (mark_price_decimal <= risk_threshold)
+                # Get actual maintenance margin ratio for the trading pair
+                try:
+                    maint_margin_ratio = self.get_maintenance_margin_ratio(trading_pair)
+                except ValueError:
+                    # If market data not loaded yet, cannot determine risk
+                    self.logger().warning(f"Cannot determine risk for {trading_pair}: margin data not loaded")
+                    maint_margin_ratio = None
+
+                if maint_margin_ratio is not None:
+                    if is_long:
+                        # For long positions, risk when mark price approaches liquidation price from above
+                        risk_threshold = liquidation_price_decimal * (Decimal(1) + maint_margin_ratio)
+                        at_risk = (mark_price_decimal <= risk_threshold)
+                    else:
+                        # For short positions, risk when mark price approaches liquidation price from below
+                        risk_threshold = liquidation_price_decimal * (Decimal(1) - maint_margin_ratio)
+                        at_risk = (mark_price_decimal >= risk_threshold)
                 else:
-                    # For short positions, risk when mark price approaches liquidation price from below
-                    risk_threshold = liquidation_price_decimal * (Decimal(1) - CONSTANTS.MAINTENANCE_MARGIN_RATE)
-                    at_risk = (mark_price_decimal >= risk_threshold)
+                    at_risk = False
 
                 if at_risk:
                     # Issue margin call warning similar to Binance connector
@@ -802,9 +821,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     exchange_order_id=order.exchange_order_id,
                     trading_pair=order.trading_pair,
                     fill_timestamp=fill_data.get("timestamp", self.current_timestamp),
-                    fill_price=Decimal(str(fill_data.get("price", "0"))),
-                    fill_base_amount=Decimal(str(fill_data.get("quantity", "0"))),
-                    fill_quote_amount=Decimal(str(fill_data.get("price", "0"))) * Decimal(str(fill_data.get("quantity", "0"))),
+                    fill_price=Decimal(str(fill_data["price"])),  # Required field
+                    fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
+                    fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
                     fee=self._get_trade_fee_from_fill(fill_data),
                 )
             )
@@ -1057,9 +1076,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 exchange_order_id=exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
                 fill_timestamp=fill_data.get("timestamp", self.current_timestamp) / 1000,
-                fill_price=Decimal(str(fill_data.get("price", "0"))),
-                fill_base_amount=Decimal(str(fill_data.get("quantity", "0"))),
-                fill_quote_amount=Decimal(str(fill_data.get("price", "0"))) * Decimal(str(fill_data.get("quantity", "0"))),
+                fill_price=Decimal(str(fill_data["price"])),  # Required field
+                fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
+                fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
                 fee=fee
             )
 
@@ -1115,9 +1134,16 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     else:
                         order_type = OrderType.LIMIT
 
-                    # Get price and quantity
-                    price = Decimal(str(order_data.get("price") or order_data.get("p") or "0"))
-                    quantity = Decimal(str(order_data.get("quantity") or order_data.get("q") or "0"))
+                    # Get price and quantity - fail if missing
+                    price_value = order_data.get("price") or order_data.get("p")
+                    if price_value is None:
+                        raise ValueError(f"Order {exchange_order_id} missing price in response")
+                    price = Decimal(str(price_value))
+                    
+                    quantity_value = order_data.get("quantity") or order_data.get("q")
+                    if quantity_value is None:
+                        raise ValueError(f"Order {exchange_order_id} missing quantity in response")
+                    quantity = Decimal(str(quantity_value))
 
                     # Create InFlightOrder
                     order = InFlightOrder(
@@ -1290,9 +1316,28 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 collateral_token = symbol_info.get("quoteCurrency", CONSTANTS.COLLATERAL_TOKEN)
                 
                 # Extract margin and leverage data from API
-                max_leverage = symbol_info.get("maxLeverage", CONSTANTS.MAX_LEVERAGE)
-                initial_margin_ratio = symbol_info.get("initialMarginRatio", CONSTANTS.INITIAL_MARGIN_RATE)
-                maintenance_margin_ratio = symbol_info.get("maintenanceMarginRatio", CONSTANTS.MAINTENANCE_MARGIN_RATE)
+                max_leverage = symbol_info.get("maxLeverage")
+                initial_margin_ratio = symbol_info.get("initialMarginRatio")
+                maintenance_margin_ratio = symbol_info.get("maintenanceMarginRatio")
+                
+                # Fail fast if critical margin parameters are missing
+                if max_leverage is None:
+                    raise ValueError(
+                        f"Market {symbol} missing required maxLeverage in API response. "
+                        "Cannot trade without proper leverage limits."
+                    )
+                    
+                if initial_margin_ratio is None:
+                    raise ValueError(
+                        f"Market {symbol} missing required initialMarginRatio in API response. "
+                        "Cannot calculate positions without margin requirements."
+                    )
+                    
+                if maintenance_margin_ratio is None:
+                    raise ValueError(
+                        f"Market {symbol} missing required maintenanceMarginRatio in API response. "
+                        "Cannot manage risk without maintenance margin data."
+                    )
                 
                 # Store market-specific margin requirements
                 self._market_margin_requirements[trading_pair] = {

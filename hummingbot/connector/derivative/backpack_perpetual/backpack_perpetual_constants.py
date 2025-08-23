@@ -1,7 +1,5 @@
 """Constants for Backpack Perpetual Exchange connector."""
 
-from decimal import Decimal
-
 from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
 from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
 
@@ -169,16 +167,11 @@ MARGIN_TYPE_MAP = {
 
 # Default configuration
 DEFAULT_LEVERAGE = 1  # Safe default, actual max per market from API
-# TODO: MAX_LEVERAGE should be fetched per market from /api/v1/markets endpoint
-# Each market has its own maxLeverage field
-MAX_LEVERAGE = 20  # Temporary fallback - MUST BE REPLACED with per-market value
 
-# Margin and leverage configuration
-# TODO: These values MUST be fetched from /api/v1/markets endpoint per symbol
-# API provides: initialMarginRatio, maintenanceMarginRatio per market
-# These are temporary defaults that should NOT be used in production
-INITIAL_MARGIN_RATE = Decimal("0.05")  # TEMPORARY - fetch from API
-MAINTENANCE_MARGIN_RATE = Decimal("0.025")  # TEMPORARY - fetch from API
+# Market-specific parameters MUST be fetched from /api/v1/markets endpoint per symbol
+# API provides: maxLeverage, initialMarginRatio, maintenanceMarginRatio per market
+# The connector will raise an error if these values are missing from the API response
+# No fallback values are provided as per Hummingbot standards - fail fast on missing data
 
 # Funding rate configuration
 # TODO: Verify if funding schedule is configurable per market
@@ -190,11 +183,13 @@ FUNDING_SETTLEMENT_TIMES = ["00:00", "08:00", "16:00"]  # UTC standard
 WS_HEARTBEAT_INTERVAL = 30  # Send ping every 30 seconds
 WS_MESSAGE_TIMEOUT = 60  # Timeout for receiving messages
 
-# Error codes
-ORDER_NOT_EXIST_ERROR_CODE = -2013
+# Error codes - Backpack-specific
+# Note: Backpack uses string error codes, not numeric ones like Binance
+# These match the actual Backpack API error response codes from the OpenAPI spec
+ORDER_NOT_EXIST_ERROR_CODE = "RESOURCE_NOT_FOUND"  # When order doesn't exist
 ORDER_NOT_EXIST_MESSAGE = "Order does not exist"
-UNKNOWN_ORDER_ERROR_CODE = -2011
-UNKNOWN_ORDER_MESSAGE = "Unknown order sent"
+UNKNOWN_ORDER_ERROR_CODE = "INVALID_ORDER"  # When order is invalid
+UNKNOWN_ORDER_MESSAGE = "Invalid order"
 
 # Trading rules update interval
 TRADING_RULES_UPDATE_INTERVAL = 3600  # Update every hour
