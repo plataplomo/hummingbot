@@ -89,7 +89,6 @@ class BackpackEd25519Authenticator(IAuthenticator):
             ("GET", "/api/v1/collateral"): "collateralQuery",
             # Position endpoints
             ("GET", "/api/v1/position"): "positionQuery",
-            ("GET", "/api/v1/positions"): "positionQuery",
             ("GET", "/api/v1/borrowLend/positions"): "borrowLendPositionQuery",
             # Order Management endpoints
             ("POST", "/api/v1/order"): "orderExecute",
