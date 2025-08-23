@@ -2,9 +2,9 @@ import asyncio
 import base64
 import json
 import re
+from collections.abc import Callable
 from decimal import Decimal
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
-from collections.abc import Callable
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -107,7 +107,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
     @property
     def funding_info_url(self):
-        url = web_utils.public_rest_url(path_url=CONSTANTS.TICKER_URL)
+        url = web_utils.public_rest_url(path_url=CONSTANTS.MARK_PRICE_URL)
         url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?") + ".*")
         return url
 
@@ -155,13 +155,15 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
     def _simulate_trading_rules_initialized(self):
         """Initialize trading pair symbols and trading rules for testing."""
-        from bidict import bidict
-        from hummingbot.connector.trading_rule import TradingRule
         from decimal import Decimal
-        
+
+        from bidict import bidict
+
+        from hummingbot.connector.trading_rule import TradingRule
+
         # Set the trading pair symbol map
         self.exchange._set_trading_pair_symbol_map(bidict({self.symbol: self.trading_pair}))
-        
+
         # Set trading rules with values that would come from the exchange
         # These are set during the test based on the mocked exchange response
         self.exchange._trading_rules = {
@@ -215,20 +217,19 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         return account_update
 
     def _get_income_history_dict(self) -> List[Dict[str, Any]]:
+        # Return funding history in Backpack's actual format
+        from datetime import datetime, timezone
+        timestamp = datetime.fromtimestamp(self.start_timestamp, tz=timezone.utc)
         income_history = [
             {
                 "symbol": self.symbol,
-                "incomeType": "FUNDING_FEE",
-                "income": "0.5",
-                "asset": "USDC",
-                "info": "funding payment",
-                "time": int(self.start_timestamp * 1000),
-                "tranId": "123456789",
-                "tradeId": "",
+                "fundingRate": "0.0001",
+                "fundingFee": "0.5",  # Use fundingFee field for payment amount
+                "intervalEndTimestamp": timestamp.isoformat().replace("+00:00", "Z"),
             }
         ]
         return income_history
-    
+
     def _get_exchange_info_mock_response(
             self,
             min_order_size: str = "0.001",
@@ -238,17 +239,17 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             min_notional: str = "10",
     ) -> Dict[str, Any]:
         """Create mock exchange info response for testing.
-        
+
         This method provides a properly formatted exchange info response
         that matches Backpack's actual API structure.
-        
+
         Args:
             min_order_size: Minimum order quantity
-            max_order_size: Maximum order quantity  
+            max_order_size: Maximum order quantity
             tick_size: Price tick size
             step_size: Quantity step size
             min_notional: Minimum notional value
-            
+
         Returns:
             Dict with exchange info structure
         """
@@ -305,7 +306,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     def test_update_trading_rules(self, mock_api):
         """Test updating trading rules from exchange info."""
         url = self.trading_rules_url
-        
+
         # Mock exchange response following Backpack API structure
         mock_response = self._get_exchange_info_mock_response()
         mock_api.get(url, body=json.dumps(mock_response))
@@ -315,7 +316,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         trading_rule = self.exchange._trading_rules[self.trading_pair]
         self.assertIsInstance(trading_rule, TradingRule)
         self.assertEqual(trading_rule.trading_pair, self.trading_pair)
-        
+
         # Extract values from filters structure
         filters = mock_response["symbols"][0]["filters"]
         self.assertEqual(trading_rule.min_order_size, Decimal(str(filters["quantity"]["minQuantity"])))
@@ -351,7 +352,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         # Create an order and track it
         order_id = "test_order_1"
         trading_pair = self.trading_pair
-        
+
         # Start tracking an order
         self.exchange.start_tracking_order(
             order_id=order_id,
@@ -363,7 +364,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             order_type=OrderType.LIMIT,
             position_action=PositionAction.OPEN,
         )
-        
+
         # Check that the order is in in_flight_orders
         self.assertIn(order_id, self.exchange.in_flight_orders)
         order = self.exchange.in_flight_orders[order_id]
@@ -468,7 +469,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test cancelling an order."""
         order_id = "HBOT-3"
         exchange_order_id = "123458"
-        
+
         # Set timestamp for the exchange
         self.exchange._set_current_timestamp(self.start_timestamp)
 
@@ -494,9 +495,9 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         }
         mock_api.delete(regex_url, body=json.dumps(mock_response))
 
-        # Use the public cancel method 
+        # Use the public cancel method
         self.exchange.cancel(trading_pair=self.trading_pair, client_order_id=order_id)
-        
+
         # Wait for cancellation to process
         self.async_run_with_timeout(asyncio.sleep(0.5))
 
@@ -510,24 +511,24 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test fetching funding info."""
         # Initialize trading rules and symbol mapping
         self._simulate_trading_rules_initialized()
-        
+
         url = self.funding_info_url
 
-        mock_response = {
+        # Response is a list of mark price data
+        mock_response = [{
             "symbol": self.symbol,
             "markPrice": "50000",
             "indexPrice": "50001",
             "fundingRate": "0.0001",
             "nextFundingTime": int((self.start_timestamp + 28800) * 1000),
-        }
+        }]
         mock_api.get(url, body=json.dumps(mock_response))
 
         # First update funding info to populate it
         self.async_run_with_timeout(self.exchange._update_funding_info())
-        
-        funding_info = self.async_run_with_timeout(
-            self.exchange.get_funding_info(self.trading_pair)
-        )
+
+        # get_funding_info is synchronous, not async
+        funding_info = self.exchange.get_funding_info(self.trading_pair)
 
         self.assertEqual(funding_info.trading_pair, self.trading_pair)
         self.assertEqual(funding_info.mark_price, Decimal("50000"))
@@ -539,7 +540,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test fetching last funding fee payment using the standard Hummingbot method."""
         # Initialize trading rules and symbol mapping
         self._simulate_trading_rules_initialized()
-        
+
         url = self.funding_payment_url
         mock_response = self._get_income_history_dict()
         mock_api.get(url, body=json.dumps(mock_response))
@@ -561,7 +562,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
     def test_set_leverage(self):
         """Test setting leverage.
-        
+
         Note: Backpack uses account-wide leverage limits, not per-position leverage.
         This test verifies that leverage is stored locally for calculations.
         """
@@ -648,7 +649,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.exchange._order_tracker.start_tracking_order(order)
 
         # Mock cancelled order status - Backpack uses 'id' not 'orderId'
-        # Note: Backpack API uses "Cancelled" not "CANCELLED" 
+        # Note: Backpack API uses "Cancelled" not "CANCELLED"
         order_status = {
             "id": exchange_order_id,
             "clientId": client_order_id,
@@ -666,12 +667,12 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         order_url = web_utils.private_rest_url(path_url=CONSTANTS.OPEN_ORDERS_URL)
         regex_url = re.compile(f"^{order_url}".replace(".", r"\.").replace("?", r"\?"))
         mock_api.get(regex_url, body=json.dumps([]))
-        
+
         # Mock order history response with cancelled order
         history_url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_HISTORY_URL)
         regex_history_url = re.compile(f"^{history_url}".replace(".", r"\.").replace("?", r"\?"))
         mock_api.get(regex_history_url, body=json.dumps([order_status]))
-        
+
         # Mock fills endpoint to return no fills
         fills_url = web_utils.private_rest_url(path_url=CONSTANTS.FILLS_URL)
         regex_fills_url = re.compile(f"^{fills_url}".replace(".", r"\.").replace("?", r"\?"))
@@ -832,10 +833,14 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         regex_open_orders_url = re.compile(f"^{open_orders_url}".replace(".", r"\.").replace("?", r"\?"))
         mock_api.get(regex_open_orders_url, body=json.dumps([]))
 
-        # Mock order history response (empty - order not found)
+        # Mock order history response with error to indicate order not found
         history_url = web_utils.private_rest_url(path_url=CONSTANTS.ORDER_HISTORY_URL)
         regex_history_url = re.compile(f"^{history_url}".replace(".", r"\.").replace("?", r"\?"))
-        mock_api.get(regex_history_url, body=json.dumps([]))
+        # Return error response to trigger order not found logic
+        mock_api.get(regex_history_url, status=400, body=json.dumps({
+            "code": CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE,
+            "msg": CONSTANTS.ORDER_NOT_EXIST_MESSAGE
+        }))
 
         # Mock fills response (empty - no fills)
         fills_url = web_utils.private_rest_url(path_url=CONSTANTS.FILLS_URL)
@@ -844,7 +849,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         # Set order_not_found counter to simulate retries
         self.exchange._order_tracker._order_not_found_records[client_order_id] = (
-            self.exchange._order_tracker._lost_order_count_limit - 1
+            self.exchange._order_tracker._lost_order_count_limit
         )
 
         self.async_run_with_timeout(
@@ -927,13 +932,13 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Configure mock response for order not found during cancellation."""
         url = web_utils.private_rest_url(path_url=CONSTANTS.CANCEL_URL)
         regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?") + ".*")
-        
+
         # Backpack returns error code -2011 for unknown order
         response = {
             "code": CONSTANTS.UNKNOWN_ORDER_ERROR_CODE,
             "msg": CONSTANTS.UNKNOWN_ORDER_MESSAGE
         }
-        
+
         mock_api.delete(
             regex_url,
             body=json.dumps(response),
@@ -947,7 +952,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that order not found during cancellation is handled correctly."""
         self.exchange._set_current_timestamp(1640780000)
         request_sent_event = asyncio.Event()
-        
+
         self.exchange.start_tracking_order(
             order_id="HBOT1",
             exchange_order_id=str(self.expected_exchange_order_id),
@@ -957,17 +962,17 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             price=Decimal("10000"),
             amount=Decimal("1"),
         )
-        
+
         self.assertIn("HBOT1", self.exchange.in_flight_orders)
         order = self.exchange.in_flight_orders["HBOT1"]
-        
+
         self.configure_order_not_found_error_cancelation_response(
             order=order, mock_api=mock_api, callback=lambda *args, **kwargs: request_sent_event.set()
         )
-        
+
         self.exchange.cancel(trading_pair=self.trading_pair, client_order_id="HBOT1")
         await request_sent_event.wait()
-        
+
         # When order is not found, it should NOT be marked as cancelled
         # The connector should handle it as per _is_order_not_found_during_cancelation_error
         self.assertFalse(order.is_done)
@@ -990,7 +995,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         """Test that funding payment polling loop sends proper events."""
         # Initialize trading rules and symbol mapping
         self._simulate_trading_rules_initialized()
-        
+
         funding_rate_response = {
             "symbol": self.symbol,
             "fundingRate": "0.0001",
@@ -1012,7 +1017,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
         # Verify funding payment was recorded
         self.assertTrue(new_funding)
-        
+
         # Verify funding payment was recorded in the event logger
         self.assertEqual(1, len(self.funding_payment_completed_logger.event_log))
         funding_event = self.funding_payment_completed_logger.event_log[0]
@@ -1070,11 +1075,11 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "Margin Call: Your position risk is too high, and you are at risk of liquidation. "
             "Close your positions or add additional margin to your wallet."
         ))
-        
+
         # Check if additional info was logged
         has_info = any(
             "Maintenance Margin" in log.msg or "Negative PnL" in log.msg
-            for log in self.log_records 
+            for log in self.log_records
             if log.levelname == "INFO"
         )
         self.assertTrue(has_info, "Margin call info not logged")
@@ -1108,14 +1113,14 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "timestamp": 1641288826000,
         }
 
-        # Process fill data through order message handler  
+        # Process fill data through order message handler
         self.exchange._process_order_message(fill_data)
 
         # Check that fill was recorded
         self.assertEqual(len(order.order_fills), 1)
 
         # Send the same fill again (duplicate trade ID)
-        # Process fill data through order message handler  
+        # Process fill data through order message handler
         self.exchange._process_order_message(fill_data)
 
         # Should still have only 1 fill
@@ -1149,7 +1154,7 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
             "timestamp": 1641288826000,
         }
 
-        # Process fill data through order message handler  
+        # Process fill data through order message handler
         self.exchange._process_order_message(fill_data)
 
         # Check that fill was recorded with zero fee
