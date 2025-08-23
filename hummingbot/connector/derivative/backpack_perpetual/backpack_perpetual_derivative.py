@@ -618,13 +618,18 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 return
 
             # Get PnL - handle different field names
-            unrealized_pnl = Decimal(str(position_data.get("pnlUnrealized",
-                                                           position_data.get("unrealizedPnl",
-                                                                             position_data.get("P", "0")))))
+            unrealized_pnl_raw = position_data.get("pnlUnrealized",
+                                                   position_data.get("unrealizedPnl",
+                                                                     position_data.get("P")))
+            if unrealized_pnl_raw is None:
+                self.logger().warning(f"No PnL field found in position data for {trading_pair}, using 0")
+                unrealized_pnl = Decimal("0")  # PnL can legitimately be 0 for new positions
+            else:
+                unrealized_pnl = Decimal(str(unrealized_pnl_raw))
 
             # Get entry price - handle different field names
-            entry_price = Decimal(str(position_data.get("entryPrice",
-                                                        position_data.get("B", "0"))))
+            # Trust exchange data structure
+            entry_price = Decimal(str(position_data.get("entryPrice", position_data.get("B"))))
 
             position = Position(
                 trading_pair=trading_pair,
@@ -945,8 +950,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 if item["symbol"] == symbol:
                     mark_data = item
                     break
-            if not mark_data:
-                raise ValueError(f"No mark price data found for {symbol}")
+            # If mark_data is empty, the following code will fail naturally with KeyError
         else:
             mark_data = response
 
@@ -1190,16 +1194,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     else:
                         order_type = OrderType.LIMIT
 
-                    # Get price and quantity - fail if missing
-                    price_value = order_data.get("price") or order_data.get("p")
-                    if price_value is None:
-                        raise ValueError(f"Order {exchange_order_id} missing price in response")
-                    price = Decimal(str(price_value))
-                    
-                    quantity_value = order_data.get("quantity") or order_data.get("q")
-                    if quantity_value is None:
-                        raise ValueError(f"Order {exchange_order_id} missing quantity in response")
-                    quantity = Decimal(str(quantity_value))
+                    # Trust exchange data - try alternate field names for compatibility
+                    price = Decimal(str(order_data.get("price", order_data.get("p"))))
+                    quantity = Decimal(str(order_data.get("quantity", order_data.get("q"))))
 
                     # Create InFlightOrder
                     order = InFlightOrder(
@@ -1562,11 +1559,25 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
                     timestamp = int(dt.timestamp() * 1000)
                 else:
-                    timestamp = int(last_payment.get("timestamp", 0))
+                    timestamp_raw = last_payment.get("timestamp")
+                    if timestamp_raw is None:
+                        self.logger().warning(f"No timestamp in funding payment data for {trading_pair}")
+                        return 0, s_decimal_NaN, s_decimal_NaN
+                    timestamp = int(timestamp_raw)
 
-                funding_rate = Decimal(str(last_payment.get("fundingRate", last_payment.get("rate", "0"))))
+                funding_rate_raw = last_payment.get("fundingRate", last_payment.get("rate"))
+                if funding_rate_raw is None:
+                    self.logger().warning(f"No funding rate in payment data for {trading_pair}")
+                    return timestamp, s_decimal_NaN, s_decimal_NaN
+                funding_rate = Decimal(str(funding_rate_raw))
+                
                 # The 'quantity' field represents the payment amount (positive if received, negative if paid)
-                payment = Decimal(str(last_payment.get("quantity", last_payment.get("fundingFee", "0"))))
+                payment_raw = last_payment.get("quantity", last_payment.get("fundingFee"))
+                if payment_raw is None:
+                    self.logger().warning(f"No payment amount in funding data for {trading_pair}")
+                    payment = s_decimal_NaN
+                else:
+                    payment = Decimal(str(payment_raw))
                 return timestamp, funding_rate, payment
             else:
                 return 0, s_decimal_NaN, s_decimal_NaN

@@ -30,8 +30,9 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
     - Position updates
     """
 
-    HEARTBEAT_TIME_INTERVAL = 30.0
-    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 1800  # 30 minutes
+    # Use constants from constants file
+    HEARTBEAT_TIME_INTERVAL = CONSTANTS.HEARTBEAT_TIME_INTERVAL
+    # Backpack doesn't use listen keys, removed unused LISTEN_KEY_KEEP_ALIVE_INTERVAL
 
     _logger: Optional[HummingbotLogger] = None
 

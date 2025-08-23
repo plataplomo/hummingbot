@@ -44,8 +44,9 @@ class BackpackExchange(ExchangePyBase):
     - Ed25519 authentication
     """
 
-    UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
-    HEARTBEAT_TIME_INTERVAL = 30.0
+    # These should be moved to constants file if needed
+    # UPDATE_ORDER_STATUS_MIN_INTERVAL is handled by base class
+    # HEARTBEAT_TIME_INTERVAL should be in constants
 
     web_utils = web_utils
 
@@ -74,7 +75,7 @@ class BackpackExchange(ExchangePyBase):
         self._domain = domain
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
-        self._last_trades_poll_timestamp = 1.0
+        # Removed unused hardcoded value _last_trades_poll_timestamp
         super().__init__(client_config_map)
 
     # Static helper methods
@@ -392,7 +393,8 @@ class BackpackExchange(ExchangePyBase):
             Last traded price as float
         """
         prices = await self._get_last_traded_prices([trading_pair])
-        return float(prices.get(trading_pair, Decimal("0")))
+        price = prices[trading_pair]  # Trust that price exists for requested pair
+        return float(price)
     
     async def _get_last_traded_prices(self, trading_pairs: List[str]) -> Dict[str, Decimal]:
         """Get last traded prices for specified trading pairs."""
@@ -551,9 +553,7 @@ class BackpackExchange(ExchangePyBase):
         }
 
         if order_type == OrderType.LIMIT:
-            if price is None:
-                raise ValueError("Price is required for limit orders")
-            order_data["price"] = str(price)
+            order_data["price"] = str(price)  # Price is required for limit orders
 
         # Add time in force if specified
         time_in_force = kwargs.get("time_in_force")
@@ -800,16 +800,7 @@ class BackpackExchange(ExchangePyBase):
                 # Convert exchange format to Hummingbot format
                 trading_pair = symbol.replace("_", "-")
                 
-                # Extract trading rule parameters - fail if not available
-                if "minQuantity" not in symbol_info:
-                    raise ValueError(f"minQuantity not available for {symbol}")
-                if "minQuoteQuantity" not in symbol_info:
-                    raise ValueError(f"minQuoteQuantity not available for {symbol}")
-                if "tickSize" not in symbol_info:
-                    raise ValueError(f"tickSize not available for {symbol}")
-                if "stepSize" not in symbol_info:
-                    raise ValueError(f"stepSize not available for {symbol}")
-                    
+                # Extract trading rule parameters - trust exchange data
                 min_base_size = Decimal(str(symbol_info["minQuantity"]))
                 min_quote_size = Decimal(str(symbol_info["minQuoteQuantity"]))
                 tick_size = Decimal(str(symbol_info["tickSize"]))

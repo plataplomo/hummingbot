@@ -154,17 +154,8 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         symbol = utils.convert_to_exchange_trading_pair(trading_pair)
         
-        # Get funding rate
-        funding_response = await web_utils.api_request(
-            path=CONSTANTS.FUNDING_RATE_URL,
-            api_factory=self._api_factory,
-            params={"symbol": symbol},
-            method=RESTMethod.GET,
-            is_auth_required=False,
-        )
-        
-        # Get mark price
-        mark_price_response = await web_utils.api_request(
+        # Get mark prices endpoint which includes funding rate info per OpenAPI spec
+        mark_prices_response = await web_utils.api_request(
             path=CONSTANTS.MARK_PRICE_URL,
             api_factory=self._api_factory,
             params={"symbol": symbol},
@@ -172,24 +163,20 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             is_auth_required=False,
         )
         
-        # Get index price
-        index_price_response = await web_utils.api_request(
-            path=CONSTANTS.INDEX_PRICE_URL,
-            api_factory=self._api_factory,
-            params={"symbol": symbol},
-            method=RESTMethod.GET,
-            is_auth_required=False,
-        )
+        # The response is an array, even when filtered by symbol
+        if isinstance(mark_prices_response, list):
+            mark_price_data = mark_prices_response[0] if mark_prices_response else {}
+        else:
+            mark_price_data = mark_prices_response
         
-        # Calculate next funding time (8 hours intervals)
-        next_funding_timestamp = utils.get_next_funding_timestamp()
-        
+        # Trust exchange data structure per OpenAPI spec
+        # Convert to appropriate types
         funding_info = FundingInfo(
             trading_pair=trading_pair,
-            index_price=Decimal(str(index_price_response.get("indexPrice", "0"))),
-            mark_price=Decimal(str(mark_price_response.get("markPrice", "0"))),
-            next_funding_utc_timestamp=next_funding_timestamp,
-            rate=Decimal(str(funding_response.get("fundingRate", "0"))),
+            index_price=Decimal(str(mark_price_data["indexPrice"])),
+            mark_price=Decimal(str(mark_price_data["markPrice"])),
+            next_funding_utc_timestamp=mark_price_data["nextFundingTimestamp"] / 1000,  # Convert ms to seconds
+            rate=Decimal(str(mark_price_data["fundingRate"])),
         )
         
         return funding_info
@@ -245,9 +232,9 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         return {
             "trading_pair": trading_pair,
             "symbol": symbol,
-            "bids": response.get("bids", []),
-            "asks": response.get("asks", []),
-            "timestamp": response.get("timestamp", self._time() * 1000),
+            "bids": response["bids"],
+            "asks": response["asks"],
+            "timestamp": response["timestamp"],
         }
 
     async def listen_for_trades(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
@@ -451,22 +438,22 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             trade_data = data.get("data", data)
 
             # Get trading pair
-            symbol = trade_data.get("symbol", "")
+            symbol = trade_data["symbol"]
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-
             if not trading_pair:
-                return None
+                return None  # Not a supported trading pair
 
+            # Trust exchange data structure - access fields directly
             return OrderBookMessage(
                 message_type=OrderBookMessageType.TRADE,
                 content={
                     "trading_pair": trading_pair,
                     "trade_id": str(trade_data.get("tradeId", trade_data.get("id"))),
-                    "price": trade_data.get("price"),
-                    "amount": trade_data.get("quantity"),
-                    "trade_type": float(TradeType.BUY.value) if trade_data.get("side") == "Buy" else float(TradeType.SELL.value),
+                    "price": trade_data["price"],
+                    "amount": trade_data["quantity"],
+                    "trade_type": float(TradeType.BUY.value) if trade_data["side"] == "Buy" else float(TradeType.SELL.value),
                 },
-                timestamp=trade_data.get("timestamp", self._time() * 1000) / 1000.0,
+                timestamp=trade_data["timestamp"] / 1000.0,
             )
 
         except Exception:
@@ -488,12 +475,12 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             depth_data = data.get("data", data)
 
             # Get trading pair
-            symbol = depth_data.get("symbol", "")
+            symbol = depth_data["symbol"]
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-
             if not trading_pair:
-                return None
+                return None  # Not a supported trading pair
 
+            # Trust exchange data - try alternate field names for compatibility
             return OrderBookMessage(
                 message_type=OrderBookMessageType.DIFF,
                 content={
@@ -503,7 +490,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     "update_id": depth_data.get("lastUpdateId", depth_data.get("u")),
                     "first_update_id": depth_data.get("firstUpdateId", depth_data.get("U")),
                 },
-                timestamp=depth_data.get("timestamp", depth_data.get("T", self._time() * 1000)) / 1000.0,
+                timestamp=(depth_data.get("timestamp", depth_data.get("T", self._time() * 1000))) / 1000.0,
             )
 
         except Exception:
@@ -531,32 +518,14 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             if not trading_pair:
                 return None
 
-            # Parse markPrice format (used for funding info)
-            # Format from OpenAPI spec:
-            # "p": mark price, "f": funding rate, "i": index price, "n": next funding time
-            if funding_data.get("e") == "markPrice":
-                mark_price = Decimal(str(funding_data.get("p", "0")))
-                funding_rate = Decimal(str(funding_data.get("f", "0")))
-                index_price = Decimal(str(funding_data.get("i", "0")))
-                next_funding_time = funding_data.get("n", 0)
-            else:
-                # Legacy format support
-                funding_rate = Decimal(str(funding_data.get("fundingRate", "0")))
-                next_funding_time = funding_data.get("nextFundingTime", 0)
-                mark_price = Decimal(str(funding_data.get("markPrice", "0")))
-                index_price = Decimal(str(funding_data.get("indexPrice", "0")))
-            
-            # Convert next funding time from microseconds to seconds
-            # Note: markPrice stream uses microseconds for 'n' field
-            if next_funding_time:
-                next_funding_time = next_funding_time / 1000000  # microseconds to seconds
-                
+            # Parse markPrice format per OpenAPI spec
+            # Trust exchange data structure - access fields directly
             return FundingInfo(
                 trading_pair=trading_pair,
-                index_price=index_price,
-                mark_price=mark_price,
-                next_funding_utc_timestamp=next_funding_time,
-                rate=funding_rate,
+                index_price=Decimal(str(funding_data["indexPrice"])),
+                mark_price=Decimal(str(funding_data["markPrice"])),
+                next_funding_utc_timestamp=funding_data["nextFundingTimestamp"] / 1000,  # ms to seconds
+                rate=Decimal(str(funding_data["fundingRate"])),
             )
 
         except Exception:
@@ -571,3 +540,4 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """Get current time in seconds."""
         import time
         return time.time()
+    

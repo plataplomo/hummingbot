@@ -35,6 +35,7 @@ OPEN_ORDERS_URL = "api/v1/orders"
 ORDER_HISTORY_URL = "api/v1/orderHistory"
 FILLS_URL = "api/v1/fills"
 BALANCES_URL = "api/v1/capital"  # Backpack uses /capital for balance information
+ACCOUNT_URL = "api/v1/account"  # Account info endpoint (may contain fee rates)
 
 # WebSocket channels
 # Note: Public channels require symbol suffix (e.g., "depth.SOL_USDC")
@@ -147,9 +148,9 @@ ERROR_CODE_RATE_LIMIT = "RATE_LIMIT"
 ERROR_CODE_INVALID_SIGNATURE = "INVALID_SIGNATURE"
 ERROR_CODE_EXPIRED_TIMESTAMP = "EXPIRED_TIMESTAMP"
 
-# Request timeouts
-REQUEST_TIMEOUT = 10.0
-WS_HEARTBEAT_INTERVAL = 30.0
+# Timing constants
+HEARTBEAT_TIME_INTERVAL = 30.0  # WebSocket heartbeat interval in seconds
+REQUEST_TIMEOUT = 10.0  # Default request timeout in seconds
 
 # Authentication window (5 seconds)
 AUTH_WINDOW_MS = 5000
