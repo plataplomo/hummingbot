@@ -18,10 +18,13 @@ COLLATERAL_TOKEN = "USDC"
 DEFAULT_POSITION_MODE = PositionMode.ONEWAY
 
 # Base URLs
-REST_URL = "https://api.backpack.exchange/"
-REST_URL_TESTNET = "https://api.backpack.exchange/"  # Backpack doesn't have separate testnet
-WS_PUBLIC_URL = "wss://ws.backpack.exchange/stream"
-WS_PRIVATE_URL = "wss://ws.backpack.exchange/stream"
+# Backpack does not have a testnet, so we only have mainnet configuration
+REST_URLS = {
+    "backpack_perpetual": "https://api.backpack.exchange/",
+}
+WSS_URLS = {
+    "backpack_perpetual": "wss://ws.backpack.exchange/",
+}
 
 # Public API endpoints
 EXCHANGE_INFO_URL = "api/v1/markets"
@@ -58,21 +61,23 @@ MARGIN_TYPE_URL = "api/v1/marginType"
 POSITION_MARGIN_URL = "api/v1/positionMargin"
 
 # WebSocket public channels
-WS_DEPTH_CHANNEL = "depth"
-WS_TRADES_CHANNEL = "trades"
-WS_TICKER_CHANNEL = "ticker"
-WS_KLINE_CHANNEL = "kline"
+# Note: Public channels require symbol suffix (e.g., "depth.SOL_USDC")
+WS_DEPTH_CHANNEL = "depth"  # Full format: depth.<symbol>
+WS_TRADES_CHANNEL = "trade"  # Full format: trade.<symbol> (NOT "trades")
+WS_TICKER_CHANNEL = "ticker"  # Full format: ticker.<symbol>
+WS_KLINE_CHANNEL = "kline"  # Full format: kline.<interval>.<symbol>
 
 # WebSocket private channels
-WS_ACCOUNT_ORDERS_CHANNEL = "account.orders"
-WS_ACCOUNT_BALANCES_CHANNEL = "account.balances"
-WS_ACCOUNT_FILLS_CHANNEL = "account.fills"
+WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Fixed from "account.orders"
+WS_ACCOUNT_BALANCES_CHANNEL = "account.balanceUpdate"  # Fixed from "account.balances"
+WS_ACCOUNT_FILLS_CHANNEL = "account.fillUpdate"  # Note: May not exist in Backpack API
 
 # Perpetual-specific WebSocket channels
-WS_ACCOUNT_POSITIONS_CHANNEL = "account.positions"
-WS_FUNDING_RATE_CHANNEL = "funding"
-WS_MARK_PRICE_CHANNEL = "markPrice"
-WS_LIQUIDATION_CHANNEL = "account.liquidation"
+WS_ACCOUNT_POSITIONS_CHANNEL = "account.positionUpdate"  # Fixed from "account.positions"
+WS_FUNDING_RATE_CHANNEL = "markPrice"  # Funding info comes via markPrice channel
+WS_MARK_PRICE_CHANNEL = "markPrice"  # Full format: markPrice.<symbol>
+WS_LIQUIDATION_CHANNEL = "liquidation"  # Not account-specific
+WS_OPEN_INTEREST_CHANNEL = "openInterest"  # Full format: openInterest.<symbol>
 
 # Order configuration
 BROKER_ID = "HBOT"

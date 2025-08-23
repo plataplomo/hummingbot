@@ -121,7 +121,8 @@ async def get_current_server_time(
     rest_assistant = await api_factory.get_rest_assistant()
 
     # Query server time endpoint
-    url = f"{CONSTANTS.REST_URL}{CONSTANTS.TIME_URL}"
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    url = f"{base_url}{CONSTANTS.TIME_URL}"
 
     async with throttler.execute_task(CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID):
         response = await rest_assistant.execute_request(
@@ -227,7 +228,7 @@ async def api_request(
             if isinstance(response, (dict, list)):
                 # Test mock returns dict/list directly
                 return response
-            
+
             # Check response status
             if response.status != 200:
                 if return_err:
@@ -254,29 +255,31 @@ async def api_request(
 def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
     """
     Get the full URL for a public REST endpoint.
-    
+
     Args:
         path_url: API endpoint path
         domain: Exchange domain
-    
+
     Returns:
         Full URL for the public endpoint
     """
-    return f"{CONSTANTS.REST_URL}{path_url}"
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    return f"{base_url}{path_url}"
 
 
 def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
     """
     Get the full URL for a private REST endpoint.
-    
+
     Args:
         path_url: API endpoint path
         domain: Exchange domain
-    
+
     Returns:
         Full URL for the private endpoint
     """
-    return f"{CONSTANTS.REST_URL}{path_url}"
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    return f"{base_url}{path_url}"
 
 
 def get_rest_url_for_endpoint(

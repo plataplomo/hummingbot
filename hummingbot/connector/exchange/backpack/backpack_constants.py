@@ -6,17 +6,21 @@ Based on Backpack API documentation and CyberDelta implementation insights.
 from hummingbot.core.api_throttler.data_types import RateLimit
 
 # Default domain
-DEFAULT_DOMAIN = "backpack_main"
+DEFAULT_DOMAIN = "backpack"
 
 # Base URLs
-REST_URL = "https://api.backpack.exchange/"
-WS_PUBLIC_URL = "wss://ws.backpack.exchange/"
-WS_PRIVATE_URL = "wss://ws.backpack.exchange/"
+# Backpack does not have a testnet, so we only have mainnet configuration
+REST_URLS = {
+    "backpack": "https://api.backpack.exchange/",
+}
+WSS_URLS = {
+    "backpack": "wss://ws.backpack.exchange/",
+}
 
 # Public REST API endpoints
 PING_URL = "api/v1/ping"
 TIME_URL = "api/v1/time"
-EXCHANGE_INFO_URL = "api/v1/capital"
+EXCHANGE_INFO_URL = "api/v1/markets"  # Fixed from "api/v1/capital"
 TICKER_URL = "api/v1/ticker"
 DEPTH_URL = "api/v1/depth"
 KLINES_URL = "api/v1/klines"
@@ -31,15 +35,17 @@ FILLS_URL = "api/v1/fills"
 BALANCES_URL = "api/v1/balances"
 
 # WebSocket channels
-WS_DEPTH_CHANNEL = "depth"
-WS_TRADES_CHANNEL = "trades"
-WS_TICKER_CHANNEL = "ticker"
+# Note: Public channels require symbol suffix (e.g., "depth.SOL_USDC")
+WS_DEPTH_CHANNEL = "depth"  # Full format: depth.<symbol>
+WS_TRADES_CHANNEL = "trade"  # Full format: trade.<symbol> (NOT "trades")
+WS_TICKER_CHANNEL = "ticker"  # Full format: ticker.<symbol>
+WS_KLINE_CHANNEL = "kline"  # Full format: kline.<interval>.<symbol>
 
 # Private WebSocket channels
-WS_ACCOUNT_ORDERS_CHANNEL = "account.orders"
-WS_ACCOUNT_BALANCES_CHANNEL = "account.balances"
-WS_ACCOUNT_POSITIONS_CHANNEL = "account.positions"
-WS_ACCOUNT_TRANSACTIONS_CHANNEL = "account.transactions"
+WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Fixed from "account.orders"
+WS_ACCOUNT_BALANCES_CHANNEL = "account.balanceUpdate"  # Fixed from "account.balances"
+WS_ACCOUNT_POSITIONS_CHANNEL = "account.positionUpdate"  # Note: Not applicable for spot
+WS_ACCOUNT_TRANSACTIONS_CHANNEL = "account.transactionUpdate"  # May not exist in API
 
 # Rate limits based on Backpack documentation
 # Orders: 10 requests per second

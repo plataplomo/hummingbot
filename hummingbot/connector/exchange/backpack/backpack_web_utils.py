@@ -93,7 +93,8 @@ async def get_current_server_time(
     rest_assistant = await api_factory.get_rest_assistant()
 
     async with throttler.execute_task(limit_id=CONSTANTS.TIME_URL):
-        url = f"{CONSTANTS.REST_URL}{CONSTANTS.TIME_URL}"
+        base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+        url = f"{base_url}{CONSTANTS.TIME_URL}"
         request = RESTRequest(
             method=RESTMethod.GET,
             url=url
@@ -121,7 +122,7 @@ def get_rest_url_for_endpoint(endpoint: str, domain: str = CONSTANTS.DEFAULT_DOM
     Returns:
         Full URL for the endpoint
     """
-    base_url = CONSTANTS.REST_URL
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
     if endpoint.startswith("/"):
         endpoint = endpoint[1:]
 
@@ -139,10 +140,8 @@ def get_ws_url(domain: str = CONSTANTS.DEFAULT_DOMAIN, private: bool = False) ->
     Returns:
         WebSocket URL
     """
-    if private:
-        return CONSTANTS.WS_PRIVATE_URL
-    else:
-        return CONSTANTS.WS_PUBLIC_URL
+    ws_url = CONSTANTS.WSS_URLS.get(domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    return ws_url
 
 
 class BackpackTimeSynchronizer(TimeSynchronizer):
