@@ -122,17 +122,15 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
 
                 # Subscribe to order book depth updates
-                subscriptions.append(f"{CONSTANTS.WS_DEPTH_CHANNEL}@{exchange_symbol}")
+                subscriptions.append(f"{CONSTANTS.WS_DEPTH_CHANNEL}.{exchange_symbol}")
 
                 # Subscribe to trade updates
-                subscriptions.append(f"{CONSTANTS.WS_TRADES_CHANNEL}@{exchange_symbol}")
+                subscriptions.append(f"{CONSTANTS.WS_TRADES_CHANNEL}.{exchange_symbol}")
 
             # Send subscription request
             subscription_payload = {
-                "method": "subscribe",
-                "params": {
-                    "subscriptions": subscriptions
-                }
+                "method": "SUBSCRIBE",
+                "params": subscriptions
             }
 
             subscribe_request = WSJSONRequest(payload=subscription_payload)

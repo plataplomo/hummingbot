@@ -176,12 +176,10 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         # Subscribe to all required private channels
         # Backpack uses the format: {"method": "SUBSCRIBE", "params": ["stream1", "stream2", ...]}
         channels = [
-            CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,      # Order updates
+            CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,      # Order updates (includes fills)
             CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL,    # Balance updates
-            CONSTANTS.WS_ACCOUNT_FILLS_CHANNEL,       # Trade fills
             CONSTANTS.WS_ACCOUNT_POSITIONS_CHANNEL,   # Position updates (perpetual-specific)
-            CONSTANTS.WS_FUNDING_RATE_CHANNEL,        # Funding payments (perpetual-specific)
-            CONSTANTS.WS_LIQUIDATION_CHANNEL,         # Liquidation warnings (perpetual-specific)
+            # Note: Funding and liquidation events are typically included in position updates
         ]
 
         subscribe_msg = {

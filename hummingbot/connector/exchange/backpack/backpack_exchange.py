@@ -722,8 +722,11 @@ class BackpackExchange(ExchangePyBase):
                 fee_amount=fee_amount
             )
 
-        # Calculate estimated fee (typically 0.1% for Backpack)
-        fee_rate = Decimal("0.001")  # 0.1%
+        # Get fee rate from trading fees configuration
+        # This should be fetched from exchange API or configuration
+        # For now, use estimate_fee_pct which should be set from exchange data
+        is_maker = order_type is OrderType.LIMIT
+        fee_rate = self.estimate_fee_pct(is_maker)
 
         if order_side == TradeType.BUY:
             # Fee paid in base currency
@@ -742,11 +745,39 @@ class BackpackExchange(ExchangePyBase):
     async def _update_trading_fees(self):
         """
         Update trading fees from exchange.
-        Note: Backpack typically uses a fixed fee structure
+        
+        Backpack may provide fee information in the account endpoint
+        or use a fixed fee structure. This should be fetched from the API
+        when available.
         """
-        # Backpack uses fixed fees for all trading pairs
-        # Maker: 0.1%, Taker: 0.1%
-        pass
+        try:
+            # Try to fetch account info which may contain fee rates
+            account_info = await self._api_get(
+                path_url=CONSTANTS.ACCOUNT_URL if hasattr(CONSTANTS, "ACCOUNT_URL") else "api/v1/account",
+                is_auth_required=True,
+                limit_id=CONSTANTS.BALANCES_URL  # Use balance rate limit
+            )
+            
+            # Look for fee information in the response
+            # The actual structure depends on Backpack's API response
+            # This is a placeholder - adjust based on actual API response
+            maker_fee = account_info.get("makerFeeRate")
+            taker_fee = account_info.get("takerFeeRate")
+            
+            if maker_fee is not None and taker_fee is not None:
+                self._maker_fee_percentage = Decimal(str(maker_fee))
+                self._taker_fee_percentage = Decimal(str(taker_fee))
+            else:
+                # If fee rates not available from API, log warning
+                # The base class should have default fees set
+                self.logger().warning(
+                    "Fee rates not available from Backpack API. "
+                    "Using default rates from configuration."
+                )
+                
+        except Exception as e:
+            self.logger().error(f"Error updating trading fees: {e}")
+            # Continue with existing fee configuration if update fails
 
     async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
         """
@@ -769,16 +800,30 @@ class BackpackExchange(ExchangePyBase):
                 # Convert exchange format to Hummingbot format
                 trading_pair = symbol.replace("_", "-")
                 
-                # Extract trading rule parameters
-                min_base_size = Decimal(str(symbol_info.get("minQuantity", "0.001")))
-                min_quote_size = Decimal(str(symbol_info.get("minQuoteQuantity", "1")))
-                tick_size = Decimal(str(symbol_info.get("tickSize", "0.01")))
-                step_size = Decimal(str(symbol_info.get("stepSize", "0.001")))
+                # Extract trading rule parameters - fail if not available
+                if "minQuantity" not in symbol_info:
+                    raise ValueError(f"minQuantity not available for {symbol}")
+                if "minQuoteQuantity" not in symbol_info:
+                    raise ValueError(f"minQuoteQuantity not available for {symbol}")
+                if "tickSize" not in symbol_info:
+                    raise ValueError(f"tickSize not available for {symbol}")
+                if "stepSize" not in symbol_info:
+                    raise ValueError(f"stepSize not available for {symbol}")
+                    
+                min_base_size = Decimal(str(symbol_info["minQuantity"]))
+                min_quote_size = Decimal(str(symbol_info["minQuoteQuantity"]))
+                tick_size = Decimal(str(symbol_info["tickSize"]))
+                step_size = Decimal(str(symbol_info["stepSize"]))
                 
+                # Get max order size from API or use None if not specified
+                max_order_size = None
+                if "maxQuantity" in symbol_info:
+                    max_order_size = Decimal(str(symbol_info["maxQuantity"]))
+                    
                 trading_rule = TradingRule(
                     trading_pair=trading_pair,
                     min_order_size=min_base_size,
-                    max_order_size=Decimal("1000000"),  # No max specified by Backpack
+                    max_order_size=max_order_size,
                     min_price_increment=tick_size,
                     min_base_amount_increment=step_size,
                     min_quote_amount_increment=min_quote_size,

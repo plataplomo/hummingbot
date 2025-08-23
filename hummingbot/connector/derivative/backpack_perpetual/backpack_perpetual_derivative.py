@@ -1313,9 +1313,29 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     async def _update_trading_fees(self):
         """Update trading fees from the exchange."""
-        # Backpack fees are typically fixed and configured in constants
-        # For perpetuals: 0.05% maker, 0.10% taker typically
-        pass
+        # Try to fetch fees from account endpoint if available
+        try:
+            account_info = await self._api_get(
+                path_url=CONSTANTS.ACCOUNT_URL,
+                is_auth_required=True,
+                limit_id=CONSTANTS.BALANCE_URL  # Use balance rate limit
+            )
+            
+            # Check if fee information is available in account response
+            if "makerFeeRate" in account_info or "takerFeeRate" in account_info:
+                # Update fee configuration if data is available
+                # This would need to be integrated with TradeFeeSchemaLoader
+                self.logger().info(
+                    f"Account fee rates - Maker: {account_info.get('makerFeeRate')}, "
+                    f"Taker: {account_info.get('takerFeeRate')}"
+                )
+            else:
+                # If not available, the TradeFeeSchemaLoader will use configured defaults
+                self.logger().debug("No fee rates in account info, using configured defaults")
+                
+        except Exception:
+            # If the endpoint doesn't exist or fails, fees will come from configuration
+            self.logger().debug("Could not fetch account fee rates, using configured defaults")
 
     async def _make_trading_pairs_request(self) -> Any:
         """

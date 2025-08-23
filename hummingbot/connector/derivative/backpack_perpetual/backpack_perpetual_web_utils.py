@@ -163,7 +163,7 @@ async def api_request(
     is_auth_required: bool = False,
     return_err: bool = False,
     limit_id: Optional[str] = None,
-    timeout: float = 10.0,
+    timeout: float = CONSTANTS.REQUEST_TIMEOUT,
     headers: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """

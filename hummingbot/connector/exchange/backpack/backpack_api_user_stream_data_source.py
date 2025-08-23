@@ -145,10 +145,8 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             ]
 
             subscription_payload = {
-                "method": "subscribe",
-                "params": {
-                    "subscriptions": subscriptions
-                }
+                "method": "SUBSCRIBE",
+                "params": subscriptions
             }
 
             subscribe_request = WSJSONRequest(payload=subscription_payload)

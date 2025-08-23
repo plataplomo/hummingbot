@@ -68,7 +68,7 @@ WS_KLINE_CHANNEL = "kline"  # Full format: kline.<interval>.<symbol>
 # WebSocket private channels
 WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Fixed from "account.orders"
 WS_ACCOUNT_BALANCES_CHANNEL = "account.balanceUpdate"  # Fixed from "account.balances"
-WS_ACCOUNT_FILLS_CHANNEL = "account.fillUpdate"  # Note: May not exist in Backpack API
+# Note: Backpack doesn't have a separate fills channel - fills come through orderUpdate
 
 # Perpetual-specific WebSocket channels
 WS_ACCOUNT_POSITIONS_CHANNEL = "account.positionUpdate"  # Fixed from "account.positions"
@@ -178,6 +178,9 @@ DEFAULT_LEVERAGE = 1  # Safe default, actual max per market from API
 # API provides: nextFundingTime, fundingRateLowerBound, fundingRateUpperBound
 FUNDING_INTERVAL_HOURS = 8  # Standard for crypto perpetuals
 FUNDING_SETTLEMENT_TIMES = ["00:00", "08:00", "16:00"]  # UTC standard
+
+# Request timeouts
+REQUEST_TIMEOUT = 10.0
 
 # WebSocket configuration
 WS_HEARTBEAT_INTERVAL = 30  # Send ping every 30 seconds
