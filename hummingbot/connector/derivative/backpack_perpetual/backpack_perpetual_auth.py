@@ -62,7 +62,6 @@ class BackpackPerpetualAuth(AuthBase):
             ("GET", "/api/v1/capital"): "balanceQuery",
             # Position endpoints for perpetuals
             ("GET", "/api/v1/position"): "positionQuery",
-            ("GET", "/api/v1/positions"): "positionQuery",
             # Order Management endpoints
             ("POST", "/api/v1/order"): "orderExecute",
             ("DELETE", "/api/v1/order"): "orderCancel",

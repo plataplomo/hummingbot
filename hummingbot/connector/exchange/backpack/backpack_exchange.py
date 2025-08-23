@@ -15,8 +15,11 @@ from hummingbot.connector.exchange.backpack import (
 from hummingbot.connector.exchange.backpack.backpack_api_order_book_data_source import BackpackAPIOrderBookDataSource
 from hummingbot.connector.exchange.backpack.backpack_api_user_stream_data_source import BackpackAPIUserStreamDataSource
 from hummingbot.connector.exchange.backpack.backpack_auth import BackpackAuth
+from bidict import bidict
+
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
+from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
@@ -421,6 +424,75 @@ class BackpackExchange(ExchangePyBase):
         except Exception as e:
             self.logger().error(f"Error fetching last traded prices: {e}")
             return {}
+
+    def _get_fee(self,
+                 base_currency: str,
+                 quote_currency: str,
+                 order_type: OrderType,
+                 order_side: TradeType,
+                 amount: Decimal,
+                 price: Decimal = Decimal("NaN"),
+                 is_maker: Optional[bool] = None) -> TradeFeeBase:
+        """
+        Get fee for an order.
+        
+        Args:
+            base_currency: Base currency of the trading pair
+            quote_currency: Quote currency of the trading pair
+            order_type: Order type
+            order_side: Order side (buy/sell)
+            amount: Order amount
+            price: Order price
+            is_maker: Whether the order is a maker order
+            
+        Returns:
+            TradeFeeBase object with fee information
+        """
+        is_maker = order_type is OrderType.LIMIT_MAKER
+        return DeductedFromReturnsTradeFee(percent=self.estimate_fee_pct(is_maker))
+    
+    async def _status_polling_loop_fetch_updates(self):
+        """
+        Fetch updates for the status polling loop.
+        This method is called periodically to update order status.
+        """
+        # Update order fills from trades if needed
+        await self._update_order_fills_from_trades()
+        # Call parent implementation
+        await super()._status_polling_loop_fetch_updates()
+    
+    async def _update_order_fills_from_trades(self):
+        """
+        Update order fills from recent trades.
+        This is used to ensure we capture all fills even if WebSocket messages are missed.
+        """
+        # This method can be implemented if needed for reliability
+        # For now, we rely on WebSocket updates and REST status queries
+        pass
+    
+    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
+        """
+        Initialize trading pair symbols from exchange info.
+        
+        Args:
+            exchange_info: Exchange market information
+        """
+        mapping = bidict()
+        
+        for symbol_data in exchange_info.get("data", []):
+            if symbol_data.get("status") == "ACTIVE":
+                # Backpack uses underscore format: BTC_USDC
+                exchange_symbol = symbol_data["symbol"]
+                # Convert to Hummingbot format: BTC-USDC
+                if "_" in exchange_symbol:
+                    parts = exchange_symbol.split("_")
+                    if len(parts) == 2:
+                        base_asset = parts[0]
+                        quote_asset = parts[1]
+                        hb_trading_pair = combine_to_hb_trading_pair(base=base_asset, quote=quote_asset)
+                        mapping[exchange_symbol] = hb_trading_pair
+        
+        self._set_trading_pair_symbol_map(mapping)
 
     # Balance management
     async def _update_balances(self):

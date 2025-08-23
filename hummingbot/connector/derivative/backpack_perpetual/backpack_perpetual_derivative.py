@@ -216,6 +216,27 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             True if mode is supported, False otherwise
         """
         return mode in CONSTANTS.SUPPORTED_POSITION_MODES
+    
+    def set_position_mode(self, position_mode: PositionMode):
+        """
+        Set the position mode for the connector.
+        
+        Note: Backpack only supports ONEWAY position mode, so this method
+        validates the mode and raises an exception if an unsupported mode is requested.
+        
+        Args:
+            position_mode: The position mode to set
+            
+        Raises:
+            ValueError: If the requested position mode is not supported
+        """
+        if position_mode != PositionMode.ONEWAY:
+            raise ValueError(
+                f"Backpack perpetual only supports ONEWAY position mode. "
+                f"Requested mode: {position_mode}"
+            )
+        self._position_mode = position_mode
+        self.logger().info(f"Position mode set to {position_mode} (only mode supported by Backpack)")
 
     def get_buy_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for long positions"""
@@ -331,6 +352,27 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             api_factory=self._web_assistants_factory,
             domain=self.domain,
         )
+
+    async def _status_polling_loop_fetch_updates(self):
+        """
+        Fetch updates for the status polling loop.
+        This method is called periodically to update order status and positions.
+        """
+        # Update positions for perpetual trading
+        await self._update_positions()
+        # Update order fills from trades if needed
+        await self._update_order_fills_from_trades()
+        # Call parent implementation
+        await super()._status_polling_loop_fetch_updates()
+    
+    async def _update_order_fills_from_trades(self):
+        """
+        Update order fills from recent trades.
+        This is used to ensure we capture all fills even if WebSocket messages are missed.
+        """
+        # This method can be implemented if needed for reliability
+        # For now, we rely on WebSocket updates and REST status queries
+        pass
 
     def _get_fee(
         self,
@@ -843,6 +885,20 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
     # Funding rate management
+    def get_funding_info(self, trading_pair: str) -> FundingInfo:
+        """
+        Get the stored funding information for a trading pair.
+        
+        This method is required by PerpetualDerivativePyBase.
+        
+        Args:
+            trading_pair: The trading pair to get funding info for
+            
+        Returns:
+            FundingInfo object containing current funding rate data
+        """
+        return self._perpetual_trading.get_funding_info(trading_pair)
+
     async def _update_funding_info(self):
         """Update funding rate information for all trading pairs."""
         tasks = []

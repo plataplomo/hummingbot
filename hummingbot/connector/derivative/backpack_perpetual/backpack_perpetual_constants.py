@@ -53,7 +53,7 @@ BALANCE_URL = "api/v1/capital"
 ACCOUNT_URL = "api/v1/account"
 
 # Perpetual-specific private endpoints
-POSITIONS_URL = "api/v1/positions"
+POSITIONS_URL = "api/v1/position"
 # Note: Backpack doesn't have a dedicated leverage endpoint - leverage is account-wide
 MARGIN_TYPE_URL = "api/v1/marginType"
 POSITION_MARGIN_URL = "api/v1/positionMargin"
