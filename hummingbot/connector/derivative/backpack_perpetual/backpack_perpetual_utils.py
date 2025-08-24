@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import Field, SecretStr
 
-from hummingbot.client.config.config_data_types import BaseConnectorConfigMap, ClientFieldData
+from hummingbot.client.config.config_data_types import BaseConnectorConfigMap
 from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
@@ -167,7 +167,6 @@ def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
     # Must be a dict
     if not isinstance(exchange_info, dict):
         return False
-        
     try:
         # Check for required fields based on Backpack's API structure
         # The exchange info should have a list of markets/symbols
@@ -193,9 +192,7 @@ def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
             # Alternative field name
             if not isinstance(exchange_info["markets"], list):
                 return False
-            if len(exchange_info["markets"]) == 0:
-                return False
-            return True
+            return len(exchange_info["markets"]) != 0
         return False
     except Exception:
         return False
@@ -274,36 +271,33 @@ def is_reduce_only_order(
         return True
 
     # Short position: buy orders are reduce-only
-    if position_side == "SHORT" and order_side == TradeType.BUY:
-        return True
-
-    return False
+    return bool(position_side == "SHORT" and order_side == TradeType.BUY)
 
 
 class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
     """Configuration map for Backpack Perpetual connector.
     """
 
-    connector: Literal["backpack_perpetual"] = Field(default="backpack_perpetual", client_data=None)
+    connector: Literal["backpack_perpetual"] = Field(default="backpack_perpetual")
 
     backpack_perpetual_api_key: SecretStr = Field(
-        default=...,
-        client_data=ClientFieldData(
-            prompt=lambda cm: "Enter your Backpack Perpetual API key",
-            is_secure=True,
-            is_connect_key=True,
-            prompt_on_new=True,
-        ),
+        ...,
+        json_schema_extra={
+            "prompt": "Enter your Backpack Perpetual API key",
+            "is_secure": True,
+            "is_connect_key": True,
+            "prompt_on_new": True,
+        },
     )
 
     backpack_perpetual_api_secret: SecretStr = Field(
-        default=...,
-        client_data=ClientFieldData(
-            prompt=lambda cm: "Enter your Backpack Perpetual API secret",
-            is_secure=True,
-            is_connect_key=True,
-            prompt_on_new=True,
-        ),
+        ...,
+        json_schema_extra={
+            "prompt": "Enter your Backpack Perpetual API secret",
+            "is_secure": True,
+            "is_connect_key": True,
+            "prompt_on_new": True,
+        },
     )
 
     class Config:
@@ -359,7 +353,7 @@ def get_trading_pair_from_symbol(symbol: str) -> str | None:
     return convert_from_exchange_trading_pair(symbol)
 
 
-def get_next_funding_timestamp(current_timestamp: float = None) -> int:
+def get_next_funding_timestamp(current_timestamp: float | None = None) -> int:
     """Calculate the next funding timestamp.
     
     Backpack perpetuals have funding every 8 hours at 00:00, 08:00, and 16:00 UTC.

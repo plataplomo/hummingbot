@@ -101,7 +101,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             throttler_limit_id=CONSTANTS.DEPTH_URL,
         )
 
-        return data
+        return data if isinstance(data, dict) else {}
 
     async def _subscribe_channels(self, ws: WSAssistant):
         """Subscribe to WebSocket channels for order book and trade data.
@@ -254,11 +254,13 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
                 async for ws_response in ws.iter_messages():
                     try:
+                        if ws_response is None or ws_response.data is None:
+                            continue
                         data = json.loads(ws_response.data)
                         await self._parse_trade_message(data, output)
                     except Exception:
                         self.logger().error(
-                            f"Error processing trade message: {ws_response.data}",
+                            "Error processing trade message",
                             exc_info=True,
                         )
 
@@ -289,11 +291,13 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
                 async for ws_response in ws.iter_messages():
                     try:
+                        if ws_response is None or ws_response.data is None:
+                            continue
                         data = json.loads(ws_response.data)
                         await self._parse_order_book_diff_message(data, output)
                     except Exception:
                         self.logger().error(
-                            f"Error processing order book diff message: {ws_response.data}",
+                            "Error processing order book diff message",
                             exc_info=True,
                         )
 
@@ -372,6 +376,8 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             )
 
             trading_pairs = []
+            if not isinstance(data, dict):
+                return []
             for symbol_data in data.get("symbols", []):
                 if symbol_data.get("status") == "TRADING":
                     exchange_symbol = symbol_data.get("symbol")

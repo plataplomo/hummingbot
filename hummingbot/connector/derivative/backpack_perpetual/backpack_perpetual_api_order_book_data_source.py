@@ -2,8 +2,11 @@
 Handles public market data streams including order books, trades, and tickers.
 """
 
+from __future__ import annotations
+
 import asyncio
 import json
+import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -13,10 +16,10 @@ from hummingbot.connector.derivative.backpack_perpetual import (
     backpack_perpetual_web_utils as web_utils,
 )
 from hummingbot.core.data_type.common import TradeType
-from hummingbot.core.data_type.funding_info import FundingInfo
+from hummingbot.core.data_type.funding_info import FundingInfo, FundingInfoUpdate
 from hummingbot.core.data_type.order_book_message import OrderBookMessage, OrderBookMessageType
-from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.data_type.perpetual_api_order_book_data_source import PerpetualAPIOrderBookDataSource
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
@@ -30,7 +33,7 @@ if TYPE_CHECKING:
 _logger: HummingbotLogger | None = None
 
 
-class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
+class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     """Data source for Backpack Perpetual order book updates.
     Manages WebSocket connections for real-time market data.
     """
@@ -38,7 +41,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
     def __init__(
         self,
         trading_pairs: list[str],
-        connector: "BackpackPerpetualDerivative",
+        connector: BackpackPerpetualDerivative,
         api_factory: WebAssistantsFactory,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
@@ -57,6 +60,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         self._ws_assistant: WSAssistant | None = None
         self._message_id_counter = 0
 
+    
     @classmethod
     def logger(cls) -> HummingbotLogger:
         global _logger
@@ -158,11 +162,14 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             is_auth_required=False,
         )
         
-        # The response is an array, even when filtered by symbol
+        # The response could be an array or dict, handle both cases
+        mark_price_data: dict[str, Any]
         if isinstance(mark_prices_response, list):
             mark_price_data = mark_prices_response[0] if mark_prices_response else {}
-        else:
+        elif isinstance(mark_prices_response, dict):
             mark_price_data = mark_prices_response
+        else:
+            mark_price_data = {}
         
         # Trust exchange data structure per OpenAPI spec
         # Convert to appropriate types
@@ -247,12 +254,12 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     await self._subscribe_to_channel(ws, CONSTANTS.WS_TRADES_CHANNEL, symbol)
 
                 async for ws_response in ws.iter_messages():
-                    data = json.loads(ws_response.data)
+                    if ws_response is None:
+                        continue
+                    data = json.loads(ws_response.data) if isinstance(ws_response.data, str) else ws_response.data
 
                     if self._is_trade_message(data):
-                        trade_msg = self._parse_trade_message(data)
-                        if trade_msg:
-                            await output.put(trade_msg)
+                        await self._parse_trade_message(data, output)
 
             except asyncio.CancelledError:
                 raise
@@ -271,18 +278,24 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             try:
                 ws = await self._create_websocket_connection()
 
-                # Subscribe to depth channels
+                # Subscribe to depth channels and funding info channels
                 for trading_pair in self._trading_pairs:
                     symbol = utils.convert_to_exchange_trading_pair(trading_pair)
                     await self._subscribe_to_channel(ws, CONSTANTS.WS_DEPTH_CHANNEL, symbol)
+                    # Also subscribe to markPrice for funding info
+                    await self._subscribe_to_channel(ws, CONSTANTS.WS_MARK_PRICE_CHANNEL, symbol)
 
                 async for ws_response in ws.iter_messages():
-                    data = json.loads(ws_response.data)
+                    if ws_response is None:
+                        continue
+                    data = json.loads(ws_response.data) if isinstance(ws_response.data, str) else ws_response.data
 
+                    # Route messages to appropriate handlers
                     if self._is_order_book_diff_message(data):
-                        diff_msg = self._parse_order_book_diff_message(data)
-                        if diff_msg:
-                            await output.put(diff_msg)
+                        await self._parse_order_book_diff_message(data, output)
+                    elif self._is_funding_info_message(data):
+                        # Put funding messages in the funding queue for processing
+                        self._message_queue[self._funding_info_messages_queue_key].put_nowait(data)
 
             except asyncio.CancelledError:
                 raise
@@ -344,6 +357,8 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     await self._subscribe_to_channel(ws, CONSTANTS.WS_MARK_PRICE_CHANNEL, symbol)
 
                 async for ws_response in ws.iter_messages():
+                    if ws_response is None:
+                        continue
                     data = json.loads(ws_response.data)
 
                     if self._is_funding_rate_message(data):
@@ -383,8 +398,101 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             "params": [f"{channel}.{symbol}"],  # Use dot notation as per Backpack docs
         }
 
-        await ws.send(json.dumps(subscribe_msg))
+        subscribe_request = WSJSONRequest(payload=subscribe_msg)
+        await ws.send(subscribe_request)
 
+    async def _parse_funding_info_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
+        """Parse funding info messages from WebSocket.
+        
+        Backpack sends funding info through the markPrice stream which includes:
+        - Mark price
+        - Index price  
+        - Funding rate
+        - Next funding timestamp
+        
+        Args:
+            raw_message: Raw funding info message from markPrice stream
+            message_queue: Queue to put parsed messages
+        """
+        try:
+            # Extract data from the wrapped message format
+            if "stream" in raw_message and "markPrice" in raw_message["stream"]:
+                data = raw_message.get("data", {})
+            else:
+                data = raw_message
+            
+            # Check if this is a markPrice event
+            if data.get("e") != "markPrice":
+                return
+            
+            # Extract symbol and convert to trading pair
+            symbol = data.get("s")
+            if not symbol:
+                return
+                
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+            if not trading_pair or trading_pair not in self._trading_pairs:
+                return
+            
+            # Parse funding info from markPrice message
+            # Format per Backpack docs:
+            # {
+            #   "e": "markPrice",           // Event type
+            #   "E": 1694687965941000,      // Event time in microseconds
+            #   "s": "SOL_USDC",            // Symbol
+            #   "p": "18.70",               // Mark price
+            #   "f": "1.70",                // Estimated funding rate
+            #   "i": "19.70",               // Index price
+            #   "n": 1694687965941000,      // Next funding timestamp in microseconds
+            # }
+            
+            # Create FundingInfoUpdate object similar to Binance/Bybit
+            from hummingbot.core.data_type.funding_info import FundingInfoUpdate
+            
+            funding_info = FundingInfoUpdate(trading_pair=trading_pair)
+            
+            # Set mark price if present
+            if "p" in data:
+                funding_info.mark_price = Decimal(str(data["p"]))
+            
+            # Set index price if present
+            if "i" in data:
+                funding_info.index_price = Decimal(str(data["i"]))
+            
+            # Set funding rate if present
+            if "f" in data:
+                funding_info.rate = Decimal(str(data["f"]))
+            
+            # Set next funding timestamp (convert from microseconds to seconds)
+            if "n" in data:
+                # Backpack sends microseconds, convert to seconds
+                funding_info.next_funding_utc_timestamp = int(data["n"]) // 1_000_000
+            
+            # Put the funding info update in the message queue
+            message_queue.put_nowait(funding_info)
+            
+        except Exception:
+            self.logger().exception(
+                f"Error parsing funding info message: {raw_message}"
+            )
+
+    def _is_funding_info_message(self, data: dict[str, Any]) -> bool:
+        """Check if message is a funding info (markPrice) update.
+        
+        Args:
+            data: Message data
+            
+        Returns:
+            True if this is a funding info message
+        """
+        # Check stream name if present
+        if "stream" in data and "markPrice" in data.get("stream", ""):
+            return True
+        
+        # Check event type
+        inner_data = data.get("data", data)
+        return inner_data.get("e") == "markPrice"
+    
     def _is_trade_message(self, data: dict[str, Any]) -> bool:
         """Check if message is a trade update."""
         # Check both wrapped format (stream + data) and direct format
@@ -411,63 +519,70 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         inner_data = data.get("data", data)
         return inner_data.get("e") in ["funding", "markPrice"] or inner_data.get("type") == "funding"
 
-    def _parse_trade_message(self, data: dict[str, Any]) -> OrderBookMessage | None:
+    async def _parse_trade_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
         """Parse trade message from WebSocket.
 
         Args:
-            data: Raw trade data
+            raw_message: Raw trade data
+            message_queue: Queue to put the parsed message
 
         Returns:
             OrderBookMessage or None if parsing fails
         """
         try:
             # Extract trade data
-            trade_data = data.get("data", data)
+            trade_data = raw_message.get("data", raw_message)
 
             # Get trading pair
             symbol = trade_data["symbol"]
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if not trading_pair:
-                return None  # Not a supported trading pair
+                return  # Not a supported trading pair
 
             # Trust exchange data structure - access fields directly
-            return OrderBookMessage(
+            trade_message = OrderBookMessage(
                 message_type=OrderBookMessageType.TRADE,
                 content={
                     "trading_pair": trading_pair,
                     "trade_id": str(trade_data.get("tradeId", trade_data.get("id"))),
                     "price": trade_data["price"],
                     "amount": trade_data["quantity"],
-                    "trade_type": float(TradeType.BUY.value) if trade_data["side"] == "Buy" else float(TradeType.SELL.value),
+                    "trade_type": (
+                        float(TradeType.BUY.value) 
+                        if trade_data["side"] == "Buy" 
+                        else float(TradeType.SELL.value)
+                    ),
                 },
                 timestamp=trade_data["timestamp"] / 1000.0,
             )
+            
+            await message_queue.put(trade_message)
 
         except Exception:
             self.logger().exception("Error parsing trade message")
-            return None
 
-    def _parse_order_book_diff_message(self, data: dict[str, Any]) -> OrderBookMessage | None:
+    async def _parse_order_book_diff_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
         """Parse order book diff message from WebSocket.
 
         Args:
-            data: Raw order book diff data
+            raw_message: Raw order book diff data
+            message_queue: Queue to put the parsed message
 
         Returns:
             OrderBookMessage or None if parsing fails
         """
         try:
             # Extract depth data
-            depth_data = data.get("data", data)
+            depth_data = raw_message.get("data", raw_message)
 
             # Get trading pair
             symbol = depth_data["symbol"]
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if not trading_pair:
-                return None  # Not a supported trading pair
+                return  # Not a supported trading pair
 
             # Trust exchange data - try alternate field names for compatibility
-            return OrderBookMessage(
+            diff_message = OrderBookMessage(
                 message_type=OrderBookMessageType.DIFF,
                 content={
                     "trading_pair": trading_pair,
@@ -478,10 +593,11 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 },
                 timestamp=(depth_data.get("timestamp", depth_data.get("T", self._time() * 1000))) / 1000.0,
             )
+            
+            await message_queue.put(diff_message)
 
         except Exception:
             self.logger().exception("Error parsing order book diff message")
-            return None
 
     def _parse_funding_rate_message(self, data: dict[str, Any]) -> FundingInfo | None:
         """Parse funding rate message from WebSocket.
@@ -523,6 +639,5 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     def _time(self) -> float:
         """Get current time in seconds."""
-        import time
         return time.time()
     

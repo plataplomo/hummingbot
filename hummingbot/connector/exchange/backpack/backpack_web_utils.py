@@ -30,12 +30,17 @@ class BackpackRESTPreProcessor(RESTPreProcessorBase):
         """
         if request.headers is None:
             request.headers = {}
+        
+        # Convert headers to dict if it's a Mapping
+        headers_dict = dict(request.headers) if request.headers else {}
 
         # Add default headers
-        request.headers.update({
+        headers_dict.update({
             "Content-Type": "application/json",
             "User-Agent": "Hummingbot-Backpack-Connector/1.0",
         })
+        
+        request.headers = headers_dict
 
         return request
 
@@ -210,18 +215,6 @@ class BackpackTimeSynchronizer(TimeSynchronizer):
         except Exception:
             # If time sync fails, continue with local time
             self._time_offset = 0
-
-
-def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:
-    """Create and configure async throttler for Backpack exchange.
-
-    Args:
-        domain: Exchange domain
-
-    Returns:
-        Configured AsyncThrottler
-    """
-    return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
 
 def build_rate_limits_by_tier() -> dict[str, Any]:

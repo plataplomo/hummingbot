@@ -1,5 +1,8 @@
 """Backpack Order Book implementation."""
 
+from __future__ import annotations
+
+from typing import Any
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.order_book import OrderBook
@@ -16,7 +19,7 @@ class BackpackOrderBook(OrderBook):
     @classmethod
     def snapshot_message_from_exchange(
         cls,
-        msg: dict[str, any],
+        msg: dict[str, Any],
         timestamp: float,
         metadata: dict | None = None,
     ) -> OrderBookMessage:
@@ -47,7 +50,7 @@ class BackpackOrderBook(OrderBook):
     @classmethod
     def diff_message_from_exchange(
         cls,
-        msg: dict[str, any],
+        msg: dict[str, Any],
         timestamp: float | None = None,
         metadata: dict | None = None,
     ) -> OrderBookMessage:
@@ -79,7 +82,7 @@ class BackpackOrderBook(OrderBook):
     @classmethod
     def trade_message_from_exchange(
         cls,
-        msg: dict[str, any],
+        msg: dict[str, Any],
         metadata: dict | None = None,
     ) -> OrderBookMessage:
         """Create a trade message from exchange data.

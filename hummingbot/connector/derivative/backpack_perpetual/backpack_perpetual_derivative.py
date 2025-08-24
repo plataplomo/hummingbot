@@ -3,6 +3,7 @@ Main derivative class implementing perpetual futures trading functionality.
 """
 
 import time
+from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -28,7 +29,6 @@ from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.funding_info import FundingInfo
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
-from hummingbot.core.data_type.perpetual_api_order_book_data_source import PerpetualAPIOrderBookDataSource
 from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase, TradeFeeSchema
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.event.events import (
@@ -58,7 +58,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     - Ed25519 authentication
     """
 
-    web_utils = web_utils
     SHORT_POLL_INTERVAL = 5.0
     UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
     LONG_POLL_INTERVAL = 120.0
@@ -101,10 +100,19 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     @property
     def authenticator(self) -> BackpackPerpetualAuth:
+        if self.backpack_perpetual_api_key is None or self.backpack_perpetual_api_secret is None:
+            raise ValueError("API key and secret are required for authentication")
+
+        # Convert TimeSynchronizer to a callable that returns int (milliseconds)
+
+        def time_provider() -> int:
+            if self._time_synchronizer:
+                return int(self._time_synchronizer.time() * 1000)
+            return int(time.time() * 1000)  # Fallback to system time
         return BackpackPerpetualAuth(
             self.backpack_perpetual_api_key,
             self.backpack_perpetual_api_secret,
-            self._time_synchronizer,
+            time_provider,
         )
 
     @property
@@ -336,9 +344,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             auth=self._auth,
         )
 
-    def _create_order_book_data_source(self) -> PerpetualAPIOrderBookDataSource:
+    def _create_order_book_data_source(self) -> BackpackPerpetualAPIOrderBookDataSource:
         return BackpackPerpetualAPIOrderBookDataSource(
-            trading_pairs=self._trading_pairs,
+            trading_pairs=self._trading_pairs or [],
             connector=self,
             api_factory=self._web_assistants_factory,
             domain=self.domain,
@@ -346,7 +354,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
         return BackpackPerpetualUserStreamDataSource(
-            auth=self._auth,
+            auth=self.authenticator,  # Use the property that returns BackpackPerpetualAuth
             connector=self,
             api_factory=self._web_assistants_factory,
             domain=self.domain,
@@ -557,7 +565,13 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
         # Handle both list format (direct response) and object format (wrapped in "positions" key)
-        positions = response if isinstance(response, list) else response.get("positions", [])
+        positions: list[Any]
+        if isinstance(response, list):
+            positions = response
+        elif isinstance(response, dict):
+            positions = response.get("positions", [])
+        else:
+            positions = []
 
         # Track which trading pairs have positions in the response
         trading_pairs_in_response = set()
@@ -567,7 +581,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             if symbol:
                 trading_pair = utils.convert_from_exchange_trading_pair(symbol)
                 # Only process positions for trading pairs we're actually tracking
-                if trading_pair and trading_pair in self._trading_pairs:
+                if trading_pair and self._trading_pairs and trading_pair in self._trading_pairs:
                     trading_pairs_in_response.add(trading_pair)
                     self._process_position_update(position_data)
 
@@ -602,10 +616,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 return
 
             # Determine position side - could be from 'side' field or calculated from quantity
-            if "side" in position_data:
-                is_long = position_data["side"] in ["LONG", "Long"]
-            else:
-                is_long = net_quantity > 0
+            is_long = position_data["side"] in ["LONG", "Long"] if "side" in position_data else net_quantity > 0
 
             # Skip if no position
             if abs(net_quantity) == Decimal(0):
@@ -724,7 +735,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Add reduce-only flag for closing positions
         if reduce_only:
-            order_data["reduceOnly"] = True
+            order_data["reduceOnly"] = "true"
 
         # Add price for limit orders
         if order_type == OrderType.LIMIT or order_type == OrderType.LIMIT_MAKER:
@@ -735,7 +746,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Add post-only flag for maker orders
         if order_type == OrderType.LIMIT_MAKER:
-            order_data["postOnly"] = True
+            order_data["postOnly"] = "true"
 
         response = await self._api_post(
             path_url=CONSTANTS.ORDER_URL,
@@ -795,8 +806,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
         # Look for our order - Backpack uses 'id' not 'orderId'
-        for order_data in response:
-            if (order_data.get("clientId") == tracked_order.client_order_id or
+        orders = response if isinstance(response, list) else []
+        for order_data in orders:
+            if isinstance(order_data, dict) and (order_data.get("clientId") == tracked_order.client_order_id or
                     order_data.get("id") == tracked_order.exchange_order_id):
 
                 return self._parse_order_update(order_data, tracked_order)
@@ -850,11 +862,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True,
         )
 
-        trade_updates = []
-
-        for fill_data in response:
-            trade_updates.append(
-                TradeUpdate(
+        trade_updates = [TradeUpdate(
                     trade_id=str(fill_data.get("tradeId", fill_data.get("id"))),
                     client_order_id=order.client_order_id,
                     exchange_order_id=order.exchange_order_id or "",  # Handle None case
@@ -864,8 +872,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
                     fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
                     fee=self._get_trade_fee_from_fill(fill_data),
-                ),
-            )
+                ) for fill_data in response]
 
         return trade_updates
 
@@ -897,9 +904,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     async def _update_funding_info(self):
         """Update funding rate information for all trading pairs."""
-        tasks = []
-        for trading_pair in self._trading_pairs:
-            tasks.append(self._fetch_funding_rate(trading_pair))
+        tasks = [self._fetch_funding_rate(trading_pair) for trading_pair in self._trading_pairs]
 
         funding_infos = await safe_gather(*tasks, return_exceptions=True)
 
@@ -1010,7 +1015,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 AccountEvent.PositionModeChangeFailed,
                 PositionModeChangeEvent(
                     timestamp=self.current_timestamp,
-                    trading_pair=None,
+                    trading_pair="",  # Empty string when no specific pair
                     position_mode=mode,
                     message=error_msg,
                 ),
@@ -1024,7 +1029,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             AccountEvent.PositionModeChangeSucceeded,
             PositionModeChangeEvent(
                 timestamp=self.current_timestamp,
-                trading_pair=None,
+                trading_pair="",  # Empty string when no specific pair
                 position_mode=mode,
                 message="Position mode confirmed as ONE-WAY (Backpack default)",
             ),
@@ -1121,7 +1126,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
-                fill_timestamp=fill_data.get("timestamp", self.current_timestamp) / 1000,
+                fill_timestamp=(fill_data.get("timestamp") or self.current_timestamp * 1000) / 1000,
                 fill_price=Decimal(str(fill_data["price"])),  # Required field
                 fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
                 fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
@@ -1175,10 +1180,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
                     # Map order type
                     order_type_str = order_data.get("orderType") or order_data.get("o") or "LIMIT"
-                    if "MARKET" in order_type_str.upper():
-                        order_type = OrderType.MARKET
-                    else:
-                        order_type = OrderType.LIMIT
+                    order_type = OrderType.MARKET if "MARKET" in order_type_str.upper() else OrderType.LIMIT
 
                     # Trust exchange data - try alternate field names for compatibility
                     price = Decimal(str(order_data.get("price", order_data.get("p"))))
@@ -1193,7 +1195,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         trade_type=trade_type,
                         price=price,
                         amount=quantity,
-                        creation_timestamp=order_data.get("timestamp", self.current_timestamp),
+                        creation_timestamp=float(order_data.get("timestamp", self.current_timestamp * 1000)) / 1000,
                     )
                     self._order_tracker.start_tracking_order(order)
                     tracked_order = order
@@ -1209,7 +1211,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 client_order_id=client_order_id,
                 exchange_order_id=order_data.get("id") or order_data.get("orderId"),  # Handle both formats
                 trading_pair=tracked_order.trading_pair,
-                update_timestamp=order_data.get("timestamp", self.current_timestamp) / 1000,
+                update_timestamp=(order_data.get("timestamp") or self.current_timestamp * 1000) / 1000,
                 new_state=new_state,
             )
 
@@ -1275,7 +1277,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         market=self.name,
                         trading_pair=trading_pair,
                         funding_rate=Decimal(str(data["fundingRate"])),
-                        payment=Decimal(str(data["payment"])),
+                        amount=Decimal(str(data["payment"])),
                     ),
                 )
         except Exception:
@@ -1529,12 +1531,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 is_auth_required=True,
             )
 
-            if response and len(response) > 0:
-                last_payment = response[0]
+            payments = response if isinstance(response, list) else []
+            if payments and len(payments) > 0:
+                last_payment = payments[0]
                 # Convert timestamp from ISO format or milliseconds
                 if "intervalEndTimestamp" in last_payment:
                     # Parse ISO timestamp
-                    from datetime import datetime
                     timestamp_str = last_payment["intervalEndTimestamp"]
                     dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
                     timestamp = int(dt.timestamp() * 1000)

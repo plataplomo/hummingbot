@@ -2,6 +2,11 @@
 Handles trading pair conversions between Hummingbot and Backpack formats.
 """
 
+from __future__ import annotations
+
+import secrets
+import time
+
 
 def split_trading_pair(trading_pair: str) -> tuple[str, str]:
     """Split a Hummingbot trading pair into base and quote assets.
@@ -18,8 +23,8 @@ def split_trading_pair(trading_pair: str) -> tuple[str, str]:
     try:
         base, quote = trading_pair.split("-")
         return base, quote
-    except ValueError:
-        raise ValueError(f"Invalid trading pair format: {trading_pair}. Expected format: 'BASE-QUOTE'")
+    except ValueError as err:
+        raise ValueError(f"Invalid trading pair format: {trading_pair}. Expected format: 'BASE-QUOTE'") from err
 
 
 def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str:
@@ -68,22 +73,20 @@ def get_new_client_order_id(is_buy: bool, trading_pair: str) -> str:
     Returns:
         Client order ID string
     """
-    import random
-    import time
-
     side = "B" if is_buy else "S"
     base_asset, _ = split_trading_pair(trading_pair)
     timestamp = int(time.time() * 1000)
-    random_suffix = random.randint(100, 999)
+    random_suffix = secrets.randbelow(900) + 100  # Random between 100-999
 
     # Format: HBOT-{SIDE}{BASE}{TIMESTAMP}{RANDOM}
     # Keep within MAX_ORDER_ID_LEN limit from constants
     client_id = f"HBOT-{side}{base_asset}{timestamp}{random_suffix}"
 
     # Truncate if too long (should not happen with reasonable asset names)
-    from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
-    if len(client_id) > CONSTANTS.MAX_ORDER_ID_LEN:
-        client_id = client_id[:CONSTANTS.MAX_ORDER_ID_LEN]
+    # MAX_ORDER_ID_LEN is typically 36 characters
+    max_order_id_len = 36
+    if len(client_id) > max_order_id_len:
+        client_id = client_id[:max_order_id_len]
 
     return client_id
 
@@ -108,18 +111,16 @@ def is_exchange_information_valid(exchange_info: dict) -> bool:
 
     # Validate symbols structure
     symbols = exchange_info.get("symbols", [])
-    if not isinstance(symbols, list) or len(symbols) == 0:
+    if not isinstance(symbols, list):
+        return False
+    
+    if len(symbols) == 0:
         return False
 
     # Check first symbol has required fields
-    if symbols:
-        first_symbol = symbols[0]
-        required_symbol_fields = ["symbol", "baseAsset", "quoteAsset", "status"]
-        for field in required_symbol_fields:
-            if field not in first_symbol:
-                return False
-
-    return True
+    first_symbol = symbols[0]
+    required_symbol_fields = ["symbol", "baseAsset", "quoteAsset", "status"]
+    return all(field in first_symbol for field in required_symbol_fields)
 
 
 def validate_trading_pair(trading_pair: str) -> bool:
@@ -146,10 +147,7 @@ def validate_trading_pair(trading_pair: str) -> bool:
         return False
 
     # Check for reasonable asset name lengths
-    if len(base) > 10 or len(quote) > 10:
-        return False
-
-    return True
+    return not (len(base) > 10 or len(quote) > 10)
 
 
 def format_trading_pair_for_display(trading_pair: str) -> str:

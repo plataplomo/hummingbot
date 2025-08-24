@@ -5,8 +5,6 @@ import asyncio
 from collections.abc import Callable
 from typing import Any
 
-from aiohttp import ContentTypeError
-
 from hummingbot.connector.derivative.backpack_perpetual import backpack_perpetual_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
@@ -127,18 +125,13 @@ async def get_current_server_time(
             throttler_limit_id=CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID,
         )
 
-        # Handle both dict (test) and response object (production)
-        if isinstance(response, dict):
-            # Test mock returns dict directly
-            data = response
+        # Response could be dict or string from execute_request
+        if isinstance(response, str):
+            # Try to parse as JSON if it's a string
+            import json
+            data: dict[str, Any] = json.loads(response)
         else:
-            if response.status != 200:
-                raise OSError(f"Error fetching server time. Response: {response}")
-
-            try:
-                data = await response.json()
-            except ContentTypeError:
-                raise OSError(f"Error parsing server time response: {await response.text()}")
+            data = response
 
         # Backpack returns time in milliseconds
         server_time_ms = data.get("serverTime", data.get("timestamp"))
@@ -195,10 +188,7 @@ async def api_request(
 
     # Determine rate limit ID
     if limit_id is None:
-        if is_auth_required:
-            limit_id = CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID
-        else:
-            limit_id = CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID
+        limit_id = CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID if is_auth_required else CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID
 
     # Build full URL
     base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
@@ -220,31 +210,17 @@ async def api_request(
                 timeout=timeout,
             )
 
-            # Handle both dict/list (test) and response object (production)
-            if isinstance(response, (dict, list)):
-                # Test mock returns dict/list directly
-                return response
+            # Response could be str or dict from execute_request
+            if isinstance(response, str):
+                # Try to parse as JSON if it's a string
+                import json
+                return json.loads(response)
+            return response
 
-            # Check response status
-            if response.status != 200:
-                if return_err:
-                    try:
-                        error_data = await response.json()
-                    except Exception:
-                        error_data = {"error": await response.text()}
-                    return error_data
-                raise OSError(f"Error in API request {method} {url}. Status: {response.status}. Response: {await response.text()}")
-
-            # Parse response
-            try:
-                return await response.json()
-            except ContentTypeError:
-                raise OSError(f"Error parsing response from {url}: {await response.text()}")
-
-        except asyncio.TimeoutError:
-            raise OSError(f"API request timeout {method} {url}")
+        except asyncio.TimeoutError as e:
+            raise OSError(f"API request timeout {method} {url}") from e
         except Exception as e:
-            raise OSError(f"Error in API request {method} {url}: {e!s}")
+            raise OSError(f"Error in API request {method} {url}: {e!s}") from e
 
 
 def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:

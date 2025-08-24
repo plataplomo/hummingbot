@@ -2,9 +2,12 @@
 Compatible with Python 3.10 and Hummingbot patterns.
 """
 
+from __future__ import annotations
+
 import base64
 import json
 import time
+from collections.abc import Callable
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
@@ -12,7 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest, WSRequest
 
 
 class BackpackAuth(AuthBase):
@@ -29,7 +32,7 @@ class BackpackAuth(AuthBase):
         self,
         api_key: str,
         api_secret: str,
-        time_provider: callable | None = None,
+        time_provider: Callable[[], int] | None = None,
     ):
         """Initialize Backpack authentication.
 
@@ -47,7 +50,7 @@ class BackpackAuth(AuthBase):
             private_key_bytes = base64.b64decode(api_secret)
             self._private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
         except Exception as e:
-            raise ValueError(f"Invalid API secret format. Expected base64 encoded Ed25519 private key: {e}")
+            raise ValueError(f"Invalid API secret format. Expected base64 encoded Ed25519 private key: {e}") from e
 
         # Initialize instruction mapping for Backpack REST API endpoints
         self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
@@ -86,7 +89,7 @@ class BackpackAuth(AuthBase):
             signature_bytes = self._private_key.sign(payload.encode("utf-8"))
             return base64.b64encode(signature_bytes).decode("utf-8")
         except Exception as e:
-            raise ValueError(f"Failed to generate signature: {e}")
+            raise ValueError(f"Failed to generate signature: {e}") from e
 
     def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
         """Get the instruction string for a given method and path.
@@ -149,9 +152,10 @@ class BackpackAuth(AuthBase):
             for key, value in sorted_params:
                 if value is not None:
                     # Convert booleans to lowercase strings
+                    formatted_value = value
                     if isinstance(value, bool):
-                        value = "true" if value else "false"
-                    payload_parts.append(f"{key}={value}")
+                        formatted_value = "true" if value else "false"
+                    payload_parts.append(f"{key}={formatted_value}")
         elif method.upper() in ["POST", "PUT", "DELETE"] and body:
             # For POST/PUT/DELETE, parse JSON body and add as parameters
             try:
@@ -160,16 +164,16 @@ class BackpackAuth(AuthBase):
                 for key, value in sorted_params:
                     if value is not None:
                         # Convert booleans to lowercase strings
+                        formatted_value = value
                         if isinstance(value, bool):
-                            value = "true" if value else "false"
-                        payload_parts.append(f"{key}={value}")
+                            formatted_value = "true" if value else "false"
+                        payload_parts.append(f"{key}={formatted_value}")
             except (json.JSONDecodeError, TypeError):
                 # If body is not JSON, skip parameter extraction
                 pass
 
         # Add timestamp and window
-        payload_parts.append(f"timestamp={timestamp}")
-        payload_parts.append(f"window={window}")
+        payload_parts.extend((f"timestamp={timestamp}", f"window={window}"))
 
         return "&".join(payload_parts)
 
@@ -217,24 +221,27 @@ class BackpackAuth(AuthBase):
         Returns:
             Authenticated request
         """
+        # Get URL, defaulting to empty string if None
+        url = request.url or ""
+        
         # Extract path from URL
-        if request.url.startswith("http"):
+        if url.startswith("http"):
             # Full URL provided
-            path = "/" + "/".join(request.url.split("/")[3:])
+            path = "/" + "/".join(url.split("/")[3:])
         else:
             # Relative path
-            path = request.url if request.url.startswith("/") else f"/{request.url}"
+            path = url if url.startswith("/") else f"/{url}"
 
         # Extract method and path
         method = request.method.name
 
         # Parse URL to get path and query string
-        if "?" in request.url:
-            path = request.url.split("?")[0]
-            query_string = request.url.split("?")[1]
+        if "?" in url:
+            path = url.split("?")[0]
+            query_string = url.split("?")[1]
             full_path = f"{path}?{query_string}"
         else:
-            path = request.url
+            path = url
             full_path = path
 
         # For Backpack API, we need just the path part without the base URL
@@ -252,7 +259,7 @@ class BackpackAuth(AuthBase):
             clean_path, query_string = full_path.split("?", 1)
             params = {k: v[0] for k, v in parse_qs(query_string).items()}
         elif request.params:
-            params = request.params
+            params = dict(request.params) if request.params else None
 
         # Generate auth headers with instruction-based signatures
         auth_headers = self._generate_auth_headers(
@@ -265,11 +272,15 @@ class BackpackAuth(AuthBase):
         # Add headers to request
         if request.headers is None:
             request.headers = {}
-        request.headers.update(auth_headers)
+        
+        # Convert headers to dict if it's a Mapping
+        headers_dict = dict(request.headers) if request.headers else {}
+        headers_dict.update(auth_headers)
+        request.headers = headers_dict
 
         return request
 
-    async def ws_authenticate(self, request: WSJSONRequest) -> WSJSONRequest:
+    async def ws_authenticate(self, request: WSRequest) -> WSRequest:
         """Add authentication to WebSocket request.
 
         Args:
@@ -297,9 +308,17 @@ class BackpackAuth(AuthBase):
             },
         }
 
-        if request.payload is None:
-            request.payload = {}
-        request.payload.update(auth_data)
+        # Check if it's a WSJSONRequest and update payload
+        if isinstance(request, WSJSONRequest):
+            current_payload = request.payload or {}
+            # Update payload (convert to dict if needed)
+            if hasattr(current_payload, "update"):
+                current_payload = dict(current_payload)
+                current_payload.update(auth_data)
+                request.payload = current_payload
+            else:
+                # If payload is immutable, create new dict
+                request.payload = {**dict(current_payload), **auth_data}
 
         return request
 

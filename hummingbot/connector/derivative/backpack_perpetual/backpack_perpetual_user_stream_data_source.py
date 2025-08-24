@@ -12,6 +12,7 @@ from hummingbot.connector.derivative.backpack_perpetual import (
 )
 from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth import BackpackPerpetualAuth
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
+from hummingbot.core.web_assistant.connections.data_types import WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
@@ -88,6 +89,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
                 # Listen for messages
                 async for ws_response in ws.iter_messages():
+                    if ws_response is None:
+                        continue
                     self._last_recv_time = self._time()
 
                     data = json.loads(ws_response.data)
@@ -134,7 +137,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         try:
             # Send authentication message
             auth_msg = self._auth.get_ws_auth_message()
-            await ws.send(json.dumps(auth_msg))
+            auth_request = WSJSONRequest(payload=auth_msg)
+            await ws.send(auth_request)
 
             # Wait for auth response
             auth_response_timeout = 10.0
@@ -143,7 +147,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
                 timeout=auth_response_timeout,
             )
 
-            response_data = json.loads(auth_response)
+            response_data = json.loads(auth_response.data) if auth_response else {}
 
             # Check auth success
             if response_data.get("result") == "success" or response_data.get("type") == "authenticated":
@@ -179,7 +183,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             "params": channels,
         }
 
-        await ws.send(json.dumps(subscribe_msg))
+        subscribe_request = WSJSONRequest(payload=subscribe_msg)
+        await ws.send(subscribe_request)
         self.logger().info(f"Subscribed to private channels: {channels}")
 
     def _process_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
@@ -373,7 +378,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             "method": "ping",
         }
 
-        await ws.send(json.dumps(ping_msg))
+        ping_request = WSJSONRequest(payload=ping_msg)
+        await ws.send(ping_request)
 
     async def _sleep(self, delay: float):
         """Sleep for specified delay.
