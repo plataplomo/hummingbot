@@ -174,8 +174,10 @@ class BackpackExchange(ExchangePyBase):
         return self._trading_required
 
     def supported_order_types(self) -> List[OrderType]:
-        """Get supported order types."""
-        return [OrderType.LIMIT, OrderType.MARKET]
+        """Get supported order types.
+        Note: LIMIT_MAKER is supported by converting to LIMIT with PostOnly timeInForce.
+        """
+        return [OrderType.LIMIT, OrderType.LIMIT_MAKER, OrderType.MARKET]
 
     # Factory methods
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
@@ -472,30 +474,6 @@ class BackpackExchange(ExchangePyBase):
         # For now, we rely on WebSocket updates and REST status queries
         pass
     
-    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
-        """
-        Initialize trading pair symbols from exchange info.
-        
-        Args:
-            exchange_info: Exchange market information
-        """
-        mapping = bidict()
-        
-        for symbol_data in exchange_info.get("data", []):
-            if symbol_data.get("status") == "ACTIVE":
-                # Backpack uses underscore format: BTC_USDC
-                exchange_symbol = symbol_data["symbol"]
-                # Convert to Hummingbot format: BTC-USDC
-                if "_" in exchange_symbol:
-                    parts = exchange_symbol.split("_")
-                    if len(parts) == 2:
-                        base_asset = parts[0]
-                        quote_asset = parts[1]
-                        hb_trading_pair = combine_to_hb_trading_pair(base=base_asset, quote=quote_asset)
-                        mapping[exchange_symbol] = hb_trading_pair
-        
-        self._set_trading_pair_symbol_map(mapping)
-
     # Balance management
     async def _update_balances(self):
         """Update account balances."""
@@ -547,18 +525,24 @@ class BackpackExchange(ExchangePyBase):
         order_data = {
             "symbol": exchange_symbol,
             "side": self.backpack_order_side(trade_type),
-            "orderType": self.backpack_order_type(order_type),
             "quantity": str(amount),
             "clientId": order_id,
         }
 
-        if order_type == OrderType.LIMIT:
+        # Handle LIMIT_MAKER by converting to LIMIT with PostOnly
+        if order_type == OrderType.LIMIT_MAKER:
+            order_data["orderType"] = "Limit"
+            order_data["price"] = str(price)
+            order_data["timeInForce"] = "PostOnly"
+        elif order_type == OrderType.LIMIT:
+            order_data["orderType"] = "Limit"
             order_data["price"] = str(price)  # Price is required for limit orders
-
-        # Add time in force if specified
-        time_in_force = kwargs.get("time_in_force")
-        if time_in_force:
-            order_data["timeInForce"] = CONSTANTS.TIME_IN_FORCE_MAP.get(time_in_force, "GTC")
+            # Add time in force if specified
+            time_in_force = kwargs.get("time_in_force")
+            if time_in_force:
+                order_data["timeInForce"] = CONSTANTS.TIME_IN_FORCE_MAP.get(time_in_force, "GTC")
+        else:  # MARKET order
+            order_data["orderType"] = "Market"
 
         try:
             response = await self._api_post(
@@ -634,11 +618,13 @@ class BackpackExchange(ExchangePyBase):
                 trade_update = TradeUpdate(
                     trade_id=fill["tradeId"],
                     client_order_id=order.client_order_id,
-                    exchange_order_id=order.exchange_order_id,
+                    exchange_order_id=order.exchange_order_id or "",  # Handle None case
                     trading_pair=order.trading_pair,
-                    fill_timestamp=fill["timestamp"] / 1000,
+                    # Backpack WebSocket uses microseconds, convert to seconds
+                    fill_timestamp=fill["timestamp"] / 1_000_000 if "timestamp" in fill else self.current_timestamp,
                     fill_price=Decimal(fill["price"]),
                     fill_base_amount=Decimal(fill["quantity"]),
+                    fill_quote_amount=Decimal(fill["quantity"]) * Decimal(fill["price"]),  # Calculate quote amount
                     fee=self._get_trade_fee(
                         base_currency=order.base_asset,
                         quote_currency=order.quote_asset,
@@ -779,6 +765,32 @@ class BackpackExchange(ExchangePyBase):
             self.logger().error(f"Error updating trading fees: {e}")
             # Continue with existing fee configuration if update fails
 
+    async def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: Dict[str, Any]):
+        """
+        Initialize trading pair symbol mappings from exchange info.
+        
+        This method is required by ExchangePyBase to map between Hummingbot's
+        trading pair format and the exchange's native symbol format.
+        
+        Args:
+            exchange_info: Exchange market information containing symbol details
+        """
+        mapping = bidict()
+        
+        # Get symbols from exchange info - Backpack format
+        symbols = exchange_info.get("data", exchange_info.get("symbols", []))
+        
+        for symbol_info in symbols:
+            if isinstance(symbol_info, dict):
+                exchange_symbol = symbol_info.get("symbol")
+                if exchange_symbol:
+                    # Convert exchange symbol to Hummingbot format
+                    trading_pair = await self.trading_pair_associated_to_exchange_symbol(exchange_symbol)
+                    if trading_pair:
+                        mapping[exchange_symbol] = trading_pair
+        
+        self._set_trading_pair_symbol_map(mapping)
+
     async def _format_trading_rules(self, exchange_info_dict: Dict[str, Any]) -> List[TradingRule]:
         """
         Format trading rules from exchange info.
@@ -872,7 +884,8 @@ class BackpackExchange(ExchangePyBase):
                 client_order_id=client_order_id,
                 exchange_order_id=data.get("orderId"),
                 trading_pair=tracked_order.trading_pair,
-                update_timestamp=data.get("timestamp", self.current_timestamp) / 1000,
+                # WebSocket timestamps are in microseconds, convert to seconds
+                update_timestamp=data.get("timestamp", self.current_timestamp * 1_000_000) / 1_000_000,
                 new_state=new_state,
                 fill_price=Decimal(data.get("price", "0")),
                 executed_amount_base=Decimal(data.get("executedQuantity", "0")),
@@ -917,7 +930,8 @@ class BackpackExchange(ExchangePyBase):
                 client_order_id=client_order_id,
                 exchange_order_id=data.get("orderId"),
                 trading_pair=tracked_order.trading_pair,
-                fill_timestamp=data.get("timestamp", self.current_timestamp) / 1000,
+                # WebSocket timestamps are in microseconds, convert to seconds
+                fill_timestamp=data.get("timestamp", self.current_timestamp * 1_000_000) / 1_000_000,
                 fill_price=Decimal(data["price"]),
                 fill_base_amount=Decimal(data["quantity"]),
                 fee=self._get_trade_fee(

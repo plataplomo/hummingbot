@@ -3,7 +3,6 @@ Backpack Perpetual Exchange connector for Hummingbot.
 Main derivative class implementing perpetual futures trading functionality.
 """
 
-import json
 import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -26,10 +25,11 @@ from hummingbot.connector.derivative.position import Position
 from hummingbot.connector.perpetual_derivative_py_base import PerpetualDerivativePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.api_throttler.data_types import RateLimit
+from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.funding_info import FundingInfo
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
-from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
+from hummingbot.core.data_type.perpetual_api_order_book_data_source import PerpetualAPIOrderBookDataSource
 from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase, TradeFeeSchema
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.event.events import (
@@ -67,8 +67,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     def __init__(
         self,
         client_config_map: "ClientConfigAdapter",
-        backpack_perpetual_api_key: str = None,
-        backpack_perpetual_api_secret: str = None,
+        backpack_perpetual_api_key: Optional[str] = None,
+        backpack_perpetual_api_secret: Optional[str] = None,
         trading_pairs: Optional[List[str]] = None,
         trading_required: bool = True,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
@@ -89,7 +89,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self._domain = domain
-        self._position_mode = None  # Initialize as None, set during connection
+        self._position_mode: Optional[PositionMode] = None  # Initialize as None, set during connection
         self._last_trade_history_timestamp = None
         self._leverage_map: Dict[str, int] = {}  # Store leverage per trading pair
         self._market_margin_requirements: Dict[str, Dict[str, Decimal]] = {}  # Store margin requirements per market
@@ -186,7 +186,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         return [OrderType.LIMIT, OrderType.MARKET]
 
-    @property
     def supported_position_modes(self) -> List[PositionMode]:
         """
         Backpack supports ONE-WAY mode only.
@@ -203,7 +202,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         if self._position_mode is None:
             self._position_mode = PositionMode.ONEWAY
-        return self._position_mode
+        return self._position_mode  # Type is guaranteed to be PositionMode after assignment
 
     def validate_position_mode(self, mode: PositionMode) -> bool:
         """
@@ -238,13 +237,22 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._position_mode = position_mode
         self.logger().info(f"Position mode set to {position_mode} (only mode supported by Backpack)")
 
+    def start(self, clock: Clock, timestamp: float):
+        """Start the connector and initialize position mode."""
+        super().start(clock, timestamp)
+        if self._domain == CONSTANTS.DEFAULT_DOMAIN and self.is_trading_required:
+            # Backpack only supports ONE-WAY mode
+            self.set_position_mode(PositionMode.ONEWAY)
+
     def get_buy_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for long positions"""
-        return CONSTANTS.COLLATERAL_TOKEN
+        trading_rule: TradingRule = self._trading_rules[trading_pair]
+        return trading_rule.buy_order_collateral_token
 
     def get_sell_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for short positions"""
-        return CONSTANTS.COLLATERAL_TOKEN
+        trading_rule: TradingRule = self._trading_rules[trading_pair]
+        return trading_rule.sell_order_collateral_token
 
     def get_max_leverage(self, trading_pair: str) -> Decimal:
         """Get the maximum leverage for a trading pair."""
@@ -337,7 +345,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             auth=self._auth
         )
 
-    def _create_order_book_data_source(self) -> OrderBookTrackerDataSource:
+    def _create_order_book_data_source(self) -> PerpetualAPIOrderBookDataSource:
         return BackpackPerpetualAPIOrderBookDataSource(
             trading_pairs=self._trading_pairs,
             connector=self,
@@ -434,7 +442,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             throttler=self._throttler,
             time_synchronizer=self._time_synchronizer,
             domain=self._domain,
-            data=json.dumps(data) if data else None,
+            data=data,
             method=RESTMethod.POST,
             is_auth_required=is_auth_required,
             limit_id=limit_id,
@@ -865,7 +873,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 TradeUpdate(
                     trade_id=str(fill_data.get("tradeId", fill_data.get("id"))),
                     client_order_id=order.client_order_id,
-                    exchange_order_id=order.exchange_order_id,
+                    exchange_order_id=order.exchange_order_id or "",  # Handle None case
                     trading_pair=order.trading_pair,
                     fill_timestamp=fill_data.get("timestamp", self.current_timestamp),
                     fill_price=Decimal(str(fill_data["price"])),  # Required field
