@@ -1,13 +1,12 @@
-"""
-Authentication for Backpack Perpetual Exchange using Ed25519 signatures.
+"""Authentication for Backpack Perpetual Exchange using Ed25519 signatures.
 Reuses the same authentication logic as the spot connector.
 """
 
 import base64
 import json
 import time
-from typing import Any, Dict, Optional, Tuple
-from urllib.parse import parse_qs, urlencode, urlparse
+from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
@@ -16,8 +15,7 @@ from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WS
 
 
 class BackpackPerpetualAuth(AuthBase):
-    """
-    Backpack Perpetual Exchange authentication using Ed25519 signatures.
+    """Backpack Perpetual Exchange authentication using Ed25519 signatures.
 
     This is identical to the spot authentication as Backpack uses the same
     authentication mechanism for both spot and perpetual markets.
@@ -33,10 +31,9 @@ class BackpackPerpetualAuth(AuthBase):
         self,
         api_key: str,
         api_secret: str,
-        time_provider: Optional[callable] = None
+        time_provider: callable | None = None,
     ):
-        """
-        Initialize Backpack Perpetual authentication.
+        """Initialize Backpack Perpetual authentication.
 
         Args:
             api_key: Backpack API key
@@ -55,7 +52,7 @@ class BackpackPerpetualAuth(AuthBase):
             raise ValueError(f"Invalid API secret format. Expected base64 encoded Ed25519 private key: {e}")
 
         # Initialize instruction mapping for Backpack REST API endpoints
-        self.INSTRUCTION_MAP: Dict[Tuple[str, str], str] = {
+        self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
             # Account endpoints
             ("GET", "/api/v1/account"): "accountQuery",
             # Capital and Balance endpoints
@@ -81,8 +78,7 @@ class BackpackPerpetualAuth(AuthBase):
         return int(time.time() * 1000)
 
     def _generate_signature(self, payload: str) -> str:
-        """
-        Generate Ed25519 signature for the given payload.
+        """Generate Ed25519 signature for the given payload.
 
         Args:
             payload: String to sign (timestamp + method + path + body)
@@ -91,14 +87,13 @@ class BackpackPerpetualAuth(AuthBase):
             Base64 encoded signature
         """
         try:
-            signature = self._private_key.sign(payload.encode('utf-8'))
-            return base64.b64encode(signature).decode('utf-8')
+            signature = self._private_key.sign(payload.encode("utf-8"))
+            return base64.b64encode(signature).decode("utf-8")
         except Exception as e:
             raise ValueError(f"Failed to generate signature: {e}")
 
     def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
-        """
-        Get the instruction string for a given method and path.
+        """Get the instruction string for a given method and path.
 
         Args:
             method: HTTP method (GET, POST, etc.)
@@ -108,7 +103,7 @@ class BackpackPerpetualAuth(AuthBase):
             Instruction string for signing
         """
         # Remove query parameters from path for lookup
-        lookup_path = path.split("?")[0] if "?" in path else path
+        lookup_path = path.split("?", maxsplit=1)[0] if "?" in path else path
         
         # Try exact match first
         instruction = self.INSTRUCTION_MAP.get((method.upper(), lookup_path))
@@ -125,12 +120,11 @@ class BackpackPerpetualAuth(AuthBase):
         timestamp: str,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        body: Optional[str] = None,
-        window: str = "5000"
+        params: dict[str, Any] | None = None,
+        body: str | None = None,
+        window: str = "5000",
     ) -> str:
-        """
-        Build the payload string for signing using instruction-based format.
+        """Build the payload string for signing using instruction-based format.
 
         Backpack signature format:
         instruction=<instruction>&<sorted_params>&timestamp=<timestamp>&window=<window>
@@ -187,11 +181,10 @@ class BackpackPerpetualAuth(AuthBase):
         self,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        body: Optional[str] = None
-    ) -> Dict[str, str]:
-        """
-        Generate authentication headers for a request.
+        params: dict[str, Any] | None = None,
+        body: str | None = None,
+    ) -> dict[str, str]:
+        """Generate authentication headers for a request.
 
         Returns:
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
@@ -206,7 +199,7 @@ class BackpackPerpetualAuth(AuthBase):
             path=path,
             params=params,
             body=body,
-            window=window
+            window=window,
         )
 
         # Generate signature
@@ -220,8 +213,7 @@ class BackpackPerpetualAuth(AuthBase):
         }
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
-        """
-        Add authentication headers to REST request.
+        """Add authentication headers to REST request.
 
         Args:
             request: REST request to authenticate
@@ -263,7 +255,7 @@ class BackpackPerpetualAuth(AuthBase):
             method=method,
             path=clean_path,
             params=params,
-            body=request.data
+            body=request.data,
         )
 
         # Add auth headers to request
@@ -274,8 +266,7 @@ class BackpackPerpetualAuth(AuthBase):
         return request
 
     async def ws_authenticate(self, request: WSJSONRequest) -> WSJSONRequest:
-        """
-        Add authentication to WebSocket request.
+        """Add authentication to WebSocket request.
 
         For Backpack, WebSocket authentication is done by sending an auth message
         after connection is established, not by modifying the connection request.
@@ -290,9 +281,8 @@ class BackpackPerpetualAuth(AuthBase):
         # No modification needed to the connection request itself
         return request
 
-    def get_ws_auth_message(self) -> Dict[str, Any]:
-        """
-        Generate WebSocket authentication message.
+    def get_ws_auth_message(self) -> dict[str, Any]:
+        """Generate WebSocket authentication message.
 
         Returns:
             Authentication message to send after WebSocket connection
@@ -311,6 +301,6 @@ class BackpackPerpetualAuth(AuthBase):
                 "apiKey": self.api_key,
                 "timestamp": timestamp,
                 "signature": signature,
-                "window": window
-            }
+                "window": window,
+            },
         }

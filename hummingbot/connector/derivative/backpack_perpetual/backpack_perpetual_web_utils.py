@@ -1,9 +1,9 @@
-"""
-Web utilities for Backpack Perpetual Exchange connector.
+"""Web utilities for Backpack Perpetual Exchange connector.
 """
 
 import asyncio
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from aiohttp import ContentTypeError
 
@@ -17,18 +17,18 @@ from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFa
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
 
-_bpwu_logger: Optional[HummingbotLogger] = None
+
+_bpwu_logger: HummingbotLogger | None = None
 
 
 def build_api_factory(
-    throttler: Optional[AsyncThrottler] = None,
-    time_synchronizer: Optional[TimeSynchronizer] = None,
+    throttler: AsyncThrottler | None = None,
+    time_synchronizer: TimeSynchronizer | None = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    time_provider: Optional[Callable] = None,
-    auth: Optional[AuthBase] = None,
+    time_provider: Callable | None = None,
+    auth: AuthBase | None = None,
 ) -> WebAssistantsFactory:
-    """
-    Build a WebAssistantsFactory for Backpack Perpetual.
+    """Build a WebAssistantsFactory for Backpack Perpetual.
 
     Args:
         throttler: Rate limiter for API requests
@@ -58,12 +58,11 @@ def build_api_factory(
 
 
 def build_api_factory_without_time_synchronizer_pre_processor(
-    throttler: Optional[AsyncThrottler] = None,
+    throttler: AsyncThrottler | None = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    auth: Optional[AuthBase] = None,
+    auth: AuthBase | None = None,
 ) -> WebAssistantsFactory:
-    """
-    Build a WebAssistantsFactory without time synchronization.
+    """Build a WebAssistantsFactory without time synchronization.
 
     This is useful for initial connections where time sync isn't available yet.
 
@@ -86,8 +85,7 @@ def build_api_factory_without_time_synchronizer_pre_processor(
 
 
 def create_throttler() -> AsyncThrottler:
-    """
-    Create a throttler with Backpack Perpetual rate limits.
+    """Create a throttler with Backpack Perpetual rate limits.
 
     Returns:
         Configured AsyncThrottler instance
@@ -96,11 +94,10 @@ def create_throttler() -> AsyncThrottler:
 
 
 async def get_current_server_time(
-    throttler: Optional[AsyncThrottler] = None,
+    throttler: AsyncThrottler | None = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
 ) -> float:
-    """
-    Get current server time from Backpack.
+    """Get current server time from Backpack.
 
     Args:
         throttler: Rate limiter for API requests
@@ -136,38 +133,37 @@ async def get_current_server_time(
             data = response
         else:
             if response.status != 200:
-                raise IOError(f"Error fetching server time. Response: {response}")
+                raise OSError(f"Error fetching server time. Response: {response}")
 
             try:
                 data = await response.json()
             except ContentTypeError:
-                raise IOError(f"Error parsing server time response: {await response.text()}")
+                raise OSError(f"Error parsing server time response: {await response.text()}")
 
         # Backpack returns time in milliseconds
         server_time_ms = data.get("serverTime", data.get("timestamp"))
         if server_time_ms is None:
-            raise IOError(f"No time field in response: {data}")
+            raise OSError(f"No time field in response: {data}")
 
         return int(server_time_ms) / 1000.0  # Convert to seconds
 
 
 async def api_request(
     path: str,
-    api_factory: Optional[WebAssistantsFactory] = None,
-    throttler: Optional[AsyncThrottler] = None,
-    time_synchronizer: Optional[TimeSynchronizer] = None,
+    api_factory: WebAssistantsFactory | None = None,
+    throttler: AsyncThrottler | None = None,
+    time_synchronizer: TimeSynchronizer | None = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    params: Optional[Dict[str, Any]] = None,
-    data: Optional[Dict[str, Any]] = None,
+    params: dict[str, Any] | None = None,
+    data: dict[str, Any] | None = None,
     method: RESTMethod = RESTMethod.GET,
     is_auth_required: bool = False,
     return_err: bool = False,
-    limit_id: Optional[str] = None,
+    limit_id: str | None = None,
     timeout: float = CONSTANTS.REQUEST_TIMEOUT,
-    headers: Optional[Dict[str, str]] = None,
-) -> Dict[str, Any]:
-    """
-    Make an API request to Backpack Perpetual.
+    headers: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Make an API request to Backpack Perpetual.
 
     Args:
         path: API endpoint path
@@ -237,24 +233,22 @@ async def api_request(
                     except Exception:
                         error_data = {"error": await response.text()}
                     return error_data
-                else:
-                    raise IOError(f"Error in API request {method} {url}. Status: {response.status}. Response: {await response.text()}")
+                raise OSError(f"Error in API request {method} {url}. Status: {response.status}. Response: {await response.text()}")
 
             # Parse response
             try:
                 return await response.json()
             except ContentTypeError:
-                raise IOError(f"Error parsing response from {url}: {await response.text()}")
+                raise OSError(f"Error parsing response from {url}: {await response.text()}")
 
         except asyncio.TimeoutError:
-            raise IOError(f"API request timeout {method} {url}")
+            raise OSError(f"API request timeout {method} {url}")
         except Exception as e:
-            raise IOError(f"Error in API request {method} {url}: {str(e)}")
+            raise OSError(f"Error in API request {method} {url}: {e!s}")
 
 
 def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Get the full URL for a public REST endpoint.
+    """Get the full URL for a public REST endpoint.
 
     Args:
         path_url: API endpoint path
@@ -268,8 +262,7 @@ def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> st
 
 
 def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Get the full URL for a private REST endpoint.
+    """Get the full URL for a private REST endpoint.
 
     Args:
         path_url: API endpoint path
@@ -286,8 +279,7 @@ def get_rest_url_for_endpoint(
     endpoint: str,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
 ) -> str:
-    """
-    Get the full REST URL for an endpoint.
+    """Get the full REST URL for an endpoint.
 
     Args:
         endpoint: API endpoint path
@@ -305,8 +297,7 @@ def get_ws_url_for_endpoint(
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
     public: bool = True,
 ) -> str:
-    """
-    Get the WebSocket URL for an endpoint.
+    """Get the WebSocket URL for an endpoint.
 
     Args:
         endpoint: WebSocket endpoint
@@ -327,8 +318,7 @@ async def build_ws_connection(
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
     public: bool = True,
 ) -> WSAssistant:
-    """
-    Build a WebSocket connection.
+    """Build a WebSocket connection.
 
     Args:
         api_factory: WebAssistantsFactory instance
@@ -350,8 +340,7 @@ async def build_ws_connection(
 
 
 def next_message_id() -> int:
-    """
-    Generate the next message ID for WebSocket messages.
+    """Generate the next message ID for WebSocket messages.
 
     Returns:
         Incrementing message ID

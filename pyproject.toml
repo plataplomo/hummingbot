@@ -31,3 +31,191 @@ combine_as_imports = true
 conda_env = "hummingbot"
 filter_files = true
 skip = ["setup.py"]
+
+# Ruff configuration for linting
+[tool.ruff]
+# Only include Backpack-related paths
+include = [
+    "hummingbot/connector/exchange/backpack/**/*.py",
+    "hummingbot/connector/derivative/backpack_perpetual/**/*.py",
+    "hummingbot/data_feed/candles_feed/backpack_perpetual_candles/**/*.py",
+]
+# Exclude everything else by default
+exclude = [
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".tox",
+    ".venv",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "__pycache__",
+    "workflow",
+    "vendor",
+]
+line-length = 120
+target-version = "py310"
+preview = true
+
+# Ruff linting options
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "I",   # isort
+    "UP",  # pyupgrade (modernize syntax)
+    "B",
+    "SIM",
+    "ASYNC",
+    "S",
+    "FURB",
+    "Q",
+    "COM",
+    "T",   # typing
+#    "D",   # docstrings
+    "Q",   # quality
+    "COM", # comments
+#    "C",   # complexity
+#    "RET", # return
+#    "TC004",  # type-checking
+    "RUF", # redundant-use-of-function
+    "SIM", # similar
+    "ERA", # commented-out-code
+#    "DOC", # docstrings
+    "INP", # import
+#    "PLR",
+    "G",
+    "DTZ",
+    "PT",
+    "NPY",
+    "PERF",
+    "A",
+    "EXE",  # executable code
+#    "N",
+    "PTH",
+    "PLC",
+    "PLW",
+    "PYI",
+    "ISC",
+    "PIE",
+    "TID",
+    "LOG",
+#    "BLE",
+#    "TRY",
+    "RSE",
+#    "SLF",
+    "PLE",
+    "PD",
+]
+
+# Ignore rules that conflict with current codebase formatting
+ignore = []
+
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+# Per-file ignores
+[tool.ruff.lint.per-file-ignores]
+# Allow assert statements and subprocess calls in tests
+"test/**/*.py" = ["S101", "S105", "S106", "PLR2004", "PLR6201", "PT011", "PT012", "N802", "N803", "N806", "TRY003", "TRY301", "FBT"]
+"tests/**/*.py" = ["S101", "S105", "S106", "PLR2004", "PLR6201", "PT011", "PT012", "N802", "N803", "N806", "TRY003", "TRY301", "FBT"]
+# Scripts are standalone and don't need __init__.py
+"scripts/**/*.py" = ["INP001", "TRY003", "TRY301", "FBT"]
+
+# Configure pydocstyle to match current docstring conventions
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# Configure import sorting (isort-compatible)
+[tool.ruff.lint.isort]
+# Known first-party imports for proper grouping
+known-first-party = ["hummingbot"]
+# Known third-party packages
+known-third-party = ["pytest", "pydantic", "numpy", "pandas"]
+# Split imports onto multiple lines based on line-length setting
+force-single-line = false
+# Combine "from x import a, b" on same line when possible
+combine-as-imports = true
+# Split imports with trailing comma
+split-on-trailing-comma = true
+# Add required blank lines after imports
+lines-after-imports = 2
+# Force imports to be sorted within their sections
+force-sort-within-sections = false
+# Case-sensitive sorting
+case-sensitive = false
+# Multi-line output style (matching isort multi_line_output = 3)
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
+
+# Ruff formatter configuration (Black-compatible)
+[tool.ruff.format]
+# Use double quotes to match codebase style
+quote-style = "double"
+# Use 4 spaces for indentation
+indent-style = "space"
+# Respect magic trailing comma (Black behavior)
+skip-magic-trailing-comma = false
+# Unix line endings
+line-ending = "auto"
+# Format code in docstrings
+docstring-code-format = true
+# Format code in docstrings with shorter line length
+docstring-code-line-length = 72
+
+# MyPy configuration - relaxed for existing codebase compatibility
+[tool.mypy]
+python_version = "3.10"
+# Basic checks
+check_untyped_defs = true
+warn_return_any = false
+warn_no_return = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+# Relax strict requirements that conflict with existing code
+disallow_untyped_defs = false  # Many functions lack annotations
+disallow_incomplete_defs = false  # Allow partial annotations
+disallow_untyped_decorators = false  # Allow untyped decorators
+disallow_untyped_calls = false  # Allow calls to untyped functions
+disallow_any_generics = false  # Allow Any in generics
+disallow_subclassing_any = false  # Allow subclassing Any
+disallow_any_unimported = false  # Allow Any from imports
+no_implicit_reexport = false  # Allow implicit re-exports
+
+# Keep some useful checks
+strict_optional = true
+no_implicit_optional = true
+warn_unreachable = true
+
+# Ignore missing imports (many internal modules lack stubs)
+ignore_missing_imports = true
+
+# Don't enable strict mode (too many violations)
+strict = false
+
+# Only check Backpack-related modules
+files = [
+    "hummingbot/connector/exchange/backpack/**/*.py",
+    "hummingbot/connector/derivative/backpack_perpetual/**/*.py",
+    "hummingbot/data_feed/candles_feed/backpack_perpetual_candles/**/*.py",
+]
+
+# Exclude everything else
+exclude = [
+    "^(?!hummingbot/connector/exchange/backpack/)(?!hummingbot/connector/derivative/backpack_perpetual/)(?!hummingbot/data_feed/candles_feed/backpack_perpetual_candles/).*$",
+]
+
+# More lenient settings for test files
+[[tool.mypy.overrides]]
+module = "test.*"
+disallow_untyped_decorators = false
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_decorators = false
+disallow_untyped_defs = false

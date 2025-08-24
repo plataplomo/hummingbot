@@ -1,11 +1,10 @@
-"""
-User stream data source for Backpack Perpetual Exchange.
+"""User stream data source for Backpack Perpetual Exchange.
 Handles private WebSocket streams for account updates, orders, positions, and funding.
 """
 
 import asyncio
 import json
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 from hummingbot.connector.derivative.backpack_perpetual import (
     backpack_perpetual_constants as CONSTANTS,
@@ -17,17 +16,17 @@ from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFa
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
 
+
 if TYPE_CHECKING:
     from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import (
         BackpackPerpetualDerivative,
     )
 
-_logger: Optional[HummingbotLogger] = None
+_logger: HummingbotLogger | None = None
 
 
 class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
-    """
-    Data source for Backpack Perpetual user stream updates.
+    """Data source for Backpack Perpetual user stream updates.
     Manages private WebSocket connections for account data.
     """
 
@@ -38,8 +37,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         api_factory: WebAssistantsFactory,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
-        """
-        Initialize the user stream data source.
+        """Initialize the user stream data source.
 
         Args:
             auth: Authentication handler
@@ -52,7 +50,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         self._connector = connector
         self._api_factory = api_factory
         self._domain = domain
-        self._ws_assistant: Optional[WSAssistant] = None
+        self._ws_assistant: WSAssistant | None = None
         self._last_recv_time: float = 0
         self._message_id_counter = 0
 
@@ -65,8 +63,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
     @property
     def last_recv_time(self) -> float:
-        """
-        Returns the timestamp of the last received message.
+        """Returns the timestamp of the last received message.
 
         Returns:
             Timestamp in seconds
@@ -74,8 +71,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         return self._last_recv_time
 
     async def listen_for_user_stream(self, output: asyncio.Queue):
-        """
-        Listen to user stream including position updates and funding payments.
+        """Listen to user stream including position updates and funding payments.
 
         Args:
             output: Queue to put user stream messages
@@ -112,8 +108,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
                     self._ws_assistant = None
 
     async def _create_websocket_connection(self) -> WSAssistant:
-        """
-        Create and return a WebSocket connection for private streams.
+        """Create and return a WebSocket connection for private streams.
 
         Returns:
             Connected WSAssistant instance
@@ -128,8 +123,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         return self._ws_assistant
 
     async def _authenticate_websocket(self, ws: WSAssistant) -> bool:
-        """
-        Authenticate WebSocket connection.
+        """Authenticate WebSocket connection.
 
         Args:
             ws: WebSocket assistant to authenticate
@@ -146,7 +140,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             auth_response_timeout = 10.0
             auth_response = await asyncio.wait_for(
                 ws.receive(),
-                timeout=auth_response_timeout
+                timeout=auth_response_timeout,
             )
 
             response_data = json.loads(auth_response)
@@ -155,9 +149,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             if response_data.get("result") == "success" or response_data.get("type") == "authenticated":
                 self.logger().info("WebSocket authentication successful")
                 return True
-            else:
-                self.logger().error(f"WebSocket authentication failed: {response_data}")
-                return False
+            self.logger().error(f"WebSocket authentication failed: {response_data}")
+            return False
 
         except asyncio.TimeoutError:
             self.logger().error("WebSocket authentication timeout")
@@ -167,8 +160,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             return False
 
     async def _subscribe_to_private_channels(self, ws: WSAssistant):
-        """
-        Subscribe to private WebSocket channels.
+        """Subscribe to private WebSocket channels.
 
         Args:
             ws: WebSocket assistant
@@ -184,15 +176,14 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         subscribe_msg = {
             "method": "SUBSCRIBE",
-            "params": channels
+            "params": channels,
         }
 
         await ws.send(json.dumps(subscribe_msg))
         self.logger().info(f"Subscribed to private channels: {channels}")
 
-    def _process_event(self, event: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Process WebSocket events and route them appropriately.
+    def _process_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
+        """Process WebSocket events and route them appropriately.
 
         Args:
             event: Raw WebSocket event
@@ -218,28 +209,26 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
             # Route based on event type/stream name
             if "order" in event_type.lower():
                 return self._process_order_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
-            elif "balance" in event_type.lower():
+            if "balance" in event_type.lower():
                 return self._process_balance_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
-            elif "position" in event_type.lower():
+            if "position" in event_type.lower():
                 return self._process_position_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
-            elif "fill" in event_type.lower() or "trade" in event_type.lower():
+            if "fill" in event_type.lower() or "trade" in event_type.lower():
                 return self._process_fill_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
-            elif "funding" in event_type.lower():
+            if "funding" in event_type.lower():
                 return self._process_funding_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
-            elif "liquidation" in event_type.lower():
+            if "liquidation" in event_type.lower():
                 return self._process_liquidation_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
-            else:
-                # Unknown event type - log for debugging
-                self.logger().debug(f"Unknown event type: {event_type}")
-                return None
+            # Unknown event type - log for debugging
+            self.logger().debug(f"Unknown event type: {event_type}")
+            return None
 
         except Exception:
             self.logger().exception(f"Error processing event: {event}")
             return None
 
-    def _process_order_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process order update event.
+    def _process_order_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Process order update event.
 
         Args:
             event: Raw order event
@@ -257,12 +246,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         return {
             "type": "order",
-            "data": data
+            "data": data,
         }
 
-    def _process_balance_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process balance update event.
+    def _process_balance_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Process balance update event.
 
         Args:
             event: Raw balance event
@@ -274,12 +262,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         return {
             "type": "balance",
-            "data": data
+            "data": data,
         }
 
-    def _process_position_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process position update event (perpetual-specific).
+    def _process_position_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Process position update event (perpetual-specific).
 
         Args:
             event: Raw position event
@@ -297,12 +284,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         return {
             "type": "position",
-            "data": data
+            "data": data,
         }
 
-    def _process_fill_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process trade fill event.
+    def _process_fill_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Process trade fill event.
 
         Args:
             event: Raw fill event
@@ -320,12 +306,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         return {
             "type": "fill",
-            "data": data
+            "data": data,
         }
 
-    def _process_funding_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process funding payment event (perpetual-specific).
+    def _process_funding_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Process funding payment event (perpetual-specific).
 
         Args:
             event: Raw funding event
@@ -343,12 +328,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         return {
             "type": "funding",
-            "data": data
+            "data": data,
         }
 
-    def _process_liquidation_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Process liquidation warning event (perpetual-specific).
+    def _process_liquidation_event(self, event: dict[str, Any]) -> dict[str, Any]:
+        """Process liquidation warning event (perpetual-specific).
 
         Args:
             event: Raw liquidation event
@@ -368,17 +352,16 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         self.logger().warning(
             f"LIQUIDATION WARNING for {data.get('trading_pair', data.get('symbol'))}: "
             f"Mark price {data.get('markPrice')} approaching "
-            f"liquidation price {data.get('liquidationPrice')}"
+            f"liquidation price {data.get('liquidationPrice')}",
         )
 
         return {
             "type": "liquidation",
-            "data": data
+            "data": data,
         }
 
     async def _send_ping(self, ws: WSAssistant):
-        """
-        Send ping message to keep connection alive.
+        """Send ping message to keep connection alive.
 
         Args:
             ws: WebSocket assistant
@@ -387,14 +370,13 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         ping_msg = {
             "id": self._message_id_counter,
-            "method": "ping"
+            "method": "ping",
         }
 
         await ws.send(json.dumps(ping_msg))
 
     async def _sleep(self, delay: float):
-        """
-        Sleep for specified delay.
+        """Sleep for specified delay.
 
         Args:
             delay: Seconds to sleep
@@ -402,8 +384,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         await asyncio.sleep(delay)
 
     def _time(self) -> float:
-        """
-        Get current time in seconds.
+        """Get current time in seconds.
 
         Returns:
             Current timestamp
@@ -412,8 +393,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         return time.time()
 
     async def stop(self):
-        """
-        Stop the user stream data source and clean up connections.
+        """Stop the user stream data source and clean up connections.
         """
         if self._ws_assistant:
             await self._ws_assistant.disconnect()

@@ -1,12 +1,11 @@
-"""
-Order book data source for Backpack Perpetual Exchange.
+"""Order book data source for Backpack Perpetual Exchange.
 Handles public market data streams including order books, trades, and tickers.
 """
 
 import asyncio
 import json
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from hummingbot.connector.derivative.backpack_perpetual import (
     backpack_perpetual_constants as CONSTANTS,
@@ -22,29 +21,28 @@ from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFa
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
 
+
 if TYPE_CHECKING:
     from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import (
         BackpackPerpetualDerivative,
     )
 
-_logger: Optional[HummingbotLogger] = None
+_logger: HummingbotLogger | None = None
 
 
 class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
-    """
-    Data source for Backpack Perpetual order book updates.
+    """Data source for Backpack Perpetual order book updates.
     Manages WebSocket connections for real-time market data.
     """
 
     def __init__(
         self,
-        trading_pairs: List[str],
+        trading_pairs: list[str],
         connector: "BackpackPerpetualDerivative",
         api_factory: WebAssistantsFactory,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
-        """
-        Initialize the order book data source.
+        """Initialize the order book data source.
 
         Args:
             trading_pairs: List of trading pairs to track
@@ -56,7 +54,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         self._connector = connector
         self._api_factory = api_factory
         self._domain = domain
-        self._ws_assistant: Optional[WSAssistant] = None
+        self._ws_assistant: WSAssistant | None = None
         self._message_id_counter = 0
 
     @classmethod
@@ -68,11 +66,10 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     async def get_last_traded_prices(
         self,
-        trading_pairs: List[str],
-        domain: Optional[str] = None
-    ) -> Dict[str, float]:
-        """
-        Get last traded prices for trading pairs.
+        trading_pairs: list[str],
+        domain: str | None = None,
+    ) -> dict[str, float]:
+        """Get last traded prices for trading pairs.
 
         Args:
             trading_pairs: List of trading pairs
@@ -108,10 +105,9 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     async def fetch_trading_pairs(
         self,
-        domain: Optional[str] = None
-    ) -> List[str]:
-        """
-        Fetch all available trading pairs from the exchange.
+        domain: str | None = None,
+    ) -> list[str]:
+        """Fetch all available trading pairs from the exchange.
 
         Args:
             domain: Exchange domain
@@ -143,8 +139,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         return trading_pairs
 
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
-        """
-        Get funding rate information for a trading pair.
+        """Get funding rate information for a trading pair.
 
         Args:
             trading_pair: Trading pair to fetch funding info for
@@ -182,8 +177,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         return funding_info
 
     async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
-        """
-        Get order book snapshot for a trading pair.
+        """Get order book snapshot for a trading pair.
 
         Args:
             trading_pair: Trading pair to fetch snapshot for
@@ -208,10 +202,9 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     async def get_order_book_data(
         self,
-        trading_pair: str
-    ) -> Dict[str, Any]:
-        """
-        Get order book snapshot from REST API.
+        trading_pair: str,
+    ) -> dict[str, Any]:
+        """Get order book snapshot from REST API.
 
         Args:
             trading_pair: Trading pair to fetch
@@ -238,8 +231,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         }
 
     async def listen_for_trades(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """
-        Listen for trade data via WebSocket.
+        """Listen for trade data via WebSocket.
 
         Args:
             ev_loop: Event loop
@@ -269,8 +261,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 await self._sleep(5.0)
 
     async def listen_for_order_book_diffs(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """
-        Listen for order book updates via WebSocket.
+        """Listen for order book updates via WebSocket.
 
         Args:
             ev_loop: Event loop
@@ -300,8 +291,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 await self._sleep(5.0)
 
     async def listen_for_order_book_snapshots(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """
-        Periodically fetch order book snapshots via REST API.
+        """Periodically fetch order book snapshots via REST API.
 
         Args:
             ev_loop: Event loop
@@ -339,8 +329,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 await self._sleep(5.0)
 
     async def listen_for_funding_info(self, output: asyncio.Queue):
-        """
-        Listen for funding rate updates.
+        """Listen for funding rate updates.
 
         Args:
             output: Queue to put funding info messages
@@ -381,8 +370,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         return ws
 
     async def _subscribe_to_channel(self, ws: WSAssistant, channel: str, symbol: str):
-        """
-        Subscribe to a WebSocket channel.
+        """Subscribe to a WebSocket channel.
 
         Args:
             ws: WebSocket assistant
@@ -392,12 +380,12 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         # Backpack uses the format: {"method": "SUBSCRIBE", "params": ["stream_name"]}
         subscribe_msg = {
             "method": "SUBSCRIBE",
-            "params": [f"{channel}.{symbol}"]  # Use dot notation as per Backpack docs
+            "params": [f"{channel}.{symbol}"],  # Use dot notation as per Backpack docs
         }
 
         await ws.send(json.dumps(subscribe_msg))
 
-    def _is_trade_message(self, data: Dict[str, Any]) -> bool:
+    def _is_trade_message(self, data: dict[str, Any]) -> bool:
         """Check if message is a trade update."""
         # Check both wrapped format (stream + data) and direct format
         if "stream" in data and data.get("stream", "").startswith("trade."):
@@ -405,7 +393,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         inner_data = data.get("data", data)
         return inner_data.get("e") == "trade" or inner_data.get("type") == "trade"
 
-    def _is_order_book_diff_message(self, data: Dict[str, Any]) -> bool:
+    def _is_order_book_diff_message(self, data: dict[str, Any]) -> bool:
         """Check if message is an order book diff."""
         # Check both wrapped format (stream + data) and direct format
         if "stream" in data and data.get("stream", "").startswith("depth."):
@@ -414,7 +402,7 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         inner_data = data.get("data", data)
         return inner_data.get("e") == "depth" or inner_data.get("type") == "depth"
 
-    def _is_funding_rate_message(self, data: Dict[str, Any]) -> bool:
+    def _is_funding_rate_message(self, data: dict[str, Any]) -> bool:
         """Check if message is a funding rate update."""
         # Check both wrapped format (stream + data) and direct format
         if "stream" in data and (data.get("stream", "").startswith("funding.") or 
@@ -423,9 +411,8 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
         inner_data = data.get("data", data)
         return inner_data.get("e") in ["funding", "markPrice"] or inner_data.get("type") == "funding"
 
-    def _parse_trade_message(self, data: Dict[str, Any]) -> Optional[OrderBookMessage]:
-        """
-        Parse trade message from WebSocket.
+    def _parse_trade_message(self, data: dict[str, Any]) -> OrderBookMessage | None:
+        """Parse trade message from WebSocket.
 
         Args:
             data: Raw trade data
@@ -460,9 +447,8 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             self.logger().exception("Error parsing trade message")
             return None
 
-    def _parse_order_book_diff_message(self, data: Dict[str, Any]) -> Optional[OrderBookMessage]:
-        """
-        Parse order book diff message from WebSocket.
+    def _parse_order_book_diff_message(self, data: dict[str, Any]) -> OrderBookMessage | None:
+        """Parse order book diff message from WebSocket.
 
         Args:
             data: Raw order book diff data
@@ -497,9 +483,8 @@ class BackpackPerpetualAPIOrderBookDataSource(OrderBookTrackerDataSource):
             self.logger().exception("Error parsing order book diff message")
             return None
 
-    def _parse_funding_rate_message(self, data: Dict[str, Any]) -> Optional[FundingInfo]:
-        """
-        Parse funding rate message from WebSocket.
+    def _parse_funding_rate_message(self, data: dict[str, Any]) -> FundingInfo | None:
+        """Parse funding rate message from WebSocket.
 
         Args:
             data: Raw funding rate data

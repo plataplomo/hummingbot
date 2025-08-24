@@ -1,9 +1,8 @@
-"""
-Utility functions for Backpack Perpetual Exchange connector.
+"""Utility functions for Backpack Perpetual Exchange connector.
 """
 
 from decimal import Decimal
-from typing import Any, Dict, Literal, Optional, Tuple
+from typing import Any, Literal
 
 from pydantic import Field, SecretStr
 
@@ -14,6 +13,7 @@ from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 from . import backpack_perpetual_constants as CONSTANTS
 
+
 # Backpack uses underscore format for symbols
 TRADING_PAIR_SPLITTER = "_"
 
@@ -23,9 +23,8 @@ DEFAULT_FEES = TradeFeeSchema(
 )
 
 
-def split_trading_pair(trading_pair: str) -> Tuple[str, str]:
-    """
-    Split a Hummingbot trading pair into base and quote assets.
+def split_trading_pair(trading_pair: str) -> tuple[str, str]:
+    """Split a Hummingbot trading pair into base and quote assets.
 
     Args:
         trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
@@ -49,9 +48,8 @@ def split_trading_pair(trading_pair: str) -> Tuple[str, str]:
     return parts[0], parts[1]
 
 
-def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> Optional[str]:
-    """
-    Convert Backpack exchange format to Hummingbot format.
+def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str | None:
+    """Convert Backpack exchange format to Hummingbot format.
 
     For perpetuals:
     - BTC_PERP -> BTC-USDC
@@ -78,9 +76,8 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> Optional[s
             # If it's just BASE_PERP (e.g., BTC_PERP), add quote currency from constants
             if TRADING_PAIR_SPLITTER not in symbol:
                 return f"{symbol}-{CONSTANTS.COLLATERAL_TOKEN}"
-            else:
-                # It's BASE_QUOTE_PERP (e.g., SOL_USDC_PERP)
-                return symbol.replace(TRADING_PAIR_SPLITTER, "-")
+            # It's BASE_QUOTE_PERP (e.g., SOL_USDC_PERP)
+            return symbol.replace(TRADING_PAIR_SPLITTER, "-")
         
         # Handle regular spot pairs (if any)
         if TRADING_PAIR_SPLITTER in exchange_trading_pair:
@@ -92,8 +89,7 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> Optional[s
 
 
 def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
-    """
-    Convert Hummingbot format to Backpack exchange format.
+    """Convert Hummingbot format to Backpack exchange format.
 
     For perpetuals with standard quote currency:
     - BTC-USDC -> BTC_PERP
@@ -113,18 +109,16 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     # For standard perpetual quote currency, use simplified format (e.g., BTC_PERP)
     if quote == CONSTANTS.COLLATERAL_TOKEN:
         return f"{base}_PERP"
-    else:
-        # For other quote currencies, use full format
-        return f"{base}_{quote}_PERP"
+    # For other quote currencies, use full format
+    return f"{base}_{quote}_PERP"
 
 
 def get_new_client_order_id(
     is_buy: bool,
     trading_pair: str,
-    max_id_len: Optional[int] = None
+    max_id_len: int | None = None,
 ) -> str:
-    """
-    Generate a new client order ID for Backpack.
+    """Generate a new client order ID for Backpack.
 
     Format: HBOT-<timestamp>-<B/S>-<pair_abbrev>
 
@@ -158,9 +152,8 @@ def get_new_client_order_id(
     return order_id
 
 
-def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
-    """
-    Check if the exchange information response is valid.
+def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
+    """Check if the exchange information response is valid.
 
     Args:
         exchange_info: Response from exchange info endpoint
@@ -196,22 +189,20 @@ def is_exchange_information_valid(exchange_info: Dict[str, Any]) -> bool:
                         return False
             
             return True
-        elif "markets" in exchange_info:
+        if "markets" in exchange_info:
             # Alternative field name
             if not isinstance(exchange_info["markets"], list):
                 return False
             if len(exchange_info["markets"]) == 0:
                 return False
             return True
-        else:
-            return False
+        return False
     except Exception:
         return False
 
 
-def decimal_val_or_none(string_value: str) -> Optional[Decimal]:
-    """
-    Convert a string to Decimal or return None if invalid.
+def decimal_val_or_none(string_value: str) -> Decimal | None:
+    """Convert a string to Decimal or return None if invalid.
 
     Args:
         string_value: String representation of a number
@@ -229,10 +220,9 @@ def decimal_val_or_none(string_value: str) -> Optional[Decimal]:
 
 def get_position_action(
     in_flight_order: InFlightOrder,
-    current_position_amount: Decimal
+    current_position_amount: Decimal,
 ) -> PositionAction:
-    """
-    Determine the position action for an order based on current position.
+    """Determine the position action for an order based on current position.
 
     Args:
         in_flight_order: The order to analyze
@@ -242,7 +232,7 @@ def get_position_action(
         PositionAction.OPEN or PositionAction.CLOSE
     """
     # If no position, any order opens a position
-    if current_position_amount == Decimal("0"):
+    if current_position_amount == Decimal(0):
         return PositionAction.OPEN
 
     # Long position exists
@@ -251,26 +241,22 @@ def get_position_action(
         if in_flight_order.trade_type == TradeType.BUY:
             return PositionAction.OPEN
         # Sell reduces/closes long position
-        else:
-            return PositionAction.CLOSE
+        return PositionAction.CLOSE
 
     # Short position exists
-    else:
-        # Sell adds to short position
-        if in_flight_order.trade_type == TradeType.SELL:
-            return PositionAction.OPEN
-        # Buy reduces/closes short position
-        else:
-            return PositionAction.CLOSE
+    # Sell adds to short position
+    if in_flight_order.trade_type == TradeType.SELL:
+        return PositionAction.OPEN
+    # Buy reduces/closes short position
+    return PositionAction.CLOSE
 
 
 def is_reduce_only_order(
     order_side: TradeType,
     position_side: str,
-    position_amount: Decimal
+    position_amount: Decimal,
 ) -> bool:
-    """
-    Determine if an order should be reduce-only based on position.
+    """Determine if an order should be reduce-only based on position.
 
     Args:
         order_side: Side of the order (BUY/SELL)
@@ -295,8 +281,7 @@ def is_reduce_only_order(
 
 
 class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
-    """
-    Configuration map for Backpack Perpetual connector.
+    """Configuration map for Backpack Perpetual connector.
     """
 
     connector: Literal["backpack_perpetual"] = Field(default="backpack_perpetual", client_data=None)
@@ -308,7 +293,7 @@ class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
             is_secure=True,
             is_connect_key=True,
             prompt_on_new=True,
-        )
+        ),
     )
 
     backpack_perpetual_api_secret: SecretStr = Field(
@@ -318,7 +303,7 @@ class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
             is_secure=True,
             is_connect_key=True,
             prompt_on_new=True,
-        )
+        ),
     )
 
     class Config:
@@ -327,8 +312,7 @@ class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
 
 # Order type validation
 def is_order_type_valid(order_type: OrderType) -> bool:
-    """
-    Check if the order type is supported by Backpack Perpetual.
+    """Check if the order type is supported by Backpack Perpetual.
 
     Args:
         order_type: Order type to validate
@@ -339,14 +323,13 @@ def is_order_type_valid(order_type: OrderType) -> bool:
     return order_type in [
         OrderType.LIMIT,
         OrderType.MARKET,
-        OrderType.LIMIT_MAKER
+        OrderType.LIMIT_MAKER,
     ]
 
 
 # Symbol validation for perpetuals
 def is_perpetual_symbol(symbol: str) -> bool:
-    """
-    Check if a symbol is a perpetual contract.
+    """Check if a symbol is a perpetual contract.
 
     For Backpack, perpetual symbols end with _PERP.
 
@@ -362,9 +345,8 @@ def is_perpetual_symbol(symbol: str) -> bool:
     return symbol.endswith("_PERP")
 
 
-def get_trading_pair_from_symbol(symbol: str) -> Optional[str]:
-    """
-    Extract trading pair from a perpetual symbol.
+def get_trading_pair_from_symbol(symbol: str) -> str | None:
+    """Extract trading pair from a perpetual symbol.
     
     Args:
         symbol: Exchange symbol (e.g., "BTC_PERP")
@@ -378,8 +360,7 @@ def get_trading_pair_from_symbol(symbol: str) -> Optional[str]:
 
 
 def get_next_funding_timestamp(current_timestamp: float = None) -> int:
-    """
-    Calculate the next funding timestamp.
+    """Calculate the next funding timestamp.
     
     Backpack perpetuals have funding every 8 hours at 00:00, 08:00, and 16:00 UTC.
     

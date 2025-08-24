@@ -1,13 +1,12 @@
-"""
-Authentication for Backpack Exchange using Ed25519 signatures.
+"""Authentication for Backpack Exchange using Ed25519 signatures.
 Compatible with Python 3.10 and Hummingbot patterns.
 """
 
 import base64
 import json
 import time
-from typing import Any, Dict, Optional, Tuple
-from urllib.parse import parse_qs, urlencode, urlparse
+from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
@@ -17,8 +16,7 @@ from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WS
 
 
 class BackpackAuth(AuthBase):
-    """
-    Backpack Exchange authentication using Ed25519 signatures.
+    """Backpack Exchange authentication using Ed25519 signatures.
 
     Implements the authentication pattern required by Backpack:
     - X-API-Key: API key
@@ -31,10 +29,9 @@ class BackpackAuth(AuthBase):
         self,
         api_key: str,
         api_secret: str,
-        time_provider: Optional[callable] = None
+        time_provider: callable | None = None,
     ):
-        """
-        Initialize Backpack authentication.
+        """Initialize Backpack authentication.
 
         Args:
             api_key: Backpack API key
@@ -53,7 +50,7 @@ class BackpackAuth(AuthBase):
             raise ValueError(f"Invalid API secret format. Expected base64 encoded Ed25519 private key: {e}")
 
         # Initialize instruction mapping for Backpack REST API endpoints
-        self.INSTRUCTION_MAP: Dict[Tuple[str, str], str] = {
+        self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
             # Account endpoints
             ("GET", "/api/v1/account"): "accountQuery",
             # Capital and Balance endpoints
@@ -77,8 +74,7 @@ class BackpackAuth(AuthBase):
         return int(time.time() * 1000)
 
     def _generate_signature(self, payload: str) -> str:
-        """
-        Generate Ed25519 signature for the given payload.
+        """Generate Ed25519 signature for the given payload.
 
         Args:
             payload: String to sign (timestamp + method + path + body)
@@ -87,14 +83,13 @@ class BackpackAuth(AuthBase):
             Base64 encoded signature
         """
         try:
-            signature_bytes = self._private_key.sign(payload.encode('utf-8'))
-            return base64.b64encode(signature_bytes).decode('utf-8')
+            signature_bytes = self._private_key.sign(payload.encode("utf-8"))
+            return base64.b64encode(signature_bytes).decode("utf-8")
         except Exception as e:
             raise ValueError(f"Failed to generate signature: {e}")
 
     def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
-        """
-        Get the instruction string for a given method and path.
+        """Get the instruction string for a given method and path.
 
         Args:
             method: HTTP method (GET, POST, etc.)
@@ -104,7 +99,7 @@ class BackpackAuth(AuthBase):
             Instruction string for signing
         """
         # Remove query parameters from path for lookup
-        lookup_path = path.split("?")[0] if "?" in path else path
+        lookup_path = path.split("?", maxsplit=1)[0] if "?" in path else path
 
         # Try exact match first
         instruction = self.INSTRUCTION_MAP.get((method.upper(), lookup_path))
@@ -121,12 +116,11 @@ class BackpackAuth(AuthBase):
         timestamp: str,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        body: Optional[str] = None,
-        window: str = "5000"
+        params: dict[str, Any] | None = None,
+        body: str | None = None,
+        window: str = "5000",
     ) -> str:
-        """
-        Build the payload string for signing using instruction-based format.
+        """Build the payload string for signing using instruction-based format.
 
         Backpack signature format:
         instruction=<instruction>&<sorted_params>&timestamp=<timestamp>&window=<window>
@@ -183,11 +177,10 @@ class BackpackAuth(AuthBase):
         self,
         method: str,
         path: str,
-        params: Optional[Dict[str, Any]] = None,
-        body: Optional[str] = None
-    ) -> Dict[str, str]:
-        """
-        Generate authentication headers for a request.
+        params: dict[str, Any] | None = None,
+        body: str | None = None,
+    ) -> dict[str, str]:
+        """Generate authentication headers for a request.
 
         Returns:
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
@@ -202,7 +195,7 @@ class BackpackAuth(AuthBase):
             path=path,
             params=params,
             body=body,
-            window=window
+            window=window,
         )
 
         # Generate signature
@@ -216,8 +209,7 @@ class BackpackAuth(AuthBase):
         }
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
-        """
-        Add authentication headers to REST request.
+        """Add authentication headers to REST request.
 
         Args:
             request: REST request to authenticate
@@ -267,7 +259,7 @@ class BackpackAuth(AuthBase):
             method=method,
             path=clean_path,
             params=params,
-            body=request.data
+            body=request.data,
         )
 
         # Add headers to request
@@ -278,8 +270,7 @@ class BackpackAuth(AuthBase):
         return request
 
     async def ws_authenticate(self, request: WSJSONRequest) -> WSJSONRequest:
-        """
-        Add authentication to WebSocket request.
+        """Add authentication to WebSocket request.
 
         Args:
             request: WebSocket request to authenticate
@@ -302,8 +293,8 @@ class BackpackAuth(AuthBase):
                 "apiKey": self.api_key,
                 "timestamp": timestamp,
                 "signature": signature,
-                "window": window
-            }
+                "window": window,
+            },
         }
 
         if request.payload is None:
@@ -312,9 +303,8 @@ class BackpackAuth(AuthBase):
 
         return request
 
-    def get_ws_auth_message(self) -> Dict[str, Any]:
-        """
-        Generate WebSocket authentication message.
+    def get_ws_auth_message(self) -> dict[str, Any]:
+        """Generate WebSocket authentication message.
 
         Returns:
             Authentication message for WebSocket
@@ -333,6 +323,6 @@ class BackpackAuth(AuthBase):
                 "apiKey": self.api_key,
                 "timestamp": timestamp,
                 "signature": signature,
-                "window": window
-            }
+                "window": window,
+            },
         }

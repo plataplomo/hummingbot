@@ -4,6 +4,7 @@ from bidict import bidict
 
 from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
 
+
 # Backpack API endpoints - perpetual uses same endpoints as spot
 REST_URL = "https://api.backpack.exchange"
 HEALTH_CHECK_ENDPOINT = "/api/v1/ping"
@@ -28,7 +29,7 @@ INTERVALS = bidict({
     "1d": "1d",
     "3d": "3d",
     "1w": "1w",
-    "1M": "1month"  # Note: Backpack uses "1month" not "1M"
+    "1M": "1month",  # Note: Backpack uses "1month" not "1M"
 })
 
 # Maximum results per REST request
@@ -41,12 +42,12 @@ RATE_LIMITS = [
         CANDLES_ENDPOINT,
         limit=20,
         time_interval=1,
-        linked_limits=[LinkedLimitWeightPair("raw", 1)]
+        linked_limits=[LinkedLimitWeightPair("raw", 1)],
     ),
     RateLimit(
         HEALTH_CHECK_ENDPOINT,
         limit=20,
         time_interval=1,
-        linked_limits=[LinkedLimitWeightPair("raw", 1)]
-    )
+        linked_limits=[LinkedLimitWeightPair("raw", 1)],
+    ),
 ]

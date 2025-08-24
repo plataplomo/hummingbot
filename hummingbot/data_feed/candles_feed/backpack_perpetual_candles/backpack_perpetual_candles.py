@@ -1,7 +1,6 @@
 """Backpack Perpetual Candles Feed Implementation."""
 
 import logging
-from typing import Optional
 
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.data_feed.candles_feed.backpack_perpetual_candles import constants as CONSTANTS
@@ -12,7 +11,7 @@ from hummingbot.logger import HummingbotLogger
 class BackpackPerpetualCandles(CandlesBase):
     """Candles feed for Backpack perpetual futures markets."""
 
-    _logger: Optional[HummingbotLogger] = None
+    _logger: HummingbotLogger | None = None
 
     @classmethod
     def logger(cls) -> HummingbotLogger:
@@ -75,7 +74,7 @@ class BackpackPerpetualCandles(CandlesBase):
         rest_assistant = await self._api_factory.get_rest_assistant()
         await rest_assistant.execute_request(
             url=self.health_check_url,
-            throttler_limit_id=CONSTANTS.HEALTH_CHECK_ENDPOINT
+            throttler_limit_id=CONSTANTS.HEALTH_CHECK_ENDPOINT,
         )
         return NetworkStatus.CONNECTED
 
@@ -93,7 +92,7 @@ class BackpackPerpetualCandles(CandlesBase):
         self,
         start_time: int | None = None,
         end_time: int | None = None,
-        limit: int | None = CONSTANTS.MAX_RESULTS_PER_CANDLESTICK_REST_REQUEST
+        limit: int | None = CONSTANTS.MAX_RESULTS_PER_CANDLESTICK_REST_REQUEST,
     ) -> dict:
         """Build parameters for REST API klines request."""
         params = {
@@ -128,7 +127,7 @@ class BackpackPerpetualCandles(CandlesBase):
                 float(kline.get("quoteVolume", 0)),
                 int(kline.get("trades", 0)),
                 0.0,  # taker_buy_base_volume - not provided by Backpack
-                0.0   # taker_buy_quote_volume - not provided by Backpack
+                0.0,   # taker_buy_quote_volume - not provided by Backpack
             ]
             parsed_candles.append(candle_row)
 
@@ -139,7 +138,7 @@ class BackpackPerpetualCandles(CandlesBase):
         stream_name = f"kline.{self.intervals[self.interval]}.{self._ex_trading_pair}"
         return {
             "method": "SUBSCRIBE",
-            "params": [stream_name]
+            "params": [stream_name],
         }
 
     def _parse_websocket_message(self, data: dict):

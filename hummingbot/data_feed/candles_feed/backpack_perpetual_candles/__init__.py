@@ -4,4 +4,5 @@ from hummingbot.data_feed.candles_feed.backpack_perpetual_candles.backpack_perpe
     BackpackPerpetualCandles,
 )
 
+
 __all__ = ["BackpackPerpetualCandles"]

@@ -1,6 +1,5 @@
 """Backpack Order Book implementation."""
 
-from typing import Dict, Optional
 
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.core.data_type.order_book import OrderBook
@@ -8,8 +7,7 @@ from hummingbot.core.data_type.order_book_message import OrderBookMessage, Order
 
 
 class BackpackOrderBook(OrderBook):
-    """
-    Order book implementation for Backpack spot exchange.
+    """Order book implementation for Backpack spot exchange.
 
     Handles the conversion of Backpack-specific order book messages
     to the standard Hummingbot format.
@@ -18,12 +16,11 @@ class BackpackOrderBook(OrderBook):
     @classmethod
     def snapshot_message_from_exchange(
         cls,
-        msg: Dict[str, any],
+        msg: dict[str, any],
         timestamp: float,
-        metadata: Optional[Dict] = None
+        metadata: dict | None = None,
     ) -> OrderBookMessage:
-        """
-        Create a snapshot message from exchange data.
+        """Create a snapshot message from exchange data.
 
         Args:
             msg: The snapshot data from the exchange
@@ -42,20 +39,19 @@ class BackpackOrderBook(OrderBook):
                 "trading_pair": msg["trading_pair"],
                 "update_id": msg["lastUpdateId"],
                 "bids": msg["bids"],
-                "asks": msg["asks"]
+                "asks": msg["asks"],
             },
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
     @classmethod
     def diff_message_from_exchange(
         cls,
-        msg: Dict[str, any],
-        timestamp: Optional[float] = None,
-        metadata: Optional[Dict] = None
+        msg: dict[str, any],
+        timestamp: float | None = None,
+        metadata: dict | None = None,
     ) -> OrderBookMessage:
-        """
-        Create a diff message from exchange data.
+        """Create a diff message from exchange data.
 
         Args:
             msg: The diff data from the exchange
@@ -75,19 +71,18 @@ class BackpackOrderBook(OrderBook):
                 "first_update_id": msg["U"],
                 "update_id": msg["u"],
                 "bids": msg["b"],
-                "asks": msg["a"]
+                "asks": msg["a"],
             },
-            timestamp=timestamp
+            timestamp=timestamp,
         )
 
     @classmethod
     def trade_message_from_exchange(
         cls,
-        msg: Dict[str, any],
-        metadata: Optional[Dict] = None
+        msg: dict[str, any],
+        metadata: dict | None = None,
     ) -> OrderBookMessage:
-        """
-        Create a trade message from exchange data.
+        """Create a trade message from exchange data.
 
         Args:
             msg: The trade data from the exchange
@@ -108,7 +103,7 @@ class BackpackOrderBook(OrderBook):
                 "trade_id": msg["t"],
                 "update_id": ts,
                 "price": msg["p"],
-                "amount": msg["q"]
+                "amount": msg["q"],
             },
-            timestamp=ts * 1e-3
+            timestamp=ts * 1e-3,
         )

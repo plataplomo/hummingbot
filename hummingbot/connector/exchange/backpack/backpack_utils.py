@@ -1,14 +1,10 @@
-"""
-Utility functions for Backpack exchange connector.
+"""Utility functions for Backpack exchange connector.
 Handles trading pair conversions between Hummingbot and Backpack formats.
 """
 
-from typing import Tuple
 
-
-def split_trading_pair(trading_pair: str) -> Tuple[str, str]:
-    """
-    Split a Hummingbot trading pair into base and quote assets.
+def split_trading_pair(trading_pair: str) -> tuple[str, str]:
+    """Split a Hummingbot trading pair into base and quote assets.
 
     Args:
         trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
@@ -27,8 +23,7 @@ def split_trading_pair(trading_pair: str) -> Tuple[str, str]:
 
 
 def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str:
-    """
-    Convert trading pair from Backpack exchange format to Hummingbot format.
+    """Convert trading pair from Backpack exchange format to Hummingbot format.
 
     Backpack uses underscore format: "BTC_USDC"
     Hummingbot uses dash format: "BTC-USDC"
@@ -46,8 +41,7 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str:
 
 
 def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
-    """
-    Convert trading pair from Hummingbot format to Backpack exchange format.
+    """Convert trading pair from Hummingbot format to Backpack exchange format.
 
     Hummingbot uses dash format: "BTC-USDC"
     Backpack uses underscore format: "BTC_USDC"
@@ -65,8 +59,7 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
 
 
 def get_new_client_order_id(is_buy: bool, trading_pair: str) -> str:
-    """
-    Generate a new client order ID for Backpack.
+    """Generate a new client order ID for Backpack.
 
     Args:
         is_buy: Whether this is a buy order
@@ -96,8 +89,7 @@ def get_new_client_order_id(is_buy: bool, trading_pair: str) -> str:
 
 
 def is_exchange_information_valid(exchange_info: dict) -> bool:
-    """
-    Validate exchange information response from Backpack.
+    """Validate exchange information response from Backpack.
 
     Args:
         exchange_info: Exchange info response from API
@@ -131,8 +123,7 @@ def is_exchange_information_valid(exchange_info: dict) -> bool:
 
 
 def validate_trading_pair(trading_pair: str) -> bool:
-    """
-    Validate that a trading pair is in correct Hummingbot format.
+    """Validate that a trading pair is in correct Hummingbot format.
 
     Args:
         trading_pair: Trading pair to validate
@@ -162,8 +153,7 @@ def validate_trading_pair(trading_pair: str) -> bool:
 
 
 def format_trading_pair_for_display(trading_pair: str) -> str:
-    """
-    Format trading pair for display purposes.
+    """Format trading pair for display purposes.
 
     Args:
         trading_pair: Trading pair in Hummingbot format
@@ -179,8 +169,7 @@ def format_trading_pair_for_display(trading_pair: str) -> str:
 
 
 def normalize_trading_pair(trading_pair: str) -> str:
-    """
-    Normalize a trading pair to standard Hummingbot format.
+    """Normalize a trading pair to standard Hummingbot format.
 
     Handles various input formats and converts to standard BTC-USDC format.
 

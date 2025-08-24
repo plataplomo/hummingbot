@@ -1,12 +1,11 @@
-"""
-Backpack API Order Book Data Source.
+"""Backpack API Order Book Data Source.
 Handles public WebSocket streams for order book and trade data.
 """
 
 import asyncio
 import json
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from hummingbot.connector.exchange.backpack import (
     backpack_constants as CONSTANTS,
@@ -20,13 +19,13 @@ from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFa
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
 
+
 if TYPE_CHECKING:
     from hummingbot.connector.exchange.backpack.backpack_exchange import BackpackExchange
 
 
 class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
-    """
-    Backpack API Order Book Data Source for public market data.
+    """Backpack API Order Book Data Source for public market data.
 
     Handles:
     - Order book snapshots via REST API
@@ -39,17 +38,16 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
     DIFF_STREAM_ID = 2
     ONE_HOUR = 60 * 60
 
-    _logger: Optional[HummingbotLogger] = None
+    _logger: HummingbotLogger | None = None
 
     def __init__(
         self,
-        trading_pairs: List[str],
-        connector: 'BackpackExchange',
+        trading_pairs: list[str],
+        connector: "BackpackExchange",
         api_factory: WebAssistantsFactory,
-        domain: str = CONSTANTS.DEFAULT_DOMAIN
+        domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
-        """
-        Initialize the order book data source.
+        """Initialize the order book data source.
 
         Args:
             trading_pairs: List of trading pairs to track
@@ -66,11 +64,10 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     async def get_last_traded_prices(
         self,
-        trading_pairs: List[str],
-        domain: Optional[str] = None
-    ) -> Dict[str, float]:
-        """
-        Get last traded prices for the specified trading pairs.
+        trading_pairs: list[str],
+        domain: str | None = None,
+    ) -> dict[str, float]:
+        """Get last traded prices for the specified trading pairs.
 
         Args:
             trading_pairs: List of trading pairs
@@ -81,9 +78,8 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         return await self._connector.get_last_traded_prices(trading_pairs=trading_pairs)
 
-    async def _request_order_book_snapshot(self, trading_pair: str) -> Dict[str, Any]:
-        """
-        Retrieve order book snapshot from REST API.
+    async def _request_order_book_snapshot(self, trading_pair: str) -> dict[str, Any]:
+        """Retrieve order book snapshot from REST API.
 
         Args:
             trading_pair: Trading pair to get snapshot for
@@ -94,7 +90,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
         params = {
             "symbol": exchange_symbol,
-            "limit": 1000  # Get deep order book
+            "limit": 1000,  # Get deep order book
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
@@ -108,8 +104,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         return data
 
     async def _subscribe_channels(self, ws: WSAssistant):
-        """
-        Subscribe to WebSocket channels for order book and trade data.
+        """Subscribe to WebSocket channels for order book and trade data.
 
         Args:
             ws: WebSocket assistant
@@ -130,7 +125,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             # Send subscription request
             subscription_payload = {
                 "method": "SUBSCRIBE",
-                "params": subscriptions
+                "params": subscriptions,
             }
 
             subscribe_request = WSJSONRequest(payload=subscription_payload)
@@ -143,13 +138,12 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         except Exception:
             self.logger().error(
                 "Unexpected error occurred subscribing to order book and trade streams",
-                exc_info=True
+                exc_info=True,
             )
             raise
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
-        """
-        Create and connect WebSocket assistant for public streams.
+        """Create and connect WebSocket assistant for public streams.
 
         Returns:
             Connected WebSocket assistant
@@ -157,17 +151,16 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
         await ws.connect(
             ws_url=web_utils.ws_public_url(self._domain),
-            message_timeout=CONSTANTS.REQUEST_TIMEOUT
+            message_timeout=CONSTANTS.REQUEST_TIMEOUT,
         )
         return ws
 
     async def _parse_order_book_diff_message(
         self,
-        raw_message: Dict[str, Any],
-        message_queue: asyncio.Queue
+        raw_message: dict[str, Any],
+        message_queue: asyncio.Queue,
     ):
-        """
-        Parse order book diff message and add to queue.
+        """Parse order book diff message and add to queue.
 
         Args:
             raw_message: Raw WebSocket message
@@ -193,7 +186,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                 "bids": data.get("bids", []),
                                 "asks": data.get("asks", []),
                             },
-                            timestamp=timestamp / 1_000_000  # Convert microseconds to seconds
+                            timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
                         )
 
                         message_queue.put_nowait(order_book_message)
@@ -201,16 +194,15 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         except Exception:
             self.logger().error(
                 f"Error parsing order book diff message: {raw_message}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _parse_trade_message(
         self,
-        raw_message: Dict[str, Any],
-        message_queue: asyncio.Queue
+        raw_message: dict[str, Any],
+        message_queue: asyncio.Queue,
     ):
-        """
-        Parse trade message and add to queue.
+        """Parse trade message and add to queue.
 
         Args:
             raw_message: Raw WebSocket message
@@ -237,7 +229,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                 "price": float(data.get("price", 0)),
                                 "amount": float(data.get("quantity", 0)),
                             },
-                            timestamp=timestamp / 1_000_000  # Convert microseconds to seconds
+                            timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
                         )
 
                         message_queue.put_nowait(trade_message)
@@ -245,12 +237,11 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         except Exception:
             self.logger().error(
                 f"Error parsing trade message: {raw_message}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def listen_for_trades(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """
-        Listen for trade messages from WebSocket stream.
+        """Listen for trade messages from WebSocket stream.
 
         Args:
             ev_loop: Event loop
@@ -268,7 +259,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     except Exception:
                         self.logger().error(
                             f"Error processing trade message: {ws_response.data}",
-                            exc_info=True
+                            exc_info=True,
                         )
 
             except asyncio.CancelledError:
@@ -276,17 +267,16 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             except Exception:
                 self.logger().error(
                     "Unexpected error with WebSocket connection. Retrying after 30 seconds...",
-                    exc_info=True
+                    exc_info=True,
                 )
                 await asyncio.sleep(30.0)
 
     async def listen_for_order_book_diffs(
         self,
         ev_loop: asyncio.AbstractEventLoop,
-        output: asyncio.Queue
+        output: asyncio.Queue,
     ):
-        """
-        Listen for order book diff messages from WebSocket stream.
+        """Listen for order book diff messages from WebSocket stream.
 
         Args:
             ev_loop: Event loop
@@ -304,7 +294,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     except Exception:
                         self.logger().error(
                             f"Error processing order book diff message: {ws_response.data}",
-                            exc_info=True
+                            exc_info=True,
                         )
 
             except asyncio.CancelledError:
@@ -312,17 +302,16 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             except Exception:
                 self.logger().error(
                     "Unexpected error with WebSocket connection. Retrying after 30 seconds...",
-                    exc_info=True
+                    exc_info=True,
                 )
                 await asyncio.sleep(30.0)
 
     async def listen_for_order_book_snapshots(
         self,
         ev_loop: asyncio.AbstractEventLoop,
-        output: asyncio.Queue
+        output: asyncio.Queue,
     ):
-        """
-        Periodically fetch order book snapshots from REST API.
+        """Periodically fetch order book snapshots from REST API.
 
         Args:
             ev_loop: Event loop
@@ -342,7 +331,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                                 "bids": snapshot_data.get("bids", []),
                                 "asks": snapshot_data.get("asks", []),
                             },
-                            timestamp=time.time()
+                            timestamp=time.time(),
                         )
 
                         output.put_nowait(snapshot_message)
@@ -350,7 +339,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     except Exception:
                         self.logger().error(
                             f"Error fetching order book snapshot for {trading_pair}",
-                            exc_info=True
+                            exc_info=True,
                         )
 
                 # Wait before next snapshot cycle
@@ -361,13 +350,12 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             except Exception:
                 self.logger().error(
                     "Unexpected error in order book snapshot loop",
-                    exc_info=True
+                    exc_info=True,
                 )
                 await asyncio.sleep(60.0)
 
-    async def fetch_trading_pairs(self, domain: Optional[str] = None) -> List[str]:
-        """
-        Fetch available trading pairs from the exchange.
+    async def fetch_trading_pairs(self, domain: str | None = None) -> list[str]:
+        """Fetch available trading pairs from the exchange.
 
         Args:
             domain: Exchange domain (optional)
@@ -397,9 +385,8 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             self.logger().error("Error fetching trading pairs", exc_info=True)
             return []
 
-    async def get_order_book_data(self, trading_pair: str) -> Dict[str, Any]:
-        """
-        Get order book data for a specific trading pair.
+    async def get_order_book_data(self, trading_pair: str) -> dict[str, Any]:
+        """Get order book data for a specific trading pair.
 
         Args:
             trading_pair: Trading pair to get order book for

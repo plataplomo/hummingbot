@@ -1,10 +1,10 @@
-"""
-Web utility functions for Backpack exchange connector.
+"""Web utility functions for Backpack exchange connector.
 Provides factory methods for creating web assistants and helpers for API communication.
 """
 
 import time
-from typing import Any, Callable, Dict, Optional
+from collections.abc import Callable
+from typing import Any
 
 from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
@@ -20,8 +20,7 @@ class BackpackRESTPreProcessor(RESTPreProcessorBase):
     """Pre-processor for Backpack REST requests."""
 
     async def pre_process(self, request: RESTRequest) -> RESTRequest:
-        """
-        Add default headers and process request before sending.
+        """Add default headers and process request before sending.
 
         Args:
             request: REST request to process
@@ -42,14 +41,13 @@ class BackpackRESTPreProcessor(RESTPreProcessorBase):
 
 
 def build_api_factory(
-    throttler: Optional[AsyncThrottler] = None,
-    time_synchronizer: Optional[TimeSynchronizer] = None,
+    throttler: AsyncThrottler | None = None,
+    time_synchronizer: TimeSynchronizer | None = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    time_provider: Optional[Callable] = None,
-    auth: Optional[AuthBase] = None,
+    time_provider: Callable | None = None,
+    auth: AuthBase | None = None,
 ) -> WebAssistantsFactory:
-    """
-    Build WebAssistantsFactory for Backpack API communication.
+    """Build WebAssistantsFactory for Backpack API communication.
 
     Args:
         throttler: Async throttler for rate limiting
@@ -74,7 +72,7 @@ def build_api_factory(
         rest_pre_processors=[
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
             BackpackRESTPreProcessor(),
-        ]
+        ],
     )
 
     return api_factory
@@ -83,10 +81,9 @@ def build_api_factory(
 def build_api_factory_without_time_synchronizer_pre_processor(
     throttler: AsyncThrottler,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    auth: Optional[AuthBase] = None,
+    auth: AuthBase | None = None,
 ) -> WebAssistantsFactory:
-    """
-    Build WebAssistantsFactory without time synchronization pre-processor.
+    """Build WebAssistantsFactory without time synchronization pre-processor.
     Used for initial time sync requests.
 
     Args:
@@ -102,18 +99,17 @@ def build_api_factory_without_time_synchronizer_pre_processor(
         auth=auth,
         rest_pre_processors=[
             BackpackRESTPreProcessor(),
-        ]
+        ],
     )
 
     return api_factory
 
 
 async def get_current_server_time(
-    throttler: Optional[AsyncThrottler] = None,
+    throttler: AsyncThrottler | None = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
 ) -> float:
-    """
-    Get current server time from Backpack exchange.
+    """Get current server time from Backpack exchange.
 
     Args:
         throttler: Async throttler for rate limiting
@@ -126,7 +122,7 @@ async def get_current_server_time(
     # Create temporary factory without time sync to avoid circular dependency
     api_factory = build_api_factory_without_time_synchronizer_pre_processor(
         throttler=throttler,
-        domain=domain
+        domain=domain,
     )
 
     rest_assistant = await api_factory.get_rest_assistant()
@@ -136,7 +132,7 @@ async def get_current_server_time(
         url = f"{base_url}{CONSTANTS.TIME_URL}"
         request = RESTRequest(
             method=RESTMethod.GET,
-            url=url
+            url=url,
         )
 
         response = await rest_assistant.call(request)
@@ -145,14 +141,12 @@ async def get_current_server_time(
             data = await response.json()
             # Backpack returns server time in milliseconds
             return data.get("serverTime", time.time() * 1000) / 1000
-        else:
-            # Fallback to local time if server time not available
-            return time.time()
+        # Fallback to local time if server time not available
+        return time.time()
 
 
 def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:
-    """
-    Create and configure async throttler for Backpack exchange.
+    """Create and configure async throttler for Backpack exchange.
 
     Args:
         domain: Exchange domain
@@ -164,8 +158,7 @@ def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:
 
 
 def get_rest_url_for_endpoint(endpoint: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Get full REST URL for an API endpoint.
+    """Get full REST URL for an API endpoint.
 
     Args:
         endpoint: API endpoint path
@@ -175,15 +168,13 @@ def get_rest_url_for_endpoint(endpoint: str, domain: str = CONSTANTS.DEFAULT_DOM
         Full URL for the endpoint
     """
     base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    if endpoint.startswith("/"):
-        endpoint = endpoint[1:]
+    endpoint = endpoint.removeprefix("/")
 
     return f"{base_url}{endpoint}"
 
 
 def get_ws_url(domain: str = CONSTANTS.DEFAULT_DOMAIN, private: bool = False) -> str:
-    """
-    Get WebSocket URL for the specified domain.
+    """Get WebSocket URL for the specified domain.
 
     Args:
         domain: Exchange domain
@@ -200,8 +191,7 @@ class BackpackTimeSynchronizer(TimeSynchronizer):
     """Time synchronizer for Backpack exchange."""
 
     def __init__(self, throttler: AsyncThrottler, domain: str = CONSTANTS.DEFAULT_DOMAIN):
-        """
-        Initialize time synchronizer.
+        """Initialize time synchronizer.
 
         Args:
             throttler: Async throttler for rate limiting
@@ -223,8 +213,7 @@ class BackpackTimeSynchronizer(TimeSynchronizer):
 
 
 def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:
-    """
-    Create and configure async throttler for Backpack exchange.
+    """Create and configure async throttler for Backpack exchange.
 
     Args:
         domain: Exchange domain
@@ -235,9 +224,8 @@ def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:
     return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
 
-def build_rate_limits_by_tier() -> Dict[str, Any]:
-    """
-    Build rate limits configuration by tier.
+def build_rate_limits_by_tier() -> dict[str, Any]:
+    """Build rate limits configuration by tier.
 
     Returns:
         Rate limits configuration
@@ -248,8 +236,7 @@ def build_rate_limits_by_tier() -> Dict[str, Any]:
 
 
 def public_rest_url(path: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Get full URL for public REST endpoint.
+    """Get full URL for public REST endpoint.
 
     Args:
         path: API endpoint path
@@ -262,8 +249,7 @@ def public_rest_url(path: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
 
 
 def private_rest_url(path: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Get full URL for private REST endpoint.
+    """Get full URL for private REST endpoint.
 
     Args:
         path: API endpoint path
@@ -276,8 +262,7 @@ def private_rest_url(path: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
 
 
 def ws_public_url(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Get public WebSocket URL.
+    """Get public WebSocket URL.
 
     Args:
         domain: Exchange domain
@@ -289,8 +274,7 @@ def ws_public_url(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
 
 
 def ws_private_url(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Get private WebSocket URL.
+    """Get private WebSocket URL.
 
     Args:
         domain: Exchange domain
