@@ -4,6 +4,11 @@
 # .idea
 /.idea
 
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+
 # Local conda installation
 .conda/
 
