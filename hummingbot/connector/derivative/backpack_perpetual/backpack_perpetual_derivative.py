@@ -183,6 +183,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Poll funding rates every 10 minutes"""
         return CONSTANTS.FUNDING_INFO_UPDATE_INTERVAL
 
+    @property
     def supported_order_types(self) -> list[OrderType]:
         """:return a list of OrderType supported by this connector
         Note: Backpack only supports LIMIT and MARKET order types.
@@ -190,6 +191,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         return [OrderType.LIMIT, OrderType.MARKET]
 
+    @property
     def supported_position_modes(self) -> list[PositionMode]:
         """Backpack supports ONE-WAY mode only."""
         return CONSTANTS.SUPPORTED_POSITION_MODES
@@ -319,14 +321,54 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         return is_time_synchronizer_related
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
-        return str(CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE) in str(
-            status_update_exception,
-        ) and CONSTANTS.ORDER_NOT_EXIST_MESSAGE in str(status_update_exception)
+        """Check if the error indicates an order was not found."""
+        # Try to parse JSON response properly
+        if hasattr(status_update_exception, "response"):
+            try:
+                response = status_update_exception.response
+                if hasattr(response, "json"):
+                    error_data = response.json()
+                    error_code = error_data.get("code")
+                    error_message = error_data.get("message", "")
+                    return (
+                        error_code == CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE
+                        or CONSTANTS.ORDER_NOT_EXIST_MESSAGE in error_message
+                    )
+            except (AttributeError, ValueError, TypeError):
+                # Fall back to string checking if JSON parsing fails
+                pass
+
+        # Fallback to string checking for non-JSON responses
+        error_str = str(status_update_exception)
+        return (
+            str(CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE) in error_str
+            and CONSTANTS.ORDER_NOT_EXIST_MESSAGE in error_str
+        )
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
-        return str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in str(
-            cancelation_exception,
-        ) and CONSTANTS.UNKNOWN_ORDER_MESSAGE in str(cancelation_exception)
+        """Check if the error indicates an unknown order during cancellation."""
+        # Try to parse JSON response properly
+        if hasattr(cancelation_exception, "response"):
+            try:
+                response = cancelation_exception.response
+                if hasattr(response, "json"):
+                    error_data = response.json()
+                    error_code = error_data.get("code")
+                    error_message = error_data.get("message", "")
+                    return (
+                        error_code == CONSTANTS.UNKNOWN_ORDER_ERROR_CODE
+                        or CONSTANTS.UNKNOWN_ORDER_MESSAGE in error_message
+                    )
+            except (AttributeError, ValueError, TypeError):
+                # Fall back to string checking if JSON parsing fails
+                pass
+
+        # Fallback to string checking for non-JSON responses
+        error_str = str(cancelation_exception)
+        return (
+            str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in error_str
+            and CONSTANTS.UNKNOWN_ORDER_MESSAGE in error_str
+        )
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
         return web_utils.build_api_factory(
@@ -367,8 +409,79 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Update order fills from recent trades.
         This is used to ensure we capture all fills even if WebSocket messages are missed.
         """
-        # This method can be implemented if needed for reliability
-        # For now, we rely on WebSocket updates and REST status queries
+        last_tick = int(self._last_poll_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL)
+        current_tick = int(self.current_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL)
+
+        if current_tick > last_tick and len(self._order_tracker.active_orders) > 0:
+            # Group orders by trading pair for efficient querying
+            trading_pairs_to_order_map: dict[str, dict[str, Any]] = {}
+            for order in self._order_tracker.active_orders.values():
+                if order.trading_pair not in trading_pairs_to_order_map:
+                    trading_pairs_to_order_map[order.trading_pair] = {}
+                trading_pairs_to_order_map[order.trading_pair][order.exchange_order_id] = order
+
+            trading_pairs = list(trading_pairs_to_order_map.keys())
+
+            # Fetch fills for each trading pair
+            tasks = []
+            for trading_pair in trading_pairs:
+                exchange_symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+                tasks.append(
+                    self._api_get(
+                        path_url=CONSTANTS.FILLS_URL,
+                        params={"symbol": exchange_symbol},
+                        is_auth_required=True,
+                        limit_id=CONSTANTS.FILLS_URL,
+                    ),
+                )
+
+            self.logger().debug(f"Polling for order fills of {len(tasks)} trading pairs.")
+            results = await safe_gather(*tasks, return_exceptions=True)
+
+            for result, trading_pair in zip(results, trading_pairs, strict=False):
+                order_map = trading_pairs_to_order_map.get(trading_pair)
+
+                if isinstance(result, Exception):
+                    self.logger().network(
+                        f"Error fetching fills update for {trading_pair}: {result}.",
+                        app_warning_msg=f"Failed to fetch fill updates for {trading_pair}.",
+                    )
+                    continue
+
+                fills_data = result.get("fills", []) if isinstance(result, dict) else []
+
+                for fill in fills_data:
+                    order_id = str(fill.get("orderId", ""))
+                    if order_map and order_id in order_map:
+                        tracked_order: InFlightOrder = order_map[order_id]
+
+                        # Create trade update from fill data
+                        trade_update = TradeUpdate(
+                            trade_id=str(fill.get("tradeId", "")),
+                            client_order_id=tracked_order.client_order_id,
+                            exchange_order_id=order_id,
+                            trading_pair=tracked_order.trading_pair,
+                            fee=self._get_fee_from_fill(fill),
+                            fill_base_amount=Decimal(str(fill.get("quantity", 0))),
+                            fill_quote_amount=(
+                                Decimal(str(fill.get("quantity", 0))) * Decimal(str(fill.get("price", 0)))
+                            ),
+                            fill_price=Decimal(str(fill.get("price", 0))),
+                            fill_timestamp=fill.get("timestamp", 0) * 1e-3,  # Convert ms to seconds
+                        )
+                        self._order_tracker.process_trade_update(trade_update)
+
+    def _get_fee_from_fill(self, fill_data: dict) -> TradeFeeBase:
+        """Extract fee information from fill data."""
+        fee_amount = Decimal(str(fill_data.get("fee", 0)))
+        fee_asset = fill_data.get("feeSymbol", "")
+
+        return TradeFeeBase.new_perpetual_fee(
+            fee_schema=self.trade_fee_schema(),
+            trade_type=TradeType.BUY if fill_data.get("side") == "Buy" else TradeType.SELL,
+            percent_token=fee_asset,
+            flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)] if fee_amount > 0 else [],
+        )
 
     def _get_fee(
         self,

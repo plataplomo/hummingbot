@@ -203,19 +203,22 @@ MARGIN_TYPE_MAP = {
     "Isolated": "ISOLATED",
 }
 
-# Default configuration
-DEFAULT_LEVERAGE = 1  # Safe default, actual max per market from API
-
-# Market-specific parameters MUST be fetched from /api/v1/markets endpoint per symbol
-# API provides: maxLeverage, initialMarginRatio, maintenanceMarginRatio per market
-# The connector will raise an error if these values are missing from the API response
-# No fallback values are provided as per Hummingbot standards - fail fast on missing data
-
-# Funding rate configuration
-# TODO: Verify if funding schedule is configurable per market
-# API provides: nextFundingTime, fundingRateLowerBound, fundingRateUpperBound
-FUNDING_INTERVAL_HOURS = 8  # Standard for crypto perpetuals
-FUNDING_SETTLEMENT_TIMES = ["00:00", "08:00", "16:00"]  # UTC standard
+# Market configuration
+# IMPORTANT: All market-specific parameters MUST be fetched from the /api/v1/markets endpoint
+# These values are NOT hardcoded as they vary per market:
+#   - maxLeverage: Maximum leverage allowed per market
+#   - initialMarginRatio: Initial margin requirement
+#   - maintenanceMarginRatio: Maintenance margin requirement
+#   - fundingInterval: Funding rate interval (typically 8 hours but verify from API)
+#   - fundingRateLowerBound: Minimum funding rate
+#   - fundingRateUpperBound: Maximum funding rate
+#   - nextFundingTime: Next funding timestamp
+#
+# The connector MUST fetch these values from the API for each market.
+# No fallback values are provided as per Hummingbot standards - fail fast on missing data.
+#
+# Note: If any required market parameter is missing from the API response,
+# the connector will raise an error rather than using a default value.
 
 # Request timeouts
 REQUEST_TIMEOUT = 10.0

@@ -304,12 +304,14 @@ class BackpackPerpetualAuth(AuthBase):
         auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
+        # Per Backpack OpenAPI spec, WebSocket auth uses SUBSCRIBE method with signature array
         return {
-            "method": "auth",
-            "params": {
-                "apiKey": self.api_key,
-                "timestamp": timestamp,
-                "signature": signature,
-                "window": window,
-            },
+            "method": "SUBSCRIBE",
+            "params": [],  # Streams will be added separately in subscription messages
+            "signature": [
+                self.api_key,    # verifying key (base64 encoded public key)
+                signature,       # signature (base64 encoded)
+                timestamp,       # timestamp in milliseconds
+                window,          # window in milliseconds
+            ],
         }
