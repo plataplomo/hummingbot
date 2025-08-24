@@ -1,19 +1,16 @@
-"""
-Backpack API User Stream Data Source.
+"""Backpack API User Stream Data Source.
 Handles private WebSocket streams for account updates.
 """
 
 import asyncio
 import json
 import time
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from collections.abc import AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
-from hummingbot.connector.exchange.backpack import (
-    backpack_constants as CONSTANTS,
-    backpack_web_utils as web_utils
-)
+from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS, backpack_web_utils as web_utils
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
-from hummingbot.core.web_assistant.connections.data_types import WSJSONRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
@@ -23,9 +20,8 @@ if TYPE_CHECKING:
 
 
 class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
-    """
-    Backpack API User Stream Data Source for private account data.
-    
+    """Backpack API User Stream Data Source for private account data.
+
     Handles:
     - Account balance updates
     - Order status updates
@@ -33,22 +29,22 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
     - Position updates
     """
 
-    HEARTBEAT_TIME_INTERVAL = 30.0
-    LISTEN_KEY_KEEP_ALIVE_INTERVAL = 1800  # 30 minutes
+    # Use constants from constants file
+    HEARTBEAT_TIME_INTERVAL = CONSTANTS.HEARTBEAT_TIME_INTERVAL
+    # Backpack doesn't use listen keys, removed unused LISTEN_KEY_KEEP_ALIVE_INTERVAL
 
-    _logger: Optional[HummingbotLogger] = None
+    _logger: HummingbotLogger | None = None
 
     def __init__(
         self,
-        auth: 'BackpackAuth',
+        auth: "BackpackAuth",
         trading_pairs: list,
         connector,
         api_factory: WebAssistantsFactory,
-        domain: str = CONSTANTS.DEFAULT_DOMAIN
+        domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
-        """
-        Initialize the user stream data source.
-        
+        """Initialize the user stream data source.
+
         Args:
             auth: Authentication instance
             trading_pairs: List of trading pairs
@@ -62,7 +58,7 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._connector = connector
         self._api_factory = api_factory
         self._domain = domain
-        self._last_recv_time = 0
+        self._last_recv_time = 0.0
 
     @property
     def last_recv_time(self) -> float:
@@ -70,30 +66,28 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         return self._last_recv_time
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
-        """
-        Create and connect WebSocket assistant for private streams.
-        
+        """Create and connect WebSocket assistant for private streams.
+
         Returns:
             Connected and authenticated WebSocket assistant
         """
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
         await ws.connect(
             ws_url=web_utils.ws_private_url(self._domain),
-            message_timeout=CONSTANTS.REQUEST_TIMEOUT
+            message_timeout=CONSTANTS.REQUEST_TIMEOUT,
         )
-        
+
         # Authenticate the WebSocket connection
         await self._authenticate_websocket(ws)
-        
+
         return ws
 
     async def _authenticate_websocket(self, ws: WSAssistant) -> bool:
-        """
-        Authenticate the WebSocket connection.
-        
+        """Authenticate the WebSocket connection.
+
         Args:
             ws: WebSocket assistant to authenticate
-            
+
         Returns:
             True if authentication successful, False otherwise
         """
@@ -101,40 +95,41 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             # Get authentication message from auth instance
             auth_message = self._auth.get_ws_auth_message()
             auth_request = WSJSONRequest(payload=auth_message)
-            
+
             # Send authentication message
             await ws.send(auth_request)
-            
+
             # Wait for authentication response
             auth_response = await asyncio.wait_for(
                 ws.receive(),
-                timeout=CONSTANTS.REQUEST_TIMEOUT
+                timeout=CONSTANTS.REQUEST_TIMEOUT,
             )
-            
+
             # Parse response
+            if auth_response is None or auth_response.data is None:
+                self.logger().error("No authentication response received")
+                return False
             response_data = json.loads(auth_response.data)
-            
+
             if response_data.get("type") == "auth":
                 if response_data.get("success"):
                     self.logger().info("WebSocket authentication successful")
                     return True
-                else:
-                    error_msg = response_data.get("error", "Unknown authentication error")
-                    self.logger().error(f"WebSocket authentication failed: {error_msg}")
-                    return False
-            
+                error_msg = response_data.get("error", "Unknown authentication error")
+                self.logger().error(f"WebSocket authentication failed: {error_msg}")
+                return False
+
             # If we don't get an auth response, assume success for now
             self.logger().info("WebSocket connected, assuming authentication successful")
             return True
-            
+
         except Exception:
             self.logger().error("Error during WebSocket authentication", exc_info=True)
             return False
 
     async def _subscribe_channels(self, ws: WSAssistant):
-        """
-        Subscribe to private WebSocket channels.
-        
+        """Subscribe to private WebSocket channels.
+
         Args:
             ws: Authenticated WebSocket assistant
         """
@@ -144,29 +139,26 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
                 CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,
                 CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL,
                 CONSTANTS.WS_ACCOUNT_POSITIONS_CHANNEL,
-                CONSTANTS.WS_ACCOUNT_TRANSACTIONS_CHANNEL
+                CONSTANTS.WS_ACCOUNT_TRANSACTIONS_CHANNEL,
             ]
-            
+
             subscription_payload = {
-                "method": "subscribe",
-                "params": {
-                    "subscriptions": subscriptions
-                }
+                "method": "SUBSCRIBE",
+                "params": subscriptions,
             }
-            
+
             subscribe_request = WSJSONRequest(payload=subscription_payload)
             await ws.send(subscribe_request)
-            
+
             self.logger().info(f"Subscribed to private channels: {subscriptions}")
-            
+
         except Exception:
             self.logger().error("Error subscribing to private channels", exc_info=True)
             raise
 
     async def listen_for_user_stream(self, output: asyncio.Queue):
-        """
-        Listen for user stream messages and add them to the output queue.
-        
+        """Listen for user stream messages and add them to the output queue.
+
         Args:
             output: Queue to add messages to
         """
@@ -174,69 +166,77 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             try:
                 ws = await self._connected_websocket_assistant()
                 await self._subscribe_channels(ws)
-                
+
                 async for ws_response in ws.iter_messages():
                     try:
                         self._last_recv_time = time.time()
+                        if ws_response is None or ws_response.data is None:
+                            continue
                         data = json.loads(ws_response.data)
-                        
+
                         # Process different message types
                         await self._process_user_stream_message(data, output)
-                        
+
                     except Exception:
                         self.logger().error(
-                            f"Error processing user stream message: {ws_response.data}",
-                            exc_info=True
+                            "Error processing user stream message",
+                            exc_info=True,
                         )
-                        
+
             except asyncio.CancelledError:
                 raise
             except Exception:
                 self.logger().error(
                     "Unexpected error with WebSocket connection. Retrying after 30 seconds...",
-                    exc_info=True
+                    exc_info=True,
                 )
                 await asyncio.sleep(30.0)
 
     async def _process_user_stream_message(
         self,
-        message: Dict[str, Any],
-        output: asyncio.Queue
+        message: dict[str, Any],
+        output: asyncio.Queue,
     ):
-        """
-        Process incoming user stream message and route to appropriate handler.
-        
+        """Process incoming user stream message and route to appropriate handler.
+
         Args:
             message: Raw WebSocket message
             output: Output queue for processed messages
         """
         try:
-            message_type = message.get("type")
-            
-            if message_type == CONSTANTS.WS_MESSAGE_TYPE_ORDER_UPDATE:
-                await self._process_order_update(message, output)
-            elif message_type == CONSTANTS.WS_MESSAGE_TYPE_BALANCE_UPDATE:
-                await self._process_balance_update(message, output)
-            elif message_type == CONSTANTS.WS_MESSAGE_TYPE_TRADE_UPDATE:
-                await self._process_trade_update(message, output)
+            # Backpack wraps all stream data in {"stream": "<stream>", "data": "<payload>"}
+            stream_name = message.get("stream", "")
+            data = message.get("data", message)  # Fallback to message itself if not wrapped
+
+            # Check for authentication/subscription confirmations
+            if message.get("result") == "success" or message.get("type") == "authenticated":
+                self.logger().info(f"WebSocket confirmation: {message}")
+                return
+
+            # Route based on stream name
+            if stream_name == CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL or "orderUpdate" in stream_name:
+                await self._process_order_update({"stream": stream_name, "data": data}, output)
+            elif stream_name == CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL or "balanceUpdate" in stream_name:
+                await self._process_balance_update({"stream": stream_name, "data": data}, output)
+            elif "fill" in stream_name.lower() or "trade" in stream_name.lower():
+                await self._process_trade_update({"stream": stream_name, "data": data}, output)
             else:
                 # Log unknown message types for debugging
-                self.logger().debug(f"Unknown user stream message type: {message_type}")
-                
+                self.logger().debug(f"Unknown user stream: {stream_name}")
+
         except Exception:
             self.logger().error(
                 f"Error processing user stream message: {message}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _process_order_update(
         self,
-        message: Dict[str, Any],
-        output: asyncio.Queue
+        message: dict[str, Any],
+        output: asyncio.Queue,
     ):
-        """
-        Process order update message.
-        
+        """Process order update message.
+
         Args:
             message: Order update message
             output: Output queue
@@ -245,21 +245,20 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             # Add message type identifier
             message["message_type"] = "order_update"
             output.put_nowait(message)
-            
+
         except Exception:
             self.logger().error(
                 f"Error processing order update: {message}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _process_balance_update(
         self,
-        message: Dict[str, Any],
-        output: asyncio.Queue
+        message: dict[str, Any],
+        output: asyncio.Queue,
     ):
-        """
-        Process balance update message.
-        
+        """Process balance update message.
+
         Args:
             message: Balance update message
             output: Output queue
@@ -268,21 +267,20 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             # Add message type identifier
             message["message_type"] = "balance_update"
             output.put_nowait(message)
-            
+
         except Exception:
             self.logger().error(
                 f"Error processing balance update: {message}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _process_trade_update(
         self,
-        message: Dict[str, Any],
-        output: asyncio.Queue
+        message: dict[str, Any],
+        output: asyncio.Queue,
     ):
-        """
-        Process trade update message.
-        
+        """Process trade update message.
+
         Args:
             message: Trade update message
             output: Output queue
@@ -291,36 +289,38 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             # Add message type identifier
             message["message_type"] = "trade_update"
             output.put_nowait(message)
-            
+
         except Exception:
             self.logger().error(
                 f"Error processing trade update: {message}",
-                exc_info=True
+                exc_info=True,
             )
 
-    async def _iter_user_event_queue(self) -> asyncio.Queue:
-        """
-        Iterate over user events from the WebSocket stream.
-        
+    async def _iter_user_event_queue(self) -> AsyncGenerator[dict[str, Any], None]:
+        """Iterate over user events from the WebSocket stream.
+
         Returns:
             Queue of user events
         """
-        event_queue = asyncio.Queue()
-        asyncio.create_task(self.listen_for_user_stream(event_queue))
-        
-        while True:
-            try:
-                yield await event_queue.get()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().error("Error in user event queue iterator", exc_info=True)
-                continue
+        event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+        self._listen_task = asyncio.create_task(self.listen_for_user_stream(event_queue))
 
-    async def get_account_balances(self) -> Dict[str, Any]:
-        """
-        Get current account balances from REST API.
-        
+        try:
+            while True:
+                # Queue.get() shouldn't raise exceptions in normal operation
+                # Moving try-except outside the loop for better performance
+                yield await event_queue.get()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # This should rarely happen as Queue.get() is very stable
+            self.logger().error("Error in user event queue iterator", exc_info=True)
+            # Re-raise to properly handle unexpected errors
+            raise
+
+    async def get_account_balances(self) -> dict[str, Any]:
+        """Get current account balances from REST API.
+
         Returns:
             Account balances data
         """
@@ -328,20 +328,18 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             rest_assistant = await self._api_factory.get_rest_assistant()
             data = await rest_assistant.execute_request(
                 url=web_utils.private_rest_url(CONSTANTS.BALANCES_URL, self._domain),
-                method="GET",
+                method=RESTMethod.GET,
                 throttler_limit_id=CONSTANTS.BALANCES_URL,
-                headers=await self._auth._generate_auth_headers("GET", f"/{CONSTANTS.BALANCES_URL}")
             )
-            return data
-            
+            return data if isinstance(data, dict) else {}
+
         except Exception:
             self.logger().error("Error fetching account balances", exc_info=True)
             return {}
 
-    async def get_open_orders(self) -> Dict[str, Any]:
-        """
-        Get current open orders from REST API.
-        
+    async def get_open_orders(self) -> dict[str, Any]:
+        """Get current open orders from REST API.
+
         Returns:
             Open orders data
         """
@@ -349,12 +347,11 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             rest_assistant = await self._api_factory.get_rest_assistant()
             data = await rest_assistant.execute_request(
                 url=web_utils.private_rest_url(CONSTANTS.OPEN_ORDERS_URL, self._domain),
-                method="GET",
+                method=RESTMethod.GET,
                 throttler_limit_id=CONSTANTS.OPEN_ORDERS_URL,
-                headers=await self._auth._generate_auth_headers("GET", f"/{CONSTANTS.OPEN_ORDERS_URL}")
             )
-            return data
-            
+            return data if isinstance(data, dict) else {}
+
         except Exception:
             self.logger().error("Error fetching open orders", exc_info=True)
             return {}

@@ -1,8 +1,6 @@
-"""Authentication for Backpack Exchange using Ed25519 signatures.
-Compatible with Python 3.10 and Hummingbot patterns.
+"""Authentication for Backpack Perpetual Exchange using Ed25519 signatures.
+Reuses the same authentication logic as the spot connector.
 """
-
-from __future__ import annotations
 
 import base64
 import json
@@ -13,13 +11,15 @@ from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest, WSRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
 
 
-class BackpackAuth(AuthBase):
-    """Backpack Exchange authentication using Ed25519 signatures.
+class BackpackPerpetualAuth(AuthBase):
+    """Backpack Perpetual Exchange authentication using Ed25519 signatures.
+
+    This is identical to the spot authentication as Backpack uses the same
+    authentication mechanism for both spot and perpetual markets.
 
     Implements the authentication pattern required by Backpack:
     - X-API-Key: API key
@@ -34,7 +34,7 @@ class BackpackAuth(AuthBase):
         api_secret: str,
         time_provider: Callable[[], int] | None = None,
     ):
-        """Initialize Backpack authentication.
+        """Initialize Backpack Perpetual authentication.
 
         Args:
             api_key: Backpack API key
@@ -58,6 +58,8 @@ class BackpackAuth(AuthBase):
             ("GET", "/api/v1/account"): "accountQuery",
             # Capital and Balance endpoints
             ("GET", "/api/v1/capital"): "balanceQuery",
+            # Position endpoints for perpetuals
+            ("GET", "/api/v1/position"): "positionQuery",
             # Order Management endpoints
             ("POST", "/api/v1/order"): "orderExecute",
             ("DELETE", "/api/v1/order"): "orderCancel",
@@ -86,8 +88,8 @@ class BackpackAuth(AuthBase):
             Base64 encoded signature
         """
         try:
-            signature_bytes = self._private_key.sign(payload.encode("utf-8"))
-            return base64.b64encode(signature_bytes).decode("utf-8")
+            signature = self._private_key.sign(payload.encode("utf-8"))
+            return base64.b64encode(signature).decode("utf-8")
         except Exception as e:
             raise ValueError(f"Failed to generate signature: {e}") from e
 
@@ -219,18 +221,10 @@ class BackpackAuth(AuthBase):
             request: REST request to authenticate
 
         Returns:
-            Authenticated request
+            Authenticated request with headers added
         """
         # Get URL, defaulting to empty string if None
         url = request.url or ""
-
-        # Extract path from URL
-        if url.startswith("http"):
-            # Full URL provided
-            path = "/" + "/".join(url.split("/")[3:])
-        else:
-            # Relative path
-            path = url if url.startswith("/") else f"/{url}"
 
         # Extract method and path
         method = request.method.name
@@ -269,7 +263,7 @@ class BackpackAuth(AuthBase):
             body=request.data,
         )
 
-        # Add headers to request
+        # Add auth headers to request
         if request.headers is None:
             request.headers = {}
 
@@ -283,53 +277,27 @@ class BackpackAuth(AuthBase):
     async def ws_authenticate(self, request: WSRequest) -> WSRequest:
         """Add authentication to WebSocket request.
 
+        For Backpack, WebSocket authentication is done by sending an auth message
+        after connection is established, not by modifying the connection request.
+
         Args:
-            request: WebSocket request to authenticate
+            request: WebSocket request
 
         Returns:
-            Authenticated WebSocket request
+            Modified request (usually unchanged for Backpack)
         """
-        timestamp = str(self._time_provider())
-        window = str(CONSTANTS.AUTH_WINDOW_MS)
-
-        # Build auth payload for WebSocket using instruction-based format
-        # For WebSocket auth, the instruction is "subscribe"
-        auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
-        signature = self._generate_signature(auth_payload)
-
-        # Add auth data to WebSocket message
-        auth_data = {
-            "method": "auth",  # Backpack uses "auth" not "authenticate"
-            "params": {
-                "apiKey": self.api_key,
-                "timestamp": timestamp,
-                "signature": signature,
-                "window": window,
-            },
-        }
-
-        # Check if it's a WSJSONRequest and update payload
-        if isinstance(request, WSJSONRequest):
-            current_payload = request.payload or {}
-            # Update payload (convert to dict if needed)
-            if hasattr(current_payload, "update"):
-                current_payload = dict(current_payload)
-                current_payload.update(auth_data)
-                request.payload = current_payload
-            else:
-                # If payload is immutable, create new dict
-                request.payload = {**dict(current_payload), **auth_data}
-
+        # Backpack authenticates via message after connection
+        # No modification needed to the connection request itself
         return request
 
     def get_ws_auth_message(self) -> dict[str, Any]:
         """Generate WebSocket authentication message.
 
         Returns:
-            Authentication message for WebSocket
+            Authentication message to send after WebSocket connection
         """
         timestamp = str(self._time_provider())
-        window = str(CONSTANTS.AUTH_WINDOW_MS)
+        window = "5000"
 
         # Build auth payload for WebSocket using instruction-based format
         # For WebSocket auth, the instruction is "subscribe"
@@ -337,7 +305,7 @@ class BackpackAuth(AuthBase):
         signature = self._generate_signature(auth_payload)
 
         return {
-            "method": "auth",  # Backpack uses "auth" not "authenticate"
+            "method": "auth",
             "params": {
                 "apiKey": self.api_key,
                 "timestamp": timestamp,

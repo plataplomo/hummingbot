@@ -1,19 +1,17 @@
-"""
-Backpack API Order Book Data Source.
+"""Backpack API Order Book Data Source.
 Handles public WebSocket streams for order book and trade data.
 """
 
 import asyncio
-import json
 import time
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 from hummingbot.connector.exchange.backpack import (
     backpack_constants as CONSTANTS,
     backpack_utils as utils,
-    backpack_web_utils as web_utils
+    backpack_web_utils as web_utils,
 )
-from hummingbot.core.data_type.order_book_message import OrderBookMessage
+from hummingbot.core.data_type.order_book_message import OrderBookMessage, OrderBookMessageType
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
@@ -25,32 +23,27 @@ if TYPE_CHECKING:
 
 
 class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
+    """Backpack API Order Book Data Source for public market data.
+
+    Follows the parent class pattern for WebSocket message routing.
     """
-    Backpack API Order Book Data Source for public market data.
-    
-    Handles:
-    - Order book snapshots via REST API
-    - Order book updates via WebSocket
-    - Trade data via WebSocket
-    """
-    
+
     HEARTBEAT_TIME_INTERVAL = 30.0
     TRADE_STREAM_ID = 1
     DIFF_STREAM_ID = 2
     ONE_HOUR = 60 * 60
 
-    _logger: Optional[HummingbotLogger] = None
+    _logger: HummingbotLogger | None = None
 
     def __init__(
         self,
-        trading_pairs: List[str],
-        connector: 'BackpackExchange',
+        trading_pairs: list[str],
+        connector: "BackpackExchange",
         api_factory: WebAssistantsFactory,
-        domain: str = CONSTANTS.DEFAULT_DOMAIN
+        domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
-        """
-        Initialize the order book data source.
-        
+        """Initialize the order book data source.
+
         Args:
             trading_pairs: List of trading pairs to track
             connector: Exchange connector instance
@@ -61,40 +54,36 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         self._connector = connector
         self._domain = domain
         self._api_factory = api_factory
-        self._trade_messages_queue_key = CONSTANTS.WS_TRADES_CHANNEL
-        self._diff_messages_queue_key = CONSTANTS.WS_DEPTH_CHANNEL
 
     async def get_last_traded_prices(
         self,
-        trading_pairs: List[str],
-        domain: Optional[str] = None
-    ) -> Dict[str, float]:
-        """
-        Get last traded prices for the specified trading pairs.
-        
+        trading_pairs: list[str],
+        domain: str | None = None,
+    ) -> dict[str, float]:
+        """Get last traded prices for the specified trading pairs.
+
         Args:
             trading_pairs: List of trading pairs
             domain: Exchange domain (optional)
-            
+
         Returns:
             Dictionary mapping trading pair to last price
         """
         return await self._connector.get_last_traded_prices(trading_pairs=trading_pairs)
 
-    async def _request_order_book_snapshot(self, trading_pair: str) -> Dict[str, Any]:
-        """
-        Retrieve order book snapshot from REST API.
-        
+    async def _request_order_book_snapshot(self, trading_pair: str) -> dict[str, Any]:
+        """Retrieve order book snapshot from REST API.
+
         Args:
             trading_pair: Trading pair to get snapshot for
-            
+
         Returns:
             Order book snapshot data
         """
         exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
         params = {
             "symbol": exchange_symbol,
-            "limit": 1000  # Get deep order book
+            "limit": 1000,  # Get deep order book
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
@@ -105,273 +94,247 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             throttler_limit_id=CONSTANTS.DEPTH_URL,
         )
 
-        return data
+        return data if isinstance(data, dict) else {}
 
-    async def _subscribe_channels(self, ws: WSAssistant):
-        """
-        Subscribe to WebSocket channels for order book and trade data.
-        
+    async def _order_book_snapshot(self, trading_pair: str) -> OrderBookMessage:
+        """Get order book snapshot message.
+
         Args:
-            ws: WebSocket assistant
+            trading_pair: Trading pair
+
+        Returns:
+            Order book snapshot message
         """
-        try:
-            # Prepare subscription parameters
-            subscriptions = []
-            
-            for trading_pair in self._trading_pairs:
-                exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-                
-                # Subscribe to order book depth updates
-                subscriptions.append(f"{CONSTANTS.WS_DEPTH_CHANNEL}@{exchange_symbol}")
-                
-                # Subscribe to trade updates
-                subscriptions.append(f"{CONSTANTS.WS_TRADES_CHANNEL}@{exchange_symbol}")
+        snapshot_data = await self._request_order_book_snapshot(trading_pair)
 
-            # Send subscription request
-            subscription_payload = {
-                "method": "subscribe",
-                "params": {
-                    "subscriptions": subscriptions
-                }
-            }
-            
-            subscribe_request = WSJSONRequest(payload=subscription_payload)
-            await ws.send(subscribe_request)
+        snapshot_message = OrderBookMessage(
+            message_type=OrderBookMessageType.SNAPSHOT,
+            content={
+                "trading_pair": trading_pair,
+                "update_id": snapshot_data.get("lastUpdateId", 0),
+                "bids": snapshot_data.get("bids", []),
+                "asks": snapshot_data.get("asks", []),
+            },
+            timestamp=time.time(),
+        )
 
-            self.logger().info(f"Subscribed to public channels: {subscriptions}")
-            
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            self.logger().error(
-                "Unexpected error occurred subscribing to order book and trade streams",
-                exc_info=True
-            )
-            raise
+        return snapshot_message
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
-        """
-        Create and connect WebSocket assistant for public streams.
-        
+        """Create and connect WebSocket assistant for public streams.
+
+        Implements parent class pattern.
+
         Returns:
             Connected WebSocket assistant
         """
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
         await ws.connect(
             ws_url=web_utils.ws_public_url(self._domain),
-            message_timeout=CONSTANTS.REQUEST_TIMEOUT
+            message_timeout=CONSTANTS.REQUEST_TIMEOUT,
         )
         return ws
 
+    async def _subscribe_channels(self, ws: WSAssistant):
+        """Subscribe to WebSocket channels for order book and trade data.
+
+        Implements parent class pattern.
+
+        Args:
+            ws: WebSocket assistant
+        """
+        try:
+            # Prepare subscription parameters
+            subscriptions = []
+
+            for trading_pair in self._trading_pairs:
+                exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+
+                # Subscribe to order book depth and trade updates
+                subscriptions.extend([
+                    f"{CONSTANTS.WS_DEPTH_CHANNEL}.{exchange_symbol}",
+                    f"{CONSTANTS.WS_TRADES_CHANNEL}.{exchange_symbol}",
+                ])
+
+            # Send subscription request
+            subscription_payload = {
+                "method": "SUBSCRIBE",
+                "params": subscriptions,
+            }
+
+            subscribe_request = WSJSONRequest(payload=subscription_payload)
+            await ws.send(subscribe_request)
+
+            self.logger().info(f"Subscribed to public channels: {subscriptions}")
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().error(
+                "Unexpected error occurred subscribing to order book and trade streams",
+                exc_info=True,
+            )
+            raise
+
+    def _channel_originating_message(self, event_message: dict[str, Any]) -> str:
+        """Identifies the channel for a particular event message.
+
+        Implements parent class pattern for message routing.
+
+        Args:
+            event_message: The event received through the websocket connection
+
+        Returns:
+            The message channel key for routing
+        """
+        channel = ""
+
+        # Skip subscription confirmations
+        if event_message.get("result") == "success" or event_message.get("type") == "subscribed":
+            return channel
+
+        # Check for Backpack's message types
+        message_type = event_message.get("type", "")
+
+        if message_type == CONSTANTS.WS_DEPTH_CHANNEL:
+            channel = self._diff_messages_queue_key
+        elif message_type == CONSTANTS.WS_TRADES_CHANNEL:
+            channel = self._trade_messages_queue_key
+        else:
+            # Check data content if type is not clear
+            data = event_message.get("data", {})
+            if "bids" in data or "asks" in data:
+                channel = self._diff_messages_queue_key
+            elif "price" in data and "quantity" in data:
+                channel = self._trade_messages_queue_key
+
+        return channel
+
     async def _parse_order_book_diff_message(
         self,
-        raw_message: Dict[str, Any],
-        message_queue: asyncio.Queue
+        raw_message: dict[str, Any],
+        message_queue: asyncio.Queue,
     ):
-        """
-        Parse order book diff message and add to queue.
-        
+        """Parse order book diff message and add to queue.
+
         Args:
             raw_message: Raw WebSocket message
             message_queue: Queue to add parsed message to
         """
         try:
-            if raw_message.get("type") == CONSTANTS.WS_DEPTH_CHANNEL:
-                data = raw_message.get("data", {})
-                exchange_symbol = data.get("symbol")
-                
-                if exchange_symbol:
-                    trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
-                    
-                    if trading_pair in self._trading_pairs:
-                        timestamp = data.get("timestamp", time.time() * 1000)
-                        
-                        order_book_message = OrderBookMessage(
-                            message_type="DIFF",
-                            content={
-                                "trading_pair": trading_pair,
-                                "update_id": data.get("lastUpdateId", 0),
-                                "bids": data.get("bids", []),
-                                "asks": data.get("asks", []),
-                            },
-                            timestamp=timestamp / 1000
-                        )
-                        
-                        message_queue.put_nowait(order_book_message)
-                        
+            data = raw_message.get("data", {})
+            exchange_symbol = data.get("symbol")
+
+            if exchange_symbol:
+                trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
+
+                if trading_pair in self._trading_pairs:
+                    # WebSocket timestamps are in microseconds (new API)
+                    timestamp = data.get("timestamp", time.time() * 1_000_000)
+
+                    order_book_message = OrderBookMessage(
+                        message_type=OrderBookMessageType.DIFF,
+                        content={
+                            "trading_pair": trading_pair,
+                            "update_id": data.get("lastUpdateId", 0),
+                            "bids": data.get("bids", []),
+                            "asks": data.get("asks", []),
+                        },
+                        timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
+                    )
+
+                    await message_queue.put(order_book_message)
+
         except Exception:
             self.logger().error(
                 f"Error parsing order book diff message: {raw_message}",
-                exc_info=True
+                exc_info=True,
             )
 
     async def _parse_trade_message(
         self,
-        raw_message: Dict[str, Any],
-        message_queue: asyncio.Queue
+        raw_message: dict[str, Any],
+        message_queue: asyncio.Queue,
     ):
-        """
-        Parse trade message and add to queue.
-        
+        """Parse trade message and add to queue.
+
         Args:
             raw_message: Raw WebSocket message
             message_queue: Queue to add parsed message to
         """
         try:
-            if raw_message.get("type") == CONSTANTS.WS_TRADES_CHANNEL:
-                data = raw_message.get("data", {})
-                exchange_symbol = data.get("symbol")
-                
-                if exchange_symbol:
-                    trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
-                    
-                    if trading_pair in self._trading_pairs:
-                        timestamp = data.get("timestamp", time.time() * 1000)
-                        
-                        trade_message = OrderBookMessage(
-                            message_type="TRADE",
-                            content={
-                                "trading_pair": trading_pair,
-                                "trade_type": data.get("side", "").upper(),
-                                "trade_id": data.get("tradeId"),
-                                "price": float(data.get("price", 0)),
-                                "amount": float(data.get("quantity", 0)),
-                            },
-                            timestamp=timestamp / 1000
-                        )
-                        
-                        message_queue.put_nowait(trade_message)
-                        
+            data = raw_message.get("data", {})
+            exchange_symbol = data.get("symbol")
+
+            if exchange_symbol:
+                trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
+
+                if trading_pair in self._trading_pairs:
+                    # WebSocket timestamps are in microseconds (new API)
+                    timestamp = data.get("timestamp", time.time() * 1_000_000)
+
+                    trade_message = OrderBookMessage(
+                        message_type=OrderBookMessageType.TRADE,
+                        content={
+                            "trading_pair": trading_pair,
+                            "trade_type": data.get("side", "").upper(),
+                            "trade_id": data.get("tradeId"),
+                            "price": float(data.get("price", 0)),
+                            "amount": float(data.get("quantity", 0)),
+                        },
+                        timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
+                    )
+
+                    await message_queue.put(trade_message)
+
         except Exception:
             self.logger().error(
                 f"Error parsing trade message: {raw_message}",
-                exc_info=True
+                exc_info=True,
             )
 
-    async def listen_for_trades(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """
-        Listen for trade messages from WebSocket stream.
-        
-        Args:
-            ev_loop: Event loop
-            output: Output queue for trade messages
-        """
-        while True:
-            try:
-                ws = await self._connected_websocket_assistant()
-                await self._subscribe_channels(ws)
-                
-                async for ws_response in ws.iter_messages():
-                    try:
-                        data = json.loads(ws_response.data)
-                        await self._parse_trade_message(data, output)
-                    except Exception:
-                        self.logger().error(
-                            f"Error processing trade message: {ws_response.data}",
-                            exc_info=True
-                        )
-                        
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().error(
-                    "Unexpected error with WebSocket connection. Retrying after 30 seconds...",
-                    exc_info=True
-                )
-                await asyncio.sleep(30.0)
-
-    async def listen_for_order_book_diffs(
+    async def _parse_order_book_snapshot_message(
         self,
-        ev_loop: asyncio.AbstractEventLoop,
-        output: asyncio.Queue
+        raw_message: dict[str, Any],
+        message_queue: asyncio.Queue,
     ):
-        """
-        Listen for order book diff messages from WebSocket stream.
-        
-        Args:
-            ev_loop: Event loop
-            output: Output queue for order book messages
-        """
-        while True:
-            try:
-                ws = await self._connected_websocket_assistant()
-                await self._subscribe_channels(ws)
-                
-                async for ws_response in ws.iter_messages():
-                    try:
-                        data = json.loads(ws_response.data)
-                        await self._parse_order_book_diff_message(data, output)
-                    except Exception:
-                        self.logger().error(
-                            f"Error processing order book diff message: {ws_response.data}",
-                            exc_info=True
-                        )
-                        
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().error(
-                    "Unexpected error with WebSocket connection. Retrying after 30 seconds...",
-                    exc_info=True
-                )
-                await asyncio.sleep(30.0)
+        """Parse order book snapshot message.
 
-    async def listen_for_order_book_snapshots(
-        self,
-        ev_loop: asyncio.AbstractEventLoop,
-        output: asyncio.Queue
-    ):
-        """
-        Periodically fetch order book snapshots from REST API.
-        
         Args:
-            ev_loop: Event loop
-            output: Output queue for order book snapshots
+            raw_message: Raw snapshot data
+            message_queue: Queue to add parsed message to
         """
-        while True:
-            try:
-                for trading_pair in self._trading_pairs:
-                    try:
-                        snapshot_data = await self._request_order_book_snapshot(trading_pair)
-                        
-                        snapshot_message = OrderBookMessage(
-                            message_type="SNAPSHOT",
-                            content={
-                                "trading_pair": trading_pair,
-                                "update_id": snapshot_data.get("lastUpdateId", 0),
-                                "bids": snapshot_data.get("bids", []),
-                                "asks": snapshot_data.get("asks", []),
-                            },
-                            timestamp=time.time()
-                        )
-                        
-                        output.put_nowait(snapshot_message)
-                        
-                    except Exception:
-                        self.logger().error(
-                            f"Error fetching order book snapshot for {trading_pair}",
-                            exc_info=True
-                        )
-                        
-                # Wait before next snapshot cycle
-                await asyncio.sleep(self.ONE_HOUR)
-                
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().error(
-                    "Unexpected error in order book snapshot loop",
-                    exc_info=True
+        # In Backpack, snapshots come from REST API, not WebSocket
+        # This method handles snapshots placed in queue by _request_order_book_snapshots
+        try:
+            # If this is a REST snapshot, it will have the structure we expect
+            trading_pair = raw_message.get("trading_pair")
+            if trading_pair:
+                snapshot_message = OrderBookMessage(
+                    message_type=OrderBookMessageType.SNAPSHOT,
+                    content={
+                        "trading_pair": trading_pair,
+                        "update_id": raw_message.get("lastUpdateId", 0),
+                        "bids": raw_message.get("bids", []),
+                        "asks": raw_message.get("asks", []),
+                    },
+                    timestamp=time.time(),
                 )
-                await asyncio.sleep(60.0)
 
-    async def fetch_trading_pairs(self, domain: Optional[str] = None) -> List[str]:
-        """
-        Fetch available trading pairs from the exchange.
-        
+                await message_queue.put(snapshot_message)
+
+        except Exception:
+            self.logger().error(
+                f"Error parsing snapshot message: {raw_message}",
+                exc_info=True,
+            )
+
+    async def fetch_trading_pairs(self, domain: str | None = None) -> list[str]:
+        """Fetch available trading pairs from the exchange.
+
         Args:
             domain: Exchange domain (optional)
-            
+
         Returns:
             List of available trading pairs in Hummingbot format
         """
@@ -382,28 +345,29 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 method=RESTMethod.GET,
                 throttler_limit_id=CONSTANTS.EXCHANGE_INFO_URL,
             )
-            
+
             trading_pairs = []
+            if not isinstance(data, dict):
+                return []
             for symbol_data in data.get("symbols", []):
                 if symbol_data.get("status") == "TRADING":
                     exchange_symbol = symbol_data.get("symbol")
                     if exchange_symbol:
                         trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
                         trading_pairs.append(trading_pair)
-            
+
             return trading_pairs
-            
+
         except Exception:
             self.logger().error("Error fetching trading pairs", exc_info=True)
             return []
 
-    async def get_order_book_data(self, trading_pair: str) -> Dict[str, Any]:
-        """
-        Get order book data for a specific trading pair.
-        
+    async def get_order_book_data(self, trading_pair: str) -> dict[str, Any]:
+        """Get order book data for a specific trading pair.
+
         Args:
             trading_pair: Trading pair to get order book for
-            
+
         Returns:
             Order book data
         """
