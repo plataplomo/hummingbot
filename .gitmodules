@@ -1,3 +1,4 @@
 [submodule "vendor/hummingbot"]
 	path = vendor/hummingbot
 	url = https://github.com/plataplomo/hummingbot.git
+	branch = development

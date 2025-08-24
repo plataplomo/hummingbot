@@ -84,7 +84,7 @@ class BackpackRawGetBalancesParams(BaseModel):
 
 
 class BackpackRawGetPositionsParams(BaseModel):
-    """Query parameters for GET /api/v1/positions endpoint.
+    """Query parameters for GET /api/v1/position endpoint.
 
     This model represents query parameters for retrieving position data.
     This endpoint typically requires no query parameters when fetching all positions.
