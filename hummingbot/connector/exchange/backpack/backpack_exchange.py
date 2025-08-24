@@ -2,6 +2,7 @@
 Main exchange class implementing all required trading functionality.
 """
 
+import json
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -341,15 +342,14 @@ class BackpackExchange(ExchangePyBase):
                 return response
             
             # Handle string response by trying to parse as JSON
-            if isinstance(response, str):
-                import json
-                try:
-                    return json.loads(response)
-                except json.JSONDecodeError:
-                    return {"error": "Invalid response format", "raw": response}
+            if not isinstance(response, str):
+                # Fallback for unexpected response types (not dict or str)
+                return {"error": "Unexpected response type"}
             
-            # Fallback for unexpected response types
-            return {"error": "Unexpected response type"}
+            try:
+                return json.loads(response)
+            except json.JSONDecodeError:
+                return {"error": "Invalid response format", "raw": response}
 
     # Network check
     async def check_network(self) -> bool:
@@ -428,7 +428,12 @@ class BackpackExchange(ExchangePyBase):
             prices = {}
 
             # Handle both list and dict responses
-            tickers = ticker_data if isinstance(ticker_data, list) else [ticker_data]
+            # API can return list or single dict
+            tickers = []
+            if isinstance(ticker_data, list):
+                tickers = ticker_data
+            elif isinstance(ticker_data, dict):
+                tickers = [ticker_data]
             
             for ticker in tickers:
                 if isinstance(ticker, dict):
@@ -667,14 +672,14 @@ class BackpackExchange(ExchangePyBase):
                 limit_id=CONSTANTS.ORDER_URL,
             )
 
-            order_state = CONSTANTS.ORDER_STATE_MAP.get(order_data["status"], OrderState.OPEN)
+            order_state_str = CONSTANTS.ORDER_STATE_MAP.get(order_data["status"], "OPEN")
 
             order_update = OrderUpdate(
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=tracked_order.exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
                 update_timestamp=self.current_timestamp,
-                new_state=getattr(OrderState, order_state),
+                new_state=OrderState[order_state_str],
                 misc_updates={
                     "fill_price": Decimal(order_data.get("price", "0")),
                     "executed_amount_base": Decimal(order_data.get("executedQuantity", "0")),

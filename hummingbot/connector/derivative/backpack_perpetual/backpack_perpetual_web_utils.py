@@ -2,6 +2,8 @@
 """
 
 import asyncio
+import json
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -128,7 +130,6 @@ async def get_current_server_time(
         # Response could be dict or string from execute_request
         if isinstance(response, str):
             # Try to parse as JSON if it's a string
-            import json
             data: dict[str, Any] = json.loads(response)
         else:
             data = response
@@ -213,7 +214,6 @@ async def api_request(
             # Response could be str or dict from execute_request
             if isinstance(response, str):
                 # Try to parse as JSON if it's a string
-                import json
                 return json.loads(response)
             return response
 
@@ -321,5 +321,4 @@ def next_message_id() -> int:
     Returns:
         Incrementing message ID
     """
-    import time
     return int(time.time() * 1000) % 1000000000

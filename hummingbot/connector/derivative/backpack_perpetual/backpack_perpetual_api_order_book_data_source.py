@@ -60,7 +60,6 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         self._ws_assistant: WSAssistant | None = None
         self._message_id_counter = 0
 
-    
     @classmethod
     def logger(cls) -> HummingbotLogger:
         global _logger
@@ -138,6 +137,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     if trading_pair:
                         trading_pairs.append(trading_pair)
             except Exception:
+                self.logger().debug(f"Skipping unsupported symbol: {market_info.get('symbol', 'unknown')}")
                 continue
 
         return trading_pairs
@@ -163,13 +163,13 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         )
         
         # The response could be an array or dict, handle both cases
-        mark_price_data: dict[str, Any]
+        # API response type is list[dict] or dict
+        mark_price_data: dict[str, Any] = {}
         if isinstance(mark_prices_response, list):
-            mark_price_data = mark_prices_response[0] if mark_prices_response else {}
+            if mark_prices_response:
+                mark_price_data = mark_prices_response[0]
         elif isinstance(mark_prices_response, dict):
             mark_price_data = mark_prices_response
-        else:
-            mark_price_data = {}
         
         # Trust exchange data structure per OpenAPI spec
         # Convert to appropriate types
@@ -435,20 +435,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 return
             
             # Parse funding info from markPrice message
-            # Format per Backpack docs:
-            # {
-            #   "e": "markPrice",           // Event type
-            #   "E": 1694687965941000,      // Event time in microseconds
-            #   "s": "SOL_USDC",            // Symbol
-            #   "p": "18.70",               // Mark price
-            #   "f": "1.70",                // Estimated funding rate
-            #   "i": "19.70",               // Index price
-            #   "n": 1694687965941000,      // Next funding timestamp in microseconds
-            # }
-            
-            # Create FundingInfoUpdate object similar to Binance/Bybit
-            from hummingbot.core.data_type.funding_info import FundingInfoUpdate
-            
+            # Format: e=markPrice, s=symbol, p=mark price, f=funding rate, i=index price, n=next funding time
             funding_info = FundingInfoUpdate(trading_pair=trading_pair)
             
             # Set mark price if present
@@ -473,7 +460,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             
         except Exception:
             self.logger().exception(
-                f"Error parsing funding info message: {raw_message}"
+                f"Error parsing funding info message: {raw_message}",
             )
 
     def _is_funding_info_message(self, data: dict[str, Any]) -> bool:

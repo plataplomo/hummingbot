@@ -116,11 +116,11 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             for trading_pair in self._trading_pairs:
                 exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
 
-                # Subscribe to order book depth updates
-                subscriptions.append(f"{CONSTANTS.WS_DEPTH_CHANNEL}.{exchange_symbol}")
-
-                # Subscribe to trade updates
-                subscriptions.append(f"{CONSTANTS.WS_TRADES_CHANNEL}.{exchange_symbol}")
+                # Subscribe to order book depth and trade updates
+                subscriptions.extend([
+                    f"{CONSTANTS.WS_DEPTH_CHANNEL}.{exchange_symbol}",
+                    f"{CONSTANTS.WS_TRADES_CHANNEL}.{exchange_symbol}",
+                ])
 
             # Send subscription request
             subscription_payload = {

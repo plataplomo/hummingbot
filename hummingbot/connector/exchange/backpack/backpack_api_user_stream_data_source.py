@@ -304,7 +304,7 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             Queue of user events
         """
         event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
-        _ = asyncio.create_task(self.listen_for_user_stream(event_queue))
+        self._listen_task = asyncio.create_task(self.listen_for_user_stream(event_queue))
 
         while True:
             try:

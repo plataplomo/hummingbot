@@ -1,6 +1,7 @@
 """Utility functions for Backpack Perpetual Exchange connector.
 """
 
+import time
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -130,8 +131,6 @@ def get_new_client_order_id(
     Returns:
         New client order ID
     """
-    import time
-
     side = "B" if is_buy else "S"
     base, quote = split_trading_pair(trading_pair)
 
@@ -161,11 +160,7 @@ def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not exchange_info:
-        return False
-    
-    # Must be a dict
-    if not isinstance(exchange_info, dict):
+    if not exchange_info or not isinstance(exchange_info, dict):
         return False
     try:
         # Check for required fields based on Backpack's API structure
@@ -208,7 +203,7 @@ def decimal_val_or_none(string_value: str) -> Decimal | None:
         Decimal value or None if conversion fails
     """
     try:
-        if string_value is None or string_value == "":
+        if not string_value:
             return None
         return Decimal(str(string_value))
     except Exception:
@@ -364,8 +359,6 @@ def get_next_funding_timestamp(current_timestamp: float | None = None) -> int:
     Returns:
         Next funding timestamp in seconds
     """
-    import time
-    
     if current_timestamp is None:
         current_timestamp = time.time()
     

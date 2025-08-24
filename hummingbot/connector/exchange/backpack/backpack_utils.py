@@ -100,14 +100,8 @@ def is_exchange_information_valid(exchange_info: dict) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not isinstance(exchange_info, dict):
+    if not isinstance(exchange_info, dict) or "symbols" not in exchange_info:
         return False
-
-    # Check for required fields
-    required_fields = ["symbols"]
-    for field in required_fields:
-        if field not in exchange_info:
-            return False
 
     # Validate symbols structure
     symbols = exchange_info.get("symbols", [])
@@ -132,10 +126,7 @@ def validate_trading_pair(trading_pair: str) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not isinstance(trading_pair, str):
-        return False
-
-    if "-" not in trading_pair:
+    if not isinstance(trading_pair, str) or "-" not in trading_pair:
         return False
 
     parts = trading_pair.split("-")

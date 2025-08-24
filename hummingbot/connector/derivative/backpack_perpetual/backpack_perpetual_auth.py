@@ -91,7 +91,7 @@ class BackpackPerpetualAuth(AuthBase):
             signature = self._private_key.sign(payload.encode("utf-8"))
             return base64.b64encode(signature).decode("utf-8")
         except Exception as e:
-            raise ValueError(f"Failed to generate signature: {e}")
+            raise ValueError(f"Failed to generate signature: {e}") from e
 
     def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
         """Get the instruction string for a given method and path.

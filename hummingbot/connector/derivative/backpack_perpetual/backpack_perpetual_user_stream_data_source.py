@@ -4,6 +4,7 @@ Handles private WebSocket streams for account updates, orders, positions, and fu
 
 import asyncio
 import json
+import time
 from typing import TYPE_CHECKING, Any
 
 from hummingbot.connector.derivative.backpack_perpetual import (
@@ -395,7 +396,6 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         Returns:
             Current timestamp
         """
-        import time
         return time.time()
 
     async def stop(self):

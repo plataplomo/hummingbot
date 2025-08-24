@@ -144,8 +144,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         return CONSTANTS.TIME_URL
 
     @property
-    def trading_pairs(self):
-        return self._trading_pairs
+    def trading_pairs(self) -> list[str]:
+        return self._trading_pairs or []
 
     def set_leverage(self, trading_pair: str, leverage: int = 1):
         """Set leverage for a trading pair (stored locally).
@@ -565,13 +565,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
         # Handle both list format (direct response) and object format (wrapped in "positions" key)
-        positions: list[Any]
+        # API response can be list or dict with "positions" key
+        positions: list[Any] = []
         if isinstance(response, list):
             positions = response
         elif isinstance(response, dict):
             positions = response.get("positions", [])
-        else:
-            positions = []
 
         # Track which trading pairs have positions in the response
         trading_pairs_in_response = set()
@@ -806,7 +805,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
         # Look for our order - Backpack uses 'id' not 'orderId'
-        orders = response if isinstance(response, list) else []
+        # API response is list of orders
+        orders: list[dict[str, Any]] = []
+        if isinstance(response, list):
+            orders = response
         for order_data in orders:
             if isinstance(order_data, dict) and (order_data.get("clientId") == tracked_order.client_order_id or
                     order_data.get("id") == tracked_order.exchange_order_id):
@@ -820,8 +822,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True,
         )
 
-        for order_data in history_response:
-            if (order_data.get("clientId") == tracked_order.client_order_id or
+        # API response is list of historical orders
+        history_orders: list[dict[str, Any]] = []
+        if isinstance(history_response, list):
+            history_orders = history_response
+        for order_data in history_orders:
+            if isinstance(order_data, dict) and (order_data.get("clientId") == tracked_order.client_order_id or
                     order_data.get("id") == tracked_order.exchange_order_id):
 
                 return self._parse_order_update(order_data, tracked_order)
@@ -862,17 +868,21 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             is_auth_required=True,
         )
 
+        # API response is list of fills
+        fills_list: list[dict[str, Any]] = []
+        if isinstance(response, list):
+            fills_list = response
         trade_updates = [TradeUpdate(
                     trade_id=str(fill_data.get("tradeId", fill_data.get("id"))),
                     client_order_id=order.client_order_id,
                     exchange_order_id=order.exchange_order_id or "",  # Handle None case
                     trading_pair=order.trading_pair,
-                    fill_timestamp=fill_data.get("timestamp", self.current_timestamp),
+                    fill_timestamp=float(fill_data.get("timestamp") or self.current_timestamp),
                     fill_price=Decimal(str(fill_data["price"])),  # Required field
                     fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
                     fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
                     fee=self._get_trade_fee_from_fill(fill_data),
-                ) for fill_data in response]
+                ) for fill_data in fills_list if isinstance(fill_data, dict)]
 
         return trade_updates
 
@@ -904,11 +914,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     async def _update_funding_info(self):
         """Update funding rate information for all trading pairs."""
-        tasks = [self._fetch_funding_rate(trading_pair) for trading_pair in self._trading_pairs]
+        trading_pairs = self._trading_pairs or []
+        tasks = [self._fetch_funding_rate(trading_pair) for trading_pair in trading_pairs]
 
-        funding_infos = await safe_gather(*tasks, return_exceptions=True)
+        funding_infos: list[FundingInfo | Exception] = await safe_gather(*tasks, return_exceptions=True)
 
-        for trading_pair, funding_info in zip(self._trading_pairs, funding_infos, strict=False):
+        for trading_pair, funding_info in zip(trading_pairs, funding_infos, strict=False):
             if isinstance(funding_info, Exception):
                 self.logger().error(
                     f"Error fetching funding rate for {trading_pair}: {funding_info}",
@@ -939,15 +950,17 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
         # Response is a list, find the matching symbol
+        mark_data: dict[str, Any] | None = None
         if isinstance(response, list):
-            mark_data = None
             for item in response:
-                if item["symbol"] == symbol:
+                if isinstance(item, dict) and item.get("symbol") == symbol:
                     mark_data = item
                     break
-            # If mark_data is empty, the following code will fail naturally with KeyError
-        else:
+        elif isinstance(response, dict):
             mark_data = response
+        
+        if mark_data is None:
+            raise ValueError(f"No mark price data found for {symbol}")
 
         funding_info = FundingInfo(
             trading_pair=trading_pair,
@@ -1203,8 +1216,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     return
 
             # Map order status
-            order_state = CONSTANTS.ORDER_STATE_MAP.get(order_data.get("status"), "OPEN")
-            new_state = getattr(OrderState, order_state)
+            order_state = CONSTANTS.ORDER_STATE_MAP.get(order_data.get("status") or "", "OPEN")
+            new_state = OrderState[order_state]
 
             # Create order update - Backpack uses 'id' field for order ID
             order_update = OrderUpdate(
@@ -1531,7 +1544,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 is_auth_required=True,
             )
 
-            payments = response if isinstance(response, list) else []
+            # API response is list of funding payments
+            payments: list[dict[str, Any]] = []
+            if isinstance(response, list):
+                payments = response
             if payments and len(payments) > 0:
                 last_payment = payments[0]
                 # Convert timestamp from ISO format or milliseconds
