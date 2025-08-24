@@ -16,15 +16,12 @@ from hummingbot.core.data_type.user_stream_tracker_data_source import UserStream
 from hummingbot.core.web_assistant.connections.data_types import WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
-from hummingbot.logger import HummingbotLogger
 
 
 if TYPE_CHECKING:
     from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import (
         BackpackPerpetualDerivative,
     )
-
-_logger: HummingbotLogger | None = None
 
 
 class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
@@ -55,13 +52,6 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         self._ws_assistant: WSAssistant | None = None
         self._last_recv_time: float = 0
         self._message_id_counter = 0
-
-    @classmethod
-    def logger(cls) -> HummingbotLogger:
-        global _logger
-        if _logger is None:
-            _logger = HummingbotLogger(__name__)
-        return _logger
 
     @property
     def last_recv_time(self) -> float:

@@ -21,15 +21,12 @@ from hummingbot.core.data_type.perpetual_api_order_book_data_source import Perpe
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
-from hummingbot.logger import HummingbotLogger
 
 
 if TYPE_CHECKING:
     from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import (
         BackpackPerpetualDerivative,
     )
-
-_logger: HummingbotLogger | None = None
 
 
 class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
@@ -57,13 +54,6 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         self._api_factory = api_factory
         self._domain = domain
 
-    @classmethod
-    def logger(cls) -> HummingbotLogger:
-        global _logger
-        if _logger is None:
-            _logger = HummingbotLogger(__name__)
-        return _logger
-
     async def get_last_traded_prices(
         self,
         trading_pairs: list[str],
@@ -82,8 +72,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         results = {}
 
         for trading_pair in trading_pairs:
+            symbol = utils.convert_to_exchange_trading_pair(trading_pair)
             try:
-                symbol = utils.convert_to_exchange_trading_pair(trading_pair)
                 response = await web_utils.api_request(
                     path=CONSTANTS.TICKER_URL,
                     api_factory=self._api_factory,
@@ -98,10 +88,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     first_item = response[0]
                     if isinstance(first_item, dict) and "lastPrice" in first_item:
                         results[trading_pair] = float(first_item["lastPrice"])
-
             except Exception:
                 self.logger().exception(f"Error fetching last price for {trading_pair}")
-                continue
 
         return results
 

@@ -3,7 +3,6 @@ Handles public WebSocket streams for order book and trade data.
 """
 
 import asyncio
-import json
 import time
 from typing import TYPE_CHECKING, Any
 

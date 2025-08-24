@@ -8,9 +8,6 @@ from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
 EXCHANGE_NAME = "backpack_perpetual"
 DEFAULT_DOMAIN = "backpack_perpetual"
 
-# Collateral token (Backpack uses USDC for all perpetuals)
-COLLATERAL_TOKEN = "USDC"
-
 # Position mode - Backpack only supports ONEWAY mode
 DEFAULT_POSITION_MODE = PositionMode.ONEWAY
 SUPPORTED_POSITION_MODES = [PositionMode.ONEWAY]  # Backpack only supports one-way mode

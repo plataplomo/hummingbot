@@ -74,9 +74,9 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str | None
             # Remove _PERP suffix
             symbol = exchange_trading_pair.replace("_PERP", "")
             
-            # If it's just BASE_PERP (e.g., BTC_PERP), add quote currency from constants
+            # If it's just BASE_PERP (e.g., BTC_PERP), default to USDC as quote
             if TRADING_PAIR_SPLITTER not in symbol:
-                return f"{symbol}-{CONSTANTS.COLLATERAL_TOKEN}"
+                return f"{symbol}-USDC"
             # It's BASE_QUOTE_PERP (e.g., SOL_USDC_PERP)
             return symbol.replace(TRADING_PAIR_SPLITTER, "-")
         
@@ -107,8 +107,8 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     """
     base, quote = split_trading_pair(hb_trading_pair)
     
-    # For standard perpetual quote currency, use simplified format (e.g., BTC_PERP)
-    if quote == CONSTANTS.COLLATERAL_TOKEN:
+    # For USDC perpetuals, use simplified format (e.g., BTC_PERP)
+    if quote == "USDC":
         return f"{base}_PERP"
     # For other quote currencies, use full format
     return f"{base}_{quote}_PERP"

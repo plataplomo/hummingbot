@@ -505,14 +505,17 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 if min_notional:
                     min_notional = Decimal(str(min_notional))
 
+                # Get collateral token from API response (required field)
+                collateral_token = market_info["quoteCurrency"]
+
                 # Create trading rule
                 trading_rule = TradingRule(
                     trading_pair=trading_pair,
                     min_order_size=min_order_size,
                     min_price_increment=tick_size,
                     min_base_amount_increment=step_size,
-                    buy_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
-                    sell_order_collateral_token=CONSTANTS.COLLATERAL_TOKEN,
+                    buy_order_collateral_token=collateral_token,
+                    sell_order_collateral_token=collateral_token,
                 )
 
                 # Add optional fields if present
@@ -893,15 +896,23 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     fill_price=Decimal(str(fill_data["price"])),  # Required field
                     fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
                     fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
-                    fee=self._get_trade_fee_from_fill(fill_data),
+                    fee=self._get_trade_fee_from_fill(fill_data, order.trading_pair),
                 ) for fill_data in fills_list if isinstance(fill_data, dict)]
 
         return trade_updates
 
-    def _get_trade_fee_from_fill(self, fill_data: dict[str, Any]) -> TradeFeeBase:
+    def _get_trade_fee_from_fill(self, fill_data: dict[str, Any], trading_pair: str | None = None) -> TradeFeeBase:
         """Extract trade fee from fill data."""
         fee_amount = Decimal(str(fill_data.get("fee", "0")))
-        fee_asset = fill_data.get("feeAsset", CONSTANTS.COLLATERAL_TOKEN)
+        fee_asset = fill_data.get("feeAsset")  # Get fee asset from API
+        if not fee_asset:
+            # If fee asset not specified, get collateral token from trading rules
+            # This matches how Binance handles missing fee asset
+            if trading_pair and trading_pair in self._trading_rules:
+                fee_asset = self._trading_rules[trading_pair].buy_order_collateral_token
+            else:
+                # Last resort fallback if trading pair not available
+                fee_asset = "USDC"
 
         return TradeFeeBase.new_perpetual_fee(
             fee_schema=self.trade_fee_schema(),
@@ -1396,8 +1407,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 if min_notional:
                     min_notional = Decimal(str(min_notional))
 
-                # Get collateral token from symbol info
-                collateral_token = symbol_info.get("quoteCurrency", CONSTANTS.COLLATERAL_TOKEN)
+                # Get collateral token from symbol info (required field)
+                collateral_token = symbol_info["quoteCurrency"]
                 
                 # Extract margin and leverage data from API
                 max_leverage = symbol_info.get("maxLeverage")
@@ -1473,7 +1484,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
                 # Extract base and quote from symbol (e.g., BTC_PERP -> BTC-USDC)
                 base = symbol.replace("_PERP", "")
-                quote = symbol_info.get("quoteCurrency", "USDC")
+                quote = symbol_info["quoteCurrency"]
 
                 trading_pair = f"{base}-{quote}"
                 mapping[symbol] = trading_pair
