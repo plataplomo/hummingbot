@@ -1,5 +1,4 @@
-"""Utility functions for Backpack Perpetual Exchange connector.
-"""
+"""Utility functions for Backpack Perpetual Exchange connector."""
 
 import time
 from decimal import Decimal
@@ -14,7 +13,6 @@ from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 from . import backpack_perpetual_constants as CONSTANTS
 
-
 # Backpack uses underscore format for symbols
 TRADING_PAIR_SPLITTER = "_"
 
@@ -22,6 +20,33 @@ DEFAULT_FEES = TradeFeeSchema(
     maker_percent_fee_decimal=Decimal("0.0002"),  # 0.02% maker fee
     taker_percent_fee_decimal=Decimal("0.0005"),  # 0.05% taker fee
 )
+
+
+def normalize_response_to_list(response: Any) -> list[Any]:
+    """Normalize API response to a list format.
+
+    Backpack API returns either:
+    - A list directly
+    - A dict with a data key containing a list
+    - A dict that should be wrapped in a list
+
+    Args:
+        response: Raw API response
+
+    Returns:
+        Normalized list response
+    """
+    if isinstance(response, list):
+        return response
+    elif isinstance(response, dict):
+        # Check for common keys that contain list data
+        for key in ["positions", "orders", "fills", "trades", "balances", "data"]:
+            if key in response and isinstance(response[key], list):
+                return response[key]
+        # If it's a single item response, wrap it in a list
+        return [response]
+    else:
+        return []
 
 
 def split_trading_pair(trading_pair: str) -> tuple[str, str]:
@@ -32,20 +57,20 @@ def split_trading_pair(trading_pair: str) -> tuple[str, str]:
 
     Returns:
         Tuple of (base_asset, quote_asset)
-    
+
     Raises:
         ValueError: If the trading pair format is invalid
     """
     if not trading_pair or not isinstance(trading_pair, str):
         raise ValueError(f"Invalid trading pair: {trading_pair}")
-    
+
     parts = trading_pair.split("-")
     if len(parts) != 2:
         raise ValueError(f"Invalid trading pair format: {trading_pair}. Expected format: 'BASE-QUOTE'")
-    
+
     if not parts[0] or not parts[1]:
         raise ValueError(f"Invalid trading pair format: {trading_pair}. Base and quote must not be empty")
-    
+
     return parts[0], parts[1]
 
 
@@ -55,7 +80,7 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str | None
     For perpetuals:
     - BTC_PERP -> BTC-USDC
     - SOL_USDC_PERP -> SOL-USDC
-    
+
     For spot (if any):
     - BTC_USDC -> BTC-USDC
 
@@ -68,22 +93,22 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str | None
     try:
         if not exchange_trading_pair:
             return None
-            
+
         # Handle perpetual contracts
         if "_PERP" in exchange_trading_pair:
             # Remove _PERP suffix
             symbol = exchange_trading_pair.replace("_PERP", "")
-            
+
             # If it's just BASE_PERP (e.g., BTC_PERP), default to USDC as quote
             if TRADING_PAIR_SPLITTER not in symbol:
                 return f"{symbol}-USDC"
             # It's BASE_QUOTE_PERP (e.g., SOL_USDC_PERP)
             return symbol.replace(TRADING_PAIR_SPLITTER, "-")
-        
+
         # Handle regular spot pairs (if any)
         if TRADING_PAIR_SPLITTER in exchange_trading_pair:
             return exchange_trading_pair.replace(TRADING_PAIR_SPLITTER, "-")
-            
+
         return None
     except Exception:
         return None
@@ -96,7 +121,7 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     - BTC-USDC -> BTC_PERP
     - SOL-USDC -> SOL_PERP
     - ETH-USDC -> ETH_PERP
-    
+
     For other quote currencies, the full format would be used (e.g., BTC-USD -> BTC_USD_PERP)
 
     Args:
@@ -106,7 +131,7 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
         Backpack formatted trading pair (e.g., "BTC_PERP")
     """
     base, quote = split_trading_pair(hb_trading_pair)
-    
+
     # For USDC perpetuals, use simplified format (e.g., BTC_PERP)
     if quote == "USDC":
         return f"{base}_PERP"
@@ -172,7 +197,7 @@ def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
             # Check that at least one symbol exists
             if len(exchange_info["symbols"]) == 0:
                 return False
-            
+
             # Validate each symbol has required fields
             required_symbol_fields = ["symbol", "baseAsset", "quoteAsset", "status"]
             for symbol_info in exchange_info["symbols"]:
@@ -181,7 +206,7 @@ def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
                 for field in required_symbol_fields:
                     if field not in symbol_info:
                         return False
-            
+
             return True
         if "markets" in exchange_info:
             # Alternative field name
@@ -270,8 +295,7 @@ def is_reduce_only_order(
 
 
 class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
-    """Configuration map for Backpack Perpetual connector.
-    """
+    """Configuration map for Backpack Perpetual connector."""
 
     connector: Literal["backpack_perpetual"] = Field(default="backpack_perpetual")
 
@@ -336,10 +360,10 @@ def is_perpetual_symbol(symbol: str) -> bool:
 
 def get_trading_pair_from_symbol(symbol: str) -> str | None:
     """Extract trading pair from a perpetual symbol.
-    
+
     Args:
         symbol: Exchange symbol (e.g., "BTC_PERP")
-    
+
     Returns:
         Trading pair in Hummingbot format (e.g., "BTC-USDC") or None if not a perpetual
     """
@@ -350,23 +374,23 @@ def get_trading_pair_from_symbol(symbol: str) -> str | None:
 
 def get_next_funding_timestamp(current_timestamp: float | None = None) -> int:
     """Calculate the next funding timestamp.
-    
+
     Backpack perpetuals have funding every 8 hours at 00:00, 08:00, and 16:00 UTC.
-    
+
     Args:
         current_timestamp: Current timestamp in seconds (optional)
-    
+
     Returns:
         Next funding timestamp in seconds
     """
     if current_timestamp is None:
         current_timestamp = time.time()
-    
+
     # Funding every 8 hours
     funding_interval = 8 * 60 * 60  # 8 hours in seconds
-    
+
     # Calculate next funding time
     # Funding times are at 00:00, 08:00, 16:00 UTC
     next_funding = ((int(current_timestamp) // funding_interval) + 1) * funding_interval
-    
+
     return next_funding

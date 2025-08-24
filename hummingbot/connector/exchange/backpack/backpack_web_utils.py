@@ -30,7 +30,7 @@ class BackpackRESTPreProcessor(RESTPreProcessorBase):
         """
         if request.headers is None:
             request.headers = {}
-        
+
         # Convert headers to dict if it's a Mapping
         headers_dict = dict(request.headers) if request.headers else {}
 
@@ -39,7 +39,7 @@ class BackpackRESTPreProcessor(RESTPreProcessorBase):
             "Content-Type": "application/json",
             "User-Agent": "Hummingbot-Backpack-Connector/1.0",
         })
-        
+
         request.headers = headers_dict
 
         return request
@@ -66,11 +66,13 @@ def build_api_factory(
     """
     throttler = throttler or create_throttler()
     time_synchronizer = time_synchronizer or TimeSynchronizer()
-    time_provider = time_provider or (lambda: get_current_server_time(
-        throttler=throttler,
-        domain=domain,
-    ))
-    
+    time_provider = time_provider or (
+        lambda: get_current_server_time(
+            throttler=throttler,
+            domain=domain,
+        )
+    )
+
     api_factory = WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
@@ -160,6 +162,33 @@ def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:
         Configured AsyncThrottler
     """
     return AsyncThrottler(CONSTANTS.RATE_LIMITS)
+
+
+def normalize_response_to_list(response: Any) -> list[Any]:
+    """Normalize API response to a list format.
+
+    Backpack API returns either:
+    - A list directly
+    - A dict with a data key containing a list
+    - A dict that should be wrapped in a list
+
+    Args:
+        response: Raw API response
+
+    Returns:
+        Normalized list response
+    """
+    if isinstance(response, list):
+        return response
+    elif isinstance(response, dict):
+        # Check for common keys that contain list data
+        for key in ["positions", "orders", "fills", "trades", "balances", "data"]:
+            if key in response and isinstance(response[key], list):
+                return response[key]
+        # If it's a single item response, wrap it in a list
+        return [response]
+    else:
+        return []
 
 
 def get_rest_url_for_endpoint(endpoint: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:

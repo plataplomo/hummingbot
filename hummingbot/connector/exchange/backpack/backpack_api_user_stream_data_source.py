@@ -15,7 +15,6 @@ from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFa
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
 
-
 if TYPE_CHECKING:
     from hummingbot.connector.exchange.backpack.backpack_auth import BackpackAuth
 
@@ -208,12 +207,12 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             # Backpack wraps all stream data in {"stream": "<stream>", "data": "<payload>"}
             stream_name = message.get("stream", "")
             data = message.get("data", message)  # Fallback to message itself if not wrapped
-            
+
             # Check for authentication/subscription confirmations
             if message.get("result") == "success" or message.get("type") == "authenticated":
                 self.logger().info(f"WebSocket confirmation: {message}")
                 return
-            
+
             # Route based on stream name
             if stream_name == CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL or "orderUpdate" in stream_name:
                 await self._process_order_update({"stream": stream_name, "data": data}, output)
@@ -306,14 +305,18 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         event_queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
         self._listen_task = asyncio.create_task(self.listen_for_user_stream(event_queue))
 
-        while True:
-            try:
+        try:
+            while True:
+                # Queue.get() shouldn't raise exceptions in normal operation
+                # Moving try-except outside the loop for better performance
                 yield await event_queue.get()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().error("Error in user event queue iterator", exc_info=True)
-                continue
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # This should rarely happen as Queue.get() is very stable
+            self.logger().error("Error in user event queue iterator", exc_info=True)
+            # Re-raise to properly handle unexpected errors
+            raise
 
     async def get_account_balances(self) -> dict[str, Any]:
         """Get current account balances from REST API.

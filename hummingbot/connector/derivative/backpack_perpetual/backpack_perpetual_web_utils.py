@@ -1,11 +1,10 @@
-"""Web utilities for Backpack Perpetual Exchange connector.
-"""
+"""Web utilities for Backpack Perpetual Exchange connector."""
 
 import asyncio
 import json
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
 
 from hummingbot.connector.derivative.backpack_perpetual import backpack_perpetual_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
@@ -16,6 +15,9 @@ from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
+
+# Type variable for generic response handling
+T = TypeVar("T")
 
 
 _bpwu_logger: HummingbotLogger | None = None
@@ -42,17 +44,20 @@ def build_api_factory(
     """
     throttler = throttler or create_throttler()
     time_synchronizer = time_synchronizer or TimeSynchronizer()
-    time_provider = time_provider or (lambda: get_current_server_time(
-        throttler=throttler,
-        domain=domain,
-    ))
+    time_provider = time_provider or (
+        lambda: get_current_server_time(
+            throttler=throttler,
+            domain=domain,
+        )
+    )
 
     api_factory = WebAssistantsFactory(
         throttler=throttler,
         auth=auth,
         rest_pre_processors=[
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
-        ])
+        ],
+    )
 
     return api_factory
 
@@ -156,8 +161,11 @@ async def api_request(
     limit_id: str | None = None,
     timeout: float = CONSTANTS.REQUEST_TIMEOUT,
     headers: dict[str, str] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """Make an API request to Backpack Perpetual.
+
+    Note: Returns Any because Backpack API can return either dict or list depending on the endpoint.
+    Use api_request_dict() or api_request_list() for type-safe access.
 
     Args:
         path: API endpoint path
@@ -175,7 +183,7 @@ async def api_request(
         headers: Additional headers
 
     Returns:
-        Response data as dictionary
+        Response data (can be dict or list)
     """
     throttler = throttler or create_throttler()
 
@@ -221,6 +229,81 @@ async def api_request(
             raise OSError(f"API request timeout {method} {url}") from e
         except Exception as e:
             raise OSError(f"Error in API request {method} {url}: {e!s}") from e
+
+
+async def api_request_dict(
+    path: str,
+    **kwargs,
+) -> dict[str, Any]:
+    """Make an API request that is expected to return a dict.
+
+    This is a type-safe wrapper around api_request for endpoints that always return dicts.
+
+    Args:
+        path: API endpoint path
+        **kwargs: Additional arguments passed to api_request
+
+    Returns:
+        Response data as dictionary
+
+    Raises:
+        ValueError: If response is not a dictionary
+    """
+    response = await api_request(path, **kwargs)
+    if not isinstance(response, dict):
+        raise ValueError(f"Expected dict response from {path}, got {type(response).__name__}")
+    return response
+
+
+async def api_request_list(
+    path: str,
+    **kwargs,
+) -> list[Any]:
+    """Make an API request that is expected to return a list.
+
+    This is a type-safe wrapper around api_request for endpoints that always return lists.
+
+    Args:
+        path: API endpoint path
+        **kwargs: Additional arguments passed to api_request
+
+    Returns:
+        Response data as list
+
+    Raises:
+        ValueError: If response is not a list
+    """
+    response = await api_request(path, **kwargs)
+    if not isinstance(response, list):
+        raise ValueError(f"Expected list response from {path}, got {type(response).__name__}")
+    return response
+
+
+def normalize_response_to_list(response: Any) -> list[Any]:
+    """Normalize API response to a list format.
+
+    Backpack API returns either:
+    - A list directly
+    - A dict with a data key containing a list
+    - A dict that should be wrapped in a list
+
+    Args:
+        response: Raw API response
+
+    Returns:
+        Normalized list response
+    """
+    if isinstance(response, list):
+        return response
+    elif isinstance(response, dict):
+        # Check for common keys that contain list data
+        for key in ["positions", "orders", "fills", "trades", "balances", "data"]:
+            if key in response and isinstance(response[key], list):
+                return response[key]
+        # If it's a single item response, wrap it in a list
+        return [response]
+    else:
+        return []
 
 
 def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:

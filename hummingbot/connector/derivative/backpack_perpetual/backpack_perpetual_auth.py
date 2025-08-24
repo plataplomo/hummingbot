@@ -105,15 +105,15 @@ class BackpackPerpetualAuth(AuthBase):
         """
         # Remove query parameters from path for lookup
         lookup_path = path.split("?", maxsplit=1)[0] if "?" in path else path
-        
+
         # Try exact match first
         instruction = self.INSTRUCTION_MAP.get((method.upper(), lookup_path))
-        
+
         if not instruction:
             # For unknown endpoints, generate a default instruction
             # This helps with new endpoints that might not be mapped yet
             instruction = f"{method.lower()}Query"
-            
+
         return instruction
 
     def _build_signature_payload(
@@ -143,10 +143,10 @@ class BackpackPerpetualAuth(AuthBase):
         """
         # Get the instruction for this endpoint
         instruction = self._get_instruction_for_endpoint(method, path)
-        
+
         # Start building the payload
         payload_parts = [f"instruction={instruction}"]
-        
+
         # Handle parameters based on method
         if method.upper() == "GET" and params:
             # For GET requests, add query parameters
@@ -173,10 +173,10 @@ class BackpackPerpetualAuth(AuthBase):
             except (json.JSONDecodeError, TypeError):
                 # If body is not JSON, skip parameter extraction
                 pass
-        
+
         # Add timestamp and window
         payload_parts.extend((f"timestamp={timestamp}", f"window={window}"))
-        
+
         return "&".join(payload_parts)
 
     def _generate_auth_headers(
@@ -225,7 +225,7 @@ class BackpackPerpetualAuth(AuthBase):
         """
         # Get URL, defaulting to empty string if None
         url = request.url or ""
-        
+
         # Extract method and path
         method = request.method.name
 
@@ -254,7 +254,7 @@ class BackpackPerpetualAuth(AuthBase):
             params = {k: v[0] for k, v in parse_qs(query_string).items()}
         elif request.params:
             params = dict(request.params) if request.params else None
-            
+
         # Generate auth headers with instruction-based signatures
         auth_headers = self._generate_auth_headers(
             method=method,
@@ -266,7 +266,7 @@ class BackpackPerpetualAuth(AuthBase):
         # Add auth headers to request
         if request.headers is None:
             request.headers = {}
-        
+
         # Convert headers to dict if it's a Mapping
         headers_dict = dict(request.headers) if request.headers else {}
         headers_dict.update(auth_headers)

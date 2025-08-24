@@ -17,7 +17,6 @@ from hummingbot.core.web_assistant.connections.data_types import WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 
-
 if TYPE_CHECKING:
     from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import (
         BackpackPerpetualDerivative,
@@ -163,9 +162,9 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         # Subscribe to all required private channels
         # Backpack uses the format: {"method": "SUBSCRIBE", "params": ["stream1", "stream2", ...]}
         channels = [
-            CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,      # Order updates (includes fills)
-            CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL,    # Balance updates
-            CONSTANTS.WS_ACCOUNT_POSITIONS_CHANNEL,   # Position updates (perpetual-specific)
+            CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,  # Order updates (includes fills)
+            CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL,  # Balance updates
+            CONSTANTS.WS_ACCOUNT_POSITIONS_CHANNEL,  # Position updates (perpetual-specific)
             # Note: Funding and liquidation events are typically included in position updates
         ]
 
@@ -197,16 +196,15 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
                 # Direct format (for auth responses or other non-stream messages)
                 event_type = event.get("type", "")
                 inner_data = event
-                
+
             # Skip auth responses and subscription confirmations
             if event_type in ["authenticated", "subscribed"] or event.get("result") == "success":
                 return None
 
             # Route based on event type/stream name
             # Create wrapped data for stream events
-            wrapped_data = ({"stream": event_type, "data": inner_data} 
-                          if "stream" in event else inner_data)
-            
+            wrapped_data = {"stream": event_type, "data": inner_data} if "stream" in event else inner_data
+
             if "order" in event_type.lower():
                 return self._process_order_event(wrapped_data)
             if "balance" in event_type.lower():
@@ -393,8 +391,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         return time.time()
 
     async def stop(self):
-        """Stop the user stream data source and clean up connections.
-        """
+        """Stop the user stream data source and clean up connections."""
         if self._ws_assistant:
             await self._ws_assistant.disconnect()
             self._ws_assistant = None

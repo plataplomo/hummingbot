@@ -127,7 +127,7 @@ class BackpackPerpetualCandles(CandlesBase):
                 float(kline.get("quoteVolume", 0)),
                 int(kline.get("trades", 0)),
                 0.0,  # taker_buy_base_volume - not provided by Backpack
-                0.0,   # taker_buy_quote_volume - not provided by Backpack
+                0.0,  # taker_buy_quote_volume - not provided by Backpack
             ]
             parsed_candles.append(candle_row)
 

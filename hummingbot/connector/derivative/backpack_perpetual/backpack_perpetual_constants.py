@@ -3,7 +3,6 @@
 from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
 from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
 
-
 # Exchange name
 EXCHANGE_NAME = "backpack_perpetual"
 DEFAULT_DOMAIN = "backpack_perpetual"
@@ -87,32 +86,74 @@ RATE_LIMITS = [
     # Pool limits
     RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1200, time_interval=60),
     RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=100, time_interval=60),
-    
     # Specific endpoint limits with weighted connections
-    RateLimit(limit_id=ORDER_URL, limit=10, time_interval=1,
-              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=CANCEL_URL, limit=10, time_interval=1,
-              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=POSITIONS_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=FUNDING_RATE_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=BALANCE_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)]),
-    
+    RateLimit(
+        limit_id=ORDER_URL,
+        limit=10,
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=CANCEL_URL,
+        limit=10,
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=POSITIONS_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=FUNDING_RATE_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=BALANCE_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
     # Public market data endpoints
-    RateLimit(limit_id=EXCHANGE_INFO_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=TICKER_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=ORDER_BOOK_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)]),
-    RateLimit(limit_id=TRADES_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=CANDLES_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
-    RateLimit(limit_id=TIME_URL, limit=100, time_interval=60,
-              linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)]),
+    RateLimit(
+        limit_id=EXCHANGE_INFO_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=TICKER_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=ORDER_BOOK_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)],
+    ),
+    RateLimit(
+        limit_id=TRADES_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=CANDLES_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=TIME_URL,
+        limit=100,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
 ]
 
 # Order type mapping

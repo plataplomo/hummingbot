@@ -223,7 +223,7 @@ class BackpackAuth(AuthBase):
         """
         # Get URL, defaulting to empty string if None
         url = request.url or ""
-        
+
         # Extract path from URL
         if url.startswith("http"):
             # Full URL provided
@@ -272,7 +272,7 @@ class BackpackAuth(AuthBase):
         # Add headers to request
         if request.headers is None:
             request.headers = {}
-        
+
         # Convert headers to dict if it's a Mapping
         headers_dict = dict(request.headers) if request.headers else {}
         headers_dict.update(auth_headers)

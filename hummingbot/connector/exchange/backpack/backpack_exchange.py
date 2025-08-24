@@ -31,7 +31,6 @@ from hummingbot.core.data_type.user_stream_tracker_data_source import UserStream
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
-
 if TYPE_CHECKING:
     from hummingbot.client.config.config_helpers import ClientConfigAdapter
 
@@ -97,10 +96,10 @@ class BackpackExchange(ExchangePyBase):
 
     async def exchange_symbol_associated_to_pair(self, trading_pair: str) -> str:
         """Convert Hummingbot trading pair format to Backpack exchange format.
-        
+
         Args:
             trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
-            
+
         Returns:
             Exchange symbol format (e.g., "BTC_USDC")
         """
@@ -216,26 +215,20 @@ class BackpackExchange(ExchangePyBase):
         """Check if exception is related to time synchronization."""
         error_description = str(request_exception).lower()
         return (
-            "timestamp" in error_description or
-            "expired" in error_description or
-            CONSTANTS.ERROR_CODE_EXPIRED_TIMESTAMP.lower() in error_description
+            "timestamp" in error_description
+            or "expired" in error_description
+            or CONSTANTS.ERROR_CODE_EXPIRED_TIMESTAMP.lower() in error_description
         )
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
         """Check if exception indicates order not found during status update."""
         error_str = str(status_update_exception).lower()
-        return (
-            CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str or
-            "order not found" in error_str
-        )
+        return CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str or "order not found" in error_str
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
         """Check if exception indicates order not found during cancellation."""
         error_str = str(cancelation_exception).lower()
-        return (
-            CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str or
-            "order not found" in error_str
-        )
+        return CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str or "order not found" in error_str
 
     # API helper methods
     async def _api_get(
@@ -322,7 +315,7 @@ class BackpackExchange(ExchangePyBase):
 
         if limit_id is None:
             limit_id = str(path_url)
-        
+
         # Use overwrite_url if provided, otherwise construct from path_url
         url = overwrite_url or web_utils.get_rest_url_for_endpoint(str(path_url), self._domain)
 
@@ -336,20 +329,21 @@ class BackpackExchange(ExchangePyBase):
                 headers=headers,
                 throttler_limit_id=limit_id,
             )
-            
-            # Response from execute_request should already be parsed
+
+            # Response from execute_request could be dict, str, list, or other types
+            # Since Backpack API can return both dict and list, handle all cases
             if isinstance(response, dict):
                 return response
-            
-            # Handle string response by trying to parse as JSON
             if isinstance(response, str):
                 try:
                     return json.loads(response)
                 except json.JSONDecodeError:
                     return {"error": "Invalid response format", "raw": response}
-            
-            # Fallback for unexpected response types (not dict or str)
-            return {"error": "Unexpected response type"}
+            if isinstance(response, list):
+                # For compatibility, wrap list responses in a dict
+                return {"data": response}
+            # Fallback - this handles None and other unexpected types
+            return {"error": f"Unexpected response type: {type(response).__name__}"}
 
     # Network check
     async def check_network(self) -> bool:
@@ -406,17 +400,17 @@ class BackpackExchange(ExchangePyBase):
 
     async def _get_last_traded_price(self, trading_pair: str) -> float:
         """Get the last traded price for a trading pair.
-        
+
         Args:
             trading_pair: Trading pair in Hummingbot format
-            
+
         Returns:
             Last traded price as float
         """
         prices = await self._get_last_traded_prices([trading_pair])
         price = prices[trading_pair]  # Trust that price exists for requested pair
         return float(price)
-    
+
     async def _get_last_traded_prices(self, trading_pairs: list[str]) -> dict[str, Decimal]:
         """Get last traded prices for specified trading pairs."""
         try:
@@ -427,17 +421,9 @@ class BackpackExchange(ExchangePyBase):
 
             prices = {}
 
-            # Handle both list and dict responses
-            # API can return list or single dict
-            tickers: list[Any]
-            if isinstance(ticker_data, list):
-                tickers = ticker_data
-            elif isinstance(ticker_data, dict):
-                tickers = [ticker_data]
-            else:
-                # Handle unexpected response type
-                tickers = []
-            
+            # Normalize response to list format
+            tickers = web_utils.normalize_response_to_list(ticker_data)
+
             for ticker in tickers:
                 if isinstance(ticker, dict):
                     exchange_symbol = ticker.get("symbol")
@@ -452,16 +438,18 @@ class BackpackExchange(ExchangePyBase):
             self.logger().error(f"Error fetching last traded prices: {e}")
             return {}
 
-    def _get_fee(self,
-                 base_currency: str,
-                 quote_currency: str,
-                 order_type: OrderType,
-                 order_side: TradeType,
-                 amount: Decimal,
-                 price: Decimal = Decimal("NaN"),
-                 is_maker: bool | None = None) -> AddedToCostTradeFee:
+    def _get_fee(
+        self,
+        base_currency: str,
+        quote_currency: str,
+        order_type: OrderType,
+        order_side: TradeType,
+        amount: Decimal,
+        price: Decimal = Decimal("NaN"),
+        is_maker: bool | None = None,
+    ) -> AddedToCostTradeFee:
         """Get fee for an order.
-        
+
         Args:
             base_currency: Base currency of the trading pair
             quote_currency: Quote currency of the trading pair
@@ -470,13 +458,13 @@ class BackpackExchange(ExchangePyBase):
             amount: Order amount
             price: Order price
             is_maker: Whether the order is a maker order
-            
+
         Returns:
             AddedToCostTradeFee object with fee information
         """
         is_maker = order_type is OrderType.LIMIT_MAKER
         return AddedToCostTradeFee(percent=self.estimate_fee_pct(is_maker))
-    
+
     async def _status_polling_loop_fetch_updates(self):
         """Fetch updates for the status polling loop.
         This method is called periodically to update order status.
@@ -485,14 +473,14 @@ class BackpackExchange(ExchangePyBase):
         await self._update_order_fills_from_trades()
         # Call parent implementation
         await super()._status_polling_loop_fetch_updates()
-    
+
     async def _update_order_fills_from_trades(self):
         """Update order fills from recent trades.
         This is used to ensure we capture all fills even if WebSocket messages are missed.
         """
         # This method can be implemented if needed for reliability
         # For now, we rely on WebSocket updates and REST status queries
-    
+
     # Balance management
     async def _update_balances(self):
         """Update account balances."""
@@ -687,8 +675,7 @@ class BackpackExchange(ExchangePyBase):
                     "fill_price": Decimal(order_data.get("price", "0")),
                     "executed_amount_base": Decimal(order_data.get("executedQuantity", "0")),
                     "executed_amount_quote": (
-                        Decimal(order_data.get("executedQuantity", "0")) * 
-                        Decimal(order_data.get("price", "0"))
+                        Decimal(order_data.get("executedQuantity", "0")) * Decimal(order_data.get("price", "0"))
                     ),
                 },
             )
@@ -750,7 +737,7 @@ class BackpackExchange(ExchangePyBase):
 
     async def _update_trading_fees(self):
         """Update trading fees from exchange.
-        
+
         Backpack may provide fee information in the account endpoint
         or use a fixed fee structure. This should be fetched from the API
         when available.
@@ -762,13 +749,13 @@ class BackpackExchange(ExchangePyBase):
                 is_auth_required=True,
                 limit_id=CONSTANTS.BALANCES_URL,  # Use balance rate limit
             )
-            
+
             # Look for fee information in the response
             # The actual structure depends on Backpack's API response
             # This is a placeholder - adjust based on actual API response
             maker_fee = account_info.get("makerFeeRate")
             taker_fee = account_info.get("takerFeeRate")
-            
+
             if maker_fee is not None and taker_fee is not None:
                 self._maker_fee_percentage = Decimal(str(maker_fee))
                 self._taker_fee_percentage = Decimal(str(taker_fee))
@@ -776,28 +763,27 @@ class BackpackExchange(ExchangePyBase):
                 # If fee rates not available from API, log warning
                 # The base class should have default fees set
                 self.logger().warning(
-                    "Fee rates not available from Backpack API. "
-                    "Using default rates from configuration.",
+                    "Fee rates not available from Backpack API. Using default rates from configuration.",
                 )
-                
+
         except Exception as e:
             self.logger().error(f"Error updating trading fees: {e}")
             # Continue with existing fee configuration if update fails
 
     async def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any]):
         """Initialize trading pair symbol mappings from exchange info.
-        
+
         This method is required by ExchangePyBase to map between Hummingbot's
         trading pair format and the exchange's native symbol format.
-        
+
         Args:
             exchange_info: Exchange market information containing symbol details
         """
         mapping: bidict[str, str] = bidict()
-        
+
         # Get symbols from exchange info - Backpack format
         symbols = exchange_info.get("data", exchange_info.get("symbols", []))
-        
+
         for symbol_info in symbols:
             if isinstance(symbol_info, dict):
                 exchange_symbol = symbol_info.get("symbol")
@@ -806,40 +792,40 @@ class BackpackExchange(ExchangePyBase):
                     trading_pair = await self.trading_pair_associated_to_exchange_symbol(exchange_symbol)
                     if trading_pair:
                         mapping[exchange_symbol] = trading_pair
-        
+
         self._set_trading_pair_symbol_map(mapping)
 
     async def _format_trading_rules(self, exchange_info_dict: dict[str, Any]) -> list[TradingRule]:
         """Format trading rules from exchange info.
-        
+
         Args:
             exchange_info_dict: Exchange market information
-            
+
         Returns:
             List of TradingRule objects
         """
         trading_rules = []
-        
+
         for symbol_info in exchange_info_dict.get("data", []):
             try:
                 symbol = symbol_info.get("symbol")
                 if not symbol:
                     continue
-                    
+
                 # Convert exchange format to Hummingbot format
                 trading_pair = symbol.replace("_", "-")
-                
+
                 # Extract trading rule parameters - trust exchange data
                 min_base_size = Decimal(str(symbol_info["minQuantity"]))
                 min_quote_size = Decimal(str(symbol_info["minQuoteQuantity"]))
                 tick_size = Decimal(str(symbol_info["tickSize"]))
                 step_size = Decimal(str(symbol_info["stepSize"]))
-                
+
                 # Get max order size from API or use None if not specified
                 max_order_size = None
                 if "maxQuantity" in symbol_info:
                     max_order_size = Decimal(str(symbol_info["maxQuantity"]))
-                    
+
                 trading_rule = TradingRule(
                     trading_pair=trading_pair,
                     min_order_size=min_base_size,
@@ -855,13 +841,13 @@ class BackpackExchange(ExchangePyBase):
                     buy_order_collateral_token=trading_pair.split("-")[1],
                     sell_order_collateral_token=trading_pair.split("-")[0],
                 )
-                
+
                 trading_rules.append(trading_rule)
-                
+
             except Exception as e:
                 self.logger().error(f"Error parsing trading rule for {symbol}: {e}")
                 continue
-                
+
         return trading_rules
 
     # User stream event processing
@@ -947,7 +933,7 @@ class BackpackExchange(ExchangePyBase):
             fill_price = Decimal(data["price"])
             fill_base_amount = Decimal(data["quantity"])
             fill_quote_amount = fill_price * fill_base_amount
-            
+
             trade_update = TradeUpdate(
                 trade_id=data["tradeId"],
                 client_order_id=client_order_id,

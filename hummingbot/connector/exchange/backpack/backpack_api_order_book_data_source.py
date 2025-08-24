@@ -18,14 +18,13 @@ from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFa
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
 
-
 if TYPE_CHECKING:
     from hummingbot.connector.exchange.backpack.backpack_exchange import BackpackExchange
 
 
 class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
     """Backpack API Order Book Data Source for public market data.
-    
+
     Follows the parent class pattern for WebSocket message routing.
     """
 
@@ -107,7 +106,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             Order book snapshot message
         """
         snapshot_data = await self._request_order_book_snapshot(trading_pair)
-        
+
         snapshot_message = OrderBookMessage(
             message_type=OrderBookMessageType.SNAPSHOT,
             content={
@@ -118,12 +117,12 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             },
             timestamp=time.time(),
         )
-        
+
         return snapshot_message
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """Create and connect WebSocket assistant for public streams.
-        
+
         Implements parent class pattern.
 
         Returns:
@@ -138,7 +137,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     async def _subscribe_channels(self, ws: WSAssistant):
         """Subscribe to WebSocket channels for order book and trade data.
-        
+
         Implements parent class pattern.
 
         Args:
@@ -179,7 +178,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
 
     def _channel_originating_message(self, event_message: dict[str, Any]) -> str:
         """Identifies the channel for a particular event message.
-        
+
         Implements parent class pattern for message routing.
 
         Args:
@@ -189,14 +188,14 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             The message channel key for routing
         """
         channel = ""
-        
+
         # Skip subscription confirmations
         if event_message.get("result") == "success" or event_message.get("type") == "subscribed":
             return channel
-        
+
         # Check for Backpack's message types
         message_type = event_message.get("type", "")
-        
+
         if message_type == CONSTANTS.WS_DEPTH_CHANNEL:
             channel = self._diff_messages_queue_key
         elif message_type == CONSTANTS.WS_TRADES_CHANNEL:
@@ -208,7 +207,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 channel = self._diff_messages_queue_key
             elif "price" in data and "quantity" in data:
                 channel = self._trade_messages_queue_key
-        
+
         return channel
 
     async def _parse_order_book_diff_message(
@@ -321,9 +320,9 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                     },
                     timestamp=time.time(),
                 )
-                
+
                 await message_queue.put(snapshot_message)
-                
+
         except Exception:
             self.logger().error(
                 f"Error parsing snapshot message: {raw_message}",

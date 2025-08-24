@@ -107,7 +107,7 @@ def is_exchange_information_valid(exchange_info: dict) -> bool:
     symbols = exchange_info.get("symbols", [])
     if not isinstance(symbols, list):
         return False
-    
+
     if len(symbols) == 0:
         return False
 
