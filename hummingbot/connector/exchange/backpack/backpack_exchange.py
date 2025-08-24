@@ -342,14 +342,14 @@ class BackpackExchange(ExchangePyBase):
                 return response
             
             # Handle string response by trying to parse as JSON
-            if not isinstance(response, str):
-                # Fallback for unexpected response types (not dict or str)
-                return {"error": "Unexpected response type"}
+            if isinstance(response, str):
+                try:
+                    return json.loads(response)
+                except json.JSONDecodeError:
+                    return {"error": "Invalid response format", "raw": response}
             
-            try:
-                return json.loads(response)
-            except json.JSONDecodeError:
-                return {"error": "Invalid response format", "raw": response}
+            # Fallback for unexpected response types (not dict or str)
+            return {"error": "Unexpected response type"}
 
     # Network check
     async def check_network(self) -> bool:
@@ -429,11 +429,14 @@ class BackpackExchange(ExchangePyBase):
 
             # Handle both list and dict responses
             # API can return list or single dict
-            tickers = []
+            tickers: list[Any]
             if isinstance(ticker_data, list):
                 tickers = ticker_data
             elif isinstance(ticker_data, dict):
                 tickers = [ticker_data]
+            else:
+                # Handle unexpected response type
+                tickers = []
             
             for ticker in tickers:
                 if isinstance(ticker, dict):

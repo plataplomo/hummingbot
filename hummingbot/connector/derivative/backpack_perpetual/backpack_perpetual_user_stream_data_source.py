@@ -213,18 +213,22 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
                 return None
 
             # Route based on event type/stream name
+            # Create wrapped data for stream events
+            wrapped_data = ({"stream": event_type, "data": inner_data} 
+                          if "stream" in event else inner_data)
+            
             if "order" in event_type.lower():
-                return self._process_order_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
+                return self._process_order_event(wrapped_data)
             if "balance" in event_type.lower():
-                return self._process_balance_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
+                return self._process_balance_event(wrapped_data)
             if "position" in event_type.lower():
-                return self._process_position_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
+                return self._process_position_event(wrapped_data)
             if "fill" in event_type.lower() or "trade" in event_type.lower():
-                return self._process_fill_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
+                return self._process_fill_event(wrapped_data)
             if "funding" in event_type.lower():
-                return self._process_funding_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
+                return self._process_funding_event(wrapped_data)
             if "liquidation" in event_type.lower():
-                return self._process_liquidation_event({"stream": event_type, "data": inner_data} if "stream" in event else inner_data)
+                return self._process_liquidation_event(wrapped_data)
             # Unknown event type - log for debugging
             self.logger().debug(f"Unknown event type: {event_type}")
             return None

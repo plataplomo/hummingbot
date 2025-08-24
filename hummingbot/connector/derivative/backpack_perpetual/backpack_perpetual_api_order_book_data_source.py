@@ -5,7 +5,6 @@ Handles public market data streams including order books, trades, and tickers.
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
@@ -35,7 +34,7 @@ _logger: HummingbotLogger | None = None
 
 class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
     """Data source for Backpack Perpetual order book updates.
-    Manages WebSocket connections for real-time market data.
+    Follows the parent class pattern for WebSocket message routing.
     """
 
     def __init__(
@@ -57,8 +56,6 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         self._connector = connector
         self._api_factory = api_factory
         self._domain = domain
-        self._ws_assistant: WSAssistant | None = None
-        self._message_id_counter = 0
 
     @classmethod
     def logger(cls) -> HummingbotLogger:
@@ -84,11 +81,9 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         domain = domain or self._domain
         results = {}
 
-        # Query ticker endpoint for all pairs
         for trading_pair in trading_pairs:
             try:
                 symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-
                 response = await web_utils.api_request(
                     path=CONSTANTS.TICKER_URL,
                     api_factory=self._api_factory,
@@ -97,50 +92,18 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     is_auth_required=False,
                 )
 
-                if "lastPrice" in response:
+                if isinstance(response, dict) and "lastPrice" in response:
                     results[trading_pair] = float(response["lastPrice"])
+                elif isinstance(response, list) and response:
+                    first_item = response[0]
+                    if isinstance(first_item, dict) and "lastPrice" in first_item:
+                        results[trading_pair] = float(first_item["lastPrice"])
 
             except Exception:
                 self.logger().exception(f"Error fetching last price for {trading_pair}")
                 continue
 
         return results
-
-    async def fetch_trading_pairs(
-        self,
-        domain: str | None = None,
-    ) -> list[str]:
-        """Fetch all available trading pairs from the exchange.
-
-        Args:
-            domain: Exchange domain
-
-        Returns:
-            List of available trading pairs
-        """
-        domain = domain or self._domain
-
-        response = await web_utils.api_request(
-            path=CONSTANTS.EXCHANGE_INFO_URL,
-            api_factory=self._api_factory,
-            method=RESTMethod.GET,
-            is_auth_required=False,
-        )
-
-        trading_pairs = []
-
-        for market_info in response.get("symbols", []):
-            try:
-                # Only include perpetual markets
-                if utils.is_perpetual_symbol(market_info["symbol"]):
-                    trading_pair = utils.convert_from_exchange_trading_pair(market_info["symbol"])
-                    if trading_pair:
-                        trading_pairs.append(trading_pair)
-            except Exception:
-                self.logger().debug(f"Skipping unsupported symbol: {market_info.get('symbol', 'unknown')}")
-                continue
-
-        return trading_pairs
 
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         """Get funding rate information for a trading pair.
@@ -153,7 +116,6 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         """
         symbol = utils.convert_to_exchange_trading_pair(trading_pair)
         
-        # Get mark prices endpoint which includes funding rate info per OpenAPI spec
         mark_prices_response = await web_utils.api_request(
             path=CONSTANTS.MARK_PRICE_URL,
             api_factory=self._api_factory,
@@ -162,23 +124,21 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             is_auth_required=False,
         )
         
-        # The response could be an array or dict, handle both cases
-        # API response type is list[dict] or dict
+        # Handle both dict and list response formats
         mark_price_data: dict[str, Any] = {}
-        if isinstance(mark_prices_response, list):
-            if mark_prices_response:
-                mark_price_data = mark_prices_response[0]
+        if isinstance(mark_prices_response, list) and mark_prices_response:
+            mark_price_data = mark_prices_response[0]
         elif isinstance(mark_prices_response, dict):
             mark_price_data = mark_prices_response
+        else:
+            mark_price_data = {}
         
-        # Trust exchange data structure per OpenAPI spec
-        # Convert to appropriate types
         funding_info = FundingInfo(
             trading_pair=trading_pair,
-            index_price=Decimal(str(mark_price_data["indexPrice"])),
-            mark_price=Decimal(str(mark_price_data["markPrice"])),
-            next_funding_utc_timestamp=mark_price_data["nextFundingTimestamp"] / 1000,  # Convert ms to seconds
-            rate=Decimal(str(mark_price_data["fundingRate"])),
+            index_price=Decimal(str(mark_price_data.get("indexPrice", 0))),
+            mark_price=Decimal(str(mark_price_data.get("markPrice", 0))),
+            next_funding_utc_timestamp=mark_price_data.get("nextFundingTimestamp", 0) / 1000,
+            rate=Decimal(str(mark_price_data.get("fundingRate", 0))),
         )
         
         return funding_info
@@ -192,25 +152,22 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         Returns:
             OrderBookMessage containing snapshot data
         """
-        snapshot_data = await self.get_order_book_data(trading_pair)
+        snapshot_data = await self._request_order_book_snapshot(trading_pair)
         
         snapshot_msg = OrderBookMessage(
             message_type=OrderBookMessageType.SNAPSHOT,
             content={
                 "trading_pair": trading_pair,
-                "bids": snapshot_data["bids"],
-                "asks": snapshot_data["asks"],
-                "update_id": int(snapshot_data["timestamp"]),
+                "bids": snapshot_data.get("bids", []),
+                "asks": snapshot_data.get("asks", []),
+                "update_id": int(snapshot_data.get("timestamp", 0)),
             },
-            timestamp=snapshot_data["timestamp"] / 1000.0,  # Convert to seconds
+            timestamp=snapshot_data.get("timestamp", time.time() * 1000) / 1000.0,
         )
         
         return snapshot_msg
 
-    async def get_order_book_data(
-        self,
-        trading_pair: str,
-    ) -> dict[str, Any]:
+    async def _request_order_book_snapshot(self, trading_pair: str) -> dict[str, Any]:
         """Get order book snapshot from REST API.
 
         Args:
@@ -229,154 +186,33 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             is_auth_required=False,
         )
 
+        # Handle response format
+        if isinstance(response, dict):
+            return {
+                "trading_pair": trading_pair,
+                "symbol": symbol,
+                "bids": response.get("bids", []),
+                "asks": response.get("asks", []),
+                "timestamp": response.get("timestamp", time.time() * 1000),
+            }
+        # Handle unexpected list format
         return {
             "trading_pair": trading_pair,
             "symbol": symbol,
-            "bids": response["bids"],
-            "asks": response["asks"],
-            "timestamp": response["timestamp"],
+            "bids": [],
+            "asks": [],
+            "timestamp": time.time() * 1000,
         }
 
-    async def listen_for_trades(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """Listen for trade data via WebSocket.
+    async def _connected_websocket_assistant(self) -> WSAssistant:
+        """Create and connect WebSocket assistant for public streams.
+        
+        Implements parent class pattern.
 
-        Args:
-            ev_loop: Event loop
-            output: Queue to put trade messages
+        Returns:
+            Connected WebSocket assistant
         """
-        while True:
-            try:
-                ws = await self._create_websocket_connection()
-
-                # Subscribe to trade channels
-                for trading_pair in self._trading_pairs:
-                    symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-                    await self._subscribe_to_channel(ws, CONSTANTS.WS_TRADES_CHANNEL, symbol)
-
-                async for ws_response in ws.iter_messages():
-                    if ws_response is None:
-                        continue
-                    data = json.loads(ws_response.data) if isinstance(ws_response.data, str) else ws_response.data
-
-                    if self._is_trade_message(data):
-                        await self._parse_trade_message(data, output)
-
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().exception("Error in trade WebSocket listener")
-                await self._sleep(5.0)
-
-    async def listen_for_order_book_diffs(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """Listen for order book updates via WebSocket.
-
-        Args:
-            ev_loop: Event loop
-            output: Queue to put order book diff messages
-        """
-        while True:
-            try:
-                ws = await self._create_websocket_connection()
-
-                # Subscribe to depth channels and funding info channels
-                for trading_pair in self._trading_pairs:
-                    symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-                    await self._subscribe_to_channel(ws, CONSTANTS.WS_DEPTH_CHANNEL, symbol)
-                    # Also subscribe to markPrice for funding info
-                    await self._subscribe_to_channel(ws, CONSTANTS.WS_MARK_PRICE_CHANNEL, symbol)
-
-                async for ws_response in ws.iter_messages():
-                    if ws_response is None:
-                        continue
-                    data = json.loads(ws_response.data) if isinstance(ws_response.data, str) else ws_response.data
-
-                    # Route messages to appropriate handlers
-                    if self._is_order_book_diff_message(data):
-                        await self._parse_order_book_diff_message(data, output)
-                    elif self._is_funding_info_message(data):
-                        # Put funding messages in the funding queue for processing
-                        self._message_queue[self._funding_info_messages_queue_key].put_nowait(data)
-
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().exception("Error in order book diff WebSocket listener")
-                await self._sleep(5.0)
-
-    async def listen_for_order_book_snapshots(self, ev_loop: asyncio.AbstractEventLoop, output: asyncio.Queue):
-        """Periodically fetch order book snapshots via REST API.
-
-        Args:
-            ev_loop: Event loop
-            output: Queue to put order book snapshot messages
-        """
-        while True:
-            try:
-                for trading_pair in self._trading_pairs:
-                    try:
-                        snapshot_data = await self.get_order_book_data(trading_pair)
-
-                        snapshot_msg = OrderBookMessage(
-                            message_type=OrderBookMessageType.SNAPSHOT,
-                            content={
-                                "trading_pair": trading_pair,
-                                "bids": snapshot_data["bids"],
-                                "asks": snapshot_data["asks"],
-                                "update_id": int(snapshot_data["timestamp"]),
-                            },
-                            timestamp=self._time(),
-                        )
-
-                        await output.put(snapshot_msg)
-
-                    except Exception:
-                        self.logger().exception(f"Error fetching snapshot for {trading_pair}")
-
-                # Sleep for snapshot interval (60 seconds)
-                await self._sleep(60.0)
-
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().exception("Error in snapshot fetcher")
-                await self._sleep(5.0)
-
-    async def listen_for_funding_info(self, output: asyncio.Queue):
-        """Listen for funding rate updates.
-
-        Args:
-            output: Queue to put funding info messages
-        """
-        while True:
-            try:
-                ws = await self._create_websocket_connection()
-
-                # Subscribe to mark price channels (which include funding rate info)
-                for trading_pair in self._trading_pairs:
-                    symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-                    await self._subscribe_to_channel(ws, CONSTANTS.WS_MARK_PRICE_CHANNEL, symbol)
-
-                async for ws_response in ws.iter_messages():
-                    if ws_response is None:
-                        continue
-                    data = json.loads(ws_response.data)
-
-                    if self._is_funding_rate_message(data):
-                        funding_msg = self._parse_funding_rate_message(data)
-                        if funding_msg:
-                            await output.put(funding_msg)
-
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                self.logger().exception("Error in funding rate WebSocket listener")
-                await self._sleep(5.0)
-
-    # Helper methods
-    async def _create_websocket_connection(self) -> WSAssistant:
-        """Create and return a WebSocket connection."""
         ws = await self._api_factory.get_ws_assistant()
-        # Get WebSocket URL using proper domain-based lookup
         ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
         await ws.connect(
             ws_url=ws_url,
@@ -384,127 +220,103 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         )
         return ws
 
-    async def _subscribe_to_channel(self, ws: WSAssistant, channel: str, symbol: str):
-        """Subscribe to a WebSocket channel.
+    async def _subscribe_channels(self, ws: WSAssistant):
+        """Subscribe to WebSocket channels for order book and trade data.
+        
+        Implements parent class pattern.
 
         Args:
             ws: WebSocket assistant
-            channel: Channel name
-            symbol: Trading symbol
-        """
-        # Backpack uses the format: {"method": "SUBSCRIBE", "params": ["stream_name"]}
-        subscribe_msg = {
-            "method": "SUBSCRIBE",
-            "params": [f"{channel}.{symbol}"],  # Use dot notation as per Backpack docs
-        }
-
-        subscribe_request = WSJSONRequest(payload=subscribe_msg)
-        await ws.send(subscribe_request)
-
-    async def _parse_funding_info_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
-        """Parse funding info messages from WebSocket.
-        
-        Backpack sends funding info through the markPrice stream which includes:
-        - Mark price
-        - Index price  
-        - Funding rate
-        - Next funding timestamp
-        
-        Args:
-            raw_message: Raw funding info message from markPrice stream
-            message_queue: Queue to put parsed messages
         """
         try:
-            # Extract data from the wrapped message format
-            if "stream" in raw_message and "markPrice" in raw_message["stream"]:
-                data = raw_message.get("data", {})
-            else:
-                data = raw_message
-            
-            # Check if this is a markPrice event
-            if data.get("e") != "markPrice":
-                return
-            
-            # Extract symbol and convert to trading pair
-            symbol = data.get("s")
-            if not symbol:
-                return
-                
-            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-            if not trading_pair or trading_pair not in self._trading_pairs:
-                return
-            
-            # Parse funding info from markPrice message
-            # Format: e=markPrice, s=symbol, p=mark price, f=funding rate, i=index price, n=next funding time
-            funding_info = FundingInfoUpdate(trading_pair=trading_pair)
-            
-            # Set mark price if present
-            if "p" in data:
-                funding_info.mark_price = Decimal(str(data["p"]))
-            
-            # Set index price if present
-            if "i" in data:
-                funding_info.index_price = Decimal(str(data["i"]))
-            
-            # Set funding rate if present
-            if "f" in data:
-                funding_info.rate = Decimal(str(data["f"]))
-            
-            # Set next funding timestamp (convert from microseconds to seconds)
-            if "n" in data:
-                # Backpack sends microseconds, convert to seconds
-                funding_info.next_funding_utc_timestamp = int(data["n"]) // 1_000_000
-            
-            # Put the funding info update in the message queue
-            message_queue.put_nowait(funding_info)
-            
-        except Exception:
-            self.logger().exception(
-                f"Error parsing funding info message: {raw_message}",
-            )
+            subscriptions = []
 
-    def _is_funding_info_message(self, data: dict[str, Any]) -> bool:
-        """Check if message is a funding info (markPrice) update.
+            for trading_pair in self._trading_pairs:
+                symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+                
+                # Subscribe to required channels
+                subscriptions.extend([
+                    f"{CONSTANTS.WS_DEPTH_CHANNEL}.{symbol}",
+                    f"{CONSTANTS.WS_TRADES_CHANNEL}.{symbol}",
+                    f"{CONSTANTS.WS_MARK_PRICE_CHANNEL}.{symbol}",  # For funding info
+                ])
+
+            # Send subscription request
+            subscription_payload = {
+                "method": "SUBSCRIBE",
+                "params": subscriptions,
+            }
+
+            subscribe_request = WSJSONRequest(payload=subscription_payload)
+            await ws.send(subscribe_request)
+
+            self.logger().info(f"Subscribed to public channels: {subscriptions}")
+
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().error(
+                "Unexpected error occurred subscribing to order book and trade streams",
+                exc_info=True,
+            )
+            raise
+
+    def _channel_originating_message(self, event_message: dict[str, Any]) -> str:
+        """Identifies the channel for a particular event message.
         
+        Implements parent class pattern for message routing.
+
         Args:
-            data: Message data
-            
+            event_message: The event received through the websocket connection
+
         Returns:
-            True if this is a funding info message
+            The message channel key for routing
         """
-        # Check stream name if present
-        if "stream" in data and "markPrice" in data.get("stream", ""):
-            return True
+        channel = ""
         
-        # Check event type
+        # Skip subscription confirmations
+        if event_message.get("result") == "success" or event_message.get("type") == "subscribed":
+            return channel
+        
+        # Check stream field if present (wrapped format)
+        stream_name = event_message.get("stream", "")
+        
+        # Route based on stream name or data content
+        if "depth" in stream_name or self._is_order_book_message(event_message):
+            channel = self._diff_messages_queue_key
+        elif "trade" in stream_name or self._is_trade_message(event_message):
+            channel = self._trade_messages_queue_key
+        elif "markPrice" in stream_name or self._is_funding_message(event_message):
+            channel = self._funding_info_messages_queue_key
+        
+        return channel
+
+    def _is_order_book_message(self, data: dict[str, Any]) -> bool:
+        """Check if message is an order book update."""
         inner_data = data.get("data", data)
-        return inner_data.get("e") == "markPrice"
-    
+        return (
+            inner_data.get("e") == "depth" or 
+            inner_data.get("type") == "depth" or
+            "bids" in inner_data or "asks" in inner_data
+        )
+
     def _is_trade_message(self, data: dict[str, Any]) -> bool:
         """Check if message is a trade update."""
-        # Check both wrapped format (stream + data) and direct format
-        if "stream" in data and data.get("stream", "").startswith("trade."):
-            return True
         inner_data = data.get("data", data)
-        return inner_data.get("e") == "trade" or inner_data.get("type") == "trade"
+        return (
+            inner_data.get("e") == "trade" or 
+            inner_data.get("type") == "trade" or
+            ("price" in inner_data and "quantity" in inner_data and "side" in inner_data)
+        )
 
-    def _is_order_book_diff_message(self, data: dict[str, Any]) -> bool:
-        """Check if message is an order book diff."""
-        # Check both wrapped format (stream + data) and direct format
-        if "stream" in data and data.get("stream", "").startswith("depth."):
-            return True
-        # Also check the data field if it exists
+    def _is_funding_message(self, data: dict[str, Any]) -> bool:
+        """Check if message is a funding/mark price update."""
         inner_data = data.get("data", data)
-        return inner_data.get("e") == "depth" or inner_data.get("type") == "depth"
-
-    def _is_funding_rate_message(self, data: dict[str, Any]) -> bool:
-        """Check if message is a funding rate update."""
-        # Check both wrapped format (stream + data) and direct format
-        if "stream" in data and (data.get("stream", "").startswith("funding.") or 
-                                  data.get("stream", "").startswith("markPrice.")):
-            return True
-        inner_data = data.get("data", data)
-        return inner_data.get("e") in ["funding", "markPrice"] or inner_data.get("type") == "funding"
+        return (
+            inner_data.get("e") in ["markPrice", "funding"] or
+            inner_data.get("type") in ["markPrice", "funding"] or
+            ("markPrice" in inner_data and "fundingRate" in inner_data)
+        )
 
     async def _parse_trade_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
         """Parse trade message from WebSocket.
@@ -512,35 +324,35 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         Args:
             raw_message: Raw trade data
             message_queue: Queue to put the parsed message
-
-        Returns:
-            OrderBookMessage or None if parsing fails
         """
         try:
             # Extract trade data
             trade_data = raw_message.get("data", raw_message)
 
             # Get trading pair
-            symbol = trade_data["symbol"]
+            symbol = trade_data.get("symbol", trade_data.get("s", ""))
+            if not symbol:
+                return
+                
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-            if not trading_pair:
-                return  # Not a supported trading pair
+            if not trading_pair or trading_pair not in self._trading_pairs:
+                return
 
-            # Trust exchange data structure - access fields directly
+            # Create trade message
             trade_message = OrderBookMessage(
                 message_type=OrderBookMessageType.TRADE,
                 content={
                     "trading_pair": trading_pair,
-                    "trade_id": str(trade_data.get("tradeId", trade_data.get("id"))),
-                    "price": trade_data["price"],
-                    "amount": trade_data["quantity"],
+                    "trade_id": str(trade_data.get("tradeId", trade_data.get("id", ""))),
+                    "price": trade_data.get("price", 0),
+                    "amount": trade_data.get("quantity", trade_data.get("q", 0)),
                     "trade_type": (
                         float(TradeType.BUY.value) 
-                        if trade_data["side"] == "Buy" 
+                        if trade_data.get("side", "").upper() in ["BUY", "BID"]
                         else float(TradeType.SELL.value)
                     ),
                 },
-                timestamp=trade_data["timestamp"] / 1000.0,
+                timestamp=trade_data.get("timestamp", trade_data.get("T", time.time() * 1000)) / 1000.0,
             )
             
             await message_queue.put(trade_message)
@@ -554,31 +366,31 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         Args:
             raw_message: Raw order book diff data
             message_queue: Queue to put the parsed message
-
-        Returns:
-            OrderBookMessage or None if parsing fails
         """
         try:
             # Extract depth data
             depth_data = raw_message.get("data", raw_message)
 
             # Get trading pair
-            symbol = depth_data["symbol"]
+            symbol = depth_data.get("symbol", depth_data.get("s", ""))
+            if not symbol:
+                return
+                
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-            if not trading_pair:
-                return  # Not a supported trading pair
+            if not trading_pair or trading_pair not in self._trading_pairs:
+                return
 
-            # Trust exchange data - try alternate field names for compatibility
+            # Create diff message
             diff_message = OrderBookMessage(
                 message_type=OrderBookMessageType.DIFF,
                 content={
                     "trading_pair": trading_pair,
                     "bids": depth_data.get("b", depth_data.get("bids", [])),
                     "asks": depth_data.get("a", depth_data.get("asks", [])),
-                    "update_id": depth_data.get("lastUpdateId", depth_data.get("u")),
-                    "first_update_id": depth_data.get("firstUpdateId", depth_data.get("U")),
+                    "update_id": depth_data.get("lastUpdateId", depth_data.get("u", 0)),
+                    "first_update_id": depth_data.get("firstUpdateId", depth_data.get("U", 0)),
                 },
-                timestamp=(depth_data.get("timestamp", depth_data.get("T", self._time() * 1000))) / 1000.0,
+                timestamp=depth_data.get("timestamp", depth_data.get("T", time.time() * 1000)) / 1000.0,
             )
             
             await message_queue.put(diff_message)
@@ -586,45 +398,92 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         except Exception:
             self.logger().exception("Error parsing order book diff message")
 
-    def _parse_funding_rate_message(self, data: dict[str, Any]) -> FundingInfo | None:
-        """Parse funding rate message from WebSocket.
+    async def _parse_order_book_snapshot_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
+        """Parse order book snapshot message.
 
         Args:
-            data: Raw funding rate data
+            raw_message: Raw snapshot data
+            message_queue: Queue to put the parsed message
+        """
+        # Snapshots come from REST API, not WebSocket in Backpack
+        # This is called when snapshots are placed in the queue by REST requests
+        try:
+            snapshot_data = raw_message.get("data", raw_message)
+            
+            symbol = snapshot_data.get("symbol", "")
+            if not symbol:
+                return
+                
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+            if not trading_pair:
+                return
 
-        Returns:
-            Parsed FundingInfo or None if parsing fails
+            snapshot_message = OrderBookMessage(
+                message_type=OrderBookMessageType.SNAPSHOT,
+                content={
+                    "trading_pair": trading_pair,
+                    "bids": snapshot_data.get("bids", []),
+                    "asks": snapshot_data.get("asks", []),
+                    "update_id": snapshot_data.get("lastUpdateId", 0),
+                },
+                timestamp=snapshot_data.get("timestamp", time.time() * 1000) / 1000.0,
+            )
+            
+            await message_queue.put(snapshot_message)
+            
+        except Exception:
+            self.logger().exception("Error parsing snapshot message")
+
+    async def _parse_funding_info_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
+        """Parse funding info messages from WebSocket.
+        
+        Args:
+            raw_message: Raw funding info message
+            message_queue: Queue to put parsed messages
         """
         try:
-            # Extract funding data
-            funding_data = data.get("data", data)
-
-            # Get trading pair from 's' field (symbol)
-            symbol = funding_data.get("s", funding_data.get("symbol", ""))
+            # Extract data from the message
+            data = raw_message.get("data", raw_message)
+            
+            # Get symbol and convert to trading pair
+            symbol = data.get("s", data.get("symbol", ""))
+            if not symbol:
+                return
+                
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-
-            if not trading_pair:
-                return None
-
-            # Parse markPrice format per OpenAPI spec
-            # Trust exchange data structure - access fields directly
-            return FundingInfo(
-                trading_pair=trading_pair,
-                index_price=Decimal(str(funding_data["indexPrice"])),
-                mark_price=Decimal(str(funding_data["markPrice"])),
-                next_funding_utc_timestamp=funding_data["nextFundingTimestamp"] / 1000,  # ms to seconds
-                rate=Decimal(str(funding_data["fundingRate"])),
-            )
-
+            if not trading_pair or trading_pair not in self._trading_pairs:
+                return
+            
+            # Create funding info update
+            funding_info = FundingInfoUpdate(trading_pair=trading_pair)
+            
+            # Set mark price if present
+            if "p" in data or "markPrice" in data:
+                funding_info.mark_price = Decimal(str(data.get("p", data.get("markPrice", 0))))
+            
+            # Set index price if present
+            if "i" in data or "indexPrice" in data:
+                funding_info.index_price = Decimal(str(data.get("i", data.get("indexPrice", 0))))
+            
+            # Set funding rate if present
+            if "f" in data or "fundingRate" in data:
+                funding_info.rate = Decimal(str(data.get("f", data.get("fundingRate", 0))))
+            
+            # Set next funding timestamp
+            if "n" in data or "nextFundingTimestamp" in data:
+                # Convert from milliseconds/microseconds to seconds
+                timestamp = data.get("n", data.get("nextFundingTimestamp", 0))
+                if timestamp > 1e10:  # Microseconds
+                    funding_info.next_funding_utc_timestamp = timestamp // 1_000_000
+                elif timestamp > 1e7:  # Milliseconds
+                    funding_info.next_funding_utc_timestamp = timestamp // 1000
+                else:
+                    funding_info.next_funding_utc_timestamp = timestamp
+            
+            # Put the funding info update in the message queue
+            await message_queue.put(funding_info)
+            
         except Exception:
-            self.logger().exception("Error parsing funding rate message")
-            return None
-
-    async def _sleep(self, delay: float):
-        """Sleep for specified delay."""
-        await asyncio.sleep(delay)
-
-    def _time(self) -> float:
-        """Get current time in seconds."""
-        return time.time()
-    
+            self.logger().exception(
+                f"Error parsing funding info message: {raw_message}",
+            )

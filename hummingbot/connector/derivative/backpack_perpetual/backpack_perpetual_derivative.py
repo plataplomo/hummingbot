@@ -566,11 +566,14 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Handle both list format (direct response) and object format (wrapped in "positions" key)
         # API response can be list or dict with "positions" key
-        positions: list[Any] = []
+        positions: list[Any]
         if isinstance(response, list):
             positions = response
         elif isinstance(response, dict):
             positions = response.get("positions", [])
+        else:
+            # Handle unexpected response type
+            positions = []
 
         # Track which trading pairs have positions in the response
         trading_pairs_in_response = set()
@@ -806,9 +809,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Look for our order - Backpack uses 'id' not 'orderId'
         # API response is list of orders
-        orders: list[dict[str, Any]] = []
+        orders: list[dict[str, Any]]
         if isinstance(response, list):
             orders = response
+        else:
+            # Handle unexpected response type or dict wrapper
+            orders = response.get("orders", []) if isinstance(response, dict) else []
         for order_data in orders:
             if isinstance(order_data, dict) and (order_data.get("clientId") == tracked_order.client_order_id or
                     order_data.get("id") == tracked_order.exchange_order_id):
@@ -823,9 +829,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
         # API response is list of historical orders
-        history_orders: list[dict[str, Any]] = []
+        history_orders: list[dict[str, Any]]
         if isinstance(history_response, list):
             history_orders = history_response
+        else:
+            # Handle unexpected response type or dict wrapper
+            history_orders = history_response.get("orders", []) if isinstance(history_response, dict) else []
         for order_data in history_orders:
             if isinstance(order_data, dict) and (order_data.get("clientId") == tracked_order.client_order_id or
                     order_data.get("id") == tracked_order.exchange_order_id):
@@ -869,9 +878,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         )
 
         # API response is list of fills
-        fills_list: list[dict[str, Any]] = []
+        fills_list: list[dict[str, Any]]
         if isinstance(response, list):
             fills_list = response
+        else:
+            # Handle unexpected response type or dict wrapper
+            fills_list = response.get("fills", []) if isinstance(response, dict) else []
         trade_updates = [TradeUpdate(
                     trade_id=str(fill_data.get("tradeId", fill_data.get("id"))),
                     client_order_id=order.client_order_id,
@@ -1545,9 +1557,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             )
 
             # API response is list of funding payments
-            payments: list[dict[str, Any]] = []
+            payments: list[dict[str, Any]]
             if isinstance(response, list):
                 payments = response
+            else:
+                # Handle unexpected response type or dict wrapper
+                payments = response.get("payments", []) if isinstance(response, dict) else []
             if payments and len(payments) > 0:
                 last_payment = payments[0]
                 # Convert timestamp from ISO format or milliseconds
