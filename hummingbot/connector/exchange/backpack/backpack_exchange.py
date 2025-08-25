@@ -561,33 +561,57 @@ class BackpackExchange(ExchangePyBase):
                     if order_map and order_id in order_map:
                         tracked_order: InFlightOrder = order_map[order_id]
 
+                        # Validate required fields exist (no fallbacks for critical data)
+                        trade_id = fill.get("tradeId")
+                        if not trade_id:
+                            self.logger().error(f"Fill missing tradeId for order {order_id}: {fill}")
+                            continue
+
+                        quantity = fill.get("quantity")
+                        price = fill.get("price")
+                        timestamp = fill.get("timestamp")
+                        side = fill.get("side")
+
+                        if not all([quantity, price, timestamp, side]):
+                            self.logger().error(
+                                f"Fill missing required fields for order {order_id}. "
+                                f"quantity={quantity}, price={price}, timestamp={timestamp}, side={side}",
+                            )
+                            continue
+
+                        # Validate side value
+                        if side not in ["Buy", "Sell"]:
+                            self.logger().error(f"Invalid side value '{side}' for order {order_id}")
+                            continue
+
+                        # Extract fee information inline (following Binance/Bybit pattern)
+                        # Note: fee might be 0 for maker orders, so we don't require it
+                        fee_amount = Decimal(str(fill.get("fee", "0")))
+                        fee_asset = fill.get("feeSymbol", "")
+
+                        fee = TradeFeeBase.new_spot_fee(
+                            fee_schema=self.trade_fee_schema(),
+                            trade_type=TradeType.BUY if side == "Buy" else TradeType.SELL,
+                            percent_token=fee_asset,
+                            flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)] if fee_amount > 0 else [],
+                        )
+
                         # Create trade update from fill data
+                        fill_base_amount = Decimal(str(quantity))
+                        fill_price = Decimal(str(price))
+
                         trade_update = TradeUpdate(
-                            trade_id=str(fill.get("tradeId", "")),
+                            trade_id=str(trade_id),
                             client_order_id=tracked_order.client_order_id,
                             exchange_order_id=order_id,
                             trading_pair=tracked_order.trading_pair,
-                            fee=self._get_fee_from_fill(fill),
-                            fill_base_amount=Decimal(str(fill.get("quantity", 0))),
-                            fill_quote_amount=(
-                                Decimal(str(fill.get("quantity", 0))) * Decimal(str(fill.get("price", 0)))
-                            ),
-                            fill_price=Decimal(str(fill.get("price", 0))),
-                            fill_timestamp=fill.get("timestamp", 0) * 1e-3,  # Convert ms to seconds
+                            fee=fee,
+                            fill_base_amount=fill_base_amount,
+                            fill_quote_amount=fill_base_amount * fill_price,
+                            fill_price=fill_price,
+                            fill_timestamp=timestamp * 1e-3,  # Backpack uses milliseconds
                         )
                         self._order_tracker.process_trade_update(trade_update)
-
-    def _get_fee_from_fill(self, fill_data: dict) -> TradeFeeBase:
-        """Extract fee information from fill data."""
-        fee_amount = Decimal(str(fill_data.get("fee", 0)))
-        fee_asset = fill_data.get("feeSymbol", "")
-
-        return TradeFeeBase.new_spot_fee(
-            fee_schema=self.trade_fee_schema(),
-            trade_type=TradeType.BUY if fill_data.get("side") == "Buy" else TradeType.SELL,
-            percent_token=fee_asset,
-            flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)] if fee_amount > 0 else [],
-        )
 
     # Balance management
     async def _update_balances(self):

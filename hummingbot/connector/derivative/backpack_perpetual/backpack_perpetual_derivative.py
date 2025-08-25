@@ -183,15 +183,13 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Poll funding rates every 10 minutes"""
         return CONSTANTS.FUNDING_INFO_UPDATE_INTERVAL
 
-    @property
     def supported_order_types(self) -> list[OrderType]:
         """:return a list of OrderType supported by this connector
-        Note: Backpack only supports LIMIT and MARKET order types.
-        PostOnly orders are handled via timeInForce parameter with LIMIT orders.
+        Note: Backpack supports LIMIT, LIMIT_MAKER, and MARKET order types.
+        LIMIT_MAKER orders are handled via timeInForce=PostOnly parameter with LIMIT orders.
         """
-        return [OrderType.LIMIT, OrderType.MARKET]
+        return [OrderType.LIMIT, OrderType.LIMIT_MAKER, OrderType.MARKET]
 
-    @property
     def supported_position_modes(self) -> list[PositionMode]:
         """Backpack supports ONE-WAY mode only."""
         return CONSTANTS.SUPPORTED_POSITION_MODES
@@ -340,10 +338,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Fallback to string checking for non-JSON responses
         error_str = str(status_update_exception)
-        return (
-            str(CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE) in error_str
-            and CONSTANTS.ORDER_NOT_EXIST_MESSAGE in error_str
-        )
+        return str(CONSTANTS.ORDER_NOT_EXIST_ERROR_CODE) in error_str and CONSTANTS.ORDER_NOT_EXIST_MESSAGE in error_str
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
         """Check if the error indicates an unknown order during cancellation."""
@@ -365,10 +360,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Fallback to string checking for non-JSON responses
         error_str = str(cancelation_exception)
-        return (
-            str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in error_str
-            and CONSTANTS.UNKNOWN_ORDER_MESSAGE in error_str
-        )
+        return str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in error_str and CONSTANTS.UNKNOWN_ORDER_MESSAGE in error_str
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
         return web_utils.build_api_factory(
@@ -418,7 +410,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             for order in self._order_tracker.active_orders.values():
                 if order.trading_pair not in trading_pairs_to_order_map:
                     trading_pairs_to_order_map[order.trading_pair] = {}
-                trading_pairs_to_order_map[order.trading_pair][order.exchange_order_id] = order
+                if order.exchange_order_id:
+                    trading_pairs_to_order_map[order.trading_pair][order.exchange_order_id] = order
 
             trading_pairs = list(trading_pairs_to_order_map.keys())
 
@@ -455,33 +448,81 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     if order_map and order_id in order_map:
                         tracked_order: InFlightOrder = order_map[order_id]
 
+                        # Validate required fields exist (no fallbacks for critical data)
+                        trade_id = fill.get("tradeId")
+                        if not trade_id:
+                            self.logger().error(f"Fill missing tradeId for order {order_id}: {fill}")
+                            continue
+
+                        quantity = fill.get("quantity")
+                        price = fill.get("price")
+                        timestamp = fill.get("timestamp")
+                        side = fill.get("side")
+
+                        if not all([quantity, price, timestamp, side]):
+                            self.logger().error(
+                                f"Fill missing required fields for order {order_id}. "
+                                f"quantity={quantity}, price={price}, timestamp={timestamp}, side={side}",
+                            )
+                            continue
+
+                        # Validate side value
+                        if side not in ["Buy", "Sell"]:
+                            self.logger().error(f"Invalid side value '{side}' for order {order_id}")
+                            continue
+
+                        # Extract fee information inline (following Binance/Bybit pattern)
+                        # Note: fee might be 0 for maker orders, so we don't require it
+                        fee_amount = Decimal(str(fill.get("fee", "0")))
+                        fee_asset = fill.get("feeSymbol", "")
+
+                        # Determine position action based on trade direction and current position
+                        # Backpack uses ONEWAY mode: one position per trading pair
+                        # BUY orders: open LONG or close SHORT
+                        # SELL orders: open SHORT or close LONG
+                        position_key = self._perpetual_trading.position_key(tracked_order.trading_pair)
+                        current_position = self._perpetual_trading.get_position(position_key)
+
+                        if current_position is not None:
+                            # We have an existing position
+                            current_side = current_position.position_side
+                            if tracked_order.trade_type is TradeType.BUY:
+                                # BUY order: opens LONG or closes SHORT
+                                position_action = (PositionAction.OPEN
+                                                   if current_side == PositionSide.LONG
+                                                   else PositionAction.CLOSE)
+                            else:  # SELL
+                                # SELL order: opens SHORT or closes LONG
+                                position_action = (PositionAction.OPEN
+                                                   if current_side == PositionSide.SHORT
+                                                   else PositionAction.CLOSE)
+                        else:
+                            # No existing position - this must be opening a new one
+                            position_action = PositionAction.OPEN
+
+                        fee = TradeFeeBase.new_perpetual_fee(
+                            fee_schema=self.trade_fee_schema(),
+                            position_action=position_action,
+                            percent_token=fee_asset,
+                            flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)] if fee_amount > 0 else [],
+                        )
+
                         # Create trade update from fill data
+                        fill_base_amount = Decimal(str(quantity))
+                        fill_price = Decimal(str(price))
+
                         trade_update = TradeUpdate(
-                            trade_id=str(fill.get("tradeId", "")),
+                            trade_id=str(trade_id),
                             client_order_id=tracked_order.client_order_id,
                             exchange_order_id=order_id,
                             trading_pair=tracked_order.trading_pair,
-                            fee=self._get_fee_from_fill(fill),
-                            fill_base_amount=Decimal(str(fill.get("quantity", 0))),
-                            fill_quote_amount=(
-                                Decimal(str(fill.get("quantity", 0))) * Decimal(str(fill.get("price", 0)))
-                            ),
-                            fill_price=Decimal(str(fill.get("price", 0))),
-                            fill_timestamp=fill.get("timestamp", 0) * 1e-3,  # Convert ms to seconds
+                            fee=fee,
+                            fill_base_amount=fill_base_amount,
+                            fill_quote_amount=fill_base_amount * fill_price,
+                            fill_price=fill_price,
+                            fill_timestamp=timestamp * 1e-3,  # Backpack uses milliseconds
                         )
                         self._order_tracker.process_trade_update(trade_update)
-
-    def _get_fee_from_fill(self, fill_data: dict) -> TradeFeeBase:
-        """Extract fee information from fill data."""
-        fee_amount = Decimal(str(fill_data.get("fee", 0)))
-        fee_asset = fill_data.get("feeSymbol", "")
-
-        return TradeFeeBase.new_perpetual_fee(
-            fee_schema=self.trade_fee_schema(),
-            trade_type=TradeType.BUY if fill_data.get("side") == "Buy" else TradeType.SELL,
-            percent_token=fee_asset,
-            flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)] if fee_amount > 0 else [],
-        )
 
     def _get_fee(
         self,
@@ -489,12 +530,16 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         quote_currency: str,
         order_type: OrderType,
         order_side: TradeType,
-        position_action: PositionAction,
         amount: Decimal,
         price: Decimal = s_decimal_NaN,
         is_maker: bool | None = None,
+        position_action: PositionAction | None = None,
     ) -> TradeFeeBase:
         is_maker = is_maker or (order_type == OrderType.LIMIT_MAKER)
+        # Use default position action if not provided
+        if position_action is None:
+            position_action = PositionAction.OPEN
+
         fee = build_perpetual_trade_fee(
             self.name,
             is_maker,
@@ -823,6 +868,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         **kwargs,
     ) -> tuple[str, float]:
         """Place an order on Backpack perpetual."""
+        _ = kwargs  # Future extension point
         symbol = utils.convert_to_exchange_trading_pair(trading_pair)
 
         # Determine if this is a reduce-only order
@@ -844,15 +890,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         if order_type == OrderType.LIMIT or order_type == OrderType.LIMIT_MAKER:
             order_data["price"] = str(price)
 
-        # Set time in force based on order type (following Binance pattern)
+        # Set time in force based on order type
         if order_type == OrderType.LIMIT:
             order_data["timeInForce"] = "GTC"  # Good Till Cancelled for regular limit orders
         elif order_type == OrderType.LIMIT_MAKER:
-            order_data["timeInForce"] = "GTX"  # Good Till Crossing for post-only orders
-
-        # Add post-only flag for maker orders
-        if order_type == OrderType.LIMIT_MAKER:
-            order_data["postOnly"] = "true"
+            order_data["timeInForce"] = "PostOnly"  # PostOnly for maker-only orders
 
         response = await self._api_post(
             path_url=CONSTANTS.ORDER_URL,
@@ -1003,9 +1045,30 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 # Last resort fallback if trading pair not available
                 fee_asset = "USDC"
 
+        # Determine position action based on current position and trade side
+        position_action = PositionAction.OPEN  # Default if we can't determine
+
+        if trading_pair:
+            position_key = self._perpetual_trading.position_key(trading_pair)
+            current_position = self._perpetual_trading.get_position(position_key)
+            side = fill_data.get("side")  # "Buy" or "Sell"
+
+            if current_position is not None and side:
+                current_side = current_position.position_side
+                if side == "Buy":
+                    # BUY order: opens LONG or closes SHORT
+                    position_action = (PositionAction.OPEN
+                                       if current_side == PositionSide.LONG
+                                       else PositionAction.CLOSE)
+                elif side == "Sell":
+                    # SELL order: opens SHORT or closes LONG
+                    position_action = (PositionAction.OPEN
+                                       if current_side == PositionSide.SHORT
+                                       else PositionAction.CLOSE)
+
         return TradeFeeBase.new_perpetual_fee(
             fee_schema=self.trade_fee_schema(),
-            position_action=PositionAction.OPEN,  # Determine from context if needed
+            position_action=position_action,
             percent_token=fee_asset,
             flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)],
         )
@@ -1589,13 +1652,14 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         Args:
             mode: The position mode to set
-            trading_pair: The trading pair
+            trading_pair: The trading pair (unused - Backpack has account-wide position mode)
 
         Returns:
             Tuple of (success, message)
         """
-        # Backpack may not support position mode changes via API
-        # Check if the exchange supports this feature
+        # Backpack doesn't support position mode changes via API
+        # Position mode is account-wide, not per trading pair
+        _ = trading_pair  # Unused but required by interface
 
         if mode == PositionMode.HEDGE:
             return False, "Backpack perpetuals only support ONE-WAY position mode"

@@ -157,12 +157,12 @@ RATE_LIMITS = [
 ]
 
 # Order type mapping
-# Note: Backpack only supports Limit and Market order types
-# PostOnly is handled via timeInForce parameter, not orderType
+# Note: Backpack supports Limit, Market, and LIMIT_MAKER order types
+# LIMIT_MAKER is implemented using Limit orderType with PostOnly timeInForce
 ORDER_TYPE_MAP = {
     OrderType.LIMIT.name: "Limit",
     OrderType.MARKET.name: "Market",
-    # OrderType.LIMIT_MAKER is not directly supported - use LIMIT with PostOnly timeInForce
+    OrderType.LIMIT_MAKER.name: "Limit",  # LIMIT_MAKER uses Limit with PostOnly flag
 }
 
 # Trade type mapping
