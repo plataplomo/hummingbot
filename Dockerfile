@@ -33,6 +33,7 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
+    g++ \
     libssl-dev \
     ca-certificates \
     nodejs \
@@ -48,6 +49,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     nano \
     neovim \
     procps \
+    sudo \
     && fc-cache -f -v && rm -rf /var/lib/apt/lists/*
 
 # <<< ADDED: Configure locale to support UTF-8 characters for themes
@@ -82,9 +84,11 @@ RUN mkdir -p /app/data/state_backups /app/logs /app/config
 COPY main.py ./
 COPY cyberdelta ./cyberdelta
 
-# Create non-root user
+# Create non-root user with sudo access and /workspaces directory
 RUN useradd -m -u 1000 trader && \
-    chown -R trader:trader /app
+    echo 'trader ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers && \
+    mkdir -p /workspaces && \
+    chown -R trader:trader /app /workspaces
 
 # Copy the .zshrc and .oh-my-zsh config from root to the new user's home directory
 # and set the correct ownership for all app and config files.
