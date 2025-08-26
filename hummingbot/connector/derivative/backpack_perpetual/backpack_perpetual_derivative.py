@@ -85,7 +85,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self._domain = domain
-        self._position_mode: PositionMode | None = None  # Initialize as None, set during connection
+        self._position_mode: PositionMode = CONSTANTS.DEFAULT_POSITION_MODE  # Initialize with default position mode
         self._last_trade_history_timestamp = None
         self._leverage_map: dict[str, int] = {}  # Store leverage per trading pair
         self._market_margin_requirements: dict[str, dict[str, Decimal]] = {}  # Store margin requirements per market
@@ -201,9 +201,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         Returns:
             Current position mode (always ONEWAY for Backpack)
         """
-        if self._position_mode is None:
-            self._position_mode = PositionMode.ONEWAY
-        return self._position_mode  # Type is guaranteed to be PositionMode after assignment
+        return self._position_mode  # Already initialized in __init__
 
     def validate_position_mode(self, mode: PositionMode) -> bool:
         """Validate if the given position mode is supported.

@@ -172,7 +172,6 @@ class BackpackExchange(ExchangePyBase):
         """Whether trading functionality is required."""
         return self._trading_required
 
-    @property
     def supported_order_types(self) -> list[OrderType]:
         """Get supported order types.
         Note: LIMIT_MAKER is supported by converting to LIMIT with PostOnly timeInForce.
@@ -366,21 +365,21 @@ class BackpackExchange(ExchangePyBase):
                 throttler_limit_id=limit_id,
             )
 
-            # Response from execute_request could be dict, str, list, or other types
-            # Since Backpack API can return both dict and list, handle all cases
+            # Response from execute_request is typed as Union[str, Dict[str, Any]]
             if isinstance(response, dict):
                 return response
-            if isinstance(response, str):
-                try:
-                    return json.loads(response)
-                except json.JSONDecodeError:
-                    return {"error": "Invalid response format", "raw": response}
-            elif isinstance(response, list):
-                # For compatibility, wrap list responses in a dict
-                return {"data": response}
-            else:
-                # Fallback - this handles None and other unexpected types
-                return {"error": f"Unexpected response type: {type(response).__name__}"}
+
+            # Must be string according to type hints
+            # Handle string responses by parsing JSON
+            try:
+                parsed = json.loads(response)
+                if isinstance(parsed, dict):
+                    return parsed
+                else:
+                    # Wrap non-dict JSON results
+                    return {"data": parsed}
+            except json.JSONDecodeError:
+                return {"error": "Invalid response format", "raw": response}
 
     # Network check
     async def check_network(self) -> bool:
@@ -522,9 +521,10 @@ class BackpackExchange(ExchangePyBase):
             # Group orders by trading pair for efficient querying
             trading_pairs_to_order_map: dict[str, dict[str, Any]] = {}
             for order in self._order_tracker.active_orders.values():
-                if order.trading_pair not in trading_pairs_to_order_map:
-                    trading_pairs_to_order_map[order.trading_pair] = {}
-                trading_pairs_to_order_map[order.trading_pair][order.exchange_order_id] = order
+                if order.exchange_order_id is not None:
+                    if order.trading_pair not in trading_pairs_to_order_map:
+                        trading_pairs_to_order_map[order.trading_pair] = {}
+                    trading_pairs_to_order_map[order.trading_pair][order.exchange_order_id] = order
 
             trading_pairs = list(trading_pairs_to_order_map.keys())
 

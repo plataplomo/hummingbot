@@ -6,6 +6,9 @@ Based on Backpack API documentation and CyberDelta implementation insights.
 from hummingbot.core.api_throttler.data_types import LinkedLimitWeightPair, RateLimit
 from hummingbot.core.data_type.common import OrderType, TradeType
 
+# Exchange name constant
+EXCHANGE_NAME = "backpack"
+
 # Default domain
 DEFAULT_DOMAIN = "backpack"
 
