@@ -15,7 +15,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSJSONRequest, WSRequest
+from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
 
 
 class BackpackAuth(AuthBase):
@@ -289,37 +289,9 @@ class BackpackAuth(AuthBase):
         Returns:
             Authenticated WebSocket request
         """
-        timestamp = str(self._time_provider())
-        window = str(CONSTANTS.AUTH_WINDOW_MS)
-
-        # Build auth payload for WebSocket using instruction-based format
-        # For WebSocket auth, the instruction is "subscribe"
-        auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
-        signature = self._generate_signature(auth_payload)
-
-        # Add auth data to WebSocket message
-        auth_data = {
-            "method": "auth",  # Backpack uses "auth" not "authenticate"
-            "params": {
-                "apiKey": self.api_key,
-                "timestamp": timestamp,
-                "signature": signature,
-                "window": window,
-            },
-        }
-
-        # Check if it's a WSJSONRequest and update payload
-        if isinstance(request, WSJSONRequest):
-            current_payload = request.payload or {}
-            # Update payload (convert to dict if needed)
-            if hasattr(current_payload, "update"):
-                current_payload = dict(current_payload)
-                current_payload.update(auth_data)
-                request.payload = current_payload
-            else:
-                # If payload is immutable, create new dict
-                request.payload = {**dict(current_payload), **auth_data}
-
+        # For Backpack, authentication is sent as a separate message after connection,
+        # not as part of subscription requests. The connection request itself doesn't need modification.
+        # Authentication happens via get_ws_auth_message() which is sent separately.
         return request
 
     def get_ws_auth_message(self) -> dict[str, Any]:
@@ -336,12 +308,14 @@ class BackpackAuth(AuthBase):
         auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
+        # Per Backpack OpenAPI spec, WebSocket auth uses SUBSCRIBE method with signature array
         return {
-            "method": "auth",  # Backpack uses "auth" not "authenticate"
-            "params": {
-                "apiKey": self.api_key,
-                "timestamp": timestamp,
-                "signature": signature,
-                "window": window,
-            },
+            "method": "SUBSCRIBE",
+            "params": [],  # Streams will be added separately in subscription messages
+            "signature": [
+                self.api_key,    # verifying key (base64 encoded public key)
+                signature,       # signature (base64 encoded)
+                timestamp,       # timestamp in milliseconds
+                window,          # window in milliseconds
+            ],
         }
