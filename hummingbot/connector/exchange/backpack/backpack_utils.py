@@ -6,6 +6,48 @@ from __future__ import annotations
 
 import secrets
 import time
+from decimal import Decimal
+
+from pydantic import ConfigDict, Field, SecretStr
+
+from hummingbot.client.config.config_data_types import BaseConnectorConfigMap
+from hummingbot.core.data_type.trade_fee import TradeFeeSchema
+
+
+CENTRALIZED = True
+EXAMPLE_PAIR = "BTC-USD"
+
+DEFAULT_FEES = TradeFeeSchema(
+    maker_percent_fee_decimal=Decimal("0.0008"),  # 0.08% maker fee
+    taker_percent_fee_decimal=Decimal("0.0010"),  # 0.10% taker fee
+    buy_percent_fee_deducted_from_returns=True,
+)
+
+
+class BackpackConfigMap(BaseConnectorConfigMap):
+    connector: str = "backpack"
+    backpack_api_key: SecretStr = Field(
+        default=...,
+        json_schema_extra={
+            "prompt": lambda cm: "Enter your Backpack API key",
+            "is_secure": True,
+            "is_connect_key": True,
+            "prompt_on_new": True,
+        },
+    )
+    backpack_api_secret: SecretStr = Field(
+        default=...,
+        json_schema_extra={
+            "prompt": lambda cm: "Enter your Backpack API secret",
+            "is_secure": True,
+            "is_connect_key": True,
+            "prompt_on_new": True,
+        },
+    )
+    model_config = ConfigDict(title="backpack")
+
+
+KEYS = BackpackConfigMap.model_construct()
 
 
 def split_trading_pair(trading_pair: str) -> tuple[str, str]:

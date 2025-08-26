@@ -107,13 +107,20 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         snapshot_data = await self._request_order_book_snapshot(trading_pair)
 
+        # Convert Backpack format [["price", "amount"], ...] to numeric format
+        raw_bids = snapshot_data.get("bids", [])
+        raw_asks = snapshot_data.get("asks", [])
+        
+        formatted_bids = [[float(bid[0]), float(bid[1])] for bid in raw_bids if len(bid) >= 2]
+        formatted_asks = [[float(ask[0]), float(ask[1])] for ask in raw_asks if len(ask) >= 2]
+        
         snapshot_message = OrderBookMessage(
             message_type=OrderBookMessageType.SNAPSHOT,
             content={
                 "trading_pair": trading_pair,
-                "update_id": snapshot_data.get("lastUpdateId", 0),
-                "bids": snapshot_data.get("bids", []),
-                "asks": snapshot_data.get("asks", []),
+                "update_id": int(snapshot_data.get("lastUpdateId", 0)),
+                "bids": formatted_bids,
+                "asks": formatted_asks,
             },
             timestamp=time.time(),
         )
@@ -372,3 +379,4 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             Order book data
         """
         return await self._request_order_book_snapshot(trading_pair)
+

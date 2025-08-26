@@ -26,6 +26,7 @@ PING_URL = "api/v1/ping"
 TIME_URL = "api/v1/time"
 EXCHANGE_INFO_URL = "api/v1/markets"  # Fixed from "api/v1/capital"
 TICKER_URL = "api/v1/ticker"
+TICKERS_URL = "api/v1/tickers"
 DEPTH_URL = "api/v1/depth"
 KLINES_URL = "api/v1/klines"
 TRADES_URL = "api/v1/trades"
@@ -37,6 +38,7 @@ OPEN_ORDERS_URL = "api/v1/orders"
 ORDER_HISTORY_URL = "api/v1/orderHistory"
 FILLS_URL = "api/v1/fills"
 BALANCES_URL = "api/v1/capital"  # Backpack uses /capital for balance information
+COLLATERAL_URL = "api/v1/capital/collateral"  # Collateral endpoint for auto-lent funds
 ACCOUNT_URL = "api/v1/account"  # Account info endpoint (may contain fee rates)
 
 # WebSocket channels

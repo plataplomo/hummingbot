@@ -7,13 +7,13 @@ from __future__ import annotations
 import base64
 import json
 import time
-from collections.abc import Callable
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
+from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
 
@@ -28,22 +28,10 @@ class BackpackAuth(AuthBase):
     - X-Window: Request validity window (5000ms)
     """
 
-    def __init__(
-        self,
-        api_key: str,
-        api_secret: str,
-        time_provider: Callable[[], int] | None = None,
-    ):
-        """Initialize Backpack authentication.
-
-        Args:
-            api_key: Backpack API key
-            api_secret: Backpack API secret (base64 encoded private key)
-            time_provider: Function to get current time (for testing)
-        """
+    def __init__(self, api_key: str, api_secret: str, time_provider: TimeSynchronizer):
         self.api_key = api_key
         self.api_secret = api_secret
-        self._time_provider = time_provider or self._get_timestamp
+        self.time_provider = time_provider
 
         # Load and validate the private key
         try:
@@ -58,6 +46,7 @@ class BackpackAuth(AuthBase):
             ("GET", "/api/v1/account"): "accountQuery",
             # Capital and Balance endpoints
             ("GET", "/api/v1/capital"): "balanceQuery",
+            ("GET", "/api/v1/capital/collateral"): "collateralQuery",
             # Order Management endpoints
             ("POST", "/api/v1/order"): "orderExecute",
             ("DELETE", "/api/v1/order"): "orderCancel",
@@ -74,7 +63,9 @@ class BackpackAuth(AuthBase):
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
-        return int(time.time() * 1000)
+        # Get full precision timestamp in milliseconds
+        import time as time_module
+        return int(time_module.time() * 1000)
 
     def _generate_signature(self, payload: str) -> str:
         """Generate Ed25519 signature for the given payload.
@@ -189,7 +180,7 @@ class BackpackAuth(AuthBase):
         Returns:
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
         """
-        timestamp = str(self._time_provider())
+        timestamp = str(self._get_timestamp())
         window = "5000"
 
         # Build signature payload using instruction-based format
@@ -300,7 +291,7 @@ class BackpackAuth(AuthBase):
         Returns:
             Authentication message for WebSocket
         """
-        timestamp = str(self._time_provider())
+        timestamp = str(self._get_timestamp())
         window = str(CONSTANTS.AUTH_WINDOW_MS)
 
         # Build auth payload for WebSocket using instruction-based format

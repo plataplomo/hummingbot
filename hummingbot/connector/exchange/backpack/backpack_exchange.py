@@ -18,7 +18,9 @@ from hummingbot.connector.exchange.backpack.backpack_api_user_stream_data_source
 from hummingbot.connector.exchange.backpack.backpack_auth import BackpackAuth
 from hummingbot.connector.exchange_py_base import ExchangePyBase
 from hummingbot.connector.trading_rule import TradingRule
+from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.data_type.trade_fee import (
@@ -31,6 +33,7 @@ from hummingbot.core.data_type.user_stream_tracker_data_source import UserStream
 from hummingbot.core.utils.async_utils import safe_gather
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
+
 
 if TYPE_CHECKING:
     from hummingbot.client.config.config_helpers import ClientConfigAdapter
@@ -47,9 +50,8 @@ class BackpackExchange(ExchangePyBase):
     - Ed25519 authentication
     """
 
-    # These should be moved to constants file if needed
-    # UPDATE_ORDER_STATUS_MIN_INTERVAL is handled by base class
-    # HEARTBEAT_TIME_INTERVAL should be in constants
+    UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
+    web_utils = web_utils
 
     def __init__(
         self,
@@ -72,10 +74,10 @@ class BackpackExchange(ExchangePyBase):
         """
         self.backpack_api_key = backpack_api_key
         self.backpack_api_secret = backpack_api_secret
-        self._domain = domain
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
-        # Removed unused hardcoded value _last_trades_poll_timestamp
+        self._domain = domain
+        
         super().__init__(client_config_map)
 
     # Static helper methods
@@ -114,7 +116,7 @@ class BackpackExchange(ExchangePyBase):
         return BackpackAuth(
             api_key=self.backpack_api_key,
             api_secret=self.backpack_api_secret,
-            time_provider=lambda: int(self._time_synchronizer.time() * 1000),
+            time_provider=self._time_synchronizer,
         )
 
     @property
@@ -155,12 +157,12 @@ class BackpackExchange(ExchangePyBase):
     @property
     def check_network_request_path(self) -> str:
         """Get network check request path."""
-        return CONSTANTS.PING_URL
+        return CONSTANTS.TIME_URL
 
     @property
     def trading_pairs(self) -> list[str]:
         """Get list of trading pairs."""
-        return self._trading_pairs or []
+        return self._trading_pairs
 
     @property
     def is_cancel_request_in_exchange_synchronous(self) -> bool:
@@ -365,30 +367,36 @@ class BackpackExchange(ExchangePyBase):
                 throttler_limit_id=limit_id,
             )
 
-            # Response from execute_request is typed as Union[str, Dict[str, Any]]
+            # Response from execute_request is Union[str, Dict[str, Any]]
             if isinstance(response, dict):
                 return response
-
-            # Must be string according to type hints
+            
             # Handle string responses by parsing JSON
-            try:
-                parsed = json.loads(response)
-                if isinstance(parsed, dict):
-                    return parsed
+            if isinstance(response, str):
+                try:
+                    parsed = json.loads(response)
+                    if isinstance(parsed, dict):
+                        return parsed
+                    else:
+                        # Wrap non-dict JSON results (list, etc.)
+                        return {"data": parsed}
+                except json.JSONDecodeError as e:
+                    return {"error": f"JSON decode failed: {e!s}", "raw": response}
+            else:
+                # Response is already parsed (list, etc.)
+                if isinstance(response, dict):
+                    return response
                 else:
-                    # Wrap non-dict JSON results
-                    return {"data": parsed}
-            except json.JSONDecodeError:
-                return {"error": "Invalid response format", "raw": response}
+                    return {"data": response}
 
     # Network check
-    async def check_network(self) -> bool:
+    async def check_network(self) -> NetworkStatus:
         """Check network connectivity to Backpack."""
         try:
             await self._api_get(path_url=self.check_network_request_path)
-            return True
+            return NetworkStatus.CONNECTED
         except Exception:
-            return False
+            return NetworkStatus.NOT_CONNECTED
 
     # Trading rules and pairs
     async def _update_trading_rules(self):
@@ -434,45 +442,6 @@ class BackpackExchange(ExchangePyBase):
             self.logger().error(f"Error updating trading rules: {e}")
             self._trading_rules = {}
 
-    async def _get_last_traded_price(self, trading_pair: str) -> float:
-        """Get the last traded price for a trading pair.
-
-        Args:
-            trading_pair: Trading pair in Hummingbot format
-
-        Returns:
-            Last traded price as float
-        """
-        prices = await self._get_last_traded_prices([trading_pair])
-        price = prices[trading_pair]  # Trust that price exists for requested pair
-        return float(price)
-
-    async def _get_last_traded_prices(self, trading_pairs: list[str]) -> dict[str, Decimal]:
-        """Get last traded prices for specified trading pairs."""
-        try:
-            ticker_data = await self._api_get(
-                path_url=CONSTANTS.TICKER_URL,
-                limit_id=CONSTANTS.TICKER_URL,
-            )
-
-            prices = {}
-
-            # Normalize response to list format
-            tickers = web_utils.normalize_response_to_list(ticker_data)
-
-            for ticker in tickers:
-                if isinstance(ticker, dict):
-                    exchange_symbol = ticker.get("symbol")
-                    if exchange_symbol:
-                        trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
-                        if trading_pair in trading_pairs:
-                            prices[trading_pair] = Decimal(ticker.get("price", "0"))
-
-            return prices
-
-        except Exception as e:
-            self.logger().error(f"Error fetching last traded prices: {e}")
-            return {}
 
     def _get_fee(
         self,
@@ -615,24 +584,43 @@ class BackpackExchange(ExchangePyBase):
 
     # Balance management
     async def _update_balances(self):
-        """Update account balances."""
-        try:
-            balances_data = await self._api_get(
-                path_url=CONSTANTS.BALANCES_URL,
-                is_auth_required=True,
-                limit_id=CONSTANTS.BALANCES_URL,
-            )
-
-            for balance_info in balances_data.get("balances", []):
-                asset = balance_info["asset"]
-                free_balance = Decimal(balance_info["free"])
-                total_balance = Decimal(balance_info["total"])
-
-                self._account_available_balances[asset] = free_balance
-                self._account_balances[asset] = total_balance
-
-        except Exception as e:
-            self.logger().error(f"Error updating balances: {e}")
+        """Update account balances using both spot and collateral endpoints."""
+        # Get spot balances
+        spot_data = await self._api_get(
+            path_url=CONSTANTS.BALANCES_URL,
+            is_auth_required=True,
+            limit_id=CONSTANTS.BALANCES_URL,
+        )
+        
+        # Get collateral balances
+        collateral_data = await self._api_get(
+            path_url=CONSTANTS.COLLATERAL_URL,
+            is_auth_required=True,
+            limit_id=CONSTANTS.BALANCES_URL,
+        )
+        
+        # Process spot balances
+        for asset, balance_info in spot_data.items():
+            available = Decimal(balance_info["available"])
+            locked = Decimal(balance_info["locked"])
+            staked = Decimal(balance_info["staked"])
+            
+            self._account_available_balances[asset] = available
+            self._account_balances[asset] = available + locked + staked
+        
+        # Add collateral balances (auto-lent funds are fully available for trading)
+        for asset_info in collateral_data["collateral"]:
+            symbol = asset_info["symbol"]
+            total_quantity = Decimal(asset_info["totalQuantity"])
+            # Auto-lent funds are available for trading despite showing availableQuantity=0
+            open_order_quantity = Decimal(asset_info["openOrderQuantity"])
+            collateral_available = total_quantity - open_order_quantity
+            
+            existing_total = self._account_balances[symbol]
+            existing_available = self._account_available_balances[symbol]
+            
+            self._account_balances[symbol] = existing_total + total_quantity
+            self._account_available_balances[symbol] = existing_available + collateral_available
 
     # Order management
     async def _place_order(
@@ -882,15 +870,14 @@ class BackpackExchange(ExchangePyBase):
                 limit_id=CONSTANTS.BALANCES_URL,  # Use balance rate limit
             )
 
-            # Look for fee information in the response
-            # The actual structure depends on Backpack's API response
-            # This is a placeholder - adjust based on actual API response
-            maker_fee = account_info.get("makerFeeRate")
-            taker_fee = account_info.get("takerFeeRate")
+            # Extract fee information from actual Backpack API response
+            spot_maker_fee = account_info.get("spotMakerFee")  # Returns as integer (e.g., 8 = 0.08%)
+            spot_taker_fee = account_info.get("spotTakerFee")  # Returns as integer (e.g., 10 = 0.10%)
 
-            if maker_fee is not None and taker_fee is not None:
-                self._maker_fee_percentage = Decimal(str(maker_fee))
-                self._taker_fee_percentage = Decimal(str(taker_fee))
+            if spot_maker_fee is not None and spot_taker_fee is not None:
+                # Convert from integer percentage to decimal (8 -> 0.0008)
+                self._maker_fee_percentage = Decimal(str(spot_maker_fee)) / Decimal(10000)
+                self._taker_fee_percentage = Decimal(str(spot_taker_fee)) / Decimal(10000)
             else:
                 # If fee rates not available from API, log warning
                 # The base class should have default fees set
@@ -902,30 +889,46 @@ class BackpackExchange(ExchangePyBase):
             self.logger().error(f"Error updating trading fees: {e}")
             # Continue with existing fee configuration if update fails
 
-    async def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any]):
-        """Initialize trading pair symbol mappings from exchange info.
-
-        This method is required by ExchangePyBase to map between Hummingbot's
-        trading pair format and the exchange's native symbol format.
-
-        Args:
-            exchange_info: Exchange market information containing symbol details
-        """
+    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any]):
+        """Initialize trading pair symbol mappings from exchange info."""
         mapping: bidict[str, str] = bidict()
 
-        # Get symbols from exchange info - Backpack format
-        symbols = exchange_info.get("data", exchange_info.get("symbols", []))
-
-        for symbol_info in symbols:
-            if isinstance(symbol_info, dict):
-                exchange_symbol = symbol_info.get("symbol")
-                if exchange_symbol:
-                    # Convert exchange symbol to Hummingbot format
-                    trading_pair = await self.trading_pair_associated_to_exchange_symbol(exchange_symbol)
-                    if trading_pair:
-                        mapping[exchange_symbol] = trading_pair
+        # Handle wrapped response from _api_request
+        symbols_list = exchange_info.get("data", [])
+        
+        for symbol_info in symbols_list:
+            if symbol_info["marketType"] == "SPOT":
+                exchange_symbol = symbol_info["symbol"]
+                base_asset = symbol_info["baseSymbol"]
+                quote_asset = symbol_info["quoteSymbol"]
+                
+                trading_pair = combine_to_hb_trading_pair(base=base_asset, quote=quote_asset)
+                mapping[exchange_symbol] = trading_pair
 
         self._set_trading_pair_symbol_map(mapping)
+
+    async def _get_last_traded_price(self, trading_pair: str) -> float:
+        """Get the last traded price for a trading pair."""
+        exchange_symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
+        
+        resp_json = await self._api_get(
+            path_url=CONSTANTS.TICKER_URL,
+            params={"symbol": exchange_symbol}
+        )
+        
+        # Backpack ticker response has 'lastPrice' field
+        return float(resp_json["lastPrice"])
+
+    async def get_last_traded_prices(self, trading_pairs: list[str]) -> dict[str, float]:
+        """Get last traded prices for multiple trading pairs."""
+        prices = {}
+        for trading_pair in trading_pairs:
+            try:
+                price = await self._get_last_traded_price(trading_pair)
+                prices[trading_pair] = price
+            except Exception as e:
+                self.logger().error(f"Error fetching last price for {trading_pair}: {e}")
+        return prices
 
     async def _format_trading_rules(self, exchange_info_dict: dict[str, Any]) -> list[TradingRule]:
         """Format trading rules from exchange info.
@@ -936,6 +939,8 @@ class BackpackExchange(ExchangePyBase):
         Returns:
             List of TradingRule objects
         """
+        # Update trading fees from account endpoint
+        await self._update_trading_fees()
         trading_rules = []
 
         for symbol_info in exchange_info_dict.get("data", []):

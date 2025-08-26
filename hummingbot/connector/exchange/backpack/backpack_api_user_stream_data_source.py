@@ -172,7 +172,11 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
                         self._last_recv_time = time.time()
                         if ws_response is None or ws_response.data is None:
                             continue
-                        data = json.loads(ws_response.data)
+                        # Handle both string and dict responses
+                        if isinstance(ws_response.data, dict):
+                            data = ws_response.data
+                        else:
+                            data = json.loads(ws_response.data)
 
                         # Process different message types
                         await self._process_user_stream_message(data, output)
